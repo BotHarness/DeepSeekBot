@@ -4039,7 +4039,8 @@ export const zh = {
   'devices.lan.title': '同一局域网',
   'devices.lan.notice': '允许手机通过当前网络加密连接。新手机需要你批准。',
   'devices.lan.enabled': '已开启。手机接入同一网络后，可使用下方配对码或链接。',
-  'devices.lan.network': '电脑可接网线，手机连同一路由器的 Wi-Fi。若连不上，请检查访客网络隔离和防火墙。',
+  'devices.lan.network':
+    '电脑可接网线，手机连同一路由器的 Wi-Fi。若连不上，请检查访客网络隔离和防火墙。',
   'devices.lan.noAddress': '已开启，但没有可用的局域网地址。请连接网络后重试。',
   'devices.lan.failed': '局域网连接未能开启，请检查网络后重试。',
   'devices.lan.enable': '开启局域网连接',
@@ -8479,9 +8480,11 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'remoteHosts.error.this-host': 'That link is for this host.',
   'devices.connection.title': 'Connect your phone',
   'devices.connection.prepare': 'Enable local access or set up Tailscale first.',
-  'devices.connection.available': 'This code includes: {routes}. Your phone must join the corresponding network.',
+  'devices.connection.available':
+    'This code includes: {routes}. Your phone must join the corresponding network.',
   'devices.tailscale.title': 'Through Tailscale',
-  'devices.tailscale.notice': 'For a phone and computer on different networks. Both must join the same Tailscale network.',
+  'devices.tailscale.notice':
+    'For a phone and computer on different networks. Both must join the same Tailscale network.',
   'devices.tailscale.ready': 'Computer address published. Keep Tailscale connected on your phone.',
   'devices.tailscale.setup': 'Show connection steps',
   'devices.tailscale.hide': 'Hide connection steps',
@@ -8490,8 +8493,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'Allow encrypted phone connections on this network. You approve each new phone.',
   'devices.lan.enabled':
     'On. Join the same network on your phone, then use the pairing code or link below.',
-  'devices.lan.network': 'Your computer can use Ethernet while your phone uses the router’s Wi-Fi. If connection fails, check guest-network isolation and the firewall.',
-  'devices.lan.noAddress': 'On, but no local address is available. Connect to a network and try again.',
+  'devices.lan.network':
+    'Your computer can use Ethernet while your phone uses the router’s Wi-Fi. If connection fails, check guest-network isolation and the firewall.',
+  'devices.lan.noAddress':
+    'On, but no local address is available. Connect to a network and try again.',
   'devices.lan.failed': 'Could not enable local access. Check the network and try again.',
   'devices.lan.enable': 'Enable local access',
   'devices.lan.disable': 'Disable local access',
@@ -8514,7 +8519,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
     'No phone address is available. Go back to enable local access or set up Tailscale, then get a new code.',
   'devices.route.stepsLabel': 'Set up Tailscale access',
   'devices.route.watching': 'Checking live; each step ticks off on its own',
-  'devices.route.ready': 'The computer’s Tailscale address is published. Join the same Tailscale network on your phone to try pairing.',
+  'devices.route.ready':
+    'The computer’s Tailscale address is published. Join the same Tailscale network on your phone to try pairing.',
   'devices.route.state.done': 'Done',
   'devices.route.state.current': 'To do',
   'devices.route.state.pending': 'After the previous step',

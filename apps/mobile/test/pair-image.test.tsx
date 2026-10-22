@@ -9,7 +9,12 @@ vi.mock('../src/ui/primitives/keyboard-form', async () => ({
   KeyboardFormScroll: (await import('./react-native-shim')).ScrollView,
 }));
 const native = vi.hoisted(() => ({ pick: vi.fn(), scan: vi.fn() }));
-const navigation = vi.hoisted((): { focus?: () => () => void; blur?: () => void } => ({}));
+const navigation = vi.hoisted(
+  (): {
+    focus: (() => () => void) | undefined;
+    blur: (() => void) | undefined;
+  } => ({ focus: undefined, blur: undefined }),
+);
 vi.mock('expo-camera', () => ({
   Camera: { scanFromURLAsync: native.scan },
   CameraView: () => null,
@@ -19,7 +24,9 @@ vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: native.pick }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useLocalSearchParams: () => ({}),
-  useFocusEffect: (focus: () => () => void) => { navigation.focus = focus; },
+  useFocusEffect: (focus: () => () => void) => {
+    navigation.focus = focus;
+  },
 }));
 const pairing = vi.hoisted(() => ({
   busy: false,
@@ -68,8 +75,12 @@ async function leave() {
 
 async function choose() {
   await act(async () => root!.render(<PairScreen />));
-  await act(async () => { navigation.blur = navigation.focus!(); });
-  await act(async () => host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click());
+  await act(async () => {
+    navigation.blur = navigation.focus!();
+  });
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click(),
+  );
 }
 
 it('pairs from a local QR image without camera permission', async () => {
@@ -90,15 +101,20 @@ it('cancels the picker without starting pairing or showing an error', async () =
 it.each([
   [[], 'no-code'],
   [[{ data: 'one' }, { data: 'two' }], 'multiple-codes'],
-] as const)('explains unusable image contents and allows another choice (%s)', async (codes, error) => {
-  native.scan.mockResolvedValue(codes);
-  await choose();
-  expect(host.querySelector('[role="alert"]')?.textContent).toBe(t.pairImage[error]);
-  expect(pairing.pair).not.toHaveBeenCalled();
-  native.scan.mockResolvedValue([{ data: 'deepseekbot://pair?p=retry' }]);
-  await act(async () => host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click());
-  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=retry', 'image');
-});
+] as const)(
+  'explains unusable image contents and allows another choice (%s)',
+  async (codes, error) => {
+    native.scan.mockResolvedValue(codes);
+    await choose();
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe(t.pairImage[error]);
+    expect(pairing.pair).not.toHaveBeenCalled();
+    native.scan.mockResolvedValue([{ data: 'deepseekbot://pair?p=retry' }]);
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click(),
+    );
+    expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=retry', 'image');
+  },
+);
 
 it('deduplicates repeated detections of the same code', async () => {
   native.scan.mockResolvedValue([{ data: ' same ' }, { data: 'same' }]);
@@ -115,7 +131,11 @@ it.each(['pick', 'scan'] as const)('shows a recoverable native %s failure', asyn
 
 it('ignores another tap while reading and ignores the result after leaving', async () => {
   let finish!: (codes: { data: string }[]) => void;
-  native.scan.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  native.scan.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
   await choose();
   const button = host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!;
   expect(button.disabled).toBe(true);
@@ -129,7 +149,11 @@ it('ignores another tap while reading and ignores the result after leaving', asy
 
 it('does not decode a picker result returned after leaving', async () => {
   let finish!: (value: unknown) => void;
-  native.pick.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+  native.pick.mockReturnValue(
+    new Promise((resolve) => {
+      finish = resolve;
+    }),
+  );
   await choose();
   await leave();
   await act(async () => finish({ canceled: false, assets: [{ uri: 'file:///late.png' }] }));

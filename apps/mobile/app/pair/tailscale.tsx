@@ -27,7 +27,8 @@ export default function PairTailscaleScreen() {
   const [link, setLink] = useState('');
   const [focused, setFocused] = useState(false);
   const [readingImage, setReadingImage] = useState(false);
-  const [imageError, setImageError] = useState<Extract<PairingImageResult, { kind: 'error' }>['code']>();
+  const [imageError, setImageError] =
+    useState<Extract<PairingImageResult, { kind: 'error' }>['code']>();
   const imageOperation = useRef<AbortController | undefined>(undefined);
   const active = useRef(false);
   const submitting = useRef(false);
@@ -128,7 +129,8 @@ export default function PairTailscaleScreen() {
           }}
         >
           {permission?.granted ? (
-            focused && !readingImage && (
+            focused &&
+            !readingImage && (
               <CameraView
                 style={{ width: '100%', height: '100%' }}
                 facing="back"

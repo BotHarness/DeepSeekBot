@@ -460,7 +460,8 @@ const en = {
     choose: 'Choose QR image',
     reading: 'Reading image…',
     'no-code': 'No QR code found. Choose a clear image of the code.',
-    'multiple-codes': 'This image has more than one code. Choose an image with just the pairing code.',
+    'multiple-codes':
+      'This image has more than one code. Choose an image with just the pairing code.',
     'read-failed': 'Could not read this image. Try another image.',
   },
   pairGuide: {
