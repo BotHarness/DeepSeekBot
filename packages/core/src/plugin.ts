@@ -214,7 +214,7 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
-import { ChannelUserQuestions } from './channels/user-questions.js';
+import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
@@ -1726,11 +1726,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     () => core.companions.attachQuestions(userQuestions),
     'botharness: companion question observation',
   );
-  ctx.on(
-    'user-questions/request',
-    async (request, next) => (await userQuestions.ask(request)) ?? next(),
-    { global: true },
-  );
+  registerChannelUserQuestions(ctx, userQuestions);
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
   ctx.effect(() => () => toolApproval.close(), 'botharness: Channel tool approvals');

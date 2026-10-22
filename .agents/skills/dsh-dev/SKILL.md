@@ -432,3 +432,7 @@ pinned Host; this adapter is not encryption or an upstream DSH API extension.
 ### Device gateway forwarding and Fetch Metadata
 
 The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cross-site` even when a Host-held cookie is valid. After the application-defined device gateway has checked the external Origin, refused ambient cookies and admitted the device credential, its own loopback request must discard the browser’s `Sec-Fetch-*` metadata along with Origin/Referer. These headers describe the external browser hop, not the gateway’s authenticated internal hop. Preserve all external admission checks and native DSH checks; do not relax either to repair remote tabs. A real two-Host desktop browser reproduced HTTP403 with the cross-site header and HTTP200 when only that metadata was omitted (#2584).
+
+### PersonaBot native question answerer precedence (#2590)
+
+The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis waterfall. A prior native Client answerer can wait without calling `next`, preventing a later application-defined Channel answerer from seeing the request. Register the existing Channel question owner with `prepend: true`, as Channel approvals already do. Retain its exact live-Agent and Session Ownership checks; unowned requests must still call `next`. A real two-Host browser must show the card in both the owning conversation and remote Activity, accept an answer and resume the same native tool call. A pending tool trace alone does not prove a Channel card was created.

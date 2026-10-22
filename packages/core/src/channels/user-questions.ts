@@ -1,3 +1,4 @@
+import type { Context } from '@deepseek-ai/cordis';
 import { randomUUID } from 'node:crypto';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -591,4 +592,18 @@ export class ChannelUserQuestions {
     );
     pending.reject(new Error('DSH user question was cancelled'));
   }
+}
+
+export function registerChannelUserQuestions(
+  ctx: Context,
+  questions: Pick<ChannelUserQuestions, 'ask'>,
+): void {
+  ctx.on(
+    'user-questions/request',
+    async (request, next) => (await questions.ask(request)) ?? next(),
+    {
+      global: true,
+      prepend: true,
+    },
+  );
 }
