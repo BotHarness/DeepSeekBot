@@ -184,6 +184,10 @@ history immutable and describe a restoration, withdrawal, or fix in the next ver
 
 ## Preparing a GitHub Release draft
 
+Retain accepted screenshots and recordings using [local QA evidence and release archives](qa-evidence.md).
+The archive binds separate macOS/iOS and Windows/Android results to one acceptance SHA and each
+artifact's build identity; only reviewed public derivatives are candidates for release attachments.
+
 After archiving `Unreleased` under a dated version, generate a review-only payload from that exact
 canonical release section:
 
