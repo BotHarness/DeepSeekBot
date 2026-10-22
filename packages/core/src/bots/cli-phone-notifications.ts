@@ -78,8 +78,7 @@ export async function runPhoneNotifications(
     client = await connect(port, values['target-id'], values['device-name']);
     evaluationRequested = true;
     const result = await client.evaluateAsync(phoneNotificationExpression(preferences));
-    if (typeof result !== 'object' || result === null)
-      throw new Error('INSPECTOR_RESULT_REQUIRED');
+    if (typeof result !== 'object' || result === null) throw new Error('INSPECTOR_RESULT_REQUIRED');
     const value = result as Record<string, unknown>;
     const choice = parseNotificationPreferences(value.preferences);
     if (

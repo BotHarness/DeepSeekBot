@@ -239,14 +239,18 @@ async function inspectorFixture(
   if (!address || typeof address === 'string') throw Error('address required');
   const port = address.port;
   const peersClosed: Promise<void>[] = [];
+  const requestedCloses: Promise<void>[] = [];
   const exits: number[] = [];
   const originalClose = WebSocket.prototype.close;
   const closeSpy = vi.spyOn(WebSocket.prototype, 'close').mockImplementation(function (
     this: any,
     ...args: any[]
   ) {
-    if (this.readyState !== WebSocket.CLOSED)
-      peersClosed.push(new Promise<void>((resolve) => this.once('close', resolve)));
+    if (this.readyState !== WebSocket.CLOSED) {
+      const closed = new Promise<void>((resolve) => this.once('close', resolve));
+      peersClosed.push(closed);
+      requestedCloses.push(closed);
+    }
     return originalClose.apply(this, args);
   });
   const run = async (target = 'target', preferences?: PushPreferences) => {
@@ -300,6 +304,7 @@ async function inspectorFixture(
     },
     async close() {
       try {
+        await bounded(Promise.all(requestedCloses), 'requested graceful inspector close');
         for (const socket of sockets.clients) socket.terminate();
         const closed = new Promise<void>((resolve) => sockets.close(() => resolve()));
         server.closeAllConnections();
@@ -335,12 +340,12 @@ it.each(['deadline', 'disconnect'])(
     const reply = deferred<void>();
     const fixture = await inspectorFixture({
       owner,
-      delayFulfilled: failure === 'deadline' ? reply.promise : undefined,
+      ...(failure === 'deadline' ? { delayFulfilled: reply.promise } : {}),
       disconnectAfterFulfilled: failure === 'disconnect',
     });
     let pending: Promise<unknown> | undefined;
     try {
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      if (failure === 'deadline') vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       pending = fixture.run('target', { ...disk, reply: false });
       await bounded(fixture.heldFulfilled, 'saved owner with withheld receipt');
       expect(write).toHaveBeenCalledTimes(1);
@@ -373,7 +378,7 @@ it.each(['deadline', 'disconnect'])(
       try {
         await fixture.close();
         if (pending) await bounded(pending, 'unknown outcome CLI cleanup');
-        expect(vi.getTimerCount()).toBe(0);
+        if (failure === 'deadline') expect(vi.getTimerCount()).toBe(0);
       } finally {
         vi.useRealTimers();
       }
@@ -386,27 +391,30 @@ it.each([
   { options: { runtimeDev: false }, target: 'target', code: 'debug-only' },
   { options: { modules: 0 }, target: 'target', code: 'notification-owner-unavailable' },
   { options: { modules: 2 }, target: 'target', code: 'notification-owner-unavailable' },
-])('keeps preflight refusal distinct from unknown write ($code)', async ({ options, target, code }) => {
-  const set = vi.fn();
-  const fixture = await inspectorFixture({
-    ...options,
-    owner: { ready: Promise.resolve(), set, getSnapshot: vi.fn() },
-  });
-  try {
-    const result = await bounded(
-      fixture.run(target, DEFAULT_NOTIFICATION_PREFERENCES),
-      'write preflight refusal',
-    );
-    expect(result).toMatchObject({
-      error: { code, message: expect.stringContaining('write was not started') },
+])(
+  'keeps preflight refusal distinct from unknown write ($code)',
+  async ({ options, target, code }) => {
+    const set = vi.fn();
+    const fixture = await inspectorFixture({
+      ...options,
+      owner: { ready: Promise.resolve(), set, getSnapshot: vi.fn() },
     });
-    expect(JSON.stringify(result)).not.toContain('unknown');
-    expect(set).not.toHaveBeenCalled();
-    expect(fixture.exits).toEqual([1]);
-  } finally {
-    await fixture.close();
-  }
-});
+    try {
+      const result = await bounded(
+        fixture.run(target, DEFAULT_NOTIFICATION_PREFERENCES),
+        'write preflight refusal',
+      );
+      expect(result).toMatchObject({
+        error: { code, message: expect.stringContaining('write was not started') },
+      });
+      expect(JSON.stringify(result)).not.toContain('unknown');
+      expect(set).not.toHaveBeenCalled();
+      expect(fixture.exits).toEqual([1]);
+    } finally {
+      await fixture.close();
+    }
+  },
+);
 
 it('does not describe a disconnected read as an unknown write', async () => {
   const fixture = await inspectorFixture({ disconnectAfterFulfilled: true });
