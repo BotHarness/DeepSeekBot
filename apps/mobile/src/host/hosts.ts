@@ -1,4 +1,11 @@
+export interface HostEncryption {
+  protocol: 'connect-noise-xk-v1';
+  hostKey: string;
+  deviceKey: string;
+}
+
 export interface SavedHost {
+  encryption?: HostEncryption;
   hostId: string;
   hostName: string;
   routes: string[];
@@ -24,6 +31,9 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
     typeof value['deviceId'] === 'string' &&
     typeof value['credential'] === 'string'
     ? {
+        ...(parseEncryption(value['encryption']) === undefined
+          ? {}
+          : { encryption: parseEncryption(value['encryption'])! }),
         hostId: value['hostId'],
         hostName: value['hostName'],
         routes: value['routes'] as string[],
@@ -66,6 +76,10 @@ export function currentHost(state: SavedHosts): SavedHost | undefined {
 }
 
 export function withHost(state: SavedHosts, host: SavedHost): SavedHosts {
+  const previous = state.hosts.find((entry) => entry.hostId === host.hostId);
+  if (previous?.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
+    throw new Error('host-key-mismatch');
+
   return {
     hosts: [...state.hosts.filter((entry) => entry.hostId !== host.hostId), host],
     current: host.hostId,
@@ -84,5 +98,16 @@ export function withoutHost(state: SavedHosts, hostId: string): SavedHosts {
 export function selectHost(state: SavedHosts, hostId: string): SavedHosts | undefined {
   return state.hosts.some((host) => host.hostId === hostId)
     ? { hosts: state.hosts, current: hostId }
+    : undefined;
+}
+
+export function parseEncryption(input: unknown): HostEncryption | undefined {
+  const value = record(input);
+  return value['protocol'] === 'connect-noise-xk-v1' &&
+    typeof value['hostKey'] === 'string' &&
+    /^[0-9a-f]{64}$/u.test(value['hostKey']) &&
+    typeof value['deviceKey'] === 'string' &&
+    /^[0-9a-f]{64}$/u.test(value['deviceKey'])
+    ? { protocol: 'connect-noise-xk-v1', hostKey: value['hostKey'], deviceKey: value['deviceKey'] }
     : undefined;
 }

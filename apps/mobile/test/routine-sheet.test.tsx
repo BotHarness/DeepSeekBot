@@ -99,7 +99,6 @@ describe('Routine sheet', () => {
         routines={fakeRoutines()}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
         onEdit={onEdit}
       />,
     );
@@ -122,7 +121,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={onClose}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await type(view, t.routineTitleLabel, 'Evening digest');
@@ -144,7 +142,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={onChanged}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     const text = view.textContent ?? '';
@@ -172,7 +169,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={onClose}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routinePause)!.click());
@@ -203,7 +199,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routineRunNow)!.click());
@@ -221,15 +216,13 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routineRunNow)!.click());
     expect(view.textContent).toContain(`${t.routineFailed} Bot Schedule digest is inactive`);
   });
 
-  it('sends a schedule the phone cannot edit to the full client', async () => {
-    const onOpenFullClient = vi.fn();
+  it('keeps unsupported schedules read only without opening a full client', async () => {
     const view = await render(
       <RoutineSheet
         botName="Ada"
@@ -243,12 +236,10 @@ describe('Routine sheet', () => {
         routines={fakeRoutines()}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={onOpenFullClient}
       />,
     );
     expect(view.textContent).toContain(t.routineAdvanced);
-    await act(async () => button(view, t.routineEdit)!.click());
-    expect(onOpenFullClient).toHaveBeenCalled();
+    expect(button(view, t.routineEdit)).toBeNull();
   });
 
   it('creates a weekly routine once the form is complete, previewing the next runs', async () => {
@@ -263,7 +254,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={onChanged}
         onClose={onClose}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => vi.runAllTimers());
@@ -306,7 +296,6 @@ describe('Routine sheet', () => {
         routines={routines}
         onChanged={vi.fn()}
         onClose={vi.fn()}
-        onOpenFullClient={vi.fn()}
       />,
     );
     await act(async () => button(view, t.routineEdit)!.click());

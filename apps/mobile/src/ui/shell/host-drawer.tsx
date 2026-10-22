@@ -79,7 +79,12 @@ export const hostDrawer = createHostDrawer({
 });
 
 const glances = createHostGlances((host) =>
-  createHostClient({ routes: host.routes, credential: host.credential, carrier: nativeCarrier() }),
+  createHostClient({
+    ...host,
+    routes: host.routes,
+    credential: host.credential,
+    carrier: nativeCarrier(),
+  }),
 );
 
 const progress = makeMutable(0);

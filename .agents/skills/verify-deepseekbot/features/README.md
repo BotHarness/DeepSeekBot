@@ -2,7 +2,10 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Bot Marketplace cards, filters, remembered sorting and upload/import | no | `verify-app` Bot mode path | [marketplace.md](marketplace.md) |
+| Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | Browser Remote Host pairing, icon strip, Host Feed and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
+
 | VRM companion Panel | yes for speaking | `scripts/e2e-vrm-companion.mjs` | [vrm-companion.md](vrm-companion.md) |
 | Desktop whole-window zoom (controlled S1 / Windows candidate) | no | `scripts/e2e-desktop-zoom-launch.mjs`, `scripts/e2e-desktop-zoom-windows.mjs`, `scripts/e2e-dock-zoom.mjs`, `scripts/e2e-workspace-chrome.mjs` | [desktop-window-zoom.md](desktop-window-zoom.md) |
 | Global search: Alt/Option+K, settings results and pinyin matching | no | `verify-app` Bot mode path | [global-search.md](global-search.md) |
@@ -31,7 +34,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Native mobile message composer | no (except Bot reply) | none (shared-device native path) | [phone-composer.md](phone-composer.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
-| Android sheets, shell and chat presentation | no | `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
+| Android launch, sheets, shell and chat presentation | no | Launch: queued native check; interactions: `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
 | Phone notifications and paired computers (iOS Simulator)                                           | for the approval step      | `scripts/e2e-mobile-sim.mjs` (Mac)                                                                   | [phone-notifications.md](phone-notifications.md)     |
 | Bot Browser on the phone                                                                           | no                         | `scripts/e2e-mobile-browser-web.mjs`                                                                 | [phone-browser.md](phone-browser.md)                 |
 | Token usage on the phone                                                                           | yes                        | `scripts/e2e-mobile-usage-web.mjs`                                                                   | [phone-usage.md](phone-usage.md)                     |

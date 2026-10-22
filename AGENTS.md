@@ -139,6 +139,8 @@ Single-context layout: root `CONTEXT.md` + `docs/adr/` (extended lazily by the d
 
 ### UI guidelines
 
+Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): communicate through layout, icons and interaction; keep descriptive prose secondary. Apply its review gate alongside the platform-specific rules.
+
 Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
 
 ### UI copy

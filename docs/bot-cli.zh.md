@@ -8,7 +8,9 @@
 
 `deepseekbot browser-notification-clients` 列出在线 Client。`deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` 读取该浏览器的本地选择和 revision。写入时加 `--expected-revision <revision> --patch-stdin`，从标准输入传入 `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`。命令使用提供页面的 Host 的现有认证及 Client 定向控制通道；Host 不保存浏览器选择或远程凭据。版本过期或远程不存在时明确拒绝。开启前须已在浏览器授予通知权限，否则返回 `notification-permission-required`；CLI 不弹出系统授权。页面关闭后，控制目标和提醒都会结束。 开启原先未启用的类型时，先通过共享 Inbox 读完全部通知分页，完整基线就绪前保持旧选择；写入成功才是启用边界，此前条目静默，此后的群回复和 DM 可提醒。部分页失败返回 `notification-baseline-unavailable`，UI 基线的十秒期限返回 `notification-baseline-timeout`。CLI 写入还将既有 appearance relay 的请求期限（当前八秒）和取消信号传到同一 owner，并在落盘前再次检查；relay 超时或卸载后，迟到分页不能写入，已过期的通知命令不发送迟到回执。切换 Host、关闭设置、移除配对、权限丢失或释放页面会取消待完成的启用（`notification-activation-cancelled`），迟到结果不能落盘。拒绝后显式重试；页面仍订阅时，正常共享 Host Feed 观察继续。
 
-`deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均明确拒绝。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
+`deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均返回明确错误码；写入是否已开始按下段区分。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
+
+手机命令通过 inspector 显式等待 JavaScript Promise 完成，不依赖 Hermes 执行 CDP 的 `awaitPromise`。连接后，启动操作、轮询和取结果共用一个 20 秒期限。每次请求使用唯一的临时结果槽，取走结果或取消时删除；debugger 断开后由运行时的 20 秒到期清理兜底，迟到完成不能重建槽。运行时到期清理需要应用的 JavaScript 事件循环运行；应用暂停时，定时器恢复后执行清理。只有通过结构校验的手机 owner 结果才算成功，Promise 内部字段或不合规响应返回 `inspector-result-required`。传输层无法撤回 owner 已开始的写入，因此超时仍表示写入结果未知，不能据此认定未改变；重试前先读回。命令自身也会区分这些结果：可能已经发出的写入若无法取得结果，会保留底层错误码，并明确提示写入结果未知、先不带 `--preferences-stdin` 读回；只读失败和确定发生在写入前的拒绝不使用该提示。
 
 `deepseekbot inbox --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
 
@@ -644,6 +646,8 @@ deepseekbot group-activity <group-channel>
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 
+客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
+
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
 ```bash
@@ -1216,3 +1220,7 @@ deepseekbot appearance-reset --client-id <id> --expected-revision <appearance-re
 `tool-approval-decide ... --outcome allowed-always-tool` 对应网页的“始终允许”：批准本次并记住此 Bot、角色及当前授权范围中的当前工具。参数变化仍可匹配；其他工具和变化后的范围不能匹配。`tool-approval-rules` 返回 `tool` 类型；`tool-approval-rule-revoke --confirm` 撤销后恢复询问。旧 exact／broad／Secret 规则不改义。权限与策略变更不能记住；不可用的“始终允许”由 Host 返回带代码的拒绝。Secret CLI 仍只记住程序、账号及环境变量名；MCP 服务记忆保留独立检查。
 
 Full Access 保留原生 `ask`，使识别出的权限变更可以到达 Human；明确范围内的普通请求自动回答，不再逐次弹卡。不会扩大选定 mode／scope 或已有 Assignment 权限。原生 `never` 仍表示直接拒绝，没有绕过它。目录授权仍使用 `grant-request-approve --confirm`。
+
+Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key <receipt> <public-key> --confirm` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
+
+手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。

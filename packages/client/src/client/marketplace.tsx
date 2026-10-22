@@ -273,7 +273,7 @@ function MarketplaceRow({
   );
 }
 
-function MarketplaceBanner({
+export function MarketplaceBanner({
   bot,
   className,
 }: {
@@ -485,12 +485,22 @@ export interface MarketplaceBrowse {
   prepend(bot: MarketplaceEntry): void;
 }
 
+const SORT_STORAGE_KEY = 'botharness.marketplace.sort';
+
+function preferredSort(): MarketplaceSort {
+  try {
+    const saved = globalThis.localStorage?.getItem(SORT_STORAGE_KEY);
+    if (saved === 'stars' || saved === 'updated' || saved === 'created') return saved;
+  } catch {}
+  return 'stars';
+}
+
 export function useMarketplaceBrowse(
   actions: BridgeActions,
   lang: MarketplaceLanguage,
 ): MarketplaceBrowse {
   const [list, setList] = useState<ListState>({ status: 'loading' });
-  const [filters, setFilters] = useState<Filters>({ sort: 'updated', query: '' });
+  const [filters, setFilters] = useState<Filters>(() => ({ sort: preferredSort(), query: '' }));
   const [searchText, setSearchText] = useState('');
   const [topics, setTopics] = useState<MarketplaceTopic[]>([]);
   const generation = useRef(0);
@@ -536,7 +546,12 @@ export function useMarketplaceBrowse(
     mount,
     setSearchText,
     search: () => load({ ...latestFilters.current, query: searchText.trim() }),
-    chooseSort: (sort) => load({ ...latestFilters.current, sort }),
+    chooseSort: (sort) => {
+      try {
+        globalThis.localStorage?.setItem(SORT_STORAGE_KEY, sort);
+      } catch {}
+      load({ ...latestFilters.current, sort });
+    },
     chooseTopic: (topic) => {
       const { topic: _previous, ...rest } = latestFilters.current;
       load(topic === undefined ? rest : { ...rest, topic });

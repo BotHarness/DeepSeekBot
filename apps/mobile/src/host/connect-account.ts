@@ -1,3 +1,4 @@
+import { checkRoute, isConnectRoute } from './route';
 import type { PairingPayload } from './pairing';
 
 export const CONNECT_RELAY = 'https://connect.botharness.ai';
@@ -244,18 +245,32 @@ export function createConnectAccount(options: {
           { verifierHash, name: deviceName.slice(0, 64) },
         );
         const host = record(body['host']);
+        const encryption = record(body['encryption']);
+        const enrollment = record(body['enrollment']);
+        const route =
+          typeof body['hostname'] === 'string'
+            ? checkRoute(`https://${body['hostname']}`)
+            : undefined;
         if (
-          typeof body['offer'] !== 'string' ||
+          encryption['protocol'] !== 'connect-noise-xk-v1' ||
+          typeof encryption['publicKey'] !== 'string' ||
+          !/^[0-9a-f]{64}$/u.test(encryption['publicKey']) ||
+          typeof enrollment['body'] !== 'string' ||
+          typeof enrollment['signature'] !== 'string' ||
           typeof body['expiresAt'] !== 'string' ||
-          typeof body['hostname'] !== 'string' ||
+          route?.ok !== true ||
+          !isConnectRoute(route.origin) ||
+          new URL(route.origin).hostname !== body['hostname'] ||
           typeof host['id'] !== 'string' ||
           typeof host['name'] !== 'string'
         )
           throw new Refused('relay-unavailable');
         return {
           host: { id: host['id'], name: host['name'] },
-          offer: body['offer'],
-          routes: [`https://${body['hostname']}`],
+          offer: '',
+          encryption: { protocol: 'connect-noise-xk-v1', publicKey: encryption['publicKey'] },
+          enrollment: { body: enrollment['body'], signature: enrollment['signature'] },
+          routes: [route.origin],
           expiresAt: body['expiresAt'],
           verifier,
         };

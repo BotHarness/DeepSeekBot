@@ -72,11 +72,23 @@ function RootNavigator() {
               />
               <Stack.Screen
                 name="pair"
-                options={{ title: t.pairTitle, ...sheetScreenOptions(design, true) }}
+                options={{
+                  title: t.pairTitle,
+                  ...sheetScreenOptions(design, true),
+                  ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
+                }}
               />
               <Stack.Screen
                 name="share"
                 options={{ title: t.share.title, ...sheetScreenOptions(design, true) }}
+              />
+              <Stack.Screen
+                name="private-input"
+                options={{
+                  ...sheetScreenOptions(design, true),
+                  headerShown: true,
+                  title: t.privateInputOpen,
+                }}
               />
               <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
               <Stack.Screen
@@ -137,15 +149,6 @@ function RootNavigator() {
                 options={{
                   title: t.hostLook,
                   ...sheetScreenOptions(design, true),
-                }}
-              />
-              <Stack.Screen
-                name="full-client"
-                options={{
-                  title: t.fullClient,
-                  presentation: 'fullScreenModal',
-                  headerShown: false,
-                  gestureEnabled: false,
                 }}
               />
             </Stack>

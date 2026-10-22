@@ -1,3 +1,5 @@
+import { noiseFingerprint } from '../../../core/src/devices/noise/xk.js';
+import { keyBytes } from '../../../../apps/mobile/src/host/encrypted-carrier.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -40,6 +42,7 @@ interface ConnectAccountStatus {
 }
 
 interface ConnectStatus {
+  encryption?: { fingerprint: string; state: string };
   state: 'off' | 'starting' | 'connected' | 'error';
   hostname?: string;
   issue?: string;
@@ -49,6 +52,7 @@ interface ConnectStatus {
 interface DevicesSnapshot {
   host: { id: string; name: string };
   devices: PairedDevice[];
+  pendingKeys?: { receipt: string; publicKey: string; name: string; approved: boolean }[];
   routes: RouteStatus;
   connect?: ConnectStatus;
 }
@@ -290,6 +294,53 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     signIn?.state === 'signing-in' ||
     (signIn?.state === 'signed-in' && connect?.state !== 'connected');
 
+  const verification = (
+    <>
+      {snapshot?.connect?.encryption ? (
+        <Note>
+          {t('connect.fingerprint')}: <code>{snapshot.connect.encryption.fingerprint}</code>
+        </Note>
+      ) : null}
+      {snapshot?.pendingKeys
+        ?.filter((item) => !item.approved)
+        .map((item) => (
+          <SettingsRow
+            key={item.receipt}
+            title={item.name}
+            description={noiseFingerprint(keyBytes(item.publicKey))}
+            control={
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busy !== undefined}
+                onClick={() => {
+                  setBusy(item.receipt);
+                  setError(false);
+                  void fetch(`${PATH}/approve-key`, {
+                    method: 'POST',
+                    headers: { 'content-type': 'application/json' },
+                    body: JSON.stringify({
+                      receipt: item.receipt,
+                      publicKey: item.publicKey,
+                      confirm: true,
+                    }),
+                  })
+                    .then(json)
+                    .then(
+                      () => load(),
+                      () => setError(true),
+                    )
+                    .finally(() => setBusy(undefined));
+                }}
+              >
+                {t('connect.approve')}
+              </Button>
+            }
+          />
+        ))}
+    </>
+  );
+
   return (
     <div ref={mount} data-paired-devices="">
       <SettingsSection>
@@ -468,6 +519,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
             />
           ))
         )}
+        {pairing ? null : verification}
         {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
       </SettingsSection>
       {pairing ? (
@@ -480,6 +532,8 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
           data={{ 'data-pair-dialog': '' }}
         >
           <div ref={watch} {...stylex.props(styles.pairing)}>
+            {verification}
+            {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
             {paired !== undefined ? (
               <Note tone="success">{t('devices.pair.done', { name: paired.name })}</Note>
             ) : offer === undefined ? (

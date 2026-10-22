@@ -32,6 +32,19 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app-icons/deepseekbot-light.png",
+          "imageWidth": 128,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "image": "./assets/app-icons/deepseekbot-dark.png",
+            "backgroundColor": "#242424"
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
       "@bacons/apple-targets",

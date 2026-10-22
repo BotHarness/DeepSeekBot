@@ -30,6 +30,34 @@ export function showAppDialog(
   );
 }
 
+export function confirmAppDialog(
+  title: string,
+  message: string,
+  confirm: string,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let dialogId: number | undefined;
+    let unsubscribe = () => {};
+    const finish = (accepted: boolean) => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      resolve(accepted);
+    };
+    if (Platform.OS === 'android')
+      unsubscribe = appDialogs.subscribe(() => {
+        const current = appDialogs.getSnapshot();
+        if (!current || (dialogId !== undefined && current.id !== dialogId)) finish(false);
+        else dialogId = current.id;
+      });
+    showAppDialog(title, message, [
+      { text: t.cancel, style: 'cancel', onPress: () => finish(false) },
+      { text: confirm, onPress: () => finish(true) },
+    ]);
+  });
+}
+
 export function confirmDestructive(
   title: string,
   message: string | undefined,

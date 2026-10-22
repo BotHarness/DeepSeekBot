@@ -12,6 +12,14 @@
       "gap": "Native iPhone and Android gestures, menus, keyboard, screen readers and light/dark large-text qualification await the shared-device queues."
     },
     {
+      "id": "marketplace.browse",
+      "label": "Browse flat Bot cards with banners, topic filters and remembered sorting",
+      "source": "packages/client/src/client/market-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 2568,
+      "gap": "Web Panel light/dark and reload verified; production Worker deployment and native Desktop qualification remain separate."
+    },
+    {
       "id": "phone.drawer-views",
       "label": "Choose All or one Host from the phone drawer with Android Host accent",
       "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
@@ -26,6 +34,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/remote-hosts.md",
       "task": 2500,
       "gap": "Two isolated local Hosts qualify the browser path; DSH Desktop, physical tailnet machines and remote image/card rendering remain unqualified."
+    },
+    {
+      "id": "connect.encrypted-channel",
+      "label": "Pair exact device keys and carry Connect messages, resources and private input through Noise XK",
+      "source": "packages/core/src/devices/encrypted-gateway.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
+      "task": 2542,
+      "gap": "Real Cloudflare network, iOS/Android and Human acceptance remain separate gates; browser/Node local-origin capture is not native proof."
     },
     {
       "id": "desktop.approval.three-actions",
@@ -1614,9 +1630,9 @@
       "path": "scripts/e2e-mobile-routines-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.routines"],
-      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Native gestures and scheduler/model execution are separate.",
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. Native gestures and scheduler/model execution are separate.",
       "task": 2028,
-      "sha256": "48702c190e4584f5265e7fe8832940b344d8d7b3d58c0c0dfd9607b8e3cf96f0"
+      "sha256": "3903a64308e151ccce70afbef53bcc90fa528117b7d081f2093d82b586acbb39"
     },
     {
       "path": "scripts/e2e-mobile-android-interactions.mjs",

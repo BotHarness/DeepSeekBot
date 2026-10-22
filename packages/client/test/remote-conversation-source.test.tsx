@@ -79,7 +79,7 @@ async function mount(surface: 'activity' | 'dock', configure?: (host: FakeHost) 
     host.channel('other');
     configure?.(host);
   }
-  const routed = (url: string) => (new URL(url).hostname === 'b.test' ? hosts.b : hosts.c);
+  const routed = (url: string) => (new URL(url).hostname === 'b.test.ts.net' ? hosts.b : hosts.c);
   const sources = createRemoteHosts({
     carrier: {
       request: (url, init) => routed(url).carrier.request(url, init),
@@ -92,7 +92,7 @@ async function mount(surface: 'activity' | 'dock', configure?: (host: FakeHost) 
               Object.entries(hosts).map(([id, host]) => ({
                 hostId: id,
                 hostName: id,
-                routes: [`https://${id}.test`],
+                routes: [`https://${id}.test.ts.net`],
                 deviceId: 'device-1',
                 credential: host.credential,
               })),
@@ -219,7 +219,9 @@ it.each(['activity', 'dock'] as const)(
       expect(view.element.textContent).toContain('Full source body');
       expect(view.element.querySelector('img[src="blob:source-1"]')).not.toBeNull();
       expect(fetcher).toHaveBeenLastCalledWith(
-        expect.stringContaining('https://b.test/botharness-device/api/botharness/attachment'),
+        expect.stringContaining(
+          'https://b.test.ts.net/botharness-device/api/botharness/attachment',
+        ),
         expect.objectContaining({
           credentials: 'omit',
           headers: { authorization: `Device ${view.hosts.b.credential}` },
@@ -231,7 +233,7 @@ it.each(['activity', 'dock'] as const)(
       expect(view.element.querySelector('[data-remote-timeline]')).toBeNull();
       expect(release).toHaveBeenCalledWith('blob:source-1');
       expect(viewerRequests.length).toBeGreaterThan(0);
-      expect(viewerRequests.every((url) => url.startsWith('https://b.test/'))).toBe(true);
+      expect(viewerRequests.every((url) => url.startsWith('https://b.test.ts.net/'))).toBe(true);
       await clickViewer();
       await act(async () => {
         await vi.waitFor(() => expect(make).toHaveBeenCalledTimes(2));
@@ -247,7 +249,9 @@ it.each(['activity', 'dock'] as const)(
       expect(view.element.querySelector('[data-remote-viewer]')).toBeNull();
       expect(view.input().value).toBe('');
       expect(fetcher).toHaveBeenLastCalledWith(
-        expect.stringContaining('https://c.test/botharness-device/api/botharness/attachment'),
+        expect.stringContaining(
+          'https://c.test.ts.net/botharness-device/api/botharness/attachment',
+        ),
         expect.anything(),
       );
     } finally {
@@ -403,7 +407,9 @@ it.each(['activity', 'dock'] as const)(
       await act(async () => resource.response.resolve(new Response('file')));
       expect(download).toHaveBeenCalledTimes(1);
       expect(resource.fetcher).toHaveBeenLastCalledWith(
-        expect.stringContaining('https://b.test/botharness-device/api/botharness/attachment'),
+        expect.stringContaining(
+          'https://b.test.ts.net/botharness-device/api/botharness/attachment',
+        ),
         expect.objectContaining({
           credentials: 'omit',
           headers: { authorization: `Device ${view.hosts.b.credential}` },
@@ -651,7 +657,7 @@ it.each(['activity', 'dock'] as const)(
       expect(download).not.toHaveBeenCalled();
       expect(
         resource.fetcher.mock.calls.every(([url]) =>
-          url.startsWith('https://b.test/botharness-device/api/botharness/attachment'),
+          url.startsWith('https://b.test.ts.net/botharness-device/api/botharness/attachment'),
         ),
       ).toBe(true);
     } finally {

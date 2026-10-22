@@ -1,3 +1,4 @@
+import type { ComposerSymbol } from './composer-symbol';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -32,6 +33,7 @@ export function ComposerCircleButton({
   size: number;
   embedded?: boolean;
   onPress(): void;
+  symbol: ComposerSymbol;
   children: ReactNode;
 }) {
   const theme = useDesignTheme();

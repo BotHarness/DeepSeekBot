@@ -4,6 +4,9 @@ export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
   | 'none'
+  | 'host-key-required'
+  | 'host-key-confirmation-required'
+  | 'channel-authentication-failed'
   | 'link-invalid'
   | 'link-expired'
   | 'no-route'
@@ -111,6 +114,9 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     outcome: member('success', 'refused', 'failed', 'cancelled'),
     reason: member(
       'none',
+      'host-key-required',
+      'host-key-confirmation-required',
+      'channel-authentication-failed',
       'link-invalid',
       'link-expired',
       'no-route',

@@ -1,5 +1,5 @@
 import { WORKSPACE_CSS } from './workspace-styles.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { INTERNAL_TOUR_CSS } from './internal-tour-styles.js';
 import { COMPOSER_CONTEXT_CSS } from './composer-context-styles.js';
 import { WINDOW_COMPANION_CSS } from './window-companion-styles.js';
@@ -1801,6 +1801,12 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   flex: 1;
   min-width: 0;
 }
+.bh-market-browse > * {
+  height: ${size.row};
+  box-sizing: border-box;
+}
+.bh-market-browse > button { border: 0; }
+.bh-market-browse [role='tab'] { height: calc(${size.row} - ${space.x3}); }
 .bh-market-topics {
   display: flex;
   flex-wrap: wrap;
@@ -1812,9 +1818,9 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   gap: ${space.x2};
   height: 24px;
   padding: 0 ${space.x3};
-  border: ${border.hairline} solid ${color.border};
+  border: 0;
   border-radius: ${radius.md};
-  background: transparent;
+  background: ${color.surface};
   color: var(--dsw-alias-label-secondary);
   font: inherit;
   font-size: ${text.metaSize};
@@ -1825,8 +1831,7 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   color: var(--dsw-alias-label-primary);
 }
 .bh-market-topic[aria-pressed='true'] {
-  border-color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover);
+  background: ${color.accentTint};
   color: var(--dsw-alias-label-primary);
   font-weight: ${text.strong};
 }
@@ -1877,17 +1882,27 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   flex-direction: column;
   gap: ${space.x2};
   min-width: 0;
-  padding: ${space.x3};
-  border: ${border.hairline} solid ${color.border};
+  padding: 0;
+  border: 0;
   border-radius: ${radius.lg};
-  background: var(--dsw-alias-bg-module-platform);
+  background: ${color.surface};
+  overflow: hidden;
 }
-.bh-market-tile:hover { border-color: var(--dsw-alias-label-tertiary); }
+.bh-market-tile-open { display: flex; flex-direction: column; min-width: 0; }
+.bh-market-tile-banner {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 1;
+  overflow: hidden;
+  background: ${color.hover};
+}
+.bh-market-tile-banner .bh-banner-art { width: 100%; height: 100%; }
 .bh-market-tile-head {
   display: flex;
   align-items: center;
   gap: ${space.x3};
   min-width: 0;
+  padding: ${space.x3} ${space.x4} 0;
 }
 .bh-market-tile-head .bh-market-avatar { padding: 0; background: transparent; }
 .bh-market-tile-head .bh-market-copy { gap: 0; overflow: hidden; }
@@ -1897,12 +1912,13 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bh-market-tile-head:hover .bh-market-card-name { text-decoration: underline; }
+.bh-market-tile-open:hover .bh-market-card-name { text-decoration: underline; }
 .bh-market-tile > .bh-market-description {
   display: -webkit-box;
   overflow: hidden;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  margin: 0 ${space.x4};
 }
 .bh-market-tile-foot {
   display: flex;
@@ -1911,9 +1927,10 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   gap: ${space.x3};
   min-width: 0;
   margin-top: auto;
+  padding: ${space.x2} ${space.x4} ${space.x4};
 }
 .bh-market-tile-foot .bh-market-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
-.bh-market-tile-foot > button { flex-shrink: 0; }
+.bh-market-tile-foot > button { flex-shrink: 0; border: 0; }
 .bh-market-upload-section {
   display: flex;
   flex-direction: column;

@@ -16,6 +16,7 @@ export interface HostIdentity {
 export interface PairedDevice {
   id: string;
   name: string;
+  publicKey?: string;
   pairedAt: string;
   lastSeenAt?: string;
   revokedAt?: string;
@@ -28,12 +29,19 @@ export interface PairingOffer {
 }
 
 export type OfferStatus =
-  | { receipt: string; state: 'pending'; expiresAt: string }
+  | {
+      receipt: string;
+      state: 'pending';
+      expiresAt: string;
+      publicKey?: string;
+      name?: string;
+      approved?: boolean;
+    }
   | { receipt: string; state: 'redeemed'; deviceId: string; settledAt: string }
   | { receipt: string; state: 'expired' | 'refused' | 'superseded'; settledAt: string }
   | { receipt: string; state: 'unknown' };
 
-export type OfferRefusal = 'offer-invalid' | 'offer-expired';
+export type OfferRefusal = 'offer-invalid' | 'offer-expired' | 'device-approval-required';
 export type DeviceRefusal = 'device-credential-missing' | 'device-unknown' | 'device-revoked';
 
 export type Redemption =
@@ -48,11 +56,34 @@ export type DevicePairingEvent =
   | { phase: 'device-refused'; code: DeviceRefusal; deviceId?: string }
   | { phase: 'device-revoked'; deviceId: string; closedStreams: number };
 
+export interface PendingDeviceKey {
+  receipt: string;
+  state: 'pending';
+  expiresAt: string;
+  publicKey: string;
+  name: string;
+  approved: boolean;
+}
+
 export interface DevicePairing {
   host(): HostIdentity;
   createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
-  redeem(input: { offer: string; name?: string; verifier?: string }): Redemption;
+  redeem(input: {
+    offer: string;
+    name?: string;
+    verifier?: string;
+    publicKey?: string;
+  }): Redemption;
+  requestKey(input: {
+    offer: string;
+    publicKey: string;
+    name?: string;
+    verifier?: string;
+  }): { ok: true; receipt: string } | { ok: false; code: OfferRefusal };
+  pendingKeys(): PendingDeviceKey[];
+  approveKey(receipt: string, publicKey: string): boolean;
+  admitKey(authorization: string | undefined, publicKey: string): Admission;
   admit(authorization: string | undefined): Admission;
   check(deviceId: string): Admission;
   list(): PairedDevice[];
@@ -73,6 +104,7 @@ interface Row {
   device_id: string;
   name: string;
   secret_hash: string;
+  public_key: string | null;
   paired_at: string;
   last_seen_at: string | null;
   revoked_at: string | null;
@@ -88,6 +120,7 @@ function device(row: Row): PairedDevice {
     id: row.device_id,
     name: row.name,
     pairedAt: row.paired_at,
+    ...(row.public_key === null ? {} : { publicKey: row.public_key }),
     ...(row.last_seen_at === null ? {} : { lastSeenAt: row.last_seen_at }),
     ...(row.revoked_at === null ? {} : { revokedAt: row.revoked_at }),
   };
@@ -109,7 +142,14 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
 
   const offers = new Map<
     string,
-    { expiresAt: number; receipt: string; verifierHash?: string; name?: string }
+    {
+      expiresAt: number;
+      receipt: string;
+      verifierHash?: string;
+      name?: string;
+      publicKey?: string;
+      approved?: boolean;
+    }
   >();
   const settled = new Map<string, OfferStatus>();
   const streams = new Map<string, Set<() => void>>();
@@ -214,13 +254,86 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       sweep();
       for (const open of offers.values())
         if (open.receipt === receipt)
-          return { receipt, state: 'pending', expiresAt: iso(open.expiresAt) };
+          return {
+            receipt,
+            state: 'pending',
+            expiresAt: iso(open.expiresAt),
+            ...(open.publicKey === undefined
+              ? {}
+              : {
+                  publicKey: open.publicKey,
+                  name: open.name ?? 'Phone',
+                  approved: open.approved === true,
+                }),
+          };
       return settled.get(receipt) ?? { receipt, state: 'unknown' };
+    },
+
+    requestKey(input) {
+      sweep();
+      const open = offers.get(digest(input.offer).toString('hex'));
+      if (
+        !open ||
+        !/^[0-9a-f]{64}$/u.test(input.publicKey) ||
+        (open.publicKey !== undefined && open.publicKey !== input.publicKey) ||
+        (open.verifierHash !== undefined &&
+          (input.verifier === undefined ||
+            digest(input.verifier).toString('base64url') !== open.verifierHash))
+      )
+        return { ok: false, code: 'offer-invalid' };
+      if (open.publicKey === undefined) {
+        open.publicKey = input.publicKey;
+        open.name = deviceName(input.name ?? open.name);
+        open.approved = false;
+      }
+      return { ok: true, receipt: open.receipt };
+    },
+
+    pendingKeys() {
+      sweep();
+      return [...offers.values()]
+        .filter((open) => open.publicKey !== undefined)
+        .map((open) => ({
+          receipt: open.receipt,
+          state: 'pending' as const,
+          expiresAt: iso(open.expiresAt),
+          publicKey: open.publicKey!,
+          name: open.name ?? 'Phone',
+          approved: open.approved === true,
+        }));
+    },
+
+    approveKey(receipt, publicKey) {
+      sweep();
+      for (const open of offers.values()) {
+        if (
+          open.receipt === receipt &&
+          open.publicKey === publicKey &&
+          /^[0-9a-f]{64}$/u.test(publicKey)
+        ) {
+          open.approved = true;
+          return true;
+        }
+      }
+      return false;
+    },
+
+    admitKey(authorization, publicKey) {
+      const admitted = this.admit(authorization);
+      if (!admitted.ok) return admitted;
+      if (admitted.device.publicKey !== publicKey) return { ok: false, code: 'device-unknown' };
+      return admitted;
     },
 
     redeem(input) {
       const key = digest(input.offer).toString('hex');
       const open = offers.get(key);
+      if (
+        open !== undefined &&
+        (open.publicKey !== undefined || input.publicKey !== undefined) &&
+        (open.publicKey !== input.publicKey || open.approved !== true)
+      )
+        return { ok: false, code: 'device-approval-required' };
       offers.delete(key);
       if (
         open === undefined ||
@@ -245,9 +358,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         (connection) =>
           connection
             .prepare(
-              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at) VALUES (?, ?, ?, ?)',
+              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key) VALUES (?, ?, ?, ?, ?)',
             )
-            .run(id, name, digest(secret).toString('hex'), pairedAt),
+            .run(id, name, digest(secret).toString('hex'), pairedAt, input.publicKey ?? null),
         ['paired-devices'],
       );
       settle(open.receipt, { state: 'redeemed', deviceId: id });
@@ -255,7 +368,12 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       options.onPaired?.({ id, name, pairedAt });
       return {
         ok: true,
-        device: { id, name, pairedAt },
+        device: {
+          id,
+          name,
+          pairedAt,
+          ...(input.publicKey === undefined ? {} : { publicKey: input.publicKey }),
+        },
         credential: `${id}.${secret}`,
         host: host(),
       };
