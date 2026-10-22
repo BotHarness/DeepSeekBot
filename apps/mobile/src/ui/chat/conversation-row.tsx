@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
+import type { Href } from 'expo-router';
 import { SourceName } from './source-name';
-import { Pressable, View } from 'react-native';
+import { Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
@@ -23,6 +24,9 @@ import {
 import { RowStatusGlyph } from './row-status-glyph';
 import type { ConversationAction, ConversationActionKey } from './conversation-actions';
 import { ConversationSwipe } from './conversation-swipe';
+import { ConversationPeek } from '../shell/conversation-peek';
+import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
+import { showActionMenu } from '../primitives/app-dialog';
 
 const AVATAR = 48;
 const RING = 6;
@@ -36,10 +40,12 @@ export function ConversationRow({
   actions = [],
   onAction,
   look,
+  previewHref,
 }: {
   row: Conversation;
   now: Date;
   look?: HostLook | undefined;
+  previewHref?: Href | undefined;
   onPress?: () => void;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -59,32 +65,70 @@ export function ConversationRow({
   const time = shortTime(row.at, now);
   const label = rowLabel(row, title, status, preview);
   const act = onAction ?? (() => undefined);
+  const theme = useDesignTheme();
+  const menuActions: MenuAction[] = actions.map((action) => ({
+    label: action.label,
+    icon:
+      action.key === 'section'
+        ? 'folder'
+        : action.key === 'read'
+          ? 'check'
+          : action.key === 'pin' || action.key === 'unpin'
+            ? 'pin'
+            : 'mute',
+    run: () => act(action.key),
+  }));
+  const frame = (
+    <ConversationRowFrame
+      testID={`conversation-row-${row.key}`}
+      actions={onAction ? actions : []}
+      onAction={act}
+      title={title}
+      source="computer"
+      look={look}
+      label={label}
+      preview={preview}
+      time={time}
+      status={status}
+      unread={row.unread > 0 && !row.muted}
+      badge={badge}
+      onPress={previewHref ? undefined : onPress}
+      avatar={
+        row.kind === 'bot' ? (
+          <AvatarSlot>
+            <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
+          </AvatarSlot>
+        ) : (
+          <ConversationGroupAvatar avatar={row.channel.avatar} />
+        )
+      }
+    />
+  );
   return (
     <ConversationSwipe actions={onAction ? actions : []} onAction={act}>
-      <ConversationRowFrame
-        testID={`conversation-row-${row.key}`}
-        actions={onAction ? actions : []}
-        onAction={act}
-        title={title}
-        source="computer"
-        look={look}
-        label={label}
-        preview={preview}
-        time={time}
-        status={status}
-        unread={row.unread > 0 && !row.muted}
-        badge={badge}
-        onPress={onPress}
-        avatar={
-          row.kind === 'bot' ? (
-            <AvatarSlot>
-              <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
-            </AvatarSlot>
-          ) : (
-            <ConversationGroupAvatar avatar={row.channel.avatar} />
-          )
-        }
-      />
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: theme.layer.canvas.fill,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {previewHref ? <ConversationPeek href={previewHref}>{frame}</ConversationPeek> : frame}
+        </View>
+        {onAction && actions.length > 0 ? (
+          <ActionMenuButton
+            label={t.conversationActions(title)}
+            actions={menuActions}
+            onOpen={() =>
+              showActionMenu(
+                title,
+                actions.map((action) => ({ text: action.label, onPress: () => act(action.key) })),
+              )
+            }
+          />
+        ) : null}
+      </View>
     </ConversationSwipe>
   );
 }
@@ -128,7 +172,9 @@ export function ConversationRowFrame({
   onAction,
   testID,
   look,
+  ref,
 }: {
+  ref?: Ref<ViewInstance>;
   look?: HostLook | undefined;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -148,15 +194,17 @@ export function ConversationRowFrame({
   const theme = useDesignTheme();
   return (
     <Pressable
+      ref={ref}
       testID={testID}
       onPress={onPress}
       disabled={disabled || onPress === undefined}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={label}
       accessibilityActions={actions.map((action) => ({ name: action.key, label: action.label }))}
-      onAccessibilityAction={(event) =>
-        onAction?.(event.nativeEvent.actionName as ConversationActionKey)
-      }
+      onAccessibilityAction={(event) => {
+        const action = actions.find((item) => item.key === event.nativeEvent.actionName);
+        if (action) onAction?.(action.key);
+      }}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

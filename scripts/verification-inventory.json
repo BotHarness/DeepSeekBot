@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.chat-row-actions",
+      "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
+      "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-chat-row-actions.md",
+      "task": 2519,
+      "gap": "Native iPhone and Android gestures, menus, keyboard, screen readers and light/dark large-text qualification await the shared-device queues."
+    },
+    {
       "id": "phone.drawer-views",
       "label": "Choose All or one Host from the phone drawer with Android Host accent",
       "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
