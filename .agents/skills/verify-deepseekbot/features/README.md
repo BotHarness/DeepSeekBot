@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Bot Marketplace cards, filters, remembered sorting and upload/import | no | `verify-app` Bot mode path | [marketplace.md](marketplace.md) |
 | Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |
 | Browser Remote Host pairing, icon strip, Host Feed and Host-level settings | only for a reply | `verify-app` two-Host path | [remote-hosts.md](remote-hosts.md) |
 
