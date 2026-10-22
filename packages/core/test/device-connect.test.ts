@@ -138,8 +138,11 @@ describe('hosted Connect route', () => {
       '/botharness-device//api/computer/video/',
       '/botharness-device%2fweb%2fapi%2fcomputer%2fvideo',
     ]) {
-        expect(await get(base, path)).toMatchObject({ status: 404, body: expect.stringContaining('not-found') });
-        expect(await upgrade(base, path)).toContain('404 Not Found');
+      expect(await get(base, path)).toMatchObject({
+        status: 404,
+        body: expect.stringContaining('not-found'),
+      });
+      expect(await upgrade(base, path)).toContain('404 Not Found');
     }
     expect(effects).toBe(0);
   });

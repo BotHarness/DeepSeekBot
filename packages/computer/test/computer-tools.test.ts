@@ -485,9 +485,13 @@ describe('per-PersonaBot registration and authorization', () => {
   it('refuses a drain timeout while the admitted native call is still running', async () => {
     const h = harness({ access: true, running: true });
     let finish: (() => void) | undefined;
-    vi.mocked(h.driver.call).mockImplementationOnce(() => new Promise((resolve) => {
-      finish = () => resolve({ content: [{ type: 'image', data: 'private', mimeType: 'image/png' }] });
-    }));
+    vi.mocked(h.driver.call).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = () =>
+            resolve({ content: [{ type: 'image', data: 'private', mimeType: 'image/png' }] });
+        }),
+    );
     const running = h.provider.runDirect('bot-a', 'click', { pid: 7 });
     await vi.waitFor(() => expect(finish).toBeDefined());
     h.setPaused(true);

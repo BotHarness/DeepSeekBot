@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.local-computer-video",
+      "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
+      "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/local-computer-video.md",
+      "task": 2558,
+      "gap": "Windows helper capture, Android native rendering, physical LAN interaction and Human qualification remain unverified; source checks do not establish runtime acceptance."
+    },
+    {
       "id": "phone.chat-row-actions",
       "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
       "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",

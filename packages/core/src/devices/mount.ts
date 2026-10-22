@@ -116,10 +116,12 @@ export function mountDevicePairing(
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
-      // Revocation must close established P2P media, which no longer passes through this gateway.
-      void videoOwner()?.revoke(deviceId).catch(() =>
-        write('computer', 'video-revoke-failed', 'computer-video phase=revoke-failed'),
-      );
+
+      void videoOwner()
+        ?.revoke(deviceId)
+        .catch(() =>
+          write('computer', 'video-revoke-failed', 'computer-video phase=revoke-failed'),
+        );
     },
     onPaired: (device) =>
       void push

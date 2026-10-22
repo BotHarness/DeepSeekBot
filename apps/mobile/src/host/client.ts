@@ -546,10 +546,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
       if (isConnectRoute(route) && path === LOCAL_VIDEO_PATH)
         return {
           status: 403,
-          body: { ok: false, code: 'connect-carrier-required', error: 'Local Computer video requires the paired LAN route.' },
+          body: {
+            ok: false,
+            code: 'connect-carrier-required',
+            error: 'Local Computer video requires the paired LAN route.',
+          },
         };
-      if (isEncryptedRoute(route) && /^\/api\/(?:browser|computer)\//u.test(path) &&
-          !(isLanRoute(route) && path === LOCAL_VIDEO_PATH))
+      if (
+        isEncryptedRoute(route) &&
+        /^\/api\/(?:browser|computer)\//u.test(path) &&
+        !(isLanRoute(route) && path === LOCAL_VIDEO_PATH)
+      )
         throw new MethodRefused(
           'connect-viewer-unavailable',
           'Use the Host or Tailscale for Browser and Computer viewers.',

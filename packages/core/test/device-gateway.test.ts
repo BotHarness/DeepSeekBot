@@ -142,19 +142,31 @@ describe('Local Computer video gateway admission', () => {
       expect(answer.status).toBe(409);
       expect(await answer.json()).toMatchObject({ code: 'media-not-live' });
     }
-    for (const path of ['/web/api/computer/video', '/web/api/computer/%76ideo', '/web/api//computer/video/']) {
+    for (const path of [
+      '/web/api/computer/video',
+      '/web/api/computer/%76ideo',
+      '/web/api//computer/video/',
+    ]) {
       const answer = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}${path}`, {
-        method: 'POST', headers: { authorization: credential }, body: '{"kind":"open"}',
+        method: 'POST',
+        headers: { authorization: credential },
+        body: '{"kind":"open"}',
       });
       expect(answer.status).toBe(404);
-      const upgrade = await stream(live.port, { authorization: credential }, `${DEVICE_GATEWAY_PREFIX}${path}`);
+      const upgrade = await stream(
+        live.port,
+        { authorization: credential },
+        `${DEVICE_GATEWAY_PREFIX}${path}`,
+      );
       expect(upgrade.status).toBe(404);
     }
     expect(admitted).toEqual([phone.body.deviceId, phone.body.deviceId, phone.body.deviceId]);
     expect(live.state.seen).toHaveLength(0);
     live.pairing.revoke(phone.body.deviceId!);
     const refused = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}/api/computer/video`, {
-      method: 'POST', headers: { authorization: credential }, body: '{"kind":"open"}',
+      method: 'POST',
+      headers: { authorization: credential },
+      body: '{"kind":"open"}',
     });
     expect(refused.status).toBe(401);
     expect(admitted).toHaveLength(3);
@@ -168,7 +180,9 @@ describe('Local Computer video gateway admission', () => {
       [JSON.stringify({ kind: 'signal', data: 'x'.repeat(128 * 1024) }), 'request-too-large'],
     ]) {
       const result = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}/api/computer/video`, {
-        method: 'POST', headers: { authorization: `Device ${phone.body.credential}` }, body,
+        method: 'POST',
+        headers: { authorization: `Device ${phone.body.credential}` },
+        body,
       });
       expect(await result.json()).toMatchObject({ code });
     }

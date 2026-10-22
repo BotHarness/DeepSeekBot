@@ -32,7 +32,7 @@ production setting, and it must be removed before normal performance measurement
    the debugger and note `closed == true`, the view's `current == null`, and `retiring`
    pointing at this attempt. Let the main thread keep running.
 2. Reopen the Computer through the app while the old worker remains held. The route keys
-   native views by attempt, so this production path can create a *different* TextureView.
+   native views by attempt, so this production path can create a _different_ TextureView.
    Its peer must be refused with `native-cleanup-pending`; it must never reach
    `createEglSurface` while the old worker owns `nativeSlot`. The Host must remain healthy.
 3. Continue the old worker. After all release calls complete, the permit is returned once.

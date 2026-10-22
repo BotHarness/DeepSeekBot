@@ -2,12 +2,18 @@ import { EventEmitter } from 'node:events';
 import { PassThrough, Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn(), verify: vi.fn(async () => true), assets: vi.fn(async () => undefined) }));
+const mocks = vi.hoisted(() => ({
+  spawn: vi.fn(),
+  verify: vi.fn(async () => true),
+  assets: vi.fn(async () => undefined),
+}));
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
 vi.mock('../src/media/install.js', () => ({
   LOCAL_VIDEO_LAUNCHER: 'botharness-media-launcher.exe',
-  localVideoAssetsDirectory: () => 'assets', localVideoHelperDirectory: () => 'runtime',
-  verifyLocalVideoAssets: mocks.assets, verifyLocalVideoHelper: mocks.verify,
+  localVideoAssetsDirectory: () => 'assets',
+  localVideoHelperDirectory: () => 'runtime',
+  verifyLocalVideoAssets: mocks.assets,
+  verifyLocalVideoHelper: mocks.verify,
 }));
 vi.mock('../src/tool/local-driver.js', () => ({ localDriverEnv: () => ({ PATH: 'test-path' }) }));
 import { createLocalVideoMedia } from '../src/media/supervisor.js';
@@ -26,43 +32,90 @@ class Helper extends EventEmitter {
       const command = JSON.parse(chunk.toString()) as Record<string, unknown>;
       this.commands.push(command);
       if (command['op'] === 'close' && !this.hangClose) queueMicrotask(() => this.finishTree());
-      else if (command['op'] === 'offer' && !this.hangOffer) this.reply(command, {
-        offer: { type: 'offer', sdp: 'native-video-offer' }, display: { width: 1920, height: 1080 },
-      });
+      else if (command['op'] === 'offer' && !this.hangOffer)
+        this.reply(command, {
+          offer: { type: 'offer', sdp: 'native-video-offer' },
+          display: { width: 1920, height: 1080 },
+        });
       else if (command['op'] === 'answer') this.reply(command, null);
-      else if (command['op'] === 'stats') this.reply(command, {
-        status: 'live', captureAlive: true, width: 1920, height: 1080, framesEncoded: 30, bytesSent: 1234,
-      });
+      else if (command['op'] === 'stats')
+        this.reply(command, {
+          status: 'live',
+          captureAlive: true,
+          width: 1920,
+          height: 1080,
+          framesEncoded: 30,
+          bytesSent: 1234,
+        });
       callback();
     },
   });
-  event(value: Record<string, unknown>) { this.stdout.write(JSON.stringify({ launchId: this.launchId, ...value }) + '\n'); }
-  message(value: unknown) { this.event({ event: 'helper-message', json: JSON.stringify(value) }); }
+  event(value: Record<string, unknown>) {
+    this.stdout.write(JSON.stringify({ launchId: this.launchId, ...value }) + '\n');
+  }
+  message(value: unknown) {
+    this.event({ event: 'helper-message', json: JSON.stringify(value) });
+  }
   ready() {
     this.event({ event: 'tree-owned', version: 1, rootPid: 54322 });
     this.message({ event: 'ready', version: 1 });
   }
   exited = false;
-  exit(code: number) { if (!this.exited) { this.exited = true; this.emit('exit', code); this.emit('close', code); } }
-  finishTree() { this.event({ event: 'tree-closed', version: 1, activeProcesses: 0 }); this.exit(0); }
-  kill = vi.fn(() => { this.exit(1); return true; });
+  exit(code: number) {
+    if (!this.exited) {
+      this.exited = true;
+      this.emit('exit', code);
+      this.emit('close', code);
+    }
+  }
+  finishTree() {
+    this.event({ event: 'tree-closed', version: 1, activeProcesses: 0 });
+    this.exit(0);
+  }
+  kill = vi.fn(() => {
+    this.exit(1);
+    return true;
+  });
   reply(command: Record<string, unknown>, value: unknown) {
     queueMicrotask(() => this.message({ id: command['id'], ok: true, value }));
   }
 }
 
-const binding = { computerId: 'local' as const, runtimeId: 'runtime', viewerId: 'viewer', attemptId: 'attempt' };
+const binding = {
+  computerId: 'local' as const,
+  runtimeId: 'runtime',
+  viewerId: 'viewer',
+  attemptId: 'attempt',
+};
 let helper: Helper;
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.verify.mockResolvedValue(true);
+  vi.clearAllMocks();
+  mocks.verify.mockResolvedValue(true);
   helper = new Helper();
-  mocks.spawn.mockImplementation((_command, args) => { helper.launchId = args[3]; setImmediate(() => helper.ready()); return helper; });
+  mocks.spawn.mockImplementation((_command, args) => {
+    helper.launchId = args[3];
+    setImmediate(() => helper.ready());
+    return helper;
+  });
 });
-afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
+});
 
-function media() { return createLocalVideoMedia({ platform: 'win32', arch: 'x64' }); }
-function open(provider = media(), controller = new AbortController(), statuses: LocalVideoMediaStatus[] = []) {
-  return provider.open({ binding, signal: controller.signal, onStatus: (status) => statuses.push(status) });
+function media() {
+  return createLocalVideoMedia({ platform: 'win32', arch: 'x64' });
+}
+function open(
+  provider = media(),
+  controller = new AbortController(),
+  statuses: LocalVideoMediaStatus[] = [],
+) {
+  return provider.open({
+    binding,
+    signal: controller.signal,
+    onStatus: (status) => statuses.push(status),
+  });
 }
 
 describe('supervised Local Computer media', () => {
@@ -93,11 +146,17 @@ describe('supervised Local Computer media', () => {
 
   it('cancels before a slow verification completes without spawning', async () => {
     let verified: ((value: boolean) => void) | undefined;
-    mocks.verify.mockImplementationOnce(() => new Promise<boolean>((resolve) => { verified = resolve; }));
+    mocks.verify.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          verified = resolve;
+        }),
+    );
     const controller = new AbortController();
     const opening = open(media(), controller);
     await vi.waitFor(() => expect(verified).toBeDefined());
-    controller.abort(); verified?.(true);
+    controller.abort();
+    verified?.(true);
     await expect(opening).rejects.toMatchObject({ code: 'helper-start-failed' });
     expect(mocks.spawn).not.toHaveBeenCalled();
   });
@@ -107,7 +166,9 @@ describe('supervised Local Computer media', () => {
     const controller = new AbortController();
     const opening = open(media(), controller);
     const rejected = expect(opening).rejects.toMatchObject({ code: 'disposed' });
-    await vi.waitFor(() => expect(helper.commands.some((command) => command['op'] === 'offer')).toBe(true));
+    await vi.waitFor(() =>
+      expect(helper.commands.some((command) => command['op'] === 'offer')).toBe(true),
+    );
     controller.abort();
     await rejected;
     expect(helper.commands.at(-1)?.['op']).toBe('close');
@@ -117,8 +178,12 @@ describe('supervised Local Computer media', () => {
     const statuses: LocalVideoMediaStatus[] = [];
     const peer = await open(media(), new AbortController(), statuses);
     helper.finishTree();
-    expect(statuses.some((status) => status.status === 'failed' && !status.captureAlive)).toBe(true);
-    await expect(peer.answer({ type: 'answer', sdp: 'late' })).rejects.toMatchObject({ code: 'helper-failed' });
+    expect(statuses.some((status) => status.status === 'failed' && !status.captureAlive)).toBe(
+      true,
+    );
+    await expect(peer.answer({ type: 'answer', sdp: 'late' })).rejects.toMatchObject({
+      code: 'helper-failed',
+    });
     await peer.close();
   });
 

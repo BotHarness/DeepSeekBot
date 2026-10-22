@@ -197,7 +197,6 @@ interface Session {
   streams: Map<string, HostSocketEvents>;
 }
 
-/** Cancelling one request must not close the shared admission or other consumers. */
 function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     const abort = () => {
@@ -206,8 +205,14 @@ function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<vo
     };
     signal.addEventListener('abort', abort, { once: true });
     void ready.then(
-      () => { signal.removeEventListener('abort', abort); resolve(); },
-      (error: unknown) => { signal.removeEventListener('abort', abort); reject(error); },
+      () => {
+        signal.removeEventListener('abort', abort);
+        resolve();
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', abort);
+        reject(error);
+      },
     );
     if (signal.aborted) abort();
   });

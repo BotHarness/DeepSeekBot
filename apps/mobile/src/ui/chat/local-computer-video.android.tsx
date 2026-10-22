@@ -16,10 +16,13 @@ export interface LocalComputerVideoProps extends ViewProps {
   offer: string;
   enabled: boolean;
   onDescription(event: NativeSyntheticEvent<{ attemptId: string; sdp: string }>): void;
-  onMediaState(event: NativeSyntheticEvent<{ attemptId: string; state: string; code: string }>): void;
+  onMediaState(
+    event: NativeSyntheticEvent<{ attemptId: string; state: string; code: string }>,
+  ): void;
   onPresentation(event: NativeSyntheticEvent<VideoPresentation>): void;
 }
 
-export const NativeLocalComputerVideo = requireOptionalNativeModule('LocalComputerVideo') === null
-  ? undefined
-  : requireNativeView<LocalComputerVideoProps>('LocalComputerVideo');
+export const NativeLocalComputerVideo =
+  requireOptionalNativeModule('LocalComputerVideo') === null
+    ? undefined
+    : requireNativeView<LocalComputerVideoProps>('LocalComputerVideo');

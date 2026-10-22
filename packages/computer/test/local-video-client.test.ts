@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalVideoClient, type LocalVideoTransport } from '../src/local-video-client.js';
-import { LOCAL_VIDEO_PATH, type LocalVideoBinding, type LocalVideoState } from '../src/local-video-contract.js';
+import {
+  LOCAL_VIDEO_PATH,
+  type LocalVideoBinding,
+  type LocalVideoState,
+} from '../src/local-video-contract.js';
 import { createLocalVideoOwner } from '../src/local-video-owner.js';
 import { localVideoCommand } from '../src/local-video-http.js';
 
@@ -17,14 +21,23 @@ function ownerFixture() {
   };
   const effects = vi.fn(async () => ({ content: [] }));
   const owner = createLocalVideoOwner({
-    pause: { read: () => paused, write: (value) => { paused = value; } },
+    pause: {
+      read: () => paused,
+      write: (value) => {
+        paused = value;
+      },
+    },
     isRunning: () => true,
-    driver: { call: async (tool) => tool === 'get_screen_size'
-      ? { structuredContent: peer.display } : effects() },
-    media: { open: async ({ onStatus }) => {
-      onStatus({ status: 'live', captureAlive: true, ...peer.display });
-      return peer;
-    } },
+    driver: {
+      call: async (tool) =>
+        tool === 'get_screen_size' ? { structuredContent: peer.display } : effects(),
+    },
+    media: {
+      open: async ({ onStatus }) => {
+        onStatus({ status: 'live', captureAlive: true, ...peer.display });
+        return peer;
+      },
+    },
   });
   const calls: Record<string, unknown>[] = [];
   const transport: LocalVideoTransport = {
@@ -54,11 +67,21 @@ function fixture() {
   vi.useFakeTimers();
   const calls: Array<{ path: string; body: Record<string, unknown> }> = [];
   let opens = 0;
-  let binding: LocalVideoBinding = { computerId: 'local', runtimeId: 'runtime-1', viewerId: 'viewer-1', attemptId: 'attempt-1' };
+  let binding: LocalVideoBinding = {
+    computerId: 'local',
+    runtimeId: 'runtime-1',
+    viewerId: 'viewer-1',
+    attemptId: 'attempt-1',
+  };
   let host: LocalVideoState = {
-    computerId: 'local', runtimeId: 'runtime-1', paused: false, controller: false,
-    viewerCount: 0, controlHeld: false,
-    lastInputSequence: 0, media: { status: 'live', captureAlive: true, width: 1280, height: 720 },
+    computerId: 'local',
+    runtimeId: 'runtime-1',
+    paused: false,
+    controller: false,
+    viewerCount: 0,
+    controlHeld: false,
+    lastInputSequence: 0,
+    media: { status: 'live', captureAlive: true, width: 1280, height: 720 },
   };
   let onInput: (() => Promise<void>) | undefined;
   const transport: LocalVideoTransport = {
@@ -68,31 +91,56 @@ function fixture() {
         case 'open':
           opens++;
           binding = { ...binding, attemptId: `attempt-${opens}` };
-          host = { ...host, binding, viewerCount: 1, media: { ...host.media, status: 'live' }, offer: { type: 'offer', sdp: 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n' } };
+          host = {
+            ...host,
+            binding,
+            viewerCount: 1,
+            media: { ...host.media, status: 'live' },
+            offer: { type: 'offer', sdp: 'v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n' },
+          };
           break;
         case 'takeover':
-          host = { ...host, paused: true, controller: true, controlHeld: true, grant: { generation: 1, expiresAt: 30000 } };
+          host = {
+            ...host,
+            paused: true,
+            controller: true,
+            controlHeld: true,
+            grant: { generation: 1, expiresAt: 30000 },
+          };
           break;
         case 'input':
           await onInput?.();
           host = { ...host, lastInputSequence: host.lastInputSequence + 1 };
           break;
-        case 'resume': case 'release': case 'close': {
+        case 'resume':
+        case 'release':
+        case 'close': {
           const { grant: _grant, ...rest } = host;
-          host = { ...rest, paused: body['kind'] === 'resume' ? false : host.paused, controller: false, controlHeld: false };
+          host = {
+            ...rest,
+            paused: body['kind'] === 'resume' ? false : host.paused,
+            controller: false,
+            controlHeld: false,
+          };
           break;
         }
       }
-      // The owner discloses SDP only on open, never on status/heartbeat/control snapshots.
+
       const { offer: _offer, ...snapshot } = host;
       return { status: 200, body: { ok: true, state: body['kind'] === 'open' ? host : snapshot } };
     },
   };
   const client = createLocalVideoClient(transport);
   return {
-    client, calls, transport,
-    setInput: (fn: () => Promise<void>) => { onInput = fn; },
-    stall: () => { host = { ...host, controller: false, media: { ...host.media, status: 'stalled' } }; },
+    client,
+    calls,
+    transport,
+    setInput: (fn: () => Promise<void>) => {
+      onInput = fn;
+    },
+    stall: () => {
+      host = { ...host, controller: false, media: { ...host.media, status: 'stalled' } };
+    },
   };
 }
 
@@ -100,16 +148,27 @@ afterEach(() => vi.useRealTimers());
 
 describe('Local Computer video consumer', () => {
   it.each(['viewer-limit', 'native-unavailable', 'stop-after-status', 'open-failed'] as const)(
-    'keeps the first same-device viewer and grant intact when a second client ends at %s', async (mode) => {
+    'keeps the first same-device viewer and grant intact when a second client ends at %s',
+    async (mode) => {
       const h = ownerFixture();
       const secondCalls: Record<string, unknown>[] = [];
-      const second = createLocalVideoClient({ api: async (path, init) => {
-        secondCalls.push(init.body);
-        if (mode === 'open-failed' && init.body['kind'] === 'open') throw new Error('transport failed');
-        return h.transport.api(path, init);
-      } }, { mediaAvailable: mode !== 'native-unavailable' });
+      const second = createLocalVideoClient(
+        {
+          api: async (path, init) => {
+            secondCalls.push(init.body);
+            if (mode === 'open-failed' && init.body['kind'] === 'open')
+              throw new Error('transport failed');
+            return h.transport.api(path, init);
+          },
+        },
+        { mediaAvailable: mode !== 'native-unavailable' },
+      );
       const unsubscribe = second.subscribe(() => {
-        if (mode === 'stop-after-status' && second.getState().status === 'opening' && second.getState().host)
+        if (
+          mode === 'stop-after-status' &&
+          second.getState().status === 'opening' &&
+          second.getState().host
+        )
           void second.stop();
       });
       try {
@@ -117,8 +176,13 @@ describe('Local Computer video consumer', () => {
         const grant = h.first.getState().host!.grant;
         await second.start();
         if (mode === 'viewer-limit') expect(second.getState().code).toBe('viewer-limit');
-        if (mode === 'native-unavailable') expect(second.getState().code).toBe('native-module-unavailable');
-        expect(second.getState().host).toMatchObject({ runtimeId: binding.runtimeId, paused: true, controller: false });
+        if (mode === 'native-unavailable')
+          expect(second.getState().code).toBe('native-module-unavailable');
+        expect(second.getState().host).toMatchObject({
+          runtimeId: binding.runtimeId,
+          paused: true,
+          controller: false,
+        });
         expect(second.getState().host?.binding).toBeUndefined();
         expect(second.getState().host?.offer).toBeUndefined();
         expect(second.getState().host?.grant).toBeUndefined();
@@ -130,10 +194,17 @@ describe('Local Computer video consumer', () => {
         second.mediaFailed(binding.attemptId, 'foreign-native-callback');
         await second.stop();
         expect(secondCalls.map((command) => command['kind'])).toEqual(
-          mode === 'native-unavailable' || mode === 'stop-after-status' ? ['status'] : ['status', 'open'],
+          mode === 'native-unavailable' || mode === 'stop-after-status'
+            ? ['status']
+            : ['status', 'open'],
         );
         expect(h.peer.close).not.toHaveBeenCalled();
-        expect(await h.owner.handle(h.caller, { kind: 'status' })).toMatchObject({ binding, grant, controller: true, paused: true });
+        expect(await h.owner.handle(h.caller, { kind: 'status' })).toMatchObject({
+          binding,
+          grant,
+          controller: true,
+          paused: true,
+        });
         h.first.playback(binding.attemptId, 2, 0);
         await vi.advanceTimersByTimeAsync(2_000);
         await h.first.input(click);
@@ -151,27 +222,41 @@ describe('Local Computer video consumer', () => {
   it('allows explicit runtime-only resume without adopting or closing another same-device attempt', async () => {
     const h = ownerFixture();
     const commands: Record<string, unknown>[] = [];
-    const second = createLocalVideoClient({ api: async (path, init) => {
-      commands.push(init.body);
-      return h.transport.api(path, init);
-    } }, { mediaAvailable: false });
+    const second = createLocalVideoClient(
+      {
+        api: async (path, init) => {
+          commands.push(init.body);
+          return h.transport.api(path, init);
+        },
+      },
+      { mediaAvailable: false },
+    );
     try {
       const binding = await h.acquire();
       await second.start();
       await second.resume();
-      expect(second.getState().host).toMatchObject({ runtimeId: binding.runtimeId, paused: false, controller: false });
+      expect(second.getState().host).toMatchObject({
+        runtimeId: binding.runtimeId,
+        paused: false,
+        controller: false,
+      });
       expect(second.getState().host?.binding).toBeUndefined();
       expect(second.getState().host?.offer).toBeUndefined();
       expect(second.getState().host?.grant).toBeUndefined();
       await second.release();
       await second.answer(binding.attemptId, 'not-owned');
       await second.stop();
-      expect(commands).toEqual([{ kind: 'status' }, { kind: 'resume', runtimeId: binding.runtimeId }]);
+      expect(commands).toEqual([
+        { kind: 'status' },
+        { kind: 'resume', runtimeId: binding.runtimeId },
+      ]);
       expect(h.peer.close).not.toHaveBeenCalled();
       const observed = await h.owner.handle(h.caller, { kind: 'status' });
       expect(observed).toMatchObject({ binding, viewerCount: 1, paused: false, controller: false });
       expect(observed.grant).toBeUndefined();
-      await expect(h.owner.runBotOperation(async () => 'resumed explicitly')).resolves.toBe('resumed explicitly');
+      await expect(h.owner.runBotOperation(async () => 'resumed explicitly')).resolves.toBe(
+        'resumed explicitly',
+      );
     } finally {
       await second.stop();
       await h.first.stop();
@@ -183,14 +268,16 @@ describe('Local Computer video consumer', () => {
     const h = ownerFixture();
     const allocated = Promise.withResolvers<void>();
     const deliver = Promise.withResolvers<void>();
-    const client = createLocalVideoClient({ api: async (path, init) => {
-      const response = await h.transport.api(path, init);
-      if (init.body['kind'] === 'open') {
-        allocated.resolve();
-        await deliver.promise;
-      }
-      return response;
-    } });
+    const client = createLocalVideoClient({
+      api: async (path, init) => {
+        const response = await h.transport.api(path, init);
+        if (init.body['kind'] === 'open') {
+          allocated.resolve();
+          await deliver.promise;
+        }
+        return response;
+      },
+    });
     try {
       const opening = client.start();
       await allocated.promise;
@@ -200,9 +287,14 @@ describe('Local Computer video consumer', () => {
       expect(h.peer.close).not.toHaveBeenCalled();
       deliver.resolve();
       await opening;
-      expect(h.calls.filter((command) => command['kind'] === 'close')).toEqual([{ kind: 'close', binding }]);
+      expect(h.calls.filter((command) => command['kind'] === 'close')).toEqual([
+        { kind: 'close', binding },
+      ]);
       expect(h.peer.close).toHaveBeenCalledOnce();
-      expect(await h.owner.handle(h.caller, { kind: 'status' })).toMatchObject({ viewerCount: 0, paused: false });
+      expect(await h.owner.handle(h.caller, { kind: 'status' })).toMatchObject({
+        viewerCount: 0,
+        paused: false,
+      });
       expect(client.getState()).toMatchObject({ status: 'idle', presenting: false });
       expect(client.getState().host?.binding).toBeUndefined();
     } finally {
@@ -219,9 +311,15 @@ describe('Local Computer video consumer', () => {
     await client.takeover();
     stall();
     await vi.advanceTimersByTimeAsync(2000);
-    expect(client.getState()).toMatchObject({ status: 'observing', host: {
-      controller: false, paused: true, grant: { generation: 1 }, media: { status: 'stalled' },
-    } });
+    expect(client.getState()).toMatchObject({
+      status: 'observing',
+      host: {
+        controller: false,
+        paused: true,
+        grant: { generation: 1 },
+        media: { status: 'stalled' },
+      },
+    });
     await client.input(click);
     expect(calls.some(({ body }) => body['kind'] === 'input')).toBe(false);
     await client.release();
@@ -231,41 +329,51 @@ describe('Local Computer video consumer', () => {
     await client.stop();
   });
 
-  it.each([false, true])('closes a stalled attempt before reconnect and respects intervening stop (%s)', async (stopDuringClose) => {
-    const { client, calls, transport, stall } = fixture();
-    const send = transport.api;
-    const closing = Promise.withResolvers<void>();
-    transport.api = async (path, init) => {
-      if (init.body['kind'] === 'close') await closing.promise;
-      return send(path, init);
-    };
-    await client.start();
-    client.playback('attempt-1', 1, 0);
-    await client.takeover();
-    stall();
-    await vi.advanceTimersByTimeAsync(2000);
-    const reconnecting = client.reconnect();
-    expect(client.getState()).toMatchObject({ status: 'idle', busy: true, presenting: false });
-    expect(client.getState().host?.binding).toBeUndefined();
-    expect(calls.filter(({ body }) => body['kind'] === 'open')).toHaveLength(1);
-    const stopping = stopDuringClose ? client.stop() : Promise.resolve();
-    closing.resolve();
-    await Promise.all([reconnecting, stopping]);
-    if (stopDuringClose) {
-      expect(client.getState().status).toBe('idle');
+  it.each([false, true])(
+    'closes a stalled attempt before reconnect and respects intervening stop (%s)',
+    async (stopDuringClose) => {
+      const { client, calls, transport, stall } = fixture();
+      const send = transport.api;
+      const closing = Promise.withResolvers<void>();
+      transport.api = async (path, init) => {
+        if (init.body['kind'] === 'close') await closing.promise;
+        return send(path, init);
+      };
+      await client.start();
+      client.playback('attempt-1', 1, 0);
+      await client.takeover();
+      stall();
+      await vi.advanceTimersByTimeAsync(2000);
+      const reconnecting = client.reconnect();
+      expect(client.getState()).toMatchObject({ status: 'idle', busy: true, presenting: false });
+      expect(client.getState().host?.binding).toBeUndefined();
       expect(calls.filter(({ body }) => body['kind'] === 'open')).toHaveLength(1);
-    } else {
-      expect(calls.slice(-3).map(({ body }) => body['kind'])).toEqual(['close', 'status', 'open']);
-      expect(client.getState()).toMatchObject({ status: 'observing', host: { paused: true, binding: { attemptId: 'attempt-2' } } });
-      expect(client.getState().host?.grant).toBeUndefined();
-      client.playback('attempt-1', 999, 0);
-      client.playback('attempt-2', 1, 0);
-      await client.input(click);
-      expect(calls.filter(({ body }) => body['kind'] === 'takeover')).toHaveLength(1);
-      expect(calls.some(({ body }) => body['kind'] === 'input')).toBe(false);
-    }
-    await client.stop();
-  });
+      const stopping = stopDuringClose ? client.stop() : Promise.resolve();
+      closing.resolve();
+      await Promise.all([reconnecting, stopping]);
+      if (stopDuringClose) {
+        expect(client.getState().status).toBe('idle');
+        expect(calls.filter(({ body }) => body['kind'] === 'open')).toHaveLength(1);
+      } else {
+        expect(calls.slice(-3).map(({ body }) => body['kind'])).toEqual([
+          'close',
+          'status',
+          'open',
+        ]);
+        expect(client.getState()).toMatchObject({
+          status: 'observing',
+          host: { paused: true, binding: { attemptId: 'attempt-2' } },
+        });
+        expect(client.getState().host?.grant).toBeUndefined();
+        client.playback('attempt-1', 999, 0);
+        client.playback('attempt-2', 1, 0);
+        await client.input(click);
+        expect(calls.filter(({ body }) => body['kind'] === 'takeover')).toHaveLength(1);
+        expect(calls.some(({ body }) => body['kind'] === 'input')).toBe(false);
+      }
+      await client.stop();
+    },
+  );
 
   it('keeps the attempt offer mounted after signaling, heartbeat and control snapshots', async () => {
     const { client } = fixture();
@@ -281,7 +389,11 @@ describe('Local Computer video consumer', () => {
     await client.release();
     expect(client.getState().host?.offer).toBe(offer);
     await client.stop();
-    expect(client.getState().host).toMatchObject({ runtimeId: 'runtime-1', paused: true, controller: false });
+    expect(client.getState().host).toMatchObject({
+      runtimeId: 'runtime-1',
+      paused: true,
+      controller: false,
+    });
     expect(client.getState().host?.offer).toBeUndefined();
     expect(client.getState().host?.binding).toBeUndefined();
     expect(client.getState().host?.grant).toBeUndefined();
@@ -301,7 +413,9 @@ describe('Local Computer video consumer', () => {
     client.mediaFailed('attempt-1', 'ice-disconnected');
     await client.stop();
     expect(calls.every(({ path }) => path === LOCAL_VIDEO_PATH)).toBe(true);
-    expect(calls.some(({ body }) => body['kind'] === 'input' || body['kind'] === 'takeover')).toBe(false);
+    expect(calls.some(({ body }) => body['kind'] === 'input' || body['kind'] === 'takeover')).toBe(
+      false,
+    );
   });
 
   it('ignores an old signaling response after replacing the receiver attempt', async () => {
@@ -329,7 +443,9 @@ describe('Local Computer video consumer', () => {
     client.mediaFailed('attempt-1', 'late-native-close');
     expect(client.getState().host).toBe(replacement);
     expect(client.getState()).toMatchObject({
-      status: 'observing', presenting: false, host: { binding: { attemptId: 'attempt-2' } },
+      status: 'observing',
+      presenting: false,
+      host: { binding: { attemptId: 'attempt-2' } },
     });
     await client.stop();
   });
@@ -340,7 +456,11 @@ describe('Local Computer video consumer', () => {
     client.playback('attempt-1', 1, 0);
     await client.takeover();
     await client.input(click);
-    expect(calls.find(({ body }) => body['kind'] === 'input')?.body).toMatchObject({ generation: 1, sequence: 1, input: click });
+    expect(calls.find(({ body }) => body['kind'] === 'input')?.body).toMatchObject({
+      generation: 1,
+      sequence: 1,
+      input: click,
+    });
     await client.release();
     expect(client.getState()).toMatchObject({ status: 'observing', host: { paused: true } });
     await client.input(click);
@@ -375,7 +495,10 @@ describe('Local Computer video consumer', () => {
     await client.takeover();
     setInput(() => Promise.reject(new Error('ack lost after execution')));
     await client.input(click);
-    expect(client.getState()).toMatchObject({ status: 'unavailable', code: 'input-result-unknown' });
+    expect(client.getState()).toMatchObject({
+      status: 'unavailable',
+      code: 'input-result-unknown',
+    });
     await client.start();
     client.playback('attempt-2', 1, 0);
     await client.input(click);
@@ -391,7 +514,7 @@ describe('Local Computer video consumer', () => {
     await client.takeover();
     for (let frames = 2; frames <= 8; frames++) {
       await vi.advanceTimersByTimeAsync(1000);
-      client.playback('attempt-1', frames, 0); // Unchanged pixels, new video presentation.
+      client.playback('attempt-1', frames, 0);
     }
     await client.input(click);
     expect(calls.filter(({ body }) => body['kind'] === 'input')).toHaveLength(1);
@@ -410,7 +533,10 @@ describe('Local Computer video consumer', () => {
     await client.takeover();
     await client.stop();
     await client.resume();
-    expect(calls.find(({ body }) => body['kind'] === 'resume')?.body).toEqual({ kind: 'resume', runtimeId: 'runtime-1' });
+    expect(calls.find(({ body }) => body['kind'] === 'resume')?.body).toEqual({
+      kind: 'resume',
+      runtimeId: 'runtime-1',
+    });
     await client.start();
     await client.answer('attempt-1', 'v=0\r\n');
     client.playback('attempt-1', 9999, 0);
@@ -442,7 +568,10 @@ describe('Local Computer video consumer', () => {
     const { transport, calls } = fixture();
     const client = createLocalVideoClient(transport, { mediaAvailable: false });
     await client.start();
-    expect(client.getState()).toMatchObject({ status: 'unavailable', code: 'native-module-unavailable' });
+    expect(client.getState()).toMatchObject({
+      status: 'unavailable',
+      code: 'native-module-unavailable',
+    });
     expect(calls.map(({ body }) => body['kind'])).toEqual(['status']);
     await client.stop();
   });

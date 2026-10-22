@@ -30,7 +30,12 @@ import { createLocalVideoMedia } from './media/supervisor.js';
 import { resolveDshHome } from '../../core/src/im/config-store.js';
 import type { ComputerSettings } from './settings.js';
 import { DEFAULT_DOCKER_CONFIG, createDockerComputerProvider } from './providers/docker.js';
-import type { ComputerRuntimeResult, ComputerRuntimeRunner, ComputerRuntimeRunOptions, ComputerStatus } from './provider.js';
+import type {
+  ComputerRuntimeResult,
+  ComputerRuntimeRunner,
+  ComputerRuntimeRunOptions,
+  ComputerStatus,
+} from './provider.js';
 import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
 import { createLocalCuaDriver } from './tool/local-driver.js';
@@ -350,9 +355,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onChange: () => {
       transferTokens = createTransferTokens();
       toolProvider.resetRuntime();
-      void localVideo.resetRuntime().catch(() =>
-        diagnostics.record('lifecycle', 'phase=local-video-runtime-cleanup-refused'),
-      );
+      void localVideo
+        .resetRuntime()
+        .catch(() => diagnostics.record('lifecycle', 'phase=local-video-runtime-cleanup-refused'));
     },
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     create: (selected) => {
@@ -428,10 +433,13 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
   });
   service.localVideo = localVideo;
-  ctx.effect(() => async () => {
-    service.localVideo = undefined;
-    await localVideo.dispose();
-  }, 'botharness-computer: Local video owner');
+  ctx.effect(
+    () => async () => {
+      service.localVideo = undefined;
+      await localVideo.dispose();
+    },
+    'botharness-computer: Local video owner',
+  );
   const desktopView = createDesktopView({
     driver,
     isRunning: () => runtime.isRunning(),
@@ -441,10 +449,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     ctx,
     driver,
     isComputerRunning: () => runtime.isRunning(),
-    isPaused: () => migratedLocal() ? localVideo.isPaused() : desktopView.isPaused(),
-    runBotOperation: (operation, signal) => migratedLocal()
-      ? localVideo.runBotOperation(() => operation())
-      : operation(signal),
+    isPaused: () => (migratedLocal() ? localVideo.isPaused() : desktopView.isPaused()),
+    runBotOperation: (operation, signal) =>
+      migratedLocal() ? localVideo.runBotOperation(() => operation()) : operation(signal),
     authorizationScope,
     guidance: () => (target() === 'local' ? localComputerGuidance() : COMPUTER_GUIDANCE),
     isAutoAllowed: () => effective().autoAllowActions,
@@ -551,19 +558,25 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
       json({ ok: false, code: 'unknown-token', error: `unknown or expired ${kind} token` }, 404);
 
     connectionCtx.effect(
-      () => connection.fetch.register({
-        path: LOCAL_VIDEO_PATH,
-        methods: ['POST'],
-        requestBody: 'buffered',
-        fetch: createLocalVideoHttp(() => service.localVideo),
-      }),
+      () =>
+        connection.fetch.register({
+          path: LOCAL_VIDEO_PATH,
+          methods: ['POST'],
+          requestBody: 'buffered',
+          fetch: createLocalVideoHttp(() => service.localVideo),
+        }),
       'botharness-computer: Local video commands',
     );
-    const legacyLocalRefusal = (): Response => json({
-      ok: false,
-      code: 'update-required',
-      error: 'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
-    }, 409);
+    const legacyLocalRefusal = (): Response =>
+      json(
+        {
+          ok: false,
+          code: 'update-required',
+          error:
+            'Update the viewer to use Local Computer video and explicit control. Image viewing is unavailable.',
+        },
+        409,
+      );
 
     const webrtcRoute = {
       path: '/api/computer/webrtc',
@@ -818,10 +831,18 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
             result: await toolProvider.runDirect(slug, tool, args as Record<string, unknown>),
           });
         } catch (error) {
-          const code = error instanceof LocalVideoError ? error.code
-            : migratedLocal() && localVideo.isPaused() ? 'control-required' : undefined;
+          const code =
+            error instanceof LocalVideoError
+              ? error.code
+              : migratedLocal() && localVideo.isPaused()
+                ? 'control-required'
+                : undefined;
           return json(
-            { ok: false, ...(code === undefined ? {} : { code }), error: error instanceof Error ? error.message : String(error) },
+            {
+              ok: false,
+              ...(code === undefined ? {} : { code }),
+              error: error instanceof Error ? error.message : String(error),
+            },
             409,
           );
         }

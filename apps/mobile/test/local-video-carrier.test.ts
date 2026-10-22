@@ -22,8 +22,12 @@ function lane({ delayAdmission = false, loseResponse = false } = {}) {
     request: vi.fn(),
     openSocket: vi.fn((_url: string, events: HostSocketEvents) => {
       const peer = new ConnectChannel({
-        role: 'responder', hostId: 'host', staticKey: hostKey,
-        ephemeralKey: randomBytes(32), hostKey: noisePublicKey(hostKey), route: 'lan',
+        role: 'responder',
+        hostId: 'host',
+        staticKey: hostKey,
+        ephemeralKey: randomBytes(32),
+        hostKey: noisePublicKey(hostKey),
+        route: 'lan',
       });
       const reply = (value: unknown) => {
         for (const frame of peer.send(JSON.stringify(value)))
@@ -44,18 +48,30 @@ function lane({ delayAdmission = false, loseResponse = false } = {}) {
             } else if (value.type === 'request') {
               requests.push({ path: value.path, body: value.body });
               if (loseResponse) queueMicrotask(() => events.closed('ack-lost'));
-              else reply({ type: 'response', id: value.id, status: 409,
-                body: btoa(JSON.stringify({ ok: false, code: 'viewer-limit', error: 'One viewer only.' })) });
+              else
+                reply({
+                  type: 'response',
+                  id: value.id,
+                  status: 409,
+                  body: btoa(
+                    JSON.stringify({ ok: false, code: 'viewer-limit', error: 'One viewer only.' }),
+                  ),
+                });
             }
             reply({ type: 'ack', credit: value.credit });
           }
         },
-        close() { closed(); peer.close(); },
+        close() {
+          closed();
+          peer.close();
+        },
       };
     }),
   };
   const options = {
-    raw, hostId: 'host', credential: 'synthetic-private-credential',
+    raw,
+    hostId: 'host',
+    credential: 'synthetic-private-credential',
     encryption: {
       protocol: 'connect-noise-xk-v1' as const,
       hostKey: Buffer.from(noisePublicKey(hostKey)).toString('hex'),
@@ -72,29 +88,51 @@ it('sends only the exact LAN video route through Noise and preserves owner statu
   const client = createHostClient({ ...test.options, routes: [origin], carrier: test.raw });
   try {
     expect(await client.api(LOCAL_VIDEO_PATH, { body: { kind: 'open' } })).toEqual({
-      status: 409, body: { ok: false, code: 'viewer-limit', error: 'One viewer only.' },
+      status: 409,
+      body: { ok: false, code: 'viewer-limit', error: 'One viewer only.' },
     });
-    for (const rejected of [LOCAL_VIDEO_PATH + '/', LOCAL_VIDEO_PATH + '?extra=1', '/api/computer/frame', '/api/browser/video'])
-      await expect(client.api(rejected)).rejects.toMatchObject({ code: 'connect-viewer-unavailable' });
+    for (const rejected of [
+      LOCAL_VIDEO_PATH + '/',
+      LOCAL_VIDEO_PATH + '?extra=1',
+      '/api/computer/frame',
+      '/api/browser/video',
+    ])
+      await expect(client.api(rejected)).rejects.toMatchObject({
+        code: 'connect-viewer-unavailable',
+      });
     expect(test.requests).toEqual([{ path, body: JSON.stringify({ kind: 'open' }) }]);
     expect(test.raw.request).not.toHaveBeenCalled();
     expect(test.wire.join('')).not.toContain(test.options.credential);
-  } finally { client.stop(); }
+  } finally {
+    client.stop();
+  }
 });
 
 it('retains the structured Connect refusal through the shared video consumer without network fallback', async () => {
   const raw = { request: vi.fn(), openSocket: vi.fn() };
-  const host = createHostClient({ hostId: 'host', credential: 'synthetic', routes: ['https://host.deepseekbot.dev'], carrier: raw });
+  const host = createHostClient({
+    hostId: 'host',
+    credential: 'synthetic',
+    routes: ['https://host.deepseekbot.dev'],
+    carrier: raw,
+  });
   const video = createLocalVideoClient(host);
   try {
     expect(await host.api(LOCAL_VIDEO_PATH, { body: { kind: 'status' } })).toMatchObject({
-      status: 403, body: { ok: false, code: 'connect-carrier-required' },
+      status: 403,
+      body: { ok: false, code: 'connect-carrier-required' },
     });
     await video.start();
-    expect(video.getState()).toMatchObject({ status: 'unavailable', code: 'connect-carrier-required' });
+    expect(video.getState()).toMatchObject({
+      status: 'unavailable',
+      code: 'connect-carrier-required',
+    });
     expect(raw.request).not.toHaveBeenCalled();
     expect(raw.openSocket).not.toHaveBeenCalled();
-  } finally { await video.stop(); host.stop(); }
+  } finally {
+    await video.stop();
+    host.stop();
+  }
 });
 
 it('cancels an admission waiter immediately while another request keeps the shared channel', async () => {
@@ -102,9 +140,17 @@ it('cancels an admission waiter immediately while another request keeps the shar
   const carrier = encryptedCarrier(test.options);
   const cancelled = new AbortController();
   try {
-    const first = carrier.request(origin + path, { method: 'POST', body: '{"kind":"close"}', signal: cancelled.signal });
+    const first = carrier.request(origin + path, {
+      method: 'POST',
+      body: '{"kind":"close"}',
+      signal: cancelled.signal,
+    });
     const refusal = expect(first).rejects.toThrow('request-cancelled');
-    const second = carrier.request(origin + path, { method: 'POST', body: '{"kind":"status"}', signal: new AbortController().signal });
+    const second = carrier.request(origin + path, {
+      method: 'POST',
+      body: '{"kind":"status"}',
+      signal: new AbortController().signal,
+    });
     await test.admitted;
     cancelled.abort();
     await refusal;
@@ -115,7 +161,9 @@ it('cancels an admission waiter immediately while another request keeps the shar
     expect(test.requests).toEqual([{ path, body: '{"kind":"status"}' }]);
     expect(test.raw.openSocket).toHaveBeenCalledOnce();
     expect(test.raw.request).not.toHaveBeenCalled();
-  } finally { carrier.close?.(); }
+  } finally {
+    carrier.close?.();
+  }
 });
 
 it('honors the video cleanup deadline during admission without closing the shared carrier', async () => {
@@ -132,16 +180,26 @@ it('honors the video cleanup deadline during admission without closing the share
     test.admit();
     expect((await host.api(LOCAL_VIDEO_PATH, { body: { kind: 'status' } })).status).toBe(409);
     expect(test.requests).toEqual([{ path, body: '{"kind":"status"}' }]);
-  } finally { host.stop(); }
+  } finally {
+    host.stop();
+  }
 });
 
 it('never retries an input after encrypted delivery loses its acknowledgement', async () => {
   const test = lane({ loseResponse: true });
-  const host = createHostClient({ ...test.options, routes: [origin, 'https://studio.tailnet.ts.net'], carrier: test.raw });
+  const host = createHostClient({
+    ...test.options,
+    routes: [origin, 'https://studio.tailnet.ts.net'],
+    carrier: test.raw,
+  });
   try {
-    await expect(host.api(LOCAL_VIDEO_PATH, { body: { kind: 'input', sequence: 1 } })).rejects.toThrow();
+    await expect(
+      host.api(LOCAL_VIDEO_PATH, { body: { kind: 'input', sequence: 1 } }),
+    ).rejects.toThrow();
     expect(test.requests).toHaveLength(1);
     expect(test.raw.openSocket).toHaveBeenCalledOnce();
     expect(test.raw.request).not.toHaveBeenCalled();
-  } finally { host.stop(); }
+  } finally {
+    host.stop();
+  }
 });

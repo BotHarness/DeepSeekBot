@@ -1,6 +1,5 @@
 import type { DesktopInput } from './desktop-view.js';
 
-/** Application-defined Computer contract. No native media imports or device credential store. */
 export const LOCAL_VIDEO_PATH = '/api/computer/video';
 export const LOCAL_VIDEO_LIMITS = {
   viewers: 1,
@@ -14,12 +13,10 @@ export const LOCAL_VIDEO_LIMITS = {
   cleanupTimeoutMs: 3_000,
 } as const;
 
-/** Supplied only by authenticated Host/Device gateway admission, never by the request body. */
 export interface LocalVideoCaller {
   readonly deviceId: string;
 }
 
-/** Server-issued, connection-scoped identifiers; every operation is also bound to its admitted caller. */
 export interface LocalVideoBinding {
   readonly computerId: 'local';
   readonly runtimeId: string;
@@ -62,24 +59,77 @@ export interface LocalVideoState {
 
 export type LocalVideoCommand =
   | { readonly kind: 'status' | 'open' }
-  | { readonly kind: 'signal'; readonly binding: LocalVideoBinding; readonly answer: LocalVideoDescription }
-  | { readonly kind: 'heartbeat'; readonly binding: LocalVideoBinding; readonly playback: { readonly presentedFrames: number; readonly presenting: boolean } }
-  | { readonly kind: 'takeover'; readonly binding: LocalVideoBinding; readonly force?: boolean; readonly confirm?: boolean }
-  | { readonly kind: 'input'; readonly binding: LocalVideoBinding; readonly generation: number; readonly sequence: number; readonly input: DesktopInput }
-  | { readonly kind: 'release' | 'close'; readonly binding: LocalVideoBinding; readonly generation?: number }
-  | { readonly kind: 'resume'; readonly runtimeId: string; readonly binding?: LocalVideoBinding; readonly generation?: number };
+  | {
+      readonly kind: 'signal';
+      readonly binding: LocalVideoBinding;
+      readonly answer: LocalVideoDescription;
+    }
+  | {
+      readonly kind: 'heartbeat';
+      readonly binding: LocalVideoBinding;
+      readonly playback: { readonly presentedFrames: number; readonly presenting: boolean };
+    }
+  | {
+      readonly kind: 'takeover';
+      readonly binding: LocalVideoBinding;
+      readonly force?: boolean;
+      readonly confirm?: boolean;
+    }
+  | {
+      readonly kind: 'input';
+      readonly binding: LocalVideoBinding;
+      readonly generation: number;
+      readonly sequence: number;
+      readonly input: DesktopInput;
+    }
+  | {
+      readonly kind: 'release' | 'close';
+      readonly binding: LocalVideoBinding;
+      readonly generation?: number;
+    }
+  | {
+      readonly kind: 'resume';
+      readonly runtimeId: string;
+      readonly binding?: LocalVideoBinding;
+      readonly generation?: number;
+    };
 
 export type LocalVideoRefusal =
-  | 'invalid-input' | 'update-required' | 'not-running' | 'not-ready' | 'unsupported-platform'
-  | 'viewer-limit' | 'viewer-not-found' | 'stale-attempt' | 'stale-grant' | 'control-required'
-  | 'control-conflict' | 'confirmation-required' | 'control-disconnected' | 'media-not-live'
-  | 'pause-write-failed' | 'drain-timeout' | 'input-failed' | 'input-result-unknown'
-  | 'input-sequence' | 'queue-full' | 'request-too-large' | 'operation-timeout'
-  | 'helper-missing' | 'helper-start-failed' | 'helper-failed' | 'signal-failed'
-  | 'device-revoked' | 'disposed' | 'connect-carrier-required';
+  | 'invalid-input'
+  | 'update-required'
+  | 'not-running'
+  | 'not-ready'
+  | 'unsupported-platform'
+  | 'viewer-limit'
+  | 'viewer-not-found'
+  | 'stale-attempt'
+  | 'stale-grant'
+  | 'control-required'
+  | 'control-conflict'
+  | 'confirmation-required'
+  | 'control-disconnected'
+  | 'media-not-live'
+  | 'pause-write-failed'
+  | 'drain-timeout'
+  | 'input-failed'
+  | 'input-result-unknown'
+  | 'input-sequence'
+  | 'queue-full'
+  | 'request-too-large'
+  | 'operation-timeout'
+  | 'helper-missing'
+  | 'helper-start-failed'
+  | 'helper-failed'
+  | 'signal-failed'
+  | 'device-revoked'
+  | 'disposed'
+  | 'connect-carrier-required';
 
 export class LocalVideoError extends Error {
-  constructor(readonly code: LocalVideoRefusal, message: string) {
+  constructor(
+    readonly code: LocalVideoRefusal,
+    message: string,
+  ) {
     super(message);
     this.name = 'LocalVideoError';
   }
@@ -89,7 +139,6 @@ export type LocalVideoResult =
   | { readonly ok: true; readonly state: LocalVideoState }
   | { readonly ok: false; readonly code: LocalVideoRefusal; readonly error: string };
 
-/** Computer Plugin/Fiber owns this provider and all resources returned by open. */
 export interface LocalVideoMedia {
   open(options: {
     readonly binding: LocalVideoBinding;
@@ -102,12 +151,16 @@ export interface LocalVideoMediaPeer {
   readonly offer: LocalVideoDescription;
   readonly display: { readonly width: number; readonly height: number };
   answer(answer: LocalVideoDescription, signal?: AbortSignal): Promise<void>;
-  /** Resolves only after the established peer/tracks/helper have stopped, or rejects at its bound. */
+
   close(): Promise<void>;
 }
 
 export interface LocalVideoOwner {
-  handle(caller: LocalVideoCaller, command: LocalVideoCommand, signal?: AbortSignal): Promise<LocalVideoState>;
+  handle(
+    caller: LocalVideoCaller,
+    command: LocalVideoCommand,
+    signal?: AbortSignal,
+  ): Promise<LocalVideoState>;
   runBotOperation<T>(operation: () => Promise<T>): Promise<T>;
   isPaused(): boolean;
   revoke(deviceId: string): Promise<void>;

@@ -8,13 +8,15 @@ import {
   type LocalVideoState,
 } from './local-video-contract.js';
 
-/** Structural adapter for the existing authenticated Host client. It owns credentials and routing. */
 export interface LocalVideoTransport {
-  api(path: string, init: {
-    body: Record<string, unknown>;
-    signal: AbortSignal;
-    timeoutMs: number;
-  }): Promise<{ status: number; body: unknown }>;
+  api(
+    path: string,
+    init: {
+      body: Record<string, unknown>;
+      signal: AbortSignal;
+      timeoutMs: number;
+    },
+  ): Promise<{ status: number; body: unknown }>;
 }
 
 export interface LocalVideoClientState {
@@ -41,12 +43,21 @@ export interface LocalVideoClient {
 }
 
 const HEARTBEAT_MS = 2_000;
-// Reserve one request each for liveness and release/resume so input cannot starve safety commands.
+
 const INPUT_QUEUE_LIMIT = LOCAL_VIDEO_LIMITS.pendingRequests - 2;
 
-function sameBinding(left: LocalVideoBinding | undefined, right: LocalVideoBinding | undefined): boolean {
-  return left !== undefined && right !== undefined && left.computerId === right.computerId &&
-    left.runtimeId === right.runtimeId && left.viewerId === right.viewerId && left.attemptId === right.attemptId;
+function sameBinding(
+  left: LocalVideoBinding | undefined,
+  right: LocalVideoBinding | undefined,
+): boolean {
+  return (
+    left !== undefined &&
+    right !== undefined &&
+    left.computerId === right.computerId &&
+    left.runtimeId === right.runtimeId &&
+    left.viewerId === right.viewerId &&
+    left.attemptId === right.attemptId
+  );
 }
 
 function withoutAttempt(host: LocalVideoState): LocalVideoState {
@@ -59,20 +70,36 @@ function resultOf(value: unknown): LocalVideoResult | undefined {
   const valueRecord = value as Record<string, unknown>;
   if (valueRecord['ok'] === false && typeof valueRecord['code'] === 'string')
     return value as LocalVideoResult;
-  if (valueRecord['ok'] !== true || typeof valueRecord['state'] !== 'object' || valueRecord['state'] === null)
+  if (
+    valueRecord['ok'] !== true ||
+    typeof valueRecord['state'] !== 'object' ||
+    valueRecord['state'] === null
+  )
     return undefined;
   const state = valueRecord['state'] as Record<string, unknown>;
-  if (state['computerId'] !== 'local' || typeof state['runtimeId'] !== 'string' ||
-      typeof state['paused'] !== 'boolean' || typeof state['controller'] !== 'boolean' ||
-      typeof state['media'] !== 'object' || state['media'] === null) return undefined;
+  if (
+    state['computerId'] !== 'local' ||
+    typeof state['runtimeId'] !== 'string' ||
+    typeof state['paused'] !== 'boolean' ||
+    typeof state['controller'] !== 'boolean' ||
+    typeof state['media'] !== 'object' ||
+    state['media'] === null
+  )
+    return undefined;
   return value as LocalVideoResult;
 }
 
-/** One selected Host, one foreground observation. There is deliberately no input retry/replay. */
-export function createLocalVideoClient(transport: LocalVideoTransport, options: { mediaAvailable?: boolean } = {}): LocalVideoClient {
+export function createLocalVideoClient(
+  transport: LocalVideoTransport,
+  options: { mediaAvailable?: boolean } = {},
+): LocalVideoClient {
   const listeners = new Set<() => void>();
   let state: LocalVideoClientState = {
-    status: 'idle', host: undefined, presenting: false, busy: false, code: undefined,
+    status: 'idle',
+    host: undefined,
+    presenting: false,
+    busy: false,
+    code: undefined,
   };
   let lifetime = 0;
   let controlEpoch = 0;
@@ -82,7 +109,7 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
   let presentedFrames = 0;
   let inputSequence = 0;
   let acceptedGrant: number | undefined;
-  // Same-device status/resume can describe another client's viewer. Only our open allocates ownership.
+
   let ownedBinding: LocalVideoBinding | undefined;
   let queue = { pending: 0, serial: Promise.resolve() };
   let closing: Promise<void> = Promise.resolve();
@@ -96,19 +123,24 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
     clearTimeout(frameTimer);
   }
   function currentBinding(): LocalVideoBinding | undefined {
-    return sameBinding(ownedBinding, state.host?.binding) && state.host?.runtimeId === ownedBinding?.runtimeId
-      ? ownedBinding : undefined;
+    return sameBinding(ownedBinding, state.host?.binding) &&
+      state.host?.runtimeId === ownedBinding?.runtimeId
+      ? ownedBinding
+      : undefined;
   }
   async function closeBinding(binding: LocalVideoBinding): Promise<void> {
     const close = new AbortController();
     const timer = setTimeout(() => close.abort(), LOCAL_VIDEO_LIMITS.cleanupTimeoutMs);
     try {
       await transport.api(LOCAL_VIDEO_PATH, {
-        body: { kind: 'close', binding }, signal: close.signal,
+        body: { kind: 'close', binding },
+        signal: close.signal,
         timeoutMs: LOCAL_VIDEO_LIMITS.cleanupTimeoutMs,
       });
-    } catch { /* The Host's bounded loss expiry still preserves pause. Never replay input. */ }
-    finally { clearTimeout(timer); }
+    } catch {
+    } finally {
+      clearTimeout(timer);
+    }
   }
   function end(status: 'idle' | 'unavailable', code?: string): Promise<void> {
     const binding = ownedBinding;
@@ -120,8 +152,7 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
     run = undefined;
     queue = { pending: 0, serial: Promise.resolve() };
     clearTimers();
-    // Keep the last runtime/pause fact for an explicit media-independent Resume command.
-    // The retired binding, SDP and grant cannot be reused by callbacks or another receiver.
+
     const host = state.host === undefined ? undefined : withoutAttempt(state.host);
     update({ status, host, presenting: false, busy: false, code });
     if (binding !== undefined) closing = closeBinding(binding);
@@ -130,22 +161,34 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
   function adopt(host: LocalVideoState): void {
     if (!sameBinding(ownedBinding, host.binding) || host.runtimeId !== ownedBinding?.runtimeId)
       host = withoutAttempt(host);
-    // SDP is returned only by open. Keep it for the mounted receiver across control/heartbeat
-    // snapshots, but never transfer it to another runtime, viewer, or media attempt.
+
     const previous = state.host;
-    const sameAttempt = sameBinding(ownedBinding, host.binding) && sameBinding(host.binding, previous?.binding);
+    const sameAttempt =
+      sameBinding(ownedBinding, host.binding) && sameBinding(host.binding, previous?.binding);
     if (host.offer === undefined && sameAttempt && previous?.offer !== undefined)
       host = { ...host, offer: previous.offer };
     inputSequence = Math.max(inputSequence, host.lastInputSequence);
     if (!host.controller || host.grant?.generation !== acceptedGrant) acceptedGrant = undefined;
-    update({ host, status: host.controller && acceptedGrant !== undefined && host.grant?.generation === acceptedGrant ? 'controlling' : 'observing', code: undefined });
+    update({
+      host,
+      status:
+        host.controller && acceptedGrant !== undefined && host.grant?.generation === acceptedGrant
+          ? 'controlling'
+          : 'observing',
+      code: undefined,
+    });
   }
-  async function request(command: LocalVideoCommand, generation: number): Promise<LocalVideoState | undefined> {
+  async function request(
+    command: LocalVideoCommand,
+    generation: number,
+  ): Promise<LocalVideoState | undefined> {
     const signal = run?.signal;
     if (generation !== lifetime || signal === undefined || signal.aborted) return undefined;
     try {
       const response = await transport.api(LOCAL_VIDEO_PATH, {
-        body: { ...command }, signal, timeoutMs: LOCAL_VIDEO_LIMITS.operationTimeoutMs,
+        body: { ...command },
+        signal,
+        timeoutMs: LOCAL_VIDEO_LIMITS.operationTimeoutMs,
       });
       const result = resultOf(response.body);
       if (generation !== lifetime || signal.aborted) {
@@ -160,7 +203,15 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       if (!result.ok) {
         if (result.code === 'unsupported-platform' && command.kind === 'status') {
           update({ status: 'unsupported', code: result.code });
-        } else if (['control-conflict', 'confirmation-required', 'media-not-live', 'control-required', 'queue-full'].includes(result.code)) {
+        } else if (
+          [
+            'control-conflict',
+            'confirmation-required',
+            'media-not-live',
+            'control-required',
+            'queue-full',
+          ].includes(result.code)
+        ) {
           controlEpoch++;
           acceptedGrant = undefined;
           update({ status: 'observing', code: result.code });
@@ -172,7 +223,10 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       return result.state;
     } catch {
       if (generation === lifetime && !signal.aborted)
-        void end('unavailable', command.kind === 'input' ? 'input-result-unknown' : 'connection-lost');
+        void end(
+          'unavailable',
+          command.kind === 'input' ? 'input-result-unknown' : 'connection-lost',
+        );
       return undefined;
     }
   }
@@ -183,7 +237,9 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       return Promise.resolve();
     }
     currentQueue.pending++;
-    const next = currentQueue.serial.then(action).finally(() => { currentQueue.pending--; });
+    const next = currentQueue.serial.then(action).finally(() => {
+      currentQueue.pending--;
+    });
     currentQueue.serial = next.catch(() => {});
     return next;
   }
@@ -196,9 +252,16 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
         if (binding === undefined || generation !== lifetime) return;
         const epoch = controlEpoch;
         const duringControl = state.busy;
-        const host = await request({ kind: 'heartbeat', binding,
-          playback: { presentedFrames, presenting: state.presenting } }, generation);
-        if (host !== undefined && epoch === controlEpoch && !duringControl && !state.busy) adopt(host);
+        const host = await request(
+          {
+            kind: 'heartbeat',
+            binding,
+            playback: { presentedFrames, presenting: state.presenting },
+          },
+          generation,
+        );
+        if (host !== undefined && epoch === controlEpoch && !duringControl && !state.busy)
+          adopt(host);
       };
       void beat().finally(() => scheduleHeartbeat(generation));
     }, HEARTBEAT_MS);
@@ -207,34 +270,56 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
     if (state.busy) return;
     const binding = currentBinding();
     const runtimeId = state.host?.runtimeId;
-    if ((kind !== 'resume' && (binding === undefined || run === undefined)) || runtimeId === undefined ||
-        (kind === 'takeover' && (!state.presenting || state.host?.media.status !== 'live' || !state.host.media.captureAlive))) return;
+    if (
+      (kind !== 'resume' && (binding === undefined || run === undefined)) ||
+      runtimeId === undefined ||
+      (kind === 'takeover' &&
+        (!state.presenting ||
+          state.host?.media.status !== 'live' ||
+          !state.host.media.captureAlive))
+    )
+      return;
     const withoutMedia = run === undefined;
     if (withoutMedia) run = new AbortController();
     const generation = lifetime;
     controlEpoch++;
     acceptedGrant = undefined;
     update({ busy: true, ...(kind === 'takeover' ? {} : { status: 'observing' as const }) });
-    const host = await request(kind === 'resume' ? { kind, runtimeId } : { kind, binding: binding! }, generation);
+    const host = await request(
+      kind === 'resume' ? { kind, runtimeId } : { kind, binding: binding! },
+      generation,
+    );
     if (host !== undefined) {
       if (kind === 'takeover') acceptedGrant = host.grant?.generation;
       adopt(host);
     }
     if (generation === lifetime) {
-      if (withoutMedia) { run?.abort(); run = undefined; }
+      if (withoutMedia) {
+        run?.abort();
+        run = undefined;
+      }
       update({ busy: false, ...(withoutMedia ? { status: 'unavailable' as const } : {}) });
     }
   }
   const client: LocalVideoClient = {
     getState: () => state,
-    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     async start() {
       if (run !== undefined) return;
       const generation = ++lifetime;
       run = new AbortController();
       presentedFrames = 0;
       inputSequence = 0;
-      update({ status: 'opening', host: undefined, presenting: false, busy: false, code: undefined });
+      update({
+        status: 'opening',
+        host: undefined,
+        presenting: false,
+        busy: false,
+        code: undefined,
+      });
       await closing;
       if (generation !== lifetime) return;
       const capability = await request({ kind: 'status' }, generation);
@@ -262,7 +347,7 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       const generation = lifetime;
       update({ busy: true });
       await closed;
-      // Background, exit, or a new foreground start supersedes this explicit reconnect.
+
       if (generation === lifetime) await client.start();
     },
     async answer(attemptId, sdp) {
@@ -271,19 +356,34 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
       const generation = lifetime;
       const epoch = controlEpoch;
       await enqueue(async () => {
-        const host = await request({ kind: 'signal', binding, answer: { type: 'answer', sdp } }, generation);
+        const host = await request(
+          { kind: 'signal', binding, answer: { type: 'answer', sdp } },
+          generation,
+        );
         if (host !== undefined && epoch === controlEpoch && !state.busy) adopt(host);
       });
     },
     playback(attemptId, frames, lastPresentedAgoMs) {
-      if (run === undefined || currentBinding()?.attemptId !== attemptId ||
-          !Number.isSafeInteger(frames) || frames < presentedFrames || !Number.isFinite(lastPresentedAgoMs)) return;
+      if (
+        run === undefined ||
+        currentBinding()?.attemptId !== attemptId ||
+        !Number.isSafeInteger(frames) ||
+        frames < presentedFrames ||
+        !Number.isFinite(lastPresentedAgoMs)
+      )
+        return;
       presentedFrames = frames;
-      const presenting = frames > 0 && lastPresentedAgoMs >= 0 && lastPresentedAgoMs < LOCAL_VIDEO_LIMITS.presentationStallMs;
+      const presenting =
+        frames > 0 &&
+        lastPresentedAgoMs >= 0 &&
+        lastPresentedAgoMs < LOCAL_VIDEO_LIMITS.presentationStallMs;
       clearTimeout(frameTimer);
       update({ presenting });
-      if (presenting) frameTimer = setTimeout(() => update({ presenting: false, code: 'media-not-live' }),
-        LOCAL_VIDEO_LIMITS.presentationStallMs - lastPresentedAgoMs);
+      if (presenting)
+        frameTimer = setTimeout(
+          () => update({ presenting: false, code: 'media-not-live' }),
+          LOCAL_VIDEO_LIMITS.presentationStallMs - lastPresentedAgoMs,
+        );
     },
     mediaFailed(attemptId, code) {
       if (currentBinding()?.attemptId === attemptId) void end('unavailable', code);
@@ -294,19 +394,40 @@ export function createLocalVideoClient(transport: LocalVideoTransport, options: 
     input(input) {
       const binding = currentBinding();
       const grant = state.host?.grant;
-      if (state.status !== 'controlling' || state.busy || !state.presenting ||
-          state.host?.media.status !== 'live' || !state.host.media.captureAlive || binding === undefined || grant === undefined)
+      if (
+        state.status !== 'controlling' ||
+        state.busy ||
+        !state.presenting ||
+        state.host?.media.status !== 'live' ||
+        !state.host.media.captureAlive ||
+        binding === undefined ||
+        grant === undefined
+      )
         return Promise.resolve();
       const generation = lifetime;
       const epoch = controlEpoch;
       return enqueue(async () => {
-        // Check again at execution. A queued tap cannot cross release, target change or media loss.
-        if (generation !== lifetime || epoch !== controlEpoch || state.status !== 'controlling' ||
-            !sameBinding(binding, currentBinding()) ||
-            !state.presenting || state.host?.media.status !== 'live' || !state.host.media.captureAlive ||
-            state.host?.grant?.generation !== grant.generation) return;
-        const host = await request({ kind: 'input', binding, generation: grant.generation,
-          sequence: ++inputSequence, input }, generation);
+        if (
+          generation !== lifetime ||
+          epoch !== controlEpoch ||
+          state.status !== 'controlling' ||
+          !sameBinding(binding, currentBinding()) ||
+          !state.presenting ||
+          state.host?.media.status !== 'live' ||
+          !state.host.media.captureAlive ||
+          state.host?.grant?.generation !== grant.generation
+        )
+          return;
+        const host = await request(
+          {
+            kind: 'input',
+            binding,
+            generation: grant.generation,
+            sequence: ++inputSequence,
+            input,
+          },
+          generation,
+        );
         if (host !== undefined && epoch === controlEpoch) adopt(host);
       });
     },

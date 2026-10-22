@@ -457,7 +457,11 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     };
     if (isConnectRequest(request)) {
       request.resume();
-      return send({ ok: false, code: 'connect-carrier-required', error: 'Local Computer video requires the paired LAN route.' });
+      return send({
+        ok: false,
+        code: 'connect-carrier-required',
+        error: 'Local Computer video requires the paired LAN route.',
+      });
     }
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
     if (pendingVideo >= LOCAL_VIDEO_LIMITS.pendingRequests) {
@@ -482,19 +486,36 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     try {
       const raw = await readSmall(request, LOCAL_VIDEO_LIMITS.requestBytes);
       if (raw === undefined)
-        return send({ ok: false, code: 'request-too-large', error: 'The video command is too large.' });
+        return send({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The video command is too large.',
+        });
       let command: unknown;
       try {
         command = JSON.parse(raw) as unknown;
       } catch {
         return send({ ok: false, code: 'invalid-input', error: 'The video command must be JSON.' });
       }
-      // Admission can change while a slow request body arrives. Never forward caller identity.
+
       if (!pairing.check(admission.device.id).ok || cancellation.signal.aborted)
-        return send({ ok: false, code: 'device-revoked', error: 'The device connection is no longer admitted.' });
-      const result = options.localVideo === undefined
-        ? { ok: false as const, code: 'not-ready' as const, error: 'Local Computer video is not ready.' }
-        : await options.localVideo({ deviceId: admission.device.id, command, signal: cancellation.signal });
+        return send({
+          ok: false,
+          code: 'device-revoked',
+          error: 'The device connection is no longer admitted.',
+        });
+      const result =
+        options.localVideo === undefined
+          ? {
+              ok: false as const,
+              code: 'not-ready' as const,
+              error: 'Local Computer video is not ready.',
+            }
+          : await options.localVideo({
+              deviceId: admission.device.id,
+              command,
+              signal: cancellation.signal,
+            });
       send(result);
     } catch {
       send({ ok: false, code: 'operation-timeout', error: 'The video command did not complete.' });
@@ -512,7 +533,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       let decodedPath: string;
       try {
         decodedPath = new URL(`http://device${decodeURIComponent(path)}`).pathname
-          .replace(/\/+/gu, '/').replace(/\/$/u, '');
+          .replace(/\/+/gu, '/')
+          .replace(/\/$/u, '');
       } catch {
         return refuse(response, 404, 'not-found');
       }
@@ -535,8 +557,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         (path === DEVICE_PUSH_PREFIX || path.startsWith(`${DEVICE_PUSH_PREFIX}/`))
       )
         return devicePush(request, response, path);
-      // This capability needs the admitted device principal, not the proxy's shared Host cookie.
-      // Always intercept it, including while its owner is absent; never fall through to forwarding.
+
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${LOCAL_VIDEO_PATH}`)
         return video(request, response, pairing.admit(header(request, 'authorization')));
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))

@@ -229,12 +229,14 @@ describe('Local Computer on Linux and Windows', () => {
     expect(await provider.status()).toMatchObject({ state: 'running' });
     expect(driver.call).toHaveBeenCalledWith('check_permissions', {}, expect.any(AbortSignal));
     expect(vi.mocked(processRunner.run).mock.calls[0]?.[0][0]).toMatch(/cua-driver\.exe$/);
-    expect(ensureLocalVideoHelper).toHaveBeenCalledWith(expect.objectContaining({
-      runner: processRunner,
-      platform: 'win32',
-      arch: 'x64',
-      signal: expect.any(AbortSignal),
-    }));
+    expect(ensureLocalVideoHelper).toHaveBeenCalledWith(
+      expect.objectContaining({
+        runner: processRunner,
+        platform: 'win32',
+        arch: 'x64',
+        signal: expect.any(AbortSignal),
+      }),
+    );
   });
 
   it('opens a display on Linux once the driver verifies, reuses it, and stops it on close', async () => {

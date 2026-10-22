@@ -1,4 +1,3 @@
-// Runs only in the supervised Electron subprocess, never in the DSH Host.
 const { app, BrowserWindow, desktopCapturer, ipcMain, screen, session } = require('electron');
 const { join } = require('node:path');
 
@@ -14,7 +13,10 @@ let answerWaiter;
 function write(value) {
   if (stopping) return;
   const line = JSON.stringify(value) + '\n';
-  if (Buffer.byteLength(line) > LIMIT || process.stdout.writableLength + Buffer.byteLength(line) > LIMIT) {
+  if (
+    Buffer.byteLength(line) > LIMIT ||
+    process.stdout.writableLength + Buffer.byteLength(line) > LIMIT
+  ) {
     stop();
     return;
   }
@@ -24,8 +26,7 @@ function write(value) {
 function stop() {
   if (stopping) return;
   stopping = true;
-  // Destroying the renderer closes all peer connections and capture tracks even
-  // when JS is hung; the outer supervisor additionally owns the process tree.
+
   try {
     if (window && !window.isDestroyed()) window.destroy();
   } finally {
@@ -40,7 +41,6 @@ process.on('SIGTERM', stop);
 process.on('uncaughtException', stop);
 process.on('unhandledRejection', stop);
 
-// No persistent browser profile, remote pages, audio, camera, or network services.
 app.setPath('userData', process.env.BOTHARNESS_MEDIA_USER_DATA);
 app.commandLine.appendSwitch('disable-background-networking');
 app.commandLine.appendSwitch('disable-component-update');
@@ -64,28 +64,41 @@ app.whenReady().then(async () => {
     },
   });
   const ownsFrame = (frame) => frame && frame === window?.webContents.mainFrame;
-  captureSession.setPermissionCheckHandler((contents, permission) =>
-    contents === window?.webContents && (permission === 'media' || permission === 'display-capture'));
+  captureSession.setPermissionCheckHandler(
+    (contents, permission) =>
+      contents === window?.webContents &&
+      (permission === 'media' || permission === 'display-capture'),
+  );
   captureSession.setPermissionRequestHandler((contents, permission, callback, details) => {
-    callback(contents === window?.webContents &&
-      (permission === 'display-capture' || (permission === 'media' && !details.mediaTypes?.length)));
+    callback(
+      contents === window?.webContents &&
+        (permission === 'display-capture' ||
+          (permission === 'media' && !details.mediaTypes?.length)),
+    );
   });
-  captureSession.setDisplayMediaRequestHandler(async (request, callback) => {
-    if (!ownsFrame(request.frame) || request.audioRequested || !request.videoRequested) return callback(null);
-    try {
-      const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 } });
-      const source = sources.find((item) => item.display_id === String(primary.id));
-      if (stopping || !source) return callback(null);
-      callback({ video: source });
-    } catch {
-      callback(null);
-    }
-  }, { useSystemPicker: false });
+  captureSession.setDisplayMediaRequestHandler(
+    async (request, callback) => {
+      if (!ownsFrame(request.frame) || request.audioRequested || !request.videoRequested)
+        return callback(null);
+      try {
+        const sources = await desktopCapturer.getSources({
+          types: ['screen'],
+          thumbnailSize: { width: 0, height: 0 },
+        });
+        const source = sources.find((item) => item.display_id === String(primary.id));
+        if (stopping || !source) return callback(null);
+        callback({ video: source });
+      } catch {
+        callback(null);
+      }
+    },
+    { useSystemPicker: false },
+  );
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event) => event.preventDefault());
   window.webContents.on('render-process-gone', stop);
   window.on('unresponsive', stop);
-  // Install IPC handlers before loading/advertising readiness.
+
   ipcMain.on('local-video-ready', (event) => {
     if (!ownsFrame(event.senderFrame)) return;
     rendererReady = true;
@@ -101,15 +114,20 @@ app.whenReady().then(async () => {
     write({ event: 'failed', code: 'helper-failed' });
     stop();
   });
-  // Source geometry changes invalidate the coordinate map instead of silently
-  // moving the pointer to a different display or scaling it incorrectly.
+
   screen.on('display-removed', stop);
   screen.on('display-metrics-changed', stop);
   await window.loadFile(join(__dirname, 'renderer.html'));
 });
 
 async function command(message) {
-  if (!message || !Number.isSafeInteger(message.id) || message.id < 1 || typeof message.op !== 'string') return stop();
+  if (
+    !message ||
+    !Number.isSafeInteger(message.id) ||
+    message.id < 1 ||
+    typeof message.op !== 'string'
+  )
+    return stop();
   if (message.op === 'close') {
     write({ id: message.id, ok: true, value: null });
     return stop();
@@ -122,17 +140,25 @@ async function command(message) {
   try {
     let result;
     if (message.op === 'offer') {
-      // A trusted fixed expression with a user gesture satisfies getDisplayMedia
-      // activation. No caller-controlled source is executed in this renderer.
       const width = Math.round(primary.size.width * primary.scaleFactor);
       const height = Math.round(primary.size.height * primary.scaleFactor);
       if (width < 1 || height < 1 || width > 8192 || height > 8192) throw new Error('Display size');
-      result = await window.webContents.executeJavaScript(`window.localVideoStart(${width}, ${height})`, true);
+      result = await window.webContents.executeJavaScript(
+        `window.localVideoStart(${width}, ${height})`,
+        true,
+      );
     } else if (message.op === 'answer') {
-      if (typeof message.sdp !== 'string' || Buffer.byteLength(message.sdp) > 96 * 1024) throw new Error('signal');
+      if (typeof message.sdp !== 'string' || Buffer.byteLength(message.sdp) > 96 * 1024)
+        throw new Error('signal');
       result = await new Promise((resolve, reject) => {
-        const timer = setTimeout(() => { answerWaiter = undefined; reject(new Error('timeout')); }, 8000);
-        answerWaiter = (ok) => { clearTimeout(timer); ok ? resolve(null) : reject(new Error('signal')); };
+        const timer = setTimeout(() => {
+          answerWaiter = undefined;
+          reject(new Error('timeout'));
+        }, 8000);
+        answerWaiter = (ok) => {
+          clearTimeout(timer);
+          ok ? resolve(null) : reject(new Error('signal'));
+        };
         window.webContents.send('local-video-answer', message.sdp);
       });
     } else if (message.op === 'stats') {
@@ -140,8 +166,11 @@ async function command(message) {
     } else throw new Error('operation');
     write({ id: message.id, ok: true, value: result });
   } catch {
-    // Never return SDP, network addresses, input content, or native error text.
-    write({ id: message.id, ok: false, code: message.op === 'answer' ? 'signal-failed' : 'helper-failed' });
+    write({
+      id: message.id,
+      ok: false,
+      code: message.op === 'answer' ? 'signal-failed' : 'helper-failed',
+    });
     stop();
   } finally {
     busy = false;
@@ -157,6 +186,10 @@ process.stdin.on('data', (chunk) => {
   while ((newline = input.indexOf('\n')) >= 0) {
     const line = input.slice(0, newline);
     input = input.slice(newline + 1);
-    try { void command(JSON.parse(line)); } catch { stop(); }
+    try {
+      void command(JSON.parse(line));
+    } catch {
+      stop();
+    }
   }
 });

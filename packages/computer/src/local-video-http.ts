@@ -7,7 +7,6 @@ import {
   type LocalVideoResult,
 } from './local-video-contract.js';
 
-/** Transport adapter only. The Computer owner validates every binding and execution fence. */
 export async function localVideoCommand(
   owner: LocalVideoOwner | undefined,
   caller: LocalVideoCaller,
@@ -23,14 +22,19 @@ export async function localVideoCommand(
   } catch (error) {
     if (error instanceof LocalVideoError)
       return { ok: false, code: error.code, error: error.message };
-    // Native errors can contain paths, SDP or input contents. Keep those out of the wire result.
-    return { ok: false, code: 'operation-timeout', error: 'The Computer operation did not complete.' };
+
+    return {
+      ok: false,
+      code: 'operation-timeout',
+      error: 'The Computer operation did not complete.',
+    };
   }
 }
 
 export async function readLocalVideoCommand(request: Request): Promise<unknown> {
   const reader = request.body?.getReader();
-  if (reader === undefined) throw new LocalVideoError('invalid-input', 'A video command is required.');
+  if (reader === undefined)
+    throw new LocalVideoError('invalid-input', 'A video command is required.');
   const chunks: Uint8Array[] = [];
   let bytes = 0;
   try {
@@ -60,7 +64,6 @@ export async function readLocalVideoCommand(request: Request): Promise<unknown> 
   }
 }
 
-/** The caller is supplied by the authenticated native Connection route, never a header/body. */
 export function createLocalVideoHttp(owner: () => LocalVideoOwner | undefined) {
   return async (request: Request): Promise<Response> => {
     let result: LocalVideoResult;
@@ -72,9 +75,10 @@ export function createLocalVideoHttp(owner: () => LocalVideoOwner | undefined) {
         request.signal,
       );
     } catch (error) {
-      result = error instanceof LocalVideoError
-        ? { ok: false, code: error.code, error: error.message }
-        : { ok: false, code: 'invalid-input', error: 'The video command could not be read.' };
+      result =
+        error instanceof LocalVideoError
+          ? { ok: false, code: error.code, error: error.message }
+          : { ok: false, code: 'invalid-input', error: 'The video command could not be read.' };
     }
     return Response.json(result, {
       status: result.ok ? 200 : 409,

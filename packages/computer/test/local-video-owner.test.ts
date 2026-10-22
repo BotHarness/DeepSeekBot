@@ -2,8 +2,18 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createComputerPauseStore, createLocalVideoOwner, type ComputerPauseStore } from '../src/local-video-owner.js';
-import type { LocalVideoBinding, LocalVideoMedia, LocalVideoMediaStatus, LocalVideoOwner, LocalVideoState } from '../src/local-video-contract.js';
+import {
+  createComputerPauseStore,
+  createLocalVideoOwner,
+  type ComputerPauseStore,
+} from '../src/local-video-owner.js';
+import type {
+  LocalVideoBinding,
+  LocalVideoMedia,
+  LocalVideoMediaStatus,
+  LocalVideoOwner,
+  LocalVideoState,
+} from '../src/local-video-contract.js';
 import { LocalVideoError } from '../src/local-video-contract.js';
 
 const caller = { deviceId: 'phone-a' };
@@ -19,17 +29,26 @@ afterEach(async () => {
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  const promise = new Promise<T>((yes, no) => {
+    resolve = yes;
+    reject = no;
+  });
   return { promise, resolve, reject };
 }
 
-function harness(options: { store?: ComputerPauseStore; media?: LocalVideoMedia; timeout?: number } = {}) {
+function harness(
+  options: { store?: ComputerPauseStore; media?: LocalVideoMedia; timeout?: number } = {},
+) {
   let time = 10_000;
   let savedPause = false;
   let report: ((status: LocalVideoMediaStatus) => void) | undefined;
   const writes: boolean[] = [];
   const events: string[] = [];
-  const driver = { call: vi.fn(async (_tool: string, _args: Record<string, unknown>, _signal?: AbortSignal) => ({ content: [] })) };
+  const driver = {
+    call: vi.fn(async (_tool: string, _args: Record<string, unknown>, _signal?: AbortSignal) => ({
+      content: [],
+    })),
+  };
   const geometry = { width: 1920, height: 1080, scale_factor: 1.5 };
   const probe = vi.fn(async () => ({ structuredContent: { ...geometry } }));
   const peer = {
@@ -38,38 +57,88 @@ function harness(options: { store?: ComputerPauseStore; media?: LocalVideoMedia;
     answer: vi.fn(async () => undefined),
     close: vi.fn(async () => undefined),
   };
-  const media = options.media ?? {
-    open: vi.fn(async (input) => { report = input.onStatus; return peer; }),
-  } satisfies LocalVideoMedia;
+  const media =
+    options.media ??
+    ({
+      open: vi.fn(async (input) => {
+        report = input.onStatus;
+        return peer;
+      }),
+    } satisfies LocalVideoMedia);
   const owner = createLocalVideoOwner({
     pause: options.store ?? {
       read: () => savedPause,
-      write: (value) => { savedPause = value; writes.push(value); },
+      write: (value) => {
+        savedPause = value;
+        writes.push(value);
+      },
     },
-    driver: { call: (tool, args, signal) => tool === 'get_screen_size' ? probe() : driver.call(tool, args, signal) },
-    media, isRunning: () => true, now: () => time,
+    driver: {
+      call: (tool, args, signal) =>
+        tool === 'get_screen_size' ? probe() : driver.call(tool, args, signal),
+    },
+    media,
+    isRunning: () => true,
+    now: () => time,
     onEvent: (detail) => events.push(detail),
     operationTimeoutMs: options.timeout ?? 1_000,
     cleanupTimeoutMs: 100,
   });
   owners.push(owner);
-  const capture = (alive = true): void => report?.({
-    status: 'live', captureAlive: alive, width: 1920, height: 1080, framesEncoded: 100,
-  });
+  const capture = (alive = true): void =>
+    report?.({
+      status: 'live',
+      captureAlive: alive,
+      width: 1920,
+      height: 1080,
+      framesEncoded: 100,
+    });
   const connect = async (): Promise<LocalVideoBinding> => {
     const opened = await owner.handle(caller, { kind: 'open' });
     const binding = opened.binding!;
-    await owner.handle(caller, { kind: 'signal', binding, answer: { type: 'answer', sdp: 'answer' } });
+    await owner.handle(caller, {
+      kind: 'signal',
+      binding,
+      answer: { type: 'answer', sdp: 'answer' },
+    });
     capture();
-    await owner.handle(caller, { kind: 'heartbeat', binding, playback: { presenting: true, presentedFrames: 1 } });
+    await owner.handle(caller, {
+      kind: 'heartbeat',
+      binding,
+      playback: { presenting: true, presentedFrames: 1 },
+    });
     return binding;
   };
-  const take = (binding: LocalVideoBinding): Promise<LocalVideoState> => owner.handle(caller, { kind: 'takeover', binding });
-  const input = (binding: LocalVideoBinding, generation: number, sequence = 1) => owner.handle(caller, {
-    kind: 'input', binding, generation, sequence, input: click,
-  });
-  const failMedia = (): void => report?.({ status: 'failed', captureAlive: false, width: 1920, height: 1080 });
-  return { owner, peer, media, driver, geometry, probe, writes, events, capture, failMedia, connect, take, input, advance: (ms: number) => { time += ms; } };
+  const take = (binding: LocalVideoBinding): Promise<LocalVideoState> =>
+    owner.handle(caller, { kind: 'takeover', binding });
+  const input = (binding: LocalVideoBinding, generation: number, sequence = 1) =>
+    owner.handle(caller, {
+      kind: 'input',
+      binding,
+      generation,
+      sequence,
+      input: click,
+    });
+  const failMedia = (): void =>
+    report?.({ status: 'failed', captureAlive: false, width: 1920, height: 1080 });
+  return {
+    owner,
+    peer,
+    media,
+    driver,
+    geometry,
+    probe,
+    writes,
+    events,
+    capture,
+    failMedia,
+    connect,
+    take,
+    input,
+    advance: (ms: number) => {
+      time += ms;
+    },
+  };
 }
 
 describe('Local Computer owner authority', () => {
@@ -84,25 +153,55 @@ describe('Local Computer owner authority', () => {
     geometry.resolve({ structuredContent: h.geometry });
     const control = await taking;
     await h.owner.handle(caller, {
-      kind: 'input', binding, generation: control.grant!.generation, sequence: 1,
+      kind: 'input',
+      binding,
+      generation: control.grant!.generation,
+      sequence: 1,
       input: { kind: 'type', text: 'private-password-测试' },
     });
     await h.owner.handle(caller, { kind: 'release', binding });
-    await h.owner.handle({ deviceId: 'host-owner' }, { kind: 'resume', runtimeId: binding.runtimeId });
-    const records = h.events.map((line) => Object.fromEntries(line.split(' ').map((field) => field.split('='))));
+    await h.owner.handle(
+      { deviceId: 'host-owner' },
+      { kind: 'resume', runtimeId: binding.runtimeId },
+    );
+    const records = h.events.map((line) =>
+      Object.fromEntries(line.split(' ').map((field) => field.split('='))),
+    );
     const takeover = records.find((event) => event.phase === 'local-video-takeover');
     const release = records.find((event) => event.phase === 'local-video-release');
     const resume = records.find((event) => event.phase === 'local-video-resume');
     expect(takeover).toMatchObject({
-      initiator: 'paired-device', durationMs: '125', outcome: 'ok', refusal: 'none',
-      grant: String(control.grant!.generation), paused: 'true', bots: 'remain-paused',
+      initiator: 'paired-device',
+      durationMs: '125',
+      outcome: 'ok',
+      refusal: 'none',
+      grant: String(control.grant!.generation),
+      paused: 'true',
+      bots: 'remain-paused',
     });
-    expect(release).toMatchObject({ outcome: 'ok', runtime: takeover?.runtime, attempt: takeover?.attempt, bots: 'remain-paused' });
-    expect(resume).toMatchObject({ initiator: 'host-owner', outcome: 'ok', runtime: takeover?.runtime, paused: 'false', bots: 'enabled' });
+    expect(release).toMatchObject({
+      outcome: 'ok',
+      runtime: takeover?.runtime,
+      attempt: takeover?.attempt,
+      bots: 'remain-paused',
+    });
+    expect(resume).toMatchObject({
+      initiator: 'host-owner',
+      outcome: 'ok',
+      runtime: takeover?.runtime,
+      paused: 'false',
+      bots: 'enabled',
+    });
     expect(takeover?.runtime).toMatch(/^[a-f0-9]{12}$/);
     expect(takeover?.attempt).toMatch(/^[a-f0-9]{12}$/);
     expect(new Set([takeover?.operation, release?.operation, resume?.operation]).size).toBe(3);
-    for (const secret of [caller.deviceId, binding.viewerId, binding.runtimeId, binding.attemptId, 'private-password-测试'])
+    for (const secret of [
+      caller.deviceId,
+      binding.viewerId,
+      binding.runtimeId,
+      binding.attemptId,
+      'private-password-测试',
+    ])
       expect(h.events.join('\n')).not.toContain(secret);
     expect(h.events.every((line) => line.length < 640)).toBe(true);
   });
@@ -125,16 +224,30 @@ describe('Local Computer owner authority', () => {
     const h = harness();
     const opened = await h.owner.handle(caller, { kind: 'open' });
     const binding = opened.binding!;
-    h.peer.answer.mockRejectedValueOnce(new LocalVideoError('operation-timeout', 'private-token 192.0.2.44 private-sdp'));
-    await expect(h.owner.handle(caller, {
-      kind: 'signal', binding, answer: { type: 'answer', sdp: 'private-sdp' },
-    })).rejects.toMatchObject({ code: 'signal-failed' });
-    const records = h.events.map((line) => Object.fromEntries(line.split(' ').map((field) => field.split('='))));
+    h.peer.answer.mockRejectedValueOnce(
+      new LocalVideoError('operation-timeout', 'private-token 192.0.2.44 private-sdp'),
+    );
+    await expect(
+      h.owner.handle(caller, {
+        kind: 'signal',
+        binding,
+        answer: { type: 'answer', sdp: 'private-sdp' },
+      }),
+    ).rejects.toMatchObject({ code: 'signal-failed' });
+    const records = h.events.map((line) =>
+      Object.fromEntries(line.split(' ').map((field) => field.split('='))),
+    );
     const openedRecord = records.find((event) => event.phase === 'local-video-open');
     const failed = records.find((event) => event.phase === 'local-video-signal');
     expect(failed).toMatchObject({
-      outcome: 'refused', refusal: 'signal-failed', source: 'signaling', cause: 'operation-timeout', external: 'media-answer',
-      runtime: openedRecord?.runtime, attempt: openedRecord?.attempt, retryable: 'false',
+      outcome: 'refused',
+      refusal: 'signal-failed',
+      source: 'signaling',
+      cause: 'operation-timeout',
+      external: 'media-answer',
+      runtime: openedRecord?.runtime,
+      attempt: openedRecord?.attempt,
+      retryable: 'false',
     });
     expect(h.events.join('\n')).not.toMatch(/private-token|192\.0\.2\.44|private-sdp/);
   });
@@ -146,7 +259,11 @@ describe('Local Computer owner authority', () => {
     const before = h.events.length;
     h.capture(false);
     for (let frames = 2; frames < 6; frames += 1) {
-      await h.owner.handle(caller, { kind: 'heartbeat', binding, playback: { presenting: true, presentedFrames: frames } });
+      await h.owner.handle(caller, {
+        kind: 'heartbeat',
+        binding,
+        playback: { presenting: true, presentedFrames: frames },
+      });
       await h.owner.handle(caller, { kind: 'status' });
     }
     const events = h.events.slice(before);
@@ -162,7 +279,9 @@ describe('Local Computer owner authority', () => {
     const binding = await h.connect();
     expect((await h.owner.handle(caller, { kind: 'status' })).paused).toBe(false);
     expect(h.writes).toEqual([]);
-    await expect(h.owner.handle(other, { kind: 'open' })).rejects.toMatchObject({ code: 'viewer-limit' });
+    await expect(h.owner.handle(other, { kind: 'open' })).rejects.toMatchObject({
+      code: 'viewer-limit',
+    });
     expect((await h.owner.handle(caller, { kind: 'status' })).binding).toEqual(binding);
     expect(h.peer.close).not.toHaveBeenCalled();
     await expect(h.input(binding, 1)).rejects.toMatchObject({ code: 'control-required' });
@@ -176,12 +295,17 @@ describe('Local Computer owner authority', () => {
     const bot = h.owner.runBotOperation(() => screenshot.promise);
     const withheld = expect(bot).rejects.toMatchObject({ code: 'control-required' });
     let granted = false;
-    const taking = h.take(binding).then((value) => { granted = true; return value; });
+    const taking = h.take(binding).then((value) => {
+      granted = true;
+      return value;
+    });
     await Promise.resolve();
     expect(h.writes).toEqual([true]);
     expect(h.owner.isPaused()).toBe(true);
     expect(granted).toBe(false);
-    await expect(h.owner.runBotOperation(async () => 'private')).rejects.toMatchObject({ code: 'control-required' });
+    await expect(h.owner.runBotOperation(async () => 'private')).rejects.toMatchObject({
+      code: 'control-required',
+    });
     screenshot.resolve('private screen');
     await withheld;
     const control = await taking;
@@ -197,7 +321,10 @@ describe('Local Computer owner authority', () => {
     const bot = h.owner.runBotOperation(() => operation.promise);
     const withheld = expect(bot).rejects.toMatchObject({ code: 'control-required' });
     await expect(h.take(binding)).rejects.toMatchObject({ code: 'drain-timeout' });
-    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({ paused: true, controller: false });
+    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({
+      paused: true,
+      controller: false,
+    });
     operation.resolve('late screenshot');
     await withheld;
     expect(h.writes).toEqual([true]);
@@ -205,7 +332,14 @@ describe('Local Computer owner authority', () => {
   });
 
   it('grants nothing on pause write failure and never reopens Bot execution', async () => {
-    const h = harness({ store: { read: () => false, write: () => { throw new Error('disk'); } } });
+    const h = harness({
+      store: {
+        read: () => false,
+        write: () => {
+          throw new Error('disk');
+        },
+      },
+    });
     const binding = await h.connect();
     await expect(h.take(binding)).rejects.toMatchObject({ code: 'pause-write-failed' });
     expect(h.owner.isPaused()).toBe(true);
@@ -247,7 +381,12 @@ describe('Local Computer owner authority', () => {
     const queued = h.input(binding, generation, 2);
     const queuedRefused = expect(queued).rejects.toMatchObject({ code: 'control-required' });
     let resumed = false;
-    const resuming = h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId, binding, generation }).then((value) => { resumed = true; return value; });
+    const resuming = h.owner
+      .handle(caller, { kind: 'resume', runtimeId: binding.runtimeId, binding, generation })
+      .then((value) => {
+        resumed = true;
+        return value;
+      });
     await Promise.resolve();
     expect(resumed).toBe(false);
     expect(h.owner.isPaused()).toBe(true);
@@ -260,12 +399,31 @@ describe('Local Computer owner authority', () => {
   });
 
   it('resume persistence failure keeps Bots paused and invalidates control', async () => {
-    const h = harness({ store: { read: () => false, write: (paused) => { if (!paused) throw new Error('disk'); } } });
+    const h = harness({
+      store: {
+        read: () => false,
+        write: (paused) => {
+          if (!paused) throw new Error('disk');
+        },
+      },
+    });
     const binding = await h.connect();
     const control = await h.take(binding);
-    await expect(h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId, binding, generation: control.grant!.generation })).rejects.toMatchObject({ code: 'pause-write-failed' });
-    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({ paused: true, controller: false });
-    await expect(h.owner.runBotOperation(async () => 'secret')).rejects.toMatchObject({ code: 'control-required' });
+    await expect(
+      h.owner.handle(caller, {
+        kind: 'resume',
+        runtimeId: binding.runtimeId,
+        binding,
+        generation: control.grant!.generation,
+      }),
+    ).rejects.toMatchObject({ code: 'pause-write-failed' });
+    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({
+      paused: true,
+      controller: false,
+    });
+    await expect(h.owner.runBotOperation(async () => 'secret')).rejects.toMatchObject({
+      code: 'control-required',
+    });
   });
 
   it('cancelled resume never commits unpause after an in-flight Human effect drains', async () => {
@@ -277,9 +435,16 @@ describe('Local Computer owner authority', () => {
     const input = h.input(binding, control.grant!.generation);
     await vi.waitFor(() => expect(h.driver.call).toHaveBeenCalledTimes(1));
     const abort = new AbortController();
-    const resuming = h.owner.handle(caller, {
-      kind: 'resume', runtimeId: binding.runtimeId, binding, generation: control.grant!.generation,
-    }, abort.signal);
+    const resuming = h.owner.handle(
+      caller,
+      {
+        kind: 'resume',
+        runtimeId: binding.runtimeId,
+        binding,
+        generation: control.grant!.generation,
+      },
+      abort.signal,
+    );
     const refused = expect(resuming).rejects.toMatchObject({ code: 'stale-attempt' });
     await Promise.resolve();
     abort.abort();
@@ -287,7 +452,10 @@ describe('Local Computer owner authority', () => {
     await input;
     await refused;
     expect(h.writes).toEqual([true]);
-    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({ paused: true, controlHeld: false });
+    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({
+      paused: true,
+      controlHeld: false,
+    });
   });
 
   it('release keeps Bots paused and global CLI status agrees without exposing the phone grant', async () => {
@@ -295,12 +463,24 @@ describe('Local Computer owner authority', () => {
     const binding = await h.connect();
     const control = await h.take(binding);
     const cli = await h.owner.handle({ deviceId: 'host-owner' }, { kind: 'status' });
-    expect(cli).toMatchObject({ paused: true, viewerCount: 1, controlHeld: true, controller: false, media: { status: 'live' } });
+    expect(cli).toMatchObject({
+      paused: true,
+      viewerCount: 1,
+      controlHeld: true,
+      controller: false,
+      media: { status: 'live' },
+    });
     expect(cli.binding).toBeUndefined();
     expect(cli.grant).toBeUndefined();
-    const released = await h.owner.handle(caller, { kind: 'release', binding, generation: control.grant!.generation });
+    const released = await h.owner.handle(caller, {
+      kind: 'release',
+      binding,
+      generation: control.grant!.generation,
+    });
     expect(released).toMatchObject({ paused: true, controlHeld: false, controller: false });
-    await expect(h.owner.runBotOperation(async () => 'screenshot')).rejects.toMatchObject({ code: 'control-required' });
+    await expect(h.owner.runBotOperation(async () => 'screenshot')).rejects.toMatchObject({
+      code: 'control-required',
+    });
     expect(h.writes).toEqual([true]);
   });
 
@@ -311,7 +491,11 @@ describe('Local Computer owner authority', () => {
     h.failMedia();
     await Promise.resolve();
     expect(h.peer.close).toHaveBeenCalledTimes(1);
-    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({ paused: true, viewerCount: 0, controlHeld: false });
+    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({
+      paused: true,
+      viewerCount: 0,
+      controlHeld: false,
+    });
     expect(h.writes).toEqual([true]);
   });
 
@@ -321,9 +505,15 @@ describe('Local Computer owner authority', () => {
     const control = await h.take(binding);
     const effect = deferred<{ content: never[] }>();
     h.driver.call.mockImplementationOnce(() => effect.promise);
-    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({ code: 'input-result-unknown' });
-    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({ code: 'control-required' });
-    await expect(h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId })).rejects.toMatchObject({ code: 'drain-timeout' });
+    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({
+      code: 'input-result-unknown',
+    });
+    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({
+      code: 'control-required',
+    });
+    await expect(
+      h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId }),
+    ).rejects.toMatchObject({ code: 'drain-timeout' });
     expect(h.owner.isPaused()).toBe(true);
     effect.resolve({ content: [] });
     await Promise.resolve();
@@ -337,8 +527,18 @@ describe('Local Computer owner authority', () => {
     const generation = control.grant!.generation;
     await h.input(binding, generation);
     await expect(h.input(binding, generation)).rejects.toMatchObject({ code: 'input-sequence' });
-    await expect(h.owner.handle(other, { kind: 'input', binding, generation, sequence: 2, input: click })).rejects.toMatchObject({ code: 'viewer-not-found' });
-    await expect(h.owner.handle(caller, { kind: 'input', binding, generation, sequence: 2, input: { ...click, x: 1920 } })).rejects.toMatchObject({ code: 'invalid-input' });
+    await expect(
+      h.owner.handle(other, { kind: 'input', binding, generation, sequence: 2, input: click }),
+    ).rejects.toMatchObject({ code: 'viewer-not-found' });
+    await expect(
+      h.owner.handle(caller, {
+        kind: 'input',
+        binding,
+        generation,
+        sequence: 2,
+        input: { ...click, x: 1920 },
+      }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
     await h.owner.resetRuntime();
     await expect(h.input(binding, generation, 3)).rejects.toMatchObject({ code: 'stale-attempt' });
     expect(h.driver.call).toHaveBeenCalledTimes(1);
@@ -365,7 +565,9 @@ describe('Local Computer owner authority', () => {
     h.geometry.width = 1920;
     const control = await h.take(binding);
     h.geometry.height = 720;
-    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({ code: 'media-not-live' });
+    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({
+      code: 'media-not-live',
+    });
     expect(h.driver.call).not.toHaveBeenCalled();
   });
 
@@ -379,7 +581,11 @@ describe('Local Computer owner authority', () => {
     const refused = expect(input).rejects.toMatchObject({ code: 'control-required' });
     await vi.waitFor(() => expect(h.probe).toHaveBeenCalledTimes(2));
     let resumed = false;
-    const resuming = h.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId }).then(() => { resumed = true; });
+    const resuming = h.owner
+      .handle(caller, { kind: 'resume', runtimeId: binding.runtimeId })
+      .then(() => {
+        resumed = true;
+      });
     await Promise.resolve();
     expect(resumed).toBe(false);
     expect(h.writes).toEqual([true]);
@@ -396,11 +602,21 @@ describe('Local Computer owner authority', () => {
     const control = await h.take(binding);
     h.advance(4_000);
     h.capture();
-    await h.owner.handle(caller, { kind: 'heartbeat', binding, playback: { presenting: true, presentedFrames: 2 } });
+    await h.owner.handle(caller, {
+      kind: 'heartbeat',
+      binding,
+      playback: { presenting: true, presentedFrames: 2 },
+    });
     await h.input(binding, control.grant!.generation);
     h.capture(false);
-    await h.owner.handle(caller, { kind: 'heartbeat', binding, playback: { presenting: true, presentedFrames: 3 } });
-    await expect(h.input(binding, control.grant!.generation, 2)).rejects.toMatchObject({ code: 'media-not-live' });
+    await h.owner.handle(caller, {
+      kind: 'heartbeat',
+      binding,
+      playback: { presenting: true, presentedFrames: 3 },
+    });
+    await expect(h.input(binding, control.grant!.generation, 2)).rejects.toMatchObject({
+      code: 'media-not-live',
+    });
     expect(h.driver.call).toHaveBeenCalledTimes(1);
     expect(h.owner.isPaused()).toBe(true);
   });
@@ -411,9 +627,14 @@ describe('Local Computer owner authority', () => {
     const control = await h.take(binding);
     h.advance(6_000);
     h.capture();
-    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({ code: 'control-disconnected' });
+    await expect(h.input(binding, control.grant!.generation)).rejects.toMatchObject({
+      code: 'control-disconnected',
+    });
     h.advance(24_000);
-    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({ paused: true, controller: false });
+    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({
+      paused: true,
+      controller: false,
+    });
     await Promise.resolve();
     expect(h.peer.close).toHaveBeenCalledTimes(1);
   });
@@ -425,8 +646,18 @@ describe('Local Computer owner authority', () => {
     await h.owner.revoke(caller.deviceId);
     expect(h.peer.close).toHaveBeenCalledTimes(1);
     h.capture();
-    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({ paused: true, controller: false, media: { status: 'closed' } });
-    await expect(h.owner.handle(caller, { kind: 'heartbeat', binding, playback: { presenting: true, presentedFrames: 2 } })).rejects.toMatchObject({ code: 'viewer-not-found' });
+    expect(await h.owner.handle(caller, { kind: 'status' })).toMatchObject({
+      paused: true,
+      controller: false,
+      media: { status: 'closed' },
+    });
+    await expect(
+      h.owner.handle(caller, {
+        kind: 'heartbeat',
+        binding,
+        playback: { presenting: true, presentedFrames: 2 },
+      }),
+    ).rejects.toMatchObject({ code: 'viewer-not-found' });
   });
 
   it('owns cancellation before helper readiness and closes a late successful peer', async () => {
@@ -437,7 +668,9 @@ describe('Local Computer owner authority', () => {
     const refused = expect(pending).rejects.toMatchObject({ code: 'stale-attempt' });
     await Promise.resolve();
     abort.abort();
-    await expect(h.owner.handle(other, { kind: 'open' })).rejects.toMatchObject({ code: 'not-ready' });
+    await expect(h.owner.handle(other, { kind: 'open' })).rejects.toMatchObject({
+      code: 'not-ready',
+    });
     opening.resolve(h.peer);
     await refused;
     expect(h.peer.close).toHaveBeenCalledTimes(1);
@@ -458,9 +691,15 @@ describe('Local Computer owner authority', () => {
     expect(restored).toMatchObject({ paused: true, controller: false });
     expect(restored.binding).toBeUndefined();
     expect(restored.grant).toBeUndefined();
-    await expect(restarted.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId })).rejects.toMatchObject({ code: 'stale-attempt' });
-    expect(await restarted.owner.handle(caller, { kind: 'resume', runtimeId: restored.runtimeId })).toMatchObject({ paused: false });
-    expect(await restarted.owner.runBotOperation(async () => 'fresh screenshot')).toBe('fresh screenshot');
+    await expect(
+      restarted.owner.handle(caller, { kind: 'resume', runtimeId: binding.runtimeId }),
+    ).rejects.toMatchObject({ code: 'stale-attempt' });
+    expect(
+      await restarted.owner.handle(caller, { kind: 'resume', runtimeId: restored.runtimeId }),
+    ).toMatchObject({ paused: false });
+    expect(await restarted.owner.runBotOperation(async () => 'fresh screenshot')).toBe(
+      'fresh screenshot',
+    );
   });
 
   it('restores malformed or unreadable pause records fail-closed', async () => {
@@ -470,6 +709,8 @@ describe('Local Computer owner authority', () => {
     writeFileSync(path, '{broken');
     const h = harness({ store: createComputerPauseStore(path) });
     expect(h.owner.isPaused()).toBe(true);
-    await expect(h.owner.runBotOperation(async () => 'effect')).rejects.toMatchObject({ code: 'control-required' });
+    await expect(h.owner.runBotOperation(async () => 'effect')).rejects.toMatchObject({
+      code: 'control-required',
+    });
   });
 });

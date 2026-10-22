@@ -363,7 +363,8 @@ export const LIVE_COMMANDS = [
   { command: 'computer-status', description: 'read the profile Computer target and state' },
   {
     command: 'computer-video',
-    description: 'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
+    description:
+      'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
   },
   {
     command: 'computer-frame',
@@ -1459,12 +1460,15 @@ async function runDeviceCommand(
         ? `${command} needs a bot id and a tool name.`
         : video
           ? 'computer-video needs exactly one operation.'
-        : computer
-          ? `${command} takes no positional arguments.`
-          : `${command} needs exactly one bot id.`,
+          : computer
+            ? `${command} takes no positional arguments.`
+            : `${command} needs exactly one bot id.`,
     );
   let toolArgs: Record<string, unknown> = {};
-  const input = command === 'browser-input' || command === 'computer-input' || (video && !['status', 'open'].includes(rest[0]!));
+  const input =
+    command === 'browser-input' ||
+    command === 'computer-input' ||
+    (video && !['status', 'open'].includes(rest[0]!));
   if (input && values['args-stdin'] !== true)
     usage(
       video
@@ -1492,11 +1496,29 @@ async function runDeviceCommand(
     usage('--out must be an absolute file path.');
   const slug = rest[0]?.trim() ?? '';
   if (video) {
-    if (!['status', 'open', 'signal', 'heartbeat', 'takeover', 'input', 'release', 'resume', 'close'].includes(slug))
-      usage('computer-video needs status, open, signal, heartbeat, takeover, input, release, resume or close.');
+    if (
+      ![
+        'status',
+        'open',
+        'signal',
+        'heartbeat',
+        'takeover',
+        'input',
+        'release',
+        'resume',
+        'close',
+      ].includes(slug)
+    )
+      usage(
+        'computer-video needs status, open, signal, heartbeat, takeover, input, release, resume or close.',
+      );
     if (toolArgs['force'] === true && values.confirm !== true)
       usage('Forced takeover requires --confirm.');
-    if (slug === 'open' && (values.out === undefined || (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out))))
+    if (
+      slug === 'open' &&
+      (values.out === undefined ||
+        (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out)))
+    )
       usage('computer-video open requires --out <absolute-file> for private signaling data.');
   }
   if (command === 'browser-frame' || command === 'computer-frame') {
@@ -1546,21 +1568,27 @@ async function runDeviceCommand(
     });
   if (command === 'browser-tools') return json('/api/browser/tools');
   if (video) {
-    const result = record(await json('/api/computer/video', {
-      ...toolArgs,
-      kind: slug,
-      ...(toolArgs['force'] === true ? { confirm: values.confirm === true } : {}),
-    }));
+    const result = record(
+      await json('/api/computer/video', {
+        ...toolArgs,
+        kind: slug,
+        ...(toolArgs['force'] === true ? { confirm: values.confirm === true } : {}),
+      }),
+    );
     const state = record(result['state']);
     const { offer, ...safeState } = state;
     if (offer !== undefined && values.out !== undefined) {
       try {
         writeFileSync(values.out, JSON.stringify(offer), { mode: 0o600, flag: 'wx' });
       } catch {
-        // An output-file failure must not strand a newly opened media attempt.
         if (state['binding'] !== undefined)
-          await json('/api/computer/video', { kind: 'close', binding: state['binding'] }).catch(() => undefined);
-        throw new CliLiveError('signaling-file-failed', 'Private signaling could not be saved. Use a new writable absolute file.');
+          await json('/api/computer/video', { kind: 'close', binding: state['binding'] }).catch(
+            () => undefined,
+          );
+        throw new CliLiveError(
+          'signaling-file-failed',
+          'Private signaling could not be saved. Use a new writable absolute file.',
+        );
       }
     }
     return {

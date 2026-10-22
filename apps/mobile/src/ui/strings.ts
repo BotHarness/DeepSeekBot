@@ -1287,9 +1287,12 @@ const en = {
   computerLoading: 'Loading the Computer screen…',
   computerVideoBuildRequired: 'Install the updated Android app to watch live video.',
   computerVideoViewerLimit: 'This Computer is already being watched. Close the other viewer first.',
-  computerVideoCarrierRequired: 'Video control is not available through this connection yet. Use a direct trusted connection.',
-  computerVideoInputUnknown: 'The last action may have happened. Check the screen before trying again.',
-  computerVideoUnavailable: 'Video is unavailable. Reconnect to try again. Bots stay paused if you took control.',
+  computerVideoCarrierRequired:
+    'Video control is not available through this connection yet. Use a direct trusted connection.',
+  computerVideoInputUnknown:
+    'The last action may have happened. Check the screen before trying again.',
+  computerVideoUnavailable:
+    'Video is unavailable. Reconnect to try again. Bots stay paused if you took control.',
   computerVideoWaiting: 'Waiting for live video. Input is disabled.',
   computerVideoBotsPaused: 'Bots paused',
   computerVideoTakeover: 'Take control',
