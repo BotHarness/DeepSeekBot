@@ -118,7 +118,6 @@ import { createPluginUpdateService } from './release/plugins.js';
 import {
   createTelemetryService,
   installedDshVersion,
-  pluginStartedProperties,
   telemetryDecision,
   type TelemetryCapture,
 } from './telemetry/service.js';
@@ -1049,6 +1048,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const telemetry = createTelemetryService({
     decision: telemetryChoice,
     dataDir: telemetryDir,
+    pluginVersion: release.version(),
+    dshVersion: installedDshVersion(),
     log: (message) => ctx.logger.info(message),
   });
   const telemetryState = telemetry.status();
@@ -1058,15 +1059,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `telemetry phase=disabled reason=${telemetryState.lockedBy ?? 'preference'}`,
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
-  telemetry.capture(
-    'plugin_started',
-    pluginStartedProperties({
-      pluginVersion: release.version(),
-      dshVersion: installedDshVersion(),
-      os: process.platform,
-      arch: process.arch,
-    }),
-  );
+  telemetry.capture('plugin_started');
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
