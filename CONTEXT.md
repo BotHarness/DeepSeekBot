@@ -258,7 +258,7 @@ The Provider registered on DSH's computer-use seam that supplies the observation
 _Avoid_: driver, backend, computer provider
 
 **Takeover**:
-A human session on a Computer that pauses every PersonaBot acting there and disables model-facing screenshots for its duration. It is initiated from one Bot Screen but always applies to the whole Computer.
+A Human's exclusive control of a Computer, initiated from a Bot Screen but applying to the whole Computer and pausing every PersonaBot's actions and model-facing screenshots there. Watching grants no control; releasing control leaves the Bots paused until the Human explicitly resumes them.
 _Avoid_: handoff, screen sharing, per-bot takeover
 
 **Computer Export**:
