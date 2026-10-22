@@ -1,0 +1,45 @@
+{
+  "sourceSha": "914bfa57ed04807dc3f94a1ed6a4e678da898591",
+  "nativeBuildSource": "87724a3b58d556807ef1ba860adcbb96bda6d92f",
+  "nativeFingerprint": "b3e74315f0c2d639dd1c1ff73e56182e0fb86c0e",
+  "installedExecutableSha256": "55de08577ac5ddb38fb0221427750b8d5096dfe10b55a1561bb438c3bf95807a",
+  "platform": "iOS 27 Simulator, signed Debug build",
+  "locale": "English",
+  "viewport": "402x874",
+  "captureDateUTC": "2026-10-22",
+  "privacy": "Every selected image visually inspected; synthetic QA chat only; exact unmodified copies, no redaction required. No account images, raw logs or transcript artifacts included.",
+  "images": {
+    "f.png": {
+      "originalFile": "no-probe-after-permission.png",
+      "sha256": "6d7c4b85ad40196781e9f87997a874359da84f0e3f135052368b79c2ca119c27"
+    },
+    "s.png": {
+      "originalFile": "after-send-light-large.png",
+      "sha256": "903d02aa881a23fe1b82b5d6ebb10a85f71ff8d01ca51fa1e46cb839630ffe9a"
+    },
+    "l.png": {
+      "originalFile": "draft-light-large.png",
+      "sha256": "b51377120d0db77a29ea408681544929c86e272f75051a99c34d0dd578d37cb9"
+    },
+    "lm.png": {
+      "originalFile": "draft-light-accessibility-large.png",
+      "sha256": "e176a8325734630c5616e06ccbd4de29d8422adee379e5bea1eeca7c74cbf1fa"
+    },
+    "lx.png": {
+      "originalFile": "draft-light-accessibility-extra-extra-extra-large.png",
+      "sha256": "f1a8967fdd08922f26c499b5d4e55c60821a75c0f5382ce77c9e2951169a4a41"
+    },
+    "d.png": {
+      "originalFile": "draft-dark-large.png",
+      "sha256": "bad63133adf57512c0f24f7e72f779b06753edbfb8aebe9d84c8c24cfcb958b0"
+    },
+    "dm.png": {
+      "originalFile": "draft-dark-accessibility-large.png",
+      "sha256": "d374a3594344ce4448fabf8e9fe5cc040b8870868a99de99c78e35374ffbeb7a"
+    },
+    "dx.png": {
+      "originalFile": "draft-dark-accessibility-extra-extra-extra-large.png",
+      "sha256": "2793384533ba629c853ae8357ad31f30b79ec7e525e37e2da102751054bb7a56"
+    }
+  }
+}
