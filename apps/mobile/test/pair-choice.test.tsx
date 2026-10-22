@@ -41,12 +41,20 @@ async function render(): Promise<HTMLElement> {
   return host;
 }
 
-it('offers account sign-in and Tailscale as separate ways to pair', async () => {
+it('offers LAN, account sign-in and Tailscale through the existing pairing flow', async () => {
   const view = await render();
   expect(view.textContent).toContain(t.pairChoice.account);
   expect(view.textContent).toContain(t.pairChoice.tailscale);
   expect(view.textContent).not.toContain(t.cloud.title);
-  expect(view.textContent).not.toContain(t.pasteLink);
+  expect(view.querySelector('input')).toBeNull();
+  expect(view.textContent).toContain(t.pairChoice.lan);
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="pair-choice-lan"]')!.click(),
+  );
+  expect(router.push).toHaveBeenLastCalledWith({
+    pathname: '/pair/tailscale',
+    params: { mode: 'lan' },
+  });
 
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="pair-choice-account"]')!.click(),

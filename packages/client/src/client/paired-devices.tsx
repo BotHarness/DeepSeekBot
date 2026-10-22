@@ -50,6 +50,7 @@ interface ConnectStatus {
 }
 
 interface DevicesSnapshot {
+  lan?: { state: 'off' | 'listening' | 'error'; issue?: string };
   host: { id: string; name: string };
   devices: PairedDevice[];
   pendingKeys?: { receipt: string; publicKey: string; name: string; approved: boolean }[];
@@ -221,6 +222,27 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     void createOffer();
   };
 
+  const setLan = async (action: 'enable' | 'disable'): Promise<void> => {
+    setBusy('lan');
+    setError(false);
+    try {
+      await json(
+        await fetch(`${PATH}/lan`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action, confirm: true }),
+        }),
+      );
+      await load();
+      if (action === 'enable') setGuided(false);
+      setOffer(undefined);
+    } catch {
+      if (mounted.current) setError(true);
+    } finally {
+      if (mounted.current) setBusy(undefined);
+    }
+  };
+
   const close = (): void => {
     setPairing(false);
     setOffer(undefined);
@@ -344,6 +366,29 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   return (
     <div ref={mount} data-paired-devices="">
       <SettingsSection>
+        {snapshot?.lan ? (
+          <SettingsRow
+            title={t('devices.lan.title')}
+            description={t(
+              snapshot.lan.state === 'listening' ? 'devices.lan.enabled' : 'devices.lan.notice',
+            )}
+            data={{ 'data-device-lan': snapshot.lan.state }}
+            control={
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy !== undefined}
+                onClick={() =>
+                  void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
+                }
+              >
+                {t(
+                  snapshot.lan.state === 'listening' ? 'devices.lan.disable' : 'devices.lan.enable',
+                )}
+              </Button>
+            }
+          />
+        ) : null}
         <SettingsRow
           title={t('devices.pair.title')}
           description={t('devices.pair.description')}

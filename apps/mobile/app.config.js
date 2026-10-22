@@ -59,6 +59,7 @@ module.exports = ({ config }) => {
       bundleIdentifier,
       infoPlist: {
         ...config.ios.infoPlist,
+        NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
         ITSAppUsesNonExemptEncryption: false,
         NSUserActivityTypes: ['INSendMessageIntent'],
       },

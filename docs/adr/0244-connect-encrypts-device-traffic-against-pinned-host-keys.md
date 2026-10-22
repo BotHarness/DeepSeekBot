@@ -7,6 +7,10 @@ Amends: ADR-0241 and ADR-0242
 
 # Connect encrypts device traffic against pinned Host keys
 
+## LAN extension — 2026-10-23
+
+The accepted [#2598](https://github.com/BotHarness/DeepSeekBot/issues/2598) design reuses this authority and Noise profile for opt-in LAN phone access. A trusted computer QR scanned in the installed app supplies the Host pin; pasted and external links retain independent comparison. Exact phone-key approval still occurs on the Host. LAN binds the final prologue field to `lan`; Connect stays `connect`. This restricted adapter refines ADR-0199's same-listener choice without moving DSH's operator listener off loopback. See [the LAN contract](../architecture/lan-phone-v1.md) for lifecycle, native policy and qualification limits.
+
 Reported by Vain. On 2026-10-21 Vain rejected Cloudflare's ability to read Connect traffic. Connect has not shipped, so its protocol and pairing experience can change. Vain approved this ADR and its stacked implementation above Track A PR #2546 on 2026-10-22. It replaces ADR-0241's plaintext application channel; acceptance of this design is not evidence of runtime or native qualification. ADR-0199 remains the device-authority owner, ADR-0242 remains the browser pairing owner, and ADR-0243 remains the Host Feed contract.
 
 ## Decisions confirmed by Vain on 2026-10-22

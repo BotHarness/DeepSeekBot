@@ -1,8 +1,9 @@
 import { execFile } from 'node:child_process';
+import { isLanAddress } from './lan-address.js';
 
 export interface PhoneRoute {
   url: string;
-  kind: 'tailscale' | 'connect' | 'loopback';
+  kind: 'lan' | 'tailscale' | 'connect' | 'loopback';
   ready: boolean;
   issue?: 'serve-missing' | 'serve-other-target';
 }
@@ -65,6 +66,8 @@ export function phoneRoute(input: string): PhoneRoute | undefined {
   }
   if (url.username || url.password || url.search || url.hash || url.pathname !== '/') return;
   const name = url.hostname;
+  if (isLanAddress(name) && url.protocol === 'http:' && url.port !== '')
+    return { url: url.origin, kind: 'lan', ready: true };
   if (name === 'localhost' || name === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(name))
     return { url: url.origin, kind: 'loopback', ready: true };
   const tailnet = name.endsWith('.ts.net') || TAILNET_IPV4.test(name);

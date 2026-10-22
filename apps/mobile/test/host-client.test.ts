@@ -50,6 +50,41 @@ async function until(
 }
 
 describe('Host client', () => {
+  it.each(['lan-unreachable', 'channel-authentication-failed'])(
+    'falls through an unavailable LAN route but stops on a Host key refusal: %s',
+    async (reason) => {
+      const host = new FakeHost();
+      client = createHostClient({
+        routes: ['http://192.168.1.20:4567', ROUTE],
+        hostId: 'test-host',
+        encryption: {
+          protocol: 'connect-noise-xk-v1',
+          hostKey: '11'.repeat(32),
+          deviceKey: '22'.repeat(32),
+        },
+        credential: host.credential,
+        carrier: {
+          ...host.carrier,
+          openSocket: (url, events, headers) => {
+            if (!url.startsWith('ws://192.168.1.20:4567/'))
+              return host.carrier.openSocket(url, events, headers);
+            queueMicrotask(() => events.closed(reason));
+            return { send: () => {}, close: () => {} };
+          },
+        },
+        backoff: () => 5,
+      });
+      client.start();
+      const state = await until(
+        client,
+        (snapshot) =>
+          snapshot.connection.status ===
+          (reason === 'lan-unreachable' ? 'connected' : 'unreachable'),
+      );
+      if (reason === 'lan-unreachable') expect(state.connection).toMatchObject({ route: ROUTE });
+      else expect(host.requests).toEqual([]);
+    },
+  );
   it('retains Bot DM metadata for activity links without listing it as a group', async () => {
     const host = new FakeHost();
     host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
@@ -295,7 +330,7 @@ describe('pairing', () => {
       ok: false,
       code: 'link-expired',
     });
-    expect(parsePairingLink(link({ ...payload, routes: ['http://10.0.0.2:3000'] }))).toEqual({
+    expect(parsePairingLink(link({ ...payload, routes: ['http://8.8.8.8:3000'] }))).toEqual({
       ok: false,
       code: 'no-route',
     });

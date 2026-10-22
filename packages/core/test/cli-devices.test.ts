@@ -9,6 +9,43 @@ const reply = (value: unknown) => ({
 const LINK = 'deepseekbot://pair?p=c2VjcmV0LW9mZmVy';
 
 describe('devices CLI', () => {
+  it('shows the pending public-key fingerprint so the operator can compare it before approval', async () => {
+    const pending = {
+      receipt: 'r',
+      publicKey: 'ab'.repeat(32),
+      name: 'CLI device',
+      approved: false,
+    };
+    const http = async () => reply({ pendingKeys: [pending] });
+    expect(await runDevicesCommand('devices', [], {}, async () => ({ http }))).toMatchObject({
+      pendingKeys: [
+        {
+          ...pending,
+          fingerprint:
+            '9a2d b2e2 3f15 04cd 0566 0655 3ac0 49c5 e718 e8f9 ce92 3387 6df1 a7a1 821a f885',
+        },
+      ],
+    });
+  });
+  it('requires confirmation before opening LAN and uses the same Host management route to disable it', async () => {
+    const http = vi.fn(async () => reply({ state: 'listening' }));
+    await expect(
+      runDevicesCommand('device-lan', ['enable'], {}, async () => ({ http })),
+    ).rejects.toThrow('confirm');
+    expect(http).not.toHaveBeenCalled();
+    expect(
+      await runDevicesCommand('device-lan', ['enable'], { confirm: true }, async () => ({ http })),
+    ).toEqual({ state: 'listening' });
+    expect(http.mock.calls[0]).toEqual([
+      '/api/botharness/devices/lan',
+      { action: 'enable', confirm: true },
+    ]);
+    await runDevicesCommand('device-lan', ['disable'], {}, async () => ({ http }));
+    expect(http.mock.calls[1]).toEqual([
+      '/api/botharness/devices/lan',
+      { action: 'disable', confirm: false },
+    ]);
+  });
   it('requires explicit confirmation and sends the exact key with its offer receipt', async () => {
     const http = vi.fn(async () => reply({ approved: true }));
     const key = 'ab'.repeat(32);

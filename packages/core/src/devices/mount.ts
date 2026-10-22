@@ -2,7 +2,8 @@ import { createNoiseIdentity } from './noise-identity.js';
 import { createEncryptedGateway } from './encrypted-gateway.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import type { Context } from '@deepseek-ai/cordis';
-import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
+import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
+import { createDeviceLan } from './lan.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -159,6 +160,45 @@ export function mountDevicePairing(
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
     const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
+    const lanKey = credentialKey('botharness-core', 'device-lan');
+    const lan = createDeviceLan({
+      read: async () => {
+        const credentials = options.credentials?.();
+        if (!credentials) throw new Error('lan-storage-unavailable');
+        const record = await credentials.readRecord(lanKey);
+        if (record?.kind !== 'grant') return undefined;
+        if (!record.payload || typeof record.payload !== 'object' || !('port' in record.payload))
+          return undefined;
+        const port = record.payload.port;
+        return typeof port === 'number' ? port : undefined;
+      },
+      write: async (port) => {
+        const credentials = options.credentials?.();
+        if (!credentials) throw new Error('lan-storage-unavailable');
+        if (port === undefined) await credentials.deleteRecord(lanKey);
+        else
+          await credentials.modifyRecord(lanKey, async () => ({
+            kind: 'grant',
+            payload: { port },
+          }));
+      },
+      gateway: () =>
+        createEncryptedGateway({
+          pairing,
+          key: identity.key,
+          port: () => webServer.port,
+          route: 'lan',
+          log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
+        }),
+      log: (event) =>
+        write('device-lan', event.phase, JSON.stringify({ module: 'device-lan', ...event })),
+    });
+    webCtx.effect(() => {
+      void lan.start();
+      return () => {
+        void lan.close();
+      };
+    }, 'botharness: encrypted LAN entry');
     let channels = { negotiating: 0, encrypted: 0 };
     const encryption = async () => ({
       ...(await identity.publicIdentity()),
@@ -218,6 +258,7 @@ export function mountDevicePairing(
     }, 'botharness: device connect tunnel');
     const routes = async () => {
       const status = await detectPhoneRoutes({ port: webServer.port });
+      status.routes.unshift(...lan.routes());
       const tunnel = connect.route();
       if (tunnel === undefined) return status;
       const loopback = status.routes.filter((route) => route.kind === 'loopback');
@@ -230,6 +271,7 @@ export function mountDevicePairing(
       routes,
       connect,
       account,
+      lan,
       publish: () => publishPhoneRoute({ port: webServer.port }),
     });
     for (const [path, methods] of [
@@ -239,6 +281,7 @@ export function mountDevicePairing(
       [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
+      [`${DEVICES_PATH}/lan`, ['POST']],
     ] as const)
       webCtx.effect(
         () =>

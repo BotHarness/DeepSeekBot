@@ -7,7 +7,7 @@ import {
   openNoiseSocket,
   secureRandom,
 } from './encrypted-carrier';
-import { isConnectRoute } from './route';
+import { isConnectRoute, isEncryptedRoute, isLanRoute } from './route';
 import type { HostEncryption } from './hosts';
 import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
@@ -27,6 +27,8 @@ export interface PairingPayload {
 }
 
 export type PairingRefusal =
+  | 'lan-build-required'
+  | 'lan-unreachable'
   | 'already-paired'
   | 'host-key-required'
   | 'host-key-confirmation-required'
@@ -127,7 +129,7 @@ export async function redeemPairing(options: {
     return { ok: false, code: 'no-route' };
   if (payload.encryption !== undefined) return redeemEncrypted(options);
   for (const route of payload.routes) {
-    if (isConnectRoute(route)) return { ok: false, code: 'host-key-required' };
+    if (isEncryptedRoute(route)) return { ok: false, code: 'host-key-required' };
     let status: number;
     let body: Record<string, unknown>;
     const controller = new AbortController();
@@ -295,9 +297,11 @@ export async function pairHost(options: {
       deviceName: options.deviceName,
       carrier: options.carrier,
       ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
-      ...(options.confirmFingerprint === undefined
-        ? {}
-        : { confirmFingerprint: options.confirmFingerprint }),
+      ...(options.method === 'qr'
+        ? { confirmFingerprint: async () => true }
+        : options.confirmFingerprint === undefined
+          ? {}
+          : { confirmFingerprint: options.confirmFingerprint }),
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
     if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
@@ -313,9 +317,13 @@ export async function pairHost(options: {
     }
     observation.finish('success');
     return { ok: true };
-  } catch {
-    observation.finish('failed', 'unknown');
-    return { ok: false, code: 'unknown' };
+  } catch (error) {
+    const code =
+      error instanceof Error && error.message === 'lan-build-required'
+        ? 'lan-build-required'
+        : 'unknown';
+    observation.finish('failed', code);
+    return { ok: false, code };
   } finally {
     options.signal?.removeEventListener('abort', cancelled);
   }
@@ -344,8 +352,31 @@ async function redeemEncrypted(options: {
     hostKey: advertised.publicKey,
     deviceKey: keyHex(secureRandom(options.carrier)),
   };
-  const route = payload.routes.find(isConnectRoute) ?? payload.routes[0]!;
+  const lan = payload.routes.filter(isLanRoute);
+  const remote = payload.routes.filter((route) => !isLanRoute(route));
+  const preferred = remote.find(isConnectRoute) ?? remote[0];
+  const routes = [
+    ...lan,
+    ...(preferred ? [preferred] : []),
+    ...remote.filter((route) => route !== preferred),
+  ];
+  let result: Redemption = { ok: false, code: 'no-route' };
+  for (const route of routes) {
+    if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
+    result = await redeemEncryptedRoute(options, encryption, route);
+    if (result.ok || result.code !== 'lan-unreachable') return result;
+  }
+  return result;
+}
+
+function redeemEncryptedRoute(
+  options: Parameters<typeof redeemEncrypted>[0],
+  encryption: HostEncryption,
+  route: string,
+): Promise<Redemption> {
+  const { payload } = options;
   return new Promise<Redemption>((resolve) => {
+    let authenticated = false;
     let done = false,
       poll: ReturnType<typeof setTimeout> | undefined;
     const finish = (result: Redemption) => {
@@ -363,7 +394,22 @@ async function redeemEncrypted(options: {
       hostId: payload.host.id,
       encryption,
       raw: options.carrier,
-      closed: () => finish({ ok: false, code: 'channel-authentication-failed' }),
+      timeoutMs: isLanRoute(route) ? 2000 : 10_000,
+      closed: (reason) =>
+        finish({
+          ok: false,
+          code:
+            isLanRoute(route) &&
+            !authenticated &&
+            [
+              'lan-unreachable',
+              'channel-timeout',
+              'channel-send-failed',
+              'channel-disconnected',
+            ].includes(reason)
+              ? 'lan-unreachable'
+              : 'channel-authentication-failed',
+        }),
       message: (value) => {
         if (value['type'] === 'pair-pending') {
           options.onPending?.(noiseFingerprint(noisePublicKey(keyBytes(encryption.deviceKey))));
@@ -413,8 +459,12 @@ async function redeemEncrypted(options: {
       Math.max(1, Math.min(600_000, Date.parse(payload.expiresAt) - Date.now())),
     );
     options.signal?.addEventListener('abort', abort, { once: true });
-    void socket.ready.then(submit, () =>
-      finish({ ok: false, code: 'channel-authentication-failed' }),
+    void socket.ready.then(
+      () => {
+        authenticated = true;
+        submit();
+      },
+      () => finish({ ok: false, code: 'channel-authentication-failed' }),
     );
   });
 }
