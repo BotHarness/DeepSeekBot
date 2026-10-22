@@ -16,6 +16,7 @@ export function DraftEditor({
   value,
   placeholder,
   canSend,
+  showSend = canSend,
   onChange,
   onSend,
   onClose,
@@ -26,6 +27,7 @@ export function DraftEditor({
   value: string;
   placeholder: string;
   canSend: boolean;
+  showSend?: boolean;
   onChange(value: string): void;
   onSend(): void;
   onClose(): void;
@@ -64,8 +66,8 @@ export function DraftEditor({
           <Text variant="title" style={{ flex: 1 }}>
             {t.editDraft}
           </Text>
-          {canSend ? (
-            <HeaderCircleButton label={t.send} onPress={onSend}>
+          {showSend ? (
+            <HeaderCircleButton label={t.send} onPress={onSend} disabled={!canSend}>
               <ArrowUpIcon color={theme.color.accent} size={theme.type.title.line} />
             </HeaderCircleButton>
           ) : null}

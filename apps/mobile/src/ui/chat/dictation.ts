@@ -67,7 +67,7 @@ export function composerActions(input: {
   const empty = input.text.trim() === '';
   return [
     ...(empty && input.canDictate && !input.disabled ? (['mic'] as const) : []),
-    ...((!empty || input.files > 0) && !input.disabled ? (['send'] as const) : []),
+    ...(!empty || input.files > 0 ? (['send'] as const) : []),
   ];
 }
 

@@ -6,6 +6,8 @@ import {
   buttonBorderShape,
   buttonStyle,
   contentShape,
+  disabled as nativeDisabled,
+  opacity,
   foregroundStyle,
   frame,
   shapes,
@@ -22,6 +24,7 @@ export function NativeComposerButton({
   size,
   embedded = true,
   filled = false,
+  disabled = false,
   onPress,
 }: {
   label: string;
@@ -30,6 +33,7 @@ export function NativeComposerButton({
   size: number;
   embedded?: boolean;
   filled?: boolean;
+  disabled?: boolean;
   onPress(): void;
 }) {
   const theme = useDesignTheme();
@@ -54,11 +58,15 @@ export function NativeComposerButton({
     >
       <Button
         {...(testID === undefined ? {} : { testID })}
-        onPress={onPress}
+        onPress={() => {
+          if (!disabled) onPress();
+        }}
         modifiers={[
           buttonStyle(standaloneGlass ? 'glass' : 'plain'),
           buttonBorderShape('circle'),
           accessibilityLabel(label),
+          nativeDisabled(disabled),
+          opacity(disabled ? 0.4 : 1),
           foregroundStyle(ink),
         ]}
       >

@@ -8,12 +8,14 @@ import type { ComposerSymbol } from './composer-symbol';
 export function ComposerActionButton({
   label,
   filled,
+  disabled = false,
   onPress,
   testID,
   children,
 }: {
   label: string;
   filled: boolean;
+  disabled?: boolean;
   onPress(): void;
   testID?: string;
   symbol: ComposerSymbol;
@@ -26,6 +28,8 @@ export function ComposerActionButton({
       testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       onPress={onPress}
       hitSlop={space.x2}
       android_ripple={
@@ -48,7 +52,7 @@ export function ComposerActionButton({
           : pressed && !rippleFeedback
             ? pressTint(theme.color.fg)
             : undefined,
-        opacity: filled && pressed && !rippleFeedback ? 0.7 : 1,
+        opacity: disabled ? 0.4 : filled && pressed && !rippleFeedback ? 0.7 : 1,
       })}
     >
       {children}
