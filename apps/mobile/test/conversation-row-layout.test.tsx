@@ -4,6 +4,12 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const device = vi.hoisted(() => ({ os: 'android', scale: 1 }));
+// The row module also imports native navigation; this fixture exercises only its frame.
+vi.mock('expo-router', () => ({
+  Link: () => {
+    throw new Error('Navigation is outside the conversation row layout fixture');
+  },
+}));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   type Props = Record<string, unknown> & { children?: ReactNode };
