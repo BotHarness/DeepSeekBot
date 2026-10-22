@@ -126,38 +126,41 @@ function style(element: Element): Record<string, unknown> {
 }
 
 describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
-  it.each([1, 1.3, 2, 3.571])('keeps two lines at scale %s, including beside an action target', (scale) => {
-    device.os = os;
-    device.scale = scale;
-    for (const menu of [false, true]) {
-      const row = render('12:39', menu);
-      const source = row.name.parentElement!;
-      const header = source.parentElement!;
-      const content = header.parentElement!;
-      expect(style(header)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
-      expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
-      expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
-      expect(style(row.name)).toMatchObject({ flexShrink: 1 });
-      expect(style(source.children[1]!)).toMatchObject({ flexShrink: 0 });
-      expect(source.getAttribute('aria-label')).toContain(title);
-      expect(row.name.dataset.ellipsis).toBe('tail');
-      expect(row.time.parentElement).toBe(header);
-      expect(style(row.time)).toMatchObject({ flexShrink: 0 });
-      expect(content.children).toHaveLength(2);
-      expect(row.preview.parentElement).toBe(content.children[1]);
-      expect(row.preview.parentElement!.querySelector('[data-status="working"]')).not.toBeNull();
-      for (const text of [row.name, row.time, row.preview]) {
-        expect(text.dataset.lines).toBe('1');
-        expect(text.dataset.scaling).not.toBe('false');
-        expect(text.dataset.maximum).toBeUndefined();
-        expect(text.dataset.fit).not.toBe('true');
+  it.each([1, 1.3, 2, 3.571])(
+    'keeps two lines at scale %s, including beside an action target',
+    (scale) => {
+      device.os = os;
+      device.scale = scale;
+      for (const menu of [false, true]) {
+        const row = render('12:39', menu);
+        const source = row.name.parentElement!;
+        const header = source.parentElement!;
+        const content = header.parentElement!;
+        expect(style(header)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
+        expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
+        expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
+        expect(style(row.name)).toMatchObject({ flexShrink: 1 });
+        expect(style(source.children[1]!)).toMatchObject({ flexShrink: 0 });
+        expect(source.getAttribute('aria-label')).toContain(title);
+        expect(row.name.dataset.ellipsis).toBe('tail');
+        expect(row.time.parentElement).toBe(header);
+        expect(style(row.time)).toMatchObject({ flexShrink: 0 });
+        expect(content.children).toHaveLength(2);
+        expect(row.preview.parentElement).toBe(content.children[1]);
+        expect(row.preview.parentElement!.querySelector('[data-status="working"]')).not.toBeNull();
+        for (const text of [row.name, row.time, row.preview]) {
+          expect(text.dataset.lines).toBe('1');
+          expect(text.dataset.scaling).not.toBe('false');
+          expect(text.dataset.maximum).toBeUndefined();
+          expect(text.dataset.fit).not.toBe('true');
+        }
+        expect(row.view.querySelector('button')!.getAttribute('aria-label')).toBe(label);
+        const target = row.view.querySelector('[aria-label="Reserved action target"]');
+        expect(target === null).toBe(!menu);
+        if (target) expect(style(target).width).toBe(os === 'android' ? 48 : 44);
       }
-      expect(row.view.querySelector('button')!.getAttribute('aria-label')).toBe(label);
-      const target = row.view.querySelector('[aria-label="Reserved action target"]');
-      expect(target === null).toBe(!menu);
-      if (target) expect(style(target).width).toBe(os === 'android' ? 48 : 44);
-    }
-  });
+    },
+  );
 
   it('omits the timestamp slot without adding an empty metadata line', () => {
     device.os = os;
