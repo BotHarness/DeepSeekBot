@@ -599,7 +599,7 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 ### 加密局域网手机连接
 
-无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。在另一个 CLI 进程查看 `devices.pendingKeys`，用 `device-approve-key` 批准准确的公钥。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
+无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
 
 `deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
 

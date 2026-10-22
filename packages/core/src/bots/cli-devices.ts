@@ -1,6 +1,7 @@
 import { existsSync, writeFileSync } from 'node:fs';
 
 import { CliLiveError } from './cli-live-error.js';
+import { noiseFingerprint } from '../devices/noise/xk.js';
 
 export const DEVICES_COMMANDS = [
   {
@@ -115,10 +116,24 @@ export async function runDevicesCommand(
   };
   if (command === 'devices') {
     const snapshot = decode((await host.http(DEVICES)).bytes);
+    const pending = snapshot['pendingKeys'];
+    const pendingKeys = Array.isArray(pending)
+      ? pending.map((entry: unknown) => {
+          if (
+            !entry ||
+            typeof entry !== 'object' ||
+            !('publicKey' in entry) ||
+            typeof entry.publicKey !== 'string' ||
+            !/^[0-9a-f]{64}$/u.test(entry.publicKey)
+          )
+            return entry;
+          return { ...entry, fingerprint: noiseFingerprint(Buffer.from(entry.publicKey, 'hex')) };
+        })
+      : pending;
     return {
       host: snapshot['host'],
       devices: snapshot['devices'],
-      ...(snapshot['pendingKeys'] === undefined ? {} : { pendingKeys: snapshot['pendingKeys'] }),
+      ...(pendingKeys === undefined ? {} : { pendingKeys }),
       routes: snapshot['routes'],
       ...(snapshot['lan'] === undefined ? {} : { lan: snapshot['lan'] }),
     };

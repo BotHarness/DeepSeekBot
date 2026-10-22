@@ -9,6 +9,24 @@ const reply = (value: unknown) => ({
 const LINK = 'deepseekbot://pair?p=c2VjcmV0LW9mZmVy';
 
 describe('devices CLI', () => {
+  it('shows the pending public-key fingerprint so the operator can compare it before approval', async () => {
+    const pending = {
+      receipt: 'r',
+      publicKey: 'ab'.repeat(32),
+      name: 'CLI device',
+      approved: false,
+    };
+    const http = async () => reply({ pendingKeys: [pending] });
+    expect(await runDevicesCommand('devices', [], {}, async () => ({ http }))).toMatchObject({
+      pendingKeys: [
+        {
+          ...pending,
+          fingerprint:
+            '9a2d b2e2 3f15 04cd 0566 0655 3ac0 49c5 e718 e8f9 ce92 3387 6df1 a7a1 821a f885',
+        },
+      ],
+    });
+  });
   it('requires confirmation before opening LAN and uses the same Host management route to disable it', async () => {
     const http = vi.fn(async () => reply({ state: 'listening' }));
     await expect(

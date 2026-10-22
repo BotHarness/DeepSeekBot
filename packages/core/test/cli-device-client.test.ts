@@ -12,10 +12,18 @@ it('requires trusted-file confirmation and never returns saved device secrets on
     out = join(root, 'device.json');
   writeFileSync(link, 'private-pairing-link');
   const values = { 'link-file': link, out };
+  const pending = vi.fn();
+  const fingerprint = '1234 '.repeat(15) + '5678';
   await expect(runDeviceClientCommand('device-pair', [], values)).rejects.toThrow('confirm');
   expect(paired).not.toHaveBeenCalled();
   paired.mockImplementation(async (options) => {
     expect(options.text).toBe('private-pairing-link');
+    options.onPending(fingerprint);
+    options.onPending(fingerprint);
+    expect(pending).toHaveBeenCalledExactlyOnceWith(
+      `${JSON.stringify({ type: 'device-key-confirmation-required', fingerprint })}\n`,
+    );
+    expect(() => readFileSync(out)).toThrow();
     await options.save({
       hostId: 'host',
       deviceId: 'device',
@@ -24,7 +32,12 @@ it('requires trusted-file confirmation and never returns saved device secrets on
     });
     return { ok: true };
   });
-  const result = await runDeviceClientCommand('device-pair', [], { ...values, confirm: true });
+  const result = await runDeviceClientCommand(
+    'device-pair',
+    [],
+    { ...values, confirm: true },
+    pending,
+  );
   expect(result).toEqual({
     hostId: 'host',
     deviceId: 'device',

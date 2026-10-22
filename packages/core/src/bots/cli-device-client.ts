@@ -29,6 +29,9 @@ export async function runDeviceClientCommand(
     out?: string;
     confirm?: boolean;
   },
+  writeStatus: (line: string) => void = (line) => {
+    process.stderr.write(line);
+  },
 ): Promise<unknown> {
   if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
   if (command === 'device-pair') {
@@ -47,12 +50,20 @@ export async function runDeviceClientCommand(
       throw new CliLiveError('invalid-input', 'Cannot read the trusted pairing file.');
     }
     let summary: unknown;
+    let reported = false;
     const result = await pairHost({
       text,
       method: 'paste',
       deviceName: 'CLI device',
       carrier: nodeDeviceCarrier(),
       confirmFingerprint: async () => true,
+      onPending: (fingerprint) => {
+        if (reported) return;
+        reported = true;
+        writeStatus(
+          `${JSON.stringify({ type: 'device-key-confirmation-required', fingerprint })}\n`,
+        );
+      },
       telemetry: { pairing: () => ({ finish: () => {} }) },
       save: async (host) => {
         writeFileSync(values.out!, `${JSON.stringify(host)}\n`, { flag: 'wx', mode: 0o600 });
