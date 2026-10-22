@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
 import { parsePairingLink, redeemPairing } from '../src/host/pairing';
 import { checkRoute } from '../src/host/route';
+import { SECRET_ROUTE_METHODS } from '../../../packages/core/src/bridge/secret-route';
 import { FakeHost } from './fake-host';
 import wire from './fixtures/host-wire.json';
 
@@ -370,4 +371,40 @@ it('reports telemetry ready only after the authenticated Roster reload, includin
   holdChannels?.();
   await new Promise((resolve) => setTimeout(resolve, 10));
   expect(updates).toEqual(['connecting', 'connected', 'manual_retry', 'connected']);
+});
+
+describe('Connect secret preflight', () => {
+  it.each(SECRET_ROUTE_METHODS)(
+    'refuses %s before serializing or sending a request',
+    async (endpoint) => {
+      const host = new FakeHost();
+      client = createHostClient({
+        routes: ['https://safety.deepseekbot.dev'],
+        credential: host.credential,
+        carrier: host.carrier,
+      });
+      const args = {
+        toJSON() {
+          throw new Error('must not serialize secret');
+        },
+      };
+      await expect(client.call(endpoint, args)).rejects.toMatchObject({
+        code: 'secret-route-refused',
+      });
+      expect(host.requests).toEqual([]);
+    },
+  );
+  it.each([ROUTE, LOOPBACK])('preserves secret submission on %s', async (route) => {
+    const host = new FakeHost();
+    host.methods.set('privateInputSubmit', () => ({ accepted: true }));
+    client = createHostClient({
+      routes: [route],
+      credential: host.credential,
+      carrier: host.carrier,
+    });
+    await expect(
+      client.call('privateInputSubmit', { values: { key: 'synthetic-only' } }),
+    ).resolves.toEqual({ accepted: true });
+    expect(host.requests).toHaveLength(1);
+  });
 });

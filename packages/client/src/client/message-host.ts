@@ -9,13 +9,19 @@ export interface MessageHost {
 export const MessageHostContext = createContext<MessageHost | undefined>(undefined);
 export const useMessageHost = (): MessageHost | undefined => useContext(MessageHostContext);
 
-export function fetchMessageResource(
+export async function fetchMessageResource(
   path: string,
   signal: AbortSignal,
   host?: MessageHost,
 ): Promise<Response> {
   if (host === undefined) return fetch(`.${path}`, { signal });
   const source = host.client.resource(path);
+  if (source.read) {
+    const result = await source.read(signal);
+    return new Response(Uint8Array.from(result.bytes), {
+      headers: { 'content-type': result.mime },
+    });
+  }
   return fetch(source.uri, {
     headers: source.headers,
     credentials: 'omit',

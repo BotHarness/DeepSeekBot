@@ -9,7 +9,9 @@ const RELAY = 'https://relay.test';
 const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';
 const challenge = async (value: string) => createHash('sha256').update(value).digest('base64url');
 
-function fakeRelay(options: { offline?: boolean; expired?: boolean; deletion?: number } = {}) {
+function fakeRelay(
+  options: { offline?: boolean; expired?: boolean; deletion?: number; hostname?: string } = {},
+) {
   let stored: string | null = null;
   let randoms = 0;
   const calls: { url: string; method?: string; auth?: string; body?: string }[] = [];
@@ -46,9 +48,10 @@ function fakeRelay(options: { offline?: boolean; expired?: boolean; deletion?: n
       if (options.offline)
         return Response.json({ error: { code: 'host-offline' } }, { status: 409 });
       return Response.json({
-        offer: 'offer-1',
+        encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+        enrollment: { body: 'signed-request', signature: 'signature' },
         expiresAt: '2026-10-21T12:10:00.000Z',
-        hostname: 'hstudio.deepseekbot.dev',
+        hostname: options.hostname ?? 'hstudio.deepseekbot.dev',
         host: { id: 'pairing-host', name: 'Studio Mac' },
       });
     }
@@ -110,17 +113,16 @@ describe('phone Connect account', () => {
     expect(JSON.parse(relay.stored()!).refreshToken).toBe('refresh-1');
   });
 
-  it('asks for an offer bound to a verifier and redeems it with that verifier', async () => {
+  it('keeps the verifier off the relay and requires fingerprint confirmation before encrypted enrollment', async () => {
     const relay = fakeRelay();
     await relay.account.signIn();
     const offer = await relay.account.offer('hstudio', 'iPhone');
-    expect(offer).toEqual({
+    expect(offer).toMatchObject({
       ok: true,
       value: {
-        host: { id: 'pairing-host', name: 'Studio Mac' },
-        offer: 'offer-1',
-        routes: ['https://hstudio.deepseekbot.dev'],
-        expiresAt: '2026-10-21T12:10:00.000Z',
+        offer: '',
+        encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+        enrollment: { body: 'signed-request', signature: 'signature' },
         verifier: 'random-3',
       },
     });
@@ -128,32 +130,40 @@ describe('phone Connect account', () => {
       verifierHash: await challenge('random-3'),
       name: 'iPhone',
     });
-    const sent: string[] = [];
-    const redeemed = await redeemPairing({
-      payload: offer.ok ? offer.value : (undefined as never),
-      deviceName: 'iPhone',
-      carrier: {
-        request: async (url, init) => {
-          sent.push(`${url} ${String(init.body)}`);
-          return {
-            status: 200,
-            text: async () =>
-              JSON.stringify({
-                deviceId: 'device-1',
-                credential: 'device-1.secret',
-                host: { id: 'pairing-host', name: 'Studio Mac' },
-              }),
-          };
-        },
-        openSocket: () => {
-          throw new Error('unused');
-        },
-      },
+    if (!offer.ok) throw new Error('missing enrollment');
+    const request = vi.fn(),
+      openSocket = vi.fn();
+    expect(
+      await redeemPairing({
+        payload: offer.value,
+        deviceName: 'iPhone',
+        carrier: { request, openSocket },
+      }),
+    ).toEqual({ ok: false, code: 'host-key-confirmation-required' });
+    expect(request).not.toHaveBeenCalled();
+    expect(openSocket).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'attacker.example',
+    'hstudio.deepseekbot.dev.attacker.example',
+    'hstudio.deepseekbot.dev@attacker.example',
+    'user@hstudio.deepseekbot.dev',
+    'hstudio.deepseekbot.dev:8443',
+    'hstudio.deepseekbot.dev:443',
+    'hstudio.deepseekbot.dev/path',
+    'hstudio.deepseekbot.dev?redirect=attacker',
+    'hstudio.deepseekbot.dev#fragment',
+    'hstudio.deepseekbot.dev.',
+    'studio.tailnet.ts.net',
+    '127.0.0.1',
+  ])('rejects the relay enrollment hostname %s before pairing', async (hostname) => {
+    const relay = fakeRelay({ hostname });
+    await relay.account.signIn();
+    expect(await relay.account.offer('hstudio', 'iPhone')).toEqual({
+      ok: false,
+      code: 'relay-unavailable',
     });
-    expect(sent).toEqual([
-      'https://hstudio.deepseekbot.dev/botharness-device/pair {"offer":"offer-1","name":"iPhone","verifier":"random-3"}',
-    ]);
-    expect(redeemed).toMatchObject({ ok: true, host: { hostId: 'pairing-host' } });
   });
 
   it('reports offline Hosts, cancelled sign-ins and expired sessions', async () => {

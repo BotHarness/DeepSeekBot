@@ -59,13 +59,24 @@ export interface RemoteHostsSnapshot {
 
 export type HostPairResult =
   | { ok: true; host: SavedHost }
-  | { ok: false; code: PairingRefusal | 'already-paired' | 'this-host' };
+  | { ok: false; code: PairingRefusal | 'already-paired' | 'this-host' | 'storage-failure' };
+
+export interface RemotePairTrust {
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
+  onPending?: (fingerprint: string) => void;
+  signal?: AbortSignal;
+}
 
 export interface RemoteHosts {
   notifications: RemoteNotifications;
   getSnapshot(): RemoteHostsSnapshot;
   subscribe(listener: () => void): () => void;
-  pair(link: string, deviceName: string, localHostId?: string): Promise<HostPairResult>;
+  pair(
+    link: string,
+    deviceName: string,
+    localHostId?: string,
+    trust?: RemotePairTrust,
+  ): Promise<HostPairResult>;
   remove(hostId: string): Promise<void>;
   select(tab: string): void;
   open(target: RemoteConversationTarget): void;
@@ -260,7 +271,12 @@ export function createRemoteHosts(options: {
   };
 
   const attach = (host: SavedHost): void => {
-    const client = createHostClient({ routes: host.routes, credential: host.credential, carrier });
+    const client = createHostClient({
+      ...host,
+      routes: host.routes,
+      credential: host.credential,
+      carrier,
+    });
     const projectActivity = createRemoteActivityProjection();
     const entry: HostEntry = {
       host,
@@ -331,15 +347,28 @@ export function createRemoteHosts(options: {
         notifications.stop();
       };
     },
-    async pair(link, deviceName, localHostId) {
+    async pair(link, deviceName, localHostId, trust) {
       const parsed = parsePairingLink(link);
       if (!parsed.ok) return parsed;
       if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-host' };
       if (clients.has(parsed.payload.host.id)) return { ok: false, code: 'already-paired' };
-      const redeemed = await redeemPairing({ payload: parsed.payload, deviceName, carrier });
+      const redeemed = await redeemPairing({
+        payload: parsed.payload,
+        deviceName,
+        carrier,
+        ...trust,
+      });
       if (!redeemed.ok) return redeemed;
+      try {
+        if (!storage) throw new Error('storage-unavailable');
+        storage.setItem(
+          REMOTE_HOSTS_STORAGE_KEY,
+          JSON.stringify([...[...clients.values()].map(({ host }) => host), redeemed.host]),
+        );
+      } catch {
+        return { ok: false, code: 'storage-failure' };
+      }
       attach(redeemed.host);
-      save();
       tab = redeemed.host.hostId;
       try {
         storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
@@ -422,6 +451,21 @@ export function browserCarrier(): HostCarrier {
       return { status: response.status, text: () => response.text() };
     },
     openSocket(url, events, headers = {}) {
+      if (new URL(url).pathname === '/botharness-device/channel') {
+        const socket = new WebSocket(url);
+        socket.onopen = () => events.open();
+        socket.onmessage = (event) => events.message(String(event.data));
+        socket.onerror = () => events.closed('channel-unreachable');
+        socket.onclose = (event) => events.closed(event.reason);
+        return {
+          get bufferedAmount() {
+            return socket.bufferedAmount;
+          },
+          send: (text) => socket.send(text),
+          close: () => socket.close(),
+        };
+      }
+
       const controller = new AbortController();
       let socket: WebSocket | undefined;
       let done = false;

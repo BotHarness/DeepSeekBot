@@ -13,6 +13,7 @@ import { ConnectionNameField } from '../../src/ui/primitives/connection-name-fie
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
+import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { t } from '../../src/ui/strings';
 
@@ -45,6 +46,8 @@ export default function PairTailscaleScreen() {
       };
     }, [params.p]),
   );
+
+  if (pairing.busy) return <PairingVerification pairing={pairing} />;
 
   return (
     <KeyboardFormScroll

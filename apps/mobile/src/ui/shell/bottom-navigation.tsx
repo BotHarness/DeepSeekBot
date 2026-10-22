@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { hostSession, useHostSession } from '../../host/host-session';
+import { useHostSession } from '../../host/host-session';
 import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
@@ -24,7 +24,6 @@ import {
 import { cloudClient } from '../../cloud/native';
 import { useCloudConversations } from '../../cloud/native-conversations';
 import { cloudError } from '../../cloud/client';
-import { ClientError } from '../../cloud/instance-contract';
 import { prepareCloudCreation } from '../../cloud/prepare-creation';
 import { shownHostName } from '../design/host-look';
 import { pressTint, useDesignTheme } from '../design/theme';
@@ -111,7 +110,7 @@ function ScopedNavigationBar({
   const targets = creationTargets(
     saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
     directory.workspaces,
-  );
+  ).filter((target) => target.kind !== 'computer');
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
@@ -148,16 +147,7 @@ function ScopedNavigationBar({
     setBusy(true);
     setError(undefined);
     try {
-      if (target.kind === 'computer') {
-        if (hostSession.getState().saved?.hostId !== target.hostId)
-          throw new ClientError('SOURCE_CHANGED');
-        if (action !== 'bot' && action !== 'channel') return;
-        close();
-        router.push({
-          pathname: '/full-client',
-          params: { target: action === 'bot' ? 'new-bot' : 'new-channel', hostId: target.hostId },
-        });
-      } else {
+      if (target.kind === 'cloud') {
         await prepareCloudCreation(cloudClient, target.workspace);
         if (version !== generation.current) return;
         close();

@@ -9,6 +9,27 @@ const reply = (value: unknown) => ({
 const LINK = 'deepseekbot://pair?p=c2VjcmV0LW9mZmVy';
 
 describe('devices CLI', () => {
+  it('requires explicit confirmation and sends the exact key with its offer receipt', async () => {
+    const http = vi.fn(async () => reply({ approved: true }));
+    const key = 'ab'.repeat(32);
+    await expect(
+      runDevicesCommand('device-approve-key', ['receipt', key], {}, async () => ({ http })),
+    ).rejects.toThrow('confirm');
+    expect(http).not.toHaveBeenCalled();
+    expect(
+      await runDevicesCommand(
+        'device-approve-key',
+        ['receipt', key],
+        { confirm: true },
+        async () => ({ http }),
+      ),
+    ).toEqual({ approved: true });
+    expect(http.mock.calls[0]).toEqual([
+      '/api/botharness/devices/approve-key',
+      { receipt: 'receipt', publicKey: key, confirm: true },
+    ]);
+  });
+
   it('lists devices with the Host identity and routes, without Connect state', async () => {
     const http = vi.fn(async () =>
       reply({

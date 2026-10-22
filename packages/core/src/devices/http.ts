@@ -1,3 +1,4 @@
+import type { EncryptionIdentity } from './noise-identity.js';
 import { encode } from 'uqr';
 
 import type { AccountStatus, ConnectAccount } from './connect-account.js';
@@ -21,6 +22,7 @@ const headers = {
 
 export interface PairingPayload {
   v: 1;
+  encryption?: EncryptionIdentity;
   host: HostIdentity;
   offer: string;
   routes: string[];
@@ -30,8 +32,12 @@ export interface PairingPayload {
 export interface DevicesSnapshot {
   host: HostIdentity;
   devices: PairedDevice[];
+  pendingKeys?: ReturnType<DevicePairing['pendingKeys']>;
   routes: RouteStatus;
-  connect: ConnectStatus & { account?: AccountStatus };
+  connect: ConnectStatus & {
+    account?: AccountStatus;
+    encryption?: EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' };
+  };
 }
 
 export interface PairingOfferView {
@@ -93,6 +99,9 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 
 export function createDevicesHttp(options: {
   pairing: DevicePairing;
+  encryption?: () => Promise<
+    EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' }
+  >;
   routes: () => Promise<RouteStatus>;
   publish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
@@ -105,9 +114,11 @@ export function createDevicesHttp(options: {
       const snapshot: DevicesSnapshot = {
         host: pairing.host(),
         devices: pairing.list(),
+        pendingKeys: pairing.pendingKeys(),
         routes: await options.routes(),
         connect: {
           ...(connect?.status() ?? { state: 'off' }),
+          ...(options.encryption === undefined ? {} : { encryption: await options.encryption() }),
           ...(account === undefined ? {} : { account: account.status() }),
         },
       };
@@ -120,6 +131,7 @@ export function createDevicesHttp(options: {
       const offer = pairing.createOffer();
       const link = pairingLink({
         v: 1,
+        ...(options.encryption === undefined ? {} : { encryption: await options.encryption() }),
         host: pairing.host(),
         offer: offer.offer,
         routes,
@@ -143,6 +155,17 @@ export function createDevicesHttp(options: {
       if (typeof input['receipt'] !== 'string' || input['receipt'] === '')
         return json({ code: 'receipt-required' }, 400);
       return json(pairing.offerStatus(input['receipt']));
+    }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/approve-key`) {
+      const input = await body(request);
+      if (
+        input['confirm'] !== true ||
+        typeof input['receipt'] !== 'string' ||
+        typeof input['publicKey'] !== 'string'
+      )
+        return json({ code: 'key-confirmation-required' }, 400);
+      const approved = pairing.approveKey(input['receipt'], input['publicKey']);
+      return json({ approved }, approved ? 200 : 409);
     }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/revoke`) {
       const input = await body(request);

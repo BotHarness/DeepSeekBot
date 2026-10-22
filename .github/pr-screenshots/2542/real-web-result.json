@@ -1,0 +1,16 @@
+{
+  "head": "683b0cbe9c0f158e80929601f59a312ff5f9c4bf",
+  "realCloudflare": true,
+  "clientCode": "trusted local Host",
+  "fingerprintCompared": true,
+  "keyApproved": true,
+  "maskedInput": true,
+  "failureVisible": true,
+  "failureCanonical": "pending",
+  "fallbackRequests": 0,
+  "successVisible": "Submitted",
+  "successCanonical": "configured",
+  "inputCleared": true,
+  "outerSecretAbsent": true,
+  "consoleErrors": []
+}

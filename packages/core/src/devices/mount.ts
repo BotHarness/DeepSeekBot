@@ -1,3 +1,6 @@
+import { createNoiseIdentity } from './noise-identity.js';
+import { createEncryptedGateway } from './encrypted-gateway.js';
+import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import type { Context } from '@deepseek-ai/cordis';
 import type { CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -10,10 +13,8 @@ import { openLogDatabase, type LogDatabase } from '../logs/log-db.js';
 import {
   createDeviceGateway,
   DEVICE_GATEWAY_PREFIX,
-  type DeviceGateway,
   DEVICE_MUX_PATH,
   DEVICE_SIGNALING_PATHS,
-  DEVICE_WEB_MUX_PATH,
 } from './gateway.js';
 import { createConnectAccount } from './connect-account.js';
 import { cloudflaredCacheRoot } from './cloudflared.js';
@@ -79,8 +80,6 @@ function pushDetail(event: PushEvent): string {
     .join(' ');
 }
 
-export type DeviceWebUpgrade = (request: IncomingMessage, socket: Duplex, head: Buffer) => void;
-
 export function mountDevicePairing(
   ctx: Context,
   options: {
@@ -90,9 +89,8 @@ export function mountDevicePairing(
     credentials?: () => CredentialProvider | undefined;
     packageAnchors?: readonly string[];
   },
-): DeviceWebUpgrade | undefined {
+): void {
   if (options.database.mode !== 'ready') return undefined;
-  let live: DeviceGateway | undefined;
   let logs: LogDatabase | undefined;
   try {
     logs = openLogDatabase({ dir: join(options.dshHome, 'botharness') });
@@ -160,6 +158,44 @@ export function mountDevicePairing(
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
     const webServer = (webCtx as unknown as { webServer: WebServerLike }).webServer;
+    const identity = createNoiseIdentity(options.credentials ?? (() => undefined));
+    let channels = { negotiating: 0, encrypted: 0 };
+    const encryption = async () => ({
+      ...(await identity.publicIdentity()),
+      state:
+        channels.encrypted > 0
+          ? ('encrypted' as const)
+          : channels.negotiating > 0
+            ? ('negotiating' as const)
+            : ('disconnected' as const),
+    });
+    const encrypted = createEncryptedGateway({
+      pairing,
+      key: identity.key,
+      port: () => webServer.port,
+      changed: (state) => {
+        channels = state;
+      },
+      verifyEnrollment: (body, signature) => account.verifyOffer(body, signature),
+      log: (phase) => write('device-encryption', phase, `device-encryption phase=${phase}`),
+    });
+    webCtx.effect(
+      () => () => {
+        encrypted.close();
+        identity.close();
+      },
+      'botharness: encrypted device channels',
+    );
+    webCtx.effect(
+      () =>
+        webServer.registerUpgrade({
+          path: CONNECT_CHANNEL_PATH,
+          handler: (request, socket, head) => {
+            void encrypted.upgrade(request, socket, head);
+          },
+        }),
+      'botharness: encrypted transport',
+    );
     const connect = createDeviceConnect({
       credentials: options.credentials ?? (() => undefined),
       port: () => webServer.port,
@@ -190,6 +226,7 @@ export function mountDevicePairing(
     };
     const http = createDevicesHttp({
       pairing,
+      encryption,
       routes,
       connect,
       account,
@@ -199,6 +236,7 @@ export function mountDevicePairing(
       [DEVICES_PATH, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
       [`${DEVICES_PATH}/offer-status`, ['POST']],
+      [`${DEVICES_PATH}/approve-key`, ['POST']],
       [`${DEVICES_PATH}/revoke`, ['POST']],
       [`${DEVICES_PATH}/connect`, ['POST']],
     ] as const)
@@ -236,17 +274,36 @@ export function mountDevicePairing(
         webServer.register({
           kind: 'prefix',
           path: DEVICE_GATEWAY_PREFIX,
-          handler: (request, response) => gateway.handle(request, response),
+          handler: async (request, response) => {
+            if (request.url === CONNECT_CHANNEL_PATH) {
+              if (request.method !== 'GET') {
+                response.writeHead(405);
+                response.end();
+                return;
+              }
+              try {
+                const identity = await encryption();
+                response.writeHead(200, {
+                  'content-type': 'application/json',
+                  'cache-control': 'no-store',
+                  'access-control-allow-origin': '*',
+                });
+                response.end(JSON.stringify({ host: pairing.host(), encryption: identity }));
+              } catch {
+                response.writeHead(503, {
+                  'content-type': 'application/json',
+                  'cache-control': 'no-store',
+                });
+                response.end(JSON.stringify({ code: 'host-key-unavailable' }));
+              }
+              return;
+            }
+            await gateway.handle(request, response);
+          },
         }),
       'botharness: device gateway',
     );
-    webCtx.effect(() => {
-      live = gateway;
-      return () => {
-        live = undefined;
-      };
-    }, 'botharness: device gateway viewer streams');
-    for (const path of [DEVICE_MUX_PATH, DEVICE_WEB_MUX_PATH, ...DEVICE_SIGNALING_PATHS])
+    for (const path of [DEVICE_MUX_PATH, ...DEVICE_SIGNALING_PATHS])
       webCtx.effect(
         () =>
           webServer.registerUpgrade({
@@ -256,8 +313,4 @@ export function mountDevicePairing(
         `botharness: device gateway stream ${path}`,
       );
   });
-  return (request, socket, head) => {
-    if (live === undefined) socket.destroy();
-    else void live.upgrade(request, socket, head);
-  };
 }

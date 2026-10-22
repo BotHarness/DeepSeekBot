@@ -71,7 +71,6 @@ const button = (view: HTMLElement, label: string) =>
 function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
   return {
     onUsage: vi.fn(),
-    onOpenFullClient: vi.fn(),
     onComputers: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),

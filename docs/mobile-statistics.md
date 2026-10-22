@@ -12,6 +12,8 @@ Events go through our first-party proxy to PostHog Cloud US. Network services re
 
 Source: [Mobile Telemetry](../apps/mobile/src/telemetry/) · [decision and qualification limits](adr/0214-mobile-statistics-use-explicit-consent-and-an-independent-install-id.md).
 
+Every new event also includes OS major.minor, phone/tablet/unknown class, a public iOS model ID (Android is `unknown`), total RAM band and device year class. RAM bands use upper bounds of 4, 8, 16 and 32 GiB; `64plus` means above 32 GiB. Missing or invalid native facts become `unknown`; exact RAM bytes, device names, serials and advertising/Android IDs are excluded. The sanitizer validates each new field. Previously queued schema-v1 events without device context remain valid and are not relabelled with the current device or app version. SDK 58 already includes `expo-device`; this change adds no native dependency. Public API reference: [Expo Device](https://docs.expo.dev/versions/v58.0.0/sdk/device/).
+
 ## 手机会分享哪些信息
 
 手机统计**新安装默认开启**。首次启用时沿用 Web 客户端的说明方式：简短提示、可展开的详细说明，以及隐私说明、查看源码、打开设置和知道了。手机会记住已读状态。这是信息告知，不是采集前的同意门禁。开关位于设置页最底部，详细说明默认折叠。关闭不影响配对、聊天和通知；已有关闭选择在升级后保留。这个开关独立于电脑端统计。
@@ -21,6 +23,8 @@ Source: [Mobile Telemetry](../apps/mobile/src/telemetry/) · [decision and quali
 关闭后清除手机标识和未发送事件；再次开启生成新标识。开关不能撤回服务端已收到的事件。待发事件最多保存 24 小时。系统备份恢复可能恢复已保存的同意状态和标识；不恢复数据的全新安装默认开启。读取已保存设置失败时暂停统计，不覆盖可能存在的关闭选择。保存失败会显示提示，本次运行暂停统计；请重试以永久保存选择。
 
 事件经自有代理发往 PostHog 美国云。网络服务处理连接时会接触 IP 地址；PostHog 项目配置为丢弃 IP，手机事件也禁用 GeoIP。数据用于改善配对、连接和首次聊天，只代表**已启用统计的匿名安装**，不能代表全部用户或任务成功率。
+
+每条新事件还包含系统主次版本、手机/平板/未知类别、公开的 iOS 机型 ID（Android 为 `unknown`）、总内存区间和设备年份等级。内存区间依次以 4、8、16、32 GiB 为上限；`64plus` 表示超过 32 GiB。缺失或无效的原生信息记为 `unknown`；不发送精确内存字节数、设备名称、序列号、广告 ID 或 Android ID。白名单逐一校验新字段。旧版已排队的 schema-v1 事件没有这些字段时仍然有效，不会被改写成当前设备或应用版本。SDK 58 已包含 `expo-device`，本次没有新增原生依赖。
 
 ## Maintainer configuration
 
@@ -44,6 +48,8 @@ Project **648269**, timezone **Asia/Shanghai**. Base cohort: `properties.source 
 Do not add Host and mobile message totals together or estimate non-consenting usage.
 
 ## Runnable device acceptance
+
+For common context changes, inspect each event type on both iOS and Android, compare its coarse device facts with the native device, confirm Android's missing model ID becomes `unknown`, and retain the old-queue, opt-out/re-enable and no-extra-fields checks. This slice adds no performance samples or startup timings. Automated tests with mocked native constants do not qualify real device values or PostHog ingestion.
 
 Submit the PR + exact SHA to the shared-device queue. Do not start a separate Simulator or reuse another session's Host. Use an isolated real Host and a new QA UUID; record platform, build, start/end time and project timezone without credentials or device identifiers.
 

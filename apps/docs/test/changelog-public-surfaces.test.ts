@@ -16,18 +16,24 @@ function built(path: string): string {
 describe("built release and Development status surfaces", () => {
   it(
     "exposes one concise bilingual history unit across human and agent routes",
-    { timeout: process.platform === 'win32' ? 360_000 : 120_000 },
+    { timeout: process.platform === "win32" ? 360_000 : 120_000 },
     () => {
-      execFileSync(process.execPath, [resolve(DOCS, "node_modules/astro/bin/astro.mjs"), "build"], {
-        cwd: DOCS,
-        env: { ...process.env, NO_COLOR: "1" },
-        stdio: "pipe",
-      });
+      execFileSync(
+        process.execPath,
+        [resolve(DOCS, "node_modules/astro/bin/astro.mjs"), "build"],
+        {
+          cwd: DOCS,
+          env: { ...process.env, NO_COLOR: "1" },
+          stdio: "pipe",
+        },
+      );
 
       const englishFeed = built("changelog/index.html");
       const chineseFeed = built("zh/changelog/index.html");
       expect(englishFeed).toContain("Pre-release development");
-      expect(englishFeed).toContain("this is development history, not a released or installable version");
+      expect(englishFeed).toContain(
+        "this is development history, not a released or installable version",
+      );
       expect(englishFeed).not.toContain("Added durable PersonaBot identity");
       expect(englishFeed).not.toContain("Unreleased");
       expect(chineseFeed).toContain("首个版本前的开发进展");
@@ -39,13 +45,13 @@ describe("built release and Development status surfaces", () => {
       expect(chineseDetail).toContain("新增持久的 PersonaBot identity");
       expect(englishDetail).toContain('hreflang="zh-Hans"');
       expect(chineseDetail).toContain('hreflang="en"');
-      expect(englishDetail).toContain('/changelog/development/index.md');
-      expect(chineseDetail).toContain('/zh/changelog/development/index.md');
+      expect(englishDetail).toContain("/changelog/development/index.md");
+      expect(chineseDetail).toContain("/zh/changelog/development/index.md");
 
       const englishRss = built("changelog/rss.xml");
       const chineseRss = built("zh/changelog/rss.xml");
-      expect(englishRss.match(/<item>/g)).toHaveLength(10);
-      expect(chineseRss.match(/<item>/g)).toHaveLength(10);
+      expect(englishRss.match(/<item>/g)).toHaveLength(11);
+      expect(chineseRss.match(/<item>/g)).toHaveLength(11);
       expect(englishRss).toContain("/changelog/v101/");
       expect(chineseRss).toContain("/zh/changelog/v101/");
       expect(englishRss).toContain("/changelog/v102/");
@@ -64,6 +70,8 @@ describe("built release and Development status surfaces", () => {
       expect(chineseRss).toContain("/zh/changelog/v140/");
       expect(englishRss).toContain("/changelog/v141/");
       expect(chineseRss).toContain("/zh/changelog/v141/");
+      expect(englishRss).toContain("/changelog/v150/");
+      expect(chineseRss).toContain("/zh/changelog/v150/");
       expect(englishRss).toContain("/changelog/development/");
       expect(chineseRss).toContain("/zh/changelog/development/");
 
@@ -79,9 +87,15 @@ describe("built release and Development status surfaces", () => {
       expect(built("index.html")).toContain('href="/changelog/v140"');
       expect(built("zh/index.html")).toContain('href="/zh/changelog/v140"');
 
-      expect(statSync(resolve(DIST, "og/changelog/development.png")).size).toBeGreaterThan(0);
-      expect(statSync(resolve(DIST, "og/zh/changelog/development.png")).size).toBeGreaterThan(0);
-      expect(existsSync(resolve(DIST, "changelog/2026-09-20-roster-storage"))).toBe(false);
+      expect(
+        statSync(resolve(DIST, "og/changelog/development.png")).size,
+      ).toBeGreaterThan(0);
+      expect(
+        statSync(resolve(DIST, "og/zh/changelog/development.png")).size,
+      ).toBeGreaterThan(0);
+      expect(
+        existsSync(resolve(DIST, "changelog/2026-09-20-roster-storage")),
+      ).toBe(false);
 
       const statusEnglish = built("development/index.html");
       const statusChinese = built("zh/development/index.html");
@@ -104,17 +118,27 @@ describe("built release and Development status surfaces", () => {
         expect(statusEnglishMarkdown).toContain(artifact);
         expect(statusChineseMarkdown).toContain(artifact);
       }
-      expect(statusEnglish).toContain("not included in the latest stable artifact");
+      expect(statusEnglish).toContain(
+        "not included in the latest stable artifact",
+      );
       expect(statusChinese).toContain("尚未包含在最新的稳定 artifact 中");
       expect(statusEnglish).toContain("0.3.4");
       expect(statusChinese).toContain("0.3.4");
-      expect(statusEnglish).not.toMatch(/Pre-release[\s\S]{0,600}0\.1\.6-alpha\.2/);
-      expect(statusChinese).not.toMatch(/Pre-release[\s\S]{0,600}0\.1\.6-alpha\.2/);
+      expect(statusEnglish).not.toMatch(
+        /Pre-release[\s\S]{0,600}0\.1\.6-alpha\.2/,
+      );
+      expect(statusChinese).not.toMatch(
+        /Pre-release[\s\S]{0,600}0\.1\.6-alpha\.2/,
+      );
       expect(statusEnglish).toContain('href="/zh/development"');
       expect(statusChinese).toContain('href="/development"');
 
-      expect(built("llms.txt")).toContain("https://botharness.ai/development.md");
-      expect(built("zh/llms.txt")).toContain("https://botharness.ai/zh/development.md");
+      expect(built("llms.txt")).toContain(
+        "https://botharness.ai/development.md",
+      );
+      expect(built("zh/llms.txt")).toContain(
+        "https://botharness.ai/zh/development.md",
+      );
       expect(built("development/index.md")).toBe(statusEnglishMarkdown);
       expect(built("zh/development/index.md")).toBe(statusChineseMarkdown);
       expect(englishFeed).not.toContain("Merged, awaiting release");

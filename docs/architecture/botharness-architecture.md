@@ -494,7 +494,7 @@ Orchestrator 的应用定义 channel_list 工具从当前 PersonaBot 的 Session
 
 [ADR-0199](../adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md) 已由 [#1652](https://github.com/BotHarness/DeepSeekBot/issues/1652) 实现：配对的手机不持有任何 DSH 凭据。应用定义的 Device Pairing 模块（`packages/core/src/devices/`）经 DSH 公开的 `webServer.register`／`registerUpgrade` 在同一 `dsh web` 监听器上提供设备网关：设备在 BotHarness 前缀下以 `Authorization: Device <id>.<secret>` 调用与 Web Client 相同的 unary 信封和 Remote stream mux 帧；模块每次按运维数据库中的设备记录（只存哈希）校验并更新最近使用时间，再用 Host 内存中经 `connection.authenticatedUrl()` 自行换取的 loopback cookie 转发至原生 `/api` 与 `/api/remote.mux`。DSH 签名 cookie 的密钥本就跨 Host 重启保留，但 cookie 不标识设备，且 stream 升级不经过 `connection/request`，故不能把 cookie 交给设备。撤销立即拒绝后续请求（编码 401：`device-revoked`／`device-unknown`／`device-credential-missing`），并关闭该设备已打开的 stream socket。配对邀请、列表与撤销只在已认证的 `/api` carrier 上提供给 Human：Web Client「设置 → 设备」显示一次性、10 分钟有效的二维码（即 `deepseekbot://pair?p=…` 深链接，携带 Host 标识与按序路由），列出设备的配对与最近使用时间，并可撤销。见 [#1644](https://github.com/BotHarness/DeepSeekBot/issues/1644)。
 
-托管 Connect（目标状态，尚未实现）：[ADR-0241](../adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md)（[#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387)）在路由列表里增加一条 Connect 路由，顺序为 局域网 → Tailscale HTTPS → Connect。账号复用 TOB 的 WorkOS 环境，只用于发现 Host 和经纪一次性配对凭据；本仓库新建的中继 Worker 为每台开启 Connect 的 Host 代管一条 Cloudflare Tunnel，ingress 只放行 `/botharness-device/*`，应用流量不经过 Worker。手机登录后无需在电脑上确认即可配对，新设备会在电脑和其他手机上提示并可一键吊销。先在中国大陆以外实现并验收，大陆可达性之后另找测试者验证，不阻塞实现。
+托管 Connect 在既有路由列表增加 Cloudflare Tunnel。WorkOS 与中继只负责发现 Host、签发绑定账号和 verifier 的配对请求；它们不能授予设备权限。依照 [ADR-0244](../adr/0244-connect-encrypts-device-traffic-against-pinned-host-keys.md)，手机或可信本机浏览器先独立核对 Host 指纹，再由 Host 批准准确的设备公钥。Connect origin 只开放公开身份元数据及加密通道，不接受明文应用调用。大陆可达性、原生设备和实际云端发布分别验收。
 
 ### 手机推送
 
@@ -1070,7 +1070,7 @@ The optional application-defined `setupVersion: 1` / `describeSetup(channel)` ca
 
 ### Mobile contextual creation (#2195)
 
-The mobile app uses its existing Expo Router tab and root Stack owners for an adjacent contextual creation action ([ADR-0235](../adr/0235-mobile-creation-shares-the-existing-tab-navigator.md)). iOS bottom controls use SwiftUI Button and native iOS 26 glass styles; the expanded creation menu uses a native rounded glass backdrop with an opaque accessibility/older-OS fallback. Android retains OCAT controls; navigation state still belongs to Expo Router. A presentation-only menu resolves stable Computer or cloud account/Organization keys; All asks for a target. Computer creation remains in the existing Host full-client flow. Cloud creation rechecks account scope and owner access through CloudClient, then uses the existing idempotent public mutation and opens its returned Channel. No mobile permission store or second messaging authority is added; native evidence is tracked separately from source checks.
+The mobile app uses its existing Expo Router tab and root Stack owners for an adjacent contextual creation action ([ADR-0235](../adr/0235-mobile-creation-shares-the-existing-tab-navigator.md)). iOS bottom controls use SwiftUI Button and native iOS 26 glass styles; the expanded creation menu uses a native rounded glass backdrop with an opaque accessibility/older-OS fallback. Android retains OCAT controls; navigation state still belongs to Expo Router. A presentation-only menu resolves stable Computer or cloud account/Organization keys; All asks for a target. Computer creation is unavailable on the phone after removal of the full Host WebView (#2541). Cloud creation rechecks account scope and owner access through CloudClient, then uses the existing idempotent public mutation and opens its returned Channel. No mobile permission store or second messaging authority is added; native evidence is tracked separately from source checks.
 
 ### Mobile presentation (#2028)
 
@@ -1218,3 +1218,13 @@ Bot-owned choice controls use the shared `ds/Select` → `PointerMenu` geometry 
 window zoom. It keeps the native Menu renderer and keyboard owner inside the owning Modal,
 converts viewport anchor coordinates through effective CSS zoom, clamps to the safe viewport
 and returns focus after dismissal. No second shortcut router or Panel state is introduced.
+
+### Connect encryption and full WebView removal (#2541, #2542)
+
+The application-defined Connect Channel uses the fixed Noise XK profile and authenticated, bounded frames defined in [Connect Channel v1](connect-channel-v1.md). The Host identity lives in the native Credentials Provider; the existing Device Pairing authority persists approved device public keys and closes their channels on revocation. A successful handshake alone grants no application access. Account relay requests and QR offers are redeemed only inside the channel after independent Host fingerprint comparison and exact device-key approval.
+
+The cloudflared-only origin accepts `/botharness-device/channel` and refuses legacy application HTTP, stream tickets and WebView paths. The shared phone/browser Host client carries unary RPCs, logical `remote.mux`, uploads, downloads, avatars, private input and push registration inside ciphertext. The encrypted adapter forwards to the existing Device Gateway on loopback; native DSH Typert/API Gateway remains the sole dispatcher. Loopback/Tailscale retain their contract. Legacy Connect pairings without pins fail closed and must be paired again; no failure clears a pin or retries plaintext through Connect.
+
+Native private input uses masked fields and the existing credential owner; values stay outside chat drafts, messages and telemetry. The phone's full Host WebView remains removed on every route. Browser/Computer viewers are explicitly unavailable on Connect pending their own media/signaling qualification; the Host and Tailscale remain available. The browser requires independently trusted serving code and origin-local key storage; it does not claim hardware protection.
+
+[ADR-0244](../adr/0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) is approved. Its implementation, protocol vectors, runtime evidence, native acceptance, independent security review and deployment are separate gates; a green source test is not proof of a real phone through Cloudflare. The [Track A audit](../research/2026-10-22-connect-secret-safety-audit.md) remains historical evidence for the interim refusal.

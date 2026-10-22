@@ -38,6 +38,7 @@ export function Sheet({
   onClose,
   children,
   avoidKeyboard = false,
+  animationType = 'fade',
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   visible: boolean;
@@ -47,6 +48,7 @@ export function Sheet({
   onClose(): void;
   children: ReactNode;
   avoidKeyboard?: boolean;
+  animationType?: 'none' | 'slide' | 'fade';
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -61,7 +63,7 @@ export function Sheet({
       </Page>
     ) : null;
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={animationType} onRequestClose={onClose}>
       {visible ? (
         <KeyboardAvoidingView
           behavior="padding"

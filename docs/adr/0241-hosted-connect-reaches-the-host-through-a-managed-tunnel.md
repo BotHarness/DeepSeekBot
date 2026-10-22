@@ -6,6 +6,8 @@ Issues: [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#1643](
 
 # Hosted Connect reaches the Host through a managed tunnel
 
+**2026-10-22 safety amendment:** Vain requires removal of the phone's full Host WebView on every route. Track A (#2541) removes that surface and refuses known secret-entry methods on Connect. [ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) proposes encrypted channels and independently approved device pairing; its complete protocol remains pending approval. The earlier plaintext/account-only design is not a confidentiality guarantee.
+
 Testers must install Tailscale, sign in on both devices and run `tailscale serve` before the phone app can reach their computer ([#2385](https://github.com/BotHarness/DeepSeekBot/pull/2385)). The Human wants a T3 Connect–style option instead: sign in with the same account on the computer and on each phone, and the devices connect without Tailscale. Research and sources: [`docs/research/2026-10-20-hosted-connect.md`](../research/2026-10-20-hosted-connect.md).
 
 The Human chose this direction on 2026-10-20: **an account only discovers Hosts and brokers a one-time pairing credential. Application traffic reaches the Host through one Cloudflare Tunnel per Host that a BotHarness relay Worker provisions; it never passes through the Worker. The tunnel is one more route in the ADR-0199 route list and admits only the device gateway.**
@@ -54,3 +56,7 @@ One isolated Host and the iOS Simulator, against a test Cloudflare account and a
 - We publish and update one pinned `cloudflared` npm package per platform.
 - `deepseekbot connect …` CLI commands ship with the Devices UI (CLI parity).
 - Store builds keep `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD` separate from Connect, so Connect can ship in test builds without exposing TOB cloud Channels.
+
+## Amendment — ADR-0244 (2026-10-22)
+
+[ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) supersedes account-only automatic enrollment and plaintext Connect application transport. The relay returns signed account enrollment metadata and a public Host-key hint; the client independently checks the fingerprint. The Host creates/redeems the offer inside Noise only after exact device-key approval. The browser uses its trusted serving Host's origin-local key store. The full phone WebView remains removed on every route; private input now uses the native form. Viewer signaling/media on Connect are unavailable until separately qualified. See the [wire contract](../architecture/connect-channel-v1.md); source implementation does not establish native or deployed-network qualification.

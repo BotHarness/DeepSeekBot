@@ -535,13 +535,39 @@ export function AddRemoteHostDialog({
   const thisHost = useThisHost();
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
+  const [verification, setVerification] = useState<{
+    fingerprint: string;
+    resolve(value: boolean): void;
+  }>();
+  const [deviceFingerprint, setDeviceFingerprint] = useState<string>();
+  const pending = useRef<AbortController>();
+  const close = () => {
+    pending.current?.abort();
+    verification?.resolve(false);
+    onClose();
+  };
   const [error, setError] = useState<string | undefined>(undefined);
   const submit = (): void => {
+    if (verification) {
+      verification.resolve(true);
+      setVerification(undefined);
+      setBusy(true);
+      return;
+    }
+    pending.current = new AbortController();
     setBusy(true);
     setError(undefined);
     const name = thisHost.name ?? t('remoteHosts.this');
     void remoteHosts()
-      .pair(link, t('remoteHosts.deviceName', { name }), thisHost.id)
+      .pair(link, t('remoteHosts.deviceName', { name }), thisHost.id, {
+        signal: pending.current.signal,
+        confirmFingerprint: (fingerprint) =>
+          new Promise((resolve) => {
+            setVerification({ fingerprint, resolve });
+            setBusy(false);
+          }),
+        onPending: setDeviceFingerprint,
+      })
       .then((result) => {
         setBusy(false);
         if (!result.ok) {
@@ -565,14 +591,26 @@ export function AddRemoteHostDialog({
       title={t('remoteHosts.add')}
       description={t('remoteHosts.add.description')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t('remoteHosts.add.submit')}
+      submitLabel={t(verification ? 'connect.matches' : 'remoteHosts.add.submit')}
       submitDisabled={link.trim().length === 0}
       busy={busy}
       error={error}
-      onCancel={onClose}
+      onCancel={close}
       onSubmit={submit}
       submitData={{ 'data-remote-host-add-submit': '' }}
     >
+      {verification ? (
+        <div role="status">
+          <p>{t('connect.verifyHint')}</p>
+          <code>{verification.fingerprint}</code>
+        </div>
+      ) : null}
+      {deviceFingerprint ? (
+        <div role="status">
+          <p>{t('connect.pending')}</p>
+          <code>{deviceFingerprint}</code>
+        </div>
+      ) : null}
       <TextField
         label={t('remoteHosts.add.link')}
         hint={t('remoteHosts.add.hint')}
