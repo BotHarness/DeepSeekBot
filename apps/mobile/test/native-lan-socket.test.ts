@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterEach, expect, it, vi } from 'vitest';
 const state = vi.hoisted(() => ({
   available: true,
@@ -22,6 +23,19 @@ vi.mock('expo', () => ({
       : null,
 }));
 import { openLanSocket } from '../src/host/native-lan-socket';
+it('keeps Android cleartext exceptions limited to the four exact native transport domains', () => {
+  const plugin = readFileSync(new URL('../with-lan-channel.js', import.meta.url), 'utf8');
+  const domains = [...plugin.matchAll(/<domain(?:\s[^>]*)?>[^<]+<\/domain>/gu)].map(
+    ([domain]) => domain,
+  );
+  expect(domains).toEqual([
+    '<domain includeSubdomains="false">encrypted-lan.invalid</domain>',
+    '<domain includeSubdomains="false">localhost</domain>',
+    '<domain includeSubdomains="false">127.0.0.1</domain>',
+    '<domain includeSubdomains="false">10.0.2.2</domain>',
+  ]);
+  expect(plugin).toContain('<base-config cleartextTrafficPermitted="false" />');
+});
 afterEach(() => {
   vi.clearAllMocks();
   state.available = true;
