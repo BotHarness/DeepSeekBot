@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const native = vi.hoisted(() => ({
   callbacks: {} as Record<string, (...args: any[]) => void>,
   reactions: new Set<() => void>(),
+  state: 'undetermined',
 }));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
@@ -67,12 +68,14 @@ vi.mock('react-native-reanimated', async () => {
   };
 });
 vi.mock('react-native-gesture-handler', () => ({
+  GestureStateManager: { activate: () => manager.activate() },
   GestureDetector: ({ children }: { children: ReactNode }) => children,
   Gesture: {
     Manual: () => {
       const chain: Record<string, (fn: (...args: any[]) => void) => unknown> = {};
       for (const name of [
         'onTouchesDown',
+        'onBegin',
         'onStart',
         'onTouchesMove',
         'onTouchesUp',
@@ -121,16 +124,32 @@ function Harness() {
   );
 }
 const manager = {
-  activate: () => native.callbacks['onStart']!(),
-  end: () => native.callbacks['onFinalize']!({}, true),
-  fail: () => native.callbacks['onFinalize']!({}, false),
+  activate: () => {
+    if (native.state !== 'began') return;
+    native.state = 'active';
+    native.callbacks['onStart']!();
+  },
+  end: () => finalize(true),
+  fail: () => finalize(false),
 };
+function finalize(success: boolean) {
+  if (native.state === 'finished') return;
+  native.state = 'finished';
+  native.callbacks['onFinalize']!({}, success);
+}
 const touch = (x: number, y: number, numberOfTouches = 1) => ({
   numberOfTouches,
   allTouches: [{ absoluteX: x, absoluteY: y }],
 });
-const down = async () =>
-  act(async () => native.callbacks['onTouchesDown']!(touch(200, 400), manager));
+const down = async (numberOfTouches = 1) =>
+  act(async () => {
+    native.state = 'undetermined';
+    native.callbacks['onTouchesDown']!(touch(200, 400, numberOfTouches), manager);
+    if (native.state === 'undetermined') {
+      native.state = 'began';
+      native.callbacks['onBegin']?.({ handlerTag: 1 });
+    }
+  });
 const move = async (x: number, y: number) =>
   act(async () => native.callbacks['onTouchesMove']!(touch(x, y), manager));
 const up = async (duration: number) => {
@@ -141,6 +160,7 @@ const up = async (duration: number) => {
 beforeEach(async () => {
   vi.clearAllMocks();
   native.reactions.clear();
+  native.state = 'undetermined';
   now = 1000;
   vi.spyOn(Date, 'now').mockImplementation(() => now);
   host = document.createElement('div');
@@ -152,6 +172,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it('starts only after iOS reports BEGAN following the initial touch event', async () => {
+  await act(async () => native.callbacks['onTouchesDown']!(touch(200, 400), manager));
+  expect(start).not.toHaveBeenCalled();
+  await act(async () => {
+    native.state = 'began';
+    native.callbacks['onBegin']?.({ handlerTag: 1 });
+  });
+  expect(start).toHaveBeenCalledOnce();
+  expect(held).toHaveBeenLastCalledWith(true);
+});
+it('rejects an initial two-finger touch without starting speech', async () => {
+  await down(2);
+  expect(start).not.toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+});
 it('quick tap locks listening and the next tap stops once', async () => {
   await down();
   await up(100);
