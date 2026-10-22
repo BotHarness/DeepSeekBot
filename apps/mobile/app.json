@@ -19,6 +19,7 @@
         "tinted": "./assets/app-icons/deepseekbot-tinted.png"
       },
       "infoPlist": {
+        "NSLocalNetworkUsageDescription": "DeepSeekBot connects to your computer on this network using an encrypted connection.",
         "CFBundleDevelopmentRegion": "en",
         "CFBundleLocalizations": ["en", "zh-Hans"]
       }
@@ -31,6 +32,7 @@
       }
     },
     "plugins": [
+      "./with-lan-channel",
       "expo-router",
       [
         "expo-splash-screen",

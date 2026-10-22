@@ -34,13 +34,19 @@ export class ConnectChannel {
     staticKey: Uint8Array;
     ephemeralKey: Uint8Array;
     hostKey: Uint8Array;
+    route?: 'connect' | 'lan';
   }) {
     this.role = options.role;
     this.noise = new NoiseXk({
       ...options,
       remoteStatic: options.hostKey,
       prologue: utf8ToBytes(
-        JSON.stringify([CONNECT_PROTOCOL, NOISE_PROTOCOL, options.hostId, 'connect']),
+        JSON.stringify([
+          CONNECT_PROTOCOL,
+          NOISE_PROTOCOL,
+          options.hostId,
+          options.route ?? 'connect',
+        ]),
       ),
     });
   }

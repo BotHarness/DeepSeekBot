@@ -5,7 +5,7 @@ import { ActivitySmoother } from '../../../../packages/client/src/client/activit
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
-import { checkRoute, isConnectRoute, socketOrigin } from './route';
+import { checkRoute, isConnectRoute, isEncryptedRoute, socketOrigin } from './route';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -355,8 +355,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
-            computerAccess: bot.computerAccess === true && !isConnectRoute(route),
-            browserAccess: bot.browserAccess === true && !isConnectRoute(route),
+            computerAccess: bot.computerAccess === true && !isEncryptedRoute(route),
+            browserAccess: bot.browserAccess === true && !isEncryptedRoute(route),
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
@@ -375,7 +375,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
   const resource = (path: string): RemoteSource => {
-    if (checkRoute(route).ok && !isConnectRoute(route))
+    if (checkRoute(route).ok && !isEncryptedRoute(route))
       return { uri: absolute(path), headers: authorization };
     const origin = route;
     return {
@@ -398,7 +398,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
     if (!checkRoute(route).ok) return {};
-    if (!isConnectRoute(route)) return { avatarUrl: absolute(path), avatarHeaders: authorization };
+    if (!isEncryptedRoute(route))
+      return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
     const cached = avatars.get(key);
     if (cached) return { avatarUrl: cached, avatarHeaders: {} };
@@ -472,7 +473,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     withDeadline(async (signal) => {
       const name = method.includes('/') ? method : `botharness/${method}`;
       const refusal =
-        isConnectRoute(via) && options.encryption === undefined
+        isEncryptedRoute(via) && options.encryption === undefined
           ? secretRouteRefusal(name)
           : undefined;
       if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
@@ -541,7 +542,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
     withDeadline(async (signal) => {
-      if (isConnectRoute(route) && /^\/api\/(?:browser|computer)\//u.test(path))
+      if (isEncryptedRoute(route) && /^\/api\/(?:browser|computer)\//u.test(path))
         throw new MethodRefused(
           'connect-viewer-unavailable',
           'Use the Host or Tailscale for Browser and Computer viewers.',
@@ -669,6 +670,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       } catch (error) {
         if (
           isConnectRoute(candidate) ||
+          error instanceof ConnectRefused ||
           error instanceof CredentialRefused ||
           error instanceof MethodRefused
         )
@@ -927,7 +929,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     upload,
     resource,
     secretInputAllowed: () =>
-      checkRoute(route).ok && (!isConnectRoute(route) || options.encryption !== undefined),
+      checkRoute(route).ok && (!isEncryptedRoute(route) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);

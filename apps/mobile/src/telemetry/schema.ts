@@ -3,6 +3,8 @@ import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from 
 export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
+  | 'lan-build-required'
+  | 'lan-unreachable'
   | 'already-paired'
   | 'none'
   | 'host-key-required'
@@ -119,6 +121,8 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     attempt_id: isUuid,
     outcome: member('success', 'refused', 'failed', 'cancelled'),
     reason: member(
+      'lan-build-required',
+      'lan-unreachable',
       'none',
       'host-key-required',
       'host-key-confirmation-required',

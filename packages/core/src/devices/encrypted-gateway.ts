@@ -38,6 +38,7 @@ function pathAllowed(path: string): boolean {
 
 export function createEncryptedGateway(options: {
   pairing: DevicePairing;
+  route?: 'connect' | 'lan';
   key(): Promise<Uint8Array>;
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
@@ -65,6 +66,7 @@ export function createEncryptedGateway(options: {
       staticKey: key,
       ephemeralKey: randomBytes(32),
       hostKey: noisePublicKey(key),
+      route: options.route ?? 'connect',
     });
     key.fill(0);
     let credential: string | undefined,

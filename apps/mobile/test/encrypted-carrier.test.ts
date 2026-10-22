@@ -5,25 +5,28 @@ import { decideApproval } from '../src/host/requests';
 import { redeemPairing } from '../src/host/pairing';
 import { encryptedCarrier } from '../src/host/encrypted-carrier';
 
-it('refuses a legacy Connect pairing before any credential reaches the raw carrier', async () => {
-  const request = vi.fn(),
-    openSocket = vi.fn();
-  const carrier = encryptedCarrier({
-    raw: { request, openSocket },
-    hostId: 'host',
-    credential: 'private-credential',
-  });
-  await expect(
-    carrier.request('https://host.deepseekbot.dev/botharness-device/api/botharness/list', {
-      method: 'POST',
-      signal: new AbortController().signal,
-      headers: { authorization: 'Device private-credential' },
-      body: '{}',
-    }),
-  ).rejects.toThrow('host-key-required');
-  expect(request).not.toHaveBeenCalled();
-  expect(openSocket).not.toHaveBeenCalled();
-});
+it.each(['https://host.deepseekbot.dev', 'http://192.168.1.20:39101'])(
+  'refuses a legacy pairing at %s before any credential reaches the raw carrier',
+  async (origin) => {
+    const request = vi.fn(),
+      openSocket = vi.fn();
+    const carrier = encryptedCarrier({
+      raw: { request, openSocket },
+      hostId: 'host',
+      credential: 'private-credential',
+    });
+    await expect(
+      carrier.request(`${origin}/botharness-device/api/botharness/list`, {
+        method: 'POST',
+        signal: new AbortController().signal,
+        headers: { authorization: 'Device private-credential' },
+        body: '{}',
+      }),
+    ).rejects.toThrow('host-key-required');
+    expect(request).not.toHaveBeenCalled();
+    expect(openSocket).not.toHaveBeenCalled();
+  },
+);
 
 import { parseSavedHost, withHost } from '../src/host/hosts';
 it('persists the complete trust record and refuses a silent pin change or removal', () => {

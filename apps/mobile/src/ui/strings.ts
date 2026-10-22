@@ -460,7 +460,7 @@ const en = {
     title: 'Before you pair',
     steps: [
       'On your computer, install DeepSeek Harness (DSH) and the DeepSeekBot plugin.',
-      'Choose how they connect: sign in to the same DeepSeekBot account on both (no Tailscale needed; on the computer, Settings → Devices → DeepSeekBot Connect), or install Tailscale on both and sign in to the same Tailscale account.',
+      'On the same Wi-Fi, enable local access in the computer’s Settings → Devices. For remote access, use a DeepSeekBot account or Tailscale.',
       'Pair: pick the computer under your DeepSeekBot account, or show the pairing code on the computer and scan it here.',
     ],
     open: 'Open the setup guide',
@@ -517,6 +517,10 @@ const en = {
     accountDetail: 'Pair the computers on your account. No Tailscale needed.',
     accountComputer:
       'On your computer, open DeepSeekBot Settings → Devices → DeepSeekBot Connect and sign in to the same account.',
+    lan: 'Use the same Wi-Fi',
+    lanDetail: 'Scan your computer’s code. No account needed.',
+    lanHint:
+      'Join the same network. On your computer, open Settings → Devices, enable local access, then scan its pairing code. Approve this phone on the computer.',
     tailscale: 'Use Tailscale',
     tailscaleDetail: 'Scan the pairing code or paste a pairing link.',
     tailscaleHint:
@@ -526,6 +530,9 @@ const en = {
     emptyAction: 'Pair a computer',
   },
   pairRefused: {
+    'lan-build-required': 'Update the phone app to use local access.',
+    'lan-unreachable':
+      'Check that both devices use the same network, allow Local Network access, and enable local access on your computer.',
     'already-paired': 'This computer is already added.',
     'host-key-required': 'Pair again using a new code from your computer.',
     'host-key-confirmation-required': 'Compare the fingerprint on your computer before pairing.',
@@ -535,7 +542,7 @@ const en = {
     'link-invalid': 'This is not a DeepSeekBot pairing code.',
     'link-expired': 'This code has expired. Show a new code on your computer.',
     'no-route':
-      'Your computer offered no address this phone can use. Set up Tailscale on it first.',
+      'Enable local access on your computer, or set up Tailscale or Connect, then get a new code.',
     'offer-invalid': 'This code was already used. Show a new code on your computer.',
     'offer-expired': 'This code has expired. Show a new code on your computer.',
     'storage-failure': 'Could not save the pairing on this phone. Show a new code and try again.',
@@ -1778,7 +1785,7 @@ const zh: typeof en = {
     title: '配对前的准备',
     steps: [
       '在电脑上安装 DSH（DeepSeek Harness）和 DeepSeekBot 插件。',
-      '选一种连接方式：在手机和电脑上登录同一个 DeepSeekBot 账号（不需要 Tailscale；电脑上在设置 → 设备 → DeepSeekBot Connect 登录），或者都安装 Tailscale 并登录同一个 Tailscale 账号。',
+      '使用同一 Wi-Fi 时，在电脑的设置 → 设备中开启局域网连接。远程连接可选 DeepSeekBot 账号或 Tailscale。',
       '配对：在 DeepSeekBot 账号里选择这台电脑，或者在电脑上显示配对二维码，然后在这里扫码。',
     ],
     open: '查看安装与配对教程',
@@ -1833,6 +1840,10 @@ const zh: typeof en = {
     account: '登录 DeepSeekBot 账号',
     accountDetail: '直接配对账号下的电脑，不用 Tailscale。',
     accountComputer: '在电脑上打开 DeepSeekBot 设置 → 设备 → DeepSeekBot Connect，登录同一个账号。',
+    lan: '使用同一 Wi-Fi',
+    lanDetail: '扫描电脑上的二维码，不需要账号。',
+    lanHint:
+      '手机和电脑连到同一网络。在电脑的设置 → 设备中开启局域网连接，扫码后在电脑上批准这台手机。',
     tailscale: '使用 Tailscale',
     tailscaleDetail: '扫描配对二维码，或粘贴配对链接。',
     tailscaleHint: '在手机和电脑上都安装 Tailscale，并登录同一个 Tailscale 账号。',
@@ -1841,6 +1852,8 @@ const zh: typeof en = {
     emptyAction: '配对电脑',
   },
   pairRefused: {
+    'lan-build-required': '请更新手机 App 后再使用局域网连接。',
+    'lan-unreachable': '请确认手机和电脑在同一网络，允许本地网络权限，并在电脑上开启局域网连接。',
     'already-paired': '这台电脑已添加。',
     'host-key-required': '请使用电脑上的新二维码重新配对。',
     'host-key-confirmation-required': '请先核对电脑上的指纹，再继续配对。',
@@ -1848,7 +1861,7 @@ const zh: typeof en = {
 
     'link-invalid': '这不是 DeepSeekBot 的配对二维码。',
     'link-expired': '二维码已失效，请在电脑上换一个。',
-    'no-route': '电脑没有提供手机能用的地址，请先在电脑上设置 Tailscale。',
+    'no-route': '请在电脑上开启局域网连接，或设置 Tailscale、Connect，然后获取新二维码。',
     'offer-invalid': '这个二维码已经用过了，请在电脑上换一个。',
     'offer-expired': '二维码已失效，请在电脑上换一个。',
     'storage-failure': '无法在手机上保存配对，请在电脑上换一个二维码后重试。',

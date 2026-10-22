@@ -1,5 +1,6 @@
 import type { EncryptionIdentity } from './noise-identity.js';
 import { encode } from 'uqr';
+import type { DeviceLan, LanStatus } from './lan.js';
 
 import type { AccountStatus, ConnectAccount } from './connect-account.js';
 import type { ConnectStatus, DeviceConnect } from './connect.js';
@@ -30,6 +31,7 @@ export interface PairingPayload {
 }
 
 export interface DevicesSnapshot {
+  lan?: LanStatus;
   host: HostIdentity;
   devices: PairedDevice[];
   pendingKeys?: ReturnType<DevicePairing['pendingKeys']>;
@@ -74,7 +76,8 @@ function qrPath(text: string): { size: number; path: string } {
 }
 
 export function offeredRoutes(status: RouteStatus, clientOrigin: string | undefined): PhoneRoute[] {
-  const routes = status.routes.filter((route) => route.ready && route.kind === 'tailscale');
+  const routes = status.routes.filter((route) => route.ready && route.kind === 'lan');
+  routes.push(...status.routes.filter((route) => route.ready && route.kind === 'tailscale'));
   const own = clientOrigin === undefined ? undefined : phoneRoute(clientOrigin);
   if (own?.kind === 'tailscale' && !routes.some((route) => route.url === own.url)) routes.push(own);
   routes.push(...status.routes.filter((route) => route.ready && route.kind === 'connect'));
@@ -106,12 +109,14 @@ export function createDevicesHttp(options: {
   publish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
   account?: ConnectAccount;
+  lan?: DeviceLan;
 }): (request: Request) => Promise<Response> {
   const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
+        ...(options.lan ? { lan: options.lan.status() } : {}),
         host: pairing.host(),
         devices: pairing.list(),
         pendingKeys: pairing.pendingKeys(),
@@ -145,7 +150,7 @@ export function createDevicesHttp(options: {
         routes,
         reachable: routes.some((route) => {
           const kind = phoneRoute(route)?.kind;
-          return kind === 'tailscale' || kind === 'connect';
+          return kind === 'lan' || kind === 'tailscale' || kind === 'connect';
         }),
       };
       return json(view);
@@ -196,6 +201,15 @@ export function createDevicesHttp(options: {
         },
         409,
       );
+    }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/lan` && options.lan) {
+      const input = await body(request);
+      if (input['action'] !== 'enable' && input['action'] !== 'disable')
+        return json({ code: 'lan-action-invalid' }, 400);
+      if (input['action'] === 'enable' && input['confirm'] !== true)
+        return json({ code: 'confirm-required' }, 400);
+      const result = await options.lan[input['action']]();
+      return result.ok ? json(result.status) : json({ code: result.code }, 503);
     }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/connect` && connect !== undefined) {
       const input = await body(request);
