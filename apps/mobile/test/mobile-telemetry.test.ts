@@ -302,6 +302,42 @@ it('preserves a saved opt-out on startup instead of applying the new default', a
   telemetry.dispose();
 });
 
+it('retries pre-upgrade queued events unchanged and uses current context only for new events', async () => {
+  const first = fixture({
+    context: {
+      platform: 'ios',
+      app_version: '1.9.0',
+      app_build: '11',
+      environment: 'development',
+      language: 'en',
+    },
+  });
+  await first.telemetry.ready;
+  first.telemetry.foreground(true, 0);
+  const saved = structuredClone(first.stored());
+  first.send.mockRejectedValueOnce(new Error('offline'));
+  await first.telemetry.flush();
+  const original = first.send.mock.calls[0]![0][0]!;
+  first.telemetry.dispose();
+
+  const restored = fixture({ storage: { read: async () => saved, write: vi.fn() } });
+  await restored.telemetry.ready;
+  restored.send.mockRejectedValueOnce(new Error('offline'));
+  await restored.telemetry.flush();
+  await restored.telemetry.flush();
+  expect(restored.send.mock.calls.map(([batch]) => batch)).toEqual([[original], [original]]);
+  expect(original.properties).not.toHaveProperty('device_model');
+  restored.telemetry.foreground(true, 0);
+  await restored.telemetry.flush();
+  expect(restored.send.mock.calls[2]![0][0]!.properties).toMatchObject({
+    app_version: '2.0.0',
+    app_build: '12',
+    device_model: 'iPhone11,6',
+    os_version: '26.1',
+  });
+  restored.telemetry.dispose();
+});
+
 it('does not replace an unreadable saved preference with default-on', async () => {
   const write = vi.fn();
   const { telemetry, send } = fixture({
