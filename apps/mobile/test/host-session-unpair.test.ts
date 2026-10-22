@@ -7,6 +7,8 @@ const secure = new Map<string, string>();
 const quickActions = vi.hoisted(() => ({ items: [] as Array<{ id: string }> }));
 const clearedCaches = vi.hoisted(() => [] as string[]);
 const forgotten = vi.hoisted(() => [] as string[]);
+const clearCache = vi.hoisted(() => vi.fn((hostId: string) => void clearedCaches.push(hostId)));
+const clearDrafts = vi.hoisted(() => vi.fn(async () => {}));
 const clientStops = vi.hoisted(() => vi.fn());
 let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
 let savedFilter = 'all';
@@ -35,12 +37,16 @@ vi.mock('react-native', () => ({
   },
 }));
 vi.mock('../src/host/native-source-drafts', () => ({
-  sourceDrafts: { ready: Promise.resolve(), removeWhere: () => undefined },
+  sourceDrafts: {
+    ready: Promise.resolve(),
+    removeWhere: () => undefined,
+    removePersistedWhere: clearDrafts,
+  },
 }));
 vi.mock('../src/host/conversation', () => ({ createConversation: vi.fn() }));
 vi.mock('../src/host/conversation-playback', () => ({ createConversationPlayback: vi.fn() }));
 vi.mock('../src/host/native-cache', () => ({
-  clearHostConversationCache: (hostId: string) => void clearedCaches.push(hostId),
+  clearHostConversationCache: clearCache,
   nativeConversationCache: {},
 }));
 vi.mock('../src/host/native-conversation-filter', async () => {
@@ -139,6 +145,8 @@ const savedIds = () =>
   ).hosts.map((entry) => entry.hostId);
 
 beforeEach(() => {
+  clearCache.mockClear();
+  clearDrafts.mockClear();
   secure.clear();
   quickActions.items = [];
   clearedCaches.length = 0;
@@ -298,3 +306,52 @@ it('removes account-owned connections through the real session and stops its cli
   expect(clearedCaches).toEqual(['old']);
   expect(parseSavedHosts(secure.get('deepseekbot.hosts.v3')).pendingAccountRemoval).toBeUndefined();
 });
+
+it.each(['draft', 'cache', 'recent'] as const)(
+  'retains the account cleanup journal after a required %s failure, then retries',
+  async (failure) => {
+    const owner = {
+      issuer: 'https://api.workos.com' as const,
+      relay: 'https://fixture.invalid',
+      clientId: 'client_fixture',
+      subject: 'user_a',
+    };
+    secure.set(
+      'deepseekbot.hosts.v3',
+      JSON.stringify({
+        hosts: [{ ...host('old'), accountOwner: owner }, host('new')],
+        current: 'old',
+      }),
+    );
+    secure.set(
+      'deepseekbot.recent-chats.v1',
+      JSON.stringify([chat('writer', 'old'), chat('coder', 'new')]),
+    );
+    const { hostSession } = await import('../src/host/host-session');
+    await vi.waitFor(() => expect(hostSession.getState().hosts).toHaveLength(2));
+    if (failure === 'draft') clearDrafts.mockRejectedValueOnce(new Error('disk'));
+    if (failure === 'cache')
+      clearCache.mockImplementationOnce(() => {
+        throw new Error('disk');
+      });
+    if (failure === 'recent')
+      beforeSave = async (key) => {
+        if (key === 'deepseekbot.recent-chats.v1') throw new Error('disk');
+      };
+    await expect(hostSession.removeAccount(owner)).rejects.toThrow('disk');
+    expect(savedIds()).toEqual(['new']);
+    expect(
+      parseSavedHosts(secure.get('deepseekbot.hosts.v3')).pendingAccountRemoval?.map(
+        (host) => host.hostId,
+      ),
+    ).toEqual(['old']);
+    beforeSave = undefined;
+    await hostSession.removeAccount(owner);
+    expect(
+      parseSavedHosts(secure.get('deepseekbot.hosts.v3')).pendingAccountRemoval,
+    ).toBeUndefined();
+    expect(
+      JSON.parse(secure.get('deepseekbot.recent-chats.v1')!).map((chat: { id: string }) => chat.id),
+    ).toEqual(['coder']);
+  },
+);

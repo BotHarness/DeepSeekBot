@@ -37,7 +37,7 @@ export function AccountPanel(props: AccountPanelProps) {
           ) : props.email !== false ? (
             <>
               <Button
-                label={t.pairAccount.signOut}
+                label={props.pendingDeletion ? t.pairAccount.cleanupConfirm : t.pairAccount.signOut}
                 systemImage="rectangle.portrait.and.arrow.right"
                 onPress={props.onSignOut}
                 modifiers={[tint(theme.color.danger), disabled(locked)]}

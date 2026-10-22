@@ -7,10 +7,12 @@ export const sourceDrafts = createSourceDrafts({
     const f = file();
     return f.exists ? JSON.parse(await f.text()) : {};
   },
-  write(value) {
+  write(value, required) {
     try {
       file().writeSync(JSON.stringify(value));
-    } catch {}
+    } catch (error) {
+      if (required) throw error;
+    }
   },
 });
 export function useSourceDraft(key: string) {

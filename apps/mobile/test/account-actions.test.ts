@@ -283,24 +283,76 @@ describe('confirmed account action effects', () => {
     expect(h.removeConnections).not.toHaveBeenCalled();
   });
 
-  it('keeps the pending marker on response loss and failed completed-marker storage', async () => {
+  it('remembers successful remote deletion when completion storage fails and retries without auth', async () => {
     const h = runtimeHarness(),
       account = h.open();
     const write = h.runtime.write;
+    let failed = false;
     h.runtime.write = vi.fn(async (value) => {
-      if (value && JSON.parse(value).action === 'delete-complete') throw new Error('disk full');
+      if (!failed && value && JSON.parse(value).action === 'delete-complete') {
+        failed = true;
+        throw new Error('disk full');
+      }
       await write(value);
     });
     const key = (await account.actionKey())!;
     expect(await account.deleteAccount(key)).toEqual({ ok: false, code: 'account-cleanup-failed' });
     expect(JSON.parse(h.text()!).action).toBe('delete-pending');
-    expect(h.removeConnections).not.toHaveBeenCalled();
-    vi.mocked(h.runtime.request).mockRejectedValueOnce(new Error('timeout'));
+    vi.mocked(h.runtime.request).mockClear().mockRejectedValue(new Error('expired'));
+    expect(await account.deleteAccount(key)).toEqual({ ok: true, value: undefined });
+    expect(h.runtime.request).not.toHaveBeenCalled();
+    expect(h.removeConnections).toHaveBeenCalledTimes(1);
+  });
+
+  it('recovers only local state after restart with an uncertain deletion and expired credentials', async () => {
+    const h = runtimeHarness();
+    h.replace(JSON.stringify({ ...JSON.parse(h.text()!), action: 'delete-pending' }));
+    h.runtime.request = vi.fn(async () => Response.json({}, { status: 400 }));
+    const account = h.open(),
+      key = (await account.actionKey())!;
+    expect(await account.pendingDeletion()).toBe(true);
     expect(await account.deleteAccount(key)).toEqual({
       ok: false,
       code: 'account-deletion-uncertain',
     });
-    expect(JSON.parse(h.text()!).action).toBe('delete-pending');
+    vi.mocked(h.runtime.request).mockClear();
+    h.removeConnections.mockRejectedValueOnce(new Error('disk'));
+    expect(await account.finishLocalCleanup(key)).toEqual({
+      ok: false,
+      code: 'account-cleanup-failed',
+    });
+    expect(JSON.parse(h.text()!).action).toBe('delete-local');
+    expect(await h.open().deleteAccount(key)).toEqual({
+      ok: false,
+      code: 'account-action-pending',
+    });
+    expect(await h.open().finishLocalCleanup(key)).toEqual({ ok: true, value: undefined });
+    expect(h.runtime.request).not.toHaveBeenCalled();
+    expect(h.text()).toBeNull();
+  });
+
+  it('migrates a stable legacy sign-in identity before rotating credentials again', async () => {
+    const h = runtimeHarness();
+    h.replace(JSON.stringify({ clientId: owner.clientId, refreshToken: 'legacy' }));
+    let rotation = 0;
+    h.runtime.request = vi.fn(async () =>
+      Response.json({
+        access_token: 'test',
+        refresh_token: `rotated-${++rotation}`,
+        user: { id: owner.subject },
+        hosts: [],
+      }),
+    );
+    const account = h.open(),
+      before = await account.actionKey();
+    await account.hosts();
+    expect(await account.actionKey()).toBe(before);
+    await account.hosts();
+    expect(await account.actionKey()).toBe(before);
+    const save = vi.fn();
+    await account.savePairing(before!, save);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(h.text()!).subject).toBe(owner.subject);
   });
 
   it('preserves an authoritative empty list and blocks re-pairing until pending cleanup finishes', () => {

@@ -45,7 +45,7 @@ interface Session {
   email?: string;
   subject?: string;
   sessionId?: string;
-  action?: 'signOut' | 'delete-pending' | 'delete-complete';
+  action?: 'signOut' | 'delete-pending' | 'delete-complete' | 'delete-local';
 }
 
 class Refused extends Error {
@@ -71,7 +71,8 @@ function parseSession(text: string | null): Session | undefined {
       ...(typeof value['sessionId'] === 'string' ? { sessionId: value['sessionId'] } : {}),
       ...(value['action'] === 'signOut' ||
       value['action'] === 'delete-pending' ||
-      value['action'] === 'delete-complete'
+      value['action'] === 'delete-complete' ||
+      value['action'] === 'delete-local'
         ? { action: value['action'] }
         : {}),
       ...(typeof value['email'] === 'string' ? { email: value['email'] } : {}),
@@ -90,6 +91,7 @@ export function createConnectAccount(options: {
   const { runtime } = options;
   const relay = (options.relay ?? CONNECT_RELAY).replace(/\/+$/u, '');
   let queue: Promise<unknown> = Promise.resolve();
+  let observedDeletion: string | undefined;
 
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
     const next = queue.then(work, work);
@@ -156,10 +158,9 @@ export function createConnectAccount(options: {
           clientId: session.clientId,
           subject: session.subject,
         };
-  const key = (session: Session) =>
-    runtime.challenge(
-      JSON.stringify([session.clientId, session.sessionId ?? session.refreshToken]),
-    );
+  const key = async (session: Session) =>
+    session.sessionId ??
+    runtime.challenge(JSON.stringify([session.clientId, session.refreshToken]));
   const current = async (expected: string): Promise<Session> => {
     const session = parseSession(await runtime.read());
     if (!session || (await key(session)) !== expected) throw new Refused('account-changed');
@@ -170,6 +171,7 @@ export function createConnectAccount(options: {
       const account = owner(session);
       if (account) await options.removeConnections?.(account);
       await save(undefined);
+      observedDeletion = undefined;
     } catch {
       throw new Refused('account-cleanup-failed');
     }
@@ -201,10 +203,12 @@ export function createConnectAccount(options: {
       throw new Refused('account-changed');
     if (
       (typeof rotated === 'string' && rotated !== session.refreshToken) ||
-      (!session.subject && typeof subject === 'string')
+      (!session.subject && typeof subject === 'string') ||
+      !session.sessionId
     )
       await save({
         ...session,
+        sessionId: await key(session),
         ...(typeof rotated === 'string' ? { refreshToken: rotated } : {}),
         ...(typeof subject === 'string' ? { subject } : {}),
       });
@@ -216,6 +220,20 @@ export function createConnectAccount(options: {
       const session = parseSession(await runtime.read());
       return session ? key(session) : null;
     },
+    async pendingDeletion(): Promise<boolean> {
+      const action = parseSession(await runtime.read())?.action;
+      return (
+        action === 'delete-pending' || action === 'delete-complete' || action === 'delete-local'
+      );
+    },
+    finishLocalCleanup: (expected: string) =>
+      settle(async () => {
+        const session = await current(expected);
+        if (!session.action || session.action === 'signOut')
+          throw new Refused('account-action-pending');
+        await save({ ...session, action: 'delete-local' });
+        await finish(session);
+      }),
     async savePairing(expected: string, savePairing: () => Promise<void>): Promise<void> {
       return serial(async () => {
         const session = await current(expected);
@@ -363,7 +381,16 @@ export function createConnectAccount(options: {
     deleteAccount: (expected: string) =>
       settle(async () => {
         let session = await current(expected);
-        if (session.action === 'signOut') throw new Refused('account-action-pending');
+        if (session.action === 'signOut' || session.action === 'delete-local')
+          throw new Refused('account-action-pending');
+        if (observedDeletion === expected) {
+          session = { ...session, action: 'delete-complete' };
+          try {
+            await save(session);
+          } catch {
+            throw new Refused('account-cleanup-failed');
+          }
+        }
         if (session.action !== 'delete-complete') {
           let token: string;
           try {
@@ -396,6 +423,7 @@ export function createConnectAccount(options: {
             }
             throw new Refused('account-deletion-uncertain');
           }
+          observedDeletion = await key(session);
           session = { ...session, action: 'delete-complete' };
           try {
             await save(session);

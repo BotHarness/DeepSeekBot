@@ -8,7 +8,8 @@ export type AccountFixtureScenario =
   | 'delete-partial'
   | 'local-write'
   | 'session-write'
-  | 'expired-retry';
+  | 'expired-retry'
+  | 'completion-write';
 
 const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -76,6 +77,16 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
       read: async () => session,
       write: async (value) => {
         counters.accountWrites++;
+        if (
+          scenario === 'completion-write' &&
+          value &&
+          JSON.parse(value).action === 'delete-complete' &&
+          !failed
+        ) {
+          failed = true;
+          publish();
+          throw new Error('fixture completion write');
+        }
         if (scenario === 'session-write' && value === null && !failed) {
           failed = true;
           publish();
@@ -92,7 +103,8 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
         if (url === 'https://api.workos.com/user_management/authenticate') {
           counters.refreshes++;
           publish();
-          if (scenario === 'expired-retry' && failed) return response({}, 400);
+          if ((scenario === 'expired-retry' || scenario === 'completion-write') && failed)
+            return response({}, 400);
           return response({ access_token: 'fixture-access', user: { id: owner.subject } });
         }
         if (url === `${owner.relay}/v1/hosts`) return response({ hosts: [] });

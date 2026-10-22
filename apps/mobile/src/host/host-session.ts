@@ -192,7 +192,7 @@ export const hostSession = {
         persist: saveHosts,
         adopt,
         clearLocal: async (host) => {
-          sourceDrafts.removeWhere((key) => {
+          await sourceDrafts.removePersistedWhere((key) => {
             try {
               const parts = JSON.parse(key);
               return parts[0] === 'computer' && parts[1] === host.hostId;
@@ -200,13 +200,9 @@ export const hostSession = {
               return false;
             }
           });
-          try {
-            clearHostConversationCache(host.hostId);
-          } catch {}
-          void forgetRecentChats(host.hostId);
-          await conversationFilter.ready;
-          if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
-            conversationFilter.set('all');
+          clearHostConversationCache(host.hostId);
+          await forgetRecentChats(host.hostId);
+          await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
           await pushSession.forget(host).catch(() => undefined);
         },
       });
@@ -233,7 +229,7 @@ export const hostSession = {
       try {
         clearHostConversationCache(host.hostId);
       } catch {}
-      void forgetRecentChats(host.hostId);
+      void forgetRecentChats(host.hostId).catch(() => undefined);
       void conversationFilter.ready.then(() => {
         if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
           conversationFilter.set('all');

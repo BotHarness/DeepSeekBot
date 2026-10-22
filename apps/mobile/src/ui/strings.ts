@@ -490,6 +490,10 @@ const en = {
     signIn: 'Sign in',
     signedIn: (email: string) => `Signed in as ${email}`,
     signOut: 'Sign out',
+    cleanupTitle: 'Clear this phone only?',
+    cleanupConfirm: 'Clear this phone only',
+    cleanupMessage:
+      'Remove this phone’s sign-in and connections saved through this account. Manual or unknown-source connections stay. This does not retry or confirm remote account deletion. That deletion may be incomplete; contact support to check it.',
     signOutTitle: 'Sign out of this phone?',
     signOutMessage:
       'Remove this account’s saved computer connections from this phone. Your account and computer data remain. Manual connections and older connections without account information stay.',
@@ -1804,6 +1808,10 @@ const zh: typeof en = {
     signIn: '登录',
     signedIn: (email: string) => `已登录 ${email}`,
     signOut: '退出登录',
+    cleanupTitle: '仅清理此手机？',
+    cleanupConfirm: '仅清理此手机',
+    cleanupMessage:
+      '移除此手机上的登录信息及通过该账号保存的连接，保留手动或来源不明的连接。这不会重试或确认远端账号删除。远端删除可能尚未完成，请联系支持核实。',
     signOutTitle: '退出此手机上的登录？',
     signOutMessage:
       '移除此手机中归属该账号的电脑连接。账号和电脑数据会保留。手动连接和未记录账号信息的旧连接仍保留。',

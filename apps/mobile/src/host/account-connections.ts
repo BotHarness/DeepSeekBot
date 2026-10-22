@@ -20,7 +20,7 @@ export async function removeAccountConnections(options: {
   };
   await options.persist(next);
   options.adopt(next);
-  await Promise.all(owned.map(options.clearLocal));
+  for (const host of owned) await options.clearLocal(host);
   const { pendingAccountRemoval: _pending, ...rest } = next;
   const remaining = pending.filter((host) => !sameAccount(host.accountOwner, options.owner));
   const complete = { ...rest, ...(remaining.length ? { pendingAccountRemoval: remaining } : {}) };

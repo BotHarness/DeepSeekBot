@@ -10,7 +10,14 @@ import { t } from './strings';
 export function AccountHosts(props: {
   account: Pick<
     ConnectAccount,
-    'email' | 'signIn' | 'hosts' | 'signOut' | 'deleteAccount' | 'actionKey'
+    | 'email'
+    | 'signIn'
+    | 'hosts'
+    | 'signOut'
+    | 'deleteAccount'
+    | 'actionKey'
+    | 'pendingDeletion'
+    | 'finishLocalCleanup'
   >;
   busy: boolean;
   saved: readonly SavedHost[];
@@ -22,6 +29,7 @@ export function AccountHosts(props: {
   const [hosts, setHosts] = useState<ConnectHost[]>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [pendingDeletion, setPendingDeletion] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const generation = useRef(0);
   const working = useRef(false);
@@ -49,6 +57,8 @@ export function AccountHosts(props: {
   useFocusEffect(
     useCallback(() => {
       const ticket = ++generation.current;
+      actionKey.current = null;
+      setPendingDeletion(false);
       setEmail(false);
       setLoading(false);
       setError(undefined);
@@ -60,9 +70,14 @@ export function AccountHosts(props: {
           if (ticket !== generation.current) return;
           actionKey.current = await account.actionKey();
           if (ticket !== generation.current) return;
+          setPendingDeletion(await account.pendingDeletion());
+          if (ticket !== generation.current) return;
           setEmail(current);
           if (current !== null) await load(ticket);
-          if (ticket === generation.current) actionKey.current = await account.actionKey();
+          if (ticket === generation.current) {
+            const key = await account.actionKey();
+            if (ticket === generation.current) actionKey.current = key;
+          }
         })
         .catch(() => {
           if (ticket === generation.current) {
@@ -77,7 +92,10 @@ export function AccountHosts(props: {
     }, [account]),
   );
 
-  const run = async (action: 'signIn' | 'signOut' | 'deleteAccount' | 'refresh') => {
+  const run = async (
+    action: 'signIn' | 'signOut' | 'deleteAccount' | 'finishLocalCleanup' | 'refresh',
+    confirmedKey?: string,
+  ) => {
     if (working.current || locked.current) return;
     working.current = true;
     const ticket = ++generation.current;
@@ -87,16 +105,14 @@ export function AccountHosts(props: {
       if (action === 'refresh') await load(ticket);
       else {
         const result =
-          action === 'signIn'
-            ? await account.signIn()
-            : await account[action](actionKey.current ?? '');
+          action === 'signIn' ? await account.signIn() : await account[action](confirmedKey ?? '');
         if (ticket !== generation.current) return;
         if (!result.ok) {
           setError(t.pairRefused[result.code]);
-          return;
+          return t.pairRefused[result.code];
         }
         setSelected([]);
-        if (action === 'deleteAccount' || action === 'signOut') {
+        if (action === 'deleteAccount' || action === 'signOut' || action === 'finishLocalCleanup') {
           setEmail(null);
           setHosts(undefined);
         } else {
@@ -106,9 +122,17 @@ export function AccountHosts(props: {
       }
     } catch {
       if (ticket === generation.current) setError(t.pairRefused['relay-unavailable']);
+      return t.pairRefused['relay-unavailable'];
     } finally {
       try {
-        if (ticket === generation.current) actionKey.current = await account.actionKey();
+        if (ticket === generation.current) {
+          const key = await account.actionKey();
+          const pending = await account.pendingDeletion();
+          if (ticket === generation.current) {
+            actionKey.current = key;
+            setPendingDeletion(pending);
+          }
+        }
       } catch {
         if (ticket === generation.current) actionKey.current = null;
       }
@@ -116,20 +140,26 @@ export function AccountHosts(props: {
       if (ticket === generation.current) setLoading(false);
     }
   };
-  const confirm = (action: 'signOut' | 'deleteAccount') => {
+  const confirm = (action: 'signOut' | 'deleteAccount' | 'finishLocalCleanup') => {
     if (working.current || locked.current || !actionKey.current) return;
-    const ticket = generation.current;
+    let ticket = generation.current;
+    const confirmedKey = actionKey.current;
     let used = false;
-    confirmDestructive(
-      action === 'signOut' ? t.pairAccount.signOutTitle : t.pairAccount.deleteTitle,
-      action === 'signOut' ? t.pairAccount.signOutMessage : t.pairAccount.deleteMessage,
-      action === 'signOut' ? t.pairAccount.signOut : t.pairAccount.deleteConfirm,
-      () => {
-        if (used || ticket !== generation.current || locked.current || working.current) return;
-        used = true;
-        return run(action);
-      },
-    );
+    const copy =
+      action === 'finishLocalCleanup'
+        ? [t.pairAccount.cleanupTitle, t.pairAccount.cleanupMessage, t.pairAccount.cleanupConfirm]
+        : action === 'signOut'
+          ? [t.pairAccount.signOutTitle, t.pairAccount.signOutMessage, t.pairAccount.signOut]
+          : [t.pairAccount.deleteTitle, t.pairAccount.deleteMessage, t.pairAccount.deleteConfirm];
+    confirmDestructive(copy[0]!, copy[1]!, copy[2]!, async () => {
+      if (used || ticket !== generation.current || locked.current || working.current) return;
+      const failure = await run(action, confirmedKey);
+      if (failure) {
+        if (generation.current === ticket + 1) ticket = generation.current;
+        throw new Error(failure);
+      }
+      used = true;
+    });
   };
   const added = (host: ConnectHost) =>
     accountHostAdded(host, props.saved) ||
@@ -140,6 +170,7 @@ export function AccountHosts(props: {
   return (
     <AccountPanel
       email={email}
+      pendingDeletion={pendingDeletion}
       loading={loading}
       busy={props.busy}
       error={error}
@@ -176,7 +207,7 @@ export function AccountHosts(props: {
       }}
       onRefresh={() => void run('refresh')}
       onSignIn={() => void run('signIn')}
-      onSignOut={() => confirm('signOut')}
+      onSignOut={() => confirm(pendingDeletion ? 'finishLocalCleanup' : 'signOut')}
       onDelete={() => confirm('deleteAccount')}
     />
   );
