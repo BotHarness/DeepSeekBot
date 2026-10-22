@@ -25,3 +25,7 @@ Runtime code: `683b0cbe9c0f158e80929601f59a312ff5f9c4bf`; this follow-up adds ev
 ## Native pairing fix follow-up (2026-10-22)
 
 [Native pairing report](native-pairing.md) and [redacted results](native-pairing-results.json) supersede the earlier first-pairing limitation: the iOS pairing modal and first-notice transition are fixed, with six light/dark × text-size cases and the Maestro interaction regression passing without a post-pairing restart. Existing QA iOS27 and its qualified native binary were reused. `pair-before.png` records the original error; `pair-*` after images show usable Chats, Activity and the existing QA conversation. This is bounded native pairing acceptance, not a claim that all mobile features, physical iPhone, Android or Human QA are complete.
+
+## Concise native verification follow-up (2026-10-22)
+
+[Fingerprint UI report](fingerprint-ui.md) and [exact-source results](fingerprint-results.json) record the replacement of the long native alert with focused verification and phone-approval steps. Complete selectable fingerprints, native actions and optional details passed six iOS theme/text cases, mismatch and cancellation checks. The previous password matrix remains separate; Android/physical-device/Chinese-rendering/assistive-technology acceptance is not inferred from this run.

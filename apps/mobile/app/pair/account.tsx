@@ -11,6 +11,7 @@ import { Button } from '../../src/ui/primitives/button';
 import { ConnectionNameField } from '../../src/ui/primitives/connection-name-field';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
+import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
 import { t } from '../../src/ui/strings';
 
@@ -29,6 +30,8 @@ export default function PairAccountScreen() {
       return pairing.abort;
     }, [params.account]),
   );
+
+  if (pairing.busy) return <PairingVerification pairing={pairing} />;
 
   return (
     <KeyboardFormScroll
@@ -49,13 +52,6 @@ export default function PairAccountScreen() {
         </Text>
       ) : null}
       {pairing.canRetry ? <Button label={t.retry} onPress={() => void pairing.retry()} /> : null}
-      {pairing.fingerprint ? (
-        <Text selectable>
-          {t.deviceFingerprintHint}
-          {'\n'}
-          {pairing.fingerprint}
-        </Text>
-      ) : null}
       <ConnectionNameField
         value={pairing.connectionName}
         onChange={pairing.setConnectionName}

@@ -1,8 +1,7 @@
-import { t } from '../strings';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
 
 import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
@@ -12,7 +11,6 @@ import { pairHost, type PairingFailure } from '../../host/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '../../telemetry/schema';
 import { hostLookName, withHostName } from '../design/host-look';
-import { confirmAppDialog } from '../primitives/app-dialog';
 import { clearsPastedLink } from '../pairing-failure';
 
 function deviceName(): string {
@@ -24,6 +22,11 @@ export function usePairing() {
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [fingerprint, setFingerprint] = useState<string>();
+  const [computerName, setComputerName] = useState('');
+  const [verification, setVerification] = useState<{
+    fingerprint: string;
+    confirm(matches: boolean): void;
+  }>();
   const [error, setError] = useState<PairingFailure | undefined>();
   const lastMethod = useRef<PairingMethod>('paste');
   const pending = useRef<AbortController | undefined>(undefined);
@@ -43,6 +46,8 @@ export function usePairing() {
     lastMethod.current = method;
     const operation = new AbortController();
     pending.current = operation;
+    Keyboard.dismiss();
+    setComputerName('');
     setBusy(true);
     setError(undefined);
     const result = await pairHost({
@@ -57,11 +62,24 @@ export function usePairing() {
       deviceName: deviceName(),
       carrier: nativeCarrier(),
       confirmFingerprint: (fingerprint, hostName) =>
-        confirmAppDialog(
-          t.hostFingerprintTitle,
-          `${hostName}\n\n${t.hostFingerprintHint}\n\n${fingerprint}`,
-          t.hostFingerprintConfirm,
-        ),
+        new Promise<boolean>((resolve) => {
+          if (operation.signal.aborted) {
+            resolve(false);
+            return;
+          }
+          let settled = false;
+          const confirm = (matches: boolean) => {
+            if (settled) return;
+            settled = true;
+            operation.signal.removeEventListener('abort', abort);
+            setVerification(undefined);
+            resolve(matches && !operation.signal.aborted);
+          };
+          const abort = () => confirm(false);
+          operation.signal.addEventListener('abort', abort, { once: true });
+          setComputerName(hostName);
+          setVerification({ fingerprint, confirm });
+        }),
       onPending: setFingerprint,
       save: async (host) => {
         await hostSession.pair(host);
@@ -87,6 +105,8 @@ export function usePairing() {
   return {
     busy,
     fingerprint,
+    verification,
+    computerName,
     error,
     method: lastMethod.current,
     connectionName,

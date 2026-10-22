@@ -781,7 +781,19 @@ const en = {
   hostFingerprintHint:
     'Compare this fingerprint with Devices on your computer. Continue only if every group matches.',
   hostFingerprintConfirm: 'Fingerprints match',
-  deviceFingerprintHint: 'On your computer, approve the device with this fingerprint:',
+  deviceFingerprintHint: 'In Devices on your computer, approve the phone with this fingerprint.',
+  pairingVerification: {
+    computerKey: 'Computer fingerprint',
+    phoneKey: 'Phone fingerprint',
+    compare: 'Match every group with Devices on your computer.',
+    waiting: 'Approve on your computer',
+    connecting: 'Connecting securely…',
+    details: 'Why compare?',
+    hideDetails: 'Hide explanation',
+    explanation:
+      'The fingerprint identifies a device. Compare it on your computer itself, or on a device you already trust. If any group differs, cancel.',
+    mismatch: 'Doesn’t match',
+  },
 
   autoRejectionTitle: (bot: string) => `${bot}'s call was auto-rejected`,
   autoRejectionTool: (tool: string) => `Tool ${tool}`,
@@ -2026,7 +2038,18 @@ const zh: typeof en = {
   hostFingerprintTitle: '验证你的电脑',
   hostFingerprintHint: '请与电脑「设备」中显示的指纹逐组核对，完全一致后再继续。',
   hostFingerprintConfirm: '指纹一致',
-  deviceFingerprintHint: '请在电脑上批准指纹一致的设备：',
+  deviceFingerprintHint: '在电脑「设备」中，批准指纹一致的手机。',
+  pairingVerification: {
+    computerKey: '电脑指纹',
+    phoneKey: '手机指纹',
+    compare: '与电脑「设备」中的指纹逐组核对。',
+    waiting: '在电脑上批准',
+    connecting: '正在安全连接…',
+    details: '为什么要核对？',
+    hideDetails: '收起说明',
+    explanation: '指纹用来识别设备。请在电脑本机或已信任的设备上核对，任意一组不同都应取消。',
+    mismatch: '不一致',
+  },
 
   autoRejectionTitle: (bot: string) => `${bot} 的一次调用被自动拒绝`,
   autoRejectionTool: (tool: string) => `工具 ${tool}`,
