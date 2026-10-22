@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
-import { radius } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 
 export function composerPrimary(theme: DesignTheme): { fill: string; ink: string } {
   return { fill: theme.color.accent, ink: theme.color.onAccent };
@@ -10,6 +10,10 @@ export function composerPrimary(theme: DesignTheme): { fill: string; ink: string
 
 export function composerBar(theme: DesignTheme): number {
   return theme.touch;
+}
+
+export function composerControl(theme: DesignTheme): number {
+  return theme.touch - space.x4;
 }
 
 export const micAlwaysFilled = false;
@@ -26,6 +30,7 @@ export function ComposerCircleButton({
   label: string;
   testID?: string;
   size: number;
+  embedded?: boolean;
   onPress(): void;
   children: ReactNode;
 }) {
