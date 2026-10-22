@@ -31,7 +31,7 @@ class LocalComputerVideoView(context: Context, appContext: AppContext) : ExpoVie
   val onPresentation by EventDispatcher()
   var attemptId = ""
   var offer = ""
-  var enabled = false
+  var mediaEnabled = false
   private val main = Handler(Looper.getMainLooper())
   private val texture = TextureView(context)
   @Volatile private var current: Attempt? = null
@@ -92,7 +92,7 @@ class LocalComputerVideoView(context: Context, appContext: AppContext) : ExpoVie
 
   fun sync() {
     if (!appForeground || !isAttachedToWindow) return
-    if (!enabled) { suspendMedia("disabled"); return }
+    if (!mediaEnabled) { suspendMedia("disabled"); return }
     if (attemptId.isEmpty() || offer.isEmpty() || !texture.isAvailable) return
     if (attemptId == suspendedAttempt || current?.id == attemptId) return
     val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager

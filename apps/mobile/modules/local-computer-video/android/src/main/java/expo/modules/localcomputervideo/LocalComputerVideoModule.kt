@@ -34,7 +34,7 @@ class LocalComputerVideoModule : Module() {
       Events("onDescription", "onMediaState", "onPresentation")
       Prop("attemptId") { view: LocalComputerVideoView, value: String -> view.attemptId = value }
       Prop("offer") { view: LocalComputerVideoView, value: String -> view.offer = value }
-      Prop("enabled") { view: LocalComputerVideoView, value: Boolean -> view.enabled = value }
+      Prop("enabled") { view: LocalComputerVideoView, value: Boolean -> view.mediaEnabled = value }
       OnViewDidUpdateProps { view: LocalComputerVideoView ->
         views.add(view)
         view.setAppForeground(foreground)
