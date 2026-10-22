@@ -473,6 +473,14 @@ const en = {
   pair: 'Pair',
   pairAccount: {
     title: 'DeepSeekBot account',
+    computers: 'Computers',
+    progress: (current: number, total: number) => `${current} of ${total}`,
+    online: 'Online',
+    added: 'Added',
+    selected: 'Selected',
+    addSelected: (count: number) => `Add ${count} ${count === 1 ? 'computer' : 'computers'}`,
+    choose: 'Select computers',
+    cancelled: 'Cancelled',
     hint: 'Pair with a computer signed in to the same account. No code or Tailscale needed.',
     signIn: 'Sign in',
     signedIn: (email: string) => `Signed in as ${email}`,
@@ -506,6 +514,7 @@ const en = {
     emptyAction: 'Pair a computer',
   },
   pairRefused: {
+    'already-paired': 'This computer is already added.',
     'host-key-required': 'Pair again using a new code from your computer.',
     'host-key-confirmation-required': 'Compare the fingerprint on your computer before pairing.',
     'channel-authentication-failed':
@@ -1748,6 +1757,14 @@ const zh: typeof en = {
     '摄像头扫不到时，在同一窗口点「复制配对链接」，再粘贴到这里。二维码和链接都只能用一次，10 分钟后失效。',
   pair: '配对',
   pairAccount: {
+    computers: '电脑',
+    progress: (current: number, total: number) => `第 ${current} 台，共 ${total} 台`,
+    online: '在线',
+    added: '已添加',
+    selected: '已选择',
+    addSelected: (count: number) => `添加 ${count} 台电脑`,
+    choose: '选择电脑',
+    cancelled: '已取消',
     title: 'DeepSeekBot 账号',
     hint: '直接和登录同一账号的电脑配对，不用扫码，也不用 Tailscale。',
     signIn: '登录',
@@ -1779,6 +1796,7 @@ const zh: typeof en = {
     emptyAction: '配对电脑',
   },
   pairRefused: {
+    'already-paired': '这台电脑已添加。',
     'host-key-required': '请使用电脑上的新二维码重新配对。',
     'host-key-confirmation-required': '请先核对电脑上的指纹，再继续配对。',
     'channel-authentication-failed': '无法验证这台电脑，请核对指纹后重新配对。',

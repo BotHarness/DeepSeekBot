@@ -27,6 +27,7 @@ export interface PairingPayload {
 }
 
 export type PairingRefusal =
+  | 'already-paired'
   | 'host-key-required'
   | 'host-key-confirmation-required'
   | 'channel-authentication-failed'
