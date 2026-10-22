@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.pinned-grid",
+      "label": "Browse Remote Host sections and responsive Pinned cards, collapse and search without changing arrangement",
+      "source": "apps/mobile/src/ui/chat/pinned-conversation-card.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-grid.md",
+      "task": 2571,
+      "gap": "Centralized test center owns native iOS/Android width/text/appearance, interaction and screenshot qualification; Human visual feedback gates Organize/drag siblings."
+    },
+    {
       "id": "phone.chat-row-actions",
       "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
       "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",

@@ -275,6 +275,7 @@ export interface ProfileActivity {
 
 export interface ChannelListItem {
   id: string;
+  updatedAt?: string;
   type: 'dm' | 'group' | (string & {});
   name: string;
   members: string[];
