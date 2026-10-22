@@ -28,12 +28,14 @@ export function HeaderCircleButton({
   children,
   selected = false,
   plain = false,
+  disabled = false,
 }: {
   label: string;
   onPress(): void;
   children: ReactNode;
   selected?: boolean;
   plain?: boolean;
+  disabled?: boolean;
 }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
@@ -41,7 +43,8 @@ export function HeaderCircleButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,
@@ -49,6 +52,7 @@ export function HeaderCircleButton({
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
+        opacity: disabled ? 0.4 : 1,
         ...(plain
           ? { backgroundColor: pressed ? theme.layer.raised.pressed : undefined }
           : headerGlassFill(theme, glass, pressed)),

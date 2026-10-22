@@ -300,6 +300,12 @@ export function Composer({
     dictation,
     canDictate,
   });
+  const canSend = actions.includes('send') && !disabled;
+  const send = () => {
+    if (!canSend) return;
+    haptic('send');
+    onSend();
+  };
   const toggleMenu = () => {
     if (!menu) Keyboard.dismiss();
     setMenu(!menu);
@@ -395,10 +401,8 @@ export function Composer({
         symbol="arrow.up"
         testID="composer-send"
         filled
-        onPress={() => {
-          haptic('send');
-          onSend();
-        }}
+        disabled={!canSend}
+        onPress={send}
       >
         <ArrowUpIcon color={composerPrimary(theme).ink} size={icon} />
       </ComposerActionButton>
@@ -446,15 +450,16 @@ export function Composer({
         <DraftEditor
           value={value}
           placeholder={placeholder}
-          canSend={actions.includes('send')}
+          canSend={canSend}
+          showSend={actions.includes('send')}
           above={above}
           selection={selection}
           onSelection={onSelection}
           onChange={onChange}
           onClose={() => setEditing(false)}
           onSend={() => {
-            haptic('send');
-            onSend();
+            if (!canSend) return;
+            send();
             setEditing(false);
           }}
         />
@@ -503,12 +508,9 @@ export function Composer({
             ) : null}
             <View style={{ padding: inset }}>
               <HardwareSend
-                enabled={actions.includes('send') && !listening}
+                enabled={canSend}
                 enter
-                onSend={() => {
-                  haptic('send');
-                  onSend();
-                }}
+                onSend={send}
                 style={{
                   flexDirection: 'row',
                   paddingLeft: stacked ? 0 : leadingWidth,

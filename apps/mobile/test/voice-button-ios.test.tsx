@@ -18,6 +18,8 @@ vi.mock('react-native', async () => {
 vi.mock('../src/ui/chat/composer-chrome', async () => import('../src/ui/chat/composer-chrome.ios'));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ useLiquidGlass: () => true }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  disabled: (disabled: boolean) => ({ disabled }),
+  opacity: (opacity: number) => ({ opacity }),
   foregroundStyle: () => ({}),
   accessibilityLabel: (label: string) => ({ label }),
   buttonStyle: () => ({}),

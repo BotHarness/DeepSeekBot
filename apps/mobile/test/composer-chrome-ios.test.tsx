@@ -8,6 +8,8 @@ vi.mock('react-native', async () => import('./react-native-shim'));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ useLiquidGlass: () => native.glass }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   foregroundStyle: () => ({}),
+  disabled: (disabled: boolean) => ({ disabled }),
+  opacity: (opacity: number) => ({ opacity }),
   accessibilityLabel: (label: string) => ({ label }),
   buttonStyle: (style: string) => ({ buttonStyle: style }),
   buttonBorderShape: () => ({}),
@@ -34,7 +36,12 @@ vi.mock('@expo/ui/swift-ui', () => ({
     children: ReactNode;
     onPress(): void;
     testID?: string;
-    modifiers: Array<{ label?: string; buttonStyle?: string }>;
+    modifiers: Array<{
+      label?: string;
+      buttonStyle?: string;
+      disabled?: boolean;
+      opacity?: number;
+    }>;
   }) =>
     createElement(
       'button',
@@ -42,6 +49,8 @@ vi.mock('@expo/ui/swift-ui', () => ({
         'aria-label': modifiers.find((m) => m.label)?.label,
         'data-testid': testID,
         'data-button-style': modifiers.find((m) => m.buttonStyle)?.buttonStyle,
+        disabled: modifiers.some((m) => m.disabled),
+        'data-opacity': modifiers.find((m) => m.opacity !== undefined)?.opacity,
         onClick: onPress,
       },
       children,
@@ -155,4 +164,34 @@ it.each([true, false])('keeps the return action native with glass available=%s',
   expect(button.dataset.buttonStyle).toBe(glass ? 'glass' : 'plain');
   await act(async () => button.click());
   expect(jump).toHaveBeenCalledOnce();
+});
+
+it('retains native Send disabled and dimmed until availability returns', async () => {
+  const send = vi.fn();
+  const render = (disabled: boolean) =>
+    root.render(
+      <ComposerActionButton
+        symbol="arrow.up"
+        label="Send"
+        testID="composer-send"
+        filled
+        disabled={disabled}
+        onPress={send}
+      >
+        fallback
+      </ComposerActionButton>,
+    );
+  await act(async () => render(true));
+  const button = container.querySelector<HTMLButtonElement>('[data-testid="composer-send"]')!;
+  expect(button.disabled).toBe(true);
+  expect(button.dataset.opacity).toBe('0.4');
+  expect(button.querySelector('[data-symbol="arrow.up"]')).not.toBeNull();
+  await act(async () => button.click());
+  expect(send).not.toHaveBeenCalled();
+  await act(async () => render(false));
+  expect(container.querySelector('[data-testid="composer-send"]')).toBe(button);
+  expect(button.disabled).toBe(false);
+  expect(button.dataset.opacity).toBe('1');
+  await act(async () => button.click());
+  expect(send).toHaveBeenCalledOnce();
 });
