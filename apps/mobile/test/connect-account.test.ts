@@ -9,7 +9,9 @@ const RELAY = 'https://relay.test';
 const REDIRECT = 'ai.botharness.deepseekbot.dev:/oauth2redirect';
 const challenge = async (value: string) => createHash('sha256').update(value).digest('base64url');
 
-function fakeRelay(options: { offline?: boolean; expired?: boolean; deletion?: number } = {}) {
+function fakeRelay(
+  options: { offline?: boolean; expired?: boolean; deletion?: number; hostname?: string } = {},
+) {
   let stored: string | null = null;
   let randoms = 0;
   const calls: { url: string; method?: string; auth?: string; body?: string }[] = [];
@@ -49,7 +51,7 @@ function fakeRelay(options: { offline?: boolean; expired?: boolean; deletion?: n
         encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
         enrollment: { body: 'signed-request', signature: 'signature' },
         expiresAt: '2026-10-21T12:10:00.000Z',
-        hostname: 'hstudio.deepseekbot.dev',
+        hostname: options.hostname ?? 'hstudio.deepseekbot.dev',
         host: { id: 'pairing-host', name: 'Studio Mac' },
       });
     }
@@ -140,6 +142,28 @@ describe('phone Connect account', () => {
     ).toEqual({ ok: false, code: 'host-key-confirmation-required' });
     expect(request).not.toHaveBeenCalled();
     expect(openSocket).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'attacker.example',
+    'hstudio.deepseekbot.dev.attacker.example',
+    'hstudio.deepseekbot.dev@attacker.example',
+    'user@hstudio.deepseekbot.dev',
+    'hstudio.deepseekbot.dev:8443',
+    'hstudio.deepseekbot.dev:443',
+    'hstudio.deepseekbot.dev/path',
+    'hstudio.deepseekbot.dev?redirect=attacker',
+    'hstudio.deepseekbot.dev#fragment',
+    'hstudio.deepseekbot.dev.',
+    'studio.tailnet.ts.net',
+    '127.0.0.1',
+  ])('rejects the relay enrollment hostname %s before pairing', async (hostname) => {
+    const relay = fakeRelay({ hostname });
+    await relay.account.signIn();
+    expect(await relay.account.offer('hstudio', 'iPhone')).toEqual({
+      ok: false,
+      code: 'relay-unavailable',
+    });
   });
 
   it('reports offline Hosts, cancelled sign-ins and expired sessions', async () => {

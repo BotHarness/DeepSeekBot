@@ -1,3 +1,4 @@
+import { checkRoute, isConnectRoute } from './route';
 import type { SavedHost } from './hosts';
 import type { PushTarget } from './push';
 import type { ApprovalChoice, DecisionResult, RequestRef } from './requests';
@@ -68,7 +69,9 @@ export async function decideFromPush(
   for (const route of host.routes) {
     try {
       return await decide(host, route, ref, outcome);
-    } catch {}
+    } catch {
+      if (!checkRoute(route).ok || isConnectRoute(route)) return 'failed';
+    }
   }
   return 'failed';
 }

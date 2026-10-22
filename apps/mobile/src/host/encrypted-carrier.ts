@@ -4,12 +4,24 @@ import {
 } from '../../../../packages/core/src/devices/noise/channel';
 import type { HostCarrier, HostResponse, HostSocket, HostSocketEvents } from './carrier';
 import type { HostEncryption } from './hosts';
-import { isConnectRoute, socketOrigin } from './route';
+import { checkRoute, isConnectRoute, socketOrigin } from './route';
 
 export class ConnectRefused extends Error {
   constructor(readonly code: string) {
     super(code);
   }
+}
+
+function requestUrl(input: string): URL {
+  let url: URL;
+  try {
+    url = new URL(input);
+  } catch {
+    throw new ConnectRefused('route-invalid');
+  }
+  if (!checkRoute(url.origin).ok || url.username || url.password || url.hash)
+    throw new ConnectRefused('route-invalid');
+  return url;
 }
 
 export function keyBytes(hex: string): Uint8Array {
@@ -42,6 +54,7 @@ export function openNoiseSocket(options: {
   message(value: Record<string, unknown>): void;
   closed(reason: string): void;
 }) {
+  if (!checkRoute(options.origin).ok) throw new ConnectRefused('route-invalid');
   const channel = new ConnectChannel({
     role: 'initiator',
     hostId: options.hostId,
@@ -260,7 +273,7 @@ export function encryptedCarrier(options: {
       sessions.clear();
     },
     async request(url, init) {
-      const parsed = new URL(url);
+      const parsed = requestUrl(url);
       if (!isConnectRoute(parsed.origin)) return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
       const current = session(parsed.origin);
@@ -324,7 +337,7 @@ export function encryptedCarrier(options: {
       });
     },
     openSocket(url, events, headers): HostSocket {
-      const parsed = new URL(url.replace(/^ws/u, 'http'));
+      const parsed = requestUrl(url.replace(/^ws/u, 'http'));
       if (!isConnectRoute(parsed.origin)) return options.raw.openSocket(url, events, headers);
       let current: Session | undefined,
         done = false;

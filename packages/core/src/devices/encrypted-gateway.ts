@@ -29,6 +29,7 @@ function pathAllowed(path: string): boolean {
   return (
     (name.startsWith('/botharness-device/api/') &&
       !/\/(?:webrtc|web|browser|computer)(?:\/|$)/u.test(name)) ||
+    name === '/botharness-device/push' ||
     name.startsWith('/botharness-device/push/') ||
     name === '/botharness-device/unpair' ||
     name === '/botharness-device/devices/remove'

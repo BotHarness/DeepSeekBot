@@ -120,6 +120,10 @@ export async function redeemPairing(options: {
   signal?: AbortSignal;
 }): Promise<Redemption> {
   const { payload } = options;
+  if (payload.routes.length === 0 || payload.routes.some((route) => !checkRoute(route).ok))
+    return { ok: false, code: 'no-route' };
+  if (payload.enrollment && payload.routes.some((route) => !isConnectRoute(route)))
+    return { ok: false, code: 'no-route' };
   if (payload.encryption !== undefined) return redeemEncrypted(options);
   for (const route of payload.routes) {
     if (isConnectRoute(route)) return { ok: false, code: 'host-key-required' };

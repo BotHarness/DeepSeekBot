@@ -5,7 +5,7 @@ import { ActivitySmoother } from '../../../../packages/client/src/client/activit
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
-import { isConnectRoute, socketOrigin } from './route';
+import { checkRoute, isConnectRoute, socketOrigin } from './route';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -375,7 +375,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
   const resource = (path: string): RemoteSource => {
-    if (!isConnectRoute(route)) return { uri: absolute(path), headers: authorization };
+    if (checkRoute(route).ok && !isConnectRoute(route))
+      return { uri: absolute(path), headers: authorization };
     const origin = route;
     return {
       uri: `connect-resource:${options.hostId ?? ''}:${path}`,
@@ -396,6 +397,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     };
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
+    if (!checkRoute(route).ok) return {};
     if (!isConnectRoute(route)) return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
     const cached = avatars.get(key);
@@ -924,7 +926,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     upload,
     resource,
-    secretInputAllowed: () => !isConnectRoute(route) || options.encryption !== undefined,
+    secretInputAllowed: () =>
+      checkRoute(route).ok && (!isConnectRoute(route) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);

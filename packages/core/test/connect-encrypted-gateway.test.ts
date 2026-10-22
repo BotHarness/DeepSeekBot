@@ -12,7 +12,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
-it('admits only the approved Noise key, forwards a private RPC, and closes on device revocation', async () => {
+it('admits only the approved Noise key, forwards private RPC and push settings, and closes on device revocation', async () => {
   const owner = trackTestOwner(
     mountOperationalDatabase({
       dshHome: createTempRoot('noise-gateway-'),
@@ -34,6 +34,18 @@ it('admits only the approved Noise key, forwards a private RPC, and closes on de
   const observed: string[] = [];
   const server = createServer(async (request, response) => {
     expect(request.headers.authorization).toBe(`Device ${paired.credential}`);
+    if (request.url === '/botharness-device/push') {
+      response.setHeader('content-type', 'application/json');
+      response.end(
+        JSON.stringify({
+          registered: false,
+          enabled: false,
+          preferences: { approval: true, question: true, 'private-input': true, reply: true },
+          quietChannelIds: [],
+        }),
+      );
+      return;
+    }
     let body = '';
     for await (const chunk of request) body += String(chunk);
     response.end(body);
@@ -140,6 +152,19 @@ it('admits only the approved Noise key, forwards a private RPC, and closes on de
         },
       );
       expect(await response.text()).toBe(sentinel);
+      const settings = await carrier.request(
+        'https://host.deepseekbot.dev/botharness-device/push',
+        {
+          method: 'GET',
+          signal: new AbortController().signal,
+        },
+      );
+      expect(settings.status).toBe(200);
+      expect(JSON.parse(await settings.text())).toMatchObject({
+        registered: false,
+        quietChannelIds: [],
+      });
+
       expect(observed.join('')).not.toContain(paired.credential);
     } finally {
       carrier.close?.();

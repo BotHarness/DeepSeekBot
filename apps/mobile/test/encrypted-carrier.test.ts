@@ -1,4 +1,8 @@
 import { expect, it, vi } from 'vitest';
+import { createHostClient } from '../src/host/client';
+import { decideFromPush } from '../src/host/push-actions';
+import { decideApproval } from '../src/host/requests';
+import { redeemPairing } from '../src/host/pairing';
 import { encryptedCarrier } from '../src/host/encrypted-carrier';
 
 it('refuses a legacy Connect pairing before any credential reaches the raw carrier', async () => {
@@ -169,11 +173,180 @@ it.each([400, 500, 502, 503])(
     await expect(createHostPush(raw).settings(host)).rejects.toThrow();
     expect(await revokePairing({ host, carrier: raw })).toBe('unreachable');
     expect(await removeDevice({ host, deviceId: 'other', carrier: raw })).toBe('unreachable');
+    expect(
+      await decideFromPush(
+        [host],
+        {
+          hostId: host.hostId,
+          kind: 'tool-approval',
+          botSlug: 'bot',
+          channelId: 'channel',
+          messageId: 'message',
+        },
+        'approve',
+        async (saved, route, ref, outcome) => {
+          const client = createHostClient({ ...saved, routes: [route], carrier: raw });
+          try {
+            return await decideApproval(client, ref, outcome);
+          } finally {
+            client.stop();
+          }
+        },
+      ),
+    ).toBe('failed');
     expect(requests).toEqual([
       '/botharness-device/push',
       '/botharness-device/unpair',
       '/botharness-device/devices/remove',
+      '/botharness-device/api/botharness/toolApprovalDecide',
     ]);
     expect(raw.request).not.toHaveBeenCalled();
   },
 );
+
+it.each([
+  'https://attacker.example',
+  'https://host.deepseekbot.dev.attacker.example',
+  'https://host.deepseekbot.dev.',
+  'https://host.deepseekbot.dev:8443',
+  'http://host.deepseekbot.dev',
+  'https://user:password@host.deepseekbot.dev',
+])(
+  'refuses a persisted untrusted route %s before sending secrets or opening streams',
+  async (route) => {
+    const raw = { request: vi.fn(), openSocket: vi.fn() };
+    const saved = {
+      hostId: 'host',
+      credential: 'synthetic-device-credential',
+      encryption: {
+        protocol: 'connect-noise-xk-v1' as const,
+        hostKey: 'ab'.repeat(32),
+        deviceKey: 'cd'.repeat(32),
+      },
+    };
+    const client = createHostClient({ ...saved, routes: [route], carrier: raw });
+    const carrier = encryptedCarrier({ ...saved, raw });
+    try {
+      await expect(
+        client.call('privateInputSubmit', {
+          channelId: 'channel',
+          messageId: 'message',
+          values: { password: 'synthetic-password' },
+        }),
+      ).rejects.toMatchObject({ code: 'route-invalid' });
+      expect(client.secretInputAllowed?.()).toBe(false);
+      const resource = client.resource('/api/botharness/memory/image?id=synthetic');
+      expect(resource.headers).toEqual({});
+      expect(resource.uri).not.toContain(route);
+      await expect(resource.read!(new AbortController().signal)).rejects.toMatchObject({
+        code: 'route-invalid',
+      });
+      expect(() =>
+        carrier.openSocket(route.replace(/^http/u, 'ws') + '/botharness-device/api/remote.mux', {
+          open: vi.fn(),
+          message: vi.fn(),
+          closed: vi.fn(),
+        }),
+      ).toThrow('route-invalid');
+      expect(raw.request).not.toHaveBeenCalled();
+      expect(raw.openSocket).not.toHaveBeenCalled();
+    } finally {
+      client.stop();
+      carrier.close?.();
+    }
+  },
+);
+
+it.each(['https://studio.tailnet.ts.net', 'http://127.0.0.1:3080'])(
+  'retains the explicitly selected trusted route contract for %s',
+  async (route) => {
+    const raw = {
+      request: vi.fn(async () => ({ status: 200, text: async () => '{}' })),
+      openSocket: vi.fn(),
+    };
+    const carrier = encryptedCarrier({
+      raw,
+      hostId: 'host',
+      credential: 'synthetic-credential',
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: 'ab'.repeat(32),
+        deviceKey: 'cd'.repeat(32),
+      },
+    });
+    try {
+      await carrier.request(route + '/botharness-device/push', {
+        method: 'GET',
+        signal: new AbortController().signal,
+      });
+      expect(raw.request).toHaveBeenCalledOnce();
+      expect(raw.openSocket).not.toHaveBeenCalled();
+    } finally {
+      carrier.close?.();
+    }
+  },
+);
+
+it.each([true, false])(
+  'rejects an unknown pairing origin before fingerprint confirmation or network (encrypted=%s)',
+  async (encrypted) => {
+    const raw = { request: vi.fn(), openSocket: vi.fn() };
+    const confirmFingerprint = vi.fn(async () => true);
+    expect(
+      await redeemPairing({
+        payload: {
+          host: { id: 'host', name: 'Host' },
+          offer: 'synthetic-offer',
+          routes: ['https://attacker.example'],
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
+          ...(encrypted
+            ? {
+                encryption: {
+                  protocol: 'connect-noise-xk-v1' as const,
+                  publicKey: 'ab'.repeat(32),
+                },
+              }
+            : {}),
+        },
+        deviceName: 'Phone',
+        carrier: raw,
+        confirmFingerprint,
+      }),
+    ).toEqual({ ok: false, code: 'no-route' });
+    expect(confirmFingerprint).not.toHaveBeenCalled();
+    expect(raw.request).not.toHaveBeenCalled();
+    expect(raw.openSocket).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  'host-key-required',
+  'channel-authentication-failed',
+  'channel-timeout',
+  'channel-disconnected',
+])('does not retry a notification approval after Connect refuses with %s', async (reason) => {
+  const decide = vi.fn().mockRejectedValueOnce(new Error(reason)).mockResolvedValue('accepted');
+  expect(
+    await decideFromPush(
+      [
+        {
+          hostId: 'host',
+          hostName: 'Host',
+          deviceId: 'device',
+          credential: 'synthetic-credential',
+          routes: ['https://host.deepseekbot.dev', 'http://127.0.0.1:3080'],
+        },
+      ],
+      {
+        hostId: 'host',
+        kind: 'tool-approval',
+        botSlug: 'bot',
+        channelId: 'channel',
+        messageId: 'message',
+      },
+      'approve',
+      decide,
+    ),
+  ).toBe('failed');
+  expect(decide).toHaveBeenCalledOnce();
+});
