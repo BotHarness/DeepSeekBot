@@ -5,8 +5,6 @@ import type { StyleProp, TextStyle, ViewStyle } from 'react-native';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Yoga, { type Node as YogaNode } from 'yoga-layout';
 
-// The real renderer supplies the tree/styles; equal-width glyphs replace Android shaping.
-// Standalone Yoga catches width collapse, not Fabric integration or native performance.
 const native = vi.hoisted(() => ({
   width: 390,
   fontScale: 1,
