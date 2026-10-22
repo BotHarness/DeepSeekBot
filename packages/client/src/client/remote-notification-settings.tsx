@@ -52,7 +52,8 @@ export function RemoteNotificationSettings({
                 : undefined}
         </Note>
       )}
-      <SettingsSection description={t('remoteHosts.notifications.hint')}>
+      <SettingsSection>
+        <Note>{t('remoteHosts.notifications.hint')}</Note>
         <SettingsRow
           title={t('remoteHosts.notifications.enable')}
           control={

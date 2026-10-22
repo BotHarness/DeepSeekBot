@@ -127,8 +127,9 @@ export function HostLookSettings({
     }
   };
   return (
-    <SettingsSection description={t('remoteHosts.look.hint')}>
+    <SettingsSection>
       <div {...stylex.props(styles.editor)}>
+        <Note>{t('remoteHosts.look.hint')}</Note>
         {error || storageError ? (
           <div {...stylex.props(styles.section)}>
             <Note tone="danger">
