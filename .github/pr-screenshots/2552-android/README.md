@@ -13,7 +13,6 @@ Actual run: 2026-10-22, Android 16 arm64 physical phone, 1220 × 2712 screenshot
 - Preparation: 20 files / 163 tests and mobile typecheck passed. Separate baseline/candidate root builds passed; one sequential Metro and isolated QA Hosts. These source/build results are not native acceptance.
 - Official provider/model: `deepseek-official` / `deepseek-flash`, verified with actual phone composer → Host → visible reply, not API-only. USB loopback QA route does not prove tailnet or QR scanning.
 
-
 ## PR2552 — PARTIAL; native operations and canonical ownership sampled
 
 PASS sampled: full left swipe exposed actions and left canonical roster unchanged. Explicit native pin/mute/unpin/unmute changed the intended DM canonical fields. Native Android overflow menu also opened for a group. Empty section chooser worked; actual soft-keyboard pinyin composition selected `测试`, followed by `2552`; field and create control remained visible above keyboard. Create+assign produced exactly one `测试2552` section with the intended DM; pin was retained per this frozen PR's original contract. Later group assignment added the group to the same canonical section. Unpin/unmute preserved section membership.
@@ -23,7 +22,6 @@ Capture qualification: at07:31:47.306Z, about1.4s after create tap, the create s
 Host switch: unsent draft `255299` on QA Host A was dismissed by switching to the other owned QA Host. That Host chooser exposed only `Baseline Only`; canonical state showed no `255299` section on either Host and no cross-Host assignment. This is an unsent-draft switch case, not delayed in-flight create/refusal verification.
 
 UNTESTED: controlled create-success/assignment-failure retry, refresh failure, offline draft retention, in-flight Host refusal, TalkBack/hidden-rail focus, Reduce Motion, unread mark-read, full font/theme/rotation and form-caret matrix. Native labels sampled only. New organization design, Organize mode, Pinned grid and unpin-on-assign are excluded; original pin-preserving behavior cannot qualify the newer spec.
-
 
 cjk.mp4 is the first59seconds of actual soft-keyboard composition at original speed. It ends before submission and does not prove successful create/assign; Host facts and subsequent snapshots establish that separately. created.png is the early selected-name/Retry intermediate state; it must not be captioned final failure or final success.
 
@@ -38,4 +36,3 @@ Own Host/Metro processes, descendants, ports and recorders were stopped. Lease a
 Telemetry2570 remained BLOCKED: no independent production-egress isolation or dedicated synthetic container. No analytics configuration, interception, statistics-file mutation or personal opt-out operation occurred. Hermes2565, HostSettings2564, grid2574, Video and native splash2579 were excluded. Splash2579 is accepted for a future main batch containing merge55fe0fa36669e21d343bec7e417b2387d239118f and requires a new native APK; old binary/Metro cannot verify it.
 
 Public images are pixel crops removing status/navigation bars only, with hashes and source binding. Raw logs, identifiers, private profiles, XML and unreviewed frames remain private. Public publication status is tracked in the sole queue; local assets alone do not complete PR evidence delivery.
-
