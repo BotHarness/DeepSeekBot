@@ -35,6 +35,12 @@ The launch summary includes the Host PID and local login URL. For Client edits, 
 
 The helper injects a shared machine-local DeepSeek key when available; `node scripts/dev-secret.mjs check` reports its source without a value. Existing Profile credentials are another DSH source. Confirm model access with a real DM reply. `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` copies only the DeepSeek reference into a private local file for later isolated Profiles.
 
+Before launch and before finishing or handing off a run, follow
+[verification resource cleanup](../../../docs/agents/ax-resource-cleanup.md). The detached Host
+outlives the launcher: record its ownership, then verify process exit and port release before
+removing its Profile or worktree. Keep a running environment only under the documented handoff
+or shared QA lease.
+
 ## DSH 0.2.1 migration contracts
 
 Source inspection of `dsh-subagent/lib/types/types.d.ts` and `lib/index.js` in `0.2.1-rc.2`:
