@@ -2,7 +2,7 @@ import { Host } from '@expo/ui';
 import { Image } from '@expo/ui/swift-ui';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureStateManager } from 'react-native-gesture-handler';
 import { useAnimatedReaction, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { useDesignTheme } from '../design/theme';
@@ -80,8 +80,8 @@ export function VoiceButton(props: {
           if (!touch) return;
           origin.set({ x: touch.absoluteX, y: touch.absoluteY, at: Date.now() });
           decision.set('none');
-          manager.activate();
         })
+        .onBegin((event) => GestureStateManager.activate(event.handlerTag))
         .onStart(() => scheduleOnRN(begin))
         .onTouchesMove((event) => {
           if (decision.get() !== 'none') return;
