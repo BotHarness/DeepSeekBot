@@ -106,7 +106,14 @@ export class FakeHost {
   readonly answers = new Map<string, (args: Record<string, unknown>) => unknown>();
   readonly calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   readonly channels = new Map<string, FakeChannel>();
-  readonly methods = new Map<string, (args: Record<string, unknown>) => unknown>();
+  readonly methods = new Map<string, (args: Record<string, unknown>) => unknown>([
+    [
+      'settings/describe',
+      () => ({
+        namespaces: [{ ns: 'botharness-client', value: { sortMode: 'updated', sortModes: {} } }],
+      }),
+    ],
+  ]);
   readonly failing = new Set<string>();
   readonly uploads: Array<{ name: string; type: string; text: string }> = [];
 

@@ -494,8 +494,12 @@ The Human-confirmed end of a Channel’s active membership and routing while ret
 _Avoid_: Hidden Channel, Content Purge, provider conversation deletion
 
 **Channel section**:
-A user-created, collapsible grouping of Channels in the Channel list panel. Local display arrangement, not part of a Soul.
+A user-created, collapsible grouping of Channels in the Channel list panel. Its membership and order belong to the owning Host's display arrangement, not to a Soul.
 _Avoid_: folder, category, group
+
+**Pinned section (置顶分区)**:
+A built-in presentation of a Host's pinned Channels, separate from user-created Channel-section membership. Pinning preserves a Channel's original section membership while displaying it only in the Pinned section; unpinning restores its ordinary placement.
+_Avoid_: copied Channel, user-created section, device-local pin store
 
 **Section order (区块顺序)**:
 The relative order of Channel sections in the Channel list panel: creation order by default, user-arranged afterwards. Ungrouped Channels may occupy top-level positions between sections without becoming sections.

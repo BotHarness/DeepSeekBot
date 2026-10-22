@@ -2,7 +2,7 @@
   "expo": {
     "name": "DeepSeekBot Dev",
     "slug": "deepseekbot",
-    "scheme": ["deepseekbot-dev", "deepseekbot", "ai.botharness.deepseekbot.dev"],
+    "scheme": ["deepseekbot-dev", "ai.botharness.deepseekbot.dev"],
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",

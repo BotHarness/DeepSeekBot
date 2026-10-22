@@ -1,7 +1,7 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
@@ -25,11 +25,21 @@ import {
   runConversationAction,
 } from '../../../src/ui/chat/conversation-actions';
 import { showAppDialog } from '../../../src/ui/primitives/app-dialog';
-import { conversations, searchKey, type Conversation } from '../../../src/ui/chat/conversations';
+import {
+  chatList,
+  conversations,
+  searchKey,
+  type ChatListItem,
+  type Conversation,
+} from '../../../src/ui/chat/conversations';
+import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
+import { SectionHeader } from '../../../src/ui/chat/section-header';
+import { PinnedConversationCard } from '../../../src/ui/chat/pinned-conversation-card';
+import { pinnedColumns, withPinnedBands, type PinnedBand } from '../../../src/ui/chat/pinned-grid';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
-import { space } from '../../../src/ui/design/tokens';
+import { pinnedGrid, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -66,6 +76,20 @@ type Row =
       conversation: CloudConversation;
       pinned: false;
       at?: string;
+    };
+type ListRow =
+  | Row
+  | {
+      type: 'section';
+      key: string;
+      environment: string;
+      section: Extract<ChatListItem, { kind: 'section' }>;
+    }
+  | {
+      type: 'pinned-band';
+      key: string;
+      environment: string;
+      band: PinnedBand;
     };
 export default function HomeScreen() {
   const focused = useIsFocused();
@@ -120,6 +144,7 @@ const HomeContent = memo(function HomeContent({
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string>();
+  const [refreshFailedHost, setRefreshFailedHost] = useState<string>();
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
   const unpaired =
     !cloudAvailable &&
@@ -158,6 +183,10 @@ const HomeContent = memo(function HomeContent({
   const environment = filters.find((item) => item.key === filter) ?? filters[0]!;
   const effectiveFilter = environment.key;
   const quiet = useQuietChannels(saved?.hostId);
+  const collapsed = useCollapsedSections(saved?.hostId);
+  const window = useWindowDimensions();
+  const [listWidth, setListWidth] = useState<number>();
+  const columns = pinnedColumns(listWidth ?? window.width, window.fontScale);
   useFocusEffect(
     useCallback(() => {
       if (saved) refreshQuietChannels(saved);
@@ -238,6 +267,36 @@ const HomeContent = memo(function HomeContent({
           a.key.localeCompare(b.key),
       );
   }, [snapshot.roster, list, directory.rows, saved, query, quiet]);
+  const displayed = useMemo((): ListRow[] => {
+    const visible = (row: { environment: string }) =>
+      effectiveFilter === 'all' || row.environment === effectiveFilter;
+    if (searchKey(query)) return rows.filter(visible);
+    const hostEnvironment = saved ? computerEnvironmentKey(saved.hostId) : '';
+    const hostRows = new Map(
+      rows.filter((row) => row.type === 'computer').map((row) => [row.conversation.key, row]),
+    );
+    const grouped: ListRow[] = saved
+      ? withPinnedBands(
+          chatList(
+            snapshot.roster,
+            list.status === 'ready' ? list.sections.action : [],
+            collapsed,
+            list.status === 'ready' ? list.unread : {},
+            quiet,
+          ),
+          columns,
+        ).flatMap((item): ListRow[] => {
+          const key = JSON.stringify(['computer', saved.hostId, item.key]);
+          if (item.kind === 'section')
+            return [{ type: 'section', key, environment: hostEnvironment, section: item }];
+          if (item.kind === 'pinned-band')
+            return [{ type: 'pinned-band', key, environment: hostEnvironment, band: item }];
+          const row = hostRows.get(item.row.key);
+          return row ? [row] : [];
+        })
+      : [];
+    return [...grouped, ...rows.filter((row) => row.type === 'cloud')].filter(visible);
+  }, [rows, effectiveFilter, query, saved, snapshot.roster, list, collapsed, quiet, columns]);
   if (saved === undefined || (!cloud.ready && !cloud.error))
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -274,9 +333,12 @@ const HomeContent = memo(function HomeContent({
     );
   const refresh = async () => {
     setRefreshing(true);
-    await Promise.all([client?.refresh(), inbox?.refresh(), cloudConversations.refresh()]).catch(
-      () => undefined,
-    );
+    const result = await Promise.allSettled([
+      client?.refresh(),
+      inbox?.refresh(),
+      cloudConversations.refresh(),
+    ]);
+    setRefreshFailedHost(result[0]?.status === 'rejected' ? saved?.hostId : undefined);
     setRefreshing(false);
   };
   const openCloud = async (target: CloudConversation) => {
@@ -315,6 +377,41 @@ const HomeContent = memo(function HomeContent({
     } finally {
       setOpening(false);
     }
+  };
+  const renderHostConversation = (conversation: Conversation, pinned: boolean, card = false) => {
+    const Component = card ? PinnedConversationCard : ConversationRow;
+    return (
+      <Component
+        key={`${saved?.hostId}:${conversation.key}`}
+        previewHref={conversationPeek ? conversationHref(conversation, saved?.hostId) : undefined}
+        row={conversation}
+        now={new Date()}
+        look={look}
+        onPress={() => openConversation(router, conversation, saved?.hostId)}
+        actions={conversationActions(conversation, {
+          pinned: pinned,
+          hostMuted:
+            snapshot.roster?.arrangement?.muted?.includes(
+              conversationChannelId(conversation) ?? '',
+            ) === true,
+        })}
+        onAction={(key) => {
+          if (client === undefined) return;
+          if (key === 'section') {
+            const channelId = conversationChannelId(conversation);
+            if (channelId && saved)
+              router.push({
+                pathname: '/conversation-section',
+                params: { hostId: saved.hostId, channelId },
+              });
+            return;
+          }
+          runConversationAction(client, inbox, conversation, key).catch(() =>
+            showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
+          );
+        }}
+      />
+    );
   };
   return (
     <>
@@ -358,7 +455,7 @@ const HomeContent = memo(function HomeContent({
         >
           <PullToRefresh refreshing={refreshing || directory.busy} onRefresh={() => void refresh()}>
             {(pull) => (
-              <Animated.FlatList<Row>
+              <Animated.FlatList<ListRow>
                 {...pull}
                 renderScrollComponent={renderKeyboardFormScroll}
                 onScroll={onScroll}
@@ -366,9 +463,8 @@ const HomeContent = memo(function HomeContent({
                 contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
-                data={rows.filter(
-                  (row) => environment.key === 'all' || row.environment === environment.key,
-                )}
+                onLayout={(event) => setListWidth(event.nativeEvent.layout.width)}
+                data={displayed}
                 keyExtractor={(r) => r.key}
                 ListHeaderComponent={
                   <>
@@ -381,6 +477,21 @@ const HomeContent = memo(function HomeContent({
                           onPairAgain={() => router.push('/pair')}
                         />
                       )}
+                    {saved &&
+                    refreshFailedHost === saved.hostId &&
+                    (environment.key === 'all' ||
+                      environment.key === computerEnvironmentKey(saved.hostId)) ? (
+                      <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                        <Text tone="muted">{t.hostListUnavailable}</Text>
+                        <Button
+                          testID="chat-list-retry"
+                          label={t.retry}
+                          on="canvas"
+                          onPress={() => void refresh()}
+                          disabled={refreshing}
+                        />
+                      </View>
+                    ) : null}
                     {(directory.errors.length > 0 || cloud.error || error) && (
                       <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
                         {t.cloudListUnavailable}
@@ -406,41 +517,40 @@ const HomeContent = memo(function HomeContent({
                   )
                 }
                 renderItem={({ item }) =>
-                  item.type === 'computer' ? (
-                    <ConversationRow
-                      key={`${saved?.hostId}:${item.conversation.key}`}
-                      previewHref={
-                        conversationPeek
-                          ? conversationHref(item.conversation, saved?.hostId)
-                          : undefined
-                      }
-                      row={item.conversation}
-                      now={new Date()}
-                      look={look}
-                      onPress={() => openConversation(router, item.conversation, saved?.hostId)}
-                      actions={conversationActions(item.conversation, {
-                        pinned: item.pinned,
-                        hostMuted:
-                          snapshot.roster?.arrangement?.muted?.includes(
-                            conversationChannelId(item.conversation) ?? '',
-                          ) === true,
-                      })}
-                      onAction={(key) => {
-                        if (client === undefined) return;
-                        if (key === 'section') {
-                          const channelId = conversationChannelId(item.conversation);
-                          if (channelId && saved)
-                            router.push({
-                              pathname: '/conversation-section',
-                              params: { hostId: saved.hostId, channelId },
-                            });
-                          return;
-                        }
-                        runConversationAction(client, inbox, item.conversation, key).catch(() =>
-                          showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-                        );
+                  item.type === 'section' ? (
+                    <SectionHeader
+                      testID={`chat-section-${item.section.id}`}
+                      name={item.section.name ?? t.pinnedSection}
+                      count={item.section.count}
+                      needsYou={item.section.needsYou}
+                      unread={item.section.unread}
+                      collapsed={item.section.collapsed}
+                      onToggle={() => {
+                        if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
                       }}
                     />
+                  ) : item.type === 'pinned-band' ? (
+                    <View
+                      testID="pinned-grid-band"
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'flex-start',
+                        gap: pinnedGrid.gap,
+                        paddingHorizontal: pinnedGrid.inset,
+                      }}
+                    >
+                      {item.band.rows.map((conversation) =>
+                        renderHostConversation(conversation, true, true),
+                      )}
+                      {Array.from(
+                        { length: item.band.columns - item.band.rows.length },
+                        (_, index) => (
+                          <View key={`empty:${index}`} style={{ flex: 1 }} />
+                        ),
+                      )}
+                    </View>
+                  ) : item.type === 'computer' ? (
+                    renderHostConversation(item.conversation, item.pinned)
                   ) : (
                     <CloudConversationRow
                       row={item.conversation}

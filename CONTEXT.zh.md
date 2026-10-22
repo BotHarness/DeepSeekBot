@@ -491,8 +491,12 @@ _避免使用_：deleted Channel、archived Channel、muted Channel、Content Pu
 _避免使用_：Hidden Channel、Content Purge、provider conversation deletion
 
 **Channel section**：
-用户创建、可折叠的 Channel 分组，显示在频道列表面板中。它只是本地 display arrangement，不属于 Soul。
+用户创建、可折叠的 Channel 分组，显示在频道列表面板中。归属与顺序属于对应 Host 的 display arrangement，不属于 Soul。
 _避免使用_：folder、category、group
+
+**Pinned section (置顶分区)**：
+内置的展示分区，呈现某个 Host 已置顶的 Channel，与用户创建的 Channel section 归属独立。置顶保留 Channel 的原分区归属，但只在置顶分区展示；取消置顶后恢复普通位置。
+_避免使用_：Channel 副本、用户创建的分区、设备本地置顶存储
 
 **Section order (区块顺序)**：
 频道列表面板中 Channel section 的相对顺序：默认按创建顺序，之后可由用户排列。未分组 Channel 可以占据 section 之间的顶层位置，但不会因此成为 section。

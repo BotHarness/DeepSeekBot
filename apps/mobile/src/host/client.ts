@@ -4,6 +4,7 @@ import type { ConnectionTelemetry } from '../telemetry/connection';
 import { ActivitySmoother } from '../../../../packages/client/src/client/activity-smoothing';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
+import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
 import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
 import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
@@ -96,6 +97,7 @@ export interface RosterView {
   channels: RosterChannel[];
   activityChannels?: ChannelListItem[];
   arrangement?: RosterArrangement;
+  sorting?: RosterSorting;
 }
 
 export interface HostSnapshot {
@@ -290,6 +292,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const smoother = new ActivitySmoother<WireBotActivity>();
   let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
+  let sorting: RosterSorting | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -369,6 +372,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       channels: groups,
       activityChannels: [...channels.values()].filter((channel) => channel.deletedAt === undefined),
       ...(arrangement === undefined ? {} : { arrangement }),
+      ...(sorting === undefined ? {} : { sorting }),
     };
   };
 
@@ -601,17 +605,19 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const reloadOnce = async (): Promise<void> => {
-    const [list, channelList, rosterArrangement] = await Promise.all([
+    const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       call<{ channels: ChannelListItem[] }>('channels'),
       call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
         if (error instanceof MethodRefused) return undefined;
         throw error;
       }),
+      call<unknown>('settings/describe').then(rosterSortingOf),
     ]);
     bots = list.bots;
     channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
     arrangement = rosterArrangement;
+    sorting = rosterSorting;
     publish();
   };
 
