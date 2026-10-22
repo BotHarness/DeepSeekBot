@@ -54,6 +54,8 @@ Mobile app entries below describe the independently versioned mobile Beta; this 
 
 - Connect sign-in explains private-window account switching and shows the signed-in email with Sign out; phone sign-in requests fresh authentication instead of silently reusing the browser session ([#2520](https://github.com/BotHarness/DeepSeekBot/issues/2520)).
 
+- The iOS message composer now keeps the attachment button inside one taller rounded island, with more room around the input ([#2566](https://github.com/BotHarness/DeepSeekBot/issues/2566)).
+
 ### Fixed
 
 - Fixed Bot mode lagging while idle on long conversations since 1.4.0: hidden hover toolbars no longer rebuild every bubble on repaint, onboarding polls no longer re-render the conversation, and message times and fold sizes are measured more cheaply ([#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)).

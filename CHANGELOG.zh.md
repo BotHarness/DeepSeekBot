@@ -54,6 +54,8 @@ DeepSeekBot Connect 让手机不装 Tailscale、用账号就能配对；频道�
 
 - Connect 登录会说明如何用无痕窗口切换账号，并显示当前邮箱和退出入口；手机登录要求重新验证身份，不再默默沿用浏览器会话（[#2520](https://github.com/BotHarness/DeepSeekBot/issues/2520)）。
 
+- iOS 消息输入框将附件按钮收进同一个更高的圆角容器，为输入区域留出更多空间（[#2566](https://github.com/BotHarness/DeepSeekBot/issues/2566)）。
+
 ### Fixed
 
 - 修复自 1.4.0 起 Bot 模式在长对话中空闲时卡顿的问题：隐藏的悬浮工具栏不再让每次重绘重建所有气泡，引导轮询不再重渲染整个对话，消息时间与折叠尺寸的计算也更省（[#2413](https://github.com/BotHarness/DeepSeekBot/issues/2413)）。
