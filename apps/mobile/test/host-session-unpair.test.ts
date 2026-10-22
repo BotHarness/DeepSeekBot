@@ -10,12 +10,16 @@ const forgotten = vi.hoisted(() => [] as string[]);
 const clearCache = vi.hoisted(() => vi.fn((hostId: string) => void clearedCaches.push(hostId)));
 const clearDrafts = vi.hoisted(() => vi.fn(async () => {}));
 const clientStops = vi.hoisted(() => vi.fn());
+let beforeRead: ((key: string) => Promise<void>) | undefined;
 let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
 let savedFilter = 'all';
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
-  getItemAsync: async (key: string) => secure.get(key) ?? null,
+  getItemAsync: async (key: string) => {
+    await beforeRead?.(key);
+    return secure.get(key) ?? null;
+  },
   setItemAsync: async (key: string, value: string) => {
     await beforeSave?.(key, value);
     secure.set(key, value);
@@ -152,6 +156,7 @@ beforeEach(() => {
   clearedCaches.length = 0;
   forgotten.length = 0;
   beforeSave = undefined;
+  beforeRead = undefined;
   savedFilter = 'all';
   vi.resetModules();
 });
@@ -353,5 +358,67 @@ it.each(['draft', 'cache', 'recent'] as const)(
     expect(
       JSON.parse(secure.get('deepseekbot.recent-chats.v1')!).map((chat: { id: string }) => chat.id),
     ).toEqual(['coder']);
+  },
+);
+
+it.each([false, true])(
+  'does not finish account cleanup from an unreadable store (pending journal: %s)',
+  async (pending) => {
+    const owner = {
+      issuer: 'https://api.workos.com' as const,
+      relay: 'https://fixture.invalid',
+      clientId: 'client_fixture',
+      subject: 'user_a',
+    };
+    const owned = { ...host('old'), accountOwner: owner };
+    const original = JSON.stringify(
+      pending
+        ? { hosts: [host('new')], pendingAccountRemoval: [owned] }
+        : { hosts: [owned, host('new')], current: 'old' },
+    );
+    secure.set('deepseekbot.hosts.v3', original);
+    beforeRead = async (key) => {
+      if (key === 'deepseekbot.hosts.v3') throw new Error('storage unavailable');
+    };
+    const { hostSession } = await import('../src/host/host-session');
+    await vi.waitFor(() => expect(hostSession.getState().saved).toBeNull());
+    const { createConnectAccount } = await import('../src/host/connect-account');
+    let storedAccount: string | null = JSON.stringify({
+      clientId: owner.clientId,
+      refreshToken: 'fixture',
+      subject: owner.subject,
+      sessionId: 'fixture-sign-in',
+    });
+    const account = createConnectAccount({
+      relay: owner.relay,
+      redirectUri: 'fixture:/callback',
+      removeConnections: (owner) => hostSession.removeAccount(owner),
+      runtime: {
+        read: async () => storedAccount,
+        write: async (value) => {
+          storedAccount = value;
+        },
+        request: async () => {
+          throw new Error('no network allowed');
+        },
+        random: () => 'unused',
+        challenge: async (value) => value,
+        authorize: async () => null,
+        now: () => 0,
+      },
+    });
+    const key = (await account.actionKey())!;
+    expect(await account.signOut(key)).toEqual({ ok: false, code: 'account-cleanup-failed' });
+    expect(JSON.parse(storedAccount!).action).toBe('signOut');
+    expect(secure.get('deepseekbot.hosts.v3')).toBe(original);
+    expect(clearedCaches).toEqual([]);
+    beforeRead = undefined;
+    expect(await account.signOut(key)).toEqual({ ok: true, value: undefined });
+    expect(storedAccount).toBeNull();
+    expect(savedIds()).toEqual(['new']);
+    expect(
+      parseSavedHosts(secure.get('deepseekbot.hosts.v3')).pendingAccountRemoval,
+    ).toBeUndefined();
+    expect(clearedCaches).toEqual(['old']);
   },
 );

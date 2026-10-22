@@ -136,13 +136,13 @@ async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): 
   adopt(next, trigger);
 }
 
-const hostsReady = loadSavedHosts().then(
-  (hosts) => {
-    adopt(hosts);
-    void pushSession.sync(hosts.hosts);
-  },
-  () => adopt({ hosts: [] }),
-);
+let hostsLoaded = false;
+const restoreHosts = (hosts: SavedHosts) => {
+  adopt(hosts);
+  hostsLoaded = true;
+  void pushSession.sync(hosts.hosts);
+};
+const hostsReady = loadSavedHosts().then(restoreHosts, () => adopt({ hosts: [] }));
 
 AppState.addEventListener('change', (next) => {
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
@@ -157,7 +157,11 @@ AppState.addEventListener('change', (next) => {
 
 let mutation: Promise<unknown> = Promise.resolve();
 function serialize<T>(work: () => Promise<T>): Promise<T> {
-  const next = mutation.then(() => hostsReady).then(work, work);
+  const next = mutation.then(async () => {
+    await hostsReady;
+    if (!hostsLoaded) restoreHosts(await loadSavedHosts());
+    return work();
+  });
   mutation = next.catch(() => undefined);
   return next;
 }
