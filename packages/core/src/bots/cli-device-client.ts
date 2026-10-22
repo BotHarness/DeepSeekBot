@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { pairHost } from '../../../../apps/mobile/src/host/pairing.js';
-import { parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+import { parseSavedHost, serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { createHostClient } from '../../../../apps/mobile/src/host/client.js';
 import { isLanRoute, isEncryptedRoute } from '../../../../apps/mobile/src/host/route.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
@@ -66,7 +66,10 @@ export async function runDeviceClientCommand(
       },
       telemetry: { pairing: () => ({ finish: () => {} }) },
       save: async (host) => {
-        writeFileSync(values.out!, `${JSON.stringify(host)}\n`, { flag: 'wx', mode: 0o600 });
+        writeFileSync(values.out!, `${JSON.stringify(serializeSavedHost(host))}\n`, {
+          flag: 'wx',
+          mode: 0o600,
+        });
         summary = {
           hostId: host.hostId,
           deviceId: host.deviceId,

@@ -58,6 +58,10 @@ it('never sends an SSH pairing credential over raw loopback after a local port i
   });
   expect(saved?.encryption?.loopback).toBe('encrypted');
   if (!saved) throw new Error('missing fixture');
+  const persisted = serializeSavedHost(saved);
+  expect(persisted.routes).toEqual([]);
+  expect(parseSavedHost(JSON.parse(JSON.stringify(persisted)))).toEqual(saved);
+  expect(parseSavedHost({ ...persisted, routes: ['http://127.0.0.1:32451'] })).toBeUndefined();
   expect(
     parseSavedHost({ ...saved, encryption: { ...saved.encryption, hostKey: 'invalid' } }),
   ).toBeUndefined();
@@ -103,7 +107,7 @@ it.each(['https://host.deepseekbot.dev', 'http://192.168.1.20:39101'])(
   },
 );
 
-import { parseSavedHost, withHost } from '../src/host/hosts';
+import { parseSavedHost, serializeSavedHost, withHost } from '../src/host/hosts';
 it('persists the complete trust record and refuses a silent pin change or removal', () => {
   const host = {
     hostId: 'host',

@@ -29,6 +29,18 @@ function record(value: unknown): Record<string, unknown> {
 
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
+  const encryptedRoutes = value['encryptedLoopbackRoutes'];
+  if (
+    encryptedRoutes !== undefined &&
+    (record(value['encryption'])['loopback'] !== 'encrypted' ||
+      !Array.isArray(value['routes']) ||
+      value['routes'].length !== 0 ||
+      !Array.isArray(encryptedRoutes) ||
+      encryptedRoutes.length !== 1 ||
+      typeof encryptedRoutes[0] !== 'string' ||
+      !/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/u.test(encryptedRoutes[0]))
+  )
+    return undefined;
   if (
     record(value['encryption'])['loopback'] === 'encrypted' &&
     parseEncryption(value['encryption']) === undefined
@@ -49,11 +61,17 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
           : { encryption: parseEncryption(value['encryption'])! }),
         hostId: value['hostId'],
         hostName: value['hostName'],
-        routes: value['routes'] as string[],
+        routes: (encryptedRoutes ?? value['routes']) as string[],
         deviceId: value['deviceId'],
         credential: value['credential'],
       }
     : undefined;
+}
+
+export function serializeSavedHost(host: SavedHost) {
+  return host.encryption?.loopback === 'encrypted'
+    ? { ...host, routes: [], encryptedLoopbackRoutes: host.routes }
+    : host;
 }
 
 function parse(text: string | null | undefined): unknown {
