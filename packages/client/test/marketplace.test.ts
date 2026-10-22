@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
@@ -237,7 +239,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '加载更多');
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh', cursor: 'page-2' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', cursor: 'page-2' });
         expect(
           [...host.querySelectorAll('[data-market-bot]')].map((row) =>
             row.getAttribute('data-market-bot'),
@@ -474,13 +476,13 @@ describe('Bot Marketplace modal', () => {
       async (query) =>
         query?.sort === 'stars' ? { bots: [entry('popular')] } : { bots: [entry('fresh')] },
       async ({ host, list }) => {
-        expect(host.textContent).toContain('fresh description');
-
-        await click(host, '最多 Star');
-
-        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
         expect(host.textContent).toContain('popular description');
-        expect(host.textContent).not.toContain('fresh description');
+
+        await click(host, '最近更新');
+
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        expect(host.textContent).toContain('fresh description');
+        expect(host.textContent).not.toContain('popular description');
 
         await click(host, '最新创建');
 
@@ -510,14 +512,14 @@ describe('Bot Marketplace modal', () => {
         await pressEnter(search);
 
         expect(list).toHaveBeenCalledTimes(2);
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh', q: 'translator' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', q: 'translator' });
         expect(host.textContent).toContain('搜索结果按相关度排序');
         expect(button(host, '最近更新').disabled).toBe(true);
 
         await click(host, '加载更多');
 
         expect(list).toHaveBeenLastCalledWith({
-          sort: 'updated',
+          sort: 'stars',
           lang: 'zh',
           q: 'translator',
           cursor: 'search-2',
@@ -527,7 +529,7 @@ describe('Bot Marketplace modal', () => {
 
         await typeInto(search, '');
         await pressEnter(search);
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
       },
     );
   });
@@ -541,13 +543,13 @@ describe('Bot Marketplace modal', () => {
 
         await act(async () => chip.click());
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh', topic: 'research' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh', topic: 'research' });
         expect(chip.getAttribute('aria-pressed')).toBe('true');
         expect(host.textContent).toContain('没有符合条件的 Bot');
 
         await click(host, '全部');
 
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
         expect(host.textContent).toContain('fresh description');
       },
       undefined,
@@ -639,7 +641,7 @@ describe('Bot Marketplace modal', () => {
         expect(detail).toHaveBeenLastCalledWith('R_helper', 'en');
 
         await click(host, 'Back');
-        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'en' });
+        expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'en' });
         expect(detail).toHaveBeenCalledTimes(2);
       },
       undefined,

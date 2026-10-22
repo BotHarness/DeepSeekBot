@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "marketplace.browse",
+      "label": "Browse flat Bot cards with banners, topic filters and remembered sorting",
+      "source": "packages/client/src/client/market-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 2568,
+      "gap": "Web Panel light/dark and reload verified; production Worker deployment and native Desktop qualification remain separate."
+    },
+    {
       "id": "phone.drawer-views",
       "label": "Choose All or one Host from the phone drawer with Android Host accent",
       "source": "apps/mobile/src/ui/shell/host-drawer.tsx",

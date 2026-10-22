@@ -644,6 +644,8 @@ deepseekbot group-activity <group-channel>
 
 ### 市场、版本更新、使用统计、Git 与配对审核
 
+客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
+
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
 ```bash
