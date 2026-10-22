@@ -132,6 +132,7 @@ async function inspectorFixture(
     modules?: number;
     invalidReply?: unknown;
     disconnectAfterPending?: boolean;
+    disconnectAfterFulfilled?: boolean;
     delayStart?: Promise<void>;
     delayFulfilled?: Promise<void>;
   } = {},
@@ -216,6 +217,11 @@ async function inspectorFixture(
           heldFulfilled.resolve();
           gate = options.delayFulfilled;
         }
+        if (value?.state === 'fulfilled' && options.disconnectAfterFulfilled) {
+          heldFulfilled.resolve();
+          socket.close();
+          return;
+        }
         result = { result: { value: options.invalidReply ?? value } };
       } catch (error) {
         result = { exceptionDetails: { exception: { description: String(error) } } };
@@ -233,6 +239,7 @@ async function inspectorFixture(
   if (!address || typeof address === 'string') throw Error('address required');
   const port = address.port;
   const peersClosed: Promise<void>[] = [];
+  const exits: number[] = [];
   const originalClose = WebSocket.prototype.close;
   const closeSpy = vi.spyOn(WebSocket.prototype, 'close').mockImplementation(function (
     this: any,
@@ -244,7 +251,7 @@ async function inspectorFixture(
   });
   const run = async (target = 'target', preferences?: PushPreferences) => {
     const output: string[] = [];
-    await runBotCreateCli(
+    const exitCode = await runBotCreateCli(
       [
         'phone-notifications',
         '--metro-port',
@@ -262,10 +269,12 @@ async function inspectorFixture(
         stderr: () => {},
       },
     );
+    exits.push(exitCode);
     return JSON.parse(output[0]!);
   };
   return {
     run,
+    exits,
     received: received.promise,
     discovered: discovered.promise,
     pendingPoll: pendingPoll.promise,
@@ -310,6 +319,137 @@ async function inspectorFixture(
     },
   };
 }
+
+it.each(['deadline', 'disconnect'])(
+  'reports unknown write outcome after the owner saved but its reply was lost to %s',
+  async (failure) => {
+    let disk = DEFAULT_NOTIFICATION_PREFERENCES;
+    const write = vi.fn((preferences: PushPreferences) => {
+      disk = preferences;
+    });
+    const owner = createDeviceNotificationPreferences({
+      storage: { read: async () => disk, write },
+      push: { settings: vi.fn(), setPreferences: vi.fn() },
+    });
+    await owner.ready;
+    const reply = deferred<void>();
+    const fixture = await inspectorFixture({
+      owner,
+      delayFulfilled: failure === 'deadline' ? reply.promise : undefined,
+      disconnectAfterFulfilled: failure === 'disconnect',
+    });
+    let pending: Promise<unknown> | undefined;
+    try {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      pending = fixture.run('target', { ...disk, reply: false });
+      await bounded(fixture.heldFulfilled, 'saved owner with withheld receipt');
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(disk.reply).toBe(false);
+      expect(owner.getSnapshot().preferences?.reply).toBe(false);
+      if (failure === 'deadline') {
+        const settled = vi.fn();
+        void pending.then(settled);
+        await vi.advanceTimersByTimeAsync(19_999);
+        expect(settled).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+      }
+      const result = await bounded(pending, 'unknown write outcome');
+      expect(result).toMatchObject({
+        error: {
+          code: failure === 'deadline' ? 'inspector-timeout' : 'inspector-closed',
+          message: expect.stringContaining('write outcome is unknown'),
+        },
+      });
+      expect(JSON.stringify(result)).toContain(
+        'Read back with phone-notifications without --preferences-stdin before retrying.',
+      );
+      expect(JSON.stringify(result)).not.toContain('refused');
+      expect(fixture.exits).toEqual([1]);
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(disk.reply).toBe(false);
+      expect(fixture.slotKeys()).toEqual([]);
+    } finally {
+      reply.resolve();
+      try {
+        await fixture.close();
+        if (pending) await bounded(pending, 'unknown outcome CLI cleanup');
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    }
+  },
+);
+
+it.each([
+  { options: {}, target: 'missing', code: 'explicit-unique-target-required' },
+  { options: { runtimeDev: false }, target: 'target', code: 'debug-only' },
+  { options: { modules: 0 }, target: 'target', code: 'notification-owner-unavailable' },
+  { options: { modules: 2 }, target: 'target', code: 'notification-owner-unavailable' },
+])('keeps preflight refusal distinct from unknown write ($code)', async ({ options, target, code }) => {
+  const set = vi.fn();
+  const fixture = await inspectorFixture({
+    ...options,
+    owner: { ready: Promise.resolve(), set, getSnapshot: vi.fn() },
+  });
+  try {
+    const result = await bounded(
+      fixture.run(target, DEFAULT_NOTIFICATION_PREFERENCES),
+      'write preflight refusal',
+    );
+    expect(result).toMatchObject({
+      error: { code, message: expect.stringContaining('write was not started') },
+    });
+    expect(JSON.stringify(result)).not.toContain('unknown');
+    expect(set).not.toHaveBeenCalled();
+    expect(fixture.exits).toEqual([1]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+it('does not describe a disconnected read as an unknown write', async () => {
+  const fixture = await inspectorFixture({ disconnectAfterFulfilled: true });
+  try {
+    const result = await bounded(fixture.run(), 'read receipt disconnected');
+    expect(result).toMatchObject({
+      error: {
+        code: 'inspector-closed',
+        message: 'Phone notification read failed; check the assigned development client.',
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('unknown');
+    expect(fixture.exits).toEqual([1]);
+  } finally {
+    await fixture.close();
+  }
+});
+
+it('keeps a result failure after set distinct from an unready owner before set', async () => {
+  const set = vi.fn();
+  const fixture = await inspectorFixture({
+    owner: {
+      ready: Promise.resolve(),
+      set,
+      getSnapshot: () => ({ preferences: undefined, syncing: false, failed: [] }),
+    },
+  });
+  try {
+    const result = await bounded(
+      fixture.run('target', DEFAULT_NOTIFICATION_PREFERENCES),
+      'missing result after set',
+    );
+    expect(result).toMatchObject({
+      error: {
+        code: 'notification-result-unavailable',
+        message: expect.stringContaining('write outcome is unknown'),
+      },
+    });
+    expect(set).toHaveBeenCalledTimes(1);
+  } finally {
+    await fixture.close();
+  }
+});
 
 it('settles the owner when Runtime.evaluate ignores awaitPromise for JavaScript Promises', async () => {
   const fixture = await inspectorFixture();
