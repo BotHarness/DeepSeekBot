@@ -122,7 +122,7 @@ export function MarkdownText({
                       ? `${Number(token.start) + itemIndex}.`
                       : '•'}
                 </Text>
-                <View style={{ flex: 1, gap: token.loose ? space.x3 : 0 }}>
+                <View style={{ flexShrink: 1, gap: token.loose ? space.x3 : 0 }}>
                   {blocks(item.tokens, animate && itemIndex === token.items.length - 1)}
                 </View>
               </View>
