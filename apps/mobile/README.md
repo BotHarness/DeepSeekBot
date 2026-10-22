@@ -33,6 +33,8 @@ MOBILE_LIVE_HOST_URL='http://127.0.0.1:<port>/?token=<token>' pnpm vitest run ap
 pnpm --filter @botharness/mobile export          # Metro bundles for iOS and Android
 ```
 
+For first-DM visibility, working-indicator ordering and reply scrolling, use the [first-reply regression checks](../../docs/agents/mobile-first-reply.md) ([中文](../../docs/agents/mobile-first-reply.zh.md)). The guide separates source coverage from queued iOS/Android acceptance.
+
 ## Full client in the app
 
 The full Host WebView and all in-app entry points are removed (#2541). Use native screens; operations they do not support require the Host client or a separately opened browser over Tailscale. The old `/botharness-device/web/` HTTP, cookie and socket proxy is unavailable. Native Browser/Computer viewers are separate features.
