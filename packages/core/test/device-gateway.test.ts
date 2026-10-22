@@ -46,6 +46,10 @@ async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0][
       res.writeHead(401);
       return res.end();
     }
+    if (req.headers['sec-fetch-site'] === 'cross-site') {
+      res.writeHead(403);
+      return res.end('forbidden');
+    }
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
     req.on('end', () => {
@@ -225,12 +229,21 @@ describe('device gateway', () => {
 
     const call = await fetch(`${host.base}/botharness-device/api/botharness/list`, {
       method: 'POST',
-      headers: { origin: browser, authorization: `Device ${credential}` },
+      headers: {
+        origin: browser,
+        authorization: `Device ${credential}`,
+        'sec-fetch-site': 'cross-site',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-user': '?1',
+      },
       body: '{"type":"client-request"}',
     });
     expect(call.status).toBe(200);
     expect(call.headers.get('access-control-allow-origin')).toBe(browser);
     expect(host.state.seen.at(-1)!.origin).toBeUndefined();
+    for (const name of ['sec-fetch-site', 'sec-fetch-mode', 'sec-fetch-dest', 'sec-fetch-user'])
+      expect(host.state.seen.at(-1)![name]).toBeUndefined();
 
     const withCookie = await fetch(`${host.base}/botharness-device/api/botharness/list`, {
       method: 'POST',

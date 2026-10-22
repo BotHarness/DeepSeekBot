@@ -43,6 +43,10 @@ const NEVER_FORWARDED = new Set([
   'authorization',
   'origin',
   'referer',
+  'sec-fetch-site',
+  'sec-fetch-mode',
+  'sec-fetch-dest',
+  'sec-fetch-user',
   DEVICE_ROUTE_HEADER,
 ]);
 const WEBSOCKET_HEADERS = [

@@ -428,3 +428,7 @@ unary admission and a bounded mux adapter at the Device Gateway, before native d
 The shared client refuses before serializing secret arguments: a Host refusal cannot remove
 plaintext already sent through Cloudflare. Verify HTTP, mux and ordinary streams against the
 pinned Host; this adapter is not encryption or an upstream DSH API extension.
+
+### Device gateway forwarding and Fetch Metadata
+
+The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cross-site` even when a Host-held cookie is valid. After the application-defined device gateway has checked the external Origin, refused ambient cookies and admitted the device credential, its own loopback request must discard the browser’s `Sec-Fetch-*` metadata along with Origin/Referer. These headers describe the external browser hop, not the gateway’s authenticated internal hop. Preserve all external admission checks and native DSH checks; do not relax either to repair remote tabs. A real two-Host desktop browser reproduced HTTP403 with the cross-site header and HTTP200 when only that metadata was omitted (#2584).
