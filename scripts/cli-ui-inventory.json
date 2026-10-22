@@ -92,9 +92,12 @@
     },
     {
       "id": "phone-route",
-      "description": "Phone route status and the confirmed tailscale serve publish behind the Pair a phone stepper.",
+      "description": "Phone route status and the confirmed tailscale serve publish under the separate Tailscale connection entry.",
       "scope": "Profile",
-      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.tailscale.title')}"
+      ],
       "commands": ["phone-route", "phone-route-publish"]
     },
     {
