@@ -1,6 +1,52 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalVideoClient, type LocalVideoTransport } from '../src/local-video-client.js';
 import { LOCAL_VIDEO_PATH, type LocalVideoBinding, type LocalVideoState } from '../src/local-video-contract.js';
+import { createLocalVideoOwner } from '../src/local-video-owner.js';
+import { localVideoCommand } from '../src/local-video-http.js';
+
+function ownerFixture() {
+  vi.useFakeTimers();
+  vi.setSystemTime(10_000);
+  const caller = { deviceId: 'same-admitted-device' };
+  let paused = false;
+  const peer = {
+    offer: { type: 'offer' as const, sdp: 'v=0\r\n' },
+    display: { width: 1280, height: 720 },
+    answer: vi.fn(async () => {}),
+    close: vi.fn(async () => {}),
+  };
+  const effects = vi.fn(async () => ({ content: [] }));
+  const owner = createLocalVideoOwner({
+    pause: { read: () => paused, write: (value) => { paused = value; } },
+    isRunning: () => true,
+    driver: { call: async (tool) => tool === 'get_screen_size'
+      ? { structuredContent: peer.display } : effects() },
+    media: { open: async ({ onStatus }) => {
+      onStatus({ status: 'live', captureAlive: true, ...peer.display });
+      return peer;
+    } },
+  });
+  const calls: Record<string, unknown>[] = [];
+  const transport: LocalVideoTransport = {
+    async api(_path, { body, signal }) {
+      calls.push(body);
+      const result = await localVideoCommand(owner, caller, body, signal);
+      return { status: result.ok ? 200 : 409, body: result };
+    },
+  };
+  const first = createLocalVideoClient(transport);
+  const acquire = async () => {
+    await first.start();
+    const binding = first.getState().host!.binding!;
+    await first.answer(binding.attemptId, 'v=0\r\n');
+    first.playback(binding.attemptId, 1, 0);
+    await vi.advanceTimersByTimeAsync(2_000);
+    await first.takeover();
+    expect(first.getState().status).toBe('controlling');
+    return binding;
+  };
+  return { owner, caller, peer, effects, calls, transport, first, acquire };
+}
 
 const click = { kind: 'click', x: 40, y: 50, count: 1, button: 'left' } as const;
 
@@ -53,6 +99,119 @@ function fixture() {
 afterEach(() => vi.useRealTimers());
 
 describe('Local Computer video consumer', () => {
+  it.each(['viewer-limit', 'native-unavailable', 'stop-after-status', 'open-failed'] as const)(
+    'keeps the first same-device viewer and grant intact when a second client ends at %s', async (mode) => {
+      const h = ownerFixture();
+      const secondCalls: Record<string, unknown>[] = [];
+      const second = createLocalVideoClient({ api: async (path, init) => {
+        secondCalls.push(init.body);
+        if (mode === 'open-failed' && init.body['kind'] === 'open') throw new Error('transport failed');
+        return h.transport.api(path, init);
+      } }, { mediaAvailable: mode !== 'native-unavailable' });
+      const unsubscribe = second.subscribe(() => {
+        if (mode === 'stop-after-status' && second.getState().status === 'opening' && second.getState().host)
+          void second.stop();
+      });
+      try {
+        const binding = await h.acquire();
+        const grant = h.first.getState().host!.grant;
+        await second.start();
+        if (mode === 'viewer-limit') expect(second.getState().code).toBe('viewer-limit');
+        if (mode === 'native-unavailable') expect(second.getState().code).toBe('native-module-unavailable');
+        expect(second.getState().host).toMatchObject({ runtimeId: binding.runtimeId, paused: true, controller: false });
+        expect(second.getState().host?.binding).toBeUndefined();
+        expect(second.getState().host?.offer).toBeUndefined();
+        expect(second.getState().host?.grant).toBeUndefined();
+        second.playback(binding.attemptId, 99, 0);
+        await second.answer(binding.attemptId, 'foreign-answer');
+        await second.takeover();
+        await second.release();
+        await second.input(click);
+        second.mediaFailed(binding.attemptId, 'foreign-native-callback');
+        await second.stop();
+        expect(secondCalls.map((command) => command['kind'])).toEqual(
+          mode === 'native-unavailable' || mode === 'stop-after-status' ? ['status'] : ['status', 'open'],
+        );
+        expect(h.peer.close).not.toHaveBeenCalled();
+        expect(await h.owner.handle(h.caller, { kind: 'status' })).toMatchObject({ binding, grant, controller: true, paused: true });
+        h.first.playback(binding.attemptId, 2, 0);
+        await vi.advanceTimersByTimeAsync(2_000);
+        await h.first.input(click);
+        expect(h.effects).toHaveBeenCalledOnce();
+        expect(h.first.getState().host?.grant?.generation).toBe(grant?.generation);
+      } finally {
+        unsubscribe();
+        await second.stop();
+        await h.first.stop();
+        await h.owner.dispose();
+      }
+    },
+  );
+
+  it('allows explicit runtime-only resume without adopting or closing another same-device attempt', async () => {
+    const h = ownerFixture();
+    const commands: Record<string, unknown>[] = [];
+    const second = createLocalVideoClient({ api: async (path, init) => {
+      commands.push(init.body);
+      return h.transport.api(path, init);
+    } }, { mediaAvailable: false });
+    try {
+      const binding = await h.acquire();
+      await second.start();
+      await second.resume();
+      expect(second.getState().host).toMatchObject({ runtimeId: binding.runtimeId, paused: false, controller: false });
+      expect(second.getState().host?.binding).toBeUndefined();
+      expect(second.getState().host?.offer).toBeUndefined();
+      expect(second.getState().host?.grant).toBeUndefined();
+      await second.release();
+      await second.answer(binding.attemptId, 'not-owned');
+      await second.stop();
+      expect(commands).toEqual([{ kind: 'status' }, { kind: 'resume', runtimeId: binding.runtimeId }]);
+      expect(h.peer.close).not.toHaveBeenCalled();
+      const observed = await h.owner.handle(h.caller, { kind: 'status' });
+      expect(observed).toMatchObject({ binding, viewerCount: 1, paused: false, controller: false });
+      expect(observed.grant).toBeUndefined();
+      await expect(h.owner.runBotOperation(async () => 'resumed explicitly')).resolves.toBe('resumed explicitly');
+    } finally {
+      await second.stop();
+      await h.first.stop();
+      await h.owner.dispose();
+    }
+  });
+
+  it('still closes its own late successful open after cancellation before receiving the binding', async () => {
+    const h = ownerFixture();
+    const allocated = Promise.withResolvers<void>();
+    const deliver = Promise.withResolvers<void>();
+    const client = createLocalVideoClient({ api: async (path, init) => {
+      const response = await h.transport.api(path, init);
+      if (init.body['kind'] === 'open') {
+        allocated.resolve();
+        await deliver.promise;
+      }
+      return response;
+    } });
+    try {
+      const opening = client.start();
+      await allocated.promise;
+      const binding = (await h.owner.handle(h.caller, { kind: 'status' })).binding;
+      expect(binding).toBeDefined();
+      await client.stop();
+      expect(h.peer.close).not.toHaveBeenCalled();
+      deliver.resolve();
+      await opening;
+      expect(h.calls.filter((command) => command['kind'] === 'close')).toEqual([{ kind: 'close', binding }]);
+      expect(h.peer.close).toHaveBeenCalledOnce();
+      expect(await h.owner.handle(h.caller, { kind: 'status' })).toMatchObject({ viewerCount: 0, paused: false });
+      expect(client.getState()).toMatchObject({ status: 'idle', presenting: false });
+      expect(client.getState().host?.binding).toBeUndefined();
+    } finally {
+      deliver.resolve();
+      await client.stop();
+      await h.owner.dispose();
+    }
+  });
+
   it('retains ownership across a stalled heartbeat and releases it without resuming Bots', async () => {
     const { client, calls, stall } = fixture();
     await client.start();
