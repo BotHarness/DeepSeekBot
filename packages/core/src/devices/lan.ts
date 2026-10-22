@@ -24,7 +24,12 @@ export function createDeviceLan(options: {
   write(port: number | undefined): Promise<void>;
   gateway(): Gateway;
   addresses?: () => string[];
-  log?: (phase: string) => void;
+  log?: (event: {
+    initiator: 'startup' | 'operator' | 'shutdown' | 'listener';
+    phase: 'restore' | 'enable' | 'disable' | 'close' | 'error';
+    durationMs: number;
+    refusal?: NonNullable<LanStatus['issue']>;
+  }) => void;
 }) {
   let status: LanStatus = { state: 'off' };
   let current:
@@ -40,6 +45,23 @@ export function createDeviceLan(options: {
     );
     return result;
   }
+  function transition(
+    initiator: 'startup' | 'operator' | 'shutdown' | 'listener',
+    phase: 'restore' | 'enable' | 'disable' | 'close' | 'error',
+    action: () => Promise<LanResult>,
+  ) {
+    return serial(async () => {
+      const started = performance.now();
+      const result = await action();
+      options.log?.({
+        initiator,
+        phase,
+        durationMs: Math.round(performance.now() - started),
+        ...(!result.ok ? { refusal: result.code } : {}),
+      });
+      return result;
+    });
+  }
   async function stop() {
     const previous = current;
     current = undefined;
@@ -48,7 +70,6 @@ export function createDeviceLan(options: {
     previous.gateway.close();
     for (const socket of previous.sockets) socket.destroy();
     await new Promise<void>((resolve) => previous.server.close(() => resolve()));
-    options.log?.('closed');
   }
   async function listen(port: number): Promise<LanResult> {
     if (disposed) return { ok: false, code: 'lan-listen-failed' };
@@ -97,18 +118,17 @@ export function createDeviceLan(options: {
         });
       });
       server.on('error', () => {
-        void serial(async () => {
+        void transition('listener', 'error', async () => {
           await stop();
           status = { state: 'error', issue: 'lan-listen-failed' };
+          return { ok: false, code: 'lan-listen-failed' };
         });
       });
       status = { state: 'listening', port: (server.address() as AddressInfo).port };
-      options.log?.('listening');
       return { ok: true, status: { ...status } };
     } catch {
       await stop();
       status = { state: 'error', issue: 'lan-listen-failed' };
-      options.log?.('listen-failed');
       return { ok: false, code: 'lan-listen-failed' };
     }
   }
@@ -126,20 +146,23 @@ export function createDeviceLan(options: {
         );
       return [...new Set(addresses)]
         .filter(isLanAddress)
+        .slice(0, 8)
         .map((address) => ({ url: `http://${address}:${status.port}`, kind: 'lan', ready: true }));
     },
     start: () =>
-      serial(async () => {
-        if (current || disposed) return;
+      transition('startup', 'restore', async () => {
+        if (current || disposed) return { ok: true, status: { ...status } };
         try {
           const port = await options.read();
-          if (Number.isInteger(port) && port! > 0 && port! <= 65535) await listen(port!);
+          if (Number.isInteger(port) && port! > 0 && port! <= 65535) return await listen(port!);
         } catch {
           status = { state: 'error', issue: 'lan-storage-unavailable' };
+          return { ok: false, code: 'lan-storage-unavailable' };
         }
+        return { ok: true, status: { ...status } };
       }),
     enable: () =>
-      serial(async (): Promise<LanResult> => {
+      transition('operator', 'enable', async (): Promise<LanResult> => {
         if (current) return { ok: true, status: { ...status } };
         const result = await listen(0);
         if (!result.ok) return result;
@@ -149,23 +172,24 @@ export function createDeviceLan(options: {
           await stop();
           return { ok: false, code: 'lan-storage-unavailable' };
         }
-        options.log?.('enabled');
         return { ok: true, status: { ...status } };
       }),
     disable: () =>
-      serial(async (): Promise<LanResult> => {
+      transition('operator', 'disable', async (): Promise<LanResult> => {
         await stop();
         try {
           await options.write(undefined);
         } catch {
           return { ok: false, code: 'lan-storage-unavailable' };
         }
-        options.log?.('disabled');
         return { ok: true, status: { ...status } };
       }),
     close: () => {
       disposed = true;
-      return serial(stop);
+      return transition('shutdown', 'close', async () => {
+        await stop();
+        return { ok: true, status: { ...status } };
+      });
     },
   };
 }

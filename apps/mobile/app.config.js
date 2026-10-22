@@ -59,8 +59,6 @@ module.exports = ({ config }) => {
       bundleIdentifier,
       infoPlist: {
         ...config.ios.infoPlist,
-        NSLocalNetworkUsageDescription:
-          'DeepSeekBot connects to your computer on this network using an encrypted connection.',
         NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
         ITSAppUsesNonExemptEncryption: false,
         NSUserActivityTypes: ['INSendMessageIntent'],

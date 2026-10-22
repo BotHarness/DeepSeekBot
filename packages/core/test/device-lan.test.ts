@@ -2,7 +2,7 @@ import { createServer, request } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { WebSocket } from 'ws';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createDeviceLan } from '../src/devices/lan.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
@@ -19,7 +19,9 @@ import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
 it('opens only after opt-in, never serves operator HTTP, persists its port and releases it on disable', async () => {
   let saved: number | undefined;
   let closed = 0;
+  const log = vi.fn();
   const lan = createDeviceLan({
+    log,
     read: async () => saved,
     write: async (port) => {
       saved = port;
@@ -57,6 +59,11 @@ it('opens only after opt-in, never serves operator HTTP, persists its port and r
     expect(saved).toBeUndefined();
     expect(closed).toBe(1);
     expect(lan.routes()).toEqual([]);
+    expect(log.mock.calls.map(([event]) => event)).toEqual([
+      { initiator: 'startup', phase: 'restore', durationMs: expect.any(Number) },
+      { initiator: 'operator', phase: 'enable', durationMs: expect.any(Number) },
+      { initiator: 'operator', phase: 'disable', durationMs: expect.any(Number) },
+    ]);
   } finally {
     await lan.close();
   }
@@ -83,7 +90,7 @@ it('pairs a scanned LAN offer with exact key approval, encrypts a phone request,
   const lan = createDeviceLan({
     read: async () => undefined,
     write: async () => {},
-    addresses: () => ['192.168.1.20'],
+    addresses: () => ['192.168.1.21', '192.168.1.20'],
     gateway: () =>
       createEncryptedGateway({
         pairing,
@@ -123,8 +130,12 @@ it('pairs a scanned LAN offer with exact key approval, encrypts a phone request,
       request: async () => {
         throw new Error('plaintext forbidden');
       },
-      openSocket: (_url, events, headers) => {
+      openSocket: (url, events, headers) => {
         expect(headers).toBeUndefined();
+        if (url.startsWith('ws://192.168.1.21:')) {
+          queueMicrotask(() => events.closed('channel-send-failed'));
+          return { send: () => {}, close: () => {} };
+        }
         const ws = new WebSocket(`ws://127.0.0.1:${lan.status().port}/botharness-device/channel`);
         ws.on('open', events.open);
         ws.on('message', (data) => {
@@ -160,6 +171,7 @@ it('pairs a scanned LAN offer with exact key approval, encrypts a phone request,
       },
     });
     expect(result).toEqual({ ok: true });
+    expect(saved?.routes[0]).toContain('192.168.1.20');
     expect(saved?.encryption).toBeDefined();
     carrier = encryptedCarrier({ raw, ...saved! });
     const read = () =>
@@ -201,8 +213,10 @@ it('restores an opted-in port after restart and fails closed when persistence fa
     await second.start();
     expect(second.status()).toEqual({ state: 'listening', port });
     await second.disable();
+    const log = vi.fn();
     const failed = createDeviceLan({
       ...options,
+      log,
       write: async () => {
         throw new Error('disk');
       },
@@ -210,6 +224,12 @@ it('restores an opted-in port after restart and fails closed when persistence fa
     try {
       expect(await failed.enable()).toEqual({ ok: false, code: 'lan-storage-unavailable' });
       expect(failed.status().state).toBe('off');
+      expect(log).toHaveBeenCalledWith({
+        initiator: 'operator',
+        phase: 'enable',
+        durationMs: expect.any(Number),
+        refusal: 'lan-storage-unavailable',
+      });
     } finally {
       await failed.close();
     }

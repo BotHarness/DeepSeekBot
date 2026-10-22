@@ -11,6 +11,8 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.net.InetAddress
 import java.net.Proxy
+import java.net.Socket
+import javax.net.SocketFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -30,6 +32,16 @@ class LanChannelModule : Module() {
       require(port in 1..65535 && channels.size < 8 && !channels.containsKey(id)) { "lan-route-invalid" }
       val bytes = privateAddress(address)
       val client = OkHttpClient.Builder()
+        .socketFactory(object : SocketFactory() {
+          override fun createSocket(): Socket = object : Socket() {
+            private val bounded by lazy { BoundedChannelInput(super.getInputStream()) }
+            override fun getInputStream() = bounded
+          }
+          override fun createSocket(host: String, port: Int): Socket = error("lan-route-invalid")
+          override fun createSocket(host: String, port: Int, local: InetAddress, localPort: Int): Socket = error("lan-route-invalid")
+          override fun createSocket(host: InetAddress, port: Int): Socket = error("lan-route-invalid")
+          override fun createSocket(host: InetAddress, port: Int, local: InetAddress, localPort: Int): Socket = error("lan-route-invalid")
+        })
         .proxy(Proxy.NO_PROXY)
         .dns(Dns { hostname ->
           require(hostname == CARRIER_HOST) { "lan-route-invalid" }

@@ -376,6 +376,7 @@ function redeemEncryptedRoute(
 ): Promise<Redemption> {
   const { payload } = options;
   return new Promise<Redemption>((resolve) => {
+    let authenticated = false;
     let done = false,
       poll: ReturnType<typeof setTimeout> | undefined;
     const finish = (result: Redemption) => {
@@ -398,7 +399,14 @@ function redeemEncryptedRoute(
         finish({
           ok: false,
           code:
-            isLanRoute(route) && (reason === 'lan-unreachable' || reason === 'channel-timeout')
+            isLanRoute(route) &&
+            !authenticated &&
+            [
+              'lan-unreachable',
+              'channel-timeout',
+              'channel-send-failed',
+              'channel-disconnected',
+            ].includes(reason)
               ? 'lan-unreachable'
               : 'channel-authentication-failed',
         }),
@@ -451,8 +459,12 @@ function redeemEncryptedRoute(
       Math.max(1, Math.min(600_000, Date.parse(payload.expiresAt) - Date.now())),
     );
     options.signal?.addEventListener('abort', abort, { once: true });
-    void socket.ready.then(submit, () =>
-      finish({ ok: false, code: 'channel-authentication-failed' }),
+    void socket.ready.then(
+      () => {
+        authenticated = true;
+        submit();
+      },
+      () => finish({ ok: false, code: 'channel-authentication-failed' }),
     );
   });
 }

@@ -25,6 +25,10 @@ The local Expo `LanChannel` module accepts only a private IPv4 address and port,
 
 The reserved name is neither discovery nor trust. Noise authenticates the Host. Permission denial, network isolation and firewalls can still prevent access.
 
+Android validates the HTTP upgrade header and WebSocket frame headers in a bounded Socket input wrapper before OkHttp assembles messages. It caps a frame and accumulated fragments at 70,000 bytes, refuses binary or compressed messages, and permits at most 1,024 fragments per message. Each source read is at most 8 KiB. The gateway does not negotiate WebSocket compression.
+
+The Host advertises at most eight private addresses. Enrollment tries them with a two-second handshake deadline per address; pre-authentication transport failure may try the next candidate. A Host-key refusal stops enrollment. After pairing, an unavailable LAN route may fall through to saved remote routes, while identity and admission refusals stop selection. LAN lifecycle logs contain the initiator, phase, elapsed duration and a coded refusal without addresses or enrollment material.
+
 ## Qualification
 
 `device-lan.test.ts` exercises opt-in, HTTP refusal, scanned enrollment, exact approval, encrypted requests, revocation, restart and shutdown through the actual pairing and mobile carrier owners. Native compilation, camera scanning, real Host Feed, offline state, model replies and visual acceptance require the assigned device QA batch. Record each platform separately and do not infer native success from source tests.

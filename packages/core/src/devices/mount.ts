@@ -190,7 +190,8 @@ export function mountDevicePairing(
           route: 'lan',
           log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
         }),
-      log: (phase) => write('device-lan', phase, `device-lan phase=${phase}`),
+      log: (event) =>
+        write('device-lan', event.phase, JSON.stringify({ module: 'device-lan', ...event })),
     });
     webCtx.effect(() => {
       void lan.start();

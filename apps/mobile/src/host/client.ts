@@ -5,7 +5,7 @@ import { ActivitySmoother } from '../../../../packages/client/src/client/activit
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
 import { DEVICE_PREFIX } from './pairing';
-import { checkRoute, isEncryptedRoute, socketOrigin } from './route';
+import { checkRoute, isConnectRoute, isEncryptedRoute, socketOrigin } from './route';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -669,7 +669,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
         return;
       } catch (error) {
         if (
-          isEncryptedRoute(candidate) ||
+          isConnectRoute(candidate) ||
+          error instanceof ConnectRefused ||
           error instanceof CredentialRefused ||
           error instanceof MethodRefused
         )
