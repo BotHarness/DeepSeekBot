@@ -23,7 +23,7 @@ vi.mock('expo-router', () => ({
 const pairing = vi.hoisted(() => ({
   busy: false,
   error: undefined,
-  method: 'qr',
+  method: 'image',
   canRetry: false,
   connectionName: '',
   setConnectionName: vi.fn(),
@@ -63,7 +63,7 @@ async function choose() {
 it('pairs from a local QR image without camera permission', async () => {
   await choose();
   expect(native.scan).toHaveBeenCalledWith('file:///qr.png', ['qr']);
-  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=example', 'qr');
+  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=example', 'image');
   expect(host.textContent).toContain(t.allowCamera);
 });
 
@@ -85,13 +85,13 @@ it.each([
   expect(pairing.pair).not.toHaveBeenCalled();
   native.scan.mockResolvedValue([{ data: 'deepseekbot://pair?p=retry' }]);
   await act(async () => host.querySelector<HTMLButtonElement>('[data-testid="pair-choose-image"]')!.click());
-  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=retry', 'qr');
+  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('deepseekbot://pair?p=retry', 'image');
 });
 
 it('deduplicates repeated detections of the same code', async () => {
   native.scan.mockResolvedValue([{ data: ' same ' }, { data: 'same' }]);
   await choose();
-  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('same', 'qr');
+  expect(pairing.pair).toHaveBeenCalledExactlyOnceWith('same', 'image');
 });
 
 it.each(['pick', 'scan'] as const)('shows a recoverable native %s failure', async (operation) => {

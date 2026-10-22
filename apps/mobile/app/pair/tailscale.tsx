@@ -59,7 +59,7 @@ export default function PairTailscaleScreen() {
     if (result.kind === 'error') setImageError(result.code);
     else if (result.kind === 'link') {
       pairing.forget();
-      await pair(result.link, 'qr');
+      await pair(result.link, 'image');
     }
   };
 

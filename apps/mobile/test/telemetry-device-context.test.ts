@@ -89,6 +89,17 @@ it.each([
 it.each([
   ['mobile_app_opened', { launch_kind: 'cold', paired_host_count_bucket: '0' }],
   ['mobile_pairing_started', { method: 'qr', attempt_id: id }],
+  ['mobile_pairing_started', { method: 'image', attempt_id: id }],
+  [
+    'mobile_pairing_result',
+    {
+      method: 'image',
+      attempt_id: id,
+      outcome: 'refused',
+      reason: 'host-key-confirmation-required',
+      duration_bucket: 'under1s',
+    },
+  ],
   [
     'mobile_pairing_result',
     {
