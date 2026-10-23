@@ -6,13 +6,20 @@ import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { PlusIcon } from '../shell/icons';
 import { t } from '../strings';
 import { SHEET_GROUP, Sheet, SheetNote } from './sheet';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { errorText } from '../../host/bot-settings';
 import { radius } from '../design/tokens';
 
 /** iOS retains its existing one-at-a-time invitation flow. */
 export function InviteSheet({ candidates, onInvite, onClose }: InviteSheetProps) {
   const theme = useDesignTheme();
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   return (
@@ -41,8 +48,11 @@ export function InviteSheet({ candidates, onInvite, onClose }: InviteSheetProps)
                     : () => {
                         setBusy(true);
                         void onInvite(item)
-                          .then(onClose)
+                          .then(() => {
+                            if (alive.current) onClose();
+                          })
                           .catch((failure: unknown) => {
+                            if (!alive.current) return;
                             setError(`${t.groupFailed} ${errorText(failure)}`);
                             setBusy(false);
                           });
