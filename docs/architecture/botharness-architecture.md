@@ -791,11 +791,11 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 [ADR-0240](../adr/0240-marketplace-listings-localize-author-first-with-generated-summaries.md) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
-### 移动端原生创建与导入（已接受设计，待实现）
+### 移动端原生创建与导入
 
 [移动端设计](../../apps/mobile/DESIGN.md#native-bot-creation-and-import) 统一空白创建、市场、Git 链接和 Bot Zip 导入的原生流程：“全部”中显式选择已配对 Remote Host，最近使用的 Host 只作预选；从 A 进入沿用 A，提交前可改目标并保留表单。市场先浏览，点击导入后再确认目标；手机有网络时，无已配对或在线 Host 也可浏览，配对／连接后保留选择，但不自动提交。统一确认页显示来源、环境与可编辑名称，简介和标签收起。选择目标不切换主浏览环境；仍在进度页时，确认成功后进入目标 Host 的新 Bot DM；已经离开则保留完成提示与“打开 Bot”，不抢占当前页面。
 
-[ADR-0247](../adr/0247-bot-creation-and-import-recover-on-their-chosen-host.md) 将断线恢复和避免重复创建纳入交付范围：application-defined 创建能力扩展既有 Host 创建回执机制，持久绑定目标、已接受输入和同一次操作的身份；Registry、Memory 与 Channel owners 仍是规范数据的唯一所有者。手机保存恢复引用、草稿及恢复所需的选中文件；重连向原 Host 核对同一结果，不因响应丢失另建 Bot，也不改投其他 Host。Host 持久接收后继续处理，离开页面不取消，本期不提供强制中止。Zip 上传要求保持前台；中断后核对原操作，必要时重传同一内容，不承诺持续后台上传或字节级续传。显式“再导入一份”使用新的操作与身份，允许重名。新 Bot 沿用目标 Host 默认模型；模型未就绪不阻止创建或回滚 Bot，DM 提供配置入口，不自动发送测试消息。现有 Git／Zip 导入尚不满足恢复保证，原生界面与 Host 恢复能力必须一起验证；产品决策已收敛，实现与运行验收待完成。
+[ADR-0247](../adr/0247-bot-creation-and-import-recover-on-their-chosen-host.md) 将断线恢复和避免重复创建纳入交付范围：application-defined 创建能力扩展既有 Host 创建回执机制，持久绑定目标、已接受输入和同一次操作的身份；Registry、Memory 与 Channel owners 仍是规范数据的唯一所有者。手机保存恢复引用、草稿及恢复所需的选中文件；重连向原 Host 核对同一结果，不因响应丢失另建 Bot，也不改投其他 Host。Git 导入先只读确认来源版本，再将该版本和用户输入绑定到同一次操作；来源前进时明确拒绝，不自动接受新的内容。已完成操作的查询不依赖来源仓库继续可用。Host 持久接收后继续处理，离开页面不取消，本期不提供强制中止。Zip 上传要求保持前台；中断后核对原操作，必要时重传同一内容，不承诺持续后台上传或字节级续传。显式“再导入一份”使用新的操作与身份，允许重名。新 Bot 沿用目标 Host 默认模型；模型未就绪不阻止创建或回滚 Bot，DM 提供配置入口，不自动发送测试消息。每种来源的原生界面与 Host 恢复能力一起验证；交付和原生验收状态由 #2634 及其切片 PR 记录。
 
 ## 7 · 关键边界
 

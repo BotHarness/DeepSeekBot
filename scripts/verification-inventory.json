@@ -9,7 +9,15 @@
       "source": "apps/mobile/app/create-bot.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
       "task": 2629,
-      "gap": "Native Android/iOS interaction and live Host CLI qualification must be recorded separately; source tests do not establish runtime acceptance."
+      "gap": "Native Android/iOS interaction remains separate from the passing PR2632 Host/CLI path; source tests do not establish native acceptance."
+    },
+    {
+      "id": "phone.git-bot-import",
+      "label": "Import a pinned Git source on a chosen paired Host and recover the same Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2635,
+      "gap": "Record the Git import Host/CLI path and Android/iOS interaction at their exact candidate; inherited blank-creation evidence does not qualify import."
     },
     {
       "id": "phone.local-computer-video",
