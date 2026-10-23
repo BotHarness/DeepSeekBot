@@ -1,0 +1,166 @@
+{
+  "batch": 65,
+  "pr": 2622,
+  "before": "24b5c27786538e733a12588c3d1b34a1c2a29485",
+  "after": "55a8954a1282cadc908b545349dfac5b25861739",
+  "qualification": {
+    "sourceBefore": "24b5c27786538e733a12588c3d1b34a1c2a29485",
+    "sourceAfter": "55a8954a1282cadc908b545349dfac5b25861739",
+    "installedBinaryBuildSource": "0b71799a5326635b11bd1b102893b44de33b665f",
+    "iosFingerprint": "4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc",
+    "executableSHA256": "ba8bad85455ffe4664485a30244b13ea3251ce04dfef4041f08f47ffc8628988",
+    "debugDylibSHA256": "da27ad5eb82cc344556dcab0d53af15cba4efd6935e7d63f1d0bc8f3c62c28c7",
+    "bundleId": "ai.botharness.deepseekbot.dev",
+    "configuration": "Debug-iphonesimulator",
+    "rebuildRequired": false,
+    "qualification": "Both fresh iOS-only fingerprints equal embedded installed fingerprint, and executable/dylib match preserved Batch62 qualified binary. Earlier cross-platform strict88a fingerprint is a different options scope.",
+    "checkedAt": "2026-10-23T03:38:36.897157+00:00"
+  },
+  "viewport": "402x874pt",
+  "environment": "iPhone17Pro Simulator, iOS27 beta, existing Debug dev client",
+  "locale": "English",
+  "textCategories": {
+    "default": "large",
+    "intermediate": "accessibility-large",
+    "maximum": "accessibility-extra-extra-extra-large"
+  },
+  "images": [
+    {
+      "file": "b-ld.png",
+      "sourceCapture": "before-list-light-default.png",
+      "sha256": "1bb9d8d261ff748409b959032e75012cac68af9a0026adab2d9c018d5b806d84",
+      "phase": "before",
+      "theme": "light",
+      "text": "default",
+      "view": "section chooser"
+    },
+    {
+      "file": "b-li.png",
+      "sourceCapture": "before-list-light-intermediate.png",
+      "sha256": "09171b801f2d54afab188cac1fdf90e98333063a90487f0c373c3ae14f50799f",
+      "phase": "before",
+      "theme": "light",
+      "text": "intermediate",
+      "view": "section chooser"
+    },
+    {
+      "file": "b-lm.png",
+      "sourceCapture": "before-list-light-maximum.png",
+      "sha256": "7e3f6dd9d6b87b5d4fbf9384785dbab8c71790fd7f9fbd421725902ef684541e",
+      "phase": "before",
+      "theme": "light",
+      "text": "maximum",
+      "view": "section chooser"
+    },
+    {
+      "file": "b-dd.png",
+      "sourceCapture": "before-list-dark-default.png",
+      "sha256": "f58aef47cb0fab0c268ed7d5f776b984899c0f81846a89ff82167e5428132a6f",
+      "phase": "before",
+      "theme": "dark",
+      "text": "default",
+      "view": "section chooser"
+    },
+    {
+      "file": "b-di.png",
+      "sourceCapture": "before-list-dark-intermediate.png",
+      "sha256": "c25c374e4b18930cf4efdf248ff1499c7c8368562d791d8209f6f2093a79210e",
+      "phase": "before",
+      "theme": "dark",
+      "text": "intermediate",
+      "view": "section chooser"
+    },
+    {
+      "file": "b-dm.png",
+      "sourceCapture": "before-list-dark-maximum.png",
+      "sha256": "8dc486c71a62388295d6ad60b11ede17bf24f0baa775da5ba3b91dceaeb192e3",
+      "phase": "before",
+      "theme": "dark",
+      "text": "maximum",
+      "view": "section chooser"
+    },
+    {
+      "file": "a-ld.png",
+      "sourceCapture": "after-list-light-default.png",
+      "sha256": "89ee872a19ff50b1ea1a936f649c8e71a929ab85a2ced77e5cba44dcdb41d2b7",
+      "phase": "after",
+      "theme": "light",
+      "text": "default",
+      "view": "section chooser"
+    },
+    {
+      "file": "a-li.png",
+      "sourceCapture": "after-list-light-intermediate.png",
+      "sha256": "2d59b0f12730764b3dfd38c1bff766bda458a982b6d9d6725d7fcb19f443158b",
+      "phase": "after",
+      "theme": "light",
+      "text": "intermediate",
+      "view": "section chooser"
+    },
+    {
+      "file": "a-lm.png",
+      "sourceCapture": "after-list-light-maximum.png",
+      "sha256": "5b72ab6c033aa609afa09b518b607b70a07bcb7b4d469a3f25738b8ed0c54985",
+      "phase": "after",
+      "theme": "light",
+      "text": "maximum",
+      "view": "section chooser"
+    },
+    {
+      "file": "a-dd.png",
+      "sourceCapture": "after-list-dark-default.png",
+      "sha256": "a1db73cbd98083a568be5f488b7bd6c996241161a6f36b25710a8ca2559e4b34",
+      "phase": "after",
+      "theme": "dark",
+      "text": "default",
+      "view": "section chooser"
+    },
+    {
+      "file": "a-di.png",
+      "sourceCapture": "after-list-dark-intermediate.png",
+      "sha256": "95aaa22de61a5399255f9d3051c56064e82884d4d7ec5c2af73ea2b6c2fe2468",
+      "phase": "after",
+      "theme": "dark",
+      "text": "intermediate",
+      "view": "section chooser"
+    },
+    {
+      "file": "a-dm.png",
+      "sourceCapture": "after-list-dark-maximum.png",
+      "sha256": "e562dfd0e97a205e4158c381cabc87f22195494fd5d262a1955b524bea8e1ab4",
+      "phase": "after",
+      "theme": "dark",
+      "text": "maximum",
+      "view": "section chooser"
+    },
+    {
+      "file": "b-create.png",
+      "sourceCapture": "before-create.png",
+      "sha256": "3ac1ff454b0d1706080e715fbb0c01cd6847d8e38f79f03d6380baed051970cf",
+      "view": "creation form"
+    },
+    {
+      "file": "a-create.png",
+      "sourceCapture": "after-create.png",
+      "sha256": "3ac1ff454b0d1706080e715fbb0c01cd6847d8e38f79f03d6380baed051970cf",
+      "view": "creation form"
+    },
+    {
+      "file": "a-max.png",
+      "sourceCapture": "after-create-max.png",
+      "sha256": "59a5cb23e2e5dfd877756a05784a6ba645f0500f95395d857cf65c700040d320",
+      "view": "creation form"
+    }
+  ],
+  "inspected": true,
+  "transform": "unchanged native screenshots; only synthetic sections/draft visible",
+  "result": "PASS for visible trailing +, no visible label, AX New section enabled/hittable, tap opens creation, Back and Close; form shows keyboard and enabled reachable Create and add; no submit performed",
+  "canonical": "Full roster equals initial after cancellation; no data writes",
+  "limitations": [
+    "Android native untested",
+    "Actual VoiceOver speech/focus untested; AX label verified only",
+    "Physical Release/Human acceptance untested",
+    "No new create/assignment/error regression; Batch64 separate prior evidence",
+    "B64-TYPE-1 remains open on issue2619; fresh short-draft maximum view is not its regression test"
+  ]
+}
