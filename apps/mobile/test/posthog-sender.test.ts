@@ -108,6 +108,7 @@ it('preserves common context on every owner-produced event through the actual SD
   telemetry.pairing('qr').finish('success');
   telemetry.connection('pair').finish('ready');
   telemetry.activation('host_ready');
+  telemetry.botOperation('marketplace', 'submit').finish('created');
   await telemetry.flush();
   expect(batches).toHaveLength(1);
   expect(new Set(batches[0]!.map((item) => item.event))).toEqual(
@@ -117,6 +118,8 @@ it('preserves common context on every owner-produced event through the actual SD
       'mobile_pairing_result',
       'mobile_connection_result',
       'mobile_activation_step',
+      'mobile_bot_operation_started',
+      'mobile_bot_operation_result',
     ]),
   );
   for (const item of batches[0]!) {

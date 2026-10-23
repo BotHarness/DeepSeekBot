@@ -32,6 +32,26 @@ export type PairingReason =
 export type DurationBucket = 'under1s' | '1-5s' | '5-15s' | '15-60s' | '60plus';
 export type ActivationStep = 'host_ready' | 'message_accepted' | 'bot_message_observed';
 export type ChannelKind = 'dm' | 'group';
+export type BotOperationKind = 'blank' | 'git' | 'zip' | 'marketplace';
+export type BotOperationPhase = 'preview' | 'submit' | 'recover';
+export type BotOperationOutcome =
+  | 'preview_ready'
+  | 'created'
+  | 'recovered'
+  | 'pending'
+  | 'refused'
+  | 'failed'
+  | 'unknown';
+export type BotOperationReason =
+  | 'none'
+  | 'validation'
+  | 'target-unavailable'
+  | 'host-update-required'
+  | 'source-changed'
+  | 'source-invalid'
+  | 'storage'
+  | 'transport'
+  | 'unknown';
 export type ConnectionTrigger = 'pair' | 'open' | 'resume' | 'switch' | 'recovery' | 'manual_retry';
 export type ConnectionOutcome = 'ready' | 'refused' | 'timeout' | 'cancelled';
 export type ConnectionReason =
@@ -40,6 +60,16 @@ export type ConnectionReason =
   | 'device-unknown'
   | 'device-credential-missing';
 export interface EventProperties {
+  mobile_bot_operation_started: {
+    kind: BotOperationKind;
+    phase: BotOperationPhase;
+    attempt_id: string;
+  };
+  mobile_bot_operation_result: EventProperties['mobile_bot_operation_started'] & {
+    outcome: BotOperationOutcome;
+    reason: BotOperationReason;
+    duration_bucket: DurationBucket;
+  };
   mobile_connection_result: {
     trigger: ConnectionTrigger;
     outcome: ConnectionOutcome;
@@ -99,6 +129,37 @@ const deviceFields: Record<keyof DeviceTelemetryContext, (value: unknown) => boo
   device_year_class: (value) => value === 'unknown' || isDeviceYearClass(value),
 };
 const fields: Record<keyof EventProperties, Record<string, (value: unknown) => boolean>> = {
+  mobile_bot_operation_started: {
+    kind: member('blank', 'git', 'zip', 'marketplace'),
+    phase: member('preview', 'submit', 'recover'),
+    attempt_id: isUuid,
+  },
+  mobile_bot_operation_result: {
+    kind: member('blank', 'git', 'zip', 'marketplace'),
+    phase: member('preview', 'submit', 'recover'),
+    attempt_id: isUuid,
+    outcome: member(
+      'preview_ready',
+      'created',
+      'recovered',
+      'pending',
+      'refused',
+      'failed',
+      'unknown',
+    ),
+    reason: member(
+      'none',
+      'validation',
+      'target-unavailable',
+      'host-update-required',
+      'source-changed',
+      'source-invalid',
+      'storage',
+      'transport',
+      'unknown',
+    ),
+    duration_bucket: duration,
+  },
   mobile_connection_result: {
     trigger: member('pair', 'open', 'resume', 'switch', 'recovery', 'manual_retry'),
     outcome: member('ready', 'refused', 'timeout', 'cancelled'),

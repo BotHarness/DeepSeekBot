@@ -16,6 +16,7 @@ Git import uses the same target, confirmation, operation record and completion p
 - `git`: a Git link, confirmed commit and editable name/Bio/tags produce one ordinary Bot with the imported personality; retry preserves its source, identity and DM.
 - `marketplace`: browse the public catalogue before choosing a Host; native search, topics, details and README retain the selected listing and reviewed commit through confirmation. Android discovery uses a standard button group for sorting and borderless filter chips for topics. Check selected fill, unchanged repeat taps, actual result changes and the large-text radio-list alternative in light and dark themes.
 - `zip`: retain the selected file, preview on the chosen Host, edit metadata and submit the same archive through bounded uploads. Recovery checks the original receipt before requiring file bytes.
+- `statistics`: the existing mobile telemetry owner observes blank/Git/Zip/Marketplace preview, submit and recovery attempts; Host-confirmed creation, recovered completion, pending and uncertain transport stay distinct. The native and PostHog proof follows [the statistics handoff](../../../../docs/agents/mobile-bot-telemetry-qa.md); the optional Node wire test does not qualify the native path.
 
 ## How to get to it (user POV)
 

@@ -1,5 +1,7 @@
 import { zipFile, type ZipImportFile } from './zip-import-file';
 import type { ZipImportPreview, ZipImportSource } from './zip-import-upload';
+import type { MobileTelemetry } from '../telemetry/mobile-telemetry';
+import type { BotOperationPhase, BotOperationReason } from '../telemetry/schema';
 
 export interface BotCreationDraft {
   hostId: string;
@@ -73,6 +75,42 @@ export interface CreationSnapshot {
 export class BotCreationFailure extends Error {
   constructor(readonly code: string) {
     super(code);
+  }
+}
+
+function telemetryFailure(error: unknown): {
+  outcome: 'refused' | 'failed' | 'unknown';
+  reason: BotOperationReason;
+} {
+  const code = error instanceof BotCreationFailure ? error.code : undefined;
+  switch (code) {
+    case 'storage-invalid':
+    case 'storage-write':
+      return { outcome: 'failed', reason: 'storage' };
+    case 'unreachable':
+      return { outcome: 'unknown', reason: 'transport' };
+    case 'name-required':
+    case 'git-url-required':
+    case 'git-preview-required':
+    case 'zip-preview-required':
+      return { outcome: 'refused', reason: 'validation' };
+    case 'target-unpaired':
+    case 'device-revoked':
+    case 'device-unknown':
+    case 'device-credential-missing':
+      return { outcome: 'refused', reason: 'target-unavailable' };
+    case 'host-update-required':
+      return { outcome: 'refused', reason: 'host-update-required' };
+    case 'git-source-changed':
+    case 'zip-file-changed':
+      return { outcome: 'refused', reason: 'source-changed' };
+    case 'invalid-source':
+    case 'zip-file-invalid':
+    case 'zip-file-unavailable':
+    case 'zip-preview-invalid':
+      return { outcome: 'refused', reason: 'source-invalid' };
+    default:
+      return { outcome: 'unknown', reason: 'unknown' };
   }
 }
 
@@ -329,6 +367,7 @@ export function createBotCreationController(options: {
   storage: { read(): Promise<unknown>; write(record: CreationRecord): Promise<void> };
   port: BotCreationPort;
   key(): string;
+  telemetry?: Pick<MobileTelemetry, 'botOperation'>;
 }) {
   let snapshot: CreationSnapshot = {
     loaded: false,
@@ -373,15 +412,18 @@ export function createBotCreationController(options: {
       storageFailed = true;
       publish({ loaded: true, error: 'storage-invalid' });
     });
-  const reconcile = async (operation: BotCreationOperation, allowCreate: boolean) => {
+  const reconcile = async (
+    operation: BotCreationOperation,
+    allowCreate: boolean,
+  ): Promise<'created' | 'recovered' | 'pending'> => {
     if (options.port.deviceId(operation.hostId) !== operation.deviceId)
       throw new BotCreationFailure('target-unpaired');
     const receipt = await options.port.lookup(operation);
     if (options.port.deviceId(operation.hostId) !== operation.deviceId)
       throw new BotCreationFailure('target-unpaired');
     publish({ receipt: receipt ?? undefined });
-    if (receipt?.status === 'created') return;
-    if (!allowCreate && receipt === null) return;
+    if (receipt?.status === 'created') return 'recovered';
+    if (!allowCreate && receipt === null) return 'pending';
     if (options.port.deviceId(operation.hostId) !== operation.deviceId)
       throw new BotCreationFailure('target-unpaired');
     const record: CreationRecord = { kind: 'submitted', operation, mutationStarted: true };
@@ -397,13 +439,50 @@ export function createBotCreationController(options: {
     if (options.port.deviceId(operation.hostId) !== operation.deviceId)
       throw new BotCreationFailure('target-unpaired');
     publish({ receipt: created });
+    return created.status === 'created' ? 'created' : 'pending';
   };
-  const run = (work: () => Promise<void>): Promise<void> => {
+  const run = (
+    work: () => Promise<void | 'created' | 'recovered' | 'pending'>,
+    phase?: BotOperationPhase,
+  ): Promise<void> => {
     if (active) return active;
+    let observation: ReturnType<MobileTelemetry['botOperation']> | undefined;
+    const finish = (...args: Parameters<NonNullable<typeof observation>['finish']>) => {
+      try {
+        observation?.finish(...args);
+      } catch {}
+    };
     publish({ busy: true, error: undefined, transfer: undefined });
     active = Promise.resolve()
-      .then(work)
-      .catch(fail)
+      .then(async () => {
+        await ready;
+        const record = snapshot.record;
+        const source = record.kind === 'draft' ? record.draft.source : record.operation.source;
+        if (
+          phase &&
+          !storageFailed &&
+          snapshot.receipt?.status !== 'created' &&
+          !(record.kind === 'submitted' && record.acknowledged) &&
+          (phase !== 'preview' || (record.kind === 'draft' && source)) &&
+          (phase !== 'recover' || record.kind === 'submitted')
+        ) {
+          try {
+            observation = options.telemetry?.botOperation(
+              source?.kind === 'git' && source.origin === 'marketplace'
+                ? 'marketplace'
+                : (source?.kind ?? 'blank'),
+              phase,
+            );
+          } catch {}
+        }
+        const result = await work();
+        finish(result ?? (phase === 'preview' ? 'preview_ready' : 'pending'));
+      })
+      .catch((error: unknown) => {
+        const result = telemetryFailure(error);
+        finish(result.outcome, result.reason);
+        fail(error);
+      })
       .finally(() => {
         active = undefined;
         publish({ busy: false });
@@ -641,7 +720,7 @@ export function createBotCreationController(options: {
         } catch {
           throw new BotCreationFailure('storage-write');
         }
-      });
+      }, 'preview');
     },
     enter(entry: { kind: 'all' } | { kind: 'host'; hostId: string } | { kind: 'resume' }) {
       return run(async () => {
@@ -706,16 +785,16 @@ export function createBotCreationController(options: {
           throw new BotCreationFailure('storage-write');
         }
         publish({ record });
-        await reconcile(operation, true);
-      });
+        return reconcile(operation, true);
+      }, 'submit');
     },
     resume() {
       return run(async () => {
         await ready;
         if (storageFailed) throw new BotCreationFailure('storage-invalid');
         if (snapshot.record.kind === 'submitted')
-          await reconcile(snapshot.record.operation, snapshot.record.mutationStarted);
-      });
+          return reconcile(snapshot.record.operation, snapshot.record.mutationStarted);
+      }, 'recover');
     },
     editBeforeSend() {
       return run(async () => {
