@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { openBotCreationResult } from '../src/host/bot-creation-navigation';
 import type { CreationSnapshot } from '../src/host/bot-creation';
+import { createCreationVisibility } from '../src/host/bot-creation-visibility';
 
 function setup() {
   const state: CreationSnapshot = {
@@ -35,6 +36,53 @@ function setup() {
 }
 
 describe('opening native creation results', () => {
+  it('revokes automatic opening on background even when the route remains focused', async () => {
+    const visibility = createCreationVisibility(true);
+    visibility.focus();
+    visibility.arm();
+    const { port } = setup();
+    const lease = visibility.lease();
+    port.recover.mockImplementationOnce(async () => {
+      visibility.appState(false);
+    });
+    expect(await openBotCreationResult(port, lease)).toBe(false);
+    expect(port.switchHost).not.toHaveBeenCalled();
+    expect(port.open).not.toHaveBeenCalled();
+    visibility.appState(true);
+    expect(visibility.takeAutoOpen()).toBe(false);
+    expect(lease()).toBe(false);
+    expect(await openBotCreationResult(port, visibility.lease())).toBe(true);
+  });
+
+  it('cannot navigate when backgrounding occurs during a Host switch', async () => {
+    const visibility = createCreationVisibility(true);
+    visibility.focus();
+    const { port } = setup();
+    port.switchHost.mockImplementationOnce(async () => {
+      visibility.appState(false);
+      return true;
+    });
+    expect(await openBotCreationResult(port, visibility.lease())).toBe(false);
+    expect(port.open).not.toHaveBeenCalled();
+    expect(port.acknowledge).not.toHaveBeenCalled();
+  });
+
+  it('arms auto-open only for an active focused progress view and invalidates earlier visits', () => {
+    const visibility = createCreationVisibility(false);
+    visibility.focus();
+    visibility.arm();
+    visibility.appState(true);
+    expect(visibility.takeAutoOpen()).toBe(false);
+    visibility.arm();
+    const oldVisit = visibility.lease();
+    visibility.blur();
+    visibility.focus();
+    expect(visibility.takeAutoOpen()).toBe(false);
+    expect(oldVisit()).toBe(false);
+    visibility.arm();
+    expect(visibility.takeAutoOpen()).toBe(true);
+    expect(visibility.takeAutoOpen()).toBe(false);
+  });
   it('opens the confirmed original Bot on B then acknowledges only that operation', async () => {
     const { port } = setup();
     expect(await openBotCreationResult(port, () => true)).toBe(true);

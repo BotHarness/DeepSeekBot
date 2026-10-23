@@ -1,10 +1,11 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { AppState, View, type ViewInstance } from 'react-native';
 import { useHostSession } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import type { BotCreationDraft } from '../../host/bot-creation';
 import { botCreationTargets } from '../../host/bot-creation-targets';
+import { createCreationVisibility } from '../../host/bot-creation-visibility';
 import { hostLooks } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
 import { space } from '../design/tokens';
@@ -15,52 +16,74 @@ import { TextField } from '../primitives/text-field';
 import { EnvironmentPicker } from '../primitives/environment-picker';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
 import { openCreatedBot } from './open-created-bot';
+import { useMounted } from '../mounted';
 
 export function CreateBotScreen() {
-  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
   const { hosts } = useHostSession();
   const state = useBotCreation();
   const [details, setDetails] = useState(false);
-  const focused = useRef(false);
-  const focusGeneration = useRef(0);
-  const autoOpen = useRef(false);
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (!state.loaded || initialized.current) return;
-    initialized.current = true;
-    if (state.record.kind === 'draft' && hostId)
-      void botCreation.edit({ ...state.record.draft, hostId });
-    if (focused.current && state.record.kind === 'submitted') {
-      autoOpen.current = state.record.mutationStarted && state.receipt?.status !== 'created';
-      void botCreation.resume();
-    }
-  }, [state, hostId]);
+  const [entryReady, setEntryReady] = useState(false);
+  const visibility = useRef(createCreationVisibility(AppState.currentState === 'active')).current;
+  const ready = useRef(false);
+  const mounted = useMounted<ViewInstance>(() => {
+    let live = true;
+    const subscription = AppState.addEventListener('change', (state) =>
+      visibility.appState(state === 'active'),
+    );
+    const off = botCreation.subscribe(() => {
+      const current = botCreation.getSnapshot();
+      if (
+        ready.current &&
+        current.receipt?.status === 'created' &&
+        !current.busy &&
+        visibility.takeAutoOpen()
+      )
+        void openCreatedBot(visibility.lease());
+    });
+    void botCreation.ready.then(async () => {
+      if (!live) return;
+      const stillHere = visibility.lease();
+      await botCreation.enter(
+        entry === 'all'
+          ? { kind: 'all' }
+          : entry === 'host' && hostId
+            ? { kind: 'host', hostId }
+            : { kind: 'resume' },
+      );
+      if (!live) return;
+      ready.current = true;
+      setEntryReady(true);
+      const current = botCreation.getSnapshot();
+      if (visibility.visible() && current.record.kind === 'submitted') {
+        if (stillHere() && current.record.mutationStarted && current.receipt?.status !== 'created')
+          visibility.arm();
+        void botCreation.resume();
+      }
+    });
+    return () => {
+      live = false;
+      ready.current = false;
+      off();
+      subscription.remove();
+      visibility.blur();
+    };
+  }, [entry, hostId, visibility]);
   useFocusEffect(
     useCallback(() => {
-      focused.current = true;
-      focusGeneration.current++;
+      visibility.focus();
       const current = botCreation.getSnapshot();
-      if (current.record.kind === 'submitted') {
-        autoOpen.current = current.record.mutationStarted && current.receipt?.status !== 'created';
+      if (ready.current && current.record.kind === 'submitted') {
+        if (current.record.mutationStarted && current.receipt?.status !== 'created')
+          visibility.arm();
         void botCreation.resume();
       }
       return () => {
-        focused.current = false;
-        focusGeneration.current++;
-        autoOpen.current = false;
+        visibility.blur();
       };
-    }, []),
+    }, [visibility]),
   );
-  const openResult = () => {
-    const generation = focusGeneration.current;
-    return openCreatedBot(() => focused.current && focusGeneration.current === generation);
-  };
-  useEffect(() => {
-    if (state.receipt?.status !== 'created' || state.busy || !focused.current || !autoOpen.current)
-      return;
-    autoOpen.current = false;
-    void openResult();
-  }, [state.receipt, state.busy]);
+  const openResult = () => openCreatedBot(visibility.lease());
   const submitted = state.record.kind === 'submitted';
   const draft = state.record.kind === 'draft' ? state.record.draft : undefined;
   const targetId =
@@ -71,11 +94,11 @@ export function CreateBotScreen() {
     if (draft) void botCreation.edit({ ...draft, ...patch });
   };
   const submit = () => {
-    autoOpen.current = true;
+    visibility.arm();
     void botCreation.submit();
   };
   return (
-    <>
+    <View ref={mounted} style={{ flex: 1 }}>
       <Stack.Screen options={{ title: copy.title }} />
       <KeyboardFormScroll
         contentInsetAdjustmentBehavior="automatic"
@@ -86,7 +109,7 @@ export function CreateBotScreen() {
             {creationError(state.error)}
           </Text>
         ) : null}
-        {!state.loaded ? (
+        {!state.loaded || !entryReady ? (
           <Text>{copy.working}</Text>
         ) : draft ? (
           <>
@@ -173,7 +196,7 @@ export function CreateBotScreen() {
             </Text>
             <Text
               selectable
-            >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : targetId}`}</Text>
+            >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : copy.targetUnavailable}`}</Text>
             <Text tone="muted">
               {state.record.kind === 'submitted' && state.record.mutationStarted
                 ? copy.targetFixed
@@ -186,7 +209,16 @@ export function CreateBotScreen() {
                   ? copy.accepted
                   : copy.uncertain}
             </Text>
-            {state.receipt?.status === 'created' ? (
+            {state.error === 'creation-identity-unavailable' ? (
+              <>
+                <Text>{copy.previousKept}</Text>
+                <Button
+                  label={copy.newAfterUnavailable}
+                  testID="create-bot-new-after-unavailable"
+                  onPress={() => void botCreation.newAfterUnavailable()}
+                />
+              </>
+            ) : state.receipt?.status === 'created' ? (
               <>
                 <Button
                   label={copy.open}
@@ -221,6 +253,6 @@ export function CreateBotScreen() {
           </View>
         ) : null}
       </KeyboardFormScroll>
-    </>
+    </View>
   );
 }
