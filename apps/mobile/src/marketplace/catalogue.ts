@@ -137,7 +137,12 @@ export function createMobileMarketplace(
     },
     detail(id: string, lang: MarketplaceLanguage): CatalogueResource<MarketplaceDetail> {
       return cached(details, JSON.stringify([id, lang]), () =>
-        resource(() => client.detail(id, lang)),
+        resource(async () => {
+          const result = await client.detail(id, lang);
+          return result.ok && result.value.bot.id !== id
+            ? { ok: false, code: 'marketplace-unavailable' }
+            : result;
+        }),
       );
     },
   };

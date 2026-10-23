@@ -1,10 +1,12 @@
-import { View } from 'react-native';
+import { useCallback } from 'react';
+import { Linking, View } from 'react-native';
 import type { MarketplaceDetail as Detail } from '../../../../../packages/core/src/marketplace/client';
 import { space } from '../design/tokens';
 import { MarkdownView } from '../markdown-view';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { marketplaceReadmeLink } from '../../marketplace/readme-links';
 
 export function MarketplaceDetail({
   detail,
@@ -18,6 +20,16 @@ export function MarketplaceDetail({
   onImport(): void;
 }) {
   const bot = detail.bot;
+  const openLink = useCallback(
+    (href: string) => {
+      const url = marketplaceReadmeLink(href, {
+        repositoryUrl: bot.htmlUrl,
+        commit: detail.commitSha,
+      });
+      if (url) void Linking.openURL(url).catch(() => undefined);
+    },
+    [bot.htmlUrl, detail.commitSha],
+  );
   return (
     <View style={{ gap: space.x5 }}>
       <Text variant="title" strong selectable>
@@ -52,7 +64,7 @@ export function MarketplaceDetail({
       />
       {!detail.commitSha ? <Text>{t.marketplace.refreshRevision}</Text> : null}
       {detail.readme ? (
-        <MarkdownView source={detail.readme} />
+        <MarkdownView source={detail.readme} onOpenLink={openLink} />
       ) : (
         <Text tone="muted">{t.marketplace.noReadme}</Text>
       )}

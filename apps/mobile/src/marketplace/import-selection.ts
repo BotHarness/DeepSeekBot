@@ -9,12 +9,19 @@ export async function selectMarketplaceImport(
   if (!detail.commitSha || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(detail.commitSha))
     return 'marketplace-version-unavailable';
   await controller.ready;
-  const current = controller.getSnapshot();
-  if (current.busy || current.record.kind !== 'draft') return 'creation-pending';
+  let current = controller.getSnapshot();
+  if (current.busy) return 'creation-pending';
+  if (current.record.kind === 'submitted' && current.record.acknowledged) {
+    await controller.another();
+    current = controller.getSnapshot();
+    if (current.error) return current.error;
+  }
+  if (current.record.kind !== 'draft') return 'creation-pending';
   const source = current.record.draft.source;
   if (
     entry.kind !== 'refresh' ||
-    source?.origin !== 'marketplace' ||
+    source?.kind !== 'git' ||
+    source.origin !== 'marketplace' ||
     source.listingId !== detail.bot.id
   ) {
     await controller.enter(entry.kind === 'refresh' ? { kind: 'all' } : entry);
@@ -31,7 +38,9 @@ export async function selectMarketplaceImport(
   });
   const next = controller.getSnapshot();
   if (next.error) return next.error;
-  return next.record.kind === 'draft' && next.record.draft.source?.listingId === detail.bot.id
+  return next.record.kind === 'draft' &&
+    next.record.draft.source?.kind === 'git' &&
+    next.record.draft.source.listingId === detail.bot.id
     ? undefined
     : 'creation-pending';
 }

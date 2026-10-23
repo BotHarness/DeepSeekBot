@@ -29,8 +29,16 @@ vi.mock('react-native', async () => {
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('react-native-enriched-markdown', () => ({
-  EnrichedMarkdownText: ({ markdown }: { markdown: string }) => (
-    <pre data-testid="native-markdown">{markdown}</pre>
+  EnrichedMarkdownText: ({
+    markdown,
+    onLinkPress,
+  }: {
+    markdown: string;
+    onLinkPress(event: { url: string }): void;
+  }) => (
+    <pre data-testid="native-markdown" onClick={() => onLinkPress({ url: 'docs/native.md' })}>
+      {markdown}
+    </pre>
   ),
 }));
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: copied }));
@@ -46,7 +54,7 @@ afterEach(() => {
   copied.mockClear();
 });
 
-async function render(source: string, streaming = false) {
+async function render(source: string, streaming = false, onOpenLink?: (url: string) => void) {
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
@@ -55,17 +63,46 @@ async function render(source: string, streaming = false) {
     container.remove();
   };
   await act(async () =>
-    root.render(<MarkdownView source={source} streaming={streaming} selectable={false} />),
+    root.render(
+      <MarkdownView
+        source={source}
+        streaming={streaming}
+        selectable={false}
+        {...(onOpenLink ? { onOpenLink } : {})}
+      />,
+    ),
   );
   return {
     container,
     update: async (next: string) => {
       await act(async () =>
-        root.render(<MarkdownView source={next} streaming={streaming} selectable={false} />),
+        root.render(
+          <MarkdownView
+            source={next}
+            streaming={streaming}
+            selectable={false}
+            {...(onOpenLink ? { onOpenLink } : {})}
+          />,
+        ),
       );
     },
   };
 }
+
+it('uses the supplied link owner for prose, table and native fallback blocks', async () => {
+  const open = vi.fn();
+  const { container } = await render(
+    '[Guide](docs/setup.md)\n\n| Docs |\n|---|\n| [Table](docs/table.md) |\n\n![Image](https://example.com/image.png)',
+    false,
+    open,
+  );
+  for (const link of container.querySelectorAll<HTMLElement>('[role="link"]'))
+    await act(async () => link.click());
+  await act(async () =>
+    container.querySelector<HTMLElement>('[data-testid="native-markdown"]')!.click(),
+  );
+  expect(open.mock.calls).toEqual([['docs/setup.md'], ['docs/table.md'], ['docs/native.md']]);
+});
 
 it('preserves prose, entities, emoji, links, lists, quotes and exact code-copy content', async () => {
   const code = 'const x = "<&amp;>";';
