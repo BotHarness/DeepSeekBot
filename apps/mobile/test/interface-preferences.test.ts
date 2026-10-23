@@ -76,7 +76,7 @@ describe('phone interface preferences', () => {
     await preferences.restore({ read: async () => undefined, write });
     preferences.setAppearance('dark');
     expect(preferences.getSnapshot()).toMatchObject({ appearance: 'dark', storageError: true });
-    preferences.setAppearance('dark');
+    preferences.retrySave();
     expect(preferences.getSnapshot()).toMatchObject({ appearance: 'dark', storageError: false });
     expect(write).toHaveBeenCalledTimes(2);
   });

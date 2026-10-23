@@ -86,3 +86,26 @@ it('updates mounted settings and theme immediately and preserves unrelated state
     host.remove();
   }
 });
+
+it('retries a failed save without changing the selected preference', async () => {
+  const write = vi.fn().mockImplementationOnce(() => {
+    throw new Error('disk full');
+  });
+  await interfacePreferences.restore({ read: async () => undefined, write });
+  interfacePreferences.setLanguage('en');
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<InterfaceSettings />));
+    expect(host.textContent).toContain('Could not save this choice');
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('[data-testid="settings-interface-retry"]')!.click(),
+    );
+    expect(write).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'en' }));
+    expect(interfacePreferences.getSnapshot().language).toBe('en');
+    expect(host.textContent).not.toContain('Could not save this choice');
+  } finally {
+    await act(async () => root.unmount());
+    interfacePreferences.setLanguage('system');
+  }
+});

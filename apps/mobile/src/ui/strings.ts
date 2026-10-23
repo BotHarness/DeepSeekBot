@@ -25,7 +25,7 @@ const en = {
     light: 'Light',
     dark: 'Dark',
     local: 'Saved on this phone.',
-    storageError: 'Could not save this choice. Try selecting it again.',
+    storageError: 'Could not save this choice. Please retry.',
   },
   channelCreation: {
     chooseBots: 'Choose Bots',
@@ -1619,7 +1619,7 @@ const zh: typeof en = {
     light: '浅色',
     dark: '深色',
     local: '保存在这台手机上。',
-    storageError: '未能保存，请重新选择。',
+    storageError: '未能保存，请重试。',
   },
   channelCreation: {
     chooseBots: '选择 Bot',

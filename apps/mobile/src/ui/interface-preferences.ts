@@ -85,6 +85,10 @@ export function createInterfacePreferences() {
       if (snapshot.loaded) persist();
       publish();
     },
+    retrySave() {
+      if (snapshot.loaded) persist();
+      publish();
+    },
     setSystemLocales(locales: readonly string[]) {
       const next = preferredLanguage(locales);
       if (next === system) return;

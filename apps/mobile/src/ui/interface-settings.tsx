@@ -2,12 +2,14 @@ import { useSyncExternalStore } from 'react';
 import { View } from 'react-native';
 import { interfacePreferences } from './interface-preferences';
 import { PreferenceRow } from './primitives/preference-row';
+import { Button } from './primitives/button';
 import { Text } from './primitives/text';
 import { space } from './design/tokens';
 import { useStrings } from './strings';
 
 export function InterfaceSettings() {
-  const t = useStrings().interfacePreferences;
+  const copy = useStrings();
+  const t = copy.interfacePreferences;
   const state = useSyncExternalStore(
     interfacePreferences.subscribe,
     interfacePreferences.getSnapshot,
@@ -38,10 +40,15 @@ export function InterfaceSettings() {
         onChange={interfacePreferences.setAppearance}
       />
       {state.storageError ? (
-        <View style={{ padding: space.x5 }}>
+        <View style={{ padding: space.x5, gap: space.x3 }}>
           <Text variant="meta" tone="danger">
             {t.storageError}
           </Text>
+          <Button
+            label={copy.retry}
+            testID="settings-interface-retry"
+            onPress={interfacePreferences.retrySave}
+          />
         </View>
       ) : null}
     </>
