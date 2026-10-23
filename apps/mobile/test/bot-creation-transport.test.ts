@@ -37,6 +37,42 @@ function carrier() {
 }
 
 describe('target-bound creation transport', () => {
+  it('previews and imports a Git source through B with the same pinned revision and receipt', async () => {
+    const network = carrier();
+    const source = {
+      kind: 'git' as const,
+      gitUrl: 'https://github.com/a/b.git',
+      commit: 'a'.repeat(40),
+    };
+    const imported = { ...operation, source };
+    const receipt = {
+      operationKey: operation.operationKey,
+      botSlug: 'git-bot',
+      status: 'created',
+      channelId: 'git-dm',
+    };
+    network.request
+      .mockResolvedValueOnce(answer({ source }))
+      .mockResolvedValueOnce(answer({ receipt: null }))
+      .mockResolvedValueOnce(answer({ receipt }));
+    const transport = botCreationTransport(() => [a, b], network);
+    expect(
+      await transport.preview!({ hostId: 'B', deviceId: 'phone-b' }, 'https://github.com/a/b'),
+    ).toEqual(source);
+    expect(await transport.lookup(imported)).toBeNull();
+    expect(await transport.create(imported)).toEqual(receipt);
+    expect(network.request.mock.calls.map(([url]) => url)).toEqual([
+      'https://b.ts.net/botharness-device/api/botharness/botImportPreview',
+      'https://b.ts.net/botharness-device/api/botharness/botImportLookup',
+      'https://b.ts.net/botharness-device/api/botharness/createFromGit',
+    ]);
+    expect(JSON.parse(String(network.request.mock.calls[2]?.[1].body)).payload.args).toMatchObject({
+      gitUrl: source.gitUrl,
+      expectedCommit: source.commit,
+      operationKey: operation.operationKey,
+      displayName: 'Helper',
+    });
+  });
   it('uses B’s credential and routes without opening a live connection or visiting A', async () => {
     const network = carrier();
     network.request
