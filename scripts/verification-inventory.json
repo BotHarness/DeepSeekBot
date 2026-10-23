@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.blank-bot-creation",
+      "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2629,
+      "gap": "Native Android/iOS interaction and live Host CLI qualification must be recorded separately; source tests do not establish runtime acceptance."
+    },
+    {
       "id": "phone.local-computer-video",
       "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
       "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
