@@ -1,6 +1,29 @@
 import type { DesktopInput } from '../../../../packages/computer/src/desktop-view';
 import { fittedFrame, stagePoint, type StageLayout, type StageZoom } from './browser-viewer';
 
+export function videoPointerScroll({
+  point,
+  frame,
+  axis,
+  steps,
+  driving,
+}: {
+  point: { x: number; y: number };
+  frame: { width: number; height: number };
+  axis: 'horizontal' | 'vertical';
+  steps: number;
+  driving: boolean;
+}): Extract<DesktopInput, { kind: 'scroll' }> | undefined {
+  const at = inputPoint({ point, frame, driving });
+  if (at === undefined || !Number.isSafeInteger(steps) || steps === 0) return undefined;
+  return {
+    kind: 'scroll',
+    ...at,
+    direction: axis === 'horizontal' ? (steps > 0 ? 'right' : 'left') : steps > 0 ? 'down' : 'up',
+    amount: Math.min(50, Math.abs(steps)),
+  };
+}
+
 export function resizeVideoPreview({
   frame,
   before,
@@ -52,6 +75,19 @@ export function videoPointerClick({
   button: 'left' | 'right';
   driving: boolean;
 }): Extract<DesktopInput, { kind: 'click' }> | undefined {
+  const at = inputPoint({ point, frame, driving });
+  return at === undefined ? undefined : { kind: 'click', ...at, button, count: 1 };
+}
+
+function inputPoint({
+  point,
+  frame,
+  driving,
+}: {
+  point: { x: number; y: number };
+  frame: { width: number; height: number };
+  driving: boolean;
+}): { x: number; y: number } | undefined {
   if (
     !driving ||
     !Number.isFinite(point.x) ||
@@ -65,10 +101,7 @@ export function videoPointerClick({
   )
     return undefined;
   return {
-    kind: 'click',
     x: Math.min(frame.width - 1, Math.round(point.x)),
     y: Math.min(frame.height - 1, Math.round(point.y)),
-    button,
-    count: 1,
   };
 }

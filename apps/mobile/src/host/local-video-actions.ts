@@ -4,11 +4,11 @@ import type {
 } from '../../../../packages/computer/src/local-video-client';
 
 export function localVideoActions(state: LocalVideoClientState): {
-  release: boolean;
+  handBack: boolean;
   reconnect: boolean;
 } {
   return {
-    release: state.host?.binding !== undefined && state.host.grant !== undefined,
+    handBack: state.host?.paused === true || state.host?.grant !== undefined,
     reconnect:
       state.status === 'unavailable' ||
       state.status === 'idle' ||

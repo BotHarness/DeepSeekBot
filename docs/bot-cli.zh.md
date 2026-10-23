@@ -443,11 +443,11 @@ deepseekbot computer-video close --args-stdin
 
 所有操作使用 `POST /api/computer/video`，stdout 输出一个 JSON 文档。`status` 报告全局 `paused`、`viewerCount`、`controlHeld`、媒体健康与 runtime；`controller`、binding 和 grant 仅属于认证调用者。手机使用已配对设备身份，本机认证 CLI 使用 Host owner 身份，不能通过提交设备 ID 冒充手机。第二观看端收到 `viewer-limit`。
 
-手机只在加密 LAN 通道内发送准确的命令路径，并使用 Noise 准入后的设备身份直接分派。Connect 在 owner 执行之前拒绝视频；请求里的 route 标签不能覆盖服务端 listener。Host owner CLI 成功不能证明手机配对或 LAN／原生播放。确认停滞时仍可释放与重新连接，独立于输入资格；释放保持暂停，重连只恢复观察。回滚曾写入暂停状态的版本前，先阅读[恢复与降级](local-computer-video.zh.md#恢复与降级)。
+手机只在加密 LAN 通道内发送准确的命令路径，并使用 Noise 准入后的设备身份直接分派。Connect 在 owner 执行之前拒绝视频；请求里的 route 标签不能覆盖服务端 listener。Host owner CLI 成功不能证明手机配对或 LAN／原生播放。手机单一「交还 Bot」动作使用 `resume`，它与重新连接在确认停滞时仍可用，独立于输入资格；底层 `release` 保持暂停，重连只恢复观察。回滚曾写入暂停状态的版本前，先阅读[恢复与降级](local-computer-video.zh.md#恢复与降级)。
 
 `open` 不暂停 Bot。它返回服务端生成的 `binding`（`computerId`、`runtimeId`、`viewerId`、`attemptId`），把 gathered offer 写入全新的私密 `--out` 文件，stdout 不含 SDP。后续命令 JSON 从 stdin 读取：`signal` 接收 `binding` 和 `answer: {"type":"answer","sdp":"…"}`；`heartbeat` 接收 `binding` 和真实接收端呈现产生的 `playback: {"presentedFrames":42,"presenting":true}`。伪造心跳不算播放验证。`takeover` 接收 `binding`；强制接管还需 `force:true` 与 CLI 的 `--confirm`，但 T1 会更早拒绝第二观看端。
 
-`input` 接收 `binding`、grant 的 `generation`、严格递增的 `sequence`，以及 `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}`，坐标为完整显示器的实际像素。输入只执行一次；`input-result-unknown` 表示不可重发。`release` 接收 `binding` 和可选 `generation`，保持持久暂停；`close` 接收 `binding`，关闭媒体但不恢复 Bot。`resume` 必须提交当前 `runtimeId`，重启后无需 viewer/helper 也可执行：先作废控制、排空 Human 输入，再恢复 Bot。有其他控制者时返回 `control-conflict`；旧 runtime/attempt/grant 均被拒绝。
+`input` 接收 `binding`、grant 的 `generation`、严格递增的 `sequence`，以及 `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}` 或 `input: {"kind":"scroll","direction":"right","amount":2,"x":10,"y":20}`。滚动支持 `up`、`down`、`left`、`right`，步数为 1–50；坐标为完整显示器的实际像素。输入只执行一次；`input-result-unknown` 表示不可重发。`release` 接收 `binding` 和可选 `generation`，保持持久暂停；`close` 接收 `binding`，关闭媒体但不恢复 Bot。`resume` 必须提交当前 `runtimeId`，重启后无需 viewer/helper 也可执行：先作废控制、排空 Human 输入，再恢复 Bot。有其他控制者时返回 `control-conflict`；旧 runtime/attempt/grant 均被拒绝。
 
 `computer-diagnostics` 和 `computer-logs` 提供有界生命周期证据。常见拒绝包括 `not-running`、`helper-missing`、`helper-start-failed`、`viewer-limit`、`media-not-live`、`control-required`、`control-disconnected`、`stale-attempt`、`stale-grant`、`pause-write-failed`、`drain-timeout`、`queue-full` 和 `connect-carrier-required`。证据中不打印信令文件、凭据或输入内容。CLI 信令成功不等于视频呈现或真机验收。
 

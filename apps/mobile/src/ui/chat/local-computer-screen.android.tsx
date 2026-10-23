@@ -1,21 +1,16 @@
 import {
   Button as ComposeButton,
   Host,
-  RNHostView,
+  Icon,
+  IconButton,
   Row,
   Text as ComposeText,
   TextButton,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  useCallback,
-  useMemo,
-  useSyncExternalStore,
-  type ComponentType,
-  type ReactNode,
-} from 'react';
-import { AppState, ScrollView, View } from 'react-native';
+import { useCallback, useMemo, useSyncExternalStore, type ComponentType } from 'react';
+import { AppState, View, useWindowDimensions } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -23,7 +18,8 @@ import {
   createLocalVideoClient,
   type LocalVideoClientState,
 } from '../../../../../packages/computer/src/local-video-client';
-import { videoPointerClick } from '../../host/local-video-pointer';
+import { videoPointerClick, videoPointerScroll } from '../../host/local-video-pointer';
+import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
 import type { StageZoom } from '../../host/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
@@ -31,10 +27,10 @@ import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
-import { MouseButtonIcon } from '../shell/icons';
 import { t } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
+import { ComputerWheelButton } from './computer-wheel-button';
 
 const idle: LocalVideoClientState = {
   status: 'idle',
@@ -51,6 +47,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
+  const landscape = window.width > window.height;
   const viewer = useMemo(
     () =>
       client === undefined
@@ -96,7 +94,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const driving = controlling && state.presenting && host?.media.status === 'live' && !state.busy;
   const frame = { width: host?.media.width ?? 0, height: host?.media.height ?? 0 };
   const Video = NativeLocalComputerVideo;
-  const click = (at: { x: number; y: number }, button: 'left' | 'right') => {
+  const send = (input: DesktopInput | undefined) => {
     const current = viewer?.getState().host;
     if (
       current?.binding?.runtimeId !== binding?.runtimeId ||
@@ -105,9 +103,12 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       current?.grant?.generation !== host?.grant?.generation
     )
       return;
-    const input = videoPointerClick({ point: at, frame, button, driving });
     if (input !== undefined) void viewer?.input(input);
   };
+  const click = (point: { x: number; y: number }, button: 'left' | 'right') =>
+    send(videoPointerClick({ point, frame, button, driving }));
+  const scroll = (axis: 'horizontal' | 'vertical', steps: number) =>
+    send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const close = () => {
     void viewer?.stop();
@@ -131,40 +132,15 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                   (mediaMounted && !state.presenting)
                 ? t.computerVideoWaiting
                 : undefined;
-  const action = ({
-    label,
-    testID,
-    onClick,
-    disabled = false,
-    primary = false,
-    icon,
-  }: {
-    label: string;
-    testID: string;
-    onClick(): void;
-    disabled?: boolean;
-    primary?: boolean;
-    icon?: ReactNode;
-  }) => {
-    const Control = primary ? ComposeButton : TextButton;
-    return (
-      <View testID={testID}>
-        <Host
-          matchContents={{ vertical: true }}
-          style={{ width: '100%' }}
-          colorScheme={theme.scheme}
-          seedColor={theme.color.accent}
-        >
-          <Control enabled={!disabled} onClick={onClick} modifiers={[fillMaxWidth()]}>
-            <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
-              {icon}
-              <ComposeText>{label}</ComposeText>
-            </Row>
-          </Control>
-        </Host>
-      </View>
-    );
-  };
+  const toggleDisabled =
+    state.busy ||
+    revoked ||
+    !connected ||
+    (!actions.handBack &&
+      (!mediaMounted ||
+        !state.presenting ||
+        host?.media.status !== 'live' ||
+        !host.media.captureAlive));
 
   return (
     <View
@@ -172,21 +148,43 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         flex: 1,
         paddingTop: insets.top,
         paddingBottom: insets.bottom,
+        paddingLeft: insets.left,
+        paddingRight: insets.right,
         backgroundColor: theme.layer.canvas.fill,
       }}
     >
-      <View style={{ paddingHorizontal: space.x5, paddingVertical: space.x3 }}>
-        <Text variant="title">{t.computerTitle(bot?.displayName ?? slug ?? '')}</Text>
+      <View
+        style={{
+          paddingHorizontal: space.x3,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x3,
+        }}
+      >
         <Text
+          variant={landscape ? 'body' : 'title'}
+          numberOfLines={1}
+          style={{ flex: 1 }}
           accessibilityLiveRegion="polite"
-          variant="meta"
-          tone={controlling ? 'accent' : 'muted'}
+          accessibilityLabel={`${t.computerTitle(bot?.displayName ?? slug ?? '')}, ${controlling ? t.computerYouDriving : t.computerWatching}${host?.paused ? `, ${t.computerVideoBotsPaused}` : ''}`}
         >
-          {controlling ? t.computerYouDriving : t.computerWatching}
-          {host?.paused ? ` · ${t.computerVideoBotsPaused}` : ''}
+          {t.computerTitle(bot?.displayName ?? slug ?? '')}
         </Text>
+        <View testID="computer-video-close">
+          <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
+            <IconButton
+              onClick={close}
+              modifiers={[semantics({ contentDescription: t.computerVideoExit })]}
+            >
+              <Icon
+                source={require('../../../assets/toolbar/close.png')}
+                size={theme.type.title.line}
+              />
+            </IconButton>
+          </Host>
+        </View>
       </View>
-      <View style={{ flex: 1, minHeight: theme.touch * 3 }}>
+      <View style={{ flex: 1, minHeight: theme.touch }}>
         {mediaMounted && Video !== undefined ? (
           <ComputerVideoStage
             key={binding.attemptId}
@@ -229,88 +227,80 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           </View>
         )}
       </View>
-      <ScrollView
-        style={{ flexGrow: 0, maxHeight: '45%' }}
-        contentContainerStyle={{ paddingHorizontal: space.x5, paddingBottom: space.x3 }}
-      >
-        <Text variant="meta" tone="muted">
-          {controlling ? t.computerVideoTrackpadHint : t.computerVideoPreviewHint}
-        </Text>
-        {controlling ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
-            {(['left', 'right'] as const).map((side) => (
-              <View key={side} style={{ flexBasis: '45%', flexGrow: 1 }}>
-                {action({
-                  label: side === 'left' ? t.computerLeftClick : t.computerRightClick,
-                  testID: `computer-video-${side}-click`,
-                  onClick: () => click(cursor.get(), side),
-                  disabled: !driving,
-                  icon: (
-                    <RNHostView matchContents>
-                      <MouseButtonIcon
-                        side={side}
-                        size={theme.type.body.line * theme.fontScale}
-                        color={driving ? theme.color.accent : theme.color.muted}
-                        mark={driving ? theme.color.accent : theme.color.muted}
-                      />
-                    </RNHostView>
-                  ),
-                })}
-              </View>
-            ))}
-          </View>
-        ) : null}
-        {mediaMounted
-          ? action({
-              label: t.computerVideoReset,
-              testID: 'computer-video-reset',
-              onClick: () => preview.set({ scale: 1, x: 0, y: 0 }),
-            })
-          : null}
+      <View style={{ paddingHorizontal: space.x3, paddingBottom: space.x2 }}>
         {message === undefined ? null : (
           <Text accessibilityLiveRegion="polite" tone="muted">
             {message}
           </Text>
         )}
-        {actions.release
-          ? action({
-              label: t.computerVideoRelease,
-              testID: 'computer-video-release',
-              onClick: () => void viewer?.release(),
-              disabled: state.busy || revoked || !connected,
-            })
-          : action({
-              label: t.computerVideoTakeover,
-              testID: 'computer-video-takeover',
-              onClick: () => void viewer?.takeover(),
-              disabled:
-                !mediaMounted ||
-                !state.presenting ||
-                host?.media.status !== 'live' ||
-                !host.media.captureAlive ||
-                state.busy,
-              primary: true,
-            })}
-        {host?.paused
-          ? action({
-              label: t.computerVideoResume,
-              testID: 'computer-video-resume',
-              onClick: () => void viewer?.resume(),
-              disabled: state.busy || revoked,
-            })
-          : null}
-        {!nativeMissing && !revoked && connected && actions.reconnect
-          ? action({
-              label: t.computerVideoReconnect,
-              testID: 'computer-video-reconnect',
-              onClick: () => {
-                void viewer?.reconnect();
-              },
-              disabled: state.busy,
-            })
-          : null}
-        {action({ label: t.computerClose, testID: 'computer-video-close', onClick: close })}
-      </ScrollView>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          {controlling ? (
+            <ComputerWheelButton
+              key={`left-${host?.grant?.generation}`}
+              side="left"
+              enabled={driving}
+              compact={landscape}
+              onClick={() => click(cursor.get(), 'left')}
+              onScroll={scroll}
+            />
+          ) : null}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Host
+              matchContents={{ vertical: true }}
+              style={{ width: '100%' }}
+              colorScheme={theme.scheme}
+              seedColor={theme.color.accent}
+            >
+              <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+                <ComposeButton
+                  enabled={!toggleDisabled}
+                  onClick={() => void (actions.handBack ? viewer?.resume() : viewer?.takeover())}
+                  modifiers={[
+                    weight(1),
+                    testID('computer-video-control'),
+                    semantics({
+                      contentDescription: actions.handBack
+                        ? t.computerVideoHandBack
+                        : t.computerVideoTakeover,
+                    }),
+                  ]}
+                >
+                  <ComposeText>
+                    {actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover}
+                  </ComposeText>
+                </ComposeButton>
+                {mediaMounted ? (
+                  <TextButton
+                    onClick={() => preview.set({ scale: 1, x: 0, y: 0 })}
+                    modifiers={[testID('computer-video-reset')]}
+                  >
+                    <ComposeText>{t.computerVideoReset}</ComposeText>
+                  </TextButton>
+                ) : null}
+                {!nativeMissing && !revoked && connected && actions.reconnect ? (
+                  <TextButton
+                    enabled={!state.busy}
+                    onClick={() => void viewer?.reconnect()}
+                    modifiers={[testID('computer-video-reconnect')]}
+                  >
+                    <ComposeText>{t.computerVideoReconnect}</ComposeText>
+                  </TextButton>
+                ) : null}
+              </Row>
+            </Host>
+          </View>
+          {controlling ? (
+            <ComputerWheelButton
+              key={`right-${host?.grant?.generation}`}
+              side="right"
+              enabled={driving}
+              compact={landscape}
+              onClick={() => click(cursor.get(), 'right')}
+              onScroll={scroll}
+            />
+          ) : null}
+        </View>
+      </View>
     </View>
   );
 }

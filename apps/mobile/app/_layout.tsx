@@ -37,6 +37,7 @@ function RootNavigator() {
             <StatusBar style="auto" />
             <Stack
               screenOptions={{
+                orientation: 'portrait',
                 headerStyle: { backgroundColor: theme.background },
                 headerTintColor: theme.ink,
                 headerShadowVisible: false,
@@ -143,6 +144,7 @@ function RootNavigator() {
                 name="computer/[slug]"
                 options={{
                   title: t.profileComputer,
+                  orientation: Platform.OS === 'android' ? 'all' : 'portrait',
                   presentation: 'fullScreenModal',
                   headerShown: false,
                   gestureEnabled: false,

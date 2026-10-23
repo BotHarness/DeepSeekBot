@@ -30,8 +30,16 @@ Use two fingers to pinch and pan the phone preview, while watching or controllin
 not scroll or drag the remote desktop. The canvas starts at the top and keeps its zoom and
 position when fingers lift, including below fit size. **Reset view** restores its default fit
 and top position without remote input. Showing/hiding control buttons preserves the preview;
-width/display changes and reconnect reset the preview and cursor. **Release control** keeps
-Bots paused; **Resume Bots** is a separate action. Keyboard/IME and direct-touch parity remain
+width/display changes and reconnect reset the preview and cursor.
+
+Computer supports Android landscape; other screens remain portrait. The compact toolbar keeps
+**Left** at its left edge and **Right** at its right edge. Tap either button to click; drag it
+horizontally or vertically to scroll the remote desktop at the cursor. The slider follows the
+chosen drag axis (Left starts horizontal, Right vertical); dragging never also clicks.
+The single **Take control** / **Hand back** button explicitly pauses or resumes Bots.
+Hand back releases control and resumes Bots together, retaining observation. Exit is in the
+top-right header; exit, backgrounding and connection loss preserve a paused Bot state.
+There is no visible instruction caption. Keyboard/IME and direct-touch parity remain
 tracked in [#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559).
 
 ## Toolchain

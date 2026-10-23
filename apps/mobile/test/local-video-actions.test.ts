@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { localVideoActions, watchLocalVideoForeground } from '../src/host/local-video-actions';
 import type { LocalVideoClientState } from '../../../packages/computer/src/local-video-client';
 
-it('keeps Release and Reconnect visible for the caller grant when a stall removes input eligibility', () => {
+it('keeps one hand-back action and Reconnect available when a stall removes input eligibility', () => {
   const state: LocalVideoClientState = {
     status: 'observing',
     presenting: false,
@@ -26,14 +26,17 @@ it('keeps Release and Reconnect visible for the caller grant when a stall remove
       media: { status: 'stalled', captureAlive: true, width: 1280, height: 720 },
     },
   };
-  expect(localVideoActions(state)).toEqual({ release: true, reconnect: true });
+  expect(localVideoActions(state)).toEqual({ handBack: true, reconnect: true });
   const { grant: _grant, ...released } = state.host!;
   expect(localVideoActions({ ...state, host: released })).toEqual({
-    release: false,
+    handBack: true,
     reconnect: true,
   });
+  expect(
+    localVideoActions({ ...state, host: { ...released, paused: false, controlHeld: false } }),
+  ).toEqual({ handBack: false, reconnect: true });
   expect(localVideoActions({ ...state, host: undefined, status: 'opening' })).toEqual({
-    release: false,
+    handBack: false,
     reconnect: false,
   });
 });

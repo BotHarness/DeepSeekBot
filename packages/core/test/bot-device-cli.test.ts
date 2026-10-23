@@ -131,6 +131,28 @@ describe('Agent Browser and Computer commands', () => {
     ]);
   });
 
+  it('sends horizontal scrolling through the existing authenticated video input command', async () => {
+    const live = await host(() => ({ json: { ok: true } }));
+    const input = {
+      binding: { runtimeId: 'r', viewerId: 'v', attemptId: 'a', computerId: 'local' },
+      generation: 7,
+      sequence: 1,
+      input: { kind: 'scroll', direction: 'right', amount: 2, x: 40, y: 50 },
+    };
+    expect(
+      (
+        await invokeWithStdin(
+          ['computer-video', 'input', '--args-stdin'],
+          live.url,
+          JSON.stringify(input),
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls).toEqual([
+      { method: 'POST', path: '/api/computer/video', body: { kind: 'input', ...input } },
+    ]);
+  });
+
   it('never repeats an unknown video input and preserves its coded refusal', async () => {
     const live = await host(() => ({
       status: 409,

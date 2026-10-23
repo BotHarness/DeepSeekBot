@@ -5,11 +5,43 @@ import {
   resizeVideoPreview,
   videoPointerClick,
   videoPointerPosition,
+  videoPointerScroll,
 } from '../src/host/local-video-pointer';
 
 describe('native video trackpad', () => {
   const frame = { width: 2560, height: 1440 };
   const portrait = { width: 400, height: 700 };
+
+  it('maps wheel-button drag steps to four directions at the cursor only with control', () => {
+    for (const [axis, steps, direction] of [
+      ['horizontal', 2, 'right'],
+      ['horizontal', -2, 'left'],
+      ['vertical', 3, 'down'],
+      ['vertical', -3, 'up'],
+    ] as const) {
+      expect(
+        videoPointerScroll({ point: { x: 100, y: 200 }, frame, axis, steps, driving: true }),
+      ).toEqual({ kind: 'scroll', x: 100, y: 200, direction, amount: Math.abs(steps) });
+    }
+    expect(
+      videoPointerScroll({
+        point: { x: 100, y: 200 },
+        frame,
+        axis: 'vertical',
+        steps: 1,
+        driving: false,
+      }),
+    ).toBeUndefined();
+    expect(
+      videoPointerScroll({
+        point: { x: 100, y: 200 },
+        frame,
+        axis: 'vertical',
+        steps: 0,
+        driving: true,
+      }),
+    ).toBeUndefined();
+  });
 
   it('keeps the displayed canvas still when controls reduce a short viewport', () => {
     const before = { width: 400, height: 200 };

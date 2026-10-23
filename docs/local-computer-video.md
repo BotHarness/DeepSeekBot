@@ -6,11 +6,11 @@ Start Local Computer with **Check permissions** or `deepseekbot computer-start -
 
 Setup also compiles the bundled Windows Job launcher with the system .NET Framework compiler, invoked directly with no compiler server. This bounded step runs only during explicit setup; observation never downloads or compiles a helper. Compiler, verification or desktop-access failures leave video unavailable. The launcher owns the entire Electron process tree. Unproven cleanup blocks another capture instead of treating root-process exit as success.
 
-Open a Bot with Computer Access and choose **Computer**. Watching does not pause Bots. **Take control** first saves a Computer-wide pause and waits for earlier Bot operations to finish. Only then may a tap send a desktop click. This slice offers direct clicks; additional gesture and text-entry qualification belongs to later slices.
+Open a Bot with Computer Access and choose **Computer**. Watching does not pause Bots. **Take control** first saves a Computer-wide pause and waits for earlier Bot operations to finish. One finger moves a large local pointer; tap or the icon + **Left** / **Right** buttons click at that pointer. Drag either mouse button horizontally or vertically to scroll at the pointer, with a responding slider and no click on release. Two fingers freely zoom and pan the top-aligned phone preview while watching or controlling; lifting keeps its position. **Reset view** explicitly restores fit. Computer supports Android landscape with a single compact toolbar row and a top-right exit. Native gesture and text-entry qualification remains build-specific.
 
 Video and input use the primary display's physical pixel dimensions. Before granting control and before each input, the owner checks the Windows driver's display size against capture. DPI scale is not applied a second time; mismatched or changed geometry refuses input.
 
-**Release control** leaves Bots paused. **Resume Bots** explicitly ends control, waits for Human input to finish, and saves the resumed state. Pause survives losing the phone, helper failure and Host restart. No controller is restored after restart. Resume remains available through the CLI when media cannot start.
+The same button switches to **Hand back**: one explicit action ends control, waits for Human input to finish, and saves the resumed Bot state while keeping the preview open. It uses the existing owner `resume` command. The lower-level CLI `release` command still leaves Bots paused. Exit, losing the phone, helper failure and Host restart preserve pause; no controller is restored after restart. Resume remains available through the CLI when media cannot start.
 
 Backgrounding or locking the phone stops its media and releases control. Return to the foreground to observe again, then explicitly take control. A second viewer is refused with `viewer-limit` without evicting the first. Frozen or unconfirmed video disables input. A static live desktop must still pass the qualification journey; repeated canvas frames alone do not establish capture health.
 
@@ -18,7 +18,7 @@ The new viewer has no image fallback, including manual snapshots. Missing native
 
 T1 uses direct WebRTC with no configured STUN/TURN servers. The phone's signaling and control use the existing encrypted LAN channel, its pinned Host key and approved device identity. Only the server-owned LAN listener dispatches the exact video command path to the Computer owner. Hosted Connect remains refused with `connect-carrier-required`, even though its encrypted carrier is available; remote media qualification belongs to a later slice. There is no WebView or plaintext fallback. Self-configured TURN, audio, clipboard, background viewing and unlocking are absent.
 
-When video stalls, input is disabled but **Release control**, **Resume Bots**, exit and **Reconnect** remain available. Release follows the caller's retained grant, separately from eligibility to send input. Reconnect closes the old attempt before opening observation again; it does not restore control or replay input.
+When video stalls, input is disabled but **Hand back**, exit and **Reconnect** remain available. Hand back is available while the Computer is paused or the caller retains a grant, separately from eligibility to send input. Reconnect closes the old attempt before opening observation again; it does not restore control, resume Bots or replay input.
 
 ## Recovery and downgrade
 

@@ -142,6 +142,38 @@ function harness(
 }
 
 describe('Local Computer owner authority', () => {
+  it('delivers four-direction wheel input once through the granted desktop driver', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    const directions = ['left', 'right', 'up', 'down'] as const;
+    for (const [index, direction] of directions.entries()) {
+      await h.owner.handle(caller, {
+        kind: 'input',
+        binding,
+        generation: grant!.generation,
+        sequence: index + 1,
+        input: { kind: 'scroll', direction, amount: 2, x: 40, y: 50 },
+      });
+    }
+    expect(h.driver.call.mock.calls.map(([tool, args]) => ({ tool, args }))).toMatchObject(
+      directions.map((direction) => ({
+        tool: 'scroll',
+        args: { direction, amount: 2, x: 40, y: 50 },
+      })),
+    );
+    await expect(
+      h.owner.handle(caller, {
+        kind: 'input',
+        binding,
+        generation: grant!.generation,
+        sequence: 4,
+        input: { kind: 'scroll', direction: 'right', amount: 2, x: 40, y: 50 },
+      }),
+    ).rejects.toMatchObject({ code: 'input-sequence' });
+    expect(h.driver.call).toHaveBeenCalledTimes(4);
+  });
+
   it('reports correlated takeover/release/resume outcomes without device or input data', async () => {
     const h = harness();
     const binding = await h.connect();
