@@ -1,6 +1,6 @@
 import type { HostClient } from '../../host/client';
 
-type Section = { id: string; name: string };
+type Section = { id: string | null; name: string };
 export type SectionState = {
   busy: boolean;
   selected?: Section;

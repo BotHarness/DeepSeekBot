@@ -8,7 +8,7 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
-import { SectionChoice } from './section-choice';
+import { SectionChoice, SectionChoiceDivider } from './section-choice';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
@@ -56,6 +56,13 @@ export function ConversationSectionSheet({
   const current = isCurrent();
   const sections =
     current && snapshot.roster ? (snapshot.roster.arrangement?.sections ?? []) : undefined;
+  const currentSectionId =
+    sections?.find((section) => section.channelIds.includes(channelId))?.id ?? null;
+  const choose = (section: { id: string | null; name: string }) => {
+    if (!current || state.busy || sections === undefined) return;
+    if (section.id === currentSectionId && !state.error) onClose();
+    else void run(() => flow.choose(section));
+  };
   const unavailable =
     !snapshot.roster && ['unreachable', 'refused', 'stopped'].includes(snapshot.connection.status);
   const close = () => {
@@ -206,6 +213,17 @@ export function ConversationSectionSheet({
               contentContainerStyle={{ padding: space.x5, gap: space.x3 }}
               ListHeaderComponent={
                 <View style={{ gap: space.x4 }}>
+                  <SectionChoice
+                    title={t.conversationSection.unsectioned}
+                    testID="section-unsectioned"
+                    selected={sections !== undefined && currentSectionId === null}
+                    onPress={
+                      current && !state.busy && sections !== undefined
+                        ? () => choose({ id: null, name: t.conversationSection.unsectioned })
+                        : undefined
+                    }
+                  />
+                  <SectionChoiceDivider />
                   {notice}
                   {state.busy ? <LoadingIndicator accessibilityLabel={t.loading} /> : null}
                   {state.selected && state.error ? (
@@ -237,9 +255,8 @@ export function ConversationSectionSheet({
                 <SectionChoice
                   title={item.name}
                   testID={`section-${item.id}`}
-                  onPress={
-                    current && !state.busy ? () => void run(() => flow.choose(item)) : undefined
-                  }
+                  selected={item.id === currentSectionId}
+                  onPress={current && !state.busy ? () => choose(item) : undefined}
                 />
               )}
             />

@@ -120,6 +120,41 @@ describe('native section sheet source behavior', () => {
     expect(back).toHaveBeenCalledOnce();
     expect(client.call).not.toHaveBeenCalled();
   });
+  it('keeps Unsectioned first, separates it, marks canonical membership and clears it with null', async () => {
+    state.sections = [{ id: 's-existing', name: 'Host work', channelIds: ['dm-ada'] }];
+    await render();
+    const none = view.querySelector('[data-testid="section-unsectioned"]')!;
+    const existing = view.querySelector('[data-testid="section-s-existing"]')!;
+    expect(none.getAttribute('aria-selected')).toBe('false');
+    expect(existing.getAttribute('aria-selected')).toBe('true');
+    expect(none.compareDocumentPosition(existing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(view.querySelector('[data-testid="section-choice-divider"]')).not.toBeNull();
+    await press(t.conversationSection.unsectioned);
+    expect(client.call).toHaveBeenCalledExactlyOnceWith('channelAssign', {
+      channelId: 'dm-ada',
+      sectionId: null,
+    });
+    expect(back).toHaveBeenCalledOnce();
+  });
+  it('keeps Unsectioned selected when no custom sections exist and closes without writes', async () => {
+    state.sections = [];
+    await render();
+    expect(
+      view.querySelector('[data-testid="section-unsectioned"]')?.getAttribute('aria-selected'),
+    ).toBe('true');
+    await press(t.conversationSection.unsectioned);
+    expect(client.call).not.toHaveBeenCalled();
+    expect(back).toHaveBeenCalledOnce();
+  });
+  it('does not show a selected Unsectioned state or allow clearing before the roster loads', async () => {
+    state.ready = false;
+    await render();
+    const none = view.querySelector<HTMLButtonElement>('[data-testid="section-unsectioned"]')!;
+    expect(none.disabled).toBe(true);
+    expect(none.getAttribute('aria-selected')).toBe('false');
+    await act(async () => none.click());
+    expect(client.call).not.toHaveBeenCalled();
+  });
   it('shows a native indicator until the roster arrives, then shows confirmed empty sections', async () => {
     state.ready = false;
     state.connection = 'connecting';
