@@ -24,14 +24,15 @@ export type CreationReceipt =
   | { operationKey: string; botSlug: string; status: 'reserved' }
   | { operationKey: string; botSlug: string; status: 'created'; channelId: string };
 
-export type CreationRecord =
+export type CreationRecord = (
   | { kind: 'draft'; draft: BotCreationDraft }
   | {
       kind: 'submitted';
       operation: BotCreationOperation;
       mutationStarted: boolean;
       acknowledged?: boolean;
-    };
+    }
+) & { unavailableOperations?: BotCreationOperation[] };
 
 export interface CreationSnapshot {
   loaded: boolean;
@@ -80,6 +81,7 @@ function object(value: unknown): value is Record<string, unknown> {
 
 export function parseCreationRecord(value: unknown): CreationRecord {
   if (!object(value)) throw new BotCreationFailure('storage-invalid');
+  const unavailableOperations = parseUnavailableOperations(value.unavailableOperations);
   if (value.kind === 'draft' && object(value.draft)) {
     const d = value.draft;
     if (
@@ -91,6 +93,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
     )
       return {
         kind: 'draft',
+        ...unavailableOperations,
         draft: {
           hostId: d.hostId,
           displayName: d.displayName,
@@ -125,6 +128,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
     )
       return {
         kind: 'submitted',
+        ...unavailableOperations,
         mutationStarted: value.mutationStarted,
         ...(value.acknowledged === true ? { acknowledged: true } : {}),
         operation: {
@@ -141,6 +145,18 @@ export function parseCreationRecord(value: unknown): CreationRecord {
       };
   }
   throw new BotCreationFailure('storage-invalid');
+}
+
+function parseUnavailableOperations(value: unknown): Pick<CreationRecord, 'unavailableOperations'> {
+  if (value === undefined) return {};
+  if (!Array.isArray(value)) throw new BotCreationFailure('storage-invalid');
+  return {
+    unavailableOperations: value.map((operation) => {
+      const record = parseCreationRecord({ kind: 'submitted', operation, mutationStarted: true });
+      if (record.kind !== 'submitted') throw new BotCreationFailure('storage-invalid');
+      return record.operation;
+    }),
+  };
 }
 
 export function creationReceipt(value: unknown, key: string): CreationReceipt | null {
@@ -184,12 +200,21 @@ export function createBotCreationController(options: {
   let storageFailed = false;
   let writing = Promise.resolve();
   let active: Promise<void> | undefined;
+  const retainUnavailable = (record: CreationRecord): CreationRecord =>
+    record.unavailableOperations || !snapshot.record.unavailableOperations
+      ? record
+      : { ...record, unavailableOperations: snapshot.record.unavailableOperations };
   const publish = (patch: Partial<CreationSnapshot>) => {
-    snapshot = { ...snapshot, ...patch };
+    snapshot = {
+      ...snapshot,
+      ...patch,
+      ...(patch.record ? { record: retainUnavailable(patch.record) } : {}),
+    };
     for (const listener of listeners) listener();
   };
   const save = (record: CreationRecord) => {
-    const task = writing.then(() => options.storage.write(record));
+    const retained = retainUnavailable(record);
+    const task = writing.then(() => options.storage.write(retained));
     writing = task.catch(() => {});
     return task;
   };
@@ -261,6 +286,22 @@ export function createBotCreationController(options: {
       } catch {
         publish({ error: 'storage-write' });
       }
+    },
+    enter(entry: { kind: 'all' } | { kind: 'host'; hostId: string } | { kind: 'resume' }) {
+      return run(async () => {
+        await ready;
+        if (storageFailed || entry.kind === 'resume' || snapshot.record.kind !== 'draft') return;
+        const record: CreationRecord = {
+          kind: 'draft',
+          draft: { ...snapshot.record.draft, hostId: entry.kind === 'host' ? entry.hostId : '' },
+        };
+        publish({ record });
+        try {
+          await save(record);
+        } catch {
+          publish({ error: 'storage-write' });
+        }
+      });
     },
     submit() {
       return run(async () => {
@@ -339,6 +380,28 @@ export function createBotCreationController(options: {
         try {
           await save(record);
           publish({ record });
+        } catch {
+          publish({ error: 'storage-write' });
+        }
+      });
+    },
+    newAfterUnavailable() {
+      if (
+        snapshot.error !== 'creation-identity-unavailable' ||
+        snapshot.record.kind !== 'submitted'
+      )
+        return Promise.resolve();
+      const previous = snapshot.record;
+      return run(async () => {
+        if (storageFailed) return;
+        const record: CreationRecord = {
+          kind: 'draft',
+          draft: { ...emptyDraft(), hostId: previous.operation.hostId },
+          unavailableOperations: [...(previous.unavailableOperations ?? []), previous.operation],
+        };
+        try {
+          await save(record);
+          publish({ record, receipt: undefined });
         } catch {
           publish({ error: 'storage-write' });
         }

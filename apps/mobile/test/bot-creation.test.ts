@@ -64,6 +64,71 @@ function rig() {
 }
 
 describe('native blank Bot creation recovery', () => {
+  it('fresh All entry requires a new target choice while preserving text and normal resume', async () => {
+    const test = rig();
+    const controller = test.make();
+    await controller.edit(draft);
+    await controller.enter({ kind: 'resume' });
+    expect(controller.getSnapshot().record).toEqual({ kind: 'draft', draft });
+    await controller.enter({ kind: 'all' });
+    expect(controller.getSnapshot().record).toEqual({
+      kind: 'draft',
+      draft: { ...draft, hostId: '' },
+    });
+    await controller.submit();
+    expect(test.lookup).not.toHaveBeenCalled();
+    expect(test.create).not.toHaveBeenCalled();
+    await controller.enter({ kind: 'host', hostId: 'B' });
+    expect(controller.getSnapshot().record).toEqual({ kind: 'draft', draft });
+  });
+
+  it('does not redirect an already submitted operation when opened from All or another Host', async () => {
+    const test = rig();
+    const controller = test.make();
+    await controller.edit(draft);
+    test.create.mockRejectedValue(new BotCreationFailure('unreachable'));
+    await controller.submit();
+    const saved = test.disk();
+    await controller.enter({ kind: 'all' });
+    await controller.enter({ kind: 'host', hostId: 'A' });
+    expect(test.disk()).toEqual(saved);
+  });
+
+  it('allows an explicit different Bot after an unavailable identity while retaining its recovery reference', async () => {
+    const test = rig();
+    const controller = test.make();
+    await controller.edit(draft);
+    test.create.mockRejectedValueOnce(new BotCreationFailure('unreachable'));
+    await controller.submit();
+    const original = test.create.mock.calls[0]?.[0];
+    await controller.newAfterUnavailable();
+    expect(controller.getSnapshot().record.kind).toBe('submitted');
+    test.lookup.mockRejectedValueOnce(new BotCreationFailure('creation-identity-unavailable'));
+    await controller.resume();
+    await controller.newAfterUnavailable();
+    expect(controller.getSnapshot().record.kind).toBe('draft');
+    expect(test.disk()?.unavailableOperations).toEqual([original]);
+    const reopened = test.make();
+    await reopened.ready;
+    expect(reopened.getSnapshot().record.unavailableOperations).toEqual([original]);
+    await reopened.edit(draft);
+    await reopened.submit();
+    expect(test.create.mock.calls[1]?.[0].operationKey).not.toBe(original?.operationKey);
+    expect(test.disk()?.unavailableOperations).toEqual([original]);
+  });
+
+  it('does not replace a terminal operation if its retained reference cannot be saved', async () => {
+    const test = rig();
+    const controller = test.make();
+    await controller.edit(draft);
+    test.lookup.mockRejectedValue(new BotCreationFailure('creation-identity-unavailable'));
+    await controller.submit();
+    const original = test.disk();
+    test.failWrite();
+    await controller.newAfterUnavailable();
+    expect(controller.getSnapshot().record).toEqual(original);
+    expect(controller.getSnapshot().error).toBe('storage-write');
+  });
   it('persists the same optional-field normalization used by direct CLI creation and lookup', async () => {
     expect(
       normalizedBlankInput({

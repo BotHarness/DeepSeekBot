@@ -512,6 +512,7 @@ describe('plugin entry', () => {
       'activitySnapshot',
       'get',
       'create',
+      'createLookup',
       'createFromGit',
       'update',
       'dataResetPreview',

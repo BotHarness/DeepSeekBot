@@ -157,7 +157,8 @@ function ScopedNavigationBar({
         await botCreation.another(target?.kind === 'computer' ? target.hostId : '');
       router.push({
         pathname: '/create-bot',
-        params: target?.kind === 'computer' ? { hostId: target.hostId } : {},
+        params:
+          target?.kind === 'computer' ? { entry: 'host', hostId: target.hostId } : { entry: 'all' },
       });
       return;
     }

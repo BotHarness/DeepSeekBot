@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { AppState } from 'react-native';
 import { hostSession } from '../../host/host-session';
 import { conversationFilter } from '../../host/native-conversation-filter';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
@@ -19,6 +20,6 @@ export async function openCreatedBot(stillHere: () => boolean = () => true): Pro
       },
       acknowledge: botCreation.acknowledge,
     },
-    stillHere,
+    () => AppState.currentState === 'active' && stillHere(),
   );
 }
