@@ -1,3 +1,5 @@
+import { createCore } from '../src/plugin.js';
+import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createHash } from 'node:crypto';
 import { createServer, request, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
@@ -29,6 +31,7 @@ afterEach(async () => {
 async function fakeDsh(
   connectOffer?: Parameters<typeof createDeviceGateway>[0]['connectOffer'],
   localVideo?: Parameters<typeof createDeviceGateway>[0]['localVideo'],
+  rpc?: (method: string, payload: unknown) => unknown,
 ) {
   const state = {
     secret: 1,
@@ -70,6 +73,13 @@ async function fakeDsh(
       ) {
         res.writeHead(200, { 'content-type': 'image/png', 'set-cookie': 'leak=1' });
         return res.end(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      }
+      if (rpc !== undefined) {
+        const input = JSON.parse(Buffer.concat(chunks).toString());
+        const result = rpc(input.method, input.payload.args);
+        if (result === 'lost-response') return res.destroy();
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ type: 'server-response', result }));
       }
       res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'leak=1' });
       res.end(JSON.stringify({ path: url.pathname, body: Buffer.concat(chunks).toString() }));
@@ -662,5 +672,77 @@ describe('Connect route provenance', () => {
     );
     expect(tunneled.status).toBe(404);
     expect(host.state.seen).toHaveLength(1);
+  });
+});
+
+describe('mobile creation recovery through device admission', () => {
+  it('recovers a lost create reply with the same Bot and DM and refuses revoked pairing', async () => {
+    const core = createCore({
+      dshHome: createTempRoot('gateway-create-'),
+      agents: {
+        async runOrchestrator() {},
+        async runAssignment() {},
+        async close() {},
+        requestAssignment() {
+          throw new Error('unexpected');
+        },
+      },
+    });
+    try {
+      const methods = createBridgeMethods(core);
+      let drop = true;
+      const live = await fakeDsh(undefined, undefined, (method, payload) => {
+        if (method === 'botharness/createLookup') return methods.createLookup(payload);
+        const result = methods.create(payload);
+        if (drop) {
+          drop = false;
+          return 'lost-response';
+        }
+        return result;
+      });
+      const phone = await pair(live.base, live.pairing.createOffer().offer);
+      const payload = {
+        displayName: 'Recovery',
+        persona: 'Short replies',
+        description: 'QA',
+        roles: ['qa'],
+        operationKey: 'device-create-001',
+      };
+      const call = (method: string) =>
+        fetch(live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/' + method, {
+          method: 'POST',
+          headers: {
+            authorization: 'Device ' + phone.body.credential,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            type: 'client-request',
+            rpcId: 'test',
+            method: 'botharness/' + method,
+            payload: { args: payload },
+          }),
+        });
+      expect(await (await call('createLookup')).json()).toMatchObject({
+        result: { ok: true, value: { receipt: null } },
+      });
+      expect(core.registry.list()).toHaveLength(0);
+      const lost = await call('create').catch(() => null);
+      expect(lost === null || !lost.ok).toBe(true);
+      const recovered = await (await call('createLookup')).json();
+      expect(recovered.result.value.receipt).toMatchObject({
+        operationKey: payload.operationKey,
+        status: 'created',
+      });
+      const retried = await (await call('create')).json();
+      expect(retried.result.value.receipt).toEqual(recovered.result.value.receipt);
+      expect(core.registry.list()).toHaveLength(1);
+      expect(core.channels.list()).toHaveLength(1);
+      live.pairing.revoke(phone.body.deviceId!);
+      expect((await call('createLookup')).status).toBe(401);
+      expect(core.registry.list()).toHaveLength(1);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
   });
 });
