@@ -3,7 +3,11 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { WebSocket, WebSocketServer } from 'ws';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import type {
+  LocalVideoBinding,
+  LocalVideoState,
+} from '../../computer/src/local-video-contract.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
 import { ConnectChannel } from '../src/devices/noise/channel.js';
 import { noisePublicKey } from '../src/devices/noise/xk.js';
@@ -183,7 +187,9 @@ it.each(['connect', 'lan'] as const)(
   },
 );
 
-async function endpointFixture() {
+async function endpointFixture(
+  options: Pick<Parameters<typeof createEncryptedGateway>[0], 'route' | 'localVideo'> = {},
+) {
   const owner = trackTestOwner(
     mountOperationalDatabase({
       dshHome: createTempRoot('noise-endpoint-'),
@@ -212,6 +218,7 @@ async function endpointFixture() {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const port = (server.address() as AddressInfo).port;
   const gateway = createEncryptedGateway({
+    ...options,
     pairing,
     key: async () => Uint8Array.from(hostKey),
     port: () => port,
@@ -227,6 +234,7 @@ async function endpointFixture() {
   const peers: { socket: WebSocket; channel: ConnectChannel }[] = [];
   const connect = async (key = deviceKey) => {
     const channel = new ConnectChannel({
+      route: options.route ?? 'connect',
       role: 'initiator',
       hostId: pairing.host().id,
       staticKey: key,
@@ -288,6 +296,294 @@ const endpointRequest = (id: string) => ({
   method: 'POST',
   path: '/botharness-device/api/botharness/privateInputSubmit',
   body: `effect-${id}`,
+});
+
+const videoRequest = (id: string, command: unknown = { kind: 'open' }) => ({
+  type: 'request',
+  id,
+  method: 'POST',
+  path: '/botharness-device/api/computer/video',
+  body: JSON.stringify(command),
+});
+const videoBinding: LocalVideoBinding = {
+  computerId: 'local',
+  runtimeId: 'runtime',
+  viewerId: 'viewer',
+  attemptId: 'attempt',
+};
+const videoState = (binding = videoBinding): LocalVideoState => ({
+  computerId: 'local',
+  runtimeId: binding.runtimeId,
+  binding,
+  paused: true,
+  viewerCount: 1,
+  controlHeld: false,
+  controller: false,
+  lastInputSequence: 0,
+  media: { status: 'live', captureAlive: true, width: 1920, height: 1080 },
+});
+const responseBody = (response: Record<string, unknown>) =>
+  JSON.parse(Buffer.from(String(response.body), 'base64').toString());
+
+it.each(['lan', 'connect'] as const)(
+  '%s video uses only server-owned route and Noise-admitted identity',
+  async (route) => {
+    const localVideo = vi
+      .fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['localVideo']>>()
+      .mockResolvedValue({ ok: false, code: 'media-not-live', error: 'No live picture.' });
+    const f = await endpointFixture({ route, localVideo });
+    try {
+      const peer = await f.connect();
+      expect(await peer.next()).toMatchObject({ type: 'admitted' });
+      peer.send({
+        ...videoRequest('video', { kind: 'status', deviceId: 'forged' }),
+        route: 'lan',
+        deviceId: 'forged',
+        headers: {
+          'x-botharness-device-route': 'lan',
+          authorization: 'Device forged',
+          cookie: 'host-owner',
+        },
+      });
+      expect(responseBody(await peer.next())).toMatchObject({
+        code: route === 'lan' ? 'media-not-live' : 'connect-carrier-required',
+      });
+      if (route === 'lan')
+        expect(localVideo).toHaveBeenCalledWith(
+          expect.objectContaining({
+            deviceId: f.deviceId,
+            command: { kind: 'status', deviceId: 'forged' },
+          }),
+        );
+      else expect(localVideo).not.toHaveBeenCalled();
+      expect(f.effects).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+it.each([
+  '/botharness-device/api/%63omputer/video',
+  '/botharness-device/api/computer/%76ideo',
+  '/botharness-device/api//computer/video/',
+  '/botharness-device/api/computer/video?route=lan',
+  '/botharness-device/web/api/computer/video',
+  '/botharness-device/api/other/../computer/video',
+  '/botharness-device/api/%2e/computer/video',
+  '/botharness-device/api%2fcomputer/video',
+  '/botharness-device/api%5ccomputer/video',
+])('refuses encrypted Connect video alias %s without owner or upstream effects', async (path) => {
+  const localVideo =
+    vi.fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['localVideo']>>();
+  const f = await endpointFixture({ localVideo });
+  try {
+    const peer = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    peer.send({ ...videoRequest('alias'), path });
+    await peer.closed;
+    expect(localVideo).not.toHaveBeenCalled();
+    expect(f.effects).toEqual([]);
+  } finally {
+    await f.close();
+  }
+});
+
+it('cancels a pending LAN open, closes its late attempt, and never affects another connection', async () => {
+  let finish!: (result: { ok: true; state: LocalVideoState }) => void;
+  let started!: () => void;
+  let retired!: () => void;
+  let pendingSignal: AbortSignal | undefined;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const closed = new Promise<void>((resolve) => {
+    retired = resolve;
+  });
+  const localVideo = vi.fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['localVideo']>>(
+    async ({ command, signal }) => {
+      if ((command as { kind: string }).kind === 'open') {
+        pendingSignal = signal;
+        started();
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+      retired();
+      return { ok: true, state: videoState() };
+    },
+  );
+  const f = await endpointFixture({ route: 'lan', localVideo });
+  try {
+    const peer = await f.connect(),
+      other = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    expect(await other.next()).toMatchObject({ type: 'admitted' });
+    peer.send(videoRequest('pending'));
+    await ready;
+    peer.send({ type: 'cancel', id: 'pending' });
+    peer.send({ type: 'ping' });
+    expect(await peer.next()).toMatchObject({ type: 'pong' });
+    expect(pendingSignal?.aborted).toBe(true);
+    finish({ ok: true, state: videoState() });
+    await closed;
+    expect(localVideo).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        deviceId: f.deviceId,
+        command: { kind: 'close', binding: videoBinding },
+      }),
+    );
+    other.send({ type: 'ping' });
+    expect(await other.next()).toMatchObject({ type: 'pong' });
+    peer.send({ type: 'ping' });
+    expect(await peer.next()).toMatchObject({ type: 'pong' });
+    expect(localVideo).toHaveBeenCalledTimes(2);
+    expect(f.effects).toEqual([]);
+  } finally {
+    await f.close();
+  }
+});
+
+it.each(['disconnect', 'revoke'] as const)(
+  'closes an established LAN attempt on %s after its request has finished',
+  async (reason) => {
+    let retired!: () => void;
+    const closed = new Promise<void>((resolve) => {
+      retired = resolve;
+    });
+    const localVideo = vi.fn<
+      NonNullable<Parameters<typeof createEncryptedGateway>[0]['localVideo']>
+    >(async ({ command }) => {
+      if ((command as { kind: string }).kind === 'close') retired();
+      return { ok: true, state: videoState() };
+    });
+    const f = await endpointFixture({ route: 'lan', localVideo });
+    try {
+      const peer = await f.connect();
+      expect(await peer.next()).toMatchObject({ type: 'admitted' });
+      peer.send(videoRequest('open'));
+      expect(responseBody(await peer.next())).toMatchObject({
+        ok: true,
+        state: { binding: videoBinding },
+      });
+      if (reason === 'revoke') f.pairing.revoke(f.deviceId);
+      else peer.socket.close();
+      await closed;
+      expect(localVideo).toHaveBeenLastCalledWith(
+        expect.objectContaining({ command: { kind: 'close', binding: videoBinding } }),
+      );
+      expect(f.effects).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+it.each(['disconnect', 'revoke'] as const)(
+  'cancels pending LAN open on %s and retires a late success',
+  async (reason) => {
+    let finish!: (result: { ok: true; state: LocalVideoState }) => void;
+    let started!: () => void, cancelled!: () => void, retired!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const aborted = new Promise<void>((resolve) => {
+      cancelled = resolve;
+    });
+    const closed = new Promise<void>((resolve) => {
+      retired = resolve;
+    });
+    const localVideo = vi.fn<
+      NonNullable<Parameters<typeof createEncryptedGateway>[0]['localVideo']>
+    >(async ({ command, signal }) => {
+      if ((command as { kind: string }).kind === 'open') {
+        signal.addEventListener('abort', cancelled, { once: true });
+        started();
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+      retired();
+      return { ok: true, state: videoState() };
+    });
+    const f = await endpointFixture({ route: 'lan', localVideo });
+    try {
+      const peer = await f.connect();
+      expect(await peer.next()).toMatchObject({ type: 'admitted' });
+      peer.send(videoRequest('pending'));
+      await ready;
+      if (reason === 'revoke') f.pairing.revoke(f.deviceId);
+      else peer.socket.close();
+      await aborted;
+      finish({ ok: true, state: videoState() });
+      await closed;
+      expect(localVideo).toHaveBeenCalledTimes(2);
+      expect(localVideo).toHaveBeenLastCalledWith(
+        expect.objectContaining({ command: { kind: 'close', binding: videoBinding } }),
+      );
+      expect(f.effects).toEqual([]);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+it('request-ID reuse cannot steal a late open completion or close a fresh attempt', async () => {
+  let finish!: (result: { ok: true; state: LocalVideoState }) => void;
+  let started!: () => void, retireOld!: () => void, retireNew!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const oldClosed = new Promise<void>((resolve) => {
+    retireOld = resolve;
+  });
+  const newClosed = new Promise<void>((resolve) => {
+    retireNew = resolve;
+  });
+  const replacement = { ...videoBinding, attemptId: 'replacement', viewerId: 'replacement-viewer' };
+  let opens = 0;
+  const localVideo = vi.fn<NonNullable<Parameters<typeof createEncryptedGateway>[0]['localVideo']>>(
+    async ({ command }) => {
+      const operation = command as { kind: string; binding?: LocalVideoBinding };
+      if (operation.kind === 'open' && ++opens === 1) {
+        started();
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      }
+      if (operation.kind === 'close') {
+        if (operation.binding?.attemptId === videoBinding.attemptId) retireOld();
+        else if (operation.binding?.attemptId === replacement.attemptId) retireNew();
+      }
+      return { ok: true, state: videoState(replacement) };
+    },
+  );
+  const f = await endpointFixture({ route: 'lan', localVideo });
+  try {
+    const peer = await f.connect();
+    expect(await peer.next()).toMatchObject({ type: 'admitted' });
+    peer.send(videoRequest('same-id'));
+    await ready;
+    peer.send({ type: 'cancel', id: 'same-id' });
+    peer.send(videoRequest('same-id'));
+    expect(responseBody(await peer.next())).toMatchObject({ state: { binding: replacement } });
+    finish({ ok: true, state: videoState() });
+    await oldClosed;
+    peer.send({ type: 'ping' });
+    expect(await peer.next()).toMatchObject({ type: 'pong' });
+    expect(localVideo).toHaveBeenCalledTimes(3);
+    expect(localVideo).toHaveBeenLastCalledWith(
+      expect.objectContaining({ command: { kind: 'close', binding: videoBinding } }),
+    );
+    peer.socket.close();
+    await newClosed;
+    expect(localVideo).toHaveBeenLastCalledWith(
+      expect.objectContaining({ command: { kind: 'close', binding: replacement } }),
+    );
+    expect(f.effects).toEqual([]);
+  } finally {
+    await f.close();
+  }
 });
 
 it.each(['tamper', 'replay', 'reconnect-replay'] as const)(

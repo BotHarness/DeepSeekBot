@@ -26,7 +26,10 @@ afterEach(async () => {
   );
 });
 
-async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0]['connectOffer']) {
+async function fakeDsh(
+  connectOffer?: Parameters<typeof createDeviceGateway>[0]['connectOffer'],
+  localVideo?: Parameters<typeof createDeviceGateway>[0]['localVideo'],
+) {
   const state = {
     secret: 1,
     token: 'launch-token',
@@ -108,6 +111,7 @@ async function fakeDsh(connectOffer?: Parameters<typeof createDeviceGateway>[0][
     port: () => port,
     authenticatedUrl: (base) => `${base}?token=${state.token}`,
     ...(connectOffer === undefined ? {} : { connectOffer }),
+    ...(localVideo === undefined ? {} : { localVideo }),
   });
   return { state, port, pairing, base: `http://127.0.0.1:${String(port)}` };
 }
@@ -119,6 +123,72 @@ async function pair(base: string, offer: string) {
   });
   return { status: response.status, body: (await response.json()) as Record<string, string> };
 }
+
+describe('Local Computer video gateway admission', () => {
+  it('binds direct commands to admitted identity and keeps removed web routes refused', async () => {
+    const admitted: string[] = [];
+    const live = await fakeDsh(undefined, async ({ deviceId }) => {
+      admitted.push(deviceId);
+      return { ok: false, code: 'media-not-live', error: 'No live picture.' };
+    });
+    const phone = await pair(live.base, live.pairing.createOffer().offer);
+    const credential = `Device ${phone.body.credential}`;
+    for (const path of ['/api/computer/video', '/api/computer/%76ideo', '/api//computer/video/']) {
+      const answer = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}${path}`, {
+        method: 'POST',
+        headers: { authorization: credential, 'x-botharness-device-id': 'forged' },
+        body: JSON.stringify({ kind: 'status', deviceId: 'forged' }),
+      });
+      expect(answer.status).toBe(409);
+      expect(await answer.json()).toMatchObject({ code: 'media-not-live' });
+    }
+    for (const path of [
+      '/web/api/computer/video',
+      '/web/api/computer/%76ideo',
+      '/web/api//computer/video/',
+    ]) {
+      const answer = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}${path}`, {
+        method: 'POST',
+        headers: { authorization: credential },
+        body: '{"kind":"open"}',
+      });
+      expect(answer.status).toBe(404);
+      const upgrade = await stream(
+        live.port,
+        { authorization: credential },
+        `${DEVICE_GATEWAY_PREFIX}${path}`,
+      );
+      expect(upgrade.status).toBe(404);
+    }
+    expect(admitted).toEqual([phone.body.deviceId, phone.body.deviceId, phone.body.deviceId]);
+    expect(live.state.seen).toHaveLength(0);
+    live.pairing.revoke(phone.body.deviceId!);
+    const refused = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}/api/computer/video`, {
+      method: 'POST',
+      headers: { authorization: credential },
+      body: '{"kind":"open"}',
+    });
+    expect(refused.status).toBe(401);
+    expect(admitted).toHaveLength(3);
+  });
+
+  it('refuses missing owner and oversized commands without proxying through the Host owner', async () => {
+    const live = await fakeDsh();
+    const phone = await pair(live.base, live.pairing.createOffer().offer);
+    for (const [body, code] of [
+      ['{"kind":"open"}', 'not-ready'],
+      [JSON.stringify({ kind: 'signal', data: 'x'.repeat(128 * 1024) }), 'request-too-large'],
+    ] as const) {
+      const result = await fetch(`${live.base}${DEVICE_GATEWAY_PREFIX}/api/computer/video`, {
+        method: 'POST',
+        headers: { authorization: `Device ${phone.body.credential}` },
+        body,
+      });
+      expect(await result.json()).toMatchObject({ code });
+    }
+    expect(live.state.seen).toHaveLength(0);
+  });
+});
 
 function stream(
   port: number,

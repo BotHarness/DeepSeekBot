@@ -38,6 +38,18 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     mkdirSync(join(dir, 'package'), { recursive: true });
     const version = name === productImProvider.name ? productImProvider.version : productVersion;
     const manifest = { name, version, license: 'MIT', main: './index.js' };
+    if (name === '@botharness/computer') {
+      mkdirSync(join(dir, 'package/native/local-video'), { recursive: true });
+      for (const asset of [
+        'launcher.cs',
+        'main.cjs',
+        'preload.cjs',
+        'renderer.html',
+        'renderer.js',
+      ]) {
+        writeFileSync(join(dir, 'package/native/local-video', asset), 'fixture media asset');
+      }
+    }
     const platform = platformPackages.get(name);
     if (platform) {
       Object.assign(manifest, { license: 'Apache-2.0', os: [platform.os], cpu: [platform.cpu] });
@@ -334,6 +346,27 @@ describe('reviewed npm prerelease', () => {
     expect(() => checkPackage(manifest, artifact, files, [artifact])).toThrow(
       'must provide its bundled deepseekbot executable',
     );
+  });
+  it('rejects a Computer archive missing any lazily loaded native helper asset', () => {
+    const artifact = { name: '@botharness/computer', version: '0.1.0-alpha.1' };
+    const manifest = { ...artifact, license: 'MIT', main: './dist/index.mjs' };
+    const assets = ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'];
+    const files = [
+      'package/LICENSE',
+      'package/dist/index.mjs',
+      ...assets.map((name) => `package/native/local-video/${name}`),
+    ];
+    expect(() => checkPackage(manifest, artifact, files, [artifact])).not.toThrow();
+    for (const asset of assets) {
+      expect(() =>
+        checkPackage(
+          manifest,
+          artifact,
+          files.filter((path) => !path.endsWith(`/${asset}`)),
+          [artifact],
+        ),
+      ).toThrow(`Missing packed entry: @botharness/computer:./native/local-video/${asset}`);
+    }
   });
   it('executes the archived product CLI without a source checkout or global CLI in its environment', () => {
     const { root } = fixture();

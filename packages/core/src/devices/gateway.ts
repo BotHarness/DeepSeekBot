@@ -4,6 +4,11 @@ import type { Duplex } from 'node:stream';
 
 import type { Admission, DevicePairing, DeviceRefusal, OfferRefusal } from './pairing.js';
 import { phoneRoute } from './routes.js';
+import {
+  LOCAL_VIDEO_LIMITS,
+  LOCAL_VIDEO_PATH,
+  type LocalVideoResult,
+} from '../../../computer/src/local-video-contract.js';
 import { DEVICE_ROUTE_HEADER, forwardDeviceRoute, isConnectRequest } from './route-context.js';
 import { refuseConnectRpc } from './rpc-policy.js';
 import { connectMux } from './connect-mux.js';
@@ -73,6 +78,11 @@ export interface DeviceGatewayOptions {
   authenticatedUrl: (baseUrl: string) => string;
   now?: () => number;
   log?: (message: string) => void;
+  localVideo?: (request: {
+    deviceId: string;
+    command: unknown;
+    signal: AbortSignal;
+  }) => Promise<LocalVideoResult>;
   push?: (request: {
     method: string;
     path: string;
@@ -430,9 +440,104 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       upstream.end();
     });
 
+  let pendingVideo = 0;
+  const video = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+    admission: Admission,
+  ): Promise<void> => {
+    if (!admission.ok) return refuse(response, 401, admission.code);
+    const send = (result: LocalVideoResult): void => {
+      if (response.destroyed) return;
+      response.writeHead(result.ok ? 200 : 409, {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      });
+      response.end(JSON.stringify(result));
+    };
+    if (isConnectRequest(request)) {
+      request.resume();
+      return send({
+        ok: false,
+        code: 'connect-carrier-required',
+        error: 'Local Computer video requires the paired LAN route.',
+      });
+    }
+    if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+    if (pendingVideo >= LOCAL_VIDEO_LIMITS.pendingRequests) {
+      request.resume();
+      return send({ ok: false, code: 'queue-full', error: 'Too many pending video commands.' });
+    }
+    const cancellation = new AbortController();
+    const timer = setTimeout(() => {
+      cancellation.abort();
+      request.destroy();
+    }, LOCAL_VIDEO_LIMITS.operationTimeoutMs);
+    const detach = pairing.attachStream(admission.device.id, () => {
+      cancellation.abort();
+      request.destroy();
+      response.destroy();
+    });
+    const closed = (): void => {
+      if (!response.writableFinished) cancellation.abort();
+    };
+    response.on('close', closed);
+    pendingVideo += 1;
+    try {
+      const raw = await readSmall(request, LOCAL_VIDEO_LIMITS.requestBytes);
+      if (raw === undefined)
+        return send({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The video command is too large.',
+        });
+      let command: unknown;
+      try {
+        command = JSON.parse(raw) as unknown;
+      } catch {
+        return send({ ok: false, code: 'invalid-input', error: 'The video command must be JSON.' });
+      }
+
+      if (!pairing.check(admission.device.id).ok || cancellation.signal.aborted)
+        return send({
+          ok: false,
+          code: 'device-revoked',
+          error: 'The device connection is no longer admitted.',
+        });
+      const result =
+        options.localVideo === undefined
+          ? {
+              ok: false as const,
+              code: 'not-ready' as const,
+              error: 'Local Computer video is not ready.',
+            }
+          : await options.localVideo({
+              deviceId: admission.device.id,
+              command,
+              signal: cancellation.signal,
+            });
+      send(result);
+    } catch {
+      send({ ok: false, code: 'operation-timeout', error: 'The video command did not complete.' });
+    } finally {
+      pendingVideo -= 1;
+      clearTimeout(timer);
+      detach();
+      response.off('close', closed);
+    }
+  };
+
   return {
     async handle(request, response) {
       const path = new URL(request.url ?? '/', 'http://device').pathname;
+      let decodedPath: string;
+      try {
+        decodedPath = new URL(`http://device${decodeURIComponent(path)}`).pathname
+          .replace(/\/+/gu, '/')
+          .replace(/\/$/u, '');
+      } catch {
+        return refuse(response, 404, 'not-found');
+      }
       if (crossOrigin(request)) {
         const origin = hostOrigin(request);
         if (origin === undefined || !corsPath(path) || header(request, 'cookie') !== undefined)
@@ -452,6 +557,9 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         (path === DEVICE_PUSH_PREFIX || path.startsWith(`${DEVICE_PUSH_PREFIX}/`))
       )
         return devicePush(request, response, path);
+
+      if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${LOCAL_VIDEO_PATH}`)
+        return video(request, response, pairing.admit(header(request, 'authorization')));
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
         return forward(
           request,

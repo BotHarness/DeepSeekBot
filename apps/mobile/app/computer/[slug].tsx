@@ -34,10 +34,15 @@ import { CloseIcon, HandBackIcon } from '../../src/ui/shell/icons';
 import { useMounted } from '../../src/ui/mounted';
 import { t } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
+import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';
 
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
 export default function ComputerScreen() {
+  return <LocalComputerScreen Legacy={LegacyComputerScreen} />;
+}
+
+function LegacyComputerScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const theme = useDesignTheme();

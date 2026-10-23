@@ -6,6 +6,7 @@ import {
 } from '../../../core/src/system/system-packages.js';
 import type { CuaDriver } from '../tool/driver.js';
 import { LocalDesktopMissingError } from '../tool/local-display.js';
+import { ensureLocalVideoHelper } from '../media/install.js';
 import {
   LOCAL_DRIVER_QUIET_ENV,
   localDriverBuild,
@@ -102,6 +103,18 @@ export function createLocalComputerProvider(options: {
           await options.driver.ensure(signal, (progress) => {
             if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
           });
+          if (platform === 'win32' && arch === 'x64') {
+            await ensureLocalVideoHelper({
+              runner: options.runner,
+              signal,
+              platform,
+              arch,
+              onEvent: options.onEvent,
+              onProgress: (progress) => {
+                if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+              },
+            });
+          }
           if (signal.aborted) throw new Error('Local Computer setup cancelled');
           const path = localDriverExecutable(options.dir ?? localDriverDirectory(build), build);
           const doctor = await options.runner.run([path, 'doctor', '--json'], {

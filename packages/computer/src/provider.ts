@@ -8,6 +8,9 @@ export interface ComputerRuntimeResult {
 
 export interface ComputerRuntimeRunOptions {
   readonly env?: Readonly<Record<string, string>> | undefined;
+  readonly signal?: AbortSignal | undefined;
+  readonly timeoutMs?: number | undefined;
+  readonly maxOutputBytes?: number | undefined;
 }
 
 export interface ComputerRuntimeRunner {

@@ -723,6 +723,13 @@
       "commands": ["computer-upload"]
     },
     {
+      "id": "computer-video",
+      "description": "Observe and explicitly control Local Computer video through the same Computer owner as paired devices.",
+      "scope": "Host",
+      "surfaces": ["route:packages/computer/src/index.ts:LOCAL_VIDEO_PATH"],
+      "commands": ["computer-video"]
+    },
+    {
       "id": "computer-webrtc",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",

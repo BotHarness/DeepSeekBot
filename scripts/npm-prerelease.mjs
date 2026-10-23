@@ -135,6 +135,11 @@ export function checkPackage(manifest, artifact, files, inventory) {
     typeof manifest.bin === 'string' ? [manifest.bin] : Object.values(manifest.bin ?? {});
   for (const path of [
     ...(manifest.name === '@botharness/core' ? ['./cli/index.mjs'] : []),
+    ...(manifest.name === '@botharness/computer'
+      ? ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'].map(
+          (name) => `./native/local-video/${name}`,
+        )
+      : []),
     ...binPaths,
     manifest.main,
     manifest.dsh?.bundle?.patch,

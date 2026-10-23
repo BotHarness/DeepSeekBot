@@ -176,10 +176,12 @@ describe('iOS Simulator phone journey', () => {
   it('finds the DerivedData folder of a built app so it can be removed', () => {
     expect(
       derivedDataFolder(
-        '/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc/Build/Products/Debug-iphonesimulator/DeepSeekBotDev.app',
+        join(
+          '/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc/Build/Products/Debug-iphonesimulator/DeepSeekBotDev.app',
+        ),
       ),
-    ).toBe('/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc');
-    expect(derivedDataFolder('/tmp/DeepSeekBotDev.app')).toBeUndefined();
-    expect(derivedDataFolder('/tmp/DerivedData/DeepSeekBotDev.app')).toBeUndefined();
+    ).toBe(join('/Users/me/Library/Developer/Xcode/DerivedData/DeepSeekBotDev-abc'));
+    expect(derivedDataFolder(join('/tmp/DeepSeekBotDev.app'))).toBeUndefined();
+    expect(derivedDataFolder(join('/tmp/DerivedData/DeepSeekBotDev.app'))).toBeUndefined();
   });
 });

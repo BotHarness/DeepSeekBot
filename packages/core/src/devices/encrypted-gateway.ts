@@ -6,6 +6,12 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { ConnectChannel, CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import { noisePublicKey } from './noise/xk.js';
 import type { DevicePairing } from './pairing.js';
+import {
+  LOCAL_VIDEO_LIMITS,
+  LOCAL_VIDEO_PATH,
+  type LocalVideoBinding,
+  type LocalVideoResult,
+} from '../../../computer/src/local-video-contract.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -25,7 +31,15 @@ function pathAllowed(path: string): boolean {
     /%2f|%5c|%2e|\/\.{1,2}(?:\/|\?|$)/iu.test(path)
   )
     return false;
-  const name = path.split('?')[0]!;
+  let name: string;
+  try {
+    name = new URL(`http://device${decodeURIComponent(path.split('?')[0]!)}`).pathname.replace(
+      /\/{2,}/gu,
+      '/',
+    );
+  } catch {
+    return false;
+  }
   return (
     (name.startsWith('/botharness-device/api/') &&
       !/\/(?:webrtc|web|browser|computer)(?:\/|$)/u.test(name)) ||
@@ -43,6 +57,11 @@ export function createEncryptedGateway(options: {
   port(): number;
   changed?: (state: { negotiating: number; encrypted: number }) => void;
   log?: (phase: string) => void;
+  localVideo?: (input: {
+    deviceId: string;
+    command: unknown;
+    signal: AbortSignal;
+  }) => Promise<LocalVideoResult>;
   verifyEnrollment?: (
     body: string,
     signature: string,
@@ -77,6 +96,24 @@ export function createEncryptedGateway(options: {
     let detach: (() => void) | undefined;
     const streams = new Map<string, WebSocket>();
     const requests = new Map<string, () => void>();
+    let videoBinding: LocalVideoBinding | undefined;
+    let videoPending = 0;
+    const closeVideo = (binding: LocalVideoBinding) => {
+      const dispatch = options.localVideo;
+      if (!dispatch) return;
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), LOCAL_VIDEO_LIMITS.cleanupTimeoutMs);
+      void Promise.resolve()
+        .then(() =>
+          dispatch({
+            deviceId: deviceId!,
+            command: { kind: 'close', binding },
+            signal: abort.signal,
+          }),
+        )
+        .catch(() => {})
+        .finally(() => clearTimeout(timer));
+    };
     const close = () => {
       if (closed) return;
       closed = true;
@@ -88,6 +125,8 @@ export function createEncryptedGateway(options: {
       for (const cancel of requests.values()) cancel();
       streams.clear();
       requests.clear();
+      if (videoBinding) closeVideo(videoBinding);
+      videoBinding = undefined;
       active.delete(close);
       if (admitted) encrypted--;
       else negotiating--;
@@ -118,6 +157,131 @@ export function createEncryptedGateway(options: {
       socket.close(1008, 'channel-refused');
       setTimeout(close, 100).unref();
     };
+    const video = (id: string, input: Record<string, unknown>) => {
+      const respond = (result: LocalVideoResult) =>
+        send({
+          type: 'response',
+          id,
+          status: result.ok ? 200 : 409,
+          contentType: 'application/json',
+          body: Buffer.from(JSON.stringify(result)).toString('base64'),
+        });
+
+      if (options.route !== 'lan')
+        return respond({
+          ok: false,
+          code: 'connect-carrier-required',
+          error: 'Local Computer video requires the paired LAN route.',
+        });
+      if (input['method'] !== 'POST')
+        return respond({ ok: false, code: 'invalid-input', error: 'A video command is required.' });
+      if (videoPending >= LOCAL_VIDEO_LIMITS.pendingRequests)
+        return respond({
+          ok: false,
+          code: 'queue-full',
+          error: 'Too many video commands are pending.',
+        });
+      const bytes = Buffer.from(
+        field(input, 'body') ?? '',
+        input['encoding'] === 'base64' ? 'base64' : 'utf8',
+      );
+      if (bytes.length > LOCAL_VIDEO_LIMITS.requestBytes)
+        return respond({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The video command is too large.',
+        });
+      let command: unknown;
+      try {
+        command = JSON.parse(bytes.toString('utf8'));
+      } catch {
+        return respond({
+          ok: false,
+          code: 'invalid-input',
+          error: 'The video command must be JSON.',
+        });
+      }
+      const kind =
+        command && typeof command === 'object' && 'kind' in command ? command.kind : undefined;
+      const incomplete: LocalVideoResult =
+        kind === 'input'
+          ? {
+              ok: false,
+              code: 'input-result-unknown',
+              error: 'The input result is unknown. It will not be replayed.',
+            }
+          : {
+              ok: false,
+              code: 'operation-timeout',
+              error: 'The Computer operation did not complete.',
+            };
+      const dispatch = options.localVideo;
+      if (!dispatch)
+        return respond({
+          ok: false,
+          code: 'not-ready',
+          error: 'Local Computer video is not ready.',
+        });
+      const abort = new AbortController();
+      const cancel = () => {
+        abort.abort();
+        clearTimeout(timer);
+      };
+      const timer = setTimeout(() => {
+        if (requests.get(id) !== cancel) return;
+        requests.delete(id);
+        cancel();
+        respond(incomplete);
+      }, LOCAL_VIDEO_LIMITS.operationTimeoutMs);
+      requests.set(id, cancel);
+      videoPending++;
+
+      void Promise.resolve()
+        .then(() => dispatch({ deviceId: deviceId!, command, signal: abort.signal }))
+        .then(
+          (result) => {
+            if (result.ok && kind === 'open' && result.state.binding) {
+              if (closed || abort.signal.aborted) closeVideo(result.state.binding);
+              else videoBinding = result.state.binding;
+            }
+            if (
+              result.ok &&
+              kind === 'close' &&
+              videoBinding &&
+              command &&
+              typeof command === 'object' &&
+              'binding' in command
+            ) {
+              const retired = command.binding;
+              if (
+                retired &&
+                typeof retired === 'object' &&
+                'computerId' in retired &&
+                retired.computerId === videoBinding.computerId &&
+                'runtimeId' in retired &&
+                retired.runtimeId === videoBinding.runtimeId &&
+                'viewerId' in retired &&
+                retired.viewerId === videoBinding.viewerId &&
+                'attemptId' in retired &&
+                retired.attemptId === videoBinding.attemptId
+              )
+                videoBinding = undefined;
+            }
+            if (requests.get(id) !== cancel) return;
+            requests.delete(id);
+            respond(result);
+          },
+          () => {
+            if (requests.get(id) !== cancel) return;
+            requests.delete(id);
+            respond(incomplete);
+          },
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          videoPending--;
+        });
+    };
     const forward = (input: Record<string, unknown>) => {
       const id = field(input, 'id'),
         path = field(input, 'path'),
@@ -129,10 +293,11 @@ export function createEncryptedGateway(options: {
         requests.size >= 32 ||
         !path ||
         path.length > 8192 ||
-        !pathAllowed(path) ||
         (method !== 'GET' && method !== 'POST')
       )
         throw new Error('channel-request-invalid');
+      if (path === `/botharness-device${LOCAL_VIDEO_PATH}`) return video(id, input);
+      if (!pathAllowed(path)) throw new Error('channel-request-invalid');
       const body = field(input, 'body') ?? '';
       const bytes = Buffer.from(body, input['encoding'] === 'base64' ? 'base64' : 'utf8');
       if (bytes.length > BODY_LIMIT) throw new Error('channel-body-too-large');

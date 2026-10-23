@@ -6,7 +6,8 @@ import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary
 import type { HostCarrier, HostSocket } from './carrier';
 import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
-import { checkRoute, isConnectRoute, isEncryptedRoute, socketOrigin } from './route';
+import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
 import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
@@ -359,7 +360,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
             computerAccess:
-              bot.computerAccess === true && !isEncryptedRoute(route, options.encryption),
+              bot.computerAccess === true &&
+              (!isEncryptedRoute(route, options.encryption) || isLanRoute(route)),
             browserAccess:
               bot.browserAccess === true && !isEncryptedRoute(route, options.encryption),
             state: live?.state ?? bot.aggregateState,
@@ -548,9 +550,19 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
     withDeadline(async (signal) => {
+      if (isConnectRoute(route) && path === LOCAL_VIDEO_PATH)
+        return {
+          status: 403,
+          body: {
+            ok: false,
+            code: 'connect-carrier-required',
+            error: 'Local Computer video requires the paired LAN route.',
+          },
+        };
       if (
         isEncryptedRoute(route, options.encryption) &&
-        /^\/api\/(?:browser|computer)\//u.test(path)
+        /^\/api\/(?:browser|computer)\//u.test(path) &&
+        !(isLanRoute(route) && path === LOCAL_VIDEO_PATH)
       )
         throw new MethodRefused(
           'connect-viewer-unavailable',

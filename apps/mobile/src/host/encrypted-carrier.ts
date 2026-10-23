@@ -196,6 +196,28 @@ interface Session {
   requests: Map<string, { resolve(value: HostResponse): void; reject(error: Error): void }>;
   streams: Map<string, HostSocketEvents>;
 }
+
+function waitForAdmission(ready: Promise<void>, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener('abort', abort);
+      reject(new Error('request-cancelled'));
+    };
+    signal.addEventListener('abort', abort, { once: true });
+    void ready.then(
+      () => {
+        signal.removeEventListener('abort', abort);
+        resolve();
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', abort);
+        reject(error);
+      },
+    );
+    if (signal.aborted) abort();
+  });
+}
+
 export function encryptedCarrier(options: {
   raw: HostCarrier;
   hostId: string;
@@ -321,7 +343,7 @@ export function encryptedCarrier(options: {
         return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
       const current = session(parsed.origin);
-      await current.ready;
+      await waitForAdmission(current.ready, init.signal);
       if (init.signal.aborted) throw new Error('request-cancelled');
       if (
         typeof init.body !== 'string' &&

@@ -255,7 +255,7 @@ _避免使用_：driver、backend、sandbox、tool provider
 _避免使用_：driver、backend、computer provider
 
 **Takeover**：
-Human 在一台 Computer 上的接管会话：暂停所有在该 Computer 上行动的 PersonaBot，并在其持续期间关闭面向模型的截图。它由某个 Bot Screen 发起，但始终作用于整台 Computer。
+Human 对一台 Computer 的排他控制：由某个 Bot Screen 发起，但始终作用于整台 Computer，暂停所有在其上行动的 PersonaBot 的动作与面向模型的截图。观看不授予控制权；释放控制权后 Bot 仍保持暂停，直到 Human 明确恢复。
 _避免使用_：handoff、screen sharing、per-bot takeover
 
 **Computer Export**：

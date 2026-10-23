@@ -207,6 +207,7 @@ const DEVICE_COMMANDS = [
   'computer-frame',
   'computer-takeover',
   'computer-input',
+  'computer-video',
 ] as const;
 
 const IM_CONTROL_COMMANDS = [
@@ -360,6 +361,11 @@ export const LIVE_COMMANDS = [
     description: 'start the profile Computer with explicit authorization',
   },
   { command: 'computer-status', description: 'read the profile Computer target and state' },
+  {
+    command: 'computer-video',
+    description:
+      'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
+  },
   {
     command: 'computer-frame',
     description: 'save the current picture of the profile Computer desktop to a file',
@@ -1445,25 +1451,35 @@ async function runDeviceCommand(
   io: BotCreateCliIo,
 ): Promise<unknown> {
   const direct = command === 'browser-tool' || command === 'computer-tool';
+  const video = command === 'computer-video';
   const computer = (command.startsWith('computer-') && !direct) || command === 'browser-tools';
-  const positionals = direct ? 2 : computer ? 0 : 1;
+  const positionals = direct ? 2 : video ? 1 : computer ? 0 : 1;
   if (rest.length !== positionals || rest.some((value) => !value.trim()))
     usage(
       direct
         ? `${command} needs a bot id and a tool name.`
-        : computer
-          ? `${command} takes no positional arguments.`
-          : `${command} needs exactly one bot id.`,
+        : video
+          ? 'computer-video needs exactly one operation.'
+          : computer
+            ? `${command} takes no positional arguments.`
+            : `${command} needs exactly one bot id.`,
     );
   let toolArgs: Record<string, unknown> = {};
-  const input = command === 'browser-input' || command === 'computer-input';
+  const input =
+    command === 'browser-input' ||
+    command === 'computer-input' ||
+    (video && !['status', 'open'].includes(rest[0]!));
   if (input && values['args-stdin'] !== true)
     usage(
-      `${command} needs --args-stdin with a JSON input such as {"kind":"click","x":10,"y":20}.`,
+      video
+        ? `computer-video ${rest[0]} needs --args-stdin with its binding/runtime command JSON.`
+        : `${command} needs --args-stdin with a JSON input such as {"kind":"click","x":10,"y":20}.`,
     );
   if ((direct || input) && values['args-stdin'] === true) {
     try {
-      const parsed: unknown = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+      const raw = await (io.readStdin?.() ?? Promise.resolve(''));
+      if (video && Buffer.byteLength(raw) > 128 * 1024) throw new Error('input too large');
+      const parsed: unknown = JSON.parse(raw);
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
         throw new Error('not an object');
       toolArgs = parsed as Record<string, unknown>;
@@ -1479,6 +1495,32 @@ async function runDeviceCommand(
   )
     usage('--out must be an absolute file path.');
   const slug = rest[0]?.trim() ?? '';
+  if (video) {
+    if (
+      ![
+        'status',
+        'open',
+        'signal',
+        'heartbeat',
+        'takeover',
+        'input',
+        'release',
+        'resume',
+        'close',
+      ].includes(slug)
+    )
+      usage(
+        'computer-video needs status, open, signal, heartbeat, takeover, input, release, resume or close.',
+      );
+    if (toolArgs['force'] === true && values.confirm !== true)
+      usage('Forced takeover requires --confirm.');
+    if (
+      slug === 'open' &&
+      (values.out === undefined ||
+        (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out)))
+    )
+      usage('computer-video open requires --out <absolute-file> for private signaling data.');
+  }
   if (command === 'browser-frame' || command === 'computer-frame') {
     const out = values.out ?? '';
     if (!out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(out))
@@ -1525,6 +1567,36 @@ async function runDeviceCommand(
       return { type: 'image', mimeType: item['mimeType'], bytes: bytes.byteLength };
     });
   if (command === 'browser-tools') return json('/api/browser/tools');
+  if (video) {
+    const result = record(
+      await json('/api/computer/video', {
+        ...toolArgs,
+        kind: slug,
+        ...(toolArgs['force'] === true ? { confirm: values.confirm === true } : {}),
+      }),
+    );
+    const state = record(result['state']);
+    const { offer, ...safeState } = state;
+    if (offer !== undefined && values.out !== undefined) {
+      try {
+        writeFileSync(values.out, JSON.stringify(offer), { mode: 0o600, flag: 'wx' });
+      } catch {
+        if (state['binding'] !== undefined)
+          await json('/api/computer/video', { kind: 'close', binding: state['binding'] }).catch(
+            () => undefined,
+          );
+        throw new CliLiveError(
+          'signaling-file-failed',
+          'Private signaling could not be saved. Use a new writable absolute file.',
+        );
+      }
+    }
+    return {
+      ...result,
+      ...(result['state'] === undefined ? {} : { state: safeState }),
+      ...(offer === undefined ? {} : { signalingFile: values.out }),
+    };
+  }
   if (command === 'computer-tools') return json('/api/computer/tools');
   if (command === 'computer-tool') {
     const result = record(

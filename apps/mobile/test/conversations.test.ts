@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { RosterView } from '../src/host/client';
 import type { HumanAttentionItem } from '../src/host/wire';
-import { t } from '../src/ui/strings';
+import { locale, t } from '../src/ui/strings';
 import {
   chatList,
   conversations,
@@ -222,17 +222,20 @@ describe('Row status', () => {
 
   it('shows a pending tool approval preview in the app language', () => {
     expect(previewText('请求批准执行 secret_cli')).toBe(t.approvalPreview('secret_cli'));
-    expect(t.approvalPreview('secret_cli')).toBe('Requests approval to run secret_cli');
+    expect(t.approvalPreview('secret_cli')).toBe(
+      locale === 'zh' ? '请求批准执行 secret_cli' : 'Requests approval to run secret_cli',
+    );
     expect(previewText('Sure, done')).toBe('Sure, done');
   });
 
   it('reads the status once in the row label', () => {
-    expect(rowLabel(row({ paused: true }), 'Ada', 'paused', 'Paused')).toBe('Ada, Paused');
+    const paused = locale === 'zh' ? '已暂停' : 'Paused';
+    expect(rowLabel(row({ paused: true }), 'Ada', 'paused', paused)).toBe('Ada, ' + paused);
     expect(rowLabel(row({ state: 'working' }), 'Ada', 'working', 'Sure')).toBe(
-      'Ada, Working, Sure',
+      locale === 'zh' ? 'Ada, 工作中, Sure' : 'Ada, Working, Sure',
     );
     expect(rowLabel(row({}, { needsYou: 2 }), 'Ada', 'needs-you', 'Done')).toBe(
-      'Ada, 2 need you, Done',
+      locale === 'zh' ? 'Ada, 2 项等你处理, Done' : 'Ada, 2 need you, Done',
     );
   });
 });
