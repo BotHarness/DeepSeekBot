@@ -117,7 +117,15 @@ export function ConversationSectionSheet({
       <Stack.Toolbar placement="left">
         <Stack.Toolbar.Button
           accessibilityLabel={creating ? t.back : t.close}
-          icon={Platform.OS === 'ios' ? (creating ? 'chevron.left' : 'xmark') : undefined}
+          icon={
+            Platform.OS === 'ios'
+              ? creating
+                ? 'chevron.left'
+                : 'xmark'
+              : creating
+                ? require('../../../assets/toolbar/back.png')
+                : require('../../../assets/toolbar/close.png')
+          }
           disabled={state.busy}
           onPress={creating ? returnToList : close}
         >
@@ -133,6 +141,15 @@ export function ConversationSectionSheet({
                 : t.conversationSection.submit
               : t.conversationSection.create
           }
+          icon={
+            creating
+              ? Platform.OS === 'android'
+                ? require('../../../assets/toolbar/check.png')
+                : undefined
+              : Platform.OS === 'ios'
+                ? 'plus'
+                : require('../../../assets/toolbar/add.png')
+          }
           disabled={!current || state.busy || (creating && !state.selected && !name.trim())}
           variant={creating ? 'done' : 'plain'}
           onPress={
@@ -145,7 +162,7 @@ export function ConversationSectionSheet({
                 }
           }
         >
-          {creating ? (state.selected ? t.retry : t.conversationSection.submit) : t.create}
+          {creating ? (state.selected ? t.retry : t.conversationSection.submit) : undefined}
         </Stack.Toolbar.Button>
       </Stack.Toolbar>
       {creating ? (
