@@ -1056,3 +1056,34 @@ it.each(['dispose', 'resetRuntime', 'revoke', 'close'] as const)(
     expect(finished).toBe(true);
   },
 );
+
+it.each(['resume', 'takeover', 'close', 'revoke'] as const)(
+  'fails closed if native exit times out during %s',
+  async (action) => {
+    const stopped = deferred<void>();
+    const motion = { update: vi.fn(async () => {}), stop: vi.fn(async () => {}) };
+    const h = harness({ scrollMotion: motion, timeout: 200 });
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    motion.stop.mockImplementation(() => stopped.promise);
+    const operation =
+      action === 'revoke'
+        ? h.owner.revoke(caller.deviceId)
+        : action === 'resume'
+          ? h.owner.handle(caller, {
+              kind: 'resume',
+              runtimeId: binding.runtimeId,
+              binding,
+              generation: grant!.generation,
+            })
+          : action === 'close'
+            ? h.owner.handle(caller, { kind: 'close', binding })
+            : (async () => {
+                await h.owner.handle(caller, { kind: 'release', binding });
+                await h.take(binding);
+              })();
+    await expect(operation).rejects.toMatchObject({ code: 'operation-timeout' });
+    expect(h.writes.at(-1)).toBe(true);
+    stopped.resolve();
+  },
+);

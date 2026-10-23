@@ -305,16 +305,14 @@ export function createLocalVideoOwner(options: {
   };
 
   let scrollEpoch = 0;
+  let nativeCleanup: Promise<void> = Promise.resolve();
   const stopScroll = (): Promise<void> => {
     scrollEpoch++;
-    const effect = bounded(
-      options.scrollMotion?.stop() ?? Promise.resolve(),
-      cleanupTimeout,
-      'operation-timeout',
-    );
-    humans.add(effect);
-    void effect.finally(() => humans.delete(effect)).catch(() => undefined);
-    return effect;
+    const exit = options.scrollMotion?.stop() ?? Promise.resolve();
+    humans.add(exit);
+    void exit.finally(() => humans.delete(exit)).catch(() => undefined);
+    nativeCleanup = bounded(exit, cleanupTimeout, 'operation-timeout');
+    return nativeCleanup;
   };
   const invalidate = (): void => {
     void stopScroll().catch(() => {
@@ -336,7 +334,10 @@ export function createLocalVideoOwner(options: {
     }
   };
   const drain = async (operations: Set<Promise<unknown>>): Promise<void> => {
+    if (cleanupFailed) refuse('operation-timeout', 'Native input cleanup did not finish.');
+    await nativeCleanup;
     await bounded(Promise.allSettled([...operations]), operationTimeout, 'drain-timeout');
+    if (cleanupFailed) refuse('operation-timeout', 'Native input cleanup did not finish.');
   };
   const transition = <T>(operation: () => Promise<T>): Promise<T> => {
     const next = transitions.then(operation, operation);
