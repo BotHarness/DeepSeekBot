@@ -40,14 +40,17 @@ Windows display. Start from the declared native build; these are pending verific
 - Use `computer-video-scroll-pad` over the fixture's horizontal, vertical and 2D regions.
   Verify offsets in both directions and diagonally; no click on release. Retest the existing
   left/right drag shortcuts. An observer has no pointer, scroll pad or keyboard controls.
-- Open `computer-video-keyboard`, enter synthetic Chinese through the real IME in
-  `computer-video-text`, edit the candidate, and send once with `computer-video-send-text`.
-  Compare the computer field, not just the local draft. Test Tab, Backspace, Enter, Escape,
-  password masking, native IME Send, panel hide/reopen and Android Back. Header exit must
-  still leave immediately. Check portrait/landscape, light/dark and all three text sizes.
-- The remote target and Send/Hand back must stay reachable with the soft keyboard open.
-  Stall media, lose connection, hand back and replace the grant while a draft/input is pending:
-  no replay, no old draft crossing grants, no false successful-clear.
+- Focus a field on the computer, then open `computer-video-keyboard`. Only the native phone
+  keyboard appears: no second field, Send row or duplicate key buttons. Compose synthetic
+  Chinese with the actual IME, change the candidate, and commit once. Compare the computer
+  field. Test native Backspace after committed text, Enter, multiline paste, password target,
+  hide/reopen and Android Back. Typing and video updates must not blur or reopen the keyboard.
+  Header exit must still leave immediately. Repeat portrait/landscape, light/dark and all three
+  text sizes. This native module requires a fresh binary; an old binary offers an update hint.
+- The remote target and Hand back must stay reachable with the soft keyboard open. Stall media,
+  lose connection, background the app, hand back and replace the grant during composition or
+  pending input: no replay and no unfinished composition crossing grants or keyboard sessions.
+  Source tests and Robolectric are separate from real IME/device acceptance.
 - Move the local pointer far from the previous click and click the fixture. Inspect the
   current viewer's driver session: no duplicate virtual-cursor glide before the click.
   Bot sessions keep their own cursor setting. Record observed latency separately.

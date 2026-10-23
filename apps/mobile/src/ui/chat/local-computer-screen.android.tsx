@@ -9,7 +9,14 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useFocusEffect, useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState, useSyncExternalStore, type ComponentType } from 'react';
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentType,
+} from 'react';
 import { AppState, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
@@ -33,7 +40,7 @@ import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
 import { ComputerWheelButton } from './computer-wheel-button';
 import { ComputerScrollPad } from './computer-scroll-pad';
-import { ComputerVideoKeyboard } from './computer-video-keyboard';
+import { ComputerVideoKeyboard, remoteKeyboardAvailable } from './computer-video-keyboard';
 import { localVideoNotice } from './local-video-notice';
 
 const idle: LocalVideoClientState = {
@@ -53,7 +60,13 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const landscape = window.width > window.height;
-  const [keyboardGrant, setKeyboardGrant] = useState<{ viewerId: string; generation: number }>();
+  const [keyboardGrant, setKeyboardGrant] = useState<{
+    viewerId: string;
+    generation: number;
+    request: number;
+  }>();
+  const keyboardRequest = useRef(0);
+  const [keyboardIncomplete, setKeyboardIncomplete] = useState(false);
   const [exiting, setExiting] = useState(false);
   const viewer = useMemo(
     () =>
@@ -92,10 +105,15 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     keyboardGrant.viewerId === state.host?.binding?.viewerId &&
     keyboardGrant.generation === state.host?.grant?.generation;
   const setKeyboardOpen = (open: boolean) => {
+    if (open) setKeyboardIncomplete(false);
     const host = viewer?.getState().host;
     setKeyboardGrant(
       open && host?.binding && host.grant
-        ? { viewerId: host.binding.viewerId, generation: host.grant.generation }
+        ? {
+            viewerId: host.binding.viewerId,
+            generation: host.grant.generation,
+            request: ++keyboardRequest.current,
+          }
         : undefined,
     );
   };
@@ -274,6 +292,15 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             </Text>
           </ScrollView>
         )}
+        {keyboardIncomplete ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            tone="muted"
+            testID="computer-video-keyboard-error"
+          >
+            {t.computerKeyboardIncomplete}
+          </Text>
+        ) : null}
         {controlling && !keyboardOpen ? (
           <View
             style={{
@@ -312,7 +339,12 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             key={host?.grant?.generation}
             open={keyboardOpen}
             enabled={driving}
+            session={keyboardGrant ? String(keyboardGrant.request) : ''}
             onInput={send}
+            onFailure={() => setKeyboardIncomplete(true)}
+            onClose={() =>
+              setKeyboardGrant((current) => (current === keyboardGrant ? undefined : current))
+            }
           />
         ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
@@ -341,12 +373,16 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                 </ComposeButton>
                 {controlling ? (
                   <TextButton
-                    enabled={keyboardOpen || driving}
+                    enabled={remoteKeyboardAvailable && (keyboardOpen || driving)}
                     onClick={() => setKeyboardOpen(!keyboardOpen)}
                     modifiers={[testID('computer-video-keyboard')]}
                   >
                     <ComposeText>
-                      {keyboardOpen ? t.computerHideKeyboard : t.computerVideoKeyboard}
+                      {!remoteKeyboardAvailable
+                        ? t.computerKeyboardUpdate
+                        : keyboardOpen
+                          ? t.computerHideKeyboard
+                          : t.computerVideoKeyboard}
                     </ComposeText>
                   </TextButton>
                 ) : null}
