@@ -123,8 +123,8 @@ export function ConversationSectionSheet({
                 ? 'chevron.left'
                 : 'xmark'
               : creating
-                ? require('../../../assets/toolbar/back@3x.png')
-                : require('../../../assets/toolbar/close@3x.png')
+                ? require('../../../assets/toolbar/back.png')
+                : require('../../../assets/toolbar/close.png')
           }
           disabled={state.busy}
           onPress={creating ? returnToList : close}
@@ -144,11 +144,11 @@ export function ConversationSectionSheet({
           icon={
             creating
               ? Platform.OS === 'android'
-                ? require('../../../assets/toolbar/check@3x.png')
+                ? require('../../../assets/toolbar/check.png')
                 : undefined
               : Platform.OS === 'ios'
                 ? 'plus'
-                : require('../../../assets/toolbar/add@3x.png')
+                : require('../../../assets/toolbar/add.png')
           }
           disabled={!current || state.busy || (creating && !state.selected && !name.trim())}
           variant={creating ? 'done' : 'plain'}
