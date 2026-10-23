@@ -1468,6 +1468,18 @@ const en = {
     'Video is unavailable; open DeepSeekBot on your computer, start Computer and reconnect. Bots stay paused if you took control.',
   computerVideoWaiting:
     'Waiting for live video; keep your computer awake and Computer running, then reconnect if video does not return.',
+  computerEnvironment: 'Computer',
+  computerVideoSignal: {
+    live: 'Video connected',
+    waiting: 'Waiting for video',
+    offline: 'Video disconnected',
+  },
+  computerVideoController: {
+    human: 'Human control',
+    bot: 'Bot control',
+    paused: 'Bots paused',
+    unknown: 'Control status unavailable',
+  },
   computerVideoBotsPaused: 'Bots paused',
   computerVideoTakeover: 'Take control',
   computerVideoRelease: 'Release control · keep Bots paused',
@@ -2936,6 +2948,14 @@ const zh: typeof en = {
     '视频不可用，请在电脑上打开 DeepSeekBot 并启动 Computer，再重新连接。若你已接管，Bot 会继续暂停。',
   computerVideoWaiting:
     '正在等待实时视频，请确认电脑未休眠且 Computer 正在运行，画面未恢复时可重新连接。',
+  computerEnvironment: '电脑',
+  computerVideoSignal: { live: '视频已连接', waiting: '等待视频', offline: '视频已断开' },
+  computerVideoController: {
+    human: '人类操控',
+    bot: 'Bot 控制',
+    paused: 'Bot 已暂停',
+    unknown: '控制状态未知',
+  },
   computerVideoBotsPaused: 'Bot 已暂停',
   computerVideoTakeover: '接管控制',
   computerVideoRelease: '释放控制，保持 Bot 暂停',

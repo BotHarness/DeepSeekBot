@@ -18,7 +18,7 @@ import { videoPointerClick } from '../../host/local-video-pointer';
 import type { StageZoom } from '../../host/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
-import { computerVideo, space } from '../design/tokens';
+import { computerCanvas, space } from '../design/tokens';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../design/theme';
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
@@ -179,7 +179,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           paddingBottom: insets.bottom,
           paddingLeft: insets.left,
           paddingRight: insets.right,
-          backgroundColor: computerVideo.canvas,
+          backgroundColor: computerCanvas.background,
         }}
       >
         <StatusBar style="light" />
@@ -192,7 +192,6 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               driving={driving}
               controlling={controlling}
               revealCursor={false}
-              backgroundColor={computerVideo.canvas}
               cursor={cursor}
               preview={preview}
               onClick={click}

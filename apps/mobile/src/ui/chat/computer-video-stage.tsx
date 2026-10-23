@@ -14,33 +14,37 @@ import {
   revealVideoPointer,
   videoPointerPosition,
 } from '../../host/local-video-pointer';
-import { pointer } from '../design/tokens';
+import { computerCanvas, pointer } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
 import type { Size } from './zoom-math';
 import { videoPinchUpdate } from './computer-video-gestures';
+import { ComputerClickRipple, type ComputerClickFeedback } from './computer-click-ripple';
 
 type Point = { x: number; y: number };
 const TAP_SLOP = 10;
 
 export function ComputerVideoStage({
+  clickFeedback,
   frame,
   driving,
   controlling,
   revealCursor,
-  backgroundColor,
   cursor,
   preview,
   onClick,
   children,
 }: {
+  clickFeedback?: {
+    attemptId: string;
+    events: SharedValue<ComputerClickFeedback | undefined>;
+  };
   frame: Size;
   driving: boolean;
   controlling: boolean;
   revealCursor: boolean;
-  backgroundColor?: string;
   cursor: SharedValue<Point>;
   preview: SharedValue<StageZoom>;
   onClick(point: Point, button: 'left' | 'right'): void;
@@ -212,11 +216,7 @@ export function ComputerVideoStage({
           )
             onClick(cursor.get(), nativeEvent.actionName === 'longpress' ? 'right' : 'left');
         }}
-        style={{
-          flex: 1,
-          overflow: 'hidden',
-          backgroundColor: backgroundColor ?? theme.color.surface,
-        }}
+        style={{ flex: 1, overflow: 'hidden', backgroundColor: computerCanvas.background }}
       >
         <Animated.View
           pointerEvents="none"
@@ -224,6 +224,16 @@ export function ComputerVideoStage({
         >
           {children(fit)}
         </Animated.View>
+        {controlling && clickFeedback !== undefined ? (
+          <ComputerClickRipple
+            feedback={clickFeedback.events}
+            attemptId={clickFeedback.attemptId}
+            enabled={driving}
+            frame={frame}
+            stage={stage}
+            preview={preview}
+          />
+        ) : null}
         {controlling ? (
           <Animated.View
             pointerEvents="none"

@@ -669,6 +669,7 @@ function ChatConversation({
         return conversation === undefined ? null : (
           <PlaybackBubble
             playback={playback}
+            focused={focused}
             queueKey={item.key}
             speaker={
               dm
@@ -735,6 +736,7 @@ function ChatConversation({
       return (
         <PlaybackBubble
           playback={playback}
+          focused={focused}
           queueKey={item.key}
           message={item.message}
           first={item.first}
@@ -755,6 +757,7 @@ function ChatConversation({
     [
       dm,
       playback,
+      focused,
       conversation,
       client,
       slug,

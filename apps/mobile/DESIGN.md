@@ -330,7 +330,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
 - Below Bot settings, **Show in this chat** offers **Posts in groups and Bot DMs** and **Memory updates**, both on by default. These device-local, per-Host/per-Bot settings hide only activity mirrored into the Human DM. Original memory commits, direct-message actions, creation rows and group timelines remain visible.
 
 - Avatar, name, label and description.
-- Actions: Message (closes the sheet back to the DM), Computer (only when the Bot has Computer access), Notifications. Android Local Computer video opens as an observer. One **Take control** / **Hand back** button pauses Bots and obtains exclusive input, or explicitly releases control, drains Human input and resumes Bots while continuing observation. Exit is in the top-right header; exit, backgrounding and disconnection keep the durable pause. Only while controlling, show the large local arrow and icon + **Left** / **Right** buttons. One finger moves the arrow; tap, long press and those buttons click at it when media/input are available. Two fingers zoom and pan the phone preview while watching or controlling, without sending remote input. The preview is a top-aligned free canvas: keep its scale and position on finger release, with no automatic centering or edge settling. **Reset view** explicitly restores the default fit and top position. Showing/hiding controls keeps the preview in place. Computer alone supports Android landscape. Its compact toolbar is one row: Left at the left edge, the control toggle and Reset in the middle, Right at the right edge, with no instruction caption. Both mouse buttons accept horizontal or vertical dragging to scroll at the cursor, locking to the first dominant axis; dragging never clicks. A small slider responds during the drag, defaulting to horizontal on Left and vertical on Right. These custom Gesture Handler surfaces combine whole-button tap/drag arbitration and UI-thread slider feedback that native Compose buttons do not expose; the toggle, Reset and exit use native Compose controls. Legacy Computer viewers retain their existing interaction until migrated.
+- Actions: Message (closes the sheet back to the DM), Computer (only when the Bot has Computer access), Notifications. Android Local Computer video opens as an observer. One **Take control** / **Hand back** button pauses Bots and obtains exclusive input, or explicitly releases control, drains Human input and resumes Bots while continuing observation. Exit is the leading Back button in the header; exit, backgrounding and disconnection keep the durable pause. Only while controlling, show the large local arrow and icon + **Left** / **Right** buttons. One finger moves the arrow; tap, long press and those buttons click at it when media/input are available. Two fingers zoom and pan the phone preview while watching or controlling, without sending remote input. The preview is a top-aligned free canvas: keep its scale and position on finger release, with no automatic centering or edge settling. **Reset view** explicitly restores the default fit and top position. Showing/hiding controls keeps the preview in place. Computer alone supports Android landscape. Its compact toolbar has Left and Right around the two-dimensional scroll pad, with a separate native command row and no instruction caption. Both mouse buttons accept horizontal or vertical dragging to scroll at the cursor, locking to the first dominant axis; dragging never clicks. A small slider responds during the drag, defaulting to horizontal on Left and vertical on Right. These custom Gesture Handler surfaces combine whole-button tap/drag arbitration and UI-thread slider feedback that native Compose buttons do not expose; the toggle, Reset and exit use native Compose controls. Legacy Computer viewers retain their existing interaction until migrated.
 - Under the actions, a **Bot settings** group with the Model and Workspace rows (see Chat), each opening its sheet from the bottom over the profile.
 - Then **Last 7 days**, kept light like a health app's summary rather than a dashboard: one card with the 7-day token total (`320K tokens`, from the Host's `profileActivity` with `weeks: 1`, the same numbers as the Web Client's Token usage card), a 7-day bar row of tokens, and a smaller 7-day row of events plus Memory commits with weekday initials. Bars use the Bot's primary colour; an empty day keeps a faint stub on the layer's `inset`. A Bot with no activity shows the quiet week and a muted line, never an error. No window picker, split or heatmap here.
 - Tapping the card pushes **Activity** for that Bot:
@@ -398,7 +398,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 4. **Interactive elements meet the touch target and carry an `accessibilityLabel`.** The touch target is `theme.touch`: 44pt on iOS, 48dp on Android.
 5. **Lists virtualize.** The chat is a top-to-bottom `FlatList` that starts at its end.
 6. **Immediate press feedback and semantic haptics are distinct.**
-   - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the working row glyph, the Host drawer, the image viewer's gestures, Android Computer video's local cursor, wheel sliders and preview pinch/pan, and the composer growing line by line (up to five lines, then it scrolls). Computer cursor, preview and wheel-slider gestures run on the UI thread; only committed clicks and wheel steps cross to the Host client. The Computer preview has no release-time animation; Reset view applies its default position directly.
+   - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the working row glyph, the Host drawer, the image viewer's gestures, Android Computer video's local cursor, click acknowledgement ring, wheel sliders and preview pinch/pan, and the composer growing line by line (up to five lines, then it scrolls). Computer cursor, preview and wheel-slider gestures run on the UI thread; only committed clicks and wheel steps cross to the Host client. The Computer preview has no release-time animation; Reset view applies its default position directly.
    - Actionable controls show native or visual feedback on press-in. Preserve platform-native controls, pressed fills and Android ripple; do not add a scale animation or vibration to every button. A canceled press may highlight but must not commit its action.
    - Application haptics mark actual navigation/custom selection changes, accepted approval or choice submissions, sending, message/activity menus, reactions, pull-to-compose and swipe thresholds/actions. Repeated current selections, prevented navigation, disabled/busy controls and canceled actions add no haptic. One event has one feedback owner: do not stack application feedback onto a native control that already owns it. No haptics for scrolling, passive updates or animation frames.
    - Approval Allow/Deny and choice submission show busy feedback immediately, but acknowledge the decision only after the existing submission result accepts it. Allow confirms the submitted decision; Deny uses warning/rejection feedback. Neither reports tool execution success. Failed or stale submissions retain visible recovery state without an accepted-decision haptic.
@@ -498,6 +498,40 @@ The video toolbar places Left and Right around a dedicated two-dimensional scrol
 Both mouse buttons retain their drag-to-scroll shortcut. The pad and wheel-button gesture
 surfaces are custom because a native slider does not combine two-axis relative wheel input
 with a separate click action. Ordinary commands use native Compose buttons.
+
+The Android Local Computer page keeps its surrounding canvas and safe-area background pure
+black in both app appearances, with a scoped dark theme for readable controls. Its leading
+native tonal Back button exits Computer and sits `space.x3` away from a separate capsule
+containing the current paired Host environment name (including its local display alias),
+following the chat header's island layout. The header has no opaque band; the Back fill
+and capsule reuse chat header material. A native computer symbol identifies the environment.
+A small status dot is green only when capture and receiver presentation are live, amber
+while waiting for video, and muted while disconnected. Native person/Bot/pause/unknown icons
+distinguish control authority; no secondary status text is displayed. Disconnection clears
+the previously observed controller indicator. Full state remains available to accessibility.
+The capsule identifies the Computer; it is not another action. Status-bar icons stay light
+only while this screen is focused. Take control / Hand back is the filled primary action;
+keyboard visibility is a native Material toggle; Reset and recovery are tonal buttons.
+The command row uses a standard, spaced group of equally tall native controls (minimum
+48 dp), with horizontal scrolling for narrow widths or large system text. Connected
+segmented groups are reserved for selecting related options, not this mix of commands.
+The pinned Expo UI adapter has no `ButtonGroup` bridge, so it uses a Compose `Row` and native
+buttons without imitating the group's neighbour-width animation. Mouse/scroll gesture
+surfaces retain the accepted tap/drag arbitration and slider feedback. Native system
+picture-in-picture and its trailing header action are deferred to #2663; no inert button
+is shown before its separate video/background/control lifecycle is implemented.
+
+### Local Computer click feedback
+
+Preview taps, long-press right-click and the two mouse buttons share the same click path.
+After the Host acknowledges a click in the current viewer/grant, a 150 ms local ring expands
+and fades at that click's remote coordinate: blue for Left, orange for Right, with a dark rim
+for visibility over the desktop. The ring follows preview transforms but not later cursor
+motion. Wheel drags, refused or uncertain clicks produce no acknowledgement ring. A new
+click restarts the short feedback; losing control hides it and a new viewer never replays
+an old click. Reanimated runs transform/opacity on the UI thread. Reduce Motion replaces
+expansion/fading with a static ring for the same brief interval. This feedback confirms
+input delivery, not whether the target application completed a business action.
 
 ### Local Computer native keyboard
 

@@ -8,6 +8,7 @@ export type HapticMoment =
   | 'menu'
   | 'pull'
   | 'react'
+  | 'reply'
   | 'selection';
 
 let enabled = true;
