@@ -99,3 +99,9 @@ Use the assigned Mac/iOS lane and record the source SHA, installed binary/embedd
 5. Record actual screenshot evidence and source/CLI/native/Human results separately. Use the same motion and latency measurement limits above; compilation is not video proof. Unrun cases remain unverified.
 
 Mac capture startup regression is opt-in with `BOTHARNESS_VIDEO_NATIVE_TEST=1 pnpm exec vitest run packages/computer/test/local-video-helper-macos.test.ts`. It validates real capture offers and owned process-group drainage, but not iPhone rendering or interaction.
+
+## Android toolbar follow-up (#2559 / #2669)
+
+This follow-up supersedes the earlier mouse-button wheel shortcuts and floating Android navigation capsule. On the new head, verify Left and Right only click; hold the central pad at each edge for several seconds to keep scrolling, return to neutral or release to stop, and verify diagonal input. Background, disconnect, lose control and leave the screen during a hold: no later scroll should replay. Confirm slow acknowledgements cannot build a request backlog. Click feedback lasts 300 ms. Before takeover, keyboard and Reset are absent; after takeover they are accessible icon controls inside the native floating toolbar.
+
+On Chats and Activity, verify the full-width native navigation bar with horizontal labels in light/dark, English/Chinese, portrait/landscape and default/maximum text sizes. Activity keeps its icon and changes only its label for zero, positive and 99+ pending counts, selected or not. Check Reduce Motion, TalkBack names, last-row clearance, creation FAB clearance and system navigation insets. iOS is unchanged. Capture real before/after states from the same device; these native cases remain pending for this head.

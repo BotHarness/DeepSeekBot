@@ -1,7 +1,13 @@
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
-import { Platform, View, useWindowDimensions, type ViewInstance } from 'react-native';
+import {
+  AccessibilityInfo,
+  Platform,
+  View,
+  useWindowDimensions,
+  type ViewInstance,
+} from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHostSession } from '../../host/host-session';
@@ -45,24 +51,24 @@ function NavigationLayout() {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
+  const [nativeHeight, setNativeHeight] = useState<number>();
   const android = Platform.OS === 'android';
   const size = android
-    ? Math.max(
-        materialNavigationBar.height,
+    ? (nativeHeight ??
+      Math.max(
+        materialNavigationBar.height + insets.bottom,
         materialNavigationBar.indicatorHeight +
           materialNavigationBar.iconLabelGap +
           theme.type.meta.line * fontScale +
           space.x4,
-      )
+      ))
     : Math.max(
         navigationBar.height,
         theme.type.title.line +
           theme.type.meta.line * fontScale * (fontScale > 1.3 ? 2 : 1) +
           space.x5,
       );
-  const bottom = android
-    ? insets.bottom + materialNavigationBar.margin
-    : Math.max(insets.bottom, space.x4);
+  const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
   return (
@@ -71,7 +77,13 @@ function NavigationLayout() {
         <Tabs
           safeAreaInsets={{ bottom: 0 }}
           tabBar={(props) => (
-            <NavigationBar {...props} size={size} bottom={bottom} reserved={reserved} />
+            <NavigationBar
+              {...props}
+              size={size}
+              bottom={bottom}
+              reserved={reserved}
+              onNativeHeight={setNativeHeight}
+            />
           )}
           screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.color.base } }}
         >
@@ -83,7 +95,12 @@ function NavigationLayout() {
   );
 }
 
-type NavigationBarLayout = TabBarProps & { size: number; bottom: number; reserved: number };
+type NavigationBarLayout = TabBarProps & {
+  size: number;
+  bottom: number;
+  reserved: number;
+  onNativeHeight(height: number): void;
+};
 
 function NavigationBar(props: NavigationBarLayout) {
   const [scope] = useConversationFilter();
@@ -97,6 +114,7 @@ function ScopedNavigationBar({
   size,
   bottom,
   reserved,
+  onNativeHeight,
   scope,
 }: NavigationBarLayout & { scope: string }) {
   const currentKey = state.routes[state.index]?.key;
@@ -114,19 +132,31 @@ function ScopedNavigationBar({
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
+  const [screenReader, setScreenReader] = useState(false);
   const pendingCreation = useRef(false);
   const generation = useRef(0);
-  const mount = useMounted<ViewInstance>(
-    () => () => {
+  const mount = useMounted<ViewInstance>(() => {
+    let active = true;
+    const report = (enabled: boolean) => {
+      if (active) setScreenReader(enabled);
+    };
+    void AccessibilityInfo.isScreenReaderEnabled()
+      .then(report)
+      .catch(() => {});
+    const listener = AccessibilityInfo.addEventListener('screenReaderChanged', report);
+    return () => {
+      active = false;
       generation.current++;
-    },
-    [currentKey],
-  );
-  const hidden = useChromeHidden();
+      listener.remove();
+    };
+  }, [currentKey]);
+  const chromeHidden = useChromeHidden();
+  const keepVisible = Platform.OS === 'android' && screenReader;
+  const hidden = !keepVisible && chromeHidden;
   const progress = useChromeProgress();
   const style = useAnimatedStyle(() => ({
-    transform: [{ translateY: reserved * progress.value }],
-    opacity: 1 - progress.value,
+    transform: [{ translateY: keepVisible ? 0 : reserved * progress.value }],
+    opacity: keepVisible ? 1 : 1 - progress.value,
   }));
   const choose = async (action: CreationAction, target?: CreationTarget) => {
     if (pendingCreation.current) return;
@@ -204,19 +234,16 @@ function ScopedNavigationBar({
       <>
         <Animated.View
           ref={mount}
+          onLayout={({ nativeEvent }) => onNativeHeight(nativeEvent.layout.height)}
           pointerEvents={hidden ? 'none' : 'box-none'}
           accessibilityElementsHidden={hidden}
           importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
           style={[
             {
               position: 'absolute',
-              left: insets.left + materialNavigationBar.margin,
-              right: insets.right + materialNavigationBar.margin,
+              left: 0,
+              right: 0,
               bottom,
-              minHeight: size,
-              borderRadius: radius.round,
-              overflow: 'hidden',
-              flexDirection: 'row',
               backgroundColor: theme.layer.raised.fill,
             },
             style,

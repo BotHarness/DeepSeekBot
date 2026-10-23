@@ -4,6 +4,9 @@ import {
   Row,
   Text as ComposeText,
   FilledTonalButton,
+  HorizontalFloatingToolbar,
+  IconButton,
+  Icon,
   ToggleButton,
 } from '@expo/ui/jetpack-compose';
 import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
@@ -41,7 +44,7 @@ import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
 import { ComputerVideoHeader } from './computer-video-header.android';
 import type { ComputerClickFeedback } from './computer-click-ripple';
-import { ComputerWheelButton } from './computer-wheel-button';
+import { ComputerMouseButton } from './computer-mouse-button.android';
 import { ComputerScrollPad } from './computer-scroll-pad';
 import { ComputerVideoKeyboard, remoteKeyboardAvailable } from './computer-video-keyboard';
 import { localVideoNotice } from './local-video-notice';
@@ -336,13 +339,12 @@ function ComputerScreen({
               paddingVertical: space.x2,
             }}
           >
-            <ComputerWheelButton
+            <ComputerMouseButton
               key={'left-' + host?.grant?.generation}
               side="left"
               enabled={driving}
               compact={landscape}
               onClick={() => void click(cursor.get(), 'left')}
-              onScroll={scroll}
             />
             <ComputerScrollPad
               key={host?.grant?.generation}
@@ -350,13 +352,12 @@ function ComputerScreen({
               compact={landscape}
               onScroll={scroll}
             />
-            <ComputerWheelButton
+            <ComputerMouseButton
               key={'right-' + host?.grant?.generation}
               side="right"
               enabled={driving}
               compact={landscape}
               onClick={() => void click(cursor.get(), 'right')}
-              onScroll={scroll}
             />
           </View>
         ) : null}
@@ -385,80 +386,95 @@ function ComputerScreen({
               seedColor={theme.color.accent}
               ignoreSafeAreaKeyboardInsets
             >
-              <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
-                <ComposeButton
-                  enabled={!toggleDisabled}
-                  onClick={() => void (actions.handBack ? viewer?.resume() : viewer?.takeover())}
-                  modifiers={[
-                    defaultMinSize({ minHeight: theme.touch }),
-                    testID('computer-video-control'),
-                    semantics({
-                      contentDescription: actions.handBack
-                        ? t.computerVideoHandBack
-                        : t.computerVideoTakeover,
-                    }),
-                  ]}
-                >
-                  <ComposeText>
-                    {actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover}
-                  </ComposeText>
-                </ComposeButton>
-                {controlling ? (
-                  <ToggleButton
-                    enabled={remoteKeyboardAvailable && (keyboardOpen || driving)}
-                    checked={keyboardOpen}
-                    onCheckedChange={setKeyboardOpen}
+              <HorizontalFloatingToolbar
+                colors={{
+                  toolbarContainerColor: theme.layer.raised.fill,
+                  toolbarContentColor: theme.color.fg,
+                }}
+              >
+                <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x2 }}>
+                  <ComposeButton
+                    enabled={!toggleDisabled}
+                    onClick={() => void (actions.handBack ? viewer?.resume() : viewer?.takeover())}
                     modifiers={[
-                      testID('computer-video-keyboard'),
                       defaultMinSize({ minHeight: theme.touch }),
+                      testID('computer-video-control'),
+                      semantics({
+                        contentDescription: actions.handBack
+                          ? t.computerVideoHandBack
+                          : t.computerVideoTakeover,
+                      }),
                     ]}
                   >
                     <ComposeText>
-                      {!remoteKeyboardAvailable
-                        ? t.computerKeyboardUpdate
-                        : keyboardOpen
-                          ? t.computerHideKeyboard
-                          : t.computerVideoKeyboard}
+                      {actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover}
                     </ComposeText>
-                  </ToggleButton>
-                ) : null}
-                {mediaMounted ? (
-                  <FilledTonalButton
-                    onClick={() => preview.set({ scale: 1, x: 0, y: 0 })}
-                    modifiers={[
-                      testID('computer-video-reset'),
-                      defaultMinSize({ minHeight: theme.touch }),
-                    ]}
-                  >
-                    <ComposeText>{t.computerVideoReset}</ComposeText>
-                  </FilledTonalButton>
-                ) : null}
-                {actions.recovery === 'pair' ||
-                (!nativeMissing && actions.recovery !== undefined) ? (
-                  <FilledTonalButton
-                    enabled={actions.recovery !== 'video' || !state.busy}
-                    onClick={recover}
-                    modifiers={[
-                      defaultMinSize({ minHeight: theme.touch }),
-                      testID(
-                        actions.recovery === 'pair'
-                          ? 'computer-video-pair-again'
+                  </ComposeButton>
+                  {controlling ? (
+                    <ToggleButton
+                      enabled={remoteKeyboardAvailable && (keyboardOpen || driving)}
+                      checked={keyboardOpen}
+                      onCheckedChange={setKeyboardOpen}
+                      modifiers={[
+                        testID('computer-video-keyboard'),
+                        defaultMinSize({ minWidth: theme.touch, minHeight: theme.touch }),
+                        semantics({
+                          contentDescription: !remoteKeyboardAvailable
+                            ? t.computerKeyboardUpdate
+                            : keyboardOpen
+                              ? t.computerHideKeyboard
+                              : t.computerVideoKeyboard,
+                        }),
+                      ]}
+                    >
+                      <Icon
+                        source={require('../../../assets/toolbar/keyboard.xml')}
+                        size={theme.type.title.line}
+                      />
+                    </ToggleButton>
+                  ) : null}
+                  {controlling && mediaMounted ? (
+                    <IconButton
+                      onClick={() => preview.set({ scale: 1, x: 0, y: 0 })}
+                      modifiers={[
+                        testID('computer-video-reset'),
+                        defaultMinSize({ minWidth: theme.touch, minHeight: theme.touch }),
+                        semantics({ contentDescription: t.computerVideoReset }),
+                      ]}
+                    >
+                      <Icon
+                        source={require('../../../assets/toolbar/reset-view.xml')}
+                        size={theme.type.title.line}
+                      />
+                    </IconButton>
+                  ) : null}
+                  {actions.recovery === 'pair' ||
+                  (!nativeMissing && actions.recovery !== undefined) ? (
+                    <FilledTonalButton
+                      enabled={actions.recovery !== 'video' || !state.busy}
+                      onClick={recover}
+                      modifiers={[
+                        defaultMinSize({ minHeight: theme.touch }),
+                        testID(
+                          actions.recovery === 'pair'
+                            ? 'computer-video-pair-again'
+                            : actions.recovery === 'host'
+                              ? 'computer-video-retry-connection'
+                              : 'computer-video-reconnect',
+                        ),
+                      ]}
+                    >
+                      <ComposeText>
+                        {actions.recovery === 'pair'
+                          ? t.pairAgain
                           : actions.recovery === 'host'
-                            ? 'computer-video-retry-connection'
-                            : 'computer-video-reconnect',
-                      ),
-                    ]}
-                  >
-                    <ComposeText>
-                      {actions.recovery === 'pair'
-                        ? t.pairAgain
-                        : actions.recovery === 'host'
-                          ? t.retry
-                          : t.computerVideoReconnect}
-                    </ComposeText>
-                  </FilledTonalButton>
-                ) : null}
-              </Row>
+                            ? t.retry
+                            : t.computerVideoReconnect}
+                      </ComposeText>
+                    </FilledTonalButton>
+                  ) : null}
+                </Row>
+              </HorizontalFloatingToolbar>
             </Host>
           </ScrollView>
         </View>

@@ -48,8 +48,8 @@ export const navigationBar = {
   },
 } as const;
 export const materialNavigationBar = {
-  height: 64,
-  margin: 16,
+  height: 80,
+  margin: 0,
   indicatorWidth: 56,
   indicatorHeight: 32,
   iconLabelGap: 4,
@@ -155,7 +155,7 @@ export const computerClickRipple = {
   left: '#60a5fa',
   right: '#fb923c',
   diameter: 40,
-  duration: 150,
+  duration: 300,
   startScale: 0.95,
   expansion: 0.65,
 } as const;

@@ -1,12 +1,15 @@
+import { useLayoutEffect, useMemo } from 'react';
+import { AppState, type ViewInstance } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { WHEEL_STEP } from '../../host/computer-viewer';
+import { createHeldScroll } from '../../host/held-scroll';
 import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
+import { useMounted } from '../mounted';
 
 export function ComputerScrollPad({
   enabled,
@@ -15,20 +18,32 @@ export function ComputerScrollPad({
 }: {
   enabled: boolean;
   compact: boolean;
-  onScroll(axis: 'horizontal' | 'vertical', steps: number): void;
+  onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
 }) {
   const theme = useDesignTheme();
   const colors = buttonColors(theme, 'secondary', 'canvas');
   const size = useSharedValue({ width: theme.touch * 2, height: theme.touch * 1.5 });
   const thumb = useSharedValue({ x: 0, y: 0 });
-  const sent = useSharedValue({ x: 0, y: 0 });
+  const repeat = useMemo(() => createHeldScroll(), []);
+  useLayoutEffect(() => {
+    repeat.configure(enabled && AppState.currentState === 'active', onScroll);
+    const subscription = AppState.addEventListener('change', (state) => {
+      repeat.configure(enabled && state === 'active', onScroll);
+    });
+    return () => subscription.remove();
+  }, [repeat, enabled, onScroll]);
+  const mount = useMounted<ViewInstance>(() => {
+    return () => {
+      repeat.configure(false, async () => false);
+    };
+  }, [repeat]);
   const dragging = useSharedValue(false);
   const gesture = Gesture.Pan()
     .enabled(enabled)
     .maxPointers(1)
     .minDistance(3)
     .onStart(() => {
-      sent.set({ x: 0, y: 0 });
+      scheduleOnRN(repeat.start);
       dragging.set(true);
     })
     .onUpdate((event) => {
@@ -43,17 +58,14 @@ export function ComputerScrollPad({
           Math.min(bounds.height / 2 - space.x5, event.translationY),
         ),
       });
-      const next = {
-        x: Math.trunc(event.translationX / WHEEL_STEP),
-        y: Math.trunc(event.translationY / WHEEL_STEP),
-      };
-      const previous = sent.get();
-      sent.set(next);
-      if (next.x !== previous.x) scheduleOnRN(onScroll, 'horizontal', next.x - previous.x);
-      if (next.y !== previous.y) scheduleOnRN(onScroll, 'vertical', next.y - previous.y);
+      scheduleOnRN(repeat.move, {
+        x: event.translationX / Math.max(1, bounds.width / 2 - space.x5),
+        y: event.translationY / Math.max(1, bounds.height / 2 - space.x5),
+      });
     })
     .onFinalize(() => {
       dragging.set(false);
+      scheduleOnRN(repeat.stop);
       thumb.set({ x: 0, y: 0 });
     });
   const thumbStyle = useAnimatedStyle(() => ({
@@ -63,6 +75,7 @@ export function ComputerScrollPad({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View
+        ref={mount}
         testID="computer-video-scroll-pad"
         accessible
         accessibilityRole="adjustable"
