@@ -1,6 +1,28 @@
 import type { DesktopInput } from '../../../../packages/computer/src/desktop-view';
 import { fittedFrame, stagePoint, type StageLayout, type StageZoom } from './browser-viewer';
 
+export function resizeVideoPreview({
+  frame,
+  before,
+  after,
+  zoom,
+}: {
+  frame: { width: number; height: number };
+  before: StageLayout;
+  after: StageLayout;
+  zoom: StageZoom;
+}): StageZoom {
+  'worklet';
+  const oldFit = fittedFrame(frame, before);
+  const fit = fittedFrame(frame, after);
+  if (oldFit.width <= 0 || fit.width <= 0) return zoom;
+  return {
+    scale: (zoom.scale * oldFit.width) / fit.width,
+    x: zoom.x + (before.width - after.width) / 2,
+    y: zoom.y + (oldFit.height - fit.height) / 2,
+  };
+}
+
 export function videoPointerPosition({
   point,
   frame,

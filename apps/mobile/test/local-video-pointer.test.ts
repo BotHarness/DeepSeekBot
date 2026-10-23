@@ -1,11 +1,35 @@
 import { describe, expect, it } from 'vitest';
 
 import { moveCursor, stagePoint } from '../src/host/browser-viewer';
-import { videoPointerClick, videoPointerPosition } from '../src/host/local-video-pointer';
+import {
+  resizeVideoPreview,
+  videoPointerClick,
+  videoPointerPosition,
+} from '../src/host/local-video-pointer';
 
 describe('native video trackpad', () => {
   const frame = { width: 2560, height: 1440 };
   const portrait = { width: 400, height: 700 };
+
+  it('keeps the displayed canvas still when controls reduce a short viewport', () => {
+    const before = { width: 400, height: 200 };
+    const after = { width: 400, height: 150 };
+    const zoom = resizeVideoPreview({
+      frame,
+      before,
+      after,
+      zoom: { scale: 2, x: 40, y: 80 },
+    });
+    expect(zoom.scale).toBeCloseTo(8 / 3);
+    expect(zoom.x).toBe(40);
+    expect(zoom.y).toBe(105);
+    expect(videoPointerPosition({ point: { x: 1280, y: 720 }, frame, stage: after, zoom })).toEqual(
+      { x: 240, y: 180 },
+    );
+    const corner = videoPointerPosition({ point: { x: 0, y: 0 }, frame, stage: after, zoom });
+    expect(corner.x).toBeCloseTo(-115.5555556);
+    expect(corner.y).toBeCloseTo(-20);
+  });
 
   it('places the canvas at the top and keeps a freely panned, zoomed cursor aligned', () => {
     expect(

@@ -9,7 +9,7 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { fittedFrame, moveCursor, type StageZoom } from '../../host/browser-viewer';
-import { videoPointerPosition } from '../../host/local-video-pointer';
+import { resizeVideoPreview, videoPointerPosition } from '../../host/local-video-pointer';
 import { pointer } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
@@ -58,7 +58,10 @@ export function ComputerVideoStage({
     if (width !== stage.width) {
       preview.set({ scale: 1, x: 0, y: 0 });
       cursor.set({ x: frame.width / 2, y: frame.height / 2 });
-    }
+    } else
+      preview.set(
+        resizeVideoPreview({ frame, before: stage, after: { width, height }, zoom: preview.get() }),
+      );
   };
 
   const pinch = Gesture.Pinch()
