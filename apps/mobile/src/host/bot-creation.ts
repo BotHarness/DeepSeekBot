@@ -673,11 +673,13 @@ export function createBotCreationController(options: {
                     gitUrl: source.gitUrl,
                     ...(source.origin ? { origin: source.origin } : {}),
                     ...(source.listingId ? { listingId: source.listingId } : {}),
-                    ...('commit' in source
-                      ? { expectedCommit: source.commit }
-                      : source.expectedCommit
-                        ? { expectedCommit: source.expectedCommit }
-                        : {}),
+                    ...(source.origin === 'marketplace'
+                      ? 'commit' in source
+                        ? { expectedCommit: source.commit }
+                        : source.expectedCommit
+                          ? { expectedCommit: source.expectedCommit }
+                          : {}
+                      : {}),
                   },
                   displayName:
                     previous.kind === 'submitted'

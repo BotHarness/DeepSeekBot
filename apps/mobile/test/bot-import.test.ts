@@ -171,11 +171,47 @@ it('an intentional extra copy retains source defaults but uses a fresh operation
   });
   await controller.submit();
   expect(test.create).toHaveBeenCalledTimes(1);
+  test.preview.mockResolvedValueOnce({
+    kind: 'git',
+    gitUrl: 'https://github.com/a/b.git',
+    commit: 'b'.repeat(40),
+  });
   await controller.preview();
   await controller.submit();
   expect(test.create.mock.calls[1]?.[0].operationKey).not.toBe(
     test.create.mock.calls[0]?.[0].operationKey,
   );
+  expect(test.create.mock.calls[1]?.[0].source?.commit).toBe('b'.repeat(40));
+  expect(test.create.mock.calls[0]?.[0].source?.commit).toBe('a'.repeat(40));
+});
+
+it('an additional market copy keeps the reviewed listing version until the Human refreshes it', async () => {
+  const test = setup();
+  const controller = test.make();
+  await controller.enter({ kind: 'host', hostId: 'A' });
+  await controller.beginImport({
+    gitUrl: 'https://github.com/a/b',
+    displayName: 'My helper',
+    origin: 'marketplace',
+    listingId: 'listing',
+    expectedCommit: 'a'.repeat(40),
+  });
+  await controller.preview();
+  await controller.submit();
+  await controller.another('A');
+  test.preview.mockResolvedValueOnce({
+    kind: 'git',
+    gitUrl: 'https://github.com/a/b.git',
+    commit: 'b'.repeat(40),
+  });
+  await controller.preview();
+  expect(controller.getSnapshot().error).toBe('git-source-changed');
+  expect(controller.getSnapshot().record).toMatchObject({
+    kind: 'draft',
+    draft: { source: { expectedCommit: 'a'.repeat(40), listingId: 'listing' } },
+  });
+  await controller.submit();
+  expect(test.create).toHaveBeenCalledTimes(1);
 });
 
 it('refreshing the same market listing replaces the reviewed version without overwriting a renamed draft', async () => {
