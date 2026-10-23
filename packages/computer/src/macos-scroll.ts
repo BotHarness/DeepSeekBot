@@ -40,7 +40,8 @@ while (true) {
 export function createMacScroll(onEvent: (message: string) => void = () => {}): ScrollMotion {
   let child: ChildProcessWithoutNullStreams | undefined;
   let opening: Promise<void> | undefined;
-  let exited: Promise<void> = Promise.resolve();
+  const exits = new Set<Promise<void>>();
+  let cancelOpening: (() => void) | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   let epoch = 0;
   let pending = false;
@@ -55,6 +56,8 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
     motion = undefined;
     clearInterval(timer);
     timer = undefined;
+    cancelOpening?.();
+    cancelOpening = undefined;
     opening = undefined;
     const old = child;
     child = undefined;
@@ -63,7 +66,7 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
       old.kill('SIGTERM');
       onEvent('phase=scroll-native-stop');
     }
-    return exited;
+    return Promise.all([...exits]).then(() => undefined);
   };
   const open = (): Promise<void> => {
     if (opening !== undefined) return opening;
@@ -73,12 +76,14 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
     child = current;
     pending = false;
     remainderX = remainderY = 0;
-    exited = new Promise<void>((resolve) =>
+    const exited = new Promise<void>((resolve) =>
       current.once('close', () => {
         if (child === current) void stop();
         resolve();
       }),
     );
+    exits.add(exited);
+    void exited.finally(() => exits.delete(exited));
     current.stderr.resume();
     current.stdin.on('error', () => {
       if (child === current) void stop();
@@ -86,9 +91,13 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
     onEvent('phase=scroll-native-start');
     opening = new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        void stop();
+        if (child === current) void stop();
         reject(new Error('Native scrolling did not start.'));
       }, 2000);
+      cancelOpening = () => {
+        clearTimeout(timeout);
+        reject(new Error('Scrolling was cancelled.'));
+      };
       current.once('error', () => {
         clearTimeout(timeout);
         reject(new Error('Native scrolling could not start.'));
@@ -103,6 +112,7 @@ export function createMacScroll(onEvent: (message: string) => void = () => {}): 
           const reply = JSON.parse(line) as { ready?: boolean; ack?: boolean; error?: string };
           if (reply.ready === true) {
             clearTimeout(timeout);
+            cancelOpening = undefined;
             resolve();
           }
           if (reply.ack === true) pending = false;

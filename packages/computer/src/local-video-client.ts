@@ -178,9 +178,11 @@ export function createLocalVideoClient(
       code: undefined,
     });
   }
+  let scrollEpoch = 0;
   async function request(
     command: LocalVideoCommand,
     generation: number,
+    relevant: () => boolean = () => true,
   ): Promise<LocalVideoState | undefined> {
     const signal = run?.signal;
     if (generation !== lifetime || signal === undefined || signal.aborted) return undefined;
@@ -190,6 +192,7 @@ export function createLocalVideoClient(
         signal,
         timeoutMs: LOCAL_VIDEO_LIMITS.operationTimeoutMs,
       });
+      if (!relevant()) return undefined;
       const result = resultOf(response.body);
       if (generation !== lifetime || signal.aborted) {
         if (command.kind === 'open' && result?.ok && result.state.binding !== undefined)
@@ -222,7 +225,7 @@ export function createLocalVideoClient(
         ownedBinding = { ...result.state.binding };
       return result.state;
     } catch {
-      if (generation === lifetime && !signal.aborted)
+      if (relevant() && generation === lifetime && !signal.aborted)
         void end(
           'unavailable',
           command.kind === 'input' ? 'input-result-unknown' : 'connection-lost',
@@ -392,6 +395,11 @@ export function createLocalVideoClient(
     release: () => control('release'),
     resume: () => control('resume'),
     async input(input) {
+      const isMotion = input.kind === 'scroll-motion';
+      const isStop = isMotion && input.vx === 0 && input.vy === 0;
+      if (isStop) scrollEpoch++;
+      const motionEpoch = scrollEpoch;
+      const relevant = () => !isMotion || motionEpoch === scrollEpoch;
       const binding = currentBinding();
       const grant = state.host?.grant;
       if (
@@ -407,7 +415,8 @@ export function createLocalVideoClient(
       const generation = lifetime;
       const epoch = controlEpoch;
       let delivered = false;
-      await enqueue(async () => {
+      const action = async () => {
+        if (!relevant()) return;
         if (
           generation !== lifetime ||
           epoch !== controlEpoch ||
@@ -428,12 +437,15 @@ export function createLocalVideoClient(
             input,
           },
           generation,
+          relevant,
         );
         if (host !== undefined && epoch === controlEpoch) {
           delivered = true;
           adopt(host);
         }
-      });
+      };
+      if (isStop) await action();
+      else await enqueue(action);
       return delivered;
     },
   };

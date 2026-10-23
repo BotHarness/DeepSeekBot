@@ -97,3 +97,27 @@ it('missing accessibility permission fails closed', async () => {
   expect(worker.frames).toHaveLength(0);
   expect(worker.kill).toHaveBeenCalledOnce();
 });
+
+it('an old startup watchdog cannot terminate a replacement while the old child closes slowly', async () => {
+  const scroll = createMacScroll();
+  const first = scroll.update(motion, () => {});
+  const rejected = expect(first).rejects.toThrow();
+  const old = worker;
+  old.kill.mockImplementation(() => true);
+  const closing = scroll.stop();
+  await rejected;
+  worker = new Worker();
+  factory.spawn.mockReturnValue(worker);
+  const next = scroll.update(motion, () => {});
+  worker.ready();
+  await next;
+  for (let i = 0; i < 28; i++) {
+    await scroll.update(motion, () => {});
+    worker.ack();
+    await vi.advanceTimersByTimeAsync(80);
+  }
+  expect(worker.kill).not.toHaveBeenCalled();
+  old.emit('close', 0);
+  await closing;
+  await scroll.stop();
+});

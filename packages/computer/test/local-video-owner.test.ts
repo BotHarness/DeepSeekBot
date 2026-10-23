@@ -1029,3 +1029,30 @@ describe('continuous scroll authority', () => {
     expect(h.driver.call).not.toHaveBeenCalled();
   });
 });
+
+it.each(['dispose', 'resetRuntime', 'revoke', 'close'] as const)(
+  'waits for native process exit during %s',
+  async (action) => {
+    const stopped = deferred<void>();
+    const motion = { update: vi.fn(async () => {}), stop: vi.fn(async () => {}) };
+    const h = harness({ scrollMotion: motion });
+    const binding = await h.connect();
+    await h.take(binding);
+    motion.stop.mockImplementation(() => stopped.promise);
+    let finished = false;
+    const operation =
+      action === 'revoke'
+        ? h.owner.revoke(caller.deviceId)
+        : action === 'close'
+          ? h.owner.handle(caller, { kind: 'close', binding })
+          : h.owner[action]();
+    const waiting = operation.then(() => {
+      finished = true;
+    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(finished).toBe(false);
+    stopped.resolve();
+    await waiting;
+    expect(finished).toBe(true);
+  },
+);

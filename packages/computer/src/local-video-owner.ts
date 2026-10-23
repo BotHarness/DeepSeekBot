@@ -304,14 +304,22 @@ export function createLocalVideoOwner(options: {
     return closing;
   };
 
+  let scrollEpoch = 0;
   const stopScroll = (): Promise<void> => {
-    const effect = options.scrollMotion?.stop() ?? Promise.resolve();
+    scrollEpoch++;
+    const effect = bounded(
+      options.scrollMotion?.stop() ?? Promise.resolve(),
+      cleanupTimeout,
+      'operation-timeout',
+    );
     humans.add(effect);
     void effect.finally(() => humans.delete(effect)).catch(() => undefined);
     return effect;
   };
   const invalidate = (): void => {
-    void stopScroll();
+    void stopScroll().catch(() => {
+      cleanupFailed = true;
+    });
     generation += 1;
     grant = undefined;
   };
@@ -768,13 +776,14 @@ export function createLocalVideoOwner(options: {
         });
       }
       if (command.kind === 'input') {
-        if (pendingInputs >= LOCAL_VIDEO_LIMITS.pendingRequests)
-          refuse('queue-full', 'The bounded Computer input queue is full.');
         if (typeof command.input !== 'object' || command.input === null)
           refuse('invalid-input', 'A desktop input is required.');
         const input = parseLocalVideoInput(command.input as unknown as Record<string, unknown>);
         if (input === undefined || !Number.isSafeInteger(command.sequence) || command.sequence <= 0)
           refuse('invalid-input', 'A valid input and positive sequence are required.');
+        const isStop = input.kind === 'scroll-motion' && input.vx === 0 && input.vy === 0;
+        if (!isStop && pendingInputs >= LOCAL_VIDEO_LIMITS.pendingRequests)
+          refuse('queue-full', 'The bounded Computer input queue is full.');
         const active = checkGrant(current, command.generation);
         if (
           (input.kind === 'click' || input.kind === 'scroll' || input.kind === 'scroll-motion') &&
@@ -788,14 +797,15 @@ export function createLocalVideoOwner(options: {
             'This input sequence was already consumed. Never replay an uncertain input.',
           );
         active.sequence = command.sequence;
+        if (isStop) {
+          await stopScroll();
+          return state(caller);
+        }
+        const motionEpoch = scrollEpoch;
         const execute = async (): Promise<void> => {
           if (signal?.aborted)
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
-          if (input.kind === 'scroll-motion' && input.vx === 0 && input.vy === 0) {
-            await stopScroll();
-            return;
-          }
           trace.source = 'geometry';
           trace.external = 'get_screen_size';
           const scale = await requireGeometry(current);
@@ -804,17 +814,21 @@ export function createLocalVideoOwner(options: {
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
           if (input.kind === 'scroll-motion') {
+            if (motionEpoch !== scrollEpoch) return;
             if (options.scrollMotion === undefined)
               refuse('update-required', 'Continuous scrolling is unavailable on this Host.');
             const effect = options.scrollMotion.update(
               { x: input.x / scale, y: input.y / scale, vx: input.vx, vy: input.vy },
               () => {
+                if (motionEpoch !== scrollEpoch) refuse('stale-grant', 'Scrolling was stopped.');
                 checkGrant(current, command.generation);
               },
             );
             humans.add(effect);
             try {
               await effect;
+            } catch (error) {
+              if (motionEpoch === scrollEpoch) throw error;
             } finally {
               humans.delete(effect);
             }
@@ -889,6 +903,7 @@ export function createLocalVideoOwner(options: {
           trace.source = 'cleanup';
           trace.external = 'media-close';
           await closeViewer(current);
+          await drain(humans);
           return state(caller);
         }
         return await transition(async () => {
@@ -963,6 +978,7 @@ export function createLocalVideoOwner(options: {
       invalidate();
       try {
         await closeViewer(current);
+        await drain(humans);
         outcome(trace);
       } catch (error) {
         outcome(trace, error instanceof LocalVideoError ? error.code : 'helper-failed');
@@ -979,6 +995,8 @@ export function createLocalVideoOwner(options: {
       const current = viewer;
       try {
         if (current !== undefined) await closeViewer(current);
+        await drain(humans);
+        if (cleanupFailed) refuse('operation-timeout', 'Native input cleanup did not finish.');
         outcome(trace);
       } catch (error) {
         outcome(trace, error instanceof LocalVideoError ? error.code : 'helper-failed');
@@ -997,6 +1015,8 @@ export function createLocalVideoOwner(options: {
       const current = viewer;
       try {
         if (current !== undefined) await closeViewer(current);
+        await drain(humans);
+        if (cleanupFailed) refuse('operation-timeout', 'Native input cleanup did not finish.');
         outcome(trace);
       } catch (error) {
         outcome(trace, error instanceof LocalVideoError ? error.code : 'helper-failed');
