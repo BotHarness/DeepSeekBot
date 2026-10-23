@@ -91,7 +91,6 @@ async function rpc(port, namespace, method, args = {}) {
 }
 
 function creationCli(instance, command, input) {
-  // dev-instance returns its authenticated login URL as "url". Keep its token out of argv/logs.
   const login = new URL(instance.url);
   const token = login.searchParams.get('token');
   if (!token) throw new Error('Isolated Host login token is unavailable');
@@ -243,7 +242,6 @@ try {
     }
   }
 
-  // An independent blank request exercises the phone's public recovery seam without a model.
   const creationInput = {
     operationKey: 'e2e-blank-create-001',
     displayName: 'Blank recovery QA',
@@ -263,8 +261,6 @@ try {
   )
     throw new Error('Creation lookup mutated a previously absent operation');
 
-  // Deliberately discard the create result; lookup must independently recover it.
-  // Actual dropped-transport behavior is separately covered by the device gateway test.
   await rpc(port, 'botharness', 'create', creationInput);
   const recovered = await rpc(port, 'botharness', 'createLookup', creationInput);
   const receipt = recovered.receipt;

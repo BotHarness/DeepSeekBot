@@ -1783,7 +1783,7 @@
       "behaviors": ["desktop.personabot.create", "phone.blank-bot-creation"],
       "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence plus blank creation lookup and built CLI status/retry before and after restart. Native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
       "task": 2629,
-      "sha256": "c77cdcdf62b4e3223a2a70eedc9d84d966ffa32b660b9a9f8c089bcfb10b5866"
+      "sha256": "4ab37dabc5e0469a19101ed7c61ebe6c94247e1ea00cf406882c072b96d2b48a"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
