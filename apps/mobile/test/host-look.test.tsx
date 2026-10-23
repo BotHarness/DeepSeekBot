@@ -3,6 +3,8 @@ import { act, createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 const alert = vi.fn();
 vi.mock('react-native', async () => ({

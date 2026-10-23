@@ -36,6 +36,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile message composer | no (except Bot reply) | none (shared-device native path) | [phone-composer.md](phone-composer.md) |
+| Mobile press feedback, semantic haptics and local setting | no (except seeding a real decision) | none (shared-device native and physical-device path) | [phone-haptic-feedback.md](phone-haptic-feedback.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |
 | Android launch, sheets, shell and chat presentation | no | Launch: queued native check; interactions: `scripts/e2e-mobile-android-interactions.mjs` | [phone-android-interactions.md](phone-android-interactions.md) |
 | Phone notifications and paired computers (iOS Simulator)                                           | for the approval step      | `scripts/e2e-mobile-sim.mjs` (Mac)                                                                   | [phone-notifications.md](phone-notifications.md)     |

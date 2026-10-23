@@ -13,6 +13,7 @@ import { RadioMark } from './radio-mark';
 import { segmentCorners } from '../design/segment-corners';
 import type { SegmentedProps } from './segmented';
 import { Text } from './text';
+import { useSelectionFeedback } from '../selection-feedback';
 
 const LABEL_SIZE = 14;
 const SEGMENT_PADDING = 24;
@@ -38,6 +39,7 @@ export function Segmented<T extends string>({
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
+  const select = useSelectionFeedback(value, onChange);
   const { width, fontScale } = useWindowDimensions();
   if (
     !segmentsFit(
@@ -60,9 +62,7 @@ export function Segmented<T extends string>({
               accessibilityRole="radio"
               accessibilityLabel={option.label}
               accessibilityState={{ checked: selected }}
-              onPress={() => {
-                if (!selected) onChange(option.value);
-              }}
+              onPress={() => select(option.value)}
               android_ripple={{ color: pressTint(theme.color.fg) }}
               style={{
                 minHeight: theme.touch,
@@ -99,9 +99,7 @@ export function Segmented<T extends string>({
             <SegmentedButton
               key={option.value}
               selected={option.value === value}
-              onClick={() => {
-                if (option.value !== value) onChange(option.value);
-              }}
+              onClick={() => select(option.value)}
               colors={{
                 activeContainerColor: layer.chosen,
                 activeContentColor: theme.color.fg,

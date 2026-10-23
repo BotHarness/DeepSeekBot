@@ -906,6 +906,10 @@ const en = {
   settings: 'Settings',
   connections: 'Connections',
   interface: 'Interface',
+  hapticFeedback: {
+    title: 'Haptic feedback',
+    storageError: 'Could not save this choice. Toggle again to retry.',
+  },
   messageDisplay: {
     title: 'Message display',
     streaming: 'Streaming',
@@ -2238,6 +2242,10 @@ const zh: typeof en = {
   settings: '设置',
   connections: '连接',
   interface: '界面',
+  hapticFeedback: {
+    title: '触感反馈',
+    storageError: '未能保存此选择，请重新切换以重试。',
+  },
   messageDisplay: {
     title: '消息显示',
     streaming: '流式',
