@@ -2,6 +2,7 @@
 import { act, createElement, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import type { BotPickerSheetProps, BotPickerCandidate } from '../src/ui/chat/bot-picker-sheet';
 import { createChannelCreation } from '../src/host/channel-creation';
 
 const fixture = vi.hoisted(() => ({
@@ -20,6 +21,10 @@ const controller = createChannelCreation({
     candidates: async (hostId) => [
       { slug: 'ada', displayName: `${hostId} Ada` },
       { slug: 'bo', displayName: `${hostId} Bo` },
+      ...Array.from({ length: 22 }, (_, index) => ({
+        slug: `scroll-${index}`,
+        displayName: `${hostId} Scroll ${index}`,
+      })),
     ],
     create: async (operation) => {
       creations.push(structuredClone(operation));
@@ -35,9 +40,9 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('expo-router', () => ({
   Stack: {
-    Screen: ({ options }: { options: unknown }) => {
+    Screen: ({ options }: { options: { headerRight?(): ReactNode } }) => {
       fixture.screen(options);
-      return null;
+      return options.headerRight?.() ?? null;
     },
   },
   router: { back: fixture.back, push: vi.fn(), replace: fixture.replace },
@@ -141,8 +146,45 @@ vi.mock('../src/ui/primitives/creation-button', () => ({
 vi.mock('../src/ui/primitives/settings-row', () => ({
   SettingsGroupItem: ({ children }: { children: ReactNode }) =>
     createElement('div', null, children),
+  SettingsRow: ({ title, detail, onPress }: { title: string; detail: string; onPress(): void }) =>
+    createElement('button', { onClick: onPress, 'aria-label': title }, title, detail),
 }));
-vi.mock('../src/ui/primitives/keyboard-form', () => ({ renderKeyboardFormScroll: () => null }));
+vi.mock('../src/ui/primitives/keyboard-form', () => ({
+  KeyboardFormScroll: ({ children }: { children: ReactNode }) =>
+    createElement('div', null, children),
+}));
+vi.mock('../src/ui/primitives/creation-confirm', () => ({
+  CreationConfirm: ({
+    label,
+    onPress,
+    disabled,
+  }: {
+    label: string;
+    onPress(): void;
+    disabled: boolean;
+  }) => createElement('button', { onClick: onPress, disabled }, label),
+}));
+vi.mock('../src/ui/chat/bot-picker-sheet', () => ({
+  BotPickerSheet: (props: BotPickerSheetProps<BotPickerCandidate>) =>
+    createElement(
+      'div',
+      { role: 'dialog' },
+      createElement('button', { onClick: props.onClose }, t.close),
+      createElement('button', { onClick: props.onConfirm, disabled: !props.canConfirm }, t.done),
+      props.candidates.map((bot) =>
+        createElement(
+          'button',
+          {
+            key: bot.slug,
+            'aria-label': bot.displayName,
+            'aria-checked': props.selected.has(bot.slug),
+            onClick: () => props.onToggle(bot.slug),
+          },
+          bot.displayName,
+        ),
+      ),
+    ),
+}));
 import { CreateChannelScreen } from '../src/ui/shell/create-channel-screen';
 import { t } from '../src/ui/strings';
 
@@ -154,7 +196,7 @@ afterEach(() => {
   element?.remove();
 });
 
-it('uses a full page to select Host-scoped Bots, reset on Host change and retry the same failed submission', async () => {
+it('selects Bots in a transactional drawer and submits or retries through the channel header', async () => {
   await controller.ready;
   element = document.createElement('div');
   document.body.append(element);
@@ -162,20 +204,45 @@ it('uses a full page to select Host-scoped Bots, reset on Host change and retry 
   await act(async () => root.render(<CreateChannelScreen />));
   const button = (label: string) => {
     const match = [...element.querySelectorAll('button')].find(
-      (button) => button.textContent === label,
+      (button) => button.textContent === label || button.getAttribute('aria-label') === label,
     );
     if (!match) throw new Error(`Missing ${label}`);
     return match;
   };
   expect(element.querySelector('[role="dialog"]')).toBeNull();
   expect(fixture.screen).toHaveBeenLastCalledWith(
-    expect.objectContaining({ headerShown: true, presentation: 'card' }),
+    expect.objectContaining({
+      title: t.newChannel,
+      headerShown: true,
+      presentation: 'card',
+      headerRight: expect.any(Function),
+    }),
   );
-  expect(button(t.botCreation.create).disabled).toBe(true);
+  expect(button(t.newChannel).disabled).toBe(true);
   expect(element.textContent).toContain(t.channelCreation.chooseHost);
   await act(async () => button('Laptop').click());
+  expect(element.textContent).not.toContain('A Ada');
+  expect(element.textContent).not.toContain('A Scroll 21');
+  await act(async () => button(t.channelCreation.chooseBots).click());
   await act(async () => button('A Ada').click());
+  expect(controller.getSnapshot().record.members).toEqual([]);
   expect(element.querySelector('[aria-label="A Ada"]')?.getAttribute('aria-checked')).toBe('true');
+  await act(async () => button(t.close).click());
+  expect(controller.getSnapshot().record.members).toEqual([]);
+  await act(async () => button(t.channelCreation.chooseBots).click());
+  expect(button('A Ada').getAttribute('aria-checked')).toBe('false');
+  await act(async () => button('A Ada').click());
+  await act(async () => button(t.done).click());
+  expect(controller.getSnapshot().record.members).toEqual(['ada']);
+  expect(element.querySelector('[role="dialog"]')).toBeNull();
+  expect(element.textContent).toContain(t.channelCreation.selected(1));
+  await act(async () => button(t.channelCreation.chooseBots).click());
+  expect(button('A Ada').getAttribute('aria-checked')).toBe('true');
+  await act(async () => button('A Ada').click());
+  await act(async () => button(t.done).click());
+  expect(controller.getSnapshot().record.members).toEqual([]);
+  expect(element.textContent).toContain(t.channelCreation.selected(0));
+  expect(creations).toEqual([]);
   const input = element.querySelector('input');
   if (!input) throw new Error('Missing name');
   await act(async () => {
@@ -184,13 +251,15 @@ it('uses a full page to select Host-scoped Bots, reset on Host change and retry 
   });
   await act(async () => button('Desktop').click());
   expect(element.querySelector('[aria-label="A Ada"]')).toBeNull();
+  await act(async () => button(t.channelCreation.chooseBots).click());
   expect(element.querySelector('[aria-label="B Ada"]')?.getAttribute('aria-checked')).toBe('false');
   expect(input.value).toBe('Design team');
   expect(creations).toEqual([]);
   await act(async () => button('B Ada').click());
   await act(async () => button('B Bo').click());
+  await act(async () => button(t.done).click());
   fixture.fail = true;
-  await act(async () => button(t.botCreation.create).click());
+  await act(async () => button(t.newChannel).click());
   expect(element.textContent).toContain(t.botCreation.uncertain);
   expect(element.textContent).not.toContain('Laptop');
   fixture.fail = false;
