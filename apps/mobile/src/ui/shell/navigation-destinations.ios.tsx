@@ -33,11 +33,12 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
         ]}
       >
         {items.map((item) => {
-          const label = item.activity ? t.activity : t.chats;
+          const label = item.settings ? t.settings : item.activity ? t.activity : t.chats;
           const accessibility = item.count > 0 ? `${label}, ${badgeCount(item.count)}` : label;
           return (
             <Button
               key={item.key}
+              testID={item.settings ? 'settings-button' : `tab-${item.key}`}
               onPress={item.onPress}
               modifiers={[
                 buttonStyle(item.focused ? (glass ? 'glass' : 'bordered') : 'plain'),
@@ -66,13 +67,15 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 ) : (
                   <Image
                     systemName={
-                      item.activity
-                        ? item.focused
-                          ? 'bell.fill'
-                          : 'bell'
-                        : item.focused
-                          ? 'bubble.left.and.bubble.right.fill'
-                          : 'bubble.left.and.bubble.right'
+                      item.settings
+                        ? 'gearshape'
+                        : item.activity
+                          ? item.focused
+                            ? 'bell.fill'
+                            : 'bell'
+                          : item.focused
+                            ? 'bubble.left.and.bubble.right.fill'
+                            : 'bubble.left.and.bubble.right'
                     }
                     modifiers={[font({ textStyle: 'title2' })]}
                   />

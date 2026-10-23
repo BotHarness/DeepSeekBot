@@ -1,5 +1,9 @@
 import type { DesktopInput } from './desktop-view.js';
 
+export type LocalVideoInput =
+  | DesktopInput
+  | { kind: 'scroll-motion'; x: number; y: number; vx: number; vy: number };
+
 export const LOCAL_VIDEO_PATH = '/api/computer/video';
 export const LOCAL_VIDEO_LIMITS = {
   viewers: 1,
@@ -53,6 +57,7 @@ export interface LocalVideoState {
   readonly controller: boolean;
   readonly grant?: { readonly generation: number; readonly expiresAt: number };
   readonly lastInputSequence: number;
+  readonly continuousScroll?: boolean;
   readonly media: LocalVideoMediaStatus;
   readonly offer?: LocalVideoDescription;
 }
@@ -81,7 +86,7 @@ export type LocalVideoCommand =
       readonly binding: LocalVideoBinding;
       readonly generation: number;
       readonly sequence: number;
-      readonly input: DesktopInput;
+      readonly input: LocalVideoInput;
     }
   | {
       readonly kind: 'release' | 'close';

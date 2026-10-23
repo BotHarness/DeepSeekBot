@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import {
   Host,
   NavigationBar,
@@ -50,7 +49,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       >
         {items.map((item) => {
           const showCount = item.activity && item.count > 0;
-          const normal = item.activity ? t.activity : t.chats;
+          const normal = item.settings ? t.settings : item.activity ? t.activity : t.chats;
           const pending = t.activityPendingLabel(badgeCount(item.count));
 
           const text = (value: string) => (
@@ -73,7 +72,13 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               colors={colors}
               modifiers={[
                 weight(1),
-                testID(item.activity ? 'navigation-activity' : 'navigation-chats'),
+                testID(
+                  item.settings
+                    ? 'settings-button'
+                    : item.activity
+                      ? 'navigation-activity'
+                      : 'navigation-chats',
+                ),
                 semantics({
                   contentDescription:
                     item.activity && showCount ? `${t.activity}, ${pending}` : normal,
@@ -96,9 +101,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                     ) : (
                       <Icon
                         source={
-                          item.activity
-                            ? require('../../../assets/toolbar/activity.xml')
-                            : require('../../../assets/toolbar/chats.xml')
+                          item.settings
+                            ? require('../../../assets/toolbar/settings.xml')
+                            : item.activity
+                              ? require('../../../assets/toolbar/activity.xml')
+                              : require('../../../assets/toolbar/chats.xml')
                         }
                         size={materialNavigationBar.iconSize}
                       />
@@ -112,9 +119,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                       >
                         <Icon
                           source={
-                            item.activity
-                              ? require('../../../assets/toolbar/activity.xml')
-                              : require('../../../assets/toolbar/chats.xml')
+                            item.settings
+                              ? require('../../../assets/toolbar/settings.xml')
+                              : item.activity
+                                ? require('../../../assets/toolbar/activity.xml')
+                                : require('../../../assets/toolbar/chats.xml')
                           }
                           size={materialNavigationBar.iconSize}
                         />
@@ -136,27 +145,6 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             </NavigationBarItem>
           );
         })}
-        <NavigationBarItem
-          selected={false}
-          alwaysShowLabel
-          onClick={() => router.push('/settings')}
-          colors={colors}
-          modifiers={[
-            weight(1),
-            testID('settings-button'),
-            semantics({ contentDescription: t.settings }),
-          ]}
-        >
-          <NavigationBarItem.Icon>
-            <Icon
-              source={require('../../../assets/toolbar/settings.xml')}
-              size={materialNavigationBar.iconSize}
-            />
-          </NavigationBarItem.Icon>
-          <NavigationBarItem.Label>
-            <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{t.settings}</Text>
-          </NavigationBarItem.Label>
-        </NavigationBarItem>
       </NavigationBar>
     </Host>
   );
