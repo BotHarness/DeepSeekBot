@@ -70,7 +70,10 @@ export function confirmDestructive(
   ]);
 }
 
-export function showActionMenu(title: string, actions: readonly DialogAction[]): void {
+export function showActionMenu(
+  title: string,
+  actions: readonly (DialogAction & { icon: NonNullable<DialogAction['icon']> })[],
+): void {
   const ordered = [
     ...actions.filter((action) => action.style !== 'destructive'),
     ...actions.filter((action) => action.style === 'destructive'),
@@ -89,6 +92,11 @@ export function showActionMenu(title: string, actions: readonly DialogAction[]):
         if (onPress) void Promise.resolve(onPress()).catch(() => undefined);
       },
     );
+    return;
+  }
+  if (Platform.OS === 'android') {
+    Keyboard.dismiss();
+    appDialogs.open(title, undefined, [{ text: t.cancel, style: 'cancel' }, ...ordered], 'menu');
     return;
   }
   showAppDialog(title, undefined, [{ text: t.cancel, style: 'cancel' }, ...ordered]);

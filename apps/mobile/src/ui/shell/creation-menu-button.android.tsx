@@ -1,11 +1,13 @@
-import { Box, DropdownMenu, DropdownMenuItem, Host, Text } from '@expo/ui/jetpack-compose';
-import { fillMaxSize, testID } from '@expo/ui/jetpack-compose/modifiers';
+import { Box, Column, DropdownMenu, Host } from '@expo/ui/jetpack-compose';
+import { fillMaxSize, width } from '@expo/ui/jetpack-compose/modifiers';
 import { useRef, useState } from 'react';
 import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { useDesignTheme, pressTint } from '../design/theme';
-import { fab } from '../design/tokens';
+import { fab, materialMenu } from '../design/tokens';
 import { haptic } from '../haptics';
 import { t } from '../strings';
+import { MaterialMenuGroup } from '../primitives/material-menu.android';
+import { MenuIcon } from '../primitives/menu-icon';
 import { PlusIcon } from './icons';
 import { creationMenuItems, type CreationMenuItem } from './creation-menu-items';
 import type { CreationMenuButtonProps } from './creation-menu-button';
@@ -28,40 +30,68 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
       >
-        <DropdownMenu expanded={open} onDismissRequest={close}>
+        <DropdownMenu
+          expanded={open}
+          onDismissRequest={close}
+          color="transparent"
+          shadowElevation={0}
+        >
           <DropdownMenu.Trigger>
             <Box modifiers={[fillMaxSize()]} />
           </DropdownMenu.Trigger>
           <DropdownMenu.Items>
-            {parent && (
-              <DropdownMenuItem
-                modifiers={[testID('creation-menu-back')]}
-                onClick={() => setParent(undefined)}
-              >
-                <DropdownMenuItem.Text>
-                  <Text>{t.back}</Text>
-                </DropdownMenuItem.Text>
-              </DropdownMenuItem>
-            )}
-            {(parent?.children ?? creationMenuItems(props)).map((item) => (
-              <DropdownMenuItem
-                key={item.key}
-                enabled={!props.busy}
-                modifiers={[testID(`creation-${item.key}`)]}
-                onClick={() => {
-                  if (item.children) {
-                    setParent(item);
-                    return;
-                  }
-                  close();
-                  props.onPick(item.action, item.target);
-                }}
-              >
-                <DropdownMenuItem.Text>
-                  <Text>{item.label}</Text>
-                </DropdownMenuItem.Text>
-              </DropdownMenuItem>
-            ))}
+            <Column modifiers={[width(materialMenu.width)]}>
+              <MaterialMenuGroup
+                items={[
+                  ...(parent
+                    ? [
+                        {
+                          key: 'back',
+                          label: t.back,
+                          testID: 'creation-menu-back',
+                          disabled: props.busy,
+                          icon: (
+                            <MenuIcon
+                              icon="back"
+                              color={theme.color.muted}
+                              size={materialMenu.iconSize}
+                            />
+                          ),
+                          onPress: () => setParent(undefined),
+                        },
+                      ]
+                    : []),
+                  ...(parent?.children ?? creationMenuItems(props)).map((item) => ({
+                    key: item.key,
+                    label: item.label,
+                    testID: `creation-${item.key}`,
+                    disabled: props.busy,
+                    icon: (
+                      <MenuIcon
+                        icon={
+                          parent
+                            ? item.target?.kind === 'computer'
+                              ? 'computer'
+                              : 'cloud'
+                            : item.action
+                        }
+                        color={theme.color.muted}
+                        size={materialMenu.iconSize}
+                      />
+                    ),
+                    onPress: () => {
+                      if (props.busy) return;
+                      if (item.children) {
+                        setParent(item);
+                        return;
+                      }
+                      close();
+                      props.onPick(item.action, item.target);
+                    },
+                  })),
+                ]}
+              />
+            </Column>
           </DropdownMenu.Items>
         </DropdownMenu>
       </Host>

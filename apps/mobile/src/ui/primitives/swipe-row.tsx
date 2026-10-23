@@ -47,7 +47,7 @@ export function swipeActionProps(title: string, actions: readonly SwipeAction[])
       haptic('menu');
       showActionMenu(
         title,
-        actions.map((action) => ({ text: action.label, onPress: action.run })),
+        actions.map((action) => ({ text: action.label, icon: action.icon, onPress: action.run })),
       );
     },
     accessibilityActions: actions.map((action) => ({ name: action.key, label: action.label })),
