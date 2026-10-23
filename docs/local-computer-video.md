@@ -1,6 +1,6 @@
-# Local Computer video: Windows to Android
+# Local Computer video
 
-This first slice is implemented for one Windows x64 primary display and one Android viewer. Native package, physical-device performance and Human acceptance must be recorded against the exact build before qualification is claimed. Other senders and the Container viewer retain their existing paths.
+The source supports one Windows x64 or macOS primary display and one Android or iOS viewer. Native package, physical-device performance and Human acceptance must be recorded against the exact build before qualification is claimed. Other senders and the Container viewer retain their existing paths.
 
 Start Local Computer with **Check permissions** or `deepseekbot computer-start --target local`. This existing explicit install/verification flow installs the pinned capture helper when needed. The helper downloads Electron 44.9.3 for Windows x64 (158,508,870 bytes; extracted size must be measured on the qualification machine). The Host supervises it as a separate process. The Android development client needs a rebuild for the local native video module; reloading JavaScript into an older client is insufficient.
 
@@ -12,6 +12,18 @@ Open a Bot with Computer Access and choose **Computer**. Watching does not pause
 
 The Host disables the driver's virtual cursor only for this video viewer's input session before its first command, then waits for that same session's render state to confirm the cursor is disabled. A missing or invalid confirmation refuses input. The phone's local pointer remains immediate, and clicks do not wait for that duplicate overlay animation. The same authorization and drain still apply; this is not a measured latency claim.
 
+## iPhone and Mac
+
+The iOS slice adds watching, explicit takeover, pointer clicks, preview zoom/reset and handback. Its SwiftUI buttons respect Haptic feedback. Keyboard entry and Android's scroll controls are not added to iOS in this slice. Build the iOS client with both LanChannel and LocalComputerVideo; its pinned WebRTC-SDK 144.7559.15 dependency is SHA-256 verified by CocoaPods. The app continues to target iOS 16.4 or later.
+
+Explicit Local Computer setup installs Electron 44.9.3 for Apple silicon (130,639,665 bytes) or Intel (134,522,186 bytes). The signed Electron bundle is preserved, including internal framework links. A dedicated launcher owns the capture process group and closes it on normal exit, stdin loss or Host death. A cleanup failure blocks replacement. Opening a viewer never installs anything.
+
+Allow Screen Recording for the capture helper and the existing Computer driver, and Accessibility for input, in macOS System Settings. A missing capture permission reports `screen-recording-required`; grant it and restart Local Computer before retrying. The phone must allow Local Network access and use its trusted encrypted LAN pairing on the same Wi-Fi. Tailscale HTTPS and hosted Connect do not carry this video control path.
+
+Mac capture uses physical pixels, while its input driver uses logical points. The owner checks `logical size × scale factor = capture size` and divides click coordinates exactly once. Invalid scale, changed geometry or a stale grant refuses input. Watching alone grants no control.
+
+The iOS receiver decodes video into a bounded latest-frame Metal surface. Presentation advances only when a new drawable is presented, separately from decoded and rendered counts. Background, lock and detach fence callbacks immediately and retire the peer off the UI thread; a replacement cannot acquire the native peer slot until cleanup completes. Actual phone output and interactions still require the [native journey](../.agents/skills/verify-deepseekbot/features/local-computer-video.md).
+
 ## Harmless input fixture
 
 Run `node scripts/computer-input-fixture.mjs 4488 60` on the Windows computer and open `http://localhost:4488/`. The loopback-only page has separate horizontal, vertical and two-dimensional scroll regions, offset readouts, ordinary/multiline/password fields and click counters. Put the remote pointer over each region, then drag the scroll pad; verify each offset changes and no click fires. Use only synthetic text. The page stores no input outside browser memory and the server exits after the requested minutes (1–180). It serves only this fixture, not repository files. This browser fixture does not verify phone gestures.
@@ -22,7 +34,7 @@ The same button switches to **Hand back**: one explicit action ends control, wai
 
 Backgrounding or locking the phone stops its media and releases control. Return to the foreground to observe again, then explicitly take control. A second viewer is refused with `viewer-limit` without evicting the first. Frozen or unconfirmed video disables input. A static live desktop must still pass the qualification journey; repeated canvas frames alone do not establish capture health.
 
-The new viewer has no image fallback, including manual snapshots. Missing native support, negotiation failure and lost media show a refusal/retry state. It never polls `/api/computer/frame`. Legacy frame, input and takeover routes return `update-required` for the migrated Windows Local Computer. Bot screenshots remain separate and are refused while paused.
+The new viewer has no image fallback, including manual snapshots. Missing native support, negotiation failure and lost media show a refusal/retry state. It never polls `/api/computer/frame`. Legacy frame, input and takeover routes return `update-required` for the migrated Windows and macOS Local Computer. Bot screenshots remain separate and are refused while paused.
 
 T1 uses direct WebRTC with no configured STUN/TURN servers. The phone's signaling and control use the existing encrypted LAN channel, its pinned Host key and approved device identity. Only the server-owned LAN listener dispatches the exact video command path to the Computer owner. Hosted Connect remains refused with `connect-carrier-required`, even though its encrypted carrier is available; remote media qualification belongs to a later slice. There is no WebView or plaintext fallback. Self-configured TURN, audio, clipboard, background viewing and unlocking are absent.
 

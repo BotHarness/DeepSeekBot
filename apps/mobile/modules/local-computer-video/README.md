@@ -1,4 +1,4 @@
-# Local Computer Android video
+# Local Computer native video
 
 This app-local Expo module receives a single video-only WebRTC offer. The Computer owner
 authorizes observation and control; this view owns only its ephemeral native peer, decoder
@@ -7,7 +7,7 @@ DataChannel, clipboard, picture-in-picture, image decoding or public STUN/TURN i
 
 The Android development client must be rebuilt after adding this module. It uses the
 existing Expo Modules Gradle plugin and local-module autolinking; no JavaScript package
-or config plugin is added. iOS and other unmigrated targets keep their existing surface.
+or config plugin is added. The iOS receiver also requires a rebuilt native client.
 
 ## Dependency provenance
 
@@ -92,3 +92,11 @@ The module has no configured native automated test runner. The TypeScript consum
 do not exercise EGL producer handoff. [Native cleanup regression](NATIVE-QA.md) specifies
 the delayed-disposal and late-completion cases for the allocated runner; all remain unrun
 until that evidence is recorded.
+
+## iOS receiver
+
+The Apple module uses WebRTC-SDK 144.7559.15 from the same publisher. Its vendor podspec pins the release ZIP SHA-256 `a17a6688e208255b70381926110526593ba626e033cf88c9ed4a7b618f98eb8a` (66,580,761 bytes), and the local CNG plugin registers that podspec. `apple.podspecPath` limits module autolinking to LocalComputerVideo so the vendor is not linked twice. WebRTC license and patents are bundled as resources.
+
+A serial queue has a 16-work budget. The native peer permit is released only after `close()` returns. The Metal view retains the latest decoded frame and one in-flight GPU command; drawable presentation, render completion and received frames are distinct counters. Background/detach clears the surface and fences current-attempt callbacks before asynchronous retirement. No camera or microphone is requested. iOS 16.4 is the app minimum, including the Foundation WebSocket LAN carrier. Actual iPhone playback, lifecycle and click tests are required; Android evidence cannot qualify this receiver.
+
+The iOS Simulator SDK lacks drawable presentation receipts. It can render diagnostic frames but never reports them as presented or enables remote control; its presentation timeout is expected. Qualify the complete control path on a physical iPhone.

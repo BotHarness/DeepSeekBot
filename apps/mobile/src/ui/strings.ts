@@ -1473,6 +1473,8 @@ const en = {
   computerVideoRelease: 'Release control · keep Bots paused',
   computerVideoResume: 'Resume Bots',
   computerVideoReconnect: 'Reconnect video',
+  computerVideoMacPermission:
+    'On your Mac, allow Screen Recording for the capture helper in System Settings → Privacy & Security, then reconnect.',
   computerVideoSurface: 'Live Computer video',
   computerVideoClick: 'Tap the Computer screen',
   computerVideoTrackpad: 'Computer trackpad',
@@ -2935,6 +2937,8 @@ const zh: typeof en = {
   computerVideoRelease: '释放控制，保持 Bot 暂停',
   computerVideoResume: '恢复 Bot',
   computerVideoReconnect: '重新连接视频',
+  computerVideoMacPermission:
+    '请在 Mac 系统设置 → 隐私与安全性中允许捕获程序录制屏幕，然后重新连接。',
   computerVideoSurface: 'Computer 实时视频',
   computerVideoClick: '点击 Computer 画面',
   computerVideoTrackpad: '电脑触控板',

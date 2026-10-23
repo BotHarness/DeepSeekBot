@@ -1274,3 +1274,7 @@ The application-defined mobile account session and saved Host credentials remain
 ### SSH 连接已有 Host（#2607）
 
 电脑 CLI 持有前台系统 OpenSSH 隧道；浏览器通过既有 Device Gateway 配对并保留设备本地 Remote Host 记录。私有、固定 Host 密钥的 offer 转为仅含转发回环地址的版本 2 链接，已保存的加密合同明确标记该回环连接必须加密，请求与流不会在本地端口被替换后明文发送凭据。既有 Host listener 与 Noise 协议保持不变。断开只关闭隧道；准确设备密钥批准、吊销及业务操作仍由原 Host owner 负责。本片不提供手机 SSH、远端 bootstrap、Bot 运维或远程桌面。见 [ADR-0246](../adr/0246-ssh-tunnels-preserve-paired-host-authority.md)，运行验证由 #2607 跟踪。
+
+### iOS and macOS Local Computer extension (#2653)
+
+The same application-defined Computer owner now supports a macOS sender and an iOS receiver over the existing Device LAN carrier. Explicit setup installs a checksum-pinned Electron bundle; an owned process group supervises capture and cleanup. The iOS Expo module uses pinned WebRTC with one retiring peer slot and bounded latest-frame Metal presentation. No new DSH interception, identity or durable control store is introduced. Mac input converts verified physical capture pixels to driver logical points exactly once; stale geometry, missing presentation or a missing grant refuses clicks. Foreground watching, explicit takeover and handback preserve ADR-0245 pause semantics. Builds, visible output and Human acceptance are recorded separately.

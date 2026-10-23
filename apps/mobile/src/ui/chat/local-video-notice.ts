@@ -24,6 +24,7 @@ export function localVideoNotice({
   if (state.code === 'connect-carrier-required') return t.computerVideoCarrierRequired;
   if (state.code === 'connection-lost')
     return t.computerVideoConnectionIssue(connectionRecoveryText(connection.route));
+  if (state.code === 'screen-recording-required') return t.computerVideoMacPermission;
   if (state.status === 'unavailable') return t.computerVideoUnavailable;
   if (
     state.host?.media.status === 'stalled' ||

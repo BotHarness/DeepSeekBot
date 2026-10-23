@@ -193,6 +193,7 @@ export function createLocalVideoOwner(options: {
   readonly media: LocalVideoMedia;
   readonly isRunning: () => boolean;
   readonly supported?: () => boolean;
+  readonly inputCoordinates?: 'pixels' | 'points';
   readonly now?: () => number;
   readonly onEvent?: (detail: string) => void;
   readonly operationTimeoutMs?: number;
@@ -309,7 +310,7 @@ export function createLocalVideoOwner(options: {
   const requireRunning = (): void => {
     requireActive();
     if (options.supported?.() === false)
-      refuse('unsupported-platform', 'Local Computer video currently requires Windows.');
+      refuse('unsupported-platform', 'Local Computer video requires Windows or macOS.');
     if (!options.isRunning()) refuse('not-running', 'Start the Local Computer first.');
   };
   const requireRuntime = (value: string): void => {
@@ -553,7 +554,7 @@ export function createLocalVideoOwner(options: {
     return active;
   };
 
-  const requireGeometry = async (current: Viewer): Promise<void> => {
+  const requireGeometry = async (current: Viewer): Promise<number> => {
     const probe = options.driver.call('get_screen_size', {
       session: `local-video:${current.binding.viewerId}`,
     });
@@ -563,19 +564,23 @@ export function createLocalVideoOwner(options: {
     const result = await bounded(probe, operationTimeout, 'operation-timeout');
     const value = result as {
       isError?: unknown;
-      structuredContent?: { width?: unknown; height?: unknown };
+      structuredContent?: { width?: unknown; height?: unknown; scale_factor?: unknown };
     } | null;
     const geometry = value?.structuredContent;
+    const scale = options.inputCoordinates === 'points' ? geometry?.scale_factor : 1;
     if (
       value?.isError === true ||
-      geometry?.width !== current.peer?.display.width ||
-      geometry?.height !== current.peer?.display.height ||
-      geometry?.width === undefined
+      typeof scale !== 'number' ||
+      !Number.isFinite(scale) ||
+      scale < 1 ||
+      scale > 4 ||
+      typeof geometry?.width !== 'number' ||
+      typeof geometry.height !== 'number' ||
+      Math.round(geometry.width * scale) !== current.peer?.display.width ||
+      Math.round(geometry.height * scale) !== current.peer?.display.height
     )
-      refuse(
-        'media-not-live',
-        'The Windows input display does not match the video. Reconnect the viewer.',
-      );
+      refuse('media-not-live', 'The input display does not match the video. Reconnect the viewer.');
+    return scale;
   };
 
   const runCommand = async (
@@ -596,10 +601,7 @@ export function createLocalVideoOwner(options: {
       sweep();
       if (command.kind === 'status') {
         if (options.supported?.() === false)
-          refuse(
-            'unsupported-platform',
-            'Local Computer video currently requires Windows Local Computer.',
-          );
+          refuse('unsupported-platform', 'Local Computer video requires Windows or macOS.');
         return state(caller);
       }
       if (command.kind === 'open') return await open(caller, trace, signal);
@@ -713,7 +715,7 @@ export function createLocalVideoOwner(options: {
           await drain(humans);
           trace.source = 'geometry';
           trace.external = 'get_screen_size';
-          await requireGeometry(current);
+          const coordinateScale = await requireGeometry(current);
           trace.source = 'owner';
           checkViewer(caller, command.binding);
           requireRunning();
@@ -760,12 +762,18 @@ export function createLocalVideoOwner(options: {
           checkGrant(current, command.generation);
           trace.source = 'geometry';
           trace.external = 'get_screen_size';
-          await requireGeometry(current);
+          const coordinateScale = await requireGeometry(current);
           trace.source = 'owner';
           if (signal?.aborted)
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
-          const call = desktopInputCall(input, undefined);
+          const scaled =
+            (input.kind === 'click' || input.kind === 'scroll') &&
+            input.x !== undefined &&
+            input.y !== undefined
+              ? { ...input, x: input.x / coordinateScale, y: input.y / coordinateScale }
+              : input;
+          const call = desktopInputCall(scaled, undefined);
           trace.source = 'driver';
           trace.external = 'desktop-input';
           const effect = (async () => {

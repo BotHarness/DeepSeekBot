@@ -11,6 +11,11 @@ import {
   type LocalVideoMedia,
   type LocalVideoMediaStatus,
 } from '../local-video-contract.js';
+import {
+  MAC_VIDEO_EXECUTABLE,
+  macVideoHelperDirectory,
+  verifyMacVideoHelper,
+} from './install-macos.js';
 import { localDriverEnv } from '../tool/local-driver.js';
 import {
   LOCAL_VIDEO_LAUNCHER,
@@ -41,20 +46,22 @@ export function createLocalVideoMedia(
   let active = false;
   return {
     async open({ signal, onStatus }) {
-      if (
-        (options.platform ?? process.platform) !== 'win32' ||
-        (options.arch ?? process.arch) !== 'x64'
-      ) {
+      const platform = options.platform ?? process.platform;
+      const arch = options.arch ?? process.arch;
+      const mac = platform === 'darwin' && (arch === 'arm64' || arch === 'x64');
+      if (!mac && (platform !== 'win32' || arch !== 'x64')) {
         throw new LocalVideoError(
           'unsupported-platform',
-          'Local Computer video currently requires Windows x64.',
+          'Local Computer video requires Windows x64 or macOS.',
         );
       }
       if (active)
         throw new LocalVideoError('viewer-limit', 'This Computer already has a video viewer.');
       active = true;
       const launchId = randomUUID();
-      const directory = options.helperDirectory ?? localVideoHelperDirectory();
+      const directory =
+        options.helperDirectory ??
+        (mac ? macVideoHelperDirectory(arch) : localVideoHelperDirectory());
       let child: ChildProcessWithoutNullStreams | undefined;
       let profile: string | undefined;
       let output = '';
@@ -179,8 +186,12 @@ export function createLocalVideoMedia(
       try {
         signal.throwIfAborted();
         const assets = options.assetsDirectory ?? localVideoAssetsDirectory();
-        await verifyLocalVideoAssets(assets);
-        if (!(await verifyLocalVideoHelper(directory, assets)))
+        await verifyLocalVideoAssets(assets, platform);
+        if (
+          !(await (mac
+            ? verifyMacVideoHelper(directory, arch)
+            : verifyLocalVideoHelper(directory, assets)))
+        )
           throw new LocalVideoError(
             'helper-missing',
             'Start Local Computer to install or repair its video helper.',
@@ -189,15 +200,20 @@ export function createLocalVideoMedia(
         profile = await mkdtemp(join(tmpdir(), 'botharness-local-video-'));
         signal.throwIfAborted();
         child = spawn(
-          join(directory, LOCAL_VIDEO_LAUNCHER),
+          mac ? process.execPath : join(directory, LOCAL_VIDEO_LAUNCHER),
           [
-            join(directory, 'electron.exe'),
+            ...(mac ? [join(assets, 'launcher-macos.cjs')] : []),
+            join(directory, mac ? MAC_VIDEO_EXECUTABLE : 'electron.exe'),
             join(assets, 'main.cjs'),
             String(process.pid),
             launchId,
           ],
           {
-            env: { ...localDriverEnv(), BOTHARNESS_MEDIA_USER_DATA: profile },
+            env: {
+              ...localDriverEnv(),
+              ...(mac ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+              BOTHARNESS_MEDIA_USER_DATA: profile,
+            },
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'pipe'],
           },
@@ -309,6 +325,22 @@ export function createLocalVideoMedia(
               const message: unknown = JSON.parse(envelope.json);
               if (typeof message !== 'object' || message === null) return failed();
               if ('event' in message) {
+                if (
+                  message.event === 'failed' &&
+                  'code' in message &&
+                  message.code === 'screen-recording-required' &&
+                  ready
+                ) {
+                  clearTimeout(ready.timer);
+                  ready.reject(
+                    new LocalVideoError(
+                      'screen-recording-required',
+                      'Allow Screen Recording for the Mac capture helper in System Settings, restart it and retry.',
+                    ),
+                  );
+                  ready = undefined;
+                  continue;
+                }
                 if (
                   message.event === 'ready' &&
                   'version' in message &&

@@ -37,7 +37,12 @@ function deferred<T>() {
 }
 
 function harness(
-  options: { store?: ComputerPauseStore; media?: LocalVideoMedia; timeout?: number } = {},
+  options: {
+    store?: ComputerPauseStore;
+    media?: LocalVideoMedia;
+    timeout?: number;
+    points?: boolean;
+  } = {},
 ) {
   let time = 10_000;
   let savedPause = false;
@@ -89,6 +94,7 @@ function harness(
     },
     media,
     isRunning: () => true,
+    inputCoordinates: options.points ? 'points' : 'pixels',
     now: () => time,
     onEvent: (detail) => events.push(detail),
     operationTimeoutMs: options.timeout ?? 1_000,
@@ -154,6 +160,59 @@ function harness(
 }
 
 describe('Local Computer owner authority', () => {
+  it('maps Retina video pixels to Mac logical points once, preserving explicit takeover', async () => {
+    const h = harness({ points: true });
+    h.geometry.width = 960;
+    h.geometry.height = 540;
+    h.geometry.scale_factor = 2;
+    const binding = await h.connect();
+    expect(h.writes).toEqual([]);
+    await expect(h.input(binding, 1)).rejects.toMatchObject({ code: 'control-required' });
+    const { grant } = await h.take(binding);
+    await h.input(binding, grant!.generation, 1);
+    expect(h.driver.call).toHaveBeenCalledWith(
+      'click',
+      expect.objectContaining({ x: 10, y: 15, scope: 'desktop' }),
+      undefined,
+    );
+    await h.owner.handle(caller, {
+      kind: 'resume',
+      runtimeId: binding.runtimeId,
+      binding,
+      generation: grant!.generation,
+    });
+    expect(h.owner.isPaused()).toBe(false);
+    await expect(h.input(binding, grant!.generation, 2)).rejects.toMatchObject({
+      code: 'control-required',
+    });
+  });
+
+  it('refuses Mac input after a scale/display mismatch without replay or driver effects', async () => {
+    const h = harness({ points: true });
+    h.geometry.width = 960;
+    h.geometry.height = 540;
+    h.geometry.scale_factor = 2;
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    h.geometry.scale_factor = 1;
+    await expect(h.input(binding, grant!.generation)).rejects.toMatchObject({
+      code: 'media-not-live',
+    });
+    expect(h.driver.call).not.toHaveBeenCalled();
+    expect(h.owner.isPaused()).toBe(true);
+  });
+
+  it.each([Number.NaN, 0, -1, 5])(
+    'refuses invalid Mac backing scale %s before takeover',
+    async (scale) => {
+      const h = harness({ points: true });
+      h.geometry.scale_factor = scale;
+      const binding = await h.connect();
+      await expect(h.take(binding)).rejects.toMatchObject({ code: 'media-not-live' });
+      expect(h.driver.call).not.toHaveBeenCalled();
+    },
+  );
+
   it('disables only the phone viewer overlay before input, once per viewer', async () => {
     const h = harness();
     const binding = await h.connect();

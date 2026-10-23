@@ -51,3 +51,15 @@ Host 断线时，即使尚未创建观看端，Computer 也保留「重试」入
 ## 验收
 
 [本机验证旅程](../.agents/skills/verify-deepseekbot/features/local-computer-video.md) 覆盖控制栅栏、已建立媒体的撤销、静态活画面和运动场景测量。采集计数、解码帧、EGL swap、TextureView 更新与物理屏幕显示是不同指标。须用可见运动帧编号交叉核对绑定 attempt 的呈现计数。声明的 LAN rig 要达到真实呈现至少 15 fps、输入到可见反馈 p95 不超过 500 ms，并保证静态文字可读。单元测试或信令响应不能证明这些结果。
+
+## iPhone 与 Mac
+
+[#2653](https://github.com/BotHarness/DeepSeekBot/issues/2653) 扩展一台 Mac 主屏幕到一个 iPhone 观看者：同 Wi-Fi 下经已配对的加密 LAN 通道观看、明确接管、移动指针并点击、缩放／重置视图、交还给 Bot。iOS 本片不包含 Android 的键盘与滚动控件。按钮遵循触感开关。必须重新构建包含 LanChannel 和 LocalComputerVideo 的 iOS 应用；最低版本保持 iOS 16.4，CocoaPods 校验固定 WebRTC-SDK 144.7559.15 的 SHA-256。
+
+明确启动本机电脑时安装 Electron 44.9.3 的 Apple silicon（130,639,665 字节）或 Intel（134,522,186 字节）运行时；观看不会安装软件。独立启动器拥有采集进程组，关闭、输入管道断开和 Host 退出均清理整组；未确认清理时禁止替换。保留签名应用与内部框架链接。
+
+在 macOS 系统设置中授予采集助手和现有电脑驱动屏幕录制权限，并为输入授予辅助功能权限。缺少采集权限返回 `screen-recording-required`，授权后重启本机电脑再试。iPhone 需允许本地网络访问；Tailscale HTTPS 与托管 Connect 不支持这条视频控制路径。
+
+Mac 视频使用物理像素，输入驱动使用逻辑点。Host 每次校验“逻辑尺寸 × 缩放比例 = 采集尺寸”，点击只除以比例一次；无效比例、尺寸改变或旧控制权均拒绝输入。观看不自动接管，失败不回退截图。
+
+iOS 使用只有一个待呈现帧的 Metal 接收界面，解码、渲染和 drawable 呈现分别计数。后台、锁屏与界面移除立即隔离回调，在后台线程关闭 peer，清理完成前不允许新 peer。源码、原生构建、模拟器、真机画面和 Human 验收分别记录。

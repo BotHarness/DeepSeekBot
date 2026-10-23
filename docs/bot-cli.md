@@ -401,7 +401,7 @@ deepseekbot grants <bot-id>
 
 ### Local Computer video
 
-Windows Local Computer uses the [video-only Android path](local-computer-video.md). The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on the migrated Windows target. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause.
+Windows and macOS Local Computer use the [native phone video path](local-computer-video.md). The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on the migrated Windows/macOS targets. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause.
 
 ```bash
 deepseekbot computer-video status
@@ -1351,3 +1351,7 @@ deepseekbot create --host <host> --name Helper --from-git <inspected-url> --expe
 ```
 
 The lookup is read-only and accepts the same optional `--description` and repeated `--role` flags as creation. A lost reply or Host restart retains the same Bot, managed Memory and DM. `git-source-changed` refuses a repository whose cloned HEAD differs from the inspected commit before publishing a Bot; the reserved key stays bound to the original input. Review the changed source before explicitly starting a different operation. Reusing a key with a different source or metadata returns `creation-key-conflict`; archived or deleted identities return `creation-identity-unavailable`. No automatic model call or credential copying occurs.
+
+### Mac Local Computer video (#2653)
+
+The existing `computer-start --target local`, `computer-video status`, observation/signaling, takeover, input and resume commands use the same Computer owner on macOS. No additional CLI identity or transport is introduced. Explicit start installs the pinned Mac capture runtime; observation never downloads it. `screen-recording-required` asks for macOS Screen Recording permission and a restart. Mac click coordinates stay in video pixels at the command boundary; the owner validates Retina geometry and converts to logical points. Resume remains available when video is unavailable. Physical iPhone interaction is a separate native check.

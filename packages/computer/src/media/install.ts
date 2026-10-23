@@ -122,8 +122,9 @@ export async function verifyLocalVideoHelper(
 
 export async function verifyLocalVideoAssets(
   directory = localVideoAssetsDirectory(),
+  platform: string = process.platform,
 ): Promise<void> {
-  for (const asset of ASSETS) {
+  for (const asset of [...ASSETS, ...(platform === 'darwin' ? ['launcher-macos.cjs'] : [])]) {
     try {
       const stat = await lstat(join(directory, asset));
       if (!stat.isFile() || stat.size > 256 * 1024) throw new Error('Invalid asset');

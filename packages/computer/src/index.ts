@@ -349,7 +349,8 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   let authorizationRevision = 0;
   const authorizationScope = (): string => `${target()}:${String(authorizationRevision)}`;
   const target = (): ComputerTarget => computerTarget(readLive(config.target));
-  const migratedLocal = (): boolean => process.platform === 'win32' && target() === 'local';
+  const migratedLocal = (): boolean =>
+    (process.platform === 'win32' || process.platform === 'darwin') && target() === 'local';
   const runtime = createComputerTargetRuntime({
     target,
     onChange: () => {
@@ -430,6 +431,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     }),
     isRunning: () => migratedLocal() && runtime.isRunning(),
     supported: migratedLocal,
+    inputCoordinates: process.platform === 'darwin' ? 'points' : 'pixels',
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
   });
   service.localVideo = localVideo;
