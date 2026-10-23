@@ -101,6 +101,8 @@ const en = {
       'zip-file-missing':
         'The saved file is missing. Choose the original Zip file to continue the same import.',
       'zip-file-unavailable': 'Could not open the file picker. Try again.',
+      'zip-file-read':
+        'Could not read the file on this phone. Check file access and free space, then try again.',
       'zip-upload-invalid': 'The computer did not confirm the upload. Check and resume.',
       'zip-preview-invalid': 'The computer could not read this Zip file. Check it again.',
       'zip-preview-required': 'Check this Zip file in the selected environment before importing.',
@@ -1625,6 +1627,7 @@ const zh: typeof en = {
       'zip-file-changed': '保存的文件已改变，请选择原来的 Zip 文件继续本次导入。',
       'zip-file-missing': '找不到保存的文件，请选择原来的 Zip 文件继续本次导入。',
       'zip-file-unavailable': '无法打开文件选择器，请重试。',
+      'zip-file-read': '无法读取手机上的文件，请检查访问权限和可用空间后重试。',
       'zip-upload-invalid': '电脑尚未确认上传，请检查并继续。',
       'zip-preview-invalid': '电脑无法读取这个 Zip 文件，请重新检查。',
       'zip-preview-required': '请先在所选环境中检查这个 Zip 文件。',

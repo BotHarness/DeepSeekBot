@@ -106,6 +106,42 @@ it('previews metadata before confirmation and preserves a renamed Bot when chang
   });
 });
 
+it('keeps explicitly cleared metadata after restart, a target change and another preview', async () => {
+  const f = setup();
+  f.pair();
+  const controller = f.make();
+  await controller.enter({ kind: 'host', hostId: 'A' });
+  await controller.beginZip();
+  await controller.preview();
+  const initial = controller.getSnapshot().record;
+  if (initial.kind !== 'draft') throw new Error('draft expected');
+  expect(initial.draft).toMatchObject({ description: 'Archive bio', tags: 'Helper' });
+  await controller.edit({ ...initial.draft, displayName: 'My name', description: '', tags: '' });
+  const reopened = f.make();
+  await reopened.ready;
+  const saved = reopened.getSnapshot().record;
+  if (saved.kind !== 'draft') throw new Error('draft expected');
+  await reopened.edit({ ...saved.draft, hostId: 'B' });
+  await reopened.preview();
+  expect(reopened.getSnapshot().record).toMatchObject({
+    kind: 'draft',
+    draft: { hostId: 'B', displayName: 'My name', description: '', tags: '' },
+  });
+  await reopened.submit();
+  expect(f.create.mock.calls[0]?.[0].input).toEqual({ displayName: 'My name' });
+});
+
+it('reports local file failures without a connection error or a Host request', async () => {
+  const f = setup();
+  f.pickZip.mockRejectedValueOnce(new BotCreationFailure('zip-file-read'));
+  const controller = f.make();
+  await controller.beginZip();
+  expect(controller.getSnapshot().error).toBe('zip-file-read');
+  expect(f.previewZip).not.toHaveBeenCalled();
+  expect(f.lookup).not.toHaveBeenCalled();
+  expect(f.create).not.toHaveBeenCalled();
+});
+
 it('recovers the same immutable Zip operation after a lost response without picking a new file', async () => {
   const f = setup();
   f.pair();
