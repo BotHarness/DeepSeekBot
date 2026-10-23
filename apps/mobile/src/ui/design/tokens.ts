@@ -63,6 +63,7 @@ export const navigationBar = {
   },
 } as const;
 export const materialNavigationBar = {
+  iconSize: 24,
   height: 80,
   margin: 0,
   indicatorWidth: 56,

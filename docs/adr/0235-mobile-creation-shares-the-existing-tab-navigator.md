@@ -29,3 +29,7 @@ Following the Human's M3 Expressive floating-toolbar reference, the Android navi
 ## Amendment — 2026-10-24: native Android navigation
 
 Human feedback in #2669 replaces the Android floating navigation capsule with a native Compose Material 3 NavigationBar and NavigationBarItem. The existing two destinations and navigator remain authoritative. Because the pinned Expo bridge has no ShortNavigationBar or horizontal-layout prop, each native item receives horizontal icon-label content. This is an explicit adaptation, not a claim to use Expressive ShortNavigationBar. The Activity icon remains stable; its label displays the capped pending count in both selected and unselected states, with native fades disabled under Reduce Motion. Native measured height reserves list space and places the existing creation FAB above the bar. iOS remains unchanged. Native large-text, safe-area and TalkBack review is required before release.
+
+### Native feedback refinement
+
+Human feedback after #2672 supersedes the horizontal-content adaptation: Android now uses the native Icon and Label slots with the icon above a persistent label. Pending Activity replaces its icon with the capped count, retaining the Activity label and native selection indicator. Row left-swipe is removed on Android to leave vertical list scrolling with the list; long press retains a native action sheet with a centered conversation avatar/name header and three icon/label commands. iOS behavior is unchanged.

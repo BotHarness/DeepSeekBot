@@ -3,7 +3,6 @@ import {
   NavigationBar,
   NavigationBarItem,
   Icon,
-  Row,
   Box,
   Text,
   AnimatedVisibility,
@@ -11,18 +10,15 @@ import {
   ExitTransition,
 } from '@expo/ui/jetpack-compose';
 import {
-  animateContentSize,
   fillMaxWidth,
   semantics,
   testID,
   weight,
-  width,
+  defaultMinSize,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { useWindowDimensions } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { materialNavigationBar } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { t } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
@@ -30,12 +26,6 @@ import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
-  const window = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  const itemWidth = Math.max(
-    theme.touch,
-    (window.width - insets.left - insets.right) / items.length - space.x6 * 2,
-  );
   return (
     <Host
       matchContents={{ vertical: true }}
@@ -54,13 +44,13 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           const showCount = item.activity && item.count > 0;
           const normal = item.activity ? t.activity : t.chats;
           const pending = t.activityPendingLabel(badgeCount(item.count));
-          const label = showCount ? pending : normal;
+
           const text = (value: string) => (
             <Text
               style={{
-                typography: 'labelLarge',
+                typography: 'titleMedium',
                 fontWeight: item.focused ? '600' : '500',
-                textAlign: 'start',
+                textAlign: 'center',
               }}
             >
               {value}
@@ -70,6 +60,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             <NavigationBarItem
               key={item.key}
               selected={item.focused}
+              alwaysShowLabel
               onClick={item.onPress}
               colors={{
                 selectedIconColor: theme.color.fg,
@@ -83,51 +74,63 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 testID(item.activity ? 'navigation-activity' : 'navigation-chats'),
                 semantics({
                   contentDescription:
-                    item.activity && showCount ? `${t.activity}, ${pending}` : label,
+                    item.activity && showCount ? `${t.activity}, ${pending}` : normal,
                 }),
               ]}
             >
               <NavigationBarItem.Icon>
-                <Row
-                  verticalAlignment="center"
-                  horizontalArrangement={{ spacedBy: space.x2 }}
-                  modifiers={[width(itemWidth)]}
+                <Box
+                  contentAlignment="center"
+                  modifiers={[
+                    defaultMinSize({
+                      minWidth: materialNavigationBar.iconSize,
+                      minHeight: materialNavigationBar.iconSize,
+                    }),
+                  ]}
                 >
-                  <Icon
-                    source={
-                      item.activity
-                        ? require('../../../assets/toolbar/activity.xml')
-                        : require('../../../assets/toolbar/chats.xml')
-                    }
-                    size={theme.type.title.line}
-                  />
-                  <Box
-                    contentAlignment="centerStart"
-                    modifiers={[weight(1), ...(reduced ? [] : [animateContentSize()])]}
-                  >
-                    {reduced ? (
-                      text(label)
+                  {reduced ? (
+                    showCount ? (
+                      text(badgeCount(item.count))
                     ) : (
-                      <>
-                        <AnimatedVisibility
-                          visible={!showCount}
-                          enterTransition={EnterTransition.fadeIn()}
-                          exitTransition={ExitTransition.fadeOut()}
-                        >
-                          {text(normal)}
-                        </AnimatedVisibility>
-                        <AnimatedVisibility
-                          visible={showCount}
-                          enterTransition={EnterTransition.fadeIn()}
-                          exitTransition={ExitTransition.fadeOut()}
-                        >
-                          {text(pending)}
-                        </AnimatedVisibility>
-                      </>
-                    )}
-                  </Box>
-                </Row>
+                      <Icon
+                        source={
+                          item.activity
+                            ? require('../../../assets/toolbar/activity.xml')
+                            : require('../../../assets/toolbar/chats.xml')
+                        }
+                        size={materialNavigationBar.iconSize}
+                      />
+                    )
+                  ) : (
+                    <>
+                      <AnimatedVisibility
+                        visible={!showCount}
+                        enterTransition={EnterTransition.fadeIn()}
+                        exitTransition={ExitTransition.fadeOut()}
+                      >
+                        <Icon
+                          source={
+                            item.activity
+                              ? require('../../../assets/toolbar/activity.xml')
+                              : require('../../../assets/toolbar/chats.xml')
+                          }
+                          size={materialNavigationBar.iconSize}
+                        />
+                      </AnimatedVisibility>
+                      <AnimatedVisibility
+                        visible={showCount}
+                        enterTransition={EnterTransition.fadeIn()}
+                        exitTransition={ExitTransition.fadeOut()}
+                      >
+                        {text(badgeCount(item.count))}
+                      </AnimatedVisibility>
+                    </>
+                  )}
+                </Box>
               </NavigationBarItem.Icon>
+              <NavigationBarItem.Label>
+                <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{normal}</Text>
+              </NavigationBarItem.Label>
             </NavigationBarItem>
           );
         })}

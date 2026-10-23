@@ -80,6 +80,14 @@ export function ConversationRow({
               : 'bell',
     run: () => act(action.key),
   }));
+  const avatar =
+    row.kind === 'bot' ? (
+      <AvatarSlot>
+        <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
+      </AvatarSlot>
+    ) : (
+      <ConversationGroupAvatar avatar={row.channel.avatar} />
+    );
   const frame = (
     <ConversationRowFrame
       testID={`conversation-row-${row.key}`}
@@ -100,39 +108,37 @@ export function ConversationRow({
           ? () =>
               showActionMenu(
                 title,
-                availableActions.map((action) => ({
-                  text: action.label,
-                  icon:
-                    action.key === 'read'
-                      ? ('check' as const)
-                      : action.key === 'section'
-                        ? ('folder' as const)
-                        : action.key,
-                  onPress: () => act(action.key),
-                })),
+                availableActions
+                  .filter((action) => action.key !== 'read')
+                  .map((action) => ({
+                    text: action.label,
+                    icon:
+                      action.key === 'read'
+                        ? ('check' as const)
+                        : action.key === 'section'
+                          ? ('folder' as const)
+                          : action.key,
+                    onPress: () => act(action.key),
+                  })),
+                avatar,
               )
           : undefined
       }
-      avatar={
-        row.kind === 'bot' ? (
-          <AvatarSlot>
-            <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
-          </AvatarSlot>
-        ) : (
-          <ConversationGroupAvatar avatar={row.channel.avatar} />
-        )
-      }
+      avatar={avatar}
     />
   );
-  return (
-    <ConversationSwipe actions={onAction ? actions : []} onAction={act}>
-      {previewHref ? (
-        <ConversationPeek href={previewHref} actions={menuActions}>
-          {frame}
-        </ConversationPeek>
-      ) : (
-        frame
-      )}
+  const content = previewHref ? (
+    <ConversationPeek href={previewHref} actions={menuActions}>
+      {frame}
+    </ConversationPeek>
+  ) : (
+    frame
+  );
+  return Platform.OS === 'android' ? (
+    content
+  ) : (
+    <ConversationSwipe actions={availableActions} onAction={act}>
+      {content}
     </ConversationSwipe>
   );
 }
