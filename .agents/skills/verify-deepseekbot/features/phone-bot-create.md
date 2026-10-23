@@ -1,4 +1,4 @@
-# Native Bot creation, Marketplace and Git import
+# Native Bot creation, Marketplace, Git and Zip import
 
 A Human creates a blank Bot on a chosen paired Host. The phone retains the exact creation operation before sending it; reconnecting recovers the original PersonaBot and Human DM.
 
@@ -13,6 +13,7 @@ Git import uses the same target, confirmation, operation record and completion p
 - `refusal`: unsupported Hosts refuse before mutation; unavailable/revoked targets, changed input and archived results never fall back to another Host or fresh operation.
 - `git`: a Git link, confirmed commit and editable name/Bio/tags produce one ordinary Bot with the imported personality; retry preserves its source, identity and DM.
 - `marketplace`: browse the public catalogue before choosing a Host; native search, topics, details and README retain the selected listing and reviewed commit through confirmation.
+- `zip`: retain the selected file, preview on the chosen Host, edit metadata and submit the same archive through bounded uploads. Recovery checks the original receipt before requiring file bytes.
 
 ## How to get to it (user POV)
 
@@ -23,6 +24,8 @@ On the phone, open New → Create Bot from All or a selected Computer. Choose th
 The existing CI journey `node scripts/e2e-personabot-create.mjs --with-dm` separately verifies the real Host lookup and built `create-status` CLI: absent lookup, same-input/key retry, one canonical Bot/DM and recovery after Host restart. Its four `blankCreation*` result flags do not establish native UI or injected network-fault acceptance.
 
 The same journey uses a task-local Git fixture for CLI source preview, pinned import, discarded-reply readback, changed-source refusal and recovery after Host restart. Its `gitImport*` flags require an actual passing candidate run; adding the script does not establish that result. Paired-device gateway tests separately discard the accepted reply and verify revoked-device refusal.
+
+`scripts/e2e-zip-import-proof.mjs` is an imported helper of that journey, not a standalone launcher. It exports a fixture Bot, uploads one chunk, restarts the Host, repeats the accepted chunk and finishes with the built CLI. It imports, discards the result, checks the original receipt, then restarts again and verifies the same Bot/DM and canonical counts. The `zipUploadAfterRestart`, `zipImportCliRecovery` and `zipImportAfterRestart` flags qualify only an actual passing run.
 
 Use the designated [shared device QA runner](../../../../docs/agents/device-qa.md). This journey needs two isolated paired Hosts, no model, and a compatible native development build. Submit it to the Windows queue for Android; iOS has its own queue. Web screenshots do not qualify the native form.
 
@@ -39,6 +42,9 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 11. Open Browse Marketplace from Create Bot with no paired Host, then with paired Hosts offline and phone Internet reachable. Search, sort and filter by topic; open details and follow a relative README link. Test empty results, failed refresh with cached content, a removed listing and catalogue identity mismatch. Failed or mismatched details must not enable import.
 12. Choose Import from a listing. All requires a target; scoped A inherits A. Edit name/Bio/tags, switch to B, confirm and create through the Git journey. Repeat without pairing: retain the listing draft, pair, return and explicitly submit. After acknowledged completion, an explicit additional import creates a new operation; unresolved work cannot be replaced.
 13. Refresh an outdated listing explicitly from confirmation, review the new source and return. Preserve edited metadata and target for the same draft. Fresh All browsing still requires a target choice. Verify virtualized search and topic selection with a real keyboard, maximum text, both themes and native Back/dismissal on each platform.
+14. Choose a valid Bot Zip using the native picker before selecting a Host. Cancel the picker without losing the draft; select again and restart the app. Preview on A, edit name/Bio/tags, switch to B and verify preserved inputs and a new preview on B before submission. Exercise an invalid archive, an oversized archive and a temporary unreadable provider file.
+15. Interrupt foreground upload after an accepted chunk and reopen. Verify acknowledged progress and identical file content, including after Host restart or staging expiry. Submit, discard the final response and recover the original operation and Bot/DM. A completed receipt must remain readable after staging expiry and local-file loss. For unresolved work, reselecting the original file requires its matching SHA-256 and size; a different file cannot replace the operation.
+16. Leave progress or background the app while uploading/processing. The app must not promise continuous background upload or navigate from a hidden screen. Reopen explicitly and recover the same operation. Capture native file selection, target confirmation, upload, interruption and completion with matching CLI receipts; source tests do not replace these interactions.
 
 Pair visible evidence with CLI `create-status` using the saved operation key and exact submitted input, canonical Bot/DM reads, and bounded redacted transport logs. Source tests cover deterministic lost-response and storage-failure branches; do not report those as native fault-injection results unless actually driven.
 

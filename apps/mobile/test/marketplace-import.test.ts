@@ -106,6 +106,7 @@ it('retains the selected listing without a Host, then imports its reviewed versi
       },
       input: { displayName: 'My writer', description: 'Writing helper', roles: ['writing'] },
     }),
+    expect.any(Function),
   );
 });
 

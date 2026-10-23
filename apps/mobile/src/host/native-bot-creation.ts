@@ -5,12 +5,13 @@ import { createBotCreationController } from './bot-creation';
 import { botCreationTransport } from './bot-creation-transport';
 import { hostSession } from './host-session';
 import { nativeCarrier } from './native-carrier';
+import { nativeZipFiles, pruneZipFiles } from './native-zip-import-file';
 
 const file = () => new File(Paths.document, 'deepseekbot-bot-creation-v1.json');
 
 export const botCreation = createBotCreationController({
   key: () => `mobile:${randomUUID()}`,
-  port: botCreationTransport(() => hostSession.getState().hosts, nativeCarrier()),
+  port: botCreationTransport(() => hostSession.getState().hosts, nativeCarrier(), nativeZipFiles),
   storage: {
     async read() {
       const saved = file();
@@ -18,6 +19,13 @@ export const botCreation = createBotCreationController({
     },
     async write(record) {
       file().writeSync(JSON.stringify(record));
+      const source = record.kind === 'draft' ? record.draft.source : record.operation.source;
+      pruneZipFiles(
+        [
+          source,
+          ...(record.unavailableOperations ?? []).map((operation) => operation.source),
+        ].flatMap((source) => (source?.kind === 'zip' ? [source.fileId] : [])),
+      );
     },
   },
 });

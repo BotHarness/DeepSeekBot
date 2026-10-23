@@ -181,8 +181,8 @@ it('an intentional extra copy retains source defaults but uses a fresh operation
   expect(test.create.mock.calls[1]?.[0].operationKey).not.toBe(
     test.create.mock.calls[0]?.[0].operationKey,
   );
-  expect(test.create.mock.calls[1]?.[0].source?.commit).toBe('b'.repeat(40));
-  expect(test.create.mock.calls[0]?.[0].source?.commit).toBe('a'.repeat(40));
+  expect(test.create.mock.calls[1]?.[0].source).toMatchObject({ commit: 'b'.repeat(40) });
+  expect(test.create.mock.calls[0]?.[0].source).toMatchObject({ commit: 'a'.repeat(40) });
 });
 
 it('an additional market copy keeps the reviewed listing version until the Human refreshes it', async () => {
