@@ -49,6 +49,7 @@ function harness(
       content: [],
     })),
   };
+  const cursorSetup = vi.fn(async (_args: Record<string, unknown>) => ({ content: [] }));
   const geometry = { width: 1920, height: 1080, scale_factor: 1.5 };
   const probe = vi.fn(async () => ({ structuredContent: { ...geometry } }));
   const peer = {
@@ -75,7 +76,11 @@ function harness(
     },
     driver: {
       call: (tool, args, signal) =>
-        tool === 'get_screen_size' ? probe() : driver.call(tool, args, signal),
+        tool === 'get_screen_size'
+          ? probe()
+          : tool === 'set_agent_cursor_enabled'
+            ? cursorSetup(args)
+            : driver.call(tool, args, signal),
     },
     media,
     isRunning: () => true,
@@ -127,6 +132,7 @@ function harness(
     media,
     driver,
     geometry,
+    cursorSetup,
     probe,
     writes,
     events,
@@ -142,6 +148,40 @@ function harness(
 }
 
 describe('Local Computer owner authority', () => {
+  it('disables only the phone viewer overlay before input, once per viewer', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    expect(h.cursorSetup).not.toHaveBeenCalled();
+    h.driver.call.mockImplementation(async () => {
+      expect(h.cursorSetup).toHaveBeenCalledWith({
+        session: 'local-video:' + binding.viewerId,
+        enabled: false,
+      });
+      return { content: [] };
+    });
+    await h.input(binding, grant!.generation, 1);
+    await h.input(binding, grant!.generation, 2);
+    expect(h.cursorSetup).toHaveBeenCalledTimes(1);
+    expect(h.driver.call).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not click if control is released while pointer setup is pending', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    const setup = deferred<{ content: [] }>();
+    h.cursorSetup.mockImplementationOnce(() => setup.promise);
+    const input = h.input(binding, grant!.generation);
+    const refused = expect(input).rejects.toMatchObject({ code: 'control-required' });
+    await vi.waitFor(() => expect(h.cursorSetup).toHaveBeenCalledTimes(1));
+    const release = h.owner.handle(caller, { kind: 'release', binding });
+    setup.resolve({ content: [] });
+    await refused;
+    await release;
+    expect(h.driver.call).not.toHaveBeenCalled();
+  });
+
   it('delivers four-direction wheel input once through the granted desktop driver', async () => {
     const h = harness();
     const binding = await h.connect();

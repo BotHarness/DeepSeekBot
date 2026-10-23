@@ -39,7 +39,7 @@ export interface LocalVideoClient {
   takeover(): Promise<void>;
   release(): Promise<void>;
   resume(): Promise<void>;
-  input(input: DesktopInput): Promise<void>;
+  input(input: DesktopInput): Promise<boolean>;
 }
 
 const HEARTBEAT_MS = 2_000;
@@ -391,7 +391,7 @@ export function createLocalVideoClient(
     takeover: () => control('takeover'),
     release: () => control('release'),
     resume: () => control('resume'),
-    input(input) {
+    async input(input) {
       const binding = currentBinding();
       const grant = state.host?.grant;
       if (
@@ -403,10 +403,11 @@ export function createLocalVideoClient(
         binding === undefined ||
         grant === undefined
       )
-        return Promise.resolve();
+        return false;
       const generation = lifetime;
       const epoch = controlEpoch;
-      return enqueue(async () => {
+      let delivered = false;
+      await enqueue(async () => {
         if (
           generation !== lifetime ||
           epoch !== controlEpoch ||
@@ -428,8 +429,12 @@ export function createLocalVideoClient(
           },
           generation,
         );
-        if (host !== undefined && epoch === controlEpoch) adopt(host);
+        if (host !== undefined && epoch === controlEpoch) {
+          delivered = true;
+          adopt(host);
+        }
       });
+      return delivered;
     },
   };
   return client;

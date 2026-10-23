@@ -9,13 +9,18 @@ import Animated, {
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { fittedFrame, moveCursor, type StageZoom } from '../../host/browser-viewer';
-import { resizeVideoPreview, videoPointerPosition } from '../../host/local-video-pointer';
+import {
+  resizeVideoPreview,
+  revealVideoPointer,
+  videoPointerPosition,
+} from '../../host/local-video-pointer';
 import { pointer } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
-import { MAX_SCALE, pinchZoom, type Size } from './zoom-math';
+import type { Size } from './zoom-math';
+import { videoPinchUpdate } from './computer-video-gestures';
 
 type Point = { x: number; y: number };
 const TAP_SLOP = 10;
@@ -24,6 +29,7 @@ export function ComputerVideoStage({
   frame,
   driving,
   controlling,
+  revealCursor,
   cursor,
   preview,
   onClick,
@@ -32,6 +38,7 @@ export function ComputerVideoStage({
   frame: Size;
   driving: boolean;
   controlling: boolean;
+  revealCursor: boolean;
   cursor: SharedValue<Point>;
   preview: SharedValue<StageZoom>;
   onClick(point: Point, button: 'left' | 'right'): void;
@@ -62,6 +69,15 @@ export function ComputerVideoStage({
       preview.set(
         resizeVideoPreview({ frame, before: stage, after: { width, height }, zoom: preview.get() }),
       );
+    if (revealCursor)
+      preview.set(
+        revealVideoPointer({
+          point: cursor.get(),
+          frame,
+          stage: { width, height },
+          zoom: preview.get(),
+        }),
+      );
   };
 
   const pinch = Gesture.Pinch()
@@ -75,17 +91,17 @@ export function ComputerVideoStage({
       });
     })
     .onUpdate((event) => {
-      const start = origin.get();
-      const next = pinchZoom(
-        start,
-        {
-          x: event.focalX - stage.width / 2,
-          y: event.focalY - fit.height / 2,
-        },
-        event.scale,
-        { min: Math.min(0.6, start.scale), max: Math.max(MAX_SCALE * 1.5, start.scale) },
+      preview.set(
+        videoPinchUpdate({
+          origin: origin.get(),
+          current: preview.get(),
+          event,
+          center: { x: stage.width / 2, y: fit.height / 2 },
+        }),
       );
-      preview.set(next);
+    })
+    .onTouchesUp((event, manager) => {
+      if (event.numberOfTouches < 2) manager.end();
     })
     .onFinalize(() => {
       pinching.set(false);
@@ -99,7 +115,7 @@ export function ComputerVideoStage({
       panOrigin.set({ x: preview.get().x, y: preview.get().y });
     })
     .onUpdate((event) => {
-      if (pinched.get()) return;
+      if (pinched.get() || event.numberOfPointers !== 2) return;
       preview.set({
         scale: preview.get().scale,
         x: panOrigin.get().x + event.translationX,
@@ -111,6 +127,9 @@ export function ComputerVideoStage({
     .enabled(controlling)
     .maxPointers(1)
     .minDistance(TAP_SLOP)
+    .onTouchesDown((event, manager) => {
+      if (event.numberOfTouches > 1) manager.fail();
+    })
     .onStart(() => {
       cursorOrigin.set(cursor.get());
     })

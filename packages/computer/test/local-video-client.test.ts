@@ -38,7 +38,11 @@ function ownerFixture() {
     isRunning: () => true,
     driver: {
       call: async (tool) =>
-        tool === 'get_screen_size' ? { structuredContent: peer.display } : effects(),
+        tool === 'get_screen_size'
+          ? { structuredContent: peer.display }
+          : tool === 'set_agent_cursor_enabled'
+            ? { content: [] }
+            : effects(),
     },
     media: {
       open: async ({ onStatus }) => {
@@ -490,7 +494,7 @@ describe('Local Computer video consumer', () => {
     await client.start();
     client.playback('attempt-1', 1, 0);
     await client.takeover();
-    await client.input(click);
+    expect(await client.input(click)).toBe(true);
     expect(calls.find(({ body }) => body['kind'] === 'input')?.body).toMatchObject({
       generation: 1,
       sequence: 1,
@@ -498,7 +502,7 @@ describe('Local Computer video consumer', () => {
     });
     await client.release();
     expect(client.getState()).toMatchObject({ status: 'observing', host: { paused: true } });
-    await client.input(click);
+    expect(await client.input(click)).toBe(false);
     expect(calls.filter(({ body }) => body['kind'] === 'input')).toHaveLength(1);
     await client.resume();
     expect(client.getState().host?.paused).toBe(false);
@@ -517,7 +521,9 @@ describe('Local Computer video consumer', () => {
     const queued = client.input(click);
     const release = client.release();
     pending.resolve();
-    await Promise.all([first, queued, release]);
+    const [firstReceipt, queuedReceipt] = await Promise.all([first, queued, release]);
+    expect(firstReceipt).toBe(false);
+    expect(queuedReceipt).toBe(false);
     expect(calls.filter(({ body }) => body['kind'] === 'input')).toHaveLength(1);
     expect(client.getState().status).toBe('observing');
     await client.stop();
@@ -529,7 +535,7 @@ describe('Local Computer video consumer', () => {
     client.playback('attempt-1', 1, 0);
     await client.takeover();
     setInput(() => Promise.reject(new Error('ack lost after execution')));
-    await client.input(click);
+    expect(await client.input({ kind: 'type', text: '中文 abc' })).toBe(false);
     expect(client.getState()).toMatchObject({
       status: 'unavailable',
       code: 'input-result-unknown',
