@@ -62,6 +62,11 @@ it('offers only Computer actions in its selected scope', async () => {
   await click(t.newPersonaBot);
   expect(pick).toHaveBeenCalledWith('bot', expect.objectContaining({ hostId: 'mac' }));
 });
+it('opens the native Bot form from All without silently choosing its active Computer', async () => {
+  await render();
+  await click(t.newPersonaBot);
+  expect(pick).toHaveBeenCalledWith('bot', undefined);
+});
 it('dismisses without selecting a background destination', async () => {
   await render();
   await click(t.close);

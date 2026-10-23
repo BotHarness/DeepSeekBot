@@ -9,6 +9,7 @@ import '../src/host/native-haptic-feedback';
 import { usePushRouting } from '../src/host/push-routing';
 import { HostDrawer, WorkspaceButton } from '../src/ui/shell/host-drawer';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
+import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
@@ -159,6 +160,7 @@ function RootNavigator() {
               />
             </Stack>
             <StatisticsNotice />
+            <BotCreationNotice />
             <HostDrawer />
             <AppDialogHost />
           </View>

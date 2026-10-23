@@ -7,7 +7,7 @@ import {
 
 export type CreationAction = 'channel' | 'bot' | 'invite' | 'join';
 export type CreationTarget =
-  | { kind: 'computer'; key: string; hostId: string; name: string }
+  | { kind: 'computer'; key: string; hostId: string; name: string; channelCreation?: boolean }
   | { kind: 'cloud'; key: string; name: string; workspace: ConversationWorkspace };
 
 export function creationTargets(
@@ -50,7 +50,7 @@ export function targetsFor(
   return targets.filter(
     (target) =>
       (scope === 'all' || target.key === scope) &&
-      (action === 'channel' ||
+      ((action === 'channel' && (target.kind !== 'computer' || target.channelCreation !== false)) ||
         (action === 'bot' && target.kind === 'computer') ||
         (action === 'invite' && target.kind === 'cloud')),
   );
@@ -63,6 +63,9 @@ export function creationActions(
   const actions: CreationAction[] =
     scope === 'all' ? ['channel', 'bot', 'join'] : ['channel', 'bot', 'invite'];
   return actions.filter(
-    (action) => action === 'join' || targetsFor(action, scope, targets).length > 0,
+    (action) =>
+      action === 'join' ||
+      (action === 'bot' && scope === 'all') ||
+      targetsFor(action, scope, targets).length > 0,
   );
 }
