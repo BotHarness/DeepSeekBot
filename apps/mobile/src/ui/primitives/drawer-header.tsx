@@ -7,6 +7,7 @@ import { BackIcon } from '../shell/back-icon';
 import { CheckIcon, CloseIcon } from '../shell/icons';
 import { t } from '../strings';
 import { Text } from './text';
+import { HeaderCircleButton } from '../chat/header-chrome';
 
 function HeaderButton({
   label,
@@ -43,6 +44,7 @@ export function DrawerHeader({
   icon,
   headingRef,
   onClose,
+  glassClose = false,
   closeLabel = t.close,
   onBack,
   onConfirm,
@@ -53,6 +55,7 @@ export function DrawerHeader({
   icon?: ReactNode;
   headingRef?: Ref<ViewInstance>;
   onClose?: () => void;
+  glassClose?: boolean;
   closeLabel?: string;
   onBack?: () => void;
   onConfirm?: () => void;
@@ -68,6 +71,10 @@ export function DrawerHeader({
             <HeaderButton label={t.back} onPress={onBack}>
               <BackIcon color={theme.color.fg} size={theme.type.title.line} />
             </HeaderButton>
+          ) : onClose !== undefined && glassClose ? (
+            <HeaderCircleButton label={closeLabel} testID="sheet-close" onPress={onClose}>
+              <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
+            </HeaderCircleButton>
           ) : onClose !== undefined ? (
             <HeaderButton label={closeLabel} onPress={onClose}>
               <CloseIcon color={theme.color.fg} size={theme.type.title.line} />

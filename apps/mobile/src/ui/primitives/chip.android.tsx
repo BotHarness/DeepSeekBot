@@ -5,18 +5,20 @@ import { useDesignTheme } from '../design/theme';
 
 export function Chip({
   label,
+  testID,
   count,
   selected,
   onPress,
 }: {
   label: string;
+  testID?: string;
   count?: number;
   selected: boolean;
   onPress(): void;
 }) {
   const theme = useDesignTheme();
   return (
-    <View style={{ minHeight: theme.touch, justifyContent: 'center' }}>
+    <View testID={testID} style={{ minHeight: theme.touch, justifyContent: 'center' }}>
       <Host colorScheme={theme.scheme} seedColor={theme.color.accent} matchContents>
         <FilterChip
           selected={selected}

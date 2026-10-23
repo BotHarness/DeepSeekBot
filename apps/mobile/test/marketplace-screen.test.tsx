@@ -9,6 +9,8 @@ const fixture = vi.hoisted(() => {
   vi.stubGlobal('fetch', fetch);
   return {
     fetch,
+    fontScale: 1,
+    platform: 'web',
     params: {} as Record<string, string>,
     push: vi.fn(),
     openURL: vi.fn(async () => {}),
@@ -19,6 +21,13 @@ vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
     ...shim,
+    Platform: {
+      ...shim.Platform,
+      get OS() {
+        return fixture.platform;
+      },
+    },
+    useWindowDimensions: () => ({ ...shim.useWindowDimensions(), fontScale: fixture.fontScale }),
     Linking: { openURL: fixture.openURL },
     FlatList: (
       props: Parameters<typeof shim.FlatList>[0] & {
@@ -31,6 +40,8 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('react-native-keyboard-controller', () => ({
+  KeyboardAvoidingView: ({ children }: { children: ReactNode }) =>
+    createElement('div', { 'data-keyboard-safe': true }, children),
   KeyboardAwareScrollView: ({ children }: { children: ReactNode }) =>
     createElement('div', { 'data-keyboard-form': true }, children),
 }));
@@ -46,6 +57,10 @@ vi.mock('react-native-svg', () => ({
   default: ({ children }: { children?: ReactNode }) => createElement('span', null, children),
   Path: () => null,
   Circle: () => null,
+  Defs: () => null,
+  LinearGradient: () => null,
+  Rect: () => null,
+  Stop: () => null,
 }));
 vi.mock('react-native-enriched-markdown', () => ({
   EnrichedMarkdownText: ({
@@ -63,7 +78,24 @@ vi.mock('react-native-enriched-markdown', () => ({
     ),
 }));
 vi.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({
+      options,
+    }: {
+      options: {
+        unstable_headerRightItems?: () => { label: string; identifier: string; onPress(): void }[];
+      };
+    }) =>
+      options
+        .unstable_headerRightItems?.()
+        .map((item) =>
+          createElement(
+            'button',
+            { key: item.identifier, 'aria-label': item.label, onClick: item.onPress },
+            item.label,
+          ),
+        ) ?? null,
+  },
   router: { push: fixture.push },
   useLocalSearchParams: () => fixture.params,
   useFocusEffect: (callback: () => () => void) => useLayoutEffect(callback, [callback]),
@@ -100,6 +132,8 @@ let root: Root;
 let element: HTMLElement;
 beforeEach(() => {
   vi.clearAllMocks();
+  fixture.fontScale = 1;
+  fixture.platform = 'web';
   fixture.params = { entry: 'all' };
   fixture.fetch.mockImplementation(async (url) => {
     const path = new URL(String(url)).pathname;
@@ -148,14 +182,18 @@ const button = (name: string) =>
 
 it('browses without a Host, changes sort and topics, then carries All to the detail page', async () => {
   await act(async () => root.render(<MarketplaceScreen />));
-  expect(element.querySelectorAll('[data-keyboard-form]')).toHaveLength(1);
+  expect(element.querySelectorAll('[data-keyboard-safe]')).toHaveLength(1);
   expect(element.querySelectorAll('[data-testid="marketplace-banner"]')).toHaveLength(1);
   expect(element.querySelectorAll('[data-testid="marketplace-avatar"]')).toHaveLength(1);
-  await act(async () => button(t.marketplace.filters).click());
   expect(element.textContent).toContain('Writer');
   await act(async () => button(t.marketplace.popular).click());
   expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('sort=stars'))).toBe(true);
-  await act(async () => button('writing').click());
+  await act(async () => button(t.marketplace.topics).click());
+  await act(async () =>
+    (
+      element.querySelector('[data-testid="marketplace-topic-writing"]') as HTMLButtonElement
+    ).click(),
+  );
   expect(element.querySelector('[role="dialog"]')).toBeNull();
   expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('topic=writing'))).toBe(
     true,
@@ -211,4 +249,60 @@ it('opens relative README links at the reviewed revision and ignores unsupported
   fixture.link = 'deepseekbot://pair';
   await act(async () => button('Readme link').click());
   expect(fixture.openURL).toHaveBeenCalledTimes(1);
+});
+
+it('exposes topic shortcuts and refreshes only after explicit search submission, including the same query', async () => {
+  await act(async () => root.render(<MarketplaceScreen />));
+  expect(element.querySelector('[data-testid="marketplace-sort"]')).not.toBeNull();
+  await act(async () =>
+    (
+      element.querySelector('[data-testid="marketplace-featured-writing"]') as HTMLButtonElement
+    ).click(),
+  );
+  expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('topic=writing'))).toBe(
+    true,
+  );
+  await act(async () =>
+    (
+      element.querySelector('[data-testid="marketplace-search-button"]') as HTMLButtonElement
+    ).click(),
+  );
+  const input = element.querySelector('[data-testid="marketplace-search"]') as HTMLTextAreaElement;
+  const before = fixture.fetch.mock.calls.length;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      '  Writer  ',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  expect(fixture.fetch.mock.calls).toHaveLength(before);
+  const submit = () =>
+    (
+      element.querySelector('[data-testid="marketplace-search-submit"]') as HTMLButtonElement
+    ).click();
+  await act(async () => submit());
+  expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('q=Writer'))).toBe(true);
+  const submitted = fixture.fetch.mock.calls.length;
+  await act(async () => submit());
+  expect(fixture.fetch.mock.calls).toHaveLength(submitted + 1);
+  await act(async () => button(t.closeSearch).click());
+  expect(element.querySelector('[data-testid="marketplace-search"]')).toBeNull();
+  expect(new URL(String(fixture.fetch.mock.calls.at(-1)![0])).searchParams.get('q')).toBe('');
+});
+
+it('keeps all sorting choices operable at large text while preserving the topic', async () => {
+  fixture.fontScale = 3;
+  fixture.platform = 'ios';
+  await act(async () => root.render(<MarketplaceScreen />));
+  await act(async () =>
+    (
+      element.querySelector('[data-testid="marketplace-featured-writing"]') as HTMLButtonElement
+    ).click(),
+  );
+  await act(async () => button(t.marketplace.newest).click());
+  const last = new URL(String(fixture.fetch.mock.calls.at(-1)![0]));
+  expect(button(t.marketplace.newest).getAttribute('aria-checked')).toBe('true');
+  expect(last.searchParams.get('sort')).toBe('created');
+  expect(last.searchParams.get('topic')).toBe('writing');
 });
