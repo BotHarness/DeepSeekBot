@@ -11,10 +11,12 @@ import { t } from '../strings';
 export function ComputerScrollPad({
   enabled,
   compact,
+  toolbar = false,
   onScroll,
 }: {
   enabled: boolean;
   compact: boolean;
+  toolbar?: boolean;
   onScroll(axis: 'horizontal' | 'vertical', steps: number): void;
 }) {
   const theme = useDesignTheme();
@@ -87,7 +89,7 @@ export function ComputerScrollPad({
         style={{
           flex: 1,
           minWidth: theme.touch,
-          minHeight: theme.touch * (compact ? 1.25 : 1.5),
+          minHeight: theme.touch * (toolbar ? 1 : compact ? 1.25 : 1.5),
           borderRadius: radius.md,
           backgroundColor: colors.fill,
           alignItems: 'center',

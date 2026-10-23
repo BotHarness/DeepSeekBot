@@ -1,5 +1,5 @@
 import { Host } from '@expo/ui';
-import { Button, HStack, Image, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, Menu, RNHostView, Text, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonBorderShape,
@@ -8,7 +8,10 @@ import {
   disabled,
   font,
   frame,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
+import { View } from 'react-native';
+import { ComputerScrollPad } from './computer-scroll-pad';
 import type { ComponentProps } from 'react';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -51,6 +54,7 @@ function Control({
         ),
         buttonBorderShape(symbol ? 'circle' : 'capsule'),
         controlSize('regular'),
+        tint(prominent ? theme.color.accent : theme.color.fg),
         disabled(action.disabled),
         accessibilityLabel(action.label),
         frame({ minHeight: theme.touch }),
@@ -78,22 +82,47 @@ function Control({
 export function ComputerVideoControls({
   control,
   pointer,
+  keyboard,
   reset,
   recovery,
 }: {
   control: Action;
-  pointer?: { disabled: boolean; left(): void; right(): void };
+  pointer?: {
+    disabled: boolean;
+    left(): void;
+    right(): void;
+    scroll(axis: 'horizontal' | 'vertical', steps: number): void;
+  };
+  keyboard?: Action & { open: boolean };
   reset?: () => void;
   recovery?: Action;
 }) {
   const theme = useDesignTheme();
-  const primary = <Control testID="computer-video-control" action={control} prominent />;
+  const glass = useLiquidGlass();
+  const primary = (
+    <Control
+      testID="computer-video-control"
+      action={control}
+      symbol={pointer ? 'hand.raised.fill' : 'hand.raised'}
+      prominent
+    />
+  );
   const clicks = pointer ? (
     <>
       <Control
         testID="computer-video-click"
         action={{ label: t.computerLeftClick, disabled: pointer.disabled, onPress: pointer.left }}
       />
+      <RNHostView matchContents>
+        <View style={{ width: theme.touch * 1.25, height: theme.touch }}>
+          <ComputerScrollPad
+            enabled={!pointer.disabled}
+            compact
+            toolbar
+            onScroll={pointer.scroll}
+          />
+        </View>
+      </RNHostView>
       <Control
         testID="computer-video-right-click"
         action={{ label: t.computerRightClick, disabled: pointer.disabled, onPress: pointer.right }}
@@ -102,15 +131,59 @@ export function ComputerVideoControls({
   ) : null;
   const utilities = (
     <>
-      {reset ? (
+      {keyboard ? (
         <Control
-          testID="computer-video-reset"
-          symbol="arrow.up.left.and.arrow.down.right"
-          action={{ label: t.computerVideoReset, disabled: false, onPress: reset }}
+          testID="computer-video-keyboard"
+          symbol={keyboard.open ? 'keyboard.chevron.compact.down' : 'keyboard'}
+          action={keyboard}
         />
       ) : null}
-      {recovery ? (
-        <Control testID="computer-video-reconnect" symbol="arrow.clockwise" action={recovery} />
+      {reset || recovery ? (
+        <Menu
+          testID="computer-video-more"
+          label={
+            <Image
+              systemName="ellipsis"
+              size={theme.type.title.line}
+              modifiers={[
+                frame({ minWidth: theme.touch - space.x4, minHeight: theme.touch - space.x4 }),
+              ]}
+            />
+          }
+          modifiers={[
+            buttonStyle(glass ? 'glass' : 'bordered'),
+            buttonBorderShape('circle'),
+            tint(theme.color.fg),
+            accessibilityLabel(t.computerVideoMore),
+            frame({ minHeight: theme.touch }),
+          ]}
+        >
+          {reset ? (
+            <Button
+              testID="computer-video-reset"
+              label={t.computerVideoReset}
+              systemImage="arrow.up.left.and.arrow.down.right"
+              onPress={() => {
+                haptic('selection');
+                reset();
+              }}
+            />
+          ) : null}
+          {recovery ? (
+            <Button
+              testID="computer-video-reconnect"
+              label={recovery.label}
+              systemImage="arrow.clockwise"
+              modifiers={[disabled(recovery.disabled)]}
+              onPress={() => {
+                if (!recovery.disabled) {
+                  haptic('selection');
+                  recovery.onPress();
+                }
+              }}
+            />
+          ) : null}
+        </Menu>
       ) : null}
     </>
   );
@@ -129,7 +202,7 @@ export function ComputerVideoControls({
           {clicks ? <HStack spacing={space.x3}>{clicks}</HStack> : null}
         </VStack>
       ) : (
-        <HStack spacing={space.x3} modifiers={[frame({ maxWidth: Infinity })]}>
+        <HStack spacing={space.x2} modifiers={[frame({ maxWidth: Infinity })]}>
           {primary}
           {clicks}
           {utilities}
