@@ -1,4 +1,23 @@
 import type { DesktopInput } from '../../../../packages/computer/src/desktop-view';
+import { fittedFrame, stagePoint, type StageLayout, type StageZoom } from './browser-viewer';
+
+export function videoPointerPosition({
+  point,
+  frame,
+  stage,
+  zoom,
+}: {
+  point: { x: number; y: number };
+  frame: { width: number; height: number };
+  stage: StageLayout;
+  zoom: StageZoom;
+}): { x: number; y: number } {
+  'worklet';
+  return stagePoint(point, frame, stage, {
+    ...zoom,
+    y: zoom.y - fittedFrame(frame, stage).top,
+  });
+}
 
 export function videoPointerClick({
   point,

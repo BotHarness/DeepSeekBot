@@ -2,45 +2,43 @@ import { useState, type ReactNode } from 'react';
 import { View, type LayoutChangeEvent, type ViewInstance } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  ReduceMotion,
-  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
-  withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { fittedFrame, moveCursor, stagePoint } from '../../host/browser-viewer';
+import { fittedFrame, moveCursor, type StageZoom } from '../../host/browser-viewer';
+import { videoPointerPosition } from '../../host/local-video-pointer';
 import { pointer } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
-import { pinchZoom, settleZoom, type Size } from './zoom-math';
+import { pinchZoom, type Size } from './zoom-math';
 
 type Point = { x: number; y: number };
-const SPRING = { duration: 400, dampingRatio: 1, reduceMotion: ReduceMotion.System };
 const TAP_SLOP = 10;
 
 export function ComputerVideoStage({
   frame,
   driving,
+  controlling,
   cursor,
+  preview,
   onClick,
   children,
 }: {
   frame: Size;
   driving: boolean;
+  controlling: boolean;
   cursor: SharedValue<Point>;
+  preview: SharedValue<StageZoom>;
   onClick(point: Point, button: 'left' | 'right'): void;
   children(size: Size): ReactNode;
 }) {
   const theme = useDesignTheme();
   const [stage, setStage] = useState({ width: 0, height: 0 });
-  const scale = useSharedValue(1);
-  const x = useSharedValue(0);
-  const y = useSharedValue(0);
   const origin = useSharedValue({ scale: 1, x: 0, y: 0, focalX: 0, focalY: 0 });
   const panOrigin = useSharedValue({ x: 0, y: 0 });
   const cursorOrigin = useSharedValue({ x: 0, y: 0 });
@@ -49,48 +47,28 @@ export function ComputerVideoStage({
   const fit = fittedFrame(frame, stage);
   const pointerSize = theme.touch * 0.75;
   const mount = useMounted<ViewInstance>(() => {
-    scale.set(1);
-    x.set(0);
-    y.set(0);
+    preview.set({ scale: 1, x: 0, y: 0 });
     cursor.set({ x: frame.width / 2, y: frame.height / 2 });
   }, [frame.width, frame.height]);
 
-  const stopAnimation = () => {
-    'worklet';
-    cancelAnimation(scale);
-    cancelAnimation(x);
-    cancelAnimation(y);
-  };
-
   const layout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
+    if (width === stage.width && height === stage.height) return;
     setStage({ width, height });
-    scale.set(1);
-    x.set(0);
-    y.set(0);
-    cursor.set({ x: frame.width / 2, y: frame.height / 2 });
-  };
-  const zoom = () => {
-    'worklet';
-    return { scale: scale.get(), x: x.get(), y: y.get() };
-  };
-  const settle = () => {
-    'worklet';
-    const next = settleZoom(zoom(), fit, stage);
-    scale.set(withSpring(next.scale, SPRING));
-    x.set(withSpring(next.x, SPRING));
-    y.set(withSpring(next.y, SPRING));
+    if (width !== stage.width) {
+      preview.set({ scale: 1, x: 0, y: 0 });
+      cursor.set({ x: frame.width / 2, y: frame.height / 2 });
+    }
   };
 
   const pinch = Gesture.Pinch()
     .onStart((event) => {
-      stopAnimation();
       pinching.set(true);
       pinched.set(true);
       origin.set({
-        ...zoom(),
+        ...preview.get(),
         focalX: event.focalX - stage.width / 2,
-        focalY: event.focalY - stage.height / 2,
+        focalY: event.focalY - fit.height / 2,
       });
     })
     .onUpdate((event) => {
@@ -98,38 +76,34 @@ export function ComputerVideoStage({
         origin.get(),
         {
           x: event.focalX - stage.width / 2,
-          y: event.focalY - stage.height / 2,
+          y: event.focalY - fit.height / 2,
         },
         event.scale,
       );
-      scale.set(next.scale);
-      x.set(next.x);
-      y.set(next.y);
+      preview.set(next);
     })
     .onFinalize(() => {
-      if (!pinching.get()) return;
       pinching.set(false);
-      settle();
     });
 
   const previewPan = Gesture.Pan()
     .minPointers(2)
     .averageTouches(true)
     .onStart(() => {
-      stopAnimation();
       pinched.set(pinching.get());
-      panOrigin.set({ x: x.get(), y: y.get() });
+      panOrigin.set({ x: preview.get().x, y: preview.get().y });
     })
     .onUpdate((event) => {
       if (pinched.get()) return;
-      x.set(panOrigin.get().x + event.translationX);
-      y.set(panOrigin.get().y + event.translationY);
-    })
-    .onFinalize(() => {
-      if (!pinched.get()) settle();
+      preview.set({
+        scale: preview.get().scale,
+        x: panOrigin.get().x + event.translationX,
+        y: panOrigin.get().y + event.translationY,
+      });
     });
 
   const trackpad = Gesture.Pan()
+    .enabled(controlling)
     .maxPointers(1)
     .minDistance(TAP_SLOP)
     .onStart(() => {
@@ -145,12 +119,13 @@ export function ComputerVideoStage({
           },
           frame,
           stage,
-          zoom(),
+          preview.get(),
         ),
       );
     });
 
   const tap = Gesture.Tap()
+    .enabled(driving)
     .onTouchesDown((event, manager) => {
       if (event.numberOfTouches > 1) manager.fail();
     })
@@ -159,6 +134,7 @@ export function ComputerVideoStage({
       if (success && driving) scheduleOnRN(onClick, cursor.get(), 'left');
     });
   const rightClick = Gesture.LongPress()
+    .enabled(driving)
     .numberOfPointers(1)
     .onTouchesDown((event, manager) => {
       if (event.numberOfTouches > 1) manager.fail();
@@ -172,12 +148,13 @@ export function ComputerVideoStage({
     previewPan,
     Gesture.Race(trackpad, Gesture.Exclusive(rightClick, tap)),
   );
-  const pictureStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: x.get() }, { translateY: y.get() }, { scale: scale.get() }],
-  }));
+  const pictureStyle = useAnimatedStyle(() => {
+    const { x, y, scale } = preview.get();
+    return { transform: [{ translateX: x }, { translateY: y }, { scale }] };
+  });
   const cursorStyle = useAnimatedStyle(() => {
     if (frame.width <= 0 || frame.height <= 0) return { opacity: 0 };
-    const at = stagePoint(cursor.get(), frame, stage, zoom());
+    const at = videoPointerPosition({ point: cursor.get(), frame, stage, zoom: preview.get() });
     return {
       opacity: frame.width > 0 && frame.height > 0 ? 1 : 0,
       transform: [{ translateX: at.x - pointerSize / 8 }, { translateY: at.y - pointerSize / 8 }],
@@ -192,9 +169,8 @@ export function ComputerVideoStage({
         onLayout={layout}
         accessible
         accessibilityLabel={t.computerVideoTrackpad}
-        accessibilityHint={t.computerVideoTrackpadHint}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: !driving }}
+        accessibilityHint={controlling ? t.computerVideoTrackpadHint : t.computerVideoPreviewHint}
+        accessibilityRole={controlling ? 'button' : 'image'}
         accessibilityActions={
           driving
             ? [
@@ -214,16 +190,18 @@ export function ComputerVideoStage({
       >
         <Animated.View
           pointerEvents="none"
-          style={[{ position: 'absolute', ...fit }, pictureStyle]}
+          style={[{ position: 'absolute', ...fit, top: 0 }, pictureStyle]}
         >
           {children(fit)}
         </Animated.View>
-        <Animated.View
-          pointerEvents="none"
-          style={[{ position: 'absolute', left: 0, top: 0 }, cursorStyle]}
-        >
-          <PointerArrow size={pointerSize} fill={pointer.fill} rim={pointer.rim} />
-        </Animated.View>
+        {controlling ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[{ position: 'absolute', left: 0, top: 0 }, cursorStyle]}
+          >
+            <PointerArrow size={pointerSize} fill={pointer.fill} rim={pointer.rim} />
+          </Animated.View>
+        ) : null}
       </View>
     </GestureDetector>
   );

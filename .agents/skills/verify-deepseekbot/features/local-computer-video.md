@@ -31,10 +31,14 @@ Use the [Windows device queue](../../../../docs/agents/android-device-qa.md); th
 
 ## Gotchas
 
-- Android touch follow-up (#2559): one finger moves the local large arrow; tap and the
+- Android touch follow-up (#2559): only while controlling, show the local large arrow and
+  icon + Left/Right buttons. One finger moves the arrow; tap and the
   left/right buttons click that cursor only with live media and the current control grant.
   Long press right-clicks. Two fingers pinch and pan only the phone preview, even while
-  observing; they never scroll or click the remote desktop. Verify zoomed clicks against
+  observing; the observer surface is not disabled and has no mouse or click buttons.
+  Preview starts at the top, keeps its free pan/zoom on finger release and restores the
+  default fit/top only with Reset view. Showing/hiding buttons must preserve the view.
+  These operations never scroll or click the remote desktop. Verify zoomed clicks against
   a harmless fixture, then release/resume and confirm disabled buttons send no input.
   Rotate/change the stage size and reconnect to verify preview and cursor reset. Capture
   matched before/after states and reachable light/dark large-text controls on the actual

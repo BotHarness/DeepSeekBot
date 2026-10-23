@@ -1,11 +1,43 @@
 import { describe, expect, it } from 'vitest';
 
 import { moveCursor, stagePoint } from '../src/host/browser-viewer';
-import { videoPointerClick } from '../src/host/local-video-pointer';
+import { videoPointerClick, videoPointerPosition } from '../src/host/local-video-pointer';
 
 describe('native video trackpad', () => {
   const frame = { width: 2560, height: 1440 };
   const portrait = { width: 400, height: 700 };
+
+  it('places the canvas at the top and keeps a freely panned, zoomed cursor aligned', () => {
+    expect(
+      videoPointerPosition({
+        point: { x: 0, y: 0 },
+        frame,
+        stage: portrait,
+        zoom: { scale: 1, x: 0, y: 0 },
+      }),
+    ).toEqual({ x: 0, y: 0 });
+    const cursor = moveCursor({ x: 1280, y: 720 }, { x: 50, y: -25 }, frame, portrait, {
+      scale: 2,
+      x: 40,
+      y: -20,
+    });
+    expect(
+      videoPointerPosition({
+        point: cursor,
+        frame,
+        stage: portrait,
+        zoom: { scale: 2, x: 40, y: -20 },
+      }),
+    ).toEqual({ x: 290, y: 67.5 });
+    expect(
+      videoPointerPosition({
+        point: { x: 1280, y: 720 },
+        frame,
+        stage: portrait,
+        zoom: { scale: 0.7, x: -120, y: 360 },
+      }),
+    ).toEqual({ x: 80, y: 472.5 });
+  });
 
   it('clicks the local cursor after a zoomed trackpad movement', () => {
     const zoom = { scale: 2, x: 40, y: -20 };

@@ -20,14 +20,17 @@ Carrier decision and evidence: [ADR-0200](../../docs/adr/0200-the-mobile-app-rea
 
 ## Android Local Computer video controls
 
-The native Windows → Android video viewer opens in trackpad mode. Swipe one finger to move
-the large local arrow, then tap to left-click at that arrow. The left/right buttons and a
-long press act at the same cursor. Remote clicks require **Take control**, a current grant
+The native Windows → Android video viewer opens as an observer, with no mouse or click buttons.
+After **Take control**, swipe one finger to move the large local arrow, then tap to left-click
+at that arrow. The icon + **Left** / **Right** buttons and a long press act at the same cursor.
+Remote clicks require **Take control**, a current grant
 and live video; observing and moving the local arrow do not pause Bots.
 
 Use two fingers to pinch and pan the phone preview, while watching or controlling. This does
-not scroll or drag the remote desktop. Preview scaling uses the current display geometry;
-layout/display changes and reconnect reset the preview and cursor. **Release control** keeps
+not scroll or drag the remote desktop. The canvas starts at the top and keeps its zoom and
+position when fingers lift, including below fit size. **Reset view** restores its default fit
+and top position without remote input. Showing/hiding control buttons preserves the preview;
+width/display changes and reconnect reset the preview and cursor. **Release control** keeps
 Bots paused; **Resume Bots** is a separate action. Keyboard/IME and direct-touch parity remain
 tracked in [#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559).
 
