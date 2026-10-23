@@ -261,7 +261,6 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         style={{
           flex: 1,
           paddingTop: insets.top + theme.touch + space.x3,
-          paddingBottom: insets.bottom,
           paddingLeft: insets.left,
           paddingRight: insets.right,
           backgroundColor: computerCanvas.background,
@@ -346,7 +345,11 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         <ScrollView
           keyboardShouldPersistTaps="always"
           style={{ flexShrink: 1, flexGrow: 0 }}
-          contentContainerStyle={{ padding: space.x3, gap: space.x2 }}
+          contentContainerStyle={{
+            padding: space.x3,
+            paddingBottom: space.x3 + (keyboardOpen ? 0 : insets.bottom),
+            gap: space.x2,
+          }}
         >
           {message ? (
             <Text
