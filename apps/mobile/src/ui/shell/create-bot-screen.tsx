@@ -17,6 +17,7 @@ import { EnvironmentPicker } from '../primitives/environment-picker';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
 import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
+import { t } from '../strings';
 
 export function CreateBotScreen() {
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
@@ -109,7 +110,9 @@ export function CreateBotScreen() {
       >
         {state.error ? (
           <Text accessibilityRole="alert" selectable>
-            {creationError(state.error)}
+            {state.error === 'git-source-changed' && draft?.source?.origin === 'marketplace'
+              ? t.marketplace.stale
+              : creationError(state.error)}
           </Text>
         ) : null}
         {!state.loaded || !entryReady ? (
@@ -124,18 +127,48 @@ export function CreateBotScreen() {
                 void (source ? botCreation.blank() : botCreation.beginImport({ gitUrl: '' }))
               }
             />
+            <Button
+              label={t.marketplace.browse}
+              testID="create-bot-marketplace"
+              disabled={state.busy}
+              onPress={() =>
+                router.push({
+                  pathname: '/marketplace',
+                  params: draft.hostId ? { entry: 'host', hostId: draft.hostId } : { entry: 'all' },
+                })
+              }
+            />
             {draft.source ? (
               <>
                 <Text strong>{copy.gitUrl}</Text>
-                <TextField
-                  testID="import-bot-git-url"
-                  accessibilityLabel={copy.gitUrl}
-                  value={draft.source.gitUrl}
-                  onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
-                  editable={!state.busy}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+                {draft.source.origin === 'marketplace' ? (
+                  <>
+                    <Text selectable>{draft.source.gitUrl}</Text>
+                    {draft.source.listingId ? (
+                      <Button
+                        label={t.marketplace.refreshListing}
+                        testID="import-bot-refresh-listing"
+                        disabled={state.busy}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/marketplace-bot',
+                            params: { id: draft.source!.listingId!, entry: 'refresh' },
+                          })
+                        }
+                      />
+                    ) : null}
+                  </>
+                ) : (
+                  <TextField
+                    testID="import-bot-git-url"
+                    accessibilityLabel={copy.gitUrl}
+                    value={draft.source.gitUrl}
+                    onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
+                    editable={!state.busy}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                )}
               </>
             ) : null}
             <Text strong>{copy.destination}</Text>

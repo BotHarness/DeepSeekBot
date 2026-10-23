@@ -1,4 +1,4 @@
-# Native Bot creation and Git import
+# Native Bot creation, Marketplace and Git import
 
 A Human creates a blank Bot on a chosen paired Host. The phone retains the exact creation operation before sending it; reconnecting recovers the original PersonaBot and Human DM.
 
@@ -12,6 +12,7 @@ Git import uses the same target, confirmation, operation record and completion p
 - `completion`: active progress opens the new DM on its Host; leaving progress retains an Open Bot action without taking over navigation.
 - `refusal`: unsupported Hosts refuse before mutation; unavailable/revoked targets, changed input and archived results never fall back to another Host or fresh operation.
 - `git`: a Git link, confirmed commit and editable name/Bio/tags produce one ordinary Bot with the imported personality; retry preserves its source, identity and DM.
+- `marketplace`: browse the public catalogue before choosing a Host; native search, topics, details and README retain the selected listing and reviewed commit through confirmation.
 
 ## How to get to it (user POV)
 
@@ -35,6 +36,9 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 8. Check English and Chinese, light/dark, default/intermediate/maximum text size, real keyboard focus changes, multiline growth, accessible control names and reachable actions. Capture matched PNG/XML and the actual create/recovery interactions. Preserve the Human's settings, pairings and data.
 9. Choose Git import with a task-owned fixture repository. Enter its link, edit name/Bio/tags, switch target before submission and verify every field remains. Confirm the source and create on B. Compare imported personality, ordinary identity and original DM through the Host CLI. Reopen after losing the accepted response; retry must preserve the same identity and pinned commit without a second Bot.
 10. Advance the controlled Git fixture after source confirmation. A still-pending import must refuse changed source rather than use the new commit. A previously completed import must return its original result even if the repository is later unavailable. Record these as separate branches; do not change the saved operation to make recovery pass.
+11. Open Browse Marketplace from Create Bot with no paired Host, then with paired Hosts offline and phone Internet reachable. Search, sort and filter by topic; open details and follow a relative README link. Test empty results, failed refresh with cached content, a removed listing and catalogue identity mismatch. Failed or mismatched details must not enable import.
+12. Choose Import from a listing. All requires a target; scoped A inherits A. Edit name/Bio/tags, switch to B, confirm and create through the Git journey. Repeat without pairing: retain the listing draft, pair, return and explicitly submit. After acknowledged completion, an explicit additional import creates a new operation; unresolved work cannot be replaced.
+13. Refresh an outdated listing explicitly from confirmation, review the new source and return. Preserve edited metadata and target for the same draft. Fresh All browsing still requires a target choice. Verify virtualized search and topic selection with a real keyboard, maximum text, both themes and native Back/dismissal on each platform.
 
 Pair visible evidence with CLI `create-status` using the saved operation key and exact submitted input, canonical Bot/DM reads, and bounded redacted transport logs. Source tests cover deterministic lost-response and storage-failure branches; do not report those as native fault-injection results unless actually driven.
 

@@ -16,6 +16,7 @@ const TableRow = memo(function TableRow({
   header,
   last,
   renderCell,
+  onOpenLink,
 }: {
   cells: string;
   widths: string;
@@ -24,6 +25,7 @@ const TableRow = memo(function TableRow({
   header: boolean;
   last: boolean;
   renderCell?: ((tokens: Token[], heading: boolean) => ReactNode) | undefined;
+  onOpenLink?: ((url: string) => void) | undefined;
 }) {
   const theme = useDesignTheme();
   const values: Tokens.TableCell[] = useMemo(() => JSON.parse(cells), [cells]);
@@ -60,7 +62,13 @@ const TableRow = memo(function TableRow({
               style={{ color, textAlign: alignment[index] ?? 'left' }}
               {...(header ? { accessibilityRole: 'header' as const } : {})}
             >
-              {renderMarkdownInline(values[index]?.tokens ?? [], theme)}
+              {renderMarkdownInline(
+                values[index]?.tokens ?? [],
+                theme,
+                false,
+                undefined,
+                onOpenLink,
+              )}
             </Text>
           )}
         </View>
@@ -73,10 +81,12 @@ export function MarkdownTable({
   table,
   color,
   renderCell,
+  onOpenLink,
 }: {
   table: Tokens.Table;
   color: string;
   renderCell?: ((tokens: Token[], heading: boolean) => ReactNode) | undefined;
+  onOpenLink?: ((url: string) => void) | undefined;
 }) {
   const theme = useDesignTheme();
   const widths = JSON.stringify(
@@ -112,6 +122,7 @@ export function MarkdownTable({
           align={align}
           color={color}
           renderCell={renderCell}
+          onOpenLink={onOpenLink}
           header
           last={table.rows.length === 0}
         />
@@ -123,6 +134,7 @@ export function MarkdownTable({
             align={align}
             color={color}
             renderCell={renderCell}
+            onOpenLink={onOpenLink}
             header={false}
             last={index === table.rows.length - 1}
           />

@@ -20,6 +20,7 @@ export function MarkdownText({
   reveal = false,
   nativeReveal = nativeStreamReveal,
   renderInlineBlock,
+  onOpenLink,
 }: {
   tokens: Token[];
   color: string;
@@ -27,6 +28,7 @@ export function MarkdownText({
   reveal?: boolean;
   nativeReveal?: boolean;
   renderInlineBlock?(tokens: Token[], heading: boolean): ReactNode;
+  onOpenLink?: ((url: string) => void) | undefined;
 }) {
   const theme = useDesignTheme();
   const visible = (entries: Token[]) =>
@@ -39,7 +41,13 @@ export function MarkdownText({
     if (token.type === 'space' || token.type === 'def' || token.type === 'checkbox') return null;
     if (isMarkdownTable(token))
       return (
-        <MarkdownTable key={index} table={token} color={color} renderCell={renderInlineBlock} />
+        <MarkdownTable
+          key={index}
+          table={token}
+          color={color}
+          renderCell={renderInlineBlock}
+          onOpenLink={onOpenLink}
+        />
       );
     if (token.type === 'hr')
       return (
@@ -151,7 +159,7 @@ export function MarkdownText({
       >
         {children === undefined
           ? decodeHTML(text)
-          : renderMarkdownInline(children, theme, animate && !nativeReveal)}
+          : renderMarkdownInline(children, theme, animate && !nativeReveal, undefined, onOpenLink)}
       </Text>
     );
     return nativeReveal ? (
