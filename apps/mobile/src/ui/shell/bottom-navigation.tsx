@@ -127,7 +127,9 @@ function ScopedNavigationBar({
   const targets = creationTargets(
     saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
     directory.workspaces,
-  ).map((target) => (target.kind === 'computer' ? { ...target, channelCreation: false } : target));
+  ).map((target) =>
+    target.kind === 'computer' ? { ...target, channelCreation: Platform.OS === 'android' } : target,
+  );
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
@@ -181,6 +183,14 @@ function ScopedNavigationBar({
                 : '/create-bot',
         params:
           target?.kind === 'computer' ? { entry: 'host', hostId: target.hostId } : { entry: 'all' },
+      });
+      return;
+    }
+    if (action === 'channel' && target?.kind !== 'cloud' && Platform.OS === 'android') {
+      router.push({
+        pathname: '/create-channel',
+        params:
+          scope === 'all' || !target ? { entry: 'all' } : { entry: 'host', hostId: target.hostId },
       });
       return;
     }

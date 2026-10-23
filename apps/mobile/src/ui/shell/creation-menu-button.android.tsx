@@ -61,7 +61,9 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
                         },
                       ]
                     : []),
-                  ...(parent?.children ?? creationMenuItems(props)).map((item) => ({
+                  ...(
+                    parent?.children ?? creationMenuItems({ ...props, nativeChannelForm: true })
+                  ).map((item) => ({
                     key: item.key,
                     label: item.label,
                     testID: `creation-${item.key}`,
@@ -70,9 +72,9 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
                       <MenuIcon
                         icon={
                           parent
-                            ? item.target?.kind === 'computer'
-                              ? 'computer'
-                              : 'cloud'
+                            ? item.target?.kind === 'cloud'
+                              ? 'cloud'
+                              : 'computer'
                             : item.action
                         }
                         color={theme.color.muted}

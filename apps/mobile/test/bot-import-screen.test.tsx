@@ -6,6 +6,7 @@ import { createBotCreationController, type BotCreationOperation } from '../src/h
 
 const fixture = vi.hoisted(() => ({
   routeReady: true,
+  android: false,
   open: vi.fn(),
   create: vi.fn(),
   hosts: [
@@ -40,6 +41,12 @@ vi.mock('../src/ui/primitives/sheet-content', () => ({
 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
+  Platform: {
+    get OS() {
+      return fixture.android ? 'android' : 'web';
+    },
+    select: () => undefined,
+  },
   AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
 }));
 vi.mock('expo-router', () => ({
@@ -74,6 +81,10 @@ vi.mock('../src/ui/primitives/keyboard-form', () => ({
   KeyboardFormScroll: ({ children }: { children: ReactNode }) =>
     createElement('div', null, children),
 }));
+vi.mock('../src/ui/primitives/creation-form', () => ({
+  CreationForm: ({ nativeDialog, children }: { nativeDialog?: boolean; children: ReactNode }) =>
+    createElement('section', { role: nativeDialog ? 'dialog' : undefined }, children),
+}));
 vi.mock('../src/ui/shell/open-created-bot', () => ({ openCreatedBot: fixture.open }));
 import { CreateBotScreen } from '../src/ui/shell/create-bot-screen';
 import { t } from '../src/ui/strings';
@@ -85,6 +96,7 @@ afterEach(() => {
   act(() => root?.unmount());
   element?.remove();
   fixture.routeReady = true;
+  fixture.android = false;
 });
 
 it('shows source, editable confirmation data and target together, then requires preview before import', async () => {
@@ -127,4 +139,27 @@ it('does not enter the creation flow before the native route is presented', asyn
   await act(async () => root.render(<CreateBotScreen initialSource="zip" />));
   expect(element.textContent).not.toBe('');
   enter.mockRestore();
+});
+
+it('keeps Marketplace progress in its existing page when reopening a submitted import on Android', async () => {
+  await controller.another('A');
+  await controller.beginImport({
+    gitUrl: 'https://github.com/a/b',
+    displayName: 'Marketplace Bot',
+    origin: 'marketplace',
+    listingId: 'sample',
+    expectedCommit: 'a'.repeat(40),
+  });
+  await controller.preview();
+  await controller.submit();
+  expect(controller.getSnapshot().record).toMatchObject({
+    kind: 'submitted',
+    operation: { source: { origin: 'marketplace' } },
+  });
+  fixture.android = true;
+  element = document.createElement('div');
+  document.body.append(element);
+  root = createRoot(element);
+  await act(async () => root.render(<CreateBotScreen initialSource="git" />));
+  expect(element.querySelector('[role="dialog"]')).toBeNull();
 });

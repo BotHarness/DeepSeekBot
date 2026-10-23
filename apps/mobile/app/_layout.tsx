@@ -10,6 +10,7 @@ import { usePushRouting } from '../src/host/push-routing';
 import { HostDrawer, WorkspaceButton } from '../src/ui/shell/host-drawer';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
+import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
@@ -51,6 +52,20 @@ function RootNavigator() {
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                {Platform.OS === 'android'
+                  ? ['create-bot', 'import-bot-git', 'create-channel'].map((name) => (
+                      <Stack.Screen
+                        key={name}
+                        name={name}
+                        options={{
+                          headerShown: false,
+                          presentation: 'transparentModal',
+                          animation: 'none',
+                          contentStyle: { backgroundColor: 'transparent' },
+                        }}
+                      />
+                    ))
+                  : null}
                 <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
                 <Stack.Screen name="channel/[id]" options={{ title: '' }} />
                 <Stack.Screen
@@ -164,6 +179,7 @@ function RootNavigator() {
               </Stack>
             </View>
             <BotCreationNotice />
+            <ChannelCreationNotice />
             <StatisticsNotice />
             <HostDrawer />
             <AppDialogHost />

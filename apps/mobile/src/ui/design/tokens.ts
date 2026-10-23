@@ -237,3 +237,5 @@ export const marketplaceArt = {
   profileOverlap: 32,
   menuWidth: 360,
 } as const;
+
+export const formDialog = { contentHeightFraction: 0.55 } as const;
