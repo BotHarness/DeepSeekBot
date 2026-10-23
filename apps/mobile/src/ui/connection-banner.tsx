@@ -26,9 +26,11 @@ export function ConnectionBanner({
           ? t.unreachable
           : t.refused;
   const detail =
-    connection.status === 'unreachable' || connection.status === 'refused'
-      ? connection.reason
-      : undefined;
+    connection.status === 'refused'
+      ? t.deviceRefusal[connection.code]
+      : connection.status === 'unreachable'
+        ? connection.reason
+        : undefined;
   return (
     <View
       accessibilityRole="alert"

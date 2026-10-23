@@ -1,3 +1,4 @@
+import type { DeviceRefusal } from '../host/client';
 import type { PairingFailure } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
@@ -394,6 +395,11 @@ const en = {
   reconnecting: 'Reconnecting…',
   unreachable: 'Cannot reach your computer',
   refused: 'Your computer refused this app',
+  deviceRefusal: {
+    'device-revoked': 'This phone was removed from the paired devices on your computer.',
+    'device-unknown': 'Your computer no longer knows this phone.',
+    'device-credential-missing': 'This phone has no pairing for your computer.',
+  } satisfies Record<DeviceRefusal, string>,
   pairAgain: 'Pair again',
   retry: 'Retry',
   tried: 'Tried',
@@ -1648,6 +1654,11 @@ const zh: typeof en = {
   reconnecting: '正在重新连接…',
   unreachable: '无法连接到你的电脑',
   refused: '你的电脑拒绝了这个应用',
+  deviceRefusal: {
+    'device-revoked': '电脑已将这台手机从配对设备中移除。',
+    'device-unknown': '电脑已不再识别这台手机。',
+    'device-credential-missing': '这台手机尚未与你的电脑配对。',
+  } satisfies Record<DeviceRefusal, string>,
   pairAgain: '重新配对',
   retry: '重试',
   tried: '尝试的地址',
