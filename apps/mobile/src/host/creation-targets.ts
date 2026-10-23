@@ -5,7 +5,7 @@ import {
   conversationEnvironments,
 } from './conversation-environments';
 
-export type CreationAction = 'channel' | 'bot' | 'invite' | 'join';
+export type CreationAction = 'channel' | 'bot' | 'zip' | 'marketplace' | 'git' | 'invite' | 'join';
 export type CreationTarget =
   | { kind: 'computer'; key: string; hostId: string; name: string; channelCreation?: boolean }
   | { kind: 'cloud'; key: string; name: string; workspace: ConversationWorkspace };
@@ -51,7 +51,7 @@ export function targetsFor(
     (target) =>
       (scope === 'all' || target.key === scope) &&
       ((action === 'channel' && (target.kind !== 'computer' || target.channelCreation !== false)) ||
-        (action === 'bot' && target.kind === 'computer') ||
+        (['bot', 'zip', 'marketplace', 'git'].includes(action) && target.kind === 'computer') ||
         (action === 'invite' && target.kind === 'cloud')),
   );
 }
@@ -61,11 +61,13 @@ export function creationActions(
   targets: readonly CreationTarget[],
 ): CreationAction[] {
   const actions: CreationAction[] =
-    scope === 'all' ? ['channel', 'bot', 'join'] : ['channel', 'bot', 'invite'];
+    scope === 'all'
+      ? ['bot', 'zip', 'marketplace', 'git', 'channel', 'join']
+      : ['bot', 'zip', 'marketplace', 'git', 'channel', 'invite'];
   return actions.filter(
     (action) =>
       action === 'join' ||
-      (action === 'bot' && scope === 'all') ||
+      (['bot', 'zip', 'marketplace', 'git'].includes(action) && scope === 'all') ||
       targetsFor(action, scope, targets).length > 0,
   );
 }

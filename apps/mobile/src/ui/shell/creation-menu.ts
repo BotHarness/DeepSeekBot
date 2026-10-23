@@ -11,7 +11,10 @@ import { t } from '../strings';
 export const creationLabel = (action: CreationAction) =>
   ({
     channel: t.newChannel,
-    bot: t.newPersonaBot,
+    bot: t.botCreation.blank,
+    zip: t.botCreation.fromZip,
+    marketplace: t.marketplace.browse,
+    git: t.botCreation.fromGit,
     invite: t.invitePeople,
     join: t.cloudJoin.title,
   })[action];
@@ -37,7 +40,7 @@ export function useCreationMenu({
   const choices = choosing ? targetsFor(choosing, scope, targets) : [];
   const pick = (action: CreationAction) => {
     if (action === 'join') return onPick(action);
-    if (action === 'bot')
+    if (['bot', 'zip', 'marketplace', 'git'].includes(action))
       return onPick(action, scope === 'all' ? undefined : targetsFor(action, scope, targets)[0]);
     if (scope === 'all') return setChoosing(action);
     const target = targetsFor(action, scope, targets)[0];

@@ -195,3 +195,13 @@ export const scrim = {
   light: 0.32,
   dark: 0.6,
 } as const;
+
+export const marketplaceArt = {
+  aspectRatio: 3,
+  cardAvatar: 56,
+  profileAvatar: 88,
+  avatarEdge: 3,
+  cardOverlap: 20,
+  profileOverlap: 32,
+  menuWidth: 360,
+} as const;

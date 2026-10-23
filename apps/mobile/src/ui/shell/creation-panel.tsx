@@ -11,10 +11,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ReactNode } from 'react';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { marketplaceArt, radius, space } from '../design/tokens';
 import { NavigationMaterial } from './navigation-material';
 import { Text } from '../primitives/text';
 import { ComputerIcon, CloudIcon, PersonIcon, ChatsIcon, ShareIcon } from './icons';
+import { FileIcon, GitCommitIcon, BrowserIcon } from './icons';
 import { t } from '../strings';
 import { creationLabel, useCreationMenu, type CreationPanelProps } from './creation-menu';
 
@@ -54,12 +55,14 @@ export function CreationPanel({
             right: insets.right + space.x5,
             flexDirection: 'row',
             alignItems: 'flex-end',
+            justifyContent: 'flex-end',
             gap: space.x3,
           }}
         >
           <View
             style={{
               flex: 1,
+              maxWidth: marketplaceArt.menuWidth,
               maxHeight: height - bottom - insets.top - space.x5,
               borderRadius: radius.xl,
               overflow: 'hidden',
@@ -115,10 +118,21 @@ export function CreationPanel({
                 <View style={{ gap: space.x1 }}>
                   {actions.map((action) => {
                     const Icon =
-                      action === 'channel' ? ChatsIcon : action === 'bot' ? PersonIcon : ShareIcon;
+                      action === 'channel'
+                        ? ChatsIcon
+                        : action === 'bot'
+                          ? PersonIcon
+                          : action === 'zip'
+                            ? FileIcon
+                            : action === 'git'
+                              ? GitCommitIcon
+                              : action === 'marketplace'
+                                ? BrowserIcon
+                                : ShareIcon;
                     return (
                       <CreationMenuRow
                         key={action}
+                        testID={`creation-${action}`}
                         label={creationLabel(action)}
                         disabled={busy}
                         onPress={() => pick(action)}
@@ -141,11 +155,13 @@ export function CreationPanel({
 
 function CreationMenuRow({
   label,
+  testID,
   icon,
   disabled,
   onPress,
 }: {
   label: string;
+  testID?: string;
   icon?: ReactNode;
   disabled: boolean;
   onPress(): void;
@@ -153,6 +169,7 @@ function CreationMenuRow({
   const theme = useDesignTheme();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}

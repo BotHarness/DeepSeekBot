@@ -12,7 +12,6 @@ import {
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHostSession } from '../../host/host-session';
-import { botCreation } from '../../host/native-bot-creation';
 import { useConversationFilter } from '../../host/native-conversation-filter';
 import { useHostLook } from '../../host/native-host-look';
 import { useActivityCount } from '../../host/native-activity-count';
@@ -152,14 +151,17 @@ function ScopedNavigationBar({
       router.push('/cloud-join');
       return;
     }
-    if (action === 'bot') {
+    if (action === 'bot' || action === 'zip' || action === 'marketplace' || action === 'git') {
       close();
-      await botCreation.ready;
-      const previous = botCreation.getSnapshot().record;
-      if (previous.kind === 'submitted' && previous.acknowledged)
-        await botCreation.another(target?.kind === 'computer' ? target.hostId : '');
       router.push({
-        pathname: '/create-bot',
+        pathname:
+          action === 'marketplace'
+            ? '/marketplace'
+            : action === 'zip'
+              ? '/import-bot-zip'
+              : action === 'git'
+                ? '/import-bot-git'
+                : '/create-bot',
         params:
           target?.kind === 'computer' ? { entry: 'host', hostId: target.hostId } : { entry: 'all' },
       });

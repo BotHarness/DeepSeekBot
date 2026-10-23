@@ -34,6 +34,10 @@ vi.mock('react-native-keyboard-controller', () => ({
   KeyboardAwareScrollView: ({ children }: { children: ReactNode }) =>
     createElement('div', { 'data-keyboard-form': true }, children),
 }));
+vi.mock('expo-image', () => ({
+  Image: ({ testID, source }: { testID?: string; source: { uri: string } }) =>
+    createElement('img', { 'data-testid': testID, src: source.uri, alt: '' }),
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 34 }),
@@ -144,16 +148,13 @@ const button = (name: string) =>
 
 it('browses without a Host, changes sort and topics, then carries All to the detail page', async () => {
   await act(async () => root.render(<MarketplaceScreen />));
-  expect(
-    element
-      .querySelector(`[aria-label="${t.marketplace.search}"]`)
-      ?.closest('[data-keyboard-form]'),
-  ).not.toBeNull();
   expect(element.querySelectorAll('[data-keyboard-form]')).toHaveLength(1);
+  expect(element.querySelectorAll('[data-testid="marketplace-banner"]')).toHaveLength(1);
+  expect(element.querySelectorAll('[data-testid="marketplace-avatar"]')).toHaveLength(1);
+  await act(async () => button(t.marketplace.filters).click());
   expect(element.textContent).toContain('Writer');
   await act(async () => button(t.marketplace.popular).click());
   expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('sort=stars'))).toBe(true);
-  await act(async () => button(t.marketplace.allTopics).click());
   await act(async () => button('writing').click());
   expect(element.querySelector('[role="dialog"]')).toBeNull();
   expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('topic=writing'))).toBe(
