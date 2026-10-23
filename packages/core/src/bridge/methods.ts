@@ -35,6 +35,18 @@ import {
   type ChannelManagementResult,
 } from '../channels/management.js';
 import { botProfileFingerprint } from '../bots/profile-snapshot.js';
+import type {
+  BotZipImportService,
+  BotZipImportInput,
+  BotZipImportReference,
+  BotZipPreview,
+} from '../bots/zip-import.js';
+import {
+  BotZipUploadError,
+  type BotZipUploadIdentity,
+  type BotZipUploadStatus,
+} from '../bots/zip-upload.js';
+import { ZipArchiveError } from '../bots/zip-archive.js';
 import {
   BotCreationError,
   type BotCreationService,
@@ -612,10 +624,17 @@ export interface BridgeMethods {
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<BotImportsService['previewGit']>>>>;
   botImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  createFromGit(
+  zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
+  zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
+  zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
+  zipImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
+  zipImport(
     payload: unknown,
   ): Promise<
+    BridgeResult<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }>
+  >;
+  createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
+  createFromGit(payload: unknown): Promise<
     BridgeResult<{
       bot: PersonaBotDetail;
       httpsFallback?: HttpsFallback;
@@ -934,6 +953,7 @@ export interface BridgeMethodsDeps {
   registry: PersonaBotRegistry;
   creations?: BotCreationService;
   imports?: BotImportsService;
+  zipImports?: BotZipImportService;
   channelManagement?: ChannelManagementService;
   approvalTemplates?: ApprovalTemplateLibrary;
   deletions?: PersonaBotDeletions;
@@ -1090,6 +1110,57 @@ function parseCreation(
     ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
   };
   return { ok: true, value: { input, ...(operationKey === undefined ? {} : { operationKey }) } };
+}
+
+function parseZipUpload(payload: unknown): BotZipUploadIdentity | undefined {
+  const source = asObject(payload);
+  const uploadKey = source['uploadKey'];
+  const sha256 = source['sha256'];
+  const sizeBytes = source['sizeBytes'];
+  return typeof uploadKey === 'string' &&
+    typeof sha256 === 'string' &&
+    typeof sizeBytes === 'number'
+    ? { uploadKey, sha256, sizeBytes }
+    : undefined;
+}
+
+function parseZipImport(payload: unknown): BotZipImportReference | undefined {
+  const source = asObject(payload);
+  const operationKey = source['operationKey'];
+  const sha256 = source['sha256'];
+  const displayName = source['displayName'];
+  const roles = parseRoles(source);
+  const description = parseOptional(source, 'description');
+  if (
+    typeof operationKey !== 'string' ||
+    typeof sha256 !== 'string' ||
+    typeof displayName !== 'string' ||
+    !roles.ok ||
+    !description.ok
+  )
+    return undefined;
+  return {
+    operationKey,
+    sha256,
+    displayName,
+    ...(roles.value === undefined ? {} : { roles: roles.value }),
+    ...(description.value === undefined ? {} : { description: description.value }),
+  };
+}
+
+function zipFailure(error: unknown): BridgeResult<never> {
+  return {
+    ok: false,
+    error: {
+      code:
+        error instanceof BotZipUploadError ||
+        error instanceof BotCreationError ||
+        error instanceof ZipArchiveError
+          ? error.code
+          : 'upload-unavailable',
+      message: 'The Zip operation could not be completed.',
+    },
+  };
 }
 
 function parseOptional(source: Record<string, unknown>, key: string): ParsedField<string> {
@@ -2995,6 +3066,70 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         if (error instanceof BotCreationError)
           return { ok: false, error: { code: error.code, message: error.message } };
         throw error;
+      }
+    },
+    zipUploadBegin(payload) {
+      const input = parseZipUpload(payload);
+      if (!input) return invalidInput('An upload identity is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: deps.zipImports.begin(input) };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    zipUploadChunk(payload) {
+      const input = parseZipUpload(payload);
+      const source = asObject(payload);
+      const offset = source['offset'];
+      const dataBase64 = source['dataBase64'];
+      if (!input || typeof offset !== 'number' || typeof dataBase64 !== 'string')
+        return invalidInput('An upload chunk is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: deps.zipImports.chunk({ ...input, offset, dataBase64 }) };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    zipUploadPreview(payload) {
+      const input = parseZipUpload(payload);
+      if (!input) return invalidInput('An upload identity is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: deps.zipImports.preview(input) };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    zipImportLookup(payload) {
+      const input = parseZipImport(payload);
+      if (!input) return invalidInput('The original import input is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: { receipt: deps.zipImports.lookup(input) ?? null } };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    async zipImport(payload) {
+      const identity = parseZipUpload(payload);
+      const reference = parseZipImport(payload);
+      if (!identity || !reference) return invalidInput('The original import input is required');
+      if (!deps.zipImports) return unavailable();
+      const input: BotZipImportInput = { ...identity, ...reference };
+      try {
+        const created = await deps.zipImports.create(input);
+        return {
+          ok: true,
+          value: {
+            ...detailOf(created.record),
+            channelId: created.channelId,
+            ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
+          },
+        };
+      } catch (error) {
+        return zipFailure(error);
       }
     },
     botImportLookup(payload) {
