@@ -90,6 +90,87 @@ async function rpc(port, namespace, method, args = {}) {
   return envelope.result.value;
 }
 
+function creationCli(instance, command, input) {
+  // dev-instance returns its authenticated login URL as "url". Keep its token out of argv/logs.
+  const login = new URL(instance.url);
+  const token = login.searchParams.get('token');
+  if (!token) throw new Error('Isolated Host login token is unavailable');
+  const result = spawnSync(
+    process.execPath,
+    [
+      join(root, 'packages', 'deepseekbot', 'dist', 'deepseekbot.mjs'),
+      command,
+      '--host',
+      login.origin,
+      '--timeout',
+      '30',
+      '--name',
+      input.displayName,
+      '--persona',
+      input.persona,
+      '--description',
+      input.description,
+      '--role',
+      input.roles[0],
+      '--operation-key',
+      input.operationKey,
+    ],
+    {
+      cwd: root,
+      env: { ...env, DEEPSEEKBOT_HOST_TOKEN: token },
+      encoding: 'utf8',
+      timeout: 45_000,
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    },
+  );
+  if (result.error !== undefined || result.status !== 0)
+    throw new Error(
+      'Creation CLI ' + command + ' failed (exit ' + (result.status ?? 'unknown') + ')',
+    );
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new Error('Creation CLI did not return one JSON document');
+  }
+}
+
+function sameReceipt(actual, expected) {
+  if (
+    actual?.operationKey !== expected.operationKey ||
+    actual?.botSlug !== expected.botSlug ||
+    actual?.status !== 'created' ||
+    actual?.channelId !== expected.channelId
+  )
+    throw new Error('Creation recovery changed the original Bot or DM receipt');
+}
+
+async function creationCounts(port) {
+  const [bots, channels] = await Promise.all([
+    rpc(port, 'botharness', 'list'),
+    rpc(port, 'botharness', 'channels'),
+  ]);
+  return { bots: bots.bots, channels: channels.channels };
+}
+
+async function verifyOneCreation(port, baseline, receipt, input) {
+  const current = await creationCounts(port);
+  if (
+    current.bots.length !== baseline.bots.length + 1 ||
+    current.channels.length !== baseline.channels.length + 1 ||
+    current.bots.filter(
+      (bot) => bot.slug === receipt.botSlug && bot.displayName === input.displayName,
+    ).length !== 1 ||
+    current.channels.filter(
+      (channel) =>
+        channel.id === receipt.channelId &&
+        channel.type === 'dm' &&
+        channel.botSlug === receipt.botSlug,
+    ).length !== 1
+  )
+    throw new Error('Creation retry did not preserve exactly one new Bot and its DM');
+}
+
 async function waitForStop(port) {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
@@ -162,11 +243,55 @@ try {
     }
   }
 
+  // An independent blank request exercises the phone's public recovery seam without a model.
+  const creationInput = {
+    operationKey: 'e2e-blank-create-001',
+    displayName: 'Blank recovery QA',
+    persona: 'Keep replies short.',
+    description: 'Creation recovery check',
+    roles: ['qa'],
+  };
+  const creationBaseline = await creationCounts(port);
+  const missing = await rpc(port, 'botharness', 'createLookup', creationInput);
+  const missingCli = creationCli(first, 'create-status', creationInput);
+  const afterLookup = await creationCounts(port);
+  if (
+    missing.receipt !== null ||
+    missingCli.receipt !== null ||
+    afterLookup.bots.length !== creationBaseline.bots.length ||
+    afterLookup.channels.length !== creationBaseline.channels.length
+  )
+    throw new Error('Creation lookup mutated a previously absent operation');
+
+  // Deliberately discard the create result; lookup must independently recover it.
+  // Actual dropped-transport behavior is separately covered by the device gateway test.
+  await rpc(port, 'botharness', 'create', creationInput);
+  const recovered = await rpc(port, 'botharness', 'createLookup', creationInput);
+  const receipt = recovered.receipt;
+  if (
+    receipt?.operationKey !== creationInput.operationKey ||
+    receipt.status !== 'created' ||
+    typeof receipt.botSlug !== 'string' ||
+    typeof receipt.channelId !== 'string'
+  )
+    throw new Error('The Host did not return a completed blank creation receipt');
+  sameReceipt(creationCli(first, 'create-status', creationInput).receipt, receipt);
+  const retried = creationCli(first, 'create', creationInput);
+  sameReceipt(retried.operation, receipt);
+  if (retried.bot?.id !== receipt.botSlug || retried.dm?.channelId !== receipt.channelId)
+    throw new Error('Creation CLI returned a different Bot or DM');
+  await verifyOneCreation(port, creationBaseline, receipt, creationInput);
+
   stop(pid);
   await waitForStop(port);
   pid = undefined;
   const restarted = launch(port, false);
   pid = restarted.pid;
+
+  sameReceipt((await rpc(port, 'botharness', 'createLookup', creationInput)).receipt, receipt);
+  sameReceipt(creationCli(restarted, 'create-status', creationInput).receipt, receipt);
+  sameReceipt(creationCli(restarted, 'create', creationInput).operation, receipt);
+  await verifyOneCreation(port, creationBaseline, receipt, creationInput);
 
   const list = await rpc(port, 'botharness', 'list');
   const read = await rpc(port, 'botharness', 'get', { slug });
@@ -202,6 +327,10 @@ try {
       personaBotCreated: true,
       persistedAfterRestart: true,
       gitMemoryReady: true,
+      blankCreationLookup: true,
+      blankCreationCli: true,
+      blankCreationRetry: true,
+      blankCreationAfterRestart: true,
       ...(withDm ? { dmHistoryAfterRestart: true } : {}),
     }),
   );

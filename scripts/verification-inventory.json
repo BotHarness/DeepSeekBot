@@ -1780,10 +1780,10 @@
     {
       "path": "scripts/e2e-personabot-create.mjs",
       "category": "mapped",
-      "behaviors": ["desktop.personabot.create"],
-      "reason": "Own pinned isolated Host; public create/read/Memory snapshot and restart persistence. Optional DM commits Human message only, not Bot response.",
-      "task": 1972,
-      "sha256": "d8fe67038816e8be69a698a4d5fe5e18d3a759a8061bf9e3fc8a3a75d85529eb"
+      "behaviors": ["desktop.personabot.create", "phone.blank-bot-creation"],
+      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence plus blank creation lookup and built CLI status/retry before and after restart. Native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
+      "task": 2629,
+      "sha256": "c77cdcdf62b4e3223a2a70eedc9d84d966ffa32b660b9a9f8c089bcfb10b5866"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
