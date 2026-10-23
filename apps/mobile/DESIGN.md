@@ -122,7 +122,7 @@ Deliver runnable vertical slices: native blank creation with target selection an
 
 ## Structure
 
-The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md): what the Human does most sits under the thumb, and what they do rarely sits in the header.
+The shell follows [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md), with an iOS Settings entry update ([#2689](https://github.com/BotHarness/DeepSeekBot/issues/2689)): iOS shows Chats, Activity and Settings in the bottom island and removes the Chats header gear. Settings opens the existing sheet over the current tab; dismissal returns to the same page, without selecting a separate Settings route in the tab navigator. This deliberately uses a tab-shaped action to preserve the requested sheet interaction. Android keeps its header gear and two navigation destinations.
 
 - **One workspace drawer, two connection types.** Computers are paired Hosts; cloud workspaces belong to an explicitly trusted TOB instance. The existing left drawer is shared across both, with Computers and Cloud tabs. Cloud headers expose the same workspace switcher. A guest sees the organization initial/name and “invited channels only”; selecting it shows only current channel grants. Instance domains disambiguate identically named workspaces. The contextual join/pair action stays below the tabs; the directory scrolls between that header and a fixed footer.
 - **Computer workspaces.** Each paired computer is a Host.

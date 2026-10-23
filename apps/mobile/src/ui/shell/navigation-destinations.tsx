@@ -4,7 +4,7 @@ import { materialNavigationBar, navigationBar, radius } from '../design/tokens';
 import { NavigationIcon } from './navigation-icon';
 import { Text } from '../primitives/text';
 import { badgeCount } from '../primitives/badge-count';
-import { ChatsIcon, ActivityIcon } from './icons';
+import { ChatsIcon, ActivityIcon, SettingsIcon } from './icons';
 import { t } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
@@ -13,18 +13,21 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
   return (
     <>
       {items.map((item) => {
-        const { focused, activity, count: pending } = item;
-        const Icon = activity ? ActivityIcon : ChatsIcon;
+        const { focused, activity, settings, count: pending } = item;
+        const Icon = settings ? SettingsIcon : activity ? ActivityIcon : ChatsIcon;
         return (
           <Pressable
             key={item.key}
+            testID={settings ? 'settings-button' : `tab-${item.key}`}
             accessibilityRole="tab"
             accessibilityLabel={
-              activity && pending > 0
-                ? `${t.activity}, ${badgeCount(pending)}`
-                : activity
-                  ? t.activity
-                  : t.chats
+              settings
+                ? t.settings
+                : activity && pending > 0
+                  ? `${t.activity}, ${badgeCount(pending)}`
+                  : activity
+                    ? t.activity
+                    : t.chats
             }
             accessibilityState={{ selected: focused }}
             onPress={item.onPress}
@@ -66,7 +69,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               </NavigationIcon>
             </View>
             <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
-              {activity ? t.activity : t.chats}
+              {settings ? t.settings : activity ? t.activity : t.chats}
             </Text>
           </Pressable>
         );

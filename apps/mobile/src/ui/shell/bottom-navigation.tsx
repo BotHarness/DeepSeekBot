@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
 import {
   AccessibilityInfo,
+  Keyboard,
   Platform,
   View,
   useWindowDimensions,
@@ -36,6 +37,7 @@ import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { t } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
+import type { NavigationDestination } from './navigation-destination';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -218,7 +220,7 @@ function ScopedNavigationBar({
       setBusy(false);
     }
   };
-  const items = state.routes.map((route) => ({
+  const items: NavigationDestination[] = state.routes.map((route) => ({
     key: route.key,
     focused: route.key === currentKey,
     activity: route.name === '(activity)',
@@ -233,6 +235,20 @@ function ScopedNavigationBar({
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
+  if (Platform.OS === 'ios') {
+    items.push({
+      key: 'settings',
+      focused: false,
+      activity: false,
+      settings: true,
+      count: 0,
+      onPress: () => {
+        Keyboard.dismiss();
+        router.push('/settings');
+      },
+      onLongPress: () => {},
+    });
+  }
   const fabBottom = size + bottom + fab.margin;
   const create = (buttonSize: number) => (
     <CreationMenuButton

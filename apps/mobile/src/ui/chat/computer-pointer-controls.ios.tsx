@@ -22,10 +22,12 @@ export function ComputerPointerControls({
   enabled,
   onClick,
   onScroll,
+  onMotion,
 }: {
   enabled: boolean;
   onClick(button: 'left' | 'right'): void;
   onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
+  onMotion?: ((direction: { x: number; y: number }) => Promise<boolean>) | undefined;
 }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
@@ -82,7 +84,12 @@ export function ComputerPointerControls({
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}
     >
       {mouseButton('left')}
-      <ComputerScrollPad enabled={enabled} compact={false} onScroll={onScroll} />
+      <ComputerScrollPad
+        enabled={enabled}
+        compact={false}
+        onScroll={onScroll}
+        onMotion={onMotion}
+      />
       {mouseButton('right')}
     </View>
   );

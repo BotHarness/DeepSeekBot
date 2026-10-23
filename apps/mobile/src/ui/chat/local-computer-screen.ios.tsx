@@ -10,7 +10,7 @@ import {
 } from 'react';
 import { AppState, ScrollView, View, type ViewInstance } from 'react-native';
 import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
-import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
+import type { LocalVideoInput } from '../../../../../packages/computer/src/local-video-contract';
 import { ComputerVideoKeyboard, remoteKeyboardAvailable } from './computer-video-keyboard';
 import { StatusBar } from 'expo-status-bar';
 import { useSharedValue } from 'react-native-reanimated';
@@ -142,7 +142,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       request: ++keyboardRequest.current,
     });
   };
-  const send = (input: DesktopInput | undefined): Promise<boolean> => {
+  const send = (input: LocalVideoInput | undefined): Promise<boolean> => {
     const current = viewer?.getState().host;
     if (
       current?.binding?.runtimeId !== binding?.runtimeId ||
@@ -381,6 +381,27 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               enabled={driving}
               onClick={(button) => void click(cursor.get(), button)}
               onScroll={scroll}
+              onMotion={
+                host?.continuousScroll === true
+                  ? (direction) => {
+                      const at = videoPointerClick({
+                        point: cursor.get(),
+                        frame,
+                        button: 'left',
+                        driving,
+                      });
+                      return at === undefined
+                        ? Promise.resolve(false)
+                        : send({
+                            kind: 'scroll-motion',
+                            x: at.x,
+                            y: at.y,
+                            vx: direction.x * 200,
+                            vy: direction.y * 200,
+                          });
+                    }
+                  : undefined
+              }
             />
           ) : null}
           <ComputerVideoControls

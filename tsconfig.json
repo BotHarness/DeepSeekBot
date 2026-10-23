@@ -43,6 +43,7 @@
   ],
   "exclude": [
     "apps/mobile/test/posthog-sender.test.ts",
+    "apps/mobile/test/mobile-telemetry-wire-live.test.ts",
     "apps/mobile/test/native-telemetry.test.ts",
     "apps/mobile/test/native-lan-socket.test.ts",
     "apps/mobile/test/native-persistence.test.ts",

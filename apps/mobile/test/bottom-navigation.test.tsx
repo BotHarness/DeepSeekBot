@@ -2,7 +2,7 @@
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-const fixture = vi.hoisted(() => ({ scope: 'all', platform: 'ios' }));
+const fixture = vi.hoisted(() => ({ scope: 'all', platform: 'ios', index: 0 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => () => {} }));
 vi.mock('../src/host/native-bot-creation', () => ({
@@ -35,7 +35,7 @@ vi.mock('expo-router/js-tabs', () => ({
     ({ tabBar }: { tabBar: (props: object) => ReactNode }) =>
       tabBar({
         state: {
-          index: 0,
+          index: fixture.index,
           routes: [
             { key: 'home', name: '(home)' },
             { key: 'activity', name: '(activity)' },
@@ -67,6 +67,7 @@ vi.mock('../src/cloud/native', () => ({ cloudClient: {} }));
 vi.mock('../src/cloud/native-conversations', () => ({
   useCloudConversations: () => ({ workspaces: [] }),
 }));
+import { router } from 'expo-router';
 import { BottomNavigation } from '../src/ui/shell/bottom-navigation';
 import { t } from '../src/ui/strings';
 import { setHapticsEnabled } from '../src/ui/haptics';
@@ -115,3 +116,42 @@ it.each(['ios', 'android'])(
     }
   },
 );
+
+it.each([0, 1])(
+  'opens the existing Settings sheet over iOS tab %s without changing selection',
+  async (index) => {
+    fixture.platform = 'ios';
+    fixture.index = index;
+    vi.mocked(router.push).mockClear();
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<BottomNavigation />));
+      const selected = host.querySelector('[aria-selected="true"]');
+      const settings = host.querySelector<HTMLButtonElement>('[data-testid="settings-button"]')!;
+      expect(settings.getAttribute('aria-label')).toBe(t.settings);
+      await act(async () => settings.click());
+      expect(router.push).toHaveBeenCalledExactlyOnceWith('/settings');
+      expect(host.querySelector('[aria-selected="true"]')).toBe(selected);
+      expect(settings.getAttribute('aria-selected')).toBe('false');
+    } finally {
+      act(() => root.unmount());
+      host.remove();
+      fixture.index = 0;
+    }
+  },
+);
+it('keeps Settings out of the Android bottom bar', async () => {
+  fixture.platform = 'android';
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    await act(async () => root.render(<BottomNavigation />));
+    expect(host.querySelector('[data-testid="settings-button"]')).toBeNull();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});
