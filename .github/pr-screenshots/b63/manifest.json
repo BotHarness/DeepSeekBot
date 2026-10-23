@@ -1,0 +1,151 @@
+{
+  "batch": 63,
+  "pr": 2618,
+  "before": "5be050bef4dc9a07f02f6e3e1fae63c2c893d076",
+  "after": "76078cfc7fc551ae5a4f4b057153085355528dd3",
+  "device": "iPhone 17 Pro Simulator, iOS 27 beta; 402x874 pt",
+  "bundle": "ai.botharness.deepseekbot.dev",
+  "nativeFingerprint": "4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc",
+  "binarySource": "0b71799a5326635b11bd1b102893b44de33b665f",
+  "loadedAfterHomeModuleSha256": "e27338fc3cfdca68f9c88927775718a21c44f738f99bfafbf1ef83606aae43ea",
+  "files": [
+    {
+      "file": "b-l-d.png",
+      "sourceCapture": "before-light-default.png",
+      "sha256": "b7db06dd6adc83c97241da6493b2386c74f55764205db7a9731d6b0565c237cd",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "b-l-i.png",
+      "sourceCapture": "before-light-intermediate.png",
+      "sha256": "176d79897cf796448a3031de9f5ea0620eb95e050d06430037a37fb3119f95e7",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "b-l-m.png",
+      "sourceCapture": "before-light-maximum.png",
+      "sha256": "fc2e28924c538117bad92f4ca1247072fa94cd16f6a16ce55ee5a05c1b7fc985",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "b-d-d.png",
+      "sourceCapture": "before-dark-default.png",
+      "sha256": "4f1ea92b9df8f0a7a61a54f147a805e95262fcc361bf6b69b41fcbb5e8a964c3",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "b-d-i.png",
+      "sourceCapture": "before-dark-intermediate.png",
+      "sha256": "e952aed444f5e178a42712975a3143f222167a0915201c09da936293005a8e78",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "b-d-m.png",
+      "sourceCapture": "before-dark-maximum.png",
+      "sha256": "1347bef25bd726a998f57173c804780bf794231ea1efb364c215f2beb67628d5",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "a-l-d.png",
+      "sourceCapture": "after-light-default.png",
+      "sha256": "24b48bf16e3306e60ee0e650b36927d333c4f3563ecf7a98b40e1e8d6ff13fbc",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "a-l-i.png",
+      "sourceCapture": "after-light-intermediate.png",
+      "sha256": "57f56df1216a603dd70ec254e35b23870b1216a66279791e8bf5fe49f300ded4",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "a-l-m.png",
+      "sourceCapture": "after-light-maximum.png",
+      "sha256": "297cdc8458b1d51c869520bd8159732e14f40d6b863bbd6d68a0bc6b3cfa56c9",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "a-d-d.png",
+      "sourceCapture": "after-dark-default.png",
+      "sha256": "c000543a396613ee9bce2876044a2d85eb246e4a231e58ebdbc480c8d0354974",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "a-d-i.png",
+      "sourceCapture": "after-dark-intermediate.png",
+      "sha256": "3ee2ea34474296ee0b375c5cbf318dc57a2c32c3f7ab34b2924dc1ba9ec1fe0d",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "a-d-m.png",
+      "sourceCapture": "after-dark-maximum.png",
+      "sha256": "de8e157f54ce5d16cf7a09147d083dd9728d1e69fd8dc618a7ebd7e52ba53c41",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "swipe.png",
+      "sourceCapture": "swipe-actions.png",
+      "sha256": "59672da37c7533acbb1b04c6b2b4dedeb303790c8fcc18a159d4e1375577226f",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "unpin.png",
+      "sourceCapture": "unpin-work.png",
+      "sha256": "08ee3d7a6604b84ae20c2d8b7bce1670ab2f5500d353a95c66e19b275abe4fc3",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "peek.png",
+      "sourceCapture": "peek-menu.png",
+      "sha256": "a7021f8f7a929bb75305aa684ef2124adbf5b96f22b6c64e94734a6d58ff6051",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "sections.png",
+      "sourceCapture": "section-picker.png",
+      "sha256": "16ffa3f109d5bd85061514a21b68b9b1e4630b7b36c49e2c57617f5c1b40fe22",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "search.png",
+      "sourceCapture": "search-native-keyboard.png",
+      "sha256": "45ab147452ab89f246bb759a15ae928b9b2a3c080d1117ccbab9e3673caab926",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "collapsed.png",
+      "sourceCapture": "search-restored-collapsed.png",
+      "sha256": "046de57a7417e38aa098cf733ddf2178450378d8656837d0a3b2449f6344ab55",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "long-top.png",
+      "sourceCapture": "long-list-top.png",
+      "sha256": "5c25a8d2408d20889bc5ece1d170b804e3bf90eb5eca74a08f3c4ef249471866",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "long-end.png",
+      "sourceCapture": "long-list-bottom.png",
+      "sha256": "5080d60c52fa94206c596e5cc575fbb61d56c4e4f46e1a266baa284f3422b4ce",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "max-end.png",
+      "sourceCapture": "max-scroll-check.png",
+      "sha256": "6cedd2b14143ed8216754b0be47b16a5e0f9163f036bb27151f9b0f82c17dbe3",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    },
+    {
+      "file": "max-open.png",
+      "sourceCapture": "max-last-row-open.png",
+      "sha256": "2dcf8d2e1be4e95d6a9bbdcf0b040b6135083789ae33370687d1189a8f7828af",
+      "review": "visually inspected; synthetic task data only; unchanged pixels"
+    }
+  ],
+  "limits": [
+    "Debug Simulator functional evidence only",
+    "Maximum text severely truncates titles and makes header tall; full readability/Human acceptance not claimed",
+    "Android, physical Release, VoiceOver/TalkBack, working state, independent mark-read action, second disposable Host/Cloud/Web isolation, rotation/wide layout not tested"
+  ],
+  "fixture": "Synthetic QA Batch62 Profile reused for Batch63; before/after identical three pinned DM/group fixtures, two unread; 24 temporary empty groups later removed."
+}
