@@ -3,6 +3,8 @@ import { isAuthenticatedOwner } from './owner-compat.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
 import type { BotCreationReceipt } from '../bots/creation.js';
+import type { BotZipUploadStatus } from '../bots/zip-upload.js';
+import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -865,6 +867,60 @@ export class BotharnessBridgeService extends TypertRemoteService {
       }),
     );
   }
+  zipUploadBegin(uploadKey: string, sha256: string, sizeBytes: number): BotZipUploadStatus {
+    return unwrap(this.methods.zipUploadBegin({ uploadKey, sha256, sizeBytes }));
+  }
+
+  zipUploadChunk(
+    uploadKey: string,
+    sha256: string,
+    sizeBytes: number,
+    offset: number,
+    dataBase64: string,
+  ): BotZipUploadStatus {
+    return unwrap(
+      this.methods.zipUploadChunk({ uploadKey, sha256, sizeBytes, offset, dataBase64 }),
+    );
+  }
+
+  zipUploadPreview(uploadKey: string, sha256: string, sizeBytes: number): BotZipPreview {
+    return unwrap(this.methods.zipUploadPreview({ uploadKey, sha256, sizeBytes }));
+  }
+
+  zipImportLookup(
+    operationKey: string,
+    sha256: string,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return unwrap(
+      this.methods.zipImportLookup({ operationKey, sha256, displayName, roles, description }),
+    );
+  }
+
+  async zipImport(
+    operationKey: string,
+    uploadKey: string,
+    sha256: string,
+    sizeBytes: number,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): Promise<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }> {
+    return unwrapAsync(
+      this.methods.zipImport({
+        operationKey,
+        uploadKey,
+        sha256,
+        sizeBytes,
+        displayName,
+        roles,
+        description,
+      }),
+    );
+  }
+
   async createFromGit(
     displayName: string,
     gitUrl: string,
@@ -2066,6 +2122,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'get',
   'create',
   'createLookup',
+  'zipUploadBegin',
+  'zipUploadChunk',
+  'zipUploadPreview',
+  'zipImportLookup',
+  'zipImport',
   'botImportPreview',
   'botImportLookup',
   'createFromGit',

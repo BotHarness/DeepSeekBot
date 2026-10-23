@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
+import { ZIP_UPLOAD_COMMANDS, ZIP_UPLOAD_OPTIONS, runZipUploadCli } from './cli-zip-upload.js';
 import { isMap, isScalar, parseDocument } from 'yaml';
 import { parseCredentialsDocument } from '@deepseek-ai/dsh-credentials-local';
 
@@ -137,6 +138,10 @@ Usage:
   deepseekbot bot-import-preview --from-git <url | owner/repo> --host <url>
   deepseekbot create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
   deepseekbot list [--home <dsh-home>]
+  deepseekbot bot-zip-upload --from-zip <file> --upload-key <key> --host <url>
+  deepseekbot bot-zip-preview --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --host <url>
+  deepseekbot bot-zip-import --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --operation-key <key> --name <name> --host <url>
+  deepseekbot bot-zip-import-status --archive-sha256 <hash> --operation-key <key> --name <name> --host <url>
   deepseekbot show <id> [--home <dsh-home>]
   deepseekbot model-presets [--home <dsh-home>]
   deepseekbot model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
@@ -499,6 +504,7 @@ const CREATE_OPTIONS = {
   preset: { type: 'string' },
   'preset-revision': { type: 'string' },
   'operation-key': { type: 'string' },
+  ...ZIP_UPLOAD_OPTIONS,
   'expected-profile': { type: 'string' },
   'erase-memory': { type: 'boolean' },
   'from-zip': { type: 'string' },
@@ -2490,6 +2496,10 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  ...ZIP_UPLOAD_COMMANDS.map((command) => ({
+    command,
+    description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
+  })),
   ...SSH_COMMANDS,
   ...LIVE_COMMANDS,
   ...DIAGNOSTIC_COMMANDS,
@@ -2600,6 +2610,11 @@ export async function runBotCreateCli(
     }
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
+    if (ZIP_UPLOAD_COMMANDS.some((entry) => entry === command)) {
+      if (!online) throw usageError('Zip transfer commands require --host.');
+      out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
+      return 0;
+    }
     if (
       values['operation-key'] !== undefined &&
       (!online || !['create', 'create-status', 'group-create', 'group-invite'].includes(command))
