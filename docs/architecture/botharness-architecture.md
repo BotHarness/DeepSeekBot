@@ -1288,3 +1288,7 @@ The same application-defined Computer owner now supports a macOS sender and an i
 ### Android control and navigation presentation
 
 Android Computer uses native Material command buttons and a floating toolbar; the custom two-axis pad repeats wheel input only during an active held gesture, serializing acknowledgements through the existing viewer input authority. Android Chats/Activity use native Material navigation items with horizontal icon-label content, preserving the existing tab navigator and Activity count source (ADR-0235). These presentation changes add no Host endpoint or persistent authority.
+
+### Continuous macOS Human scroll input
+
+Under ADR-0245, `scroll-motion` travels through the existing Local Computer video input command and its controller grant. iOS renews a bounded velocity while held; the macOS owner validates capture-to-logical geometry and delegates frame injection to a short-lived system-native bridge. Every frame rechecks the current grant; zero velocity, invalidation and a 250ms missing-refresh deadline stop the process. Only one acknowledged, expiring native packet is allowed in flight. This adapter supplements the general-purpose Computer driver only for continuous Human scrolling and grants no Bot capability. Android and legacy Hosts retain the existing discrete path.

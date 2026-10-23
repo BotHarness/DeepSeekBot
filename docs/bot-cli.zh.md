@@ -1323,3 +1323,5 @@ deepseekbot create --host <host> --name Helper --from-git <已检查的URL> --ex
 ### Mac 本机电脑视频（#2653）
 
 macOS 继续使用现有 `computer-start --target local`、`computer-video status`、观看／信令、接管、输入与恢复命令及同一个 Computer owner，不增加 CLI 身份或传输。明确启动时安装固定 Mac 采集运行时，观看不下载。`screen-recording-required` 要求授予 macOS 屏幕录制权限并重启。命令边界的点击仍使用视频像素，由 owner 校验 Retina 尺寸，再由固定版本驱动转换为逻辑点。视频不可用时仍可明确恢复 Bot；iPhone 实际交互需另做原生验证。
+
+当 `status` 返回 `continuousScroll:true` 时，iOS 与 `computer-video input --args-stdin` 可沿用相同 binding、grant 和递增 sequence，发送 `input:{"kind":"scroll-motion","x":100,"y":100,"vx":0,"vy":-200}`。坐标仍是完整画面的像素，速度为每秒逻辑像素，每轴限制为 ±200。按住期间持续刷新（iOS 为 80ms），松手发送两轴速度为零。Mac 在 250ms 未刷新或控制失效时停止；每帧重新检查权限，丢弃过期帧且不积压未确认帧。该路径使用系统原生桥接并要求 Host 已有辅助功能授权，不自动请求权限。旧 Host 和 Android 保留逐格滚动。

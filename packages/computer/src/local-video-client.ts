@@ -1,4 +1,4 @@
-import type { DesktopInput } from './desktop-view.js';
+import type { LocalVideoInput } from './local-video-contract.js';
 import {
   LOCAL_VIDEO_LIMITS,
   LOCAL_VIDEO_PATH,
@@ -39,7 +39,7 @@ export interface LocalVideoClient {
   takeover(): Promise<void>;
   release(): Promise<void>;
   resume(): Promise<void>;
-  input(input: DesktopInput): Promise<boolean>;
+  input(input: LocalVideoInput): Promise<boolean>;
 }
 
 const HEARTBEAT_MS = 2_000;

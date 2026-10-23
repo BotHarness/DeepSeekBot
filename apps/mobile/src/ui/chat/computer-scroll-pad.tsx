@@ -4,6 +4,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { createHeldScroll } from '../../host/held-scroll';
+import { createHeldScrollMotion } from '../../host/held-scroll-motion';
 import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
@@ -15,28 +16,37 @@ export function ComputerScrollPad({
   enabled,
   compact,
   onScroll,
+  onMotion,
 }: {
   enabled: boolean;
   compact: boolean;
   onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
+  onMotion?: ((direction: { x: number; y: number }) => Promise<boolean>) | undefined;
 }) {
   const theme = useDesignTheme();
   const colors = buttonColors(theme, 'secondary', 'canvas');
   const size = useSharedValue({ width: theme.touch * 2, height: theme.touch * 1.5 });
   const thumb = useSharedValue({ x: 0, y: 0 });
-  const repeat = useMemo(() => createHeldScroll(), []);
+  const legacy = useMemo(() => createHeldScroll(), []);
+  const motion = useMemo(() => createHeldScrollMotion(), []);
+  const repeat = onMotion === undefined ? legacy : motion;
   useLayoutEffect(() => {
-    repeat.configure(enabled && AppState.currentState === 'active', onScroll);
+    const configure = (active: boolean) => {
+      legacy.configure(active && onMotion === undefined, onScroll);
+      motion.configure(active && onMotion !== undefined, onMotion ?? (async () => false));
+    };
+    configure(enabled && AppState.currentState === 'active');
     const subscription = AppState.addEventListener('change', (state) => {
-      repeat.configure(enabled && state === 'active', onScroll);
+      configure(enabled && state === 'active');
     });
     return () => subscription.remove();
-  }, [repeat, enabled, onScroll]);
+  }, [legacy, motion, enabled, onScroll, onMotion]);
   const mount = useMounted<ViewInstance>(() => {
     return () => {
-      repeat.configure(false, async () => false);
+      legacy.configure(false, async () => false);
+      motion.configure(false, async () => false);
     };
-  }, [repeat]);
+  }, [legacy, motion]);
   const dragging = useSharedValue(false);
   const gesture = Gesture.Pan()
     .enabled(enabled)

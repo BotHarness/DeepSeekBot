@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { desktopInputCall, parseDesktopInput } from './desktop-view.js';
+import { desktopInputCall } from './desktop-view.js';
+import { parseLocalVideoInput } from './local-video-contract.js';
+import type { ScrollMotion } from './macos-scroll.js';
 import type { CuaDriver } from './tool/driver.js';
 import {
   LOCAL_VIDEO_LIMITS,
@@ -215,6 +217,7 @@ export function createLocalVideoOwner(options: {
   readonly isRunning: () => boolean;
   readonly supported?: () => boolean;
   readonly driverPlatform?: 'darwin' | 'win32';
+  readonly scrollMotion?: ScrollMotion;
   readonly now?: () => number;
   readonly onEvent?: (detail: string) => void;
   readonly operationTimeoutMs?: number;
@@ -301,7 +304,14 @@ export function createLocalVideoOwner(options: {
     return closing;
   };
 
+  const stopScroll = (): Promise<void> => {
+    const effect = options.scrollMotion?.stop() ?? Promise.resolve();
+    humans.add(effect);
+    void effect.finally(() => humans.delete(effect)).catch(() => undefined);
+    return effect;
+  };
   const invalidate = (): void => {
+    void stopScroll();
     generation += 1;
     grant = undefined;
   };
@@ -443,6 +453,7 @@ export function createLocalVideoOwner(options: {
         ? {}
         : { grant: { generation: ownGrant.generation, expiresAt: ownGrant.expiresAt } }),
       lastInputSequence: ownGrant?.sequence ?? 0,
+      ...(options.scrollMotion === undefined ? {} : { continuousScroll: true }),
       media:
         mediaViewer === undefined
           ? closedMedia()
@@ -575,7 +586,7 @@ export function createLocalVideoOwner(options: {
     return active;
   };
 
-  const requireGeometry = async (current: Viewer): Promise<void> => {
+  const requireGeometry = async (current: Viewer): Promise<number> => {
     const probe = options.driver.call('get_screen_size', {
       session: `local-video:${current.binding.viewerId}`,
     });
@@ -601,6 +612,7 @@ export function createLocalVideoOwner(options: {
       Math.round(geometry.height * scale) !== current.peer?.display.height
     )
       refuse('media-not-live', 'The input display does not match the video. Reconnect the viewer.');
+    return scale;
   };
 
   const runCommand = async (
@@ -760,12 +772,12 @@ export function createLocalVideoOwner(options: {
           refuse('queue-full', 'The bounded Computer input queue is full.');
         if (typeof command.input !== 'object' || command.input === null)
           refuse('invalid-input', 'A desktop input is required.');
-        const input = parseDesktopInput(command.input as unknown as Record<string, unknown>);
+        const input = parseLocalVideoInput(command.input as unknown as Record<string, unknown>);
         if (input === undefined || !Number.isSafeInteger(command.sequence) || command.sequence <= 0)
           refuse('invalid-input', 'A valid input and positive sequence are required.');
         const active = checkGrant(current, command.generation);
         if (
-          (input.kind === 'click' || input.kind === 'scroll') &&
+          (input.kind === 'click' || input.kind === 'scroll' || input.kind === 'scroll-motion') &&
           ((input.x !== undefined && (input.x < 0 || input.x >= current.media.width)) ||
             (input.y !== undefined && (input.y < 0 || input.y >= current.media.height)))
         )
@@ -780,13 +792,35 @@ export function createLocalVideoOwner(options: {
           if (signal?.aborted)
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
+          if (input.kind === 'scroll-motion' && input.vx === 0 && input.vy === 0) {
+            await stopScroll();
+            return;
+          }
           trace.source = 'geometry';
           trace.external = 'get_screen_size';
-          await requireGeometry(current);
+          const scale = await requireGeometry(current);
           trace.source = 'owner';
           if (signal?.aborted)
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
+          if (input.kind === 'scroll-motion') {
+            if (options.scrollMotion === undefined)
+              refuse('update-required', 'Continuous scrolling is unavailable on this Host.');
+            const effect = options.scrollMotion.update(
+              { x: input.x / scale, y: input.y / scale, vx: input.vx, vy: input.vy },
+              () => {
+                checkGrant(current, command.generation);
+              },
+            );
+            humans.add(effect);
+            try {
+              await effect;
+            } finally {
+              humans.delete(effect);
+            }
+            return;
+          }
+          await stopScroll();
           const call = desktopInputCall(input, undefined);
           trace.source = 'driver';
           trace.external = 'desktop-input';
