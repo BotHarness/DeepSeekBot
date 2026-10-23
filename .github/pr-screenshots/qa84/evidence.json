@@ -1,0 +1,365 @@
+{
+  "applicationSource": "b8b471532e88dce0f624ef4a1e95553a08214771",
+  "capturedComponentsSource": "47468bd81",
+  "base": "757c54483",
+  "postCaptureChanges": "Integrated Android-only main #2678 and removed a source comment; captured iOS runtime behavior and native source hashes are unchanged.",
+  "device": "QA iOS 27, iPhone 17 Pro Simulator, 402 x 874 pt",
+  "scope": "Real native production components in a temporary local-callback fixture. Synthetic blank video; no Host input, grant, network or haptic-sensation acceptance.",
+  "binary": {
+    "buildSource": "80cce3fa3d29b46e92ad4f44f1fe53fbe7828c6b plus bounded-input changes",
+    "version": "0.0.1",
+    "build": "1",
+    "files": {
+      "DeepSeekBotDev": "3255c89c4218cc3a813fb65fa2bb3f98667313541b8899d41711a19e231498a8",
+      "__preview.dylib": "fcc88b6cec4efcbe64572d188ef62a93b99805ac8d90a2ab2be9d3b48de8490f",
+      "DeepSeekBotDev.debug.dylib": "8b768a22ba6b923a1e4a9f00d52659101fbce1e4bd3bad5166c8f286f86bfde3"
+    },
+    "devScheme": "exp+deepseekbot",
+    "bundle": "ai.botharness.deepseekbot.dev",
+    "installation": "in-place; existing data and Keychain retained"
+  },
+  "nativeSourceHashes": {
+    "apps/mobile/modules/remote-keyboard/ios/RemoteTextInput.swift": "2d2580a1e77eb1256950f30bc89e0d08c0f64092fae5cef1673bf9543948ddea",
+    "apps/mobile/modules/remote-keyboard/ios/RemoteKeyboardModule.swift": "8e771061b4ad418eb49cfbbbef98cba86474c1c8b7404d0fc9008e345ca0e4ab",
+    "apps/mobile/modules/remote-keyboard/ios/RemoteKeyboard.podspec": "2bcd0abe15f971a1d3ce2cf31b61e915b7fd91bc8fa56828ec16992a63f0ccc8",
+    "apps/mobile/modules/remote-keyboard/expo-module.config.json": "81d412316b8f5680ba674cb60c98ec605441ff033276a0095ff52571525f781b"
+  },
+  "results": {
+    "nativeLeft": "left 600,428 #7",
+    "nativeRightAfterPointerMove": "right 655,463 #8",
+    "verticalScroll": "vertical -2 at 655,463",
+    "horizontalScroll": "horizontal 2 at 655,463",
+    "dockBoundsUnchanged": true,
+    "bounds": {
+      "computer-video-left-click": {
+        "height": 68,
+        "x": 8.666666666666666,
+        "width": 76,
+        "y": 710
+      },
+      "computer-video-right-click": {
+        "height": 68,
+        "x": 317.6666666666667,
+        "width": 76,
+        "y": 710
+      },
+      "computer-video-scroll-pad": {
+        "height": 66,
+        "x": 93,
+        "width": 216,
+        "y": 711
+      },
+      "computer-video-control": {
+        "height": 46,
+        "x": 123.66666666666666,
+        "width": 46,
+        "y": 786
+      },
+      "computer-video-keyboard": {
+        "height": 46,
+        "x": 178,
+        "width": 46,
+        "y": 786
+      },
+      "computer-video-more": {
+        "height": 46,
+        "x": 232.33333333333331,
+        "width": 46,
+        "y": 786
+      }
+    },
+    "keyboardHidesPointerRow": true,
+    "keyboardHandbackHittable": true
+  },
+  "matrix": {
+    "keyboardText": "hi[backspace][return]",
+    "reopenNoReplay": true,
+    "handbackWhileKeyboardOpen": true,
+    "zoomPreservesControlBounds": true,
+    "textSizePreservesControlDimensions": true,
+    "matrix": [
+      {
+        "size": "large",
+        "appearance": "light",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "y": 710,
+            "width": 76,
+            "height": 68,
+            "x": 8.666666666666666
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-scroll-pad": {
+            "y": 711,
+            "height": 66,
+            "x": 93,
+            "width": 216
+          },
+          "computer-video-control": {
+            "x": 123.66666666666666,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-more": {
+            "x": 232.33333333333331,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          }
+        }
+      },
+      {
+        "size": "large",
+        "appearance": "dark",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "y": 711,
+            "width": 216,
+            "height": 66
+          },
+          "computer-video-control": {
+            "x": 123.66666666666666,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-more": {
+            "x": 232.33333333333331,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          }
+        }
+      },
+      {
+        "size": "accessibility-medium",
+        "appearance": "light",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "y": 711,
+            "width": 216,
+            "height": 66
+          },
+          "computer-video-control": {
+            "x": 124,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-more": {
+            "x": 232,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          }
+        }
+      },
+      {
+        "size": "accessibility-medium",
+        "appearance": "dark",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "y": 711,
+            "width": 216,
+            "height": 66
+          },
+          "computer-video-control": {
+            "x": 124,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-more": {
+            "x": 232,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          }
+        }
+      },
+      {
+        "size": "accessibility-extra-extra-extra-large",
+        "appearance": "light",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "y": 711,
+            "width": 216,
+            "height": 66
+          },
+          "computer-video-control": {
+            "x": 124,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-more": {
+            "x": 232,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          }
+        }
+      },
+      {
+        "size": "accessibility-extra-extra-extra-large",
+        "appearance": "dark",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "y": 710,
+            "width": 76,
+            "height": 68
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "y": 711,
+            "width": 216,
+            "height": 66
+          },
+          "computer-video-control": {
+            "x": 124,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "computer-video-keyboard": {
+            "y": 786,
+            "width": 46,
+            "x": 178,
+            "height": 46
+          },
+          "computer-video-more": {
+            "y": 786,
+            "x": 232,
+            "height": 46,
+            "width": 46
+          }
+        }
+      }
+    ]
+  },
+  "before": "Fresh baseline using the previous scrolling dock and multi-touch pad on base 053fcc2af. Same simulator, default text, English, local dark media palette. Diagnostic text/state differs; final fixture bounds its diagnostic text independently of production controls.",
+  "unverified": [
+    "Physical iPhone remote input and tactile sensation",
+    "New native Bot profile entry rendering (covered by route source tests only)",
+    "Chinese marked-text composition/cancellation, VoiceOver and hardware keyboard",
+    "Android native QA: default controls unchanged by this PR"
+  ],
+  "cleanup": {
+    "ownedMetroExited": true,
+    "driverStoppedCleanly": true,
+    "portsReleased": [8106],
+    "originalDocuments": "7 of 8 byte-identical; notification-avatars-status cache refreshed; none missing",
+    "phoneTouched": false,
+    "pairingsAdded": false,
+    "settingsRestored": "large/light",
+    "temporaryRouteRemoved": true,
+    "sharedServicesPreserved": true
+  }
+}
