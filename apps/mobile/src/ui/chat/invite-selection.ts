@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import type { RosterBot } from '../../host/client';
 import { errorText } from '../../host/bot-settings';
 import { t } from '../strings';
+import { useMounted } from '../mounted';
 
 export interface InviteSheetProps {
   candidates: RosterBot[];
@@ -9,15 +10,14 @@ export interface InviteSheetProps {
   onClose(): void;
 }
 
-/** A drawer owns its draft and stops dispatching when it is dismissed. */
 export function useInviteSelection({ candidates, onInvite, onClose }: InviteSheetProps) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const alive = useRef(true);
+  const alive = useRef(false);
   const sending = useRef(false);
   const completed = useRef(new Set<string>());
-  useEffect(() => {
+  const mount = useMounted<unknown>(() => {
     alive.current = true;
     return () => {
       alive.current = false;
@@ -56,6 +56,7 @@ export function useInviteSelection({ candidates, onInvite, onClose }: InviteShee
     }
   };
   return {
+    mount,
     eligible,
     selected,
     busy,

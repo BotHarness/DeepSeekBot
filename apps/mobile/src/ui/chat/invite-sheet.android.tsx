@@ -41,7 +41,10 @@ export function InviteSheet(props: InviteSheetProps) {
     >
       <ModalBottomSheet onDismissRequest={props.onClose} skipPartiallyExpanded>
         <RNHostView>
-          <View style={{ height: height - insets.top - insets.bottom - theme.touch * 2 }}>
+          <View
+            ref={draft.mount}
+            style={{ height: height - insets.top - insets.bottom - theme.touch * 2 }}
+          >
             <Host
               matchContents={{ vertical: true }}
               colorScheme={theme.scheme}

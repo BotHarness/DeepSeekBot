@@ -11,7 +11,7 @@ let host: HTMLElement | undefined;
 let draft: ReturnType<typeof useInviteSelection>;
 function Harness(props: InviteSheetProps) {
   draft = useInviteSelection(props);
-  return null;
+  return createElement('div', { ref: draft.mount });
 }
 const bot = (slug: string): RosterBot => ({
   slug,
