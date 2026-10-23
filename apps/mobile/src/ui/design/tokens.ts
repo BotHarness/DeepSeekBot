@@ -160,13 +160,6 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
 
-export const pinnedGrid = {
-  minCardWidth: 104,
-  avatar: 48,
-  gap: space.x3,
-  inset: space.x5,
-} as const;
-
 export const markdownTable = { minColumnWidth: 96, maxColumnWidth: 280 } as const;
 
 export const drawerSpring = { duration: 280, dampingRatio: 1 } as const;
