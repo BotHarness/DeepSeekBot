@@ -1,6 +1,6 @@
 import { TextField } from '../primitives/text-field';
 import { useState, type ReactNode } from 'react';
-import { FlatList, SectionList, View } from 'react-native';
+import { SectionList, View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -29,7 +29,8 @@ import { Text } from '../primitives/text';
 import { ChevronRightIcon, PlusIcon } from '../shell/icons';
 import { t } from '../strings';
 import { GroupMark } from './group-mark';
-import { SHEET_GROUP, Sheet, SheetActions, SheetCallout, SheetNote } from './sheet';
+import { InviteSheet } from './invite-sheet';
+import { Sheet, SheetActions, SheetCallout } from './sheet';
 
 const MARK = 72;
 const ICON = 20;
@@ -170,47 +171,6 @@ function RenameSheet({
           </View>
         </SheetActions>
       </KeyboardFormScroll>
-    </Sheet>
-  );
-}
-
-function InviteSheet({
-  visible,
-  candidates,
-  onInvite,
-  onClose,
-}: {
-  visible: boolean;
-  candidates: RosterBot[];
-  onInvite(bot: RosterBot): void;
-  onClose(): void;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <Sheet visible={visible} label={t.groupInvite} title={t.groupInvite} onClose={onClose}>
-      {candidates.length === 0 ? (
-        <SheetNote>{t.groupInviteNone}</SheetNote>
-      ) : (
-        <FlatList
-          data={candidates}
-          keyExtractor={(bot) => bot.slug}
-          renderItem={({ item, index }) => (
-            <SettingsGroupItem
-              first={index === 0}
-              last={index === candidates.length - 1}
-              on={SHEET_GROUP}
-            >
-              <SettingsRow
-                title={item.displayName}
-                on={SHEET_GROUP}
-                leading={<MemberAvatar entry={{ slug: item.slug, bot: item }} />}
-                trailing={<PlusIcon color={theme.color.muted} size={ICON} />}
-                onPress={() => onInvite(item)}
-              />
-            </SettingsGroupItem>
-          )}
-        />
-      )}
     </Sheet>
   );
 }
@@ -410,15 +370,14 @@ export function GroupInfoSheet({
           )}
         />
       </View>
-      <InviteSheet
-        visible={sheet === 'invite'}
-        candidates={info.candidates}
-        onClose={() => setSheet(undefined)}
-        onInvite={(bot) => {
-          setSheet(undefined);
-          void run(`add:${bot.slug}`, () => actions.invite(bot.slug));
-        }}
-      />
+      {sheet === 'invite' ? (
+        <InviteSheet
+          key={channel.id}
+          candidates={info.candidates}
+          onClose={() => setSheet(undefined)}
+          onInvite={(bot) => actions.invite(bot.slug)}
+        />
+      ) : null}
       <RenameSheet
         key={renameOpened}
         visible={sheet === 'rename'}
