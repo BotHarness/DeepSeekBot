@@ -93,7 +93,11 @@ function RootNavigator() {
               <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
               <Stack.Screen
                 name="conversation-section"
-                options={{ title: t.rowActions.section, ...sheetScreenOptions(design, true) }}
+                options={{
+                  ...sheetScreenOptions(design, true),
+                  title: t.rowActions.section,
+                  headerShown: true,
+                }}
               />
               <Stack.Screen
                 name="cloud-join"
