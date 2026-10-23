@@ -7,6 +7,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from 'react';
+import { useReplyHaptic } from './reply-haptic';
 import {
   Platform,
   Pressable,
@@ -376,10 +377,12 @@ export const PlaybackBubble = memo(function PlaybackBubble({
   playback,
   queueKey,
   message,
+  focused = false,
   ...props
 }: Omit<ComponentProps<typeof MessageBubble>, 'message' | 'streaming'> & {
   playback?: ConversationPlayback | undefined;
   queueKey: string;
+  focused?: boolean;
   message?: ConversationMessage | undefined;
 }) {
   const fallback = useMemo(
@@ -395,6 +398,7 @@ export const PlaybackBubble = memo(function PlaybackBubble({
     [playback, queueKey, fallback],
   );
   const snapshot = useSyncExternalStore(subscribe, read);
+  useReplyHaptic(playback, queueKey, snapshot, focused);
   return snapshot === undefined ? null : (
     <MessageBubble
       {...props}
