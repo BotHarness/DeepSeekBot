@@ -1,7 +1,6 @@
 import { View } from 'react-native';
 import { Host } from '@expo/ui';
 import { Button, RNHostView } from '@expo/ui/swift-ui';
-import Svg, { Path, Rect } from 'react-native-svg';
 import {
   accessibilityLabel,
   buttonBorderShape,
@@ -17,7 +16,7 @@ import { space } from '../design/tokens';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { ComputerScrollPad } from './computer-scroll-pad';
 import { t } from '../strings';
-import { SystemSymbol } from '../primitives/system-symbol';
+import { ComputerMouseIcon } from './computer-mouse-icon';
 
 export function ComputerPointerControls({
   enabled,
@@ -66,31 +65,11 @@ export function ComputerPointerControls({
                 justifyContent: 'center',
               }}
             >
-              <Svg
-                width={theme.type.title.line}
-                height={theme.type.title.line}
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <Path
-                  fill={enabled ? theme.color.fg : theme.color.muted}
-                  d={side === 'left' ? 'M12 2a7 7 0 0 0-7 7v1h7Z' : 'M12 2a7 7 0 0 1 7 7v1h-7Z'}
-                />
-                <Rect
-                  x="5"
-                  y="2"
-                  width="14"
-                  height="20"
-                  rx="7"
-                  stroke={enabled ? theme.color.fg : theme.color.muted}
-                  strokeWidth="1.8"
-                />
-                <Path
-                  d="M12 2v8M5 10h14"
-                  stroke={enabled ? theme.color.fg : theme.color.muted}
-                  strokeWidth="1.8"
-                />
-              </Svg>
+              <ComputerMouseIcon
+                button={side}
+                size={theme.type.title.line}
+                color={enabled ? theme.color.fg : theme.color.muted}
+              />
             </View>
           </RNHostView>
         </Button>
@@ -103,15 +82,7 @@ export function ComputerPointerControls({
       style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}
     >
       {mouseButton('left')}
-      <ComputerScrollPad enabled={enabled} compact={false} onScroll={onScroll}>
-        <View pointerEvents="none">
-          <SystemSymbol
-            name="arrow.up.and.down.and.arrow.left.and.right"
-            size={theme.type.title.line}
-            color={enabled ? theme.color.fg : theme.color.muted}
-          />
-        </View>
-      </ComputerScrollPad>
+      <ComputerScrollPad enabled={enabled} compact={false} onScroll={onScroll} />
       {mouseButton('right')}
     </View>
   );

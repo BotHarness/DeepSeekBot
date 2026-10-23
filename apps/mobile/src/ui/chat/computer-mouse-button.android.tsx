@@ -1,7 +1,9 @@
-import { Column, FilledTonalButton, Host, Icon, Text } from '@expo/ui/jetpack-compose';
+import { FilledTonalButton, Host, RNHostView } from '@expo/ui/jetpack-compose';
+import { View } from 'react-native';
 import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { t } from '../strings';
+import { ComputerMouseIcon } from './computer-mouse-icon';
 
 export function ComputerMouseButton({
   side,
@@ -36,17 +38,19 @@ export function ComputerMouseButton({
           semantics({ contentDescription: label }),
         ]}
       >
-        <Column horizontalAlignment="center">
-          <Icon
-            source={
-              side === 'left'
-                ? require('../../../assets/toolbar/mouse-left.xml')
-                : require('../../../assets/toolbar/mouse-right.xml')
-            }
-            size={theme.type.body.line}
-          />
-          <Text>{label}</Text>
-        </Column>
+        <RNHostView matchContents>
+          <View
+            pointerEvents="none"
+            accessible={false}
+            style={{ width: theme.type.title.line, height: theme.type.title.line }}
+          >
+            <ComputerMouseIcon
+              button={side}
+              size={theme.type.title.line}
+              color={enabled ? theme.color.fg : theme.color.muted}
+            />
+          </View>
+        </RNHostView>
       </FilledTonalButton>
     </Host>
   );

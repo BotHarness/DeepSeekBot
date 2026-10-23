@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { AppState, type ViewInstance } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
@@ -7,7 +7,7 @@ import { createHeldScroll } from '../../host/held-scroll';
 import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
-import { Text } from '../primitives/text';
+import { ComputerMouseIcon } from './computer-mouse-icon';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
 
@@ -15,11 +15,9 @@ export function ComputerScrollPad({
   enabled,
   compact,
   onScroll,
-  children,
 }: {
   enabled: boolean;
   compact: boolean;
-  children?: ReactNode;
   onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
 }) {
   const theme = useDesignTheme();
@@ -110,11 +108,11 @@ export function ComputerScrollPad({
           overflow: 'hidden',
         }}
       >
-        {children ?? (
-          <Text variant="meta" tone={enabled ? 'fg' : 'muted'}>
-            {t.computerVideoScrollPad}
-          </Text>
-        )}
+        <ComputerMouseIcon
+          button="scroll"
+          size={theme.type.title.line}
+          color={enabled ? theme.color.fg : theme.color.muted}
+        />
         <Animated.View
           pointerEvents="none"
           style={[
