@@ -3,12 +3,13 @@ import {
   Column,
   Host,
   ListItem,
+  RNHostView,
   ModalBottomSheet,
   Text,
   TextButton,
   type ButtonColors,
 } from '@expo/ui/jetpack-compose';
-import { padding } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxWidth, padding, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useSyncExternalStore } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
@@ -63,15 +64,31 @@ export function AppDialogHost() {
           skipPartiallyExpanded
           properties={{ shouldDismissOnBackPress: idle, shouldDismissOnClickOutside: idle }}
         >
+          {shown.avatar === undefined ? null : (
+            <Column
+              horizontalAlignment="center"
+              verticalArrangement={{ spacedBy: space.x3 }}
+              modifiers={[
+                fillMaxWidth(),
+                padding(space.x5, 0, space.x5, space.x5),
+                testID('action-menu-header'),
+              ]}
+            >
+              <RNHostView matchContents>{shown.avatar}</RNHostView>
+              <Text style={{ typography: 'titleMedium', textAlign: 'center' }}>{shown.title}</Text>
+            </Column>
+          )}
           <Column
             verticalArrangement={{ spacedBy: materialMenu.groupGap }}
             modifiers={[padding(space.x5, 0, space.x5, space.x5)]}
           >
-            <ListItem>
-              <ListItem.HeadlineContent>
-                <Text color={theme.color.muted}>{shown.title}</Text>
-              </ListItem.HeadlineContent>
-            </ListItem>
+            {shown.avatar === undefined ? (
+              <ListItem>
+                <ListItem.HeadlineContent>
+                  <Text color={theme.color.muted}>{shown.title}</Text>
+                </ListItem.HeadlineContent>
+              </ListItem>
+            ) : null}
             {[false, true].map((destructive) => {
               const group = choices.filter(
                 ({ action }) => (action.style === 'destructive') === destructive,

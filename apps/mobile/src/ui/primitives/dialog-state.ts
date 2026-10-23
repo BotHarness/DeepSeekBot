@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import type { MenuGlyph } from './menu-icon';
 
 export type DialogAction = {
@@ -15,6 +16,7 @@ export type DialogState = {
   busy: number | undefined;
   error: string | undefined;
   presentation: 'dialog' | 'menu';
+  avatar?: ReactElement | undefined;
 };
 
 export function createDialogState() {
@@ -38,6 +40,7 @@ export function createDialogState() {
       message: string | undefined,
       actions: readonly DialogAction[],
       presentation: DialogState['presentation'] = 'dialog',
+      avatar?: ReactElement,
     ) {
       publish({
         id: ++nextId,
@@ -47,6 +50,7 @@ export function createDialogState() {
         busy: undefined,
         error: undefined,
         presentation,
+        avatar,
       });
     },
     dismiss() {

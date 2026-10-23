@@ -696,6 +696,14 @@ describe('Chats row actions share the Host path', () => {
       for (const key of ['pin', 'section', 'mute', 'read'] as const) {
         call.mockClear();
         push.mockClear();
+        if (platform === 'android' && key === 'read') {
+          await act(async () => invoke({ nativeEvent: { actionName: key } }));
+          expect(call).toHaveBeenLastCalledWith('channelMarkRead', {
+            channelId: 'dm-ada',
+            messageId: 'message-1',
+          });
+          continue;
+        }
         await rowMenuAction(view, key);
         const fromMenu = [...call.mock.calls];
         const navigation = [...push.mock.calls];
@@ -719,7 +727,30 @@ describe('Chats row actions share the Host path', () => {
       }
     },
   );
-  it.each(['android', 'ios'] as const)(
+  it('Android scrolling has no row swipe recognizer; long press retains three actions', async () => {
+    Platform.OS = 'android';
+    hostState.actions = true;
+    hostState.unread = true;
+    roster.bots[0]!.latestMessageId = 'message-1';
+    const view = await home();
+    expect(swipeConfigs).toHaveLength(0);
+    expect(view.querySelector('[aria-label="Swipe row"]')).toBeNull();
+    await rowMenuAction(view, 'pin');
+    expect(menus.at(-1)!.map((action) => action.text)).toEqual([
+      t.rowActions.pin,
+      t.rowActions.section,
+      t.rowActions.mute,
+    ]);
+    expect(call).toHaveBeenLastCalledWith('rosterBatch', { action: 'pin', channelIds: ['dm-ada'] });
+    await rowMenuAction(view, 'mute');
+    expect(call).toHaveBeenLastCalledWith('channelMuteSet', { channelId: 'dm-ada', muted: true });
+    await rowMenuAction(view, 'section');
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/conversation-section',
+      params: { hostId: 'h1', channelId: 'dm-ada' },
+    });
+  });
+  it.each(['ios'] as const)(
     'keeps mark-read in the %s menu with three swipe actions',
     async (platform) => {
       Platform.OS = platform;
@@ -739,41 +770,34 @@ describe('Chats row actions share the Host path', () => {
       });
     },
   );
-  it.each(['ios', 'android'] as const)(
-    'runs pin and mute from swipe and menu on %s',
-    async (platform) => {
-      Platform.OS = platform;
-      hostState.actions = true;
-      const view = await home();
-      for (const key of ['pin', 'mute'] as const) {
-        await act(async () =>
-          view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
-        );
-        await act(async () =>
-          view
-            .querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!
-            .click(),
-        );
-        const swipeCall = call.mock.calls.at(-1);
-        await rowMenuAction(view, key);
-        expect(call.mock.calls.at(-1)).toEqual(swipeCall);
-        expect(swipeCall).toEqual(
-          key === 'pin'
-            ? ['rosterBatch', { action: 'pin', channelIds: ['dm-ada'] }]
-            : ['channelMuteSet', { channelId: 'dm-ada', muted: true }],
-        );
-      }
-      expect(refresh).toHaveBeenCalledTimes(4);
-      expect(view.querySelector('[data-testid="native-preview"]') !== null).toBe(
-        platform === 'ios',
+  it.each(['ios'] as const)('runs pin and mute from swipe and menu on %s', async (platform) => {
+    Platform.OS = platform;
+    hostState.actions = true;
+    const view = await home();
+    for (const key of ['pin', 'mute'] as const) {
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
       );
-      expect(swipeConfigs[0]?.hitSlop).toEqual(
-        platform === 'ios' ? { left: -EDGE_WIDTH } : undefined,
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!.click(),
       );
-    },
-  );
+      const swipeCall = call.mock.calls.at(-1);
+      await rowMenuAction(view, key);
+      expect(call.mock.calls.at(-1)).toEqual(swipeCall);
+      expect(swipeCall).toEqual(
+        key === 'pin'
+          ? ['rosterBatch', { action: 'pin', channelIds: ['dm-ada'] }]
+          : ['channelMuteSet', { channelId: 'dm-ada', muted: true }],
+      );
+    }
+    expect(refresh).toHaveBeenCalledTimes(4);
+    expect(view.querySelector('[data-testid="native-preview"]') !== null).toBe(platform === 'ios');
+    expect(swipeConfigs[0]?.hitSlop).toEqual(
+      platform === 'ios' ? { left: -EDGE_WIDTH } : undefined,
+    );
+  });
 
-  it.each(['android', 'ios'] as const)(
+  it.each(['ios'] as const)(
     'opens the same Host-bound section chooser from the %s menu and swipe',
     async (platform) => {
       Platform.OS = platform;
@@ -797,39 +821,34 @@ describe('Chats row actions share the Host path', () => {
     },
   );
 
-  it.each(['android', 'ios'] as const)(
-    'uses the same inverse operations on %s',
-    async (platform) => {
-      Platform.OS = platform;
-      hostState.actions = true;
-      roster.arrangement = {
-        pins: ['dm-ada'],
-        muted: ['dm-ada'],
-        hidden: [],
-        sections: [],
-        sectionOrder: [],
-      };
-      const view = await home();
-      for (const key of ['unpin', 'unmute'] as const) {
-        await act(async () =>
-          view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
-        );
-        await act(async () =>
-          view
-            .querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!
-            .click(),
-        );
-        const fromSwipe = call.mock.calls.at(-1);
-        await rowMenuAction(view, key);
-        expect(call.mock.calls.at(-1)).toEqual(fromSwipe);
-        expect(fromSwipe).toEqual(
-          key === 'unpin'
-            ? ['rosterBatch', { action: 'unpin', channelIds: ['dm-ada'] }]
-            : ['channelMuteSet', { channelId: 'dm-ada', muted: false }],
-        );
-      }
-    },
-  );
+  it.each(['ios'] as const)('uses the same inverse operations on %s', async (platform) => {
+    Platform.OS = platform;
+    hostState.actions = true;
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      muted: ['dm-ada'],
+      hidden: [],
+      sections: [],
+      sectionOrder: [],
+    };
+    const view = await home();
+    for (const key of ['unpin', 'unmute'] as const) {
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!.click(),
+      );
+      const fromSwipe = call.mock.calls.at(-1);
+      await rowMenuAction(view, key);
+      expect(call.mock.calls.at(-1)).toEqual(fromSwipe);
+      expect(fromSwipe).toEqual(
+        key === 'unpin'
+          ? ['rosterBatch', { action: 'unpin', channelIds: ['dm-ada'] }]
+          : ['channelMuteSet', { channelId: 'dm-ada', muted: false }],
+      );
+    }
+  });
 });
 
 describe('Remote Host section and Pinned presentation', () => {

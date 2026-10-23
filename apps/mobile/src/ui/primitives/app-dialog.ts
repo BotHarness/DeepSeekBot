@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { ActionSheetIOS, Alert, Keyboard, Platform } from 'react-native';
 
 import { appDialogs, type DialogAction } from './dialog-state';
@@ -73,6 +74,7 @@ export function confirmDestructive(
 export function showActionMenu(
   title: string,
   actions: readonly (DialogAction & { icon: NonNullable<DialogAction['icon']> })[],
+  avatar?: ReactElement,
 ): void {
   const ordered = [
     ...actions.filter((action) => action.style !== 'destructive'),
@@ -96,7 +98,13 @@ export function showActionMenu(
   }
   if (Platform.OS === 'android') {
     Keyboard.dismiss();
-    appDialogs.open(title, undefined, [{ text: t.cancel, style: 'cancel' }, ...ordered], 'menu');
+    appDialogs.open(
+      title,
+      undefined,
+      [{ text: t.cancel, style: 'cancel' }, ...ordered],
+      'menu',
+      avatar,
+    );
     return;
   }
   showAppDialog(title, undefined, [{ text: t.cancel, style: 'cancel' }, ...ordered]);
