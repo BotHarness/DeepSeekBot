@@ -509,7 +509,7 @@ Marketplace topic filtering opts into glass Close on iOS, per the Human design u
 
 ### Android navigation scroll motion
 
-Android Chats and Activity hide bottom navigation after deliberate downward scrolling and reveal it on upward scrolling. Navigation translates downward without fading. The Chats creation FAB scales to zero and fades around its bottom-center anchor, without translating. Both follow the same UI-thread scroll progress and remain visible with a screen reader active. System Reduce Motion suppresses the transition. Existing direction thresholds prevent small reversals and edge bounce from flickering the controls.
+Android Chats and Activity hide their headers and bottom navigation after deliberate downward scrolling and reveal them on upward scrolling or returning to the top. Headers translate upward and fade, while navigation translates downward without fading. The Chats creation FAB scales to zero and fades around its bottom-center anchor, without translating. All follow the same UI-thread scroll progress and remain visible with a screen reader active, including while its initial system state is being resolved. Search and Activity filters pin the chrome. Headers measure their actual height at the current text size; the list keeps its mounted identity, viewport size and enough bottom padding to reach its last row throughout the translation. System Reduce Motion suppresses the transition. Existing direction thresholds prevent small reversals and edge bounce from flickering the controls.
 
 ### Android Local Computer input
 

@@ -521,7 +521,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
                   active={route.key === ACTIVITY_TABS[index]?.key}
                   searchFocused={searchFocused}
                   scrollActive={route.key === ACTIVITY_TABS[index]?.key}
-                  pinChrome={searchFocused || filtering}
+                  pinChrome={
+                    searchFocused || filtering || (Platform.OS === 'android' && search !== '')
+                  }
                   headerTravel={travel}
                   dismissSearch={dismissSearch}
                 />
