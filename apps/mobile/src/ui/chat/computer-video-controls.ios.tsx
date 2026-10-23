@@ -50,7 +50,7 @@ function Control({
               : 'bordered',
         ),
         buttonBorderShape(symbol ? 'circle' : 'capsule'),
-        controlSize('large'),
+        controlSize('regular'),
         disabled(action.disabled),
         accessibilityLabel(action.label),
         frame({ minHeight: theme.touch }),
