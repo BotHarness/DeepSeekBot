@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { AppState, type ViewInstance } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
@@ -15,9 +15,11 @@ export function ComputerScrollPad({
   enabled,
   compact,
   onScroll,
+  children,
 }: {
   enabled: boolean;
   compact: boolean;
+  children?: ReactNode;
   onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
 }) {
   const theme = useDesignTheme();
@@ -108,9 +110,11 @@ export function ComputerScrollPad({
           overflow: 'hidden',
         }}
       >
-        <Text variant="meta" tone={enabled ? 'fg' : 'muted'}>
-          {t.computerVideoScrollPad}
-        </Text>
+        {children ?? (
+          <Text variant="meta" tone={enabled ? 'fg' : 'muted'}>
+            {t.computerVideoScrollPad}
+          </Text>
+        )}
         <Animated.View
           pointerEvents="none"
           style={[
