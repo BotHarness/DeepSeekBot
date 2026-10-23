@@ -6,6 +6,7 @@ import { SystemSymbol } from './system-symbol';
 const symbols = {
   settings: { ios: 'gearshape', android: 'settings' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
+  cloud: { ios: 'cloud', android: 'cloud' },
   close: { ios: 'xmark.circle', android: 'link_off' },
   person: { ios: 'person.crop.circle', android: 'account_circle' },
   remove: { ios: 'person.badge.minus', android: 'person_remove' },

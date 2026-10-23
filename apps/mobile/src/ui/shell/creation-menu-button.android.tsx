@@ -68,7 +68,13 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
                     disabled: props.busy,
                     icon: (
                       <MenuIcon
-                        icon={parent ? 'computer' : item.action}
+                        icon={
+                          parent
+                            ? item.target?.kind === 'computer'
+                              ? 'computer'
+                              : 'cloud'
+                            : item.action
+                        }
                         color={theme.color.muted}
                         size={materialMenu.iconSize}
                       />
