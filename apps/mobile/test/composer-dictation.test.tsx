@@ -138,6 +138,7 @@ const { Composer } = await import('../src/ui/chat/composer');
 const { useDictation } = await import('../src/host/speech');
 const { t } = await import('../src/ui/strings');
 const { played } = await import('./expo-haptics-shim');
+const { setHapticsEnabled } = await import('../src/ui/haptics');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -180,6 +181,7 @@ let root: Root | undefined;
 let host: HTMLElement;
 
 beforeEach(async () => {
+  setHapticsEnabled(true);
   speech.platform = 'android';
   speech.scale = 1;
   speech.hardware.clear();
@@ -234,6 +236,7 @@ describe('Composer dictation', () => {
       await act(async () => speech.hardware.get(true)?.onSend());
       await act(async () => send!.click());
       expect(sent).not.toHaveBeenCalled();
+      expect(played).toEqual([]);
       expect(field()).toBe(input);
       expect(field().value).toBe('@Mika ');
       await act(async () => root!.render(<Harness />));
@@ -241,6 +244,7 @@ describe('Composer dictation', () => {
       expect(send!.disabled).toBe(false);
       await press(t.send);
       expect(sent).toHaveBeenCalledExactlyOnceWith('@Mika ');
+      expect(played).toEqual(['impact:light']);
     },
   );
 
@@ -263,12 +267,14 @@ describe('Composer dictation', () => {
       await act(async () => speech.hardware.get(false)?.onSend());
       await act(async () => send.click());
       expect(sent).not.toHaveBeenCalled();
+      expect(played).toEqual([]);
       expect(editor()).not.toBeNull();
       expect(editor().querySelector('textarea')!.value).toBe('@Mika ');
       await act(async () => root!.render(<Harness />));
       expect(send.disabled).toBe(false);
       await act(async () => send.click());
       expect(sent).toHaveBeenCalledExactlyOnceWith('@Mika ');
+      expect(played).toEqual(['impact:light']);
       expect(editor()).toBeNull();
     },
   );
@@ -480,5 +486,47 @@ describe('expanded draft', () => {
     );
     expect(sent).toHaveBeenCalledExactlyOnceWith('Long draft updated');
     expect(host.querySelector('[role="dialog"]')).toBeNull();
+  });
+});
+
+describe.each(['ios', 'android'])('%s composer haptic coverage', (platform) => {
+  it('acknowledges attachment opening once, closes silently and can reopen', async () => {
+    speech.platform = platform;
+    await act(async () => root!.render(<Harness />));
+    const attach = button(t.attach)!;
+    await act(async () => {
+      attach.click();
+      attach.click();
+    });
+    expect(played).toEqual(['impact:light']);
+    expect(button(t.attach)).not.toBeNull();
+    await press(t.attach);
+    expect(played).toEqual(['impact:light', 'impact:light']);
+    await press(t.attachPhotos);
+    expect(played).toEqual(['impact:light', 'impact:light']);
+    expect(button(t.attach)).not.toBeNull();
+  });
+
+  it('keeps attachment and compact/expanded send functional with feedback off', async () => {
+    speech.platform = platform;
+    speech.scale = 3;
+    setHapticsEnabled(false);
+    await act(async () => root!.render(<Harness />));
+    await press(t.attach);
+    expect(button(t.closeAttach)).not.toBeNull();
+    await press(t.closeAttach);
+    await press('Pick Mika');
+    await press(t.send);
+    expect(sent).toHaveBeenCalledTimes(1);
+    await press(t.expandDraft);
+    const send = host.querySelector<HTMLButtonElement>(
+      `[role="dialog"] button[aria-label="${t.send}"]`,
+    )!;
+    await act(async () => send.click());
+    expect(sent).toHaveBeenCalledTimes(2);
+    expect(played).toEqual([]);
+    setHapticsEnabled(true);
+    await press(t.send);
+    expect(played).toEqual(['impact:light']);
   });
 });

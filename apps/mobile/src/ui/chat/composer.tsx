@@ -261,7 +261,12 @@ export function Composer({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [footerHeight, setFooterHeight] = useState(0);
-  const [menu, setMenu] = useState(false);
+  const [menu, setMenuState] = useState(false);
+  const menuOpen = useRef(false);
+  const setMenu = (open: boolean) => {
+    menuOpen.current = open;
+    setMenuState(open);
+  };
   const [held, setHeld] = useState(false);
   const [editing, setEditing] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -309,8 +314,12 @@ export function Composer({
     onSend();
   };
   const toggleMenu = () => {
-    if (!menu) Keyboard.dismiss();
-    setMenu(!menu);
+    const open = !menuOpen.current;
+    if (open) {
+      haptic('menu');
+      Keyboard.dismiss();
+    }
+    setMenu(open);
   };
   const expanded = theme.largeText || wraps;
   const stacked = composerStacked(actions, files.length, expanded);
