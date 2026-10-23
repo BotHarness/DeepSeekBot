@@ -1,6 +1,7 @@
 import { parseAccountOwner, type AccountOwner } from './account-owner';
 
 export interface HostEncryption {
+  loopback?: 'encrypted';
   protocol: 'connect-noise-xk-v1';
   hostKey: string;
   deviceKey: string;
@@ -28,6 +29,23 @@ function record(value: unknown): Record<string, unknown> {
 
 export function parseSavedHost(input: unknown): SavedHost | undefined {
   const value = record(input);
+  const encryptedRoutes = value['encryptedLoopbackRoutes'];
+  if (
+    encryptedRoutes !== undefined &&
+    (record(value['encryption'])['loopback'] !== 'encrypted' ||
+      !Array.isArray(value['routes']) ||
+      value['routes'].length !== 0 ||
+      !Array.isArray(encryptedRoutes) ||
+      encryptedRoutes.length !== 1 ||
+      typeof encryptedRoutes[0] !== 'string' ||
+      !/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/u.test(encryptedRoutes[0]))
+  )
+    return undefined;
+  if (
+    record(value['encryption'])['loopback'] === 'encrypted' &&
+    parseEncryption(value['encryption']) === undefined
+  )
+    return undefined;
   return typeof value['hostId'] === 'string' &&
     typeof value['hostName'] === 'string' &&
     Array.isArray(value['routes']) &&
@@ -43,11 +61,17 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
           : { encryption: parseEncryption(value['encryption'])! }),
         hostId: value['hostId'],
         hostName: value['hostName'],
-        routes: value['routes'] as string[],
+        routes: (encryptedRoutes ?? value['routes']) as string[],
         deviceId: value['deviceId'],
         credential: value['credential'],
       }
     : undefined;
+}
+
+export function serializeSavedHost(host: SavedHost) {
+  return host.encryption?.loopback === 'encrypted'
+    ? { ...host, routes: [], encryptedLoopbackRoutes: host.routes }
+    : host;
 }
 
 function parse(text: string | null | undefined): unknown {
@@ -130,6 +154,11 @@ export function parseEncryption(input: unknown): HostEncryption | undefined {
     /^[0-9a-f]{64}$/u.test(value['hostKey']) &&
     typeof value['deviceKey'] === 'string' &&
     /^[0-9a-f]{64}$/u.test(value['deviceKey'])
-    ? { protocol: 'connect-noise-xk-v1', hostKey: value['hostKey'], deviceKey: value['deviceKey'] }
+    ? {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: value['hostKey'],
+        deviceKey: value['deviceKey'],
+        ...(value['loopback'] === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
+      }
     : undefined;
 }

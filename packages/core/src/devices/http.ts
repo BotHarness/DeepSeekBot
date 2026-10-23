@@ -22,8 +22,8 @@ const headers = {
 };
 
 export interface PairingPayload {
-  v: 1;
-  encryption?: EncryptionIdentity;
+  v: 1 | 2;
+  encryption?: EncryptionIdentity & { loopback?: 'encrypted' };
   host: HostIdentity;
   offer: string;
   routes: string[];

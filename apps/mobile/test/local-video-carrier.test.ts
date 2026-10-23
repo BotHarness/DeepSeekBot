@@ -143,6 +143,39 @@ it('retains the structured Connect refusal through the shared video consumer wit
   }
 });
 
+it.each(['http://127.0.0.1:39101', 'http://localhost:39101', 'http://[::1]:39101'])(
+  'refuses video and legacy viewers over the encrypted SSH loopback %s',
+  async (sshOrigin) => {
+    const raw = { request: vi.fn(), openSocket: vi.fn() };
+    const host = createHostClient({
+      hostId: 'host',
+      credential: 'synthetic',
+      routes: [sshOrigin],
+      carrier: raw,
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: randomBytes(32).toString('hex'),
+        deviceKey: randomBytes(32).toString('hex'),
+        loopback: 'encrypted',
+      },
+    });
+    try {
+      for (const rejected of [
+        LOCAL_VIDEO_PATH,
+        LOCAL_VIDEO_PATH + '/',
+        '/api/computer/frame',
+        '/api/browser/video',
+      ])
+        await expect(host.api(rejected)).rejects.toMatchObject({
+          code: 'connect-viewer-unavailable',
+        });
+      expect(raw.request).not.toHaveBeenCalled();
+      expect(raw.openSocket).not.toHaveBeenCalled();
+    } finally {
+      host.stop();
+    }
+  },
+);
 it('cancels an admission waiter immediately while another request keeps the shared channel', async () => {
   const test = lane({ delayAdmission: true });
   const carrier = encryptedCarrier(test.options);

@@ -743,6 +743,13 @@
       "source": "apps/mobile/src/ui/chat/composer.tsx",
       "task": 2566,
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "host.ssh-tunnel",
+      "label": "Computer SSH tunnel to a pinned Linux Host",
+      "source": "packages/core/src/devices/ssh-tunnel.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/ssh-host.md",
+      "task": 2607
     }
   ],
   "scripts": [
