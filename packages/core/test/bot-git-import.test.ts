@@ -83,3 +83,98 @@ it('previews one Git source and recovers its same Bot and DM after retry and Hos
   expect(restarted.core.channels.list()).toHaveLength(1);
   expect(restarted.core.grants.list(created.value.bot.slug)).toEqual([]);
 });
+
+it('serializes duplicate Git imports, binds the entire accepted input, and refuses archived identities', async () => {
+  const source = repository();
+  const f = fixture();
+  const request = {
+    operationKey: 'git-concurrent-01',
+    displayName: 'Concurrent',
+    gitUrl: source.url,
+    expectedCommit: source.commit,
+    description: 'Bio',
+    roles: ['qa'],
+  };
+  const [a, b] = await Promise.all([
+    f.bridge.createFromGit(request),
+    f.bridge.createFromGit(request),
+  ]);
+  expect(a).toEqual(b);
+  if (!a.ok) throw new Error(a.error.code);
+  for (const patch of [
+    { displayName: 'Changed' },
+    { description: 'Changed' },
+    { roles: ['changed'] },
+    { expectedCommit: 'f'.repeat(40) },
+  ])
+    expect(f.bridge.botImportLookup({ ...request, ...patch })).toMatchObject({
+      ok: false,
+      error: { code: 'creation-key-conflict' },
+    });
+  expect(f.core.registry.list()).toHaveLength(1);
+  expect(f.core.channels.list()).toHaveLength(1);
+  f.core.registry.setPaused(a.value.bot.slug, true);
+  expect(f.bridge.botImportLookup(request)).toMatchObject({
+    ok: false,
+    error: { code: 'creation-identity-unavailable' },
+  });
+  expect(await f.bridge.createFromGit(request)).toMatchObject({
+    ok: false,
+    error: { code: 'creation-identity-unavailable' },
+  });
+});
+it('refuses changed Git source before publishing a Bot and never silently rebinds its operation', async () => {
+  const source = repository();
+  const f = fixture();
+  const request = {
+    operationKey: 'git-source-change-01',
+    displayName: 'Pinned',
+    gitUrl: source.url,
+    expectedCommit: source.commit,
+  };
+  writeFileSync(join(source.dir, 'SOUL.md'), 'Different source');
+  source.git('add', '.');
+  source.git('commit', '--quiet', '-m', 'new source');
+  expect(await f.bridge.createFromGit(request)).toMatchObject({
+    ok: false,
+    error: { code: 'git-source-changed' },
+  });
+  expect(f.core.registry.list()).toHaveLength(0);
+  expect(f.core.channels.list()).toHaveLength(0);
+  const reserved = f.bridge.botImportLookup(request);
+  expect(reserved).toMatchObject({ ok: true, value: { receipt: { status: 'reserved' } } });
+  expect(
+    await f.bridge.createFromGit({ ...request, expectedCommit: source.git('rev-parse', 'HEAD') }),
+  ).toMatchObject({ ok: false, error: { code: 'creation-key-conflict' } });
+  await f.close();
+  const restarted = fixture(f.home);
+  expect(restarted.bridge.botImportLookup(request)).toEqual(reserved);
+  expect(await restarted.bridge.createFromGit(request)).toMatchObject({
+    ok: false,
+    error: { code: 'git-source-changed' },
+  });
+  expect(restarted.core.registry.list()).toHaveLength(0);
+});
+it('refuses invalid or unsupported keyed import before creating an identity', async () => {
+  const f = fixture();
+  const request = {
+    operationKey: 'git-invalid-01',
+    displayName: 'Pinned',
+    gitUrl: 'https://example.com/owner/repo.git',
+    expectedCommit: 'a'.repeat(40),
+  };
+  for (const patch of [
+    { operationKey: 'short' },
+    { expectedCommit: 'branch' },
+    { gitUrl: 'https://secret@example.com/owner/repo.git' },
+  ]) {
+    expect(f.bridge.botImportLookup({ ...request, ...patch }).ok).toBe(false);
+    expect((await f.bridge.createFromGit({ ...request, ...patch })).ok).toBe(false);
+  }
+  const { creations: _creations, ...deps } = f.core;
+  expect(createBridgeMethods(deps).botImportLookup(request)).toMatchObject({
+    ok: false,
+    error: { code: 'creation-unavailable' },
+  });
+  expect(f.core.registry.list()).toHaveLength(0);
+});

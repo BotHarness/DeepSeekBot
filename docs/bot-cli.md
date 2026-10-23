@@ -937,7 +937,7 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 The Host reserves one identity in its durable creation receipt before creating the Memory Repository and DM. After a lost response, repeat the **same operation key and same payload**: an existing completed receipt returns that Bot and DM, while a partially completed operation reconciles the reserved identity. A completed scoped retry performs a checked read instead of another creation approval. A changed payload refuses with `creation-key-conflict`; an archived or deleted identity refuses with `creation-identity-unavailable` and is never recreated by replay. `creation-memory-conflict` means the reserved folder exists without its Registry identity: preserve it for repair rather than deleting it or trying a new key. Receipt-backed creation is not a filesystem/database transaction and does not promise automatic repair of that interrupted state.
 
-The authenticated Human online `create` also accepts `--operation-key`. It is limited to blank creation with managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior, including import behavior. Scoped Tob does not gain Git/Zip/directory import, Marketplace search or edits to another Bot's existing Memory from this slice.
+The authenticated Human online `create` also accepts `--operation-key` for blank creation or an inspected Git source in managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior. Scoped Tob does not gain Git/Zip/directory import, Marketplace search or permission to modify another Bot’s Memory.
 
 The Human online `create-status` command performs a read-only receipt lookup on the original Host. Pass the same name, persona, Bio, tags and other blank-create inputs with the original key; changed input is refused. It returns `{receipt:null}` before an operation exists, or `{receipt:{operationKey,botSlug,status,channelId?}}`. A `reserved` receipt can be resumed using `create` with that exact input and key; `created` identifies the existing Bot and DM. Never change Host or mint a new key to recover an uncertain result. Mobile checks this lookup before its first create, so a Host without recovery support cannot silently create an unrecoverable Bot.
 
@@ -1339,3 +1339,15 @@ The tunnel listens only on `127.0.0.1`. SSH links require encrypted loopback req
 
 Read structured lifecycle events on stderr to distinguish `ssh-missing`, `ssh-host-key-refused`, `ssh-authentication-refused`, `ssh-local-port-unavailable`, `ssh-host-unready` and `ssh-host-identity-mismatch`. Remote process errors never cause automatic bootstrap or a plaintext fallback. No raw SSH output or pairing link is printed. See [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md) for ownership and qualification boundaries.
 `ssh-tunnel` exposes only the encrypted Device Gateway on its public loopback port. It is not a general HTTP proxy: opening that port directly in a browser returns 403. Use Add remote in your local Host browser. Ambient local browser cookies are discarded by the carrier and never reach the remote Host.
+
+### Pinned Git import and recovery
+
+Inspect the selected source on the target Host before confirming a new import. The response contains a normalized Git URL and its current HEAD commit. Keep that URL and commit with the chosen name, Bio, tags and operation key; sending or recovering the operation must not inspect a newer commit automatically.
+
+```bash
+deepseekbot bot-import-preview --host <host> --from-git owner/repository
+deepseekbot create-status --host <host> --name Helper --from-git <inspected-url> --expected-commit <commit> --operation-key import-helper-001
+deepseekbot create --host <host> --name Helper --from-git <inspected-url> --expected-commit <commit> --operation-key import-helper-001
+```
+
+The lookup is read-only and accepts the same optional `--description` and repeated `--role` flags as creation. A lost reply or Host restart retains the same Bot, managed Memory and DM. `git-source-changed` refuses a repository whose cloned HEAD differs from the inspected commit before publishing a Bot; the reserved key stays bound to the original input. Review the changed source before explicitly starting a different operation. Reusing a key with a different source or metadata returns `creation-key-conflict`; archived or deleted identities return `creation-identity-unavailable`. No automatic model call or credential copying occurs.
