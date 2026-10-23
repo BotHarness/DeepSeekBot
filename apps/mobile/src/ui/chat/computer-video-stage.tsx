@@ -15,7 +15,7 @@ import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
-import { pinchZoom, type Size } from './zoom-math';
+import { MAX_SCALE, pinchZoom, type Size } from './zoom-math';
 
 type Point = { x: number; y: number };
 const TAP_SLOP = 10;
@@ -75,13 +75,15 @@ export function ComputerVideoStage({
       });
     })
     .onUpdate((event) => {
+      const start = origin.get();
       const next = pinchZoom(
-        origin.get(),
+        start,
         {
           x: event.focalX - stage.width / 2,
           y: event.focalY - fit.height / 2,
         },
         event.scale,
+        { min: Math.min(0.6, start.scale), max: Math.max(MAX_SCALE * 1.5, start.scale) },
       );
       preview.set(next);
     })
