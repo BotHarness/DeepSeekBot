@@ -40,6 +40,7 @@ import { t } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
 import { ComputerVideoHeader } from './computer-video-header.android';
+import type { ComputerClickFeedback } from './computer-click-ripple';
 import { ComputerWheelButton } from './computer-wheel-button';
 import { ComputerScrollPad } from './computer-scroll-pad';
 import { ComputerVideoKeyboard, remoteKeyboardAvailable } from './computer-video-keyboard';
@@ -101,6 +102,8 @@ function ComputerScreen({
     () => viewer?.getState() ?? idle,
   );
   const cursor = useSharedValue({ x: 0, y: 0 });
+  const clickFeedback = useSharedValue<ComputerClickFeedback | undefined>(undefined);
+  const clickSequence = useRef(0);
   const preview = useSharedValue<StageZoom>({ scale: 1, x: 0, y: 0 });
   const revoked = snapshot.connection.status === 'refused';
   const connected = snapshot.connection.status === 'connected';
@@ -178,8 +181,26 @@ function ComputerScreen({
       ? Promise.resolve(false)
       : (viewer?.input(input) ?? Promise.resolve(false));
   };
-  const click = (point: { x: number; y: number }, button: 'left' | 'right') =>
-    send(videoPointerClick({ point, frame, button, driving }));
+  const click = async (point: { x: number; y: number }, button: 'left' | 'right') => {
+    const input = videoPointerClick({ point, frame, button, driving });
+    if (input === undefined) return false;
+    const delivered = await send(input);
+    const current = viewer?.getState();
+    if (
+      delivered &&
+      binding !== undefined &&
+      current?.status === 'controlling' &&
+      current.host?.binding?.attemptId === binding.attemptId &&
+      current.host?.grant?.generation === host?.grant?.generation
+    )
+      clickFeedback.set({
+        sequence: ++clickSequence.current,
+        attemptId: binding.attemptId,
+        point: { x: input.x, y: input.y },
+        button,
+      });
+    return delivered;
+  };
   const scroll = (axis: 'horizontal' | 'vertical', steps: number) =>
     send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
   const close = () => setExiting(true);
@@ -236,6 +257,8 @@ function ComputerScreen({
         {mediaMounted && Video !== undefined ? (
           <ComputerVideoStage
             key={binding.attemptId}
+            attemptId={binding.attemptId}
+            clickFeedback={clickFeedback}
             frame={frame}
             driving={driving}
             controlling={controlling}

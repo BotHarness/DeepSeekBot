@@ -84,3 +84,7 @@ Windows display. Start from the declared native build; these are pending verific
 - Keep signaling files, device credentials, paths/addresses and desktop content private. Publish only redacted evidence. Preserve the stronger channel-only Connect policy when integrating its separate carrier work; T1 grants no raw Connect exception.
 - Inspect bounded owner outcome logs for operation/runtime/attempt/grant correlation, initiator class, duration, coded failure source and pause state. Healthy heartbeats must not spam the log. Source regressions are separate from live log evidence.
 - Do not code-only downgrade after takeover: older code ignores the pause record. Keep Computer stopped, confirm media cleanup, preserve pause and follow the recovery guide.
+
+### Click acknowledgement feedback
+
+On the same physical Android build, check preview tap and Left button (blue), preview long press and Right button (orange). Each ring belongs to the acknowledged click coordinate and stays there when the cursor moves; zoom/pan still maps it to that desktop location. Rapid repeats restart feedback. Wheel dragging, an invalid click, observation-only mode, lost control and a disconnected/uncertain request must not show a success ring. Enable Reduce Motion and confirm a brief static ring remains visible without expansion. Hand back/reconnect must not replay a previous click. Capture redacted key frames or a short recording; source tests do not qualify the animation timing.

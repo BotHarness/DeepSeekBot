@@ -21,11 +21,14 @@ import { t } from '../strings';
 import { useMounted } from '../mounted';
 import type { Size } from './zoom-math';
 import { videoPinchUpdate } from './computer-video-gestures';
+import { ComputerClickRipple, type ComputerClickFeedback } from './computer-click-ripple';
 
 type Point = { x: number; y: number };
 const TAP_SLOP = 10;
 
 export function ComputerVideoStage({
+  attemptId,
+  clickFeedback,
   frame,
   driving,
   controlling,
@@ -35,6 +38,8 @@ export function ComputerVideoStage({
   onClick,
   children,
 }: {
+  attemptId: string;
+  clickFeedback: SharedValue<ComputerClickFeedback | undefined>;
   frame: Size;
   driving: boolean;
   controlling: boolean;
@@ -218,6 +223,16 @@ export function ComputerVideoStage({
         >
           {children(fit)}
         </Animated.View>
+        {controlling ? (
+          <ComputerClickRipple
+            feedback={clickFeedback}
+            attemptId={attemptId}
+            enabled={driving}
+            frame={frame}
+            stage={stage}
+            preview={preview}
+          />
+        ) : null}
         {controlling ? (
           <Animated.View
             pointerEvents="none"

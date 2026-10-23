@@ -151,6 +151,15 @@ export const pointer = {
   rim: '#0f1115',
 };
 
+export const computerClickRipple = {
+  left: '#60a5fa',
+  right: '#fb923c',
+  diameter: 40,
+  duration: 150,
+  startScale: 0.95,
+  expansion: 0.65,
+} as const;
+
 export const motion = {
   drawer: 250,
   composer: 160,

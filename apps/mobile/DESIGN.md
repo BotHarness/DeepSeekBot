@@ -392,7 +392,7 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 4. **Interactive elements meet the touch target and carry an `accessibilityLabel`.** The touch target is `theme.touch`: 44pt on iOS, 48dp on Android.
 5. **Lists virtualize.** The chat is a top-to-bottom `FlatList` that starts at its end.
 6. **Immediate press feedback and semantic haptics are distinct.**
-   - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the working row glyph, the Host drawer, the image viewer's gestures, Android Computer video's local cursor, wheel sliders and preview pinch/pan, and the composer growing line by line (up to five lines, then it scrolls). Computer cursor, preview and wheel-slider gestures run on the UI thread; only committed clicks and wheel steps cross to the Host client. The Computer preview has no release-time animation; Reset view applies its default position directly.
+   - Motion uses Reanimated, only for bubble entry, a held bubble's lift, the message menu, card collapse, the status dot, the working row glyph, the Host drawer, the image viewer's gestures, Android Computer video's local cursor, click acknowledgement ring, wheel sliders and preview pinch/pan, and the composer growing line by line (up to five lines, then it scrolls). Computer cursor, preview and wheel-slider gestures run on the UI thread; only committed clicks and wheel steps cross to the Host client. The Computer preview has no release-time animation; Reset view applies its default position directly.
    - Actionable controls show native or visual feedback on press-in. Preserve platform-native controls, pressed fills and Android ripple; do not add a scale animation or vibration to every button. A canceled press may highlight but must not commit its action.
    - Application haptics mark actual navigation/custom selection changes, accepted approval or choice submissions, sending, message/activity menus, reactions, pull-to-compose and swipe thresholds/actions. Repeated current selections, prevented navigation, disabled/busy controls and canceled actions add no haptic. One event has one feedback owner: do not stack application feedback onto a native control that already owns it. No haptics for scrolling, passive updates or animation frames.
    - Approval Allow/Deny and choice submission show busy feedback immediately, but acknowledge the decision only after the existing submission result accepts it. Allow confirms the submitted decision; Deny uses warning/rejection feedback. Neither reports tool execution success. Failed or stale submissions retain visible recovery state without an accepted-decision haptic.
@@ -514,6 +514,18 @@ buttons without imitating the group's neighbour-width animation. Mouse/scroll ge
 surfaces retain the accepted tap/drag arbitration and slider feedback. Native system
 picture-in-picture and its trailing header action are deferred to #2663; no inert button
 is shown before its separate video/background/control lifecycle is implemented.
+
+### Local Computer click feedback
+
+Preview taps, long-press right-click and the two mouse buttons share the same click path.
+After the Host acknowledges a click in the current viewer/grant, a 150 ms local ring expands
+and fades at that click's remote coordinate: blue for Left, orange for Right, with a dark rim
+for visibility over the desktop. The ring follows preview transforms but not later cursor
+motion. Wheel drags, refused or uncertain clicks produce no acknowledgement ring. A new
+click restarts the short feedback; losing control hides it and a new viewer never replays
+an old click. Reanimated runs transform/opacity on the UI thread. Reduce Motion replaces
+expansion/fading with a static ring for the same brief interval. This feedback confirms
+input delivery, not whether the target application completed a business action.
 
 ### Local Computer native keyboard
 
