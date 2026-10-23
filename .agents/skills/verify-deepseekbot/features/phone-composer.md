@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-Integrated iOS attachment control and taller island, compact and multiline drafts, attachment tray, dictation controls, expanded editing, system text and keyboard clearance. Android retains its separate attachment button.
+Integrated iOS attachment control and taller island, compact and multiline drafts, native attachment menu, dictation controls, expanded editing, system text and keyboard clearance. Android retains its separate attachment button.
 
 ## How to get to it (user POV)
 
@@ -13,7 +13,7 @@ Open a paired computer, then a Human/Bot DM or a group conversation. Use the mes
 Use `docs/agents/device-qa.md` and its designated runner, qualified native client and isolated QA Host. Drive the actual native app by accessible labels or `composer-input`, `composer-attach`, `composer-send`, `composer-expand`, `composer-dictation`, `composer-dictation-cancel` and `jump-to-latest`. Source tests in `apps/mobile/test/dictation.test.ts` and the style/system-text guards do not prove native geometry.
 
 1. Capture matched base/candidate empty and short-draft states: iOS has one continuous rounded surface around +, field and trailing control; default compact height is 56pt and the controls are at least 44pt. Check opaque Reduce Transparency fallback too.
-2. Open the real soft keyboard, type several lines and move the caret. Open/close the attachment tray, pick and remove an owned fixture, expand/return from editing and preserve the draft and selection. Required controls and the current editing line remain reachable.
+2. Open the real soft keyboard, type several lines and move the caret. Open the native attachment menu with and without the keyboard: Photos, Camera and File are anchored to + without expanding the input area. Dismiss outside, reopen, cancel each available picker and retain the draft; pick and remove an owned fixture, expand/return from editing and preserve the draft and selection. Required controls and the current editing line remain reachable.
 3. Repeat light/dark at default, intermediate and maximum system text. Change default → maximum → default live with a draft open; retain the editable field, draft and focus. Record CJK IME, VoiceOver and orientation separately if unavailable.
 4. Send a uniquely marked message and read the QA Host Channel timeline: exact text, attachments and mention metadata agree. A Bot reply requires a usable model. Exercise dictation start, cancel and stop with microphone permission; audio/transcription availability is a separate prerequisite.
 5. For iOS native controls, tap the entire 44pt target (including its edge), open/close attachments, send exactly once and expand/return without losing input focus or draft. Scroll to history, receive unseen messages, verify the count badge, then tap the native return button and confirm it follows the latest message. Repeat with Reduce Transparency.
