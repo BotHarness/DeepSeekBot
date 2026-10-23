@@ -1,8 +1,8 @@
 {
-  "applicationSource": "b8b471532e88dce0f624ef4a1e95553a08214771",
-  "capturedComponentsSource": "47468bd81",
+  "applicationSource": "1e359ab119784f9807b386c9ba40c9652c43a7ab",
+  "capturedComponentsSource": "1e359ab119784f9807b386c9ba40c9652c43a7ab",
   "base": "757c54483",
-  "postCaptureChanges": "Integrated Android-only main #2678 and removed a source comment; captured iOS runtime behavior and native source hashes are unchanged.",
+  "postCaptureChanges": "None. Final shared SVG wheel recaptured on iOS after Android native Icon fix.",
   "device": "QA iOS 27, iPhone 17 Pro Simulator, 402 x 874 pt",
   "scope": "Real native production components in a temporary local-callback fixture. Synthetic blank video; no Host input, grant, network or haptic-sensation acceptance.",
   "binary": {
@@ -25,47 +25,47 @@
     "apps/mobile/modules/remote-keyboard/expo-module.config.json": "81d412316b8f5680ba674cb60c98ec605441ff033276a0095ff52571525f781b"
   },
   "results": {
-    "nativeLeft": "left 600,428 #7",
-    "nativeRightAfterPointerMove": "right 655,463 #8",
-    "verticalScroll": "vertical -2 at 655,463",
-    "horizontalScroll": "horizontal 2 at 655,463",
+    "nativeLeft": "left 400,300 #2",
+    "nativeRightAfterPointerMove": "right 500,364 #3",
+    "verticalScroll": "vertical -2 at 500,364",
+    "horizontalScroll": "horizontal 2 at 500,364",
     "dockBoundsUnchanged": true,
     "bounds": {
       "computer-video-left-click": {
+        "y": 710,
         "height": 68,
         "x": 8.666666666666666,
-        "width": 76,
-        "y": 710
+        "width": 76
       },
       "computer-video-right-click": {
+        "y": 710,
         "height": 68,
         "x": 317.6666666666667,
-        "width": 76,
-        "y": 710
+        "width": 76
       },
       "computer-video-scroll-pad": {
+        "y": 711,
         "height": 66,
         "x": 93,
-        "width": 216,
-        "y": 711
+        "width": 216
       },
       "computer-video-control": {
-        "height": 46,
         "x": 123.66666666666666,
+        "y": 786,
         "width": 46,
-        "y": 786
+        "height": 46
       },
       "computer-video-keyboard": {
-        "height": 46,
         "x": 178,
+        "y": 786,
         "width": 46,
-        "y": 786
+        "height": 46
       },
       "computer-video-more": {
-        "height": 46,
         "x": 232.33333333333331,
+        "y": 786,
         "width": 46,
-        "y": 786
+        "height": 46
       }
     },
     "keyboardHidesPointerRow": true,
@@ -85,40 +85,40 @@
         "fixedAfterScroll": true,
         "bounds": {
           "computer-video-left-click": {
-            "y": 710,
             "width": 76,
+            "y": 710,
             "height": 68,
             "x": 8.666666666666666
           },
           "computer-video-right-click": {
-            "x": 317.6666666666667,
-            "y": 710,
+            "height": 68,
             "width": 76,
-            "height": 68
+            "y": 710,
+            "x": 317.6666666666667
           },
           "computer-video-scroll-pad": {
-            "y": 711,
             "height": 66,
-            "x": 93,
-            "width": 216
+            "width": 216,
+            "y": 711,
+            "x": 93
           },
           "computer-video-control": {
             "x": 123.66666666666666,
             "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           },
           "computer-video-keyboard": {
             "x": 178,
             "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           },
           "computer-video-more": {
             "x": 232.33333333333331,
             "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           }
         }
       },
@@ -129,40 +129,40 @@
         "fixedAfterScroll": true,
         "bounds": {
           "computer-video-left-click": {
-            "x": 8.666666666666666,
-            "y": 710,
             "width": 76,
-            "height": 68
+            "height": 68,
+            "x": 8.666666666666666,
+            "y": 710
           },
           "computer-video-right-click": {
             "x": 317.6666666666667,
             "y": 710,
-            "width": 76,
-            "height": 68
+            "height": 68,
+            "width": 76
           },
           "computer-video-scroll-pad": {
-            "x": 93,
             "y": 711,
-            "width": 216,
-            "height": 66
+            "x": 93,
+            "height": 66,
+            "width": 216
           },
           "computer-video-control": {
             "x": 123.66666666666666,
             "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           },
           "computer-video-keyboard": {
             "x": 178,
             "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           },
           "computer-video-more": {
             "x": 232.33333333333331,
             "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           }
         }
       },
@@ -173,172 +173,172 @@
         "fixedAfterScroll": true,
         "bounds": {
           "computer-video-left-click": {
-            "x": 8.666666666666666,
             "y": 710,
-            "width": 76,
-            "height": 68
+            "x": 8.666666666666666,
+            "height": 68,
+            "width": 76
           },
           "computer-video-right-click": {
-            "x": 317.6666666666667,
             "y": 710,
-            "width": 76,
-            "height": 68
+            "x": 317.6666666666667,
+            "height": 68,
+            "width": 76
           },
           "computer-video-scroll-pad": {
-            "x": 93,
             "y": 711,
-            "width": 216,
-            "height": 66
+            "x": 93,
+            "height": 66,
+            "width": 216
           },
           "computer-video-control": {
+            "y": 786,
             "x": 124,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          },
-          "computer-video-keyboard": {
-            "x": 178,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          },
-          "computer-video-more": {
-            "x": 232,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          }
-        }
-      },
-      {
-        "size": "accessibility-medium",
-        "appearance": "dark",
-        "hittable44": true,
-        "fixedAfterScroll": true,
-        "bounds": {
-          "computer-video-left-click": {
-            "x": 8.666666666666666,
-            "y": 710,
-            "width": 76,
-            "height": 68
-          },
-          "computer-video-right-click": {
-            "x": 317.6666666666667,
-            "y": 710,
-            "width": 76,
-            "height": 68
-          },
-          "computer-video-scroll-pad": {
-            "x": 93,
-            "y": 711,
-            "width": 216,
-            "height": 66
-          },
-          "computer-video-control": {
-            "x": 124,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          },
-          "computer-video-keyboard": {
-            "x": 178,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          },
-          "computer-video-more": {
-            "x": 232,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          }
-        }
-      },
-      {
-        "size": "accessibility-extra-extra-extra-large",
-        "appearance": "light",
-        "hittable44": true,
-        "fixedAfterScroll": true,
-        "bounds": {
-          "computer-video-left-click": {
-            "x": 8.666666666666666,
-            "y": 710,
-            "width": 76,
-            "height": 68
-          },
-          "computer-video-right-click": {
-            "x": 317.6666666666667,
-            "y": 710,
-            "width": 76,
-            "height": 68
-          },
-          "computer-video-scroll-pad": {
-            "x": 93,
-            "y": 711,
-            "width": 216,
-            "height": 66
-          },
-          "computer-video-control": {
-            "x": 124,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          },
-          "computer-video-keyboard": {
-            "x": 178,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          },
-          "computer-video-more": {
-            "x": 232,
-            "y": 786,
-            "width": 46,
-            "height": 46
-          }
-        }
-      },
-      {
-        "size": "accessibility-extra-extra-extra-large",
-        "appearance": "dark",
-        "hittable44": true,
-        "fixedAfterScroll": true,
-        "bounds": {
-          "computer-video-left-click": {
-            "x": 8.666666666666666,
-            "y": 710,
-            "width": 76,
-            "height": 68
-          },
-          "computer-video-right-click": {
-            "x": 317.6666666666667,
-            "y": 710,
-            "width": 76,
-            "height": 68
-          },
-          "computer-video-scroll-pad": {
-            "x": 93,
-            "y": 711,
-            "width": 216,
-            "height": 66
-          },
-          "computer-video-control": {
-            "x": 124,
-            "y": 786,
-            "width": 46,
-            "height": 46
+            "height": 46,
+            "width": 46
           },
           "computer-video-keyboard": {
             "y": 786,
-            "width": 46,
             "x": 178,
-            "height": 46
+            "height": 46,
+            "width": 46
           },
           "computer-video-more": {
             "y": 786,
             "x": 232,
             "height": 46,
             "width": 46
+          }
+        }
+      },
+      {
+        "size": "accessibility-medium",
+        "appearance": "dark",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "y": 710,
+            "height": 68,
+            "width": 76
+          },
+          "computer-video-right-click": {
+            "y": 710,
+            "height": 68,
+            "width": 76,
+            "x": 317.6666666666667
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "y": 711,
+            "height": 66,
+            "width": 216
+          },
+          "computer-video-control": {
+            "y": 786,
+            "height": 46,
+            "width": 46,
+            "x": 124
+          },
+          "computer-video-keyboard": {
+            "y": 786,
+            "height": 46,
+            "width": 46,
+            "x": 178
+          },
+          "computer-video-more": {
+            "y": 786,
+            "height": 46,
+            "width": 46,
+            "x": 232
+          }
+        }
+      },
+      {
+        "size": "accessibility-extra-extra-extra-large",
+        "appearance": "light",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "x": 8.666666666666666,
+            "width": 76,
+            "height": 68,
+            "y": 710
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "width": 76,
+            "height": 68,
+            "y": 710
+          },
+          "computer-video-scroll-pad": {
+            "x": 93,
+            "width": 216,
+            "height": 66,
+            "y": 711
+          },
+          "computer-video-control": {
+            "x": 124,
+            "width": 46,
+            "height": 46,
+            "y": 786
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "width": 46,
+            "height": 46,
+            "y": 786
+          },
+          "computer-video-more": {
+            "x": 232,
+            "y": 786,
+            "height": 46,
+            "width": 46
+          }
+        }
+      },
+      {
+        "size": "accessibility-extra-extra-extra-large",
+        "appearance": "dark",
+        "hittable44": true,
+        "fixedAfterScroll": true,
+        "bounds": {
+          "computer-video-left-click": {
+            "height": 68,
+            "y": 710,
+            "x": 8.666666666666666,
+            "width": 76
+          },
+          "computer-video-right-click": {
+            "x": 317.6666666666667,
+            "width": 76,
+            "height": 68,
+            "y": 710
+          },
+          "computer-video-scroll-pad": {
+            "height": 66,
+            "y": 711,
+            "x": 93,
+            "width": 216
+          },
+          "computer-video-control": {
+            "x": 124,
+            "width": 46,
+            "height": 46,
+            "y": 786
+          },
+          "computer-video-keyboard": {
+            "x": 178,
+            "width": 46,
+            "height": 46,
+            "y": 786
+          },
+          "computer-video-more": {
+            "x": 232,
+            "width": 46,
+            "height": 46,
+            "y": 786
           }
         }
       }
@@ -349,7 +349,7 @@
     "Physical iPhone remote input and tactile sensation",
     "New native Bot profile entry rendering (covered by route source tests only)",
     "Chinese marked-text composition/cancellation, VoiceOver and hardware keyboard",
-    "Android native QA: default controls unchanged by this PR"
+    "Android native rendering, actual touches and text-size matrix for the changed artwork"
   ],
   "cleanup": {
     "ownedMetroExited": true,
@@ -361,5 +361,6 @@
     "settingsRestored": "large/light",
     "temporaryRouteRemoved": true,
     "sharedServicesPreserved": true
-  }
+  },
+  "android": "Shared icon design implemented using native Compose Icon VectorDrawable exports for left/right and the shared React Native SVG for scrolling. Existing gestures retained. No Android native lane is assigned to this Mac task; rendering, icon-center/edge presses, native ripple and default/intermediate/max x light/dark are UNVERIFIED."
 }
