@@ -61,11 +61,15 @@ function Control({
           systemName={symbol}
           size={theme.type.title.line}
           modifiers={[
-            frame({ minWidth: theme.touch - space.x5, minHeight: theme.touch - space.x5 }),
+            frame({ minWidth: theme.touch - space.x4, minHeight: theme.touch - space.x4 }),
           ]}
         />
       ) : (
-        <Text modifiers={[font({ textStyle: 'body' })]}>{action.label}</Text>
+        <Text
+          modifiers={[font({ textStyle: 'body' }), frame({ minHeight: theme.touch - space.x4 })]}
+        >
+          {action.label}
+        </Text>
       )}
     </Button>
   );
