@@ -39,7 +39,7 @@ describe('native keyboard input sequencing', () => {
   it('drops pending inputs on hide or grant loss and never replays an uncertain send', async () => {
     for (const cancel of [true, false]) {
       const queue = createRemoteKeyboardInput();
-      let finish = (_: boolean) => {};
+      let finish: (accepted: boolean) => void = () => {};
       const send = vi.fn(
         () =>
           new Promise<boolean>((resolve) => {

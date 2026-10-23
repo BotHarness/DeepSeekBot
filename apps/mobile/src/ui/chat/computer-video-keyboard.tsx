@@ -1,5 +1,5 @@
 import { requireNativeView, requireOptionalNativeModule } from 'expo';
-import { useRef } from 'react';
+import { useRef, type ComponentRef } from 'react';
 import { View, type NativeSyntheticEvent, type ViewProps } from 'react-native';
 import { createRemoteKeyboardInput } from '../../host/remote-keyboard-input';
 import { useMounted } from '../mounted';
@@ -40,7 +40,7 @@ export function ComputerVideoKeyboard({
   onClose(): void;
 }) {
   const queue = useRef<ReturnType<typeof createRemoteKeyboardInput> | undefined>(undefined);
-  const lifecycle = useMounted<View>(() => {
+  const lifecycle = useMounted<ComponentRef<typeof View>>(() => {
     const current = createRemoteKeyboardInput();
     queue.current = current;
     return () => {
