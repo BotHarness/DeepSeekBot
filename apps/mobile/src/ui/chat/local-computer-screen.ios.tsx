@@ -2,6 +2,7 @@ import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router
 import {
   useCallback,
   useMemo,
+  useRef,
   useSyncExternalStore,
   type ComponentProps,
   type ComponentType,
@@ -22,6 +23,7 @@ import { computerCanvas, space } from '../design/tokens';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../design/theme';
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
+import type { ComputerClickFeedback } from './computer-click-ripple';
 import { ComputerVideoControls } from './computer-video-controls.ios';
 import { ComputerVideoHeader } from './computer-video-header.ios';
 import { computerVideoStatus } from './computer-video-status';
@@ -72,6 +74,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     () => viewer?.getState() ?? idle,
   );
   const cursor = useSharedValue({ x: 0, y: 0 });
+  const clickFeedback = useSharedValue<ComputerClickFeedback | undefined>(undefined);
+  const clickSequence = useRef(0);
   const preview = useSharedValue<StageZoom>({ scale: 1, x: 0, y: 0 });
   const connected = snapshot.connection.status === 'connected';
   const nativeMissing = NativeLocalComputerVideo === undefined;
@@ -96,16 +100,34 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const controlling = mediaMounted && state.status === 'controlling';
   const driving = controlling && state.presenting && host?.media.status === 'live' && !state.busy;
   const frame = { width: host?.media.width ?? 0, height: host?.media.height ?? 0 };
-  const click = (point: { x: number; y: number }, button: 'left' | 'right') => {
+  const click = async (point: { x: number; y: number }, button: 'left' | 'right') => {
     const current = viewer?.getState().host;
     if (
       current?.binding?.runtimeId !== binding?.runtimeId ||
+      current?.binding?.viewerId !== binding?.viewerId ||
       current?.binding?.attemptId !== binding?.attemptId ||
       current?.grant?.generation !== host?.grant?.generation
     )
       return;
     const input = videoPointerClick({ point, frame, button, driving });
-    if (input) void viewer?.input(input);
+    if (input === undefined) return;
+    const delivered = await viewer?.input(input);
+    const accepted = viewer?.getState();
+    if (
+      delivered &&
+      binding !== undefined &&
+      accepted?.status === 'controlling' &&
+      accepted.host?.binding?.runtimeId === binding.runtimeId &&
+      accepted.host.binding.viewerId === binding.viewerId &&
+      accepted.host.binding.attemptId === binding.attemptId &&
+      accepted.host.grant?.generation === host?.grant?.generation
+    )
+      clickFeedback.set({
+        sequence: ++clickSequence.current,
+        attemptId: binding.attemptId,
+        point: { x: input.x, y: input.y },
+        button,
+      });
   };
   const close = useCallback(() => {
     void viewer?.stop();
@@ -188,6 +210,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           {mediaMounted && Video !== undefined ? (
             <ComputerVideoStage
               key={binding.attemptId}
+              clickFeedback={{ attemptId: binding.attemptId, events: clickFeedback }}
               frame={frame}
               driving={driving}
               controlling={controlling}
