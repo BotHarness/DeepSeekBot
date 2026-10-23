@@ -23,7 +23,7 @@ type NativeSearchProps = ViewProps & {
   onQueryChange(event: { nativeEvent: { value: string; eventCount: number } }): void;
   onFocusChange(event: { nativeEvent: { focused: boolean } }): void;
   onClose(): void;
-  onSubmit(): void;
+  onSubmit(event: { nativeEvent: { value: string } }): void;
 };
 
 const NativeSearch = requireNativeView<NativeSearchProps>('MaterialSearch');
@@ -78,7 +78,9 @@ export function SearchField({
           nativeEvent.focused ? onFocus?.() : onBlur?.()
         }
         onClose={() => onClose?.()}
-        onSubmit={() => onSubmitEditing?.()}
+        onSubmit={({ nativeEvent }: Parameters<NativeSearchProps['onSubmit']>[0]) =>
+          onSubmitEditing?.(nativeEvent.value)
+        }
         style={{
           flex: 1,
           height: materialSearch.height + materialSearch.lineHeight * Math.max(0, fontScale - 1),

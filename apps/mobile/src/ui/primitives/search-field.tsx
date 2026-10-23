@@ -11,7 +11,7 @@ export type SearchFieldProps = {
   trailing?: ReactNode;
   testID?: string;
   maxLength?: number;
-  onSubmitEditing?(): void;
+  onSubmitEditing?(text: string): void;
   autoFocus?: boolean;
   onFocus?(): void;
   onBlur?(): void;
@@ -66,7 +66,7 @@ export function SearchField({
         <TextInput
           testID={testID}
           maxLength={maxLength}
-          onSubmitEditing={onSubmitEditing}
+          onSubmitEditing={({ nativeEvent }) => onSubmitEditing?.(nativeEvent.text)}
           autoFocus={autoFocus}
           onFocus={onFocus}
           onBlur={onBlur}

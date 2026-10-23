@@ -13,6 +13,9 @@ event. This adapter supplies those events for the existing live filters. Native 
 monotonic event count so a delayed React update cannot replace newer IME text. Query echoes do
 not replace the native text field; theme and text-size changes keep its composition and focus.
 
+Submit forwards the native query directly, so Marketplace does not depend on the last React
+render having received the final keystroke. Both platform adapters share that callback contract.
+
 Colors come from the app's theme; shape, typography, input, clear/back icon buttons and ripple
 come from Material 3. System font scaling stays enabled. Compose owns Back handling and its
 composition is disposed when its view detaches, including its Back handler.

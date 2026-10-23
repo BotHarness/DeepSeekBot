@@ -21,6 +21,24 @@ vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
     ...shim,
+    TextInput: (props: {
+      testID?: string;
+      value?: string;
+      accessibilityLabel?: string;
+      onChangeText?(value: string): void;
+      onSubmitEditing?(event: { nativeEvent: { text: string } }): void;
+    }) =>
+      createElement('textarea', {
+        'data-testid': props.testID,
+        'aria-label': props.accessibilityLabel,
+        value: props.value,
+        onChange: (event: { currentTarget: HTMLTextAreaElement }) =>
+          props.onChangeText?.(event.currentTarget.value),
+        onKeyDown: (event: { key: string; currentTarget: HTMLTextAreaElement }) => {
+          if (event.key === 'Enter')
+            props.onSubmitEditing?.({ nativeEvent: { text: event.currentTarget.value } });
+        },
+      }),
     Platform: {
       ...shim.Platform,
       get OS() {
@@ -305,4 +323,21 @@ it('keeps all sorting choices operable at large text while preserving the topic'
   expect(button(t.marketplace.newest).getAttribute('aria-checked')).toBe('true');
   expect(last.searchParams.get('sort')).toBe('created');
   expect(last.searchParams.get('topic')).toBe('writing');
+});
+
+it('submits the native text when its last edit has not reached React state', async () => {
+  await act(async () => root.render(<MarketplaceScreen />));
+  await act(async () =>
+    element.querySelector<HTMLButtonElement>('[data-testid="marketplace-search-button"]')!.click(),
+  );
+  const input = element.querySelector<HTMLTextAreaElement>('[data-testid="marketplace-search"]')!;
+  input.value = '  native submit complete  ';
+  await act(async () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(
+    fixture.fetch.mock.calls.some(
+      ([url]) => new URL(String(url)).searchParams.get('q') === 'native submit complete',
+    ),
+  ).toBe(true);
 });
