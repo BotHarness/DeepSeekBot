@@ -162,9 +162,30 @@ export type MemoryRepositoryPreview =
 export async function previewMemoryRepository(input: {
   url: string;
   timeoutMs?: number;
+  log?: (message: string) => void;
 }): Promise<MemoryRepositoryPreview> {
+  const startedAt = performance.now();
+  const log = (
+    phase: 'started' | 'complete' | 'refused' | 'fallback',
+    reason?: MemoryCloneFailureCode,
+  ) => {
+    try {
+      input.log?.(
+        'bot-import-preview initiator=bot-import-preview phase=' +
+          phase +
+          ' command=git-ls-remote durationMs=' +
+          (phase === 'started' ? 0 : Math.round(performance.now() - startedAt)) +
+          (reason === undefined ? '' : ' reason=' + reason),
+      );
+    } catch {}
+  };
+  const refuse = (code: MemoryCloneFailureCode): MemoryRepositoryPreview => {
+    log('refused', code);
+    return { ok: false, code };
+  };
+  log('started');
   const url = parseMemoryGitUrl(input.url);
-  if (url === undefined) return { ok: false, code: 'invalid-git-url' };
+  if (url === undefined) return refuse('invalid-git-url');
   const inspect = async (target: string) => {
     const { stdout } = await execFileAsync(
       'git',
@@ -186,20 +207,25 @@ export async function previewMemoryRepository(input: {
     return commit;
   };
   try {
-    return { ok: true, gitUrl: url, commit: await inspect(url) };
+    const commit = await inspect(url);
+    log('complete');
+    return { ok: true, gitUrl: url, commit };
   } catch (error) {
     const code = cloneFailure(error);
     const fallback = code === 'git-not-found' ? undefined : httpsUrlForSsh(url);
-    if (!fallback) return { ok: false, code };
+    if (!fallback) return refuse(code);
+    log('fallback', code);
     try {
+      const commit = await inspect(fallback);
+      log('complete');
       return {
         ok: true,
         gitUrl: url,
-        commit: await inspect(fallback),
+        commit,
         httpsFallback: { from: url, to: fallback, ...sshFailure(error) },
       };
     } catch {
-      return { ok: false, code };
+      return refuse(code);
     }
   }
 }

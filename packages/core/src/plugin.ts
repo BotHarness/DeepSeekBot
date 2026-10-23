@@ -836,6 +836,7 @@ export function createCore(
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
+    ...(options.warn === undefined ? {} : { log: options.warn }),
   });
   const channelManagement = createChannelManagement({
     database: attachOperationalModule(operationalDatabase, 'channel-management'),

@@ -6,10 +6,13 @@ import { BotCreationError } from './creation.js';
 
 export function createBotImports(
   creations: BotCreationService,
-  options: { previewGit?: typeof previewMemoryRepository } = {},
+  options: { previewGit?: typeof previewMemoryRepository; log?: (message: string) => void } = {},
 ) {
   const previewGit = async (gitUrl: string) => {
-    const result = await (options.previewGit ?? previewMemoryRepository)({ url: gitUrl });
+    const result = await (options.previewGit ?? previewMemoryRepository)({
+      url: gitUrl,
+      ...(options.log === undefined ? {} : { log: options.log }),
+    });
     if (!result.ok)
       throw new BotCreationError(result.code, 'The repository could not be inspected.');
     return {
