@@ -21,6 +21,7 @@ import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
 import { CreationForm as FormSurface } from '../primitives/creation-form';
+import { useDesignTheme } from '../design/theme';
 
 export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
   const { ready, mount } = useSheetContent();
@@ -34,6 +35,7 @@ export function CreateBotScreen(props: { initialSource?: CreationEntrySource } =
 function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEntrySource } = {}) {
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
   const { hosts } = useHostSession();
+  const theme = useDesignTheme();
   const state = useBotCreation();
   const [details, setDetails] = useState(false);
   const [entryReady, setEntryReady] = useState(false);
@@ -139,7 +141,10 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
     state.error === 'storage-invalid' ||
     (importing && !draft.source?.preview);
   const dialog =
-    Platform.OS === 'android' && initialSource !== 'zip' && gitSource?.origin !== 'marketplace';
+    Platform.OS === 'android' &&
+    initialSource !== 'zip' &&
+    source?.kind !== 'zip' &&
+    !(source?.kind === 'git' && source.origin === 'marketplace');
   return (
     <View ref={mounted} style={{ flex: 1 }}>
       <Stack.Screen
@@ -151,7 +156,13 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                 animation: 'none',
                 contentStyle: { backgroundColor: 'transparent' },
               }
-            : { headerShown: true }),
+            : Platform.OS === 'android'
+              ? {
+                  headerShown: true,
+                  presentation: 'card',
+                  contentStyle: { backgroundColor: theme.color.base },
+                }
+              : { headerShown: true }),
           title:
             flow === 'zip'
               ? copy.fromZip
