@@ -1,7 +1,10 @@
-import { ScrollView, View, type ViewInstance } from 'react-native';
+import { Platform, Pressable, ScrollView, View, type ViewInstance } from 'react-native';
 import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
 import { marketplace, useCatalogueResource } from '../../marketplace/native-catalogue';
 import { marketplaceDiscovery, space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { Text } from '../primitives/text';
+import { CheckIcon } from './icons';
 import { useMounted } from '../mounted';
 import { Chip } from '../primitives/chip';
 import { Segmented } from '../primitives/segmented';
@@ -19,6 +22,13 @@ export function MarketplaceDiscovery({
   topic: string;
   onTopic(value: string): void;
 }) {
+  const theme = useDesignTheme();
+  const chooseSort = useSelectionFeedback(sort, onSort);
+  const options = [
+    { value: 'updated' as const, label: t.marketplace.updated },
+    { value: 'created' as const, label: t.marketplace.newest },
+    { value: 'stars' as const, label: t.marketplace.popular },
+  ];
   const topics = useCatalogueResource(marketplace.topics);
   const mounted = useMounted<ViewInstance>(() => {
     void marketplace.topics.refresh();
@@ -31,16 +41,44 @@ export function MarketplaceDiscovery({
   return (
     <View ref={mounted} style={{ gap: space.x4 }}>
       <View testID="marketplace-sort">
-        <Segmented<MarketplaceSort>
-          label={t.marketplace.sort}
-          value={sort}
-          onChange={onSort}
-          options={[
-            { value: 'updated', label: t.marketplace.updated },
-            { value: 'created', label: t.marketplace.newest },
-            { value: 'stars', label: t.marketplace.popular },
-          ]}
-        />
+        {Platform.OS === 'ios' && theme.largeText ? (
+          <View
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t.marketplace.sort}
+            style={{ gap: space.x1 }}
+          >
+            {options.map((option) => (
+              <Pressable
+                key={option.value}
+                testID={`marketplace-sort-${option.value}`}
+                accessibilityRole="radio"
+                accessibilityLabel={option.label}
+                accessibilityState={{ checked: sort === option.value }}
+                onPress={() => chooseSort(option.value)}
+                style={({ pressed }) => ({
+                  minHeight: theme.touch,
+                  padding: space.x3,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.x3,
+                  backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+                })}
+              >
+                <Text style={{ flex: 1 }}>{option.label}</Text>
+                {sort === option.value ? (
+                  <CheckIcon color={theme.color.fg} size={theme.type.body.line} />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : (
+          <Segmented<MarketplaceSort>
+            label={t.marketplace.sort}
+            value={sort}
+            onChange={onSort}
+            options={options}
+          />
+        )}
       </View>
       <ScrollView
         horizontal
