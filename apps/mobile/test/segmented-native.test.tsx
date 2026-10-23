@@ -86,6 +86,49 @@ describe('native segmented control', () => {
     ['Material', AndroidSegmented],
     ['Android fallback', AndroidSegmented],
   ] as const) {
+    it(`${name} permits a fresh choice after a newer commit skips an older pending choice`, () => {
+      if (name === 'Android fallback') dimensions.width = 100;
+      const choices = [...options, { value: 'system', label: 'System' }];
+      const onChange = vi.fn(() => new Promise<void>(() => {}));
+      const view = render(
+        createElement(Component, { label: 'Preview', options: choices, value: 'light', onChange }),
+      );
+      act(() => view.querySelectorAll('button')[1]!.click());
+      act(() => view.querySelectorAll('button')[2]!.click());
+      act(() =>
+        root!.render(
+          createElement(Component, {
+            label: 'Preview',
+            options: choices,
+            value: 'system',
+            onChange,
+          }),
+        ),
+      );
+      expect(haptic).toHaveBeenCalledExactlyOnceWith('selection');
+      act(() => view.querySelectorAll('button')[1]!.click());
+      expect(onChange.mock.calls).toEqual([['dark'], ['system'], ['dark']]);
+    });
+
+    it(`${name} does not acknowledge a later external change to a superseded choice`, async () => {
+      if (name === 'Android fallback') dimensions.width = 100;
+      const choices = [...options, { value: 'system', label: 'System' }];
+      const onChange = vi.fn();
+      const view = render(
+        createElement(Component, { label: 'Preview', options: choices, value: 'light', onChange }),
+      );
+      await act(async () => view.querySelectorAll('button')[1]!.click());
+      await act(async () => view.querySelectorAll('button')[2]!.click());
+      for (const value of ['system', 'dark']) {
+        act(() =>
+          root!.render(
+            createElement(Component, { label: 'Preview', options: choices, value, onChange }),
+          ),
+        );
+      }
+      expect(haptic).toHaveBeenCalledExactlyOnceWith('selection');
+    });
+
     it(`${name} acknowledges overlapping delayed selection commits independently`, async () => {
       if (name === 'Android fallback') dimensions.width = 100;
       const choices = [...options, { value: 'system', label: 'System' }];
