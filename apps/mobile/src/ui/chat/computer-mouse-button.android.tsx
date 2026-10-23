@@ -16,7 +16,7 @@ export function ComputerMouseButton({
   onClick(): void;
 }) {
   const theme = useDesignTheme();
-  const colors = useMaterialColors();
+  const colors = useMaterialColors({ colorScheme: theme.scheme, seedColor: theme.color.accent });
   const label = side === 'left' ? t.computerLeftClick : t.computerRightClick;
   return (
     <Host
