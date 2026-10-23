@@ -6,11 +6,13 @@ import { t } from '../strings';
 
 export function Chip({
   label,
+  testID,
   count,
   selected,
   onPress,
 }: {
   label: string;
+  testID?: string;
   count?: number;
   selected: boolean;
   onPress(): void;
@@ -20,6 +22,7 @@ export function Chip({
   const slop = Math.max(0, (theme.touch - height) / 2);
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={count === undefined ? label : t.filterChip(label, count)}

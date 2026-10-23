@@ -9,6 +9,8 @@ import { DrawerMaterial } from './drawer-material';
 
 export function SearchField({
   trailing,
+  testID,
+  onSubmitEditing,
   autoFocus,
   onFocus,
   onBlur,
@@ -19,6 +21,8 @@ export function SearchField({
   onChangeText,
 }: {
   trailing?: ReactNode;
+  testID?: string;
+  onSubmitEditing?(): void;
   autoFocus?: boolean;
   onFocus?(): void;
   onBlur?(): void;
@@ -55,6 +59,8 @@ export function SearchField({
         {floating ? <DrawerMaterial /> : null}
         <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
         <TextInput
+          testID={testID}
+          onSubmitEditing={onSubmitEditing}
           autoFocus={autoFocus}
           onFocus={onFocus}
           onBlur={onBlur}
