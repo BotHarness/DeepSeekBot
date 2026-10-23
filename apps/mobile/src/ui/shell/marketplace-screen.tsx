@@ -229,6 +229,7 @@ export function MarketplaceScreen() {
                   autoFocus
                   inset={0}
                   testID="marketplace-search"
+                  maxLength={100}
                   placeholder={t.marketplace.search}
                   value={search}
                   onChangeText={setSearch}

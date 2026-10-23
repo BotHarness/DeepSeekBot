@@ -9,6 +9,7 @@ const fixture = vi.hoisted(() => {
   vi.stubGlobal('fetch', fetch);
   return {
     fetch,
+    fontScale: 1,
     params: {} as Record<string, string>,
     push: vi.fn(),
     openURL: vi.fn(async () => {}),
@@ -19,6 +20,7 @@ vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
     ...shim,
+    useWindowDimensions: () => ({ ...shim.useWindowDimensions(), fontScale: fixture.fontScale }),
     Linking: { openURL: fixture.openURL },
     FlatList: (
       props: Parameters<typeof shim.FlatList>[0] & {
@@ -123,6 +125,7 @@ let root: Root;
 let element: HTMLElement;
 beforeEach(() => {
   vi.clearAllMocks();
+  fixture.fontScale = 1;
   fixture.params = { entry: 'all' };
   fixture.fetch.mockImplementation(async (url) => {
     const path = new URL(String(url)).pathname;
@@ -278,4 +281,18 @@ it('exposes topic shortcuts and refreshes only after explicit search submission,
   await act(async () => button(t.closeSearch).click());
   expect(element.querySelector('[data-testid="marketplace-search"]')).toBeNull();
   expect(new URL(String(fixture.fetch.mock.calls.at(-1)![0])).searchParams.get('q')).toBe('');
+});
+
+it('keeps all sorting choices operable at large text while preserving the topic', async () => {
+  fixture.fontScale = 3;
+  await act(async () => root.render(<MarketplaceScreen />));
+  await act(async () =>
+    (
+      element.querySelector('[data-testid="marketplace-featured-writing"]') as HTMLButtonElement
+    ).click(),
+  );
+  await act(async () => button(t.marketplace.newest).click());
+  const last = new URL(String(fixture.fetch.mock.calls.at(-1)![0]));
+  expect(last.searchParams.get('sort')).toBe('created');
+  expect(last.searchParams.get('topic')).toBe('writing');
 });
