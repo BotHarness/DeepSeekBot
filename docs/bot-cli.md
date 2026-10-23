@@ -391,7 +391,7 @@ deepseekbot grants <bot-id>
 
 ### Local Computer video
 
-Windows Local Computer uses the [video-only Android path](local-computer-video.md). The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on the migrated Windows target. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause.
+Windows and Linux Local Computer use the [video-only Android path](local-computer-video.md). Linux x64 requires the documented managed Xvfb desktop and non-root systemd user-service prerequisites; the same commands and caller checks apply. The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on migrated Windows/Linux targets. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause. CLI execution cannot establish native phone rendering or impersonate the phone's control grant.
 
 ```bash
 deepseekbot computer-video status

@@ -1,6 +1,17 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -17,13 +28,30 @@ const MANIFEST = '.botharness-video-runtime.json';
 const MAX_ARCHIVE_BYTES = 256 * 1024 * 1024;
 const ASSETS = ['main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js', 'launcher.cs'] as const;
 export const LOCAL_VIDEO_LAUNCHER = 'botharness-media-launcher.exe';
+export const LINUX_VIDEO_ARCHIVE_SHA256 =
+  '6e7fd2d450d442507b846ace4ae6e2bd17e1b1653e86a033b5231abfc23e6df4';
+const LINUX_VIDEO_BYTES = 123_232_128;
+const LINUX_ASSETS = ['launcher-linux.cjs', 'linux-worker.py'] as const;
 
-export function localVideoHelperDirectory(): string {
+function build(platform: string = process.platform) {
+  const linux = platform === 'linux';
+  return {
+    platform,
+    sha256: linux ? LINUX_VIDEO_ARCHIVE_SHA256 : LOCAL_VIDEO_ARCHIVE_SHA256,
+    bytes: linux ? LINUX_VIDEO_BYTES : LOCAL_VIDEO_ARCHIVE_BYTES,
+    executable: linux ? 'electron' : 'electron.exe',
+    launcher: linux ? 'launcher-linux.cjs' : LOCAL_VIDEO_LAUNCHER,
+    source: linux ? 'launcher-linux.cjs' : 'launcher.cs',
+    url: `https://github.com/electron/electron/releases/download/v${LOCAL_VIDEO_ELECTRON_VERSION}/electron-v${LOCAL_VIDEO_ELECTRON_VERSION}-${platform}-x64.zip`,
+  };
+}
+
+export function localVideoHelperDirectory(platform: string = process.platform): string {
   return join(
     homedir(),
     '.botharness',
     'local-video',
-    `electron-${LOCAL_VIDEO_ELECTRON_VERSION}-win32-x64`,
+    `electron-${LOCAL_VIDEO_ELECTRON_VERSION}-${platform}-x64`,
   );
 }
 
@@ -36,10 +64,10 @@ export function localVideoAssetsDirectory(): string {
 }
 
 function supported(platform: string, arch: string): void {
-  if (platform !== 'win32' || arch !== 'x64') {
+  if (!['win32', 'linux'].includes(platform) || arch !== 'x64') {
     throw new LocalVideoError(
       'unsupported-platform',
-      'Local Computer video currently requires Windows x64.',
+      'Local Computer video requires Windows x64 or a qualified Linux x64 managed desktop.',
     );
   }
 }
@@ -75,7 +103,9 @@ function childPath(directory: string, name: string): string {
 export async function verifyLocalVideoHelper(
   directory = localVideoHelperDirectory(),
   assets = localVideoAssetsDirectory(),
+  platform: string = process.platform,
 ): Promise<boolean> {
+  const selected = build(platform);
   try {
     if ((await lstat(directory)).isSymbolicLink()) return false;
     const manifestText = await readFile(join(directory, MANIFEST), 'utf8');
@@ -85,7 +115,7 @@ export async function verifyLocalVideoHelper(
       typeof manifest !== 'object' ||
       manifest === null ||
       !('archiveSha256' in manifest) ||
-      manifest.archiveSha256 !== LOCAL_VIDEO_ARCHIVE_SHA256 ||
+      manifest.archiveSha256 !== selected.sha256 ||
       !('files' in manifest) ||
       typeof manifest.files !== 'object' ||
       manifest.files === null
@@ -93,19 +123,28 @@ export async function verifyLocalVideoHelper(
       return false;
     if (
       !('launcherSourceSha256' in manifest) ||
-      manifest.launcherSourceSha256 !== (await hashFile(join(assets, 'launcher.cs')))
+      manifest.launcherSourceSha256 !== (await hashFile(join(assets, selected.source)))
     )
       return false;
     const entries = Object.entries(manifest.files);
     if (
       !entries.length ||
       entries.length > 2048 ||
-      !entries.some(([name]) => name === 'electron.exe') ||
-      !entries.some(([name]) => name === LOCAL_VIDEO_LAUNCHER) ||
+      !entries.some(([name]) => name === selected.executable) ||
+      !entries.some(([name]) => name === selected.launcher) ||
       !entries.some(([name]) => name === 'LICENSE') ||
       !entries.some(([name]) => name === 'LICENSES.chromium.html')
     )
       return false;
+    if (platform === 'linux') {
+      for (const name of LINUX_ASSETS)
+        if ((await hashFile(join(directory, name))) !== (await hashFile(join(assets, name))))
+          return false;
+      for (const name of ['electron', 'chrome-sandbox']) {
+        const executable = await lstat(join(directory, name));
+        if ((executable.mode & 0o111) === 0 || (executable.mode & 0o6000) !== 0) return false;
+      }
+    }
     const actual = await filesIn(directory);
     if (actual.length !== entries.length) return false;
     for (const [name, digest] of entries) {
@@ -122,8 +161,9 @@ export async function verifyLocalVideoHelper(
 
 export async function verifyLocalVideoAssets(
   directory = localVideoAssetsDirectory(),
+  platform: string = process.platform,
 ): Promise<void> {
-  for (const asset of ASSETS) {
+  for (const asset of [...ASSETS, ...(platform === 'linux' ? LINUX_ASSETS : [])]) {
     try {
       const stat = await lstat(join(directory, asset));
       if (!stat.isFile() || stat.size > 256 * 1024) throw new Error('Invalid asset');
@@ -145,21 +185,23 @@ export async function ensureLocalVideoHelper(options: {
   readonly platform?: string | undefined;
   readonly arch?: string | undefined;
 }): Promise<void> {
-  supported(options.platform ?? process.platform, options.arch ?? process.arch);
-  const directory = resolve(options.dir ?? localVideoHelperDirectory());
+  const platform = options.platform ?? process.platform;
+  supported(platform, options.arch ?? process.arch);
+  const selected = build(platform);
+  const directory = resolve(options.dir ?? localVideoHelperDirectory(platform));
   const assets = localVideoAssetsDirectory();
   options.signal?.throwIfAborted();
-  await verifyLocalVideoAssets(assets);
-  if (await verifyLocalVideoHelper(directory, assets)) return;
+  await verifyLocalVideoAssets(assets, platform);
+  if (await verifyLocalVideoHelper(directory, assets, platform)) return;
   const started = Date.now();
   options.onEvent?.(
-    `phase=media-install version=${LOCAL_VIDEO_ELECTRON_VERSION} archiveBytes=${LOCAL_VIDEO_ARCHIVE_BYTES}`,
+    `phase=media-install platform=${platform} version=${LOCAL_VIDEO_ELECTRON_VERSION} archiveBytes=${selected.bytes}`,
   );
   await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
   const staging = await mkdtemp(join(dirname(directory), '.video-install-'));
   let invalid: string | undefined;
   try {
-    const response = await fetch(LOCAL_VIDEO_ARCHIVE_URL, {
+    const response = await fetch(selected.url, {
       signal: AbortSignal.any([
         AbortSignal.timeout(120_000),
         ...(options.signal ? [options.signal] : []),
@@ -179,16 +221,13 @@ export async function ensureLocalVideoHelper(options: {
         if (downloadedBytes > MAX_ARCHIVE_BYTES) throw new Error('Runtime download exceeds limit');
         hash.update(chunk);
         await file.writeFile(chunk);
-        const percent = Math.min(
-          100,
-          Math.floor((downloadedBytes / LOCAL_VIDEO_ARCHIVE_BYTES) * 100),
-        );
+        const percent = Math.min(100, Math.floor((downloadedBytes / selected.bytes) * 100));
         if (percent !== reported) {
           reported = percent;
           options.onProgress?.({
             percent,
             downloadedBytes,
-            totalBytes: LOCAL_VIDEO_ARCHIVE_BYTES,
+            totalBytes: selected.bytes,
             text: 'video-runtime',
           });
         }
@@ -196,19 +235,23 @@ export async function ensureLocalVideoHelper(options: {
     } finally {
       await file.close();
     }
-    if (hash.digest('hex') !== LOCAL_VIDEO_ARCHIVE_SHA256)
-      throw new Error('Runtime checksum mismatch');
+    if (hash.digest('hex') !== selected.sha256) throw new Error('Runtime checksum mismatch');
     options.signal?.throwIfAborted();
     const extracted = join(staging, 'runtime');
     await mkdir(extracted, { mode: 0o700 });
-    const result = await options.runner.run(['tar', '-xf', archive, '-C', extracted], {
-      signal: options.signal,
-      timeoutMs: 60_000,
-      maxOutputBytes: 64 * 1024,
-    });
+    const result = await options.runner.run(
+      platform === 'linux'
+        ? ['unzip', '-q', archive, '-d', extracted]
+        : ['tar', '-xf', archive, '-C', extracted],
+      {
+        signal: options.signal,
+        timeoutMs: 60_000,
+        maxOutputBytes: 64 * 1024,
+      },
+    );
     if (result.code !== 0) throw new Error('Runtime extraction failed');
     options.signal?.throwIfAborted();
-    const launcherSourceSha256 = await hashFile(join(assets, 'launcher.cs'));
+    const launcherSourceSha256 = await hashFile(join(assets, selected.source));
 
     const compiler = join(
       process.env['SystemRoot'] ?? 'C:\\Windows',
@@ -217,25 +260,41 @@ export async function ensureLocalVideoHelper(options: {
       'v4.0.30319',
       'csc.exe',
     );
-    const compilation = await options.runner.run(
-      [
-        compiler,
-        '/nologo',
-        '/noconfig',
-        '/target:exe',
-        '/platform:x64',
-        '/optimize+',
-        `/out:${join(extracted, LOCAL_VIDEO_LAUNCHER)}`,
-        join(assets, 'launcher.cs'),
-      ],
-      {
+    if (platform === 'linux') {
+      await chmod(join(extracted, 'electron'), 0o755);
+      await chmod(join(extracted, 'chrome-sandbox'), 0o755);
+      for (const asset of LINUX_ASSETS) await copyFile(join(assets, asset), join(extracted, asset));
+      const libraries = await options.runner.run(['ldd', join(extracted, 'electron')], {
         signal: options.signal,
-        timeoutMs: 60_000,
+        timeoutMs: 5000,
         maxOutputBytes: 64 * 1024,
-      },
-    );
-    if (compilation.code !== 0) throw new Error('Job launcher compilation failed');
-    if (launcherSourceSha256 !== (await hashFile(join(assets, 'launcher.cs'))))
+      });
+      if (libraries.code !== 0 || /not found/u.test(libraries.stdout))
+        throw new LocalVideoError(
+          'helper-missing',
+          'The Linux video runtime needs system libraries. Install the documented desktop/media packages explicitly, then start again.',
+        );
+    } else {
+      const compilation = await options.runner.run(
+        [
+          compiler,
+          '/nologo',
+          '/noconfig',
+          '/target:exe',
+          '/platform:x64',
+          '/optimize+',
+          `/out:${join(extracted, LOCAL_VIDEO_LAUNCHER)}`,
+          join(assets, 'launcher.cs'),
+        ],
+        {
+          signal: options.signal,
+          timeoutMs: 60_000,
+          maxOutputBytes: 64 * 1024,
+        },
+      );
+      if (compilation.code !== 0) throw new Error('Job launcher compilation failed');
+    }
+    if (launcherSourceSha256 !== (await hashFile(join(assets, selected.source))))
       throw new Error('Launcher source changed during compilation');
     const files: Record<string, string> = {};
     for (const name of await filesIn(extracted)) {
@@ -245,14 +304,14 @@ export async function ensureLocalVideoHelper(options: {
     await writeFile(
       join(extracted, MANIFEST),
       JSON.stringify({
-        archiveSha256: LOCAL_VIDEO_ARCHIVE_SHA256,
+        archiveSha256: selected.sha256,
         launcherSourceSha256,
-        launcherCompilerSha256: await hashFile(compiler),
+        ...(platform === 'linux' ? {} : { launcherCompilerSha256: await hashFile(compiler) }),
         files,
       }),
       { mode: 0o600 },
     );
-    if (!(await verifyLocalVideoHelper(extracted, assets)))
+    if (!(await verifyLocalVideoHelper(extracted, assets, platform)))
       throw new Error('Runtime verification failed');
     options.signal?.throwIfAborted();
     try {
@@ -264,8 +323,9 @@ export async function ensureLocalVideoHelper(options: {
     }
     await rename(extracted, directory);
     options.onEvent?.(`phase=media-installed durationMs=${Date.now() - started}`);
-  } catch {
+  } catch (error) {
     options.onEvent?.(`phase=media-install-refused durationMs=${Date.now() - started}`);
+    if (error instanceof LocalVideoError) throw error;
     throw new LocalVideoError(
       'helper-missing',
       'Local Computer video setup failed. Check the connection and start Local Computer again.',

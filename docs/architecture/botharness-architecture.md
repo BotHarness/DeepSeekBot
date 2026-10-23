@@ -1245,6 +1245,12 @@ The existing encrypted LAN listener selects `route: 'lan'` server-side. Its admi
 
 Rollback after takeover requires coordinated recovery: old versions ignore the durable pause file. Keep Computer stopped, confirm owned media cleanup and preserve pause; resume only through the supported operation at the Human's explicit choice, or use a forward fix that honors pause. See [the recovery guide](../local-computer-video.md#recovery-and-downgrade).
 
+### Linux Local Computer managed desktop (#2606)
+
+The application-defined Local runtime owns one immutable desktop binding: actual `DISPLAY`, private `XAUTHORITY`, liveness and generation. Both the CUA driver and Linux media adapter consume it. Capture cannot create another Xvfb or inherit a guessed display. Desktop loss invalidates the binding and the existing Computer owner's runtime/grant, then closes owned trees. Attached X11/Wayland sessions are not admitted by this video adapter.
+
+The Linux x64 adapter requires a non-root systemd user manager and cgroup v2. Owned Xvfb, window-manager, D-Bus and Electron descendants run in separate private user services under the same runtime lifecycle. Only a stopped unit plus an empty cgroup confirms cleanup. Host PID/start-time checks, pipe closure and worker watchdogs bound orphan lifetimes; unresolved cleanup poisons readmission. No system-wide service, linger change, root helper or disabled Chromium sandbox is introduced. Windows keeps its Job launcher. The shared owner, CLI, encrypted LAN route and Android receiver stay authoritative; SSH/Connect gain no video bypass. See [ADR-0245](../adr/0245-local-computer-video-separates-media-control-and-pause.md) and the [Linux qualification prerequisites](../local-computer-video.md#linux-managed-desktop-2606). This source architecture is not Linux runtime or phone acceptance evidence.
+
 ### Connect encryption and full WebView removal (#2541, #2542)
 
 The application-defined Connect Channel uses the fixed Noise XK profile and authenticated, bounded frames defined in [Connect Channel v1](connect-channel-v1.md). The Host identity lives in the native Credentials Provider; the existing Device Pairing authority persists approved device public keys and closes their channels on revocation. A successful handshake alone grants no application access. Offers are redeemed only inside the channel after independent Host fingerprint comparison or a trusted computer QR scan, and exact device-key approval.

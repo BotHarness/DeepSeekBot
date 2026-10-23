@@ -5,7 +5,8 @@ import { join } from 'node:path';
 
 import type { ComputerProgress, ComputerRuntimeRunner } from '../provider.js';
 import { createMcpCuaDriver, type CuaDriver } from './driver.js';
-import { ensureLocalDisplay, type LocalDisplay } from './local-display.js';
+import type { LocalDisplay } from './local-display.js';
+import { createLocalDesktop, type LocalDesktop } from './local-desktop.js';
 
 export const LOCAL_DRIVER_VERSION = '0.31.0';
 
@@ -251,21 +252,22 @@ export function createLocalCuaDriver(options: {
   arch?: string | undefined;
   build?: LocalDriverBuild | undefined;
   display?: ((signal?: AbortSignal) => Promise<LocalDisplay>) | undefined;
+  desktop?: LocalDesktop | undefined;
 }): CuaDriver {
   const platform = options.platform ?? process.platform;
   const arch = options.arch ?? process.arch;
   const build = options.build ?? localDriverBuild(platform, arch);
   const dir = options.dir ?? localDriverDirectory(build);
   const env = localDriverEnv();
-  const openDisplay =
-    options.display ??
-    ((signal?: AbortSignal) => ensureLocalDisplay({ onEvent: options.onEvent, signal }));
-  let display: LocalDisplay | undefined;
+  const desktop =
+    options.desktop ?? createLocalDesktop({ env, open: options.display, onEvent: options.onEvent });
+  let driverGeneration: string | undefined;
   let ensuring: ReturnType<CuaDriver['ensure']> | undefined;
   const driver = createMcpCuaDriver({
     onEvent: options.onEvent,
     retryReadOnly: false,
     async beforeOpen() {
+      if (platform === 'linux') desktop.current();
       if (!(await verifyLocalDriver(dir, build)))
         throw new Error(
           'Local Computer driver checksum mismatch; check permissions again to repair',
@@ -287,10 +289,16 @@ export function createLocalCuaDriver(options: {
           await installLocalDriver({ dir, runner: options.runner, build, signal, onProgress });
           status = 'installed';
         }
-        if (platform === 'linux' && display?.alive() !== true) {
-          await display?.stop();
-          display = await openDisplay(signal);
-          Object.assign(env, display.env, { DISPLAY: display.display });
+        if (platform === 'linux') {
+          const binding = await desktop.ensure(signal);
+          if (driverGeneration !== binding.generation) {
+            await driver.close();
+            signal?.throwIfAborted();
+            if (!binding.alive()) throw new Error('Local desktop changed during setup.');
+            driverGeneration = binding.generation;
+          }
+          for (const key of Object.keys(env)) delete env[key];
+          Object.assign(env, binding.env);
         }
         return { status, arch: build.id };
       })();
@@ -303,11 +311,22 @@ export function createLocalCuaDriver(options: {
   });
   return {
     ...driver,
+    async call(name, args, signal) {
+      const binding = platform === 'linux' ? desktop.current() : undefined;
+      if (binding && binding.generation !== driverGeneration)
+        throw new Error('Local desktop changed; start Local Computer again.');
+      const result = await driver.call(name, args, signal);
+      if (binding && (!binding.alive() || desktop.current().generation !== binding.generation))
+        throw new Error('Local desktop changed during the action; re-observe before retrying.');
+      return result;
+    },
     async close() {
-      await driver.close();
-      const owned = display;
-      display = undefined;
-      await owned?.stop();
+      driverGeneration = undefined;
+      try {
+        await driver.close();
+      } finally {
+        await desktop.close();
+      }
     },
   };
 }

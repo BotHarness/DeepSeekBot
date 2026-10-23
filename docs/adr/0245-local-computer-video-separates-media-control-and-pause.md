@@ -9,6 +9,14 @@ Supersedes: ADR-0210's planned video migration and expiring takeover pause, for 
 
 The Human needs to watch a Bot from a phone and occasionally click, scroll or type on the Local Computer. JPEG polling couples observation to a pause lease and cannot guarantee smooth motion. The new viewer uses WebRTC video without an image fallback, while the Computer owner independently manages observation, exclusive Human control and a durable pause of Bot activity. These are accepted design decisions; the screenshot implementation has not yet been migrated.
 
+## Linux runtime ownership amendment (2026-10-23, #2606)
+
+The Human authorized the next Linux slice while T1 device qualification continues. Its narrow supported environment is Linux x64, a non-root systemd user session, cgroup v2, a working Chromium sandbox and one Host-managed Xvfb desktop. The existing Computer owner remains the sole control and durable-pause authority. One runtime desktop binding supplies actual display, private Xauthority, liveness and generation to both input and media. Viewer observation never starts a second display. Attached X11/Wayland sessions and Linux ARM video remain refused.
+
+Use private transient user services for the owned Xvfb, D-Bus, window-manager and media trees. The trusted outer launcher checks the worker against the user manager's MainPID and ControlGroup before accepting ownership. Cleanup requires inactive service state and empty cgroup evidence. PID exit and process groups were rejected because escaped or lingering descendants can survive them. A system-wide daemon/root helper was rejected because a normal server user should own this capability. Missing user-manager prerequisites refuse explicitly; setup does not install a manager, enable linger or relax sandbox policy. Watchdogs and Host PID/start-time checks supplement pipe EOF, while unproved cleanup blocks readmission.
+
+Keep the existing Windows Job implementation, exact encrypted LAN command route, video-only VP8 contract and Android receiver. CLI commands exercise the same owner with their own caller identity, never by borrowing a phone's grant. Source tests, a Linux rig run, native phone output/performance and Human feedback are distinct evidence gates. This amendment does not declare any of those runtime gates passed.
+
 ## Scope and transport
 
 The accepted delivery scope spans the staged slices in #2555: Android and Web viewers, click/scroll/text input and multiple admitted observers with one controller. It does not target VDO.Ninja/OBS interoperability. Those capabilities are not all part of the first tracer bullet.

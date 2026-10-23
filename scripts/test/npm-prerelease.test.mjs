@@ -42,6 +42,8 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       mkdirSync(join(dir, 'package/native/local-video'), { recursive: true });
       for (const asset of [
         'launcher.cs',
+        'launcher-linux.cjs',
+        'linux-worker.py',
         'main.cjs',
         'preload.cjs',
         'renderer.html',
@@ -350,7 +352,15 @@ describe('reviewed npm prerelease', () => {
   it('rejects a Computer archive missing any lazily loaded native helper asset', () => {
     const artifact = { name: '@botharness/computer', version: '0.1.0-alpha.1' };
     const manifest = { ...artifact, license: 'MIT', main: './dist/index.mjs' };
-    const assets = ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'];
+    const assets = [
+      'launcher.cs',
+      'launcher-linux.cjs',
+      'linux-worker.py',
+      'main.cjs',
+      'preload.cjs',
+      'renderer.html',
+      'renderer.js',
+    ];
     const files = [
       'package/LICENSE',
       'package/dist/index.mjs',

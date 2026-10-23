@@ -427,7 +427,7 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 ### Local Computer 视频
 
-Windows 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。
+Windows、Linux 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。Linux x64 要求文档列出的托管 Xvfb 桌面、非 root 与 systemd 用户服务前提，复用同一组命令和调用者校验。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows、Linux 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。CLI 不能证明手机原生显示，也不能代用手机的控制 grant。
 
 ```bash
 deepseekbot computer-video status

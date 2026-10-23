@@ -1,6 +1,20 @@
-# Local Computer 视频：Windows 到 Android
+# Local Computer 视频：Windows、Linux 到 Android
 
-首片实现面向一块 Windows x64 主显示器和一个 Android 观看端。安装包、真机性能与 Human 验收必须绑定准确构建记录，才能声明通过。其他发送端和容器观看路径保留既有行为。
+首片实现面向一块 Windows x64 主显示器和一个 Android 观看端。Linux x64 托管桌面的实现与验证前提见下节。安装包、真机性能与 Human 验收必须绑定准确构建记录，才能声明通过。容器观看路径保留既有行为。
+
+## Linux 托管桌面（#2606）
+
+Linux x64 发送端使用一块由 Host 持有的 1440 × 900 Xvfb 桌面。输入与采集共享实际的 `DISPLAY`、私有 `XAUTHORITY` 和桌面代次；打开观看端不会再创建桌面。桌面失效或替换会使旧视频与控制授权失效，迟到输入不能切到另一块屏幕。既有 X11 会话、Wayland、多显示器和 Linux ARM 不在本片视频范围，托管桌面 owner 不会停止用户已有会话。
+
+前提是非 root 登录、cgroup v2、可用的 systemd 用户服务、Python 3、unzip、Xvfb、Openbox 等受支持窗口管理器、D-Bus、AT-SPI 和 Electron 系统库，且 Chromium 非特权沙箱可用。专用无桌面 Host 启动时不继承 `DISPLAY`、`WAYLAND_DISPLAY`，保留用户的 `XDG_RUNTIME_DIR`。缺少条件时明确拒绝，不自动启用 linger、安装用户服务、修改内核策略或加入 `--no-sandbox`。
+
+仍用 `deepseekbot computer-start --target local` 和既有 `computer-video` 命令。显式安装下载固定的 Electron 44.9.3 Linux x64 压缩包（123,232,128 字节），校验 SHA-256、安装清单和动态库，并保留 Electron、Chromium 许可证；观看操作不下载或安装。
+
+托管 Xvfb、窗口管理器、D-Bus 与媒体各自使用私有 systemd 用户服务进程树。清理同时要求服务 inactive 和 cgroup 为空，不能把 PID 退出或进程组信号当成后代已清空。Host 启动时间、管道关闭与 worker watchdog 分别约束孤儿进程生命周期。清理未证实就拒绝再开，要求重启 Host；Computer owner 仍是暂停、授权与输入的唯一权威，Linux 恢复不会清除已有持久暂停。
+
+Linux 复用加密 LAN 信令、仅视频 VP8 协商与 Android 接收端。SSH 仍是控制通道选项，不新增视频路由例外。Host CLI 使用自己的调用者身份，不能代用手机 grant。当前 Android UI 提供直接点击；另行授权的 CLI 文字操作不等于手机文字输入已验证。
+
+以上是实现和验证路径，不是 Linux 验收证据。专用 Linux rig 仍需验证沙箱启动、Xauthority、单屏实际采集、输入坐标、Host 退出后的服务/cgroup 清理、真机显示及下文性能门槛。Windows 回归与手机文字输入也须分别记录。
 
 使用「检查权限」或 `deepseekbot computer-start --target local` 启动本机 Computer。既有的显式安装校验流程会按需安装固定版本采集 helper：Windows x64 Electron 44.9.3，下载量 158,508,870 字节；解压后的占用需在验收机器实测。Host 监管独立 helper 进程。Android 新增本机视频模块，必须重建开发客户端，旧客户端仅刷新 JavaScript 不够。
 

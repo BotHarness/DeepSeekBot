@@ -29,6 +29,15 @@ Use the [Windows device queue](../../../../docs/agents/android-device-qa.md); th
 7. On a declared LAN path, warm up 10 seconds and record 60 seconds of unique moving frame IDs. Cross-check EGL/TextureView counters against visible frame output; require at least 15 actual presented FPS. For 100 isolated taps record physical touch and first visible counter change on one clock, then nearest-rank p95 (sample 95), including temporal uncertainty; require at most 500 ms. Check static text readability separately. Selected ICE pair evidence identifies the path; RTT and encoded/decoded FPS are separate metrics.
 8. Obtain Human feedback on observe/takeover/release/resume, light/dark and reachable large-text controls. Record pass/fail/untested per requirement. Missing native or Human evidence blocks qualification, even if all source tests pass.
 
+## Linux x64 managed desktop extension (#2606)
+
+Use a dedicated, explicitly allocated non-root Linux rig with a running systemd user manager, cgroup v2, Python 3, unzip, Xvfb, a supported window manager, D-Bus, AT-SPI and Chromium sandbox support. Do not use the production VPS or change existing sessions, linger or kernel settings. Start only the task's isolated headless Host without DISPLAY/WAYLAND_DISPLAY; retain its user's XDG_RUNTIME_DIR. Queue Android builds/device work with the current device owner independently of Linux source checks.
+
+1. Run the same CLI setup/status/owner commands. Verify root, missing user manager, cgroup v1 and unavailable sandbox refuse before viewer startup. Verify existing X11/Wayland and unsupported architecture video refuse rather than selecting another screen or falling back to screenshots. Preserve coded outcomes and bounded diagnostics.
+2. Confirm exactly one managed Xvfb display. Input and Electron must use its actual DISPLAY and XAUTHORITY, with one desktop generation. Open the harmless motion fixture there. Exercise native observation, explicit takeover and direct clicks against that fixture; test text only through an independently authorized caller and label Android text entry untested until its native UI is exercised.
+3. Exercise display death/replacement, late input, media crash, Host termination, launch cancellation and unresponsive descendants. Check every task-owned user service becomes inactive and its cgroup reports populated 0 (or the verified cgroup is removed). Root PID exit alone is not cleanup. No sibling session may stop. Old grants must fail, durable pause must survive, and unproved cleanup must block readmission.
+4. Repeat the shared pause/restart/revocation/background/static-screen and performance journey above on this exact Linux helper/archive, Host SHA and APK. Record source simulations separately from systemd/cgroup and actual phone evidence. No Linux/native qualification is established by adding this journey.
+
 ## Gotchas
 
 - This journey is prepared, not an execution result. The initial implementation checkpoint has no allocated native/runtime check window.

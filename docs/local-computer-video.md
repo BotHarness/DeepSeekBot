@@ -1,6 +1,6 @@
-# Local Computer video: Windows to Android
+# Local Computer video: Windows and Linux to Android
 
-This first slice is implemented for one Windows x64 primary display and one Android viewer. Native package, physical-device performance and Human acceptance must be recorded against the exact build before qualification is claimed. Other senders and the Container viewer retain their existing paths.
+The Windows slice uses one x64 primary display and one Android viewer. The Linux x64 managed-desktop extension and its prerequisites are described below. Native package, physical-device performance and Human acceptance must be recorded against the exact build before qualification is claimed. The Container viewer retains its existing path.
 
 Start Local Computer with **Check permissions** or `deepseekbot computer-start --target local`. This existing explicit install/verification flow installs the pinned capture helper when needed. The helper downloads Electron 44.9.3 for Windows x64 (158,508,870 bytes; extracted size must be measured on the qualification machine). The Host supervises it as a separate process. The Android development client needs a rebuild for the local native video module; reloading JavaScript into an older client is insufficient.
 
@@ -19,6 +19,20 @@ The new viewer has no image fallback, including manual snapshots. Missing native
 T1 uses direct WebRTC with no configured STUN/TURN servers. The phone's signaling and control use the existing encrypted LAN channel, its pinned Host key and approved device identity. Only the server-owned LAN listener dispatches the exact video command path to the Computer owner. Hosted Connect remains refused with `connect-carrier-required`, even though its encrypted carrier is available; remote media qualification belongs to a later slice. There is no WebView or plaintext fallback. Self-configured TURN, audio, clipboard, background viewing and unlocking are absent.
 
 When video stalls, input is disabled but **Release control**, **Resume Bots**, exit and **Reconnect** remain available. Release follows the caller's retained grant, separately from eligibility to send input. Reconnect closes the old attempt before opening observation again; it does not restore control or replay input.
+
+## Linux managed desktop (#2606)
+
+The Linux x64 sender uses one Host-owned Xvfb desktop at 1440 × 900. Input and capture share the actual `DISPLAY`, private `XAUTHORITY` and desktop generation. Starting a viewer never creates a second desktop. A dead or replaced desktop invalidates old video and control; stale input cannot switch to another display. Existing X11 sessions, Wayland, multiple monitors and Linux ARM are outside this video slice. An existing desktop session is never stopped by the managed-desktop owner.
+
+Prepare a non-root login with cgroup v2, a running systemd user manager, Python 3, unzip, Xvfb, Openbox (or another supported window manager), D-Bus, AT-SPI and Electron's system libraries. Chromium's unprivileged sandbox must work. A dedicated headless Host starts without inherited `DISPLAY` or `WAYLAND_DISPLAY`; preserve the user's `XDG_RUNTIME_DIR`. Missing prerequisites return an explicit refusal. Setup does not enable linger, install a user manager, change kernel policy or add `--no-sandbox`.
+
+Use the same `deepseekbot computer-start --target local` and `computer-video` commands below. Explicit setup downloads the pinned Electron 44.9.3 Linux x64 archive (123,232,128 bytes), verifies its SHA-256 and installed inventory, and checks dynamic libraries. Observation does not download or install. The Linux helper retains the Electron and Chromium license notices.
+
+Each owned Xvfb, window-manager, D-Bus or media process tree runs in a private systemd user service. Cleanup requires both an inactive service and an empty cgroup. A PID exit or process-group signal cannot establish that descendants have gone; a descendant can outlive or leave a process group. The Host start time, pipe closure and worker watchdog independently bound orphan lifetimes. Failed cleanup refuses another attempt until the Host is restarted. The Computer owner remains the only authority for pause, grants and input. An existing durable pause is never cleared by Linux recovery.
+
+Linux uses the same encrypted LAN signaling, video-only VP8 negotiation and Android receiver as Windows. SSH remains a control-channel option and does not gain a video route exception. Host CLI commands use their own caller identity; they cannot act with the phone's grant. The current Android UI offers direct clicks. Text operations through an independently authorized CLI caller do not prove Android text entry.
+
+This is an implementation and verification path, not Linux qualification evidence. A dedicated Linux rig must verify sandbox startup, Xauthority access, actual single-display capture, input coordinates, service/cgroup cleanup after Host death, native phone rendering and the performance thresholds below. Windows regressions and phone text-entry qualification remain separate explicit checks.
 
 ## Recovery and downgrade
 

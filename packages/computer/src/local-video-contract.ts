@@ -165,6 +165,6 @@ export interface LocalVideoOwner {
   runBotOperation<T>(operation: () => Promise<T>): Promise<T>;
   isPaused(): boolean;
   revoke(deviceId: string): Promise<void>;
-  resetRuntime(): Promise<void>;
+  resetRuntime(options?: { pause?: boolean }): Promise<void>;
   dispose(): Promise<void>;
 }

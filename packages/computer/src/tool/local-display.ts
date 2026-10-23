@@ -1,6 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { access, constants } from 'node:fs/promises';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { access, constants, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { localVideoAssetsDirectory } from '../media/install.js';
 
 export interface LocalDisplay {
   readonly display: string;
@@ -11,6 +14,13 @@ export interface LocalDisplay {
 }
 
 export const LOCAL_DISPLAY_SCREEN = '1440x900x24';
+
+export class LocalDesktopCleanupError extends Error {
+  constructor() {
+    super('Local desktop process tree cleanup was not confirmed; restart the Host.');
+    this.name = 'LocalDesktopCleanupError';
+  }
+}
 
 export const LOCAL_WINDOW_MANAGER_SETTLE_MS = 1000;
 
@@ -65,10 +75,17 @@ async function findOnPath(name: string, path: string | undefined): Promise<strin
 interface Owned {
   readonly child: ChildProcess;
   exited: boolean;
+  closed: boolean;
+  treeClosed?: boolean;
+  treeOwned?: boolean;
 }
 
 function own(child: ChildProcess): Owned {
-  const owned: Owned = { child, exited: false };
+  const owned: Owned = { child, exited: false, closed: false };
+  child.once('close', () => {
+    owned.closed = true;
+    owned.exited = true;
+  });
   child.once('exit', () => {
     owned.exited = true;
   });
@@ -79,10 +96,86 @@ function own(child: ChildProcess): Owned {
 }
 
 async function terminate(owned: Owned): Promise<void> {
-  if (owned.exited) return;
-  const done = new Promise<void>((resolve) => owned.child.once('exit', () => resolve()));
-  owned.child.kill('SIGTERM');
-  await done;
+  if (!owned.closed) {
+    const done = new Promise<void>((resolve) => owned.child.once('close', () => resolve()));
+    if (!owned.exited) owned.child.kill('SIGTERM');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stopped = await Promise.race([
+      done.then(() => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), 2400);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (!stopped) {
+      owned.child.kill('SIGKILL');
+      throw new LocalDesktopCleanupError();
+    }
+  }
+  if (owned.treeClosed === false) throw new LocalDesktopCleanupError();
+}
+
+function managedProcess(command: string, args: string[], env: NodeJS.ProcessEnv): Owned {
+  const launchId = randomUUID();
+  const child = spawn(
+    process.execPath,
+    [
+      join(localVideoAssetsDirectory(), 'launcher-linux.cjs'),
+      'display',
+      String(process.pid),
+      launchId,
+      command,
+      ...args,
+    ],
+    { env, stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+  const owned = own(child);
+  owned.treeClosed = false;
+  owned.treeOwned = false;
+  let buffer = '';
+  let rejected = false;
+  child.stderr?.setEncoding('utf8');
+  child.stderr?.on('data', (chunk: string) => {
+    if (rejected) return;
+    buffer += chunk;
+    if (Buffer.byteLength(buffer) > 16 * 1024) {
+      rejected = true;
+      return;
+    }
+    let newline;
+    while ((newline = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      try {
+        const event: unknown = JSON.parse(line);
+        if (
+          typeof event === 'object' &&
+          event !== null &&
+          'launchId' in event &&
+          event.launchId === launchId &&
+          'event' in event &&
+          'version' in event &&
+          event.version === 1
+        ) {
+          if (
+            event.event === 'tree-owned' &&
+            'rootPid' in event &&
+            Number.isSafeInteger(event.rootPid)
+          )
+            owned.treeOwned = true;
+          if (
+            event.event === 'tree-closed' &&
+            'activeProcesses' in event &&
+            event.activeProcesses === 0
+          )
+            owned.treeClosed = true;
+        }
+      } catch {
+        rejected = true;
+      }
+    }
+  });
+  return owned;
 }
 
 function firstLine(
@@ -233,6 +326,7 @@ export async function ensureLocalDisplay(options: {
   onEvent?: ((detail: string) => void) | undefined;
   signal?: AbortSignal | undefined;
   timeoutMs?: number | undefined;
+  isolatedTrees?: boolean | undefined;
 }): Promise<LocalDisplay> {
   const source = options.source ?? process.env;
   const existing = source['DISPLAY'] ?? '';
@@ -257,40 +351,112 @@ export async function ensureLocalDisplay(options: {
   const timeoutMs = options.timeoutMs ?? 10_000;
   const started = Date.now();
   const children: Owned[] = [];
+  const authorityDirectory = await mkdtemp(join(tmpdir(), 'botharness-display-'));
+  const authority = join(authorityDirectory, 'authority');
+  const cookie = randomBytes(16);
+  const writeAuthority = async (number: string) => {
+    const fields = [
+      Buffer.alloc(0),
+      Buffer.from(number),
+      Buffer.from('MIT-MAGIC-COOKIE-1'),
+      cookie,
+    ];
+    const parts = [Buffer.from([0xff, 0xff])];
+    for (const field of fields) {
+      const size = Buffer.alloc(2);
+      size.writeUInt16BE(field.length);
+      parts.push(size, field);
+    }
+    await writeFile(authority, Buffer.concat(parts), { mode: 0o600 });
+  };
+  const desktopEnv = { ...source, XAUTHORITY: authority };
   const stop = async (): Promise<void> => {
     const running = children.splice(0).reverse();
-    for (const owned of running) await terminate(owned);
+    const stopped = await Promise.allSettled(running.map(terminate));
+    if (stopped.some((result) => result.status === 'rejected'))
+      throw new LocalDesktopCleanupError();
+    await rm(authorityDirectory, { recursive: true, force: true });
     if (running.length > 0) options.onEvent?.('phase=display-stopped');
   };
   try {
-    const server = own(
-      spawn(xvfb, ['-displayfd', '3', '-screen', '0', LOCAL_DISPLAY_SCREEN, '-nolisten', 'tcp'], {
-        stdio: ['ignore', 'ignore', 'pipe', 'pipe'],
-      }),
-    );
+    await writeAuthority('');
+    const server = options.isolatedTrees
+      ? managedProcess(
+          xvfb,
+          [
+            '-displayfd',
+            '1',
+            '-screen',
+            '0',
+            LOCAL_DISPLAY_SCREEN,
+            '-nolisten',
+            'tcp',
+            '-auth',
+            authority,
+          ],
+          desktopEnv,
+        )
+      : own(
+          spawn(
+            xvfb,
+            [
+              '-displayfd',
+              '3',
+              '-screen',
+              '0',
+              LOCAL_DISPLAY_SCREEN,
+              '-nolisten',
+              'tcp',
+              '-auth',
+              authority,
+            ],
+            {
+              stdio: ['ignore', 'ignore', 'pipe', 'pipe'],
+            },
+          ),
+        );
     children.push(server);
-    const display = `:${await firstLine(server, server.child.stdio[3] as NodeJS.ReadableStream, 'Xvfb', { signal: options.signal, timeoutMs })}`;
-    const env: Record<string, string> = {};
+    const display = `:${await firstLine(server, options.isolatedTrees ? server.child.stdout : (server.child.stdio[3] as NodeJS.ReadableStream), 'Xvfb', { signal: options.signal, timeoutMs })}`;
+    await writeAuthority(display.slice(1));
+    const env: Record<string, string> = { XAUTHORITY: authority };
     if (dbus !== undefined) {
-      const bus = own(
-        spawn(dbus, ['--session', '--nofork', '--nopidfile', '--print-address=1'], {
-          stdio: ['ignore', 'pipe', 'pipe'],
-          env: { PATH: path ?? '', HOME: source['HOME'] ?? '', DISPLAY: display },
-        }),
-      );
+      const bus = options.isolatedTrees
+        ? managedProcess(dbus, ['--session', '--nofork', '--nopidfile', '--print-address=1'], {
+            ...desktopEnv,
+            DISPLAY: display,
+          })
+        : own(
+            spawn(dbus, ['--session', '--nofork', '--nopidfile', '--print-address=1'], {
+              stdio: ['ignore', 'pipe', 'pipe'],
+              env: { PATH: path ?? '', HOME: source['HOME'] ?? '', DISPLAY: display },
+            }),
+          );
       children.push(bus);
       env['DBUS_SESSION_BUS_ADDRESS'] = await firstLine(bus, bus.child.stdout, 'D-Bus', {
         signal: options.signal,
         timeoutMs,
       });
     }
-    const manager = own(
-      spawn(wm, [], {
-        stdio: 'ignore',
-        env: { ...source, DISPLAY: display, ...env },
-      }),
-    );
+    const manager = options.isolatedTrees
+      ? managedProcess(wm, [], { ...desktopEnv, DISPLAY: display, ...env })
+      : own(
+          spawn(wm, [], {
+            stdio: 'ignore',
+            env: { ...source, DISPLAY: display, ...env },
+          }),
+        );
     children.push(manager);
+    if (options.isolatedTrees) {
+      const deadline = Date.now() + timeoutMs;
+      while (!manager.treeOwned) {
+        options.signal?.throwIfAborted();
+        if (manager.exited || Date.now() >= deadline)
+          throw new Error('Local window manager process ownership was not confirmed.');
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
+    if (await exitsWithin(manager, LOCAL_WINDOW_MANAGER_SETTLE_MS))
+      throw new Error('Local desktop window manager did not stay running.');
     options.onEvent?.(
       `phase=display source=xvfb display=${display} wm=${wm.split('/').pop() ?? wm} dbus=${String(dbus !== undefined)} durationMs=${String(Date.now() - started)}`,
     );

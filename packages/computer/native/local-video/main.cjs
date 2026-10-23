@@ -46,8 +46,19 @@ app.commandLine.appendSwitch('disable-background-networking');
 app.commandLine.appendSwitch('disable-component-update');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
+if (process.platform === 'linux') app.commandLine.appendSwitch('ozone-platform', 'x11');
 app.whenReady().then(async () => {
-  if (process.platform !== 'win32' || process.versions.electron !== '44.9.3') return stop();
+  if (!['win32', 'linux'].includes(process.platform) || process.versions.electron !== '44.9.3')
+    return stop();
+  if (
+    process.platform === 'linux' &&
+    (process.getuid() === 0 ||
+      !process.env.BOTHARNESS_MEDIA_DISPLAY_GENERATION ||
+      !/^:\d+$/.test(process.env.DISPLAY || '') ||
+      process.env.WAYLAND_DISPLAY ||
+      screen.getAllDisplays().length !== 1)
+  )
+    return stop();
   primary = screen.getPrimaryDisplay();
   if (primary.bounds.x !== 0 || primary.bounds.y !== 0) return stop();
   const captureSession = session.fromPartition('local-computer-video');

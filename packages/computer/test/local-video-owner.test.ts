@@ -21,6 +21,44 @@ const other = { deviceId: 'phone-b' };
 const click = { kind: 'click', x: 20, y: 30, button: 'left', count: 1 } as const;
 const owners: LocalVideoOwner[] = [];
 const dirs: string[] = [];
+
+describe('managed desktop failure', () => {
+  it('persists pause and invalidates old input before draining a failed desktop', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const pending = deferred<void>();
+    const bot = h.owner.runBotOperation(() => pending.promise);
+    const botRefusal = expect(bot).rejects.toMatchObject({ code: 'control-required' });
+    const resetting = h.owner.resetRuntime({ pause: true });
+    expect(h.owner.isPaused()).toBe(true);
+    expect(h.writes).toEqual([true]);
+    await expect(h.owner.runBotOperation(async () => undefined)).rejects.toMatchObject({
+      code: 'control-required',
+    });
+    pending.resolve();
+    await resetting;
+    await botRefusal;
+    expect(h.peer.close).toHaveBeenCalledOnce();
+    await expect(h.take(binding)).rejects.toMatchObject({ code: 'stale-attempt' });
+  });
+
+  it('still closes media and keeps Bots blocked when the failure pause cannot be persisted', async () => {
+    const h = harness({
+      store: {
+        read: () => false,
+        write: () => {
+          throw new Error('disk');
+        },
+      },
+    });
+    await h.connect();
+    await expect(h.owner.resetRuntime({ pause: true })).rejects.toMatchObject({
+      code: 'pause-write-failed',
+    });
+    expect(h.owner.isPaused()).toBe(true);
+    expect(h.peer.close).toHaveBeenCalledOnce();
+  });
+});
 afterEach(async () => {
   for (const owner of owners.splice(0)) await owner.dispose().catch(() => undefined);
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });

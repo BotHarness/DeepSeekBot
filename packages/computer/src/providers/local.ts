@@ -7,6 +7,7 @@ import {
 import type { CuaDriver } from '../tool/driver.js';
 import { LocalDesktopMissingError } from '../tool/local-display.js';
 import { ensureLocalVideoHelper } from '../media/install.js';
+import { requireLinuxVideoPrerequisites } from '../media/linux-prerequisites.js';
 import {
   LOCAL_DRIVER_QUIET_ENV,
   localDriverBuild,
@@ -100,10 +101,12 @@ export function createLocalComputerProvider(options: {
         const signal = controller.signal;
         state = { state: 'stopped', phase: 'starting' };
         try {
+          if (platform === 'linux' && arch === 'x64')
+            await requireLinuxVideoPrerequisites(options.runner);
           await options.driver.ensure(signal, (progress) => {
             if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
           });
-          if (platform === 'win32' && arch === 'x64') {
+          if (['win32', 'linux'].includes(platform) && arch === 'x64') {
             await ensureLocalVideoHelper({
               runner: options.runner,
               signal,

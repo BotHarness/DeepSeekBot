@@ -119,6 +119,68 @@ function open(
 }
 
 describe('supervised Local Computer media', () => {
+  it('binds Linux capture to the running managed input desktop without selecting another display', async () => {
+    const env = { DISPLAY: ':71', XAUTHORITY: 'private-authority', XDG_SESSION_TYPE: 'x11' };
+    const provider = createLocalVideoMedia({
+      platform: 'linux',
+      arch: 'x64',
+      desktop: () => ({
+        generation: 'desktop-generation',
+        managed: true,
+        env,
+        alive: () => true,
+      }),
+    });
+    const peer = await open(provider);
+    const [command, args, options] = mocks.spawn.mock.calls[0]!;
+    expect(command).toBe(process.execPath);
+    expect(args).toContain('media');
+    expect(options.env).toMatchObject({
+      ...env,
+      BOTHARNESS_MEDIA_DISPLAY_GENERATION: 'desktop-generation',
+    });
+    expect(args).not.toContain('--no-sandbox');
+    await peer.close();
+  });
+
+  it('refuses attached or missing Linux desktops without opening any helper', async () => {
+    for (const managed of [false, true]) {
+      const provider = createLocalVideoMedia({
+        platform: 'linux',
+        arch: 'x64',
+        desktop: () => ({
+          generation: 'old',
+          managed,
+          env: { DISPLAY: ':71' },
+          alive: () => !managed,
+        }),
+      });
+      await expect(open(provider)).rejects.toMatchObject({ code: 'unsupported-platform' });
+    }
+    expect(mocks.spawn).not.toHaveBeenCalled();
+  });
+
+  it('stops Linux media when its shared desktop generation dies', async () => {
+    let alive = true;
+    const provider = createLocalVideoMedia({
+      platform: 'linux',
+      arch: 'x64',
+      desktop: () => ({
+        generation: 'old',
+        managed: true,
+        env: { DISPLAY: ':71' },
+        alive: () => alive,
+      }),
+    });
+    const peer = await open(provider);
+    alive = false;
+    await vi.waitFor(
+      () => expect(helper.commands.some((command) => command['op'] === 'close')).toBe(true),
+      { timeout: 1500 },
+    );
+    await peer.close();
+  });
+
   it('loads only a verified helper and closes the actual process before resolving close', async () => {
     const provider = media();
     const peer = await open(provider);

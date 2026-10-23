@@ -283,7 +283,7 @@ export function createLocalVideoOwner(options: {
   const requireRunning = (): void => {
     requireActive();
     if (options.supported?.() === false)
-      refuse('unsupported-platform', 'Local Computer video currently requires Windows.');
+      refuse('unsupported-platform', 'Local Computer video is unavailable on this platform.');
     if (!options.isRunning()) refuse('not-running', 'Start the Local Computer first.');
   };
   const requireRuntime = (value: string): void => {
@@ -864,7 +864,7 @@ export function createLocalVideoOwner(options: {
         throw error;
       }
     },
-    async resetRuntime() {
+    async resetRuntime(reset) {
       const trace = begin('runtime-reset', 'lifecycle', viewer);
       trace.source = 'cleanup';
       if (viewer !== undefined) trace.external = 'media-close';
@@ -873,7 +873,20 @@ export function createLocalVideoOwner(options: {
       runtimeId = randomUUID();
       const current = viewer;
       try {
-        if (current !== undefined) await closeViewer(current);
+        let pauseFailure: unknown;
+        if (reset?.pause) {
+          blockBots();
+          try {
+            persist(true);
+          } catch (error) {
+            pauseFailure = error;
+          }
+        }
+        await Promise.all([
+          ...(current !== undefined ? [closeViewer(current)] : []),
+          ...(reset?.pause ? [drain(bots), drain(humans)] : []),
+        ]);
+        if (pauseFailure !== undefined) throw pauseFailure;
         outcome(trace);
       } catch (error) {
         outcome(trace, error instanceof LocalVideoError ? error.code : 'helper-failed');

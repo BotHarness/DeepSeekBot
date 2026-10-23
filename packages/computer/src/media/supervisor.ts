@@ -12,6 +12,7 @@ import {
   type LocalVideoMediaStatus,
 } from '../local-video-contract.js';
 import { localDriverEnv } from '../tool/local-driver.js';
+import type { LocalDesktopBinding } from '../tool/local-desktop.js';
 import {
   LOCAL_VIDEO_LAUNCHER,
   localVideoAssetsDirectory,
@@ -36,25 +37,30 @@ export function createLocalVideoMedia(
     readonly platform?: string | undefined;
     readonly arch?: string | undefined;
     readonly onEvent?: ((detail: string) => void) | undefined;
+    readonly desktop?: (() => LocalDesktopBinding | undefined) | undefined;
   } = {},
 ): LocalVideoMedia {
   let active = false;
   return {
     async open({ signal, onStatus }) {
-      if (
-        (options.platform ?? process.platform) !== 'win32' ||
-        (options.arch ?? process.arch) !== 'x64'
-      ) {
+      const platform = options.platform ?? process.platform;
+      if (!['win32', 'linux'].includes(platform) || (options.arch ?? process.arch) !== 'x64') {
         throw new LocalVideoError(
           'unsupported-platform',
-          'Local Computer video currently requires Windows x64.',
+          'Local Computer video requires Windows x64 or a qualified Linux x64 managed desktop.',
         );
       }
+      const desktop = platform === 'linux' ? options.desktop?.() : undefined;
+      if (platform === 'linux' && (!desktop?.managed || !desktop.alive()))
+        throw new LocalVideoError(
+          'unsupported-platform',
+          'Linux video requires the running Local Computer managed Xvfb desktop. Attached X11 and Wayland sessions are not supported.',
+        );
       if (active)
         throw new LocalVideoError('viewer-limit', 'This Computer already has a video viewer.');
       active = true;
       const launchId = randomUUID();
-      const directory = options.helperDirectory ?? localVideoHelperDirectory();
+      const directory = options.helperDirectory ?? localVideoHelperDirectory(platform);
       let child: ChildProcessWithoutNullStreams | undefined;
       let profile: string | undefined;
       let output = '';
@@ -178,8 +184,8 @@ export function createLocalVideoMedia(
       try {
         signal.throwIfAborted();
         const assets = options.assetsDirectory ?? localVideoAssetsDirectory();
-        await verifyLocalVideoAssets(assets);
-        if (!(await verifyLocalVideoHelper(directory, assets)))
+        await verifyLocalVideoAssets(assets, platform);
+        if (!(await verifyLocalVideoHelper(directory, assets, platform)))
           throw new LocalVideoError(
             'helper-missing',
             'Start Local Computer to install or repair its video helper.',
@@ -187,16 +193,34 @@ export function createLocalVideoMedia(
         signal.throwIfAborted();
         profile = await mkdtemp(join(tmpdir(), 'botharness-local-video-'));
         signal.throwIfAborted();
+        if (desktop && !desktop.alive())
+          throw new LocalVideoError(
+            'stale-attempt',
+            'The Local desktop changed during video startup.',
+          );
         child = spawn(
-          join(directory, LOCAL_VIDEO_LAUNCHER),
-          [
-            join(directory, 'electron.exe'),
-            join(assets, 'main.cjs'),
-            String(process.pid),
-            launchId,
-          ],
+          platform === 'linux' ? process.execPath : join(directory, LOCAL_VIDEO_LAUNCHER),
+          platform === 'linux'
+            ? [
+                join(directory, 'launcher-linux.cjs'),
+                'media',
+                String(process.pid),
+                launchId,
+                join(directory, 'electron'),
+                join(assets, 'main.cjs'),
+              ]
+            : [
+                join(directory, 'electron.exe'),
+                join(assets, 'main.cjs'),
+                String(process.pid),
+                launchId,
+              ],
           {
-            env: { ...localDriverEnv(), BOTHARNESS_MEDIA_USER_DATA: profile },
+            env: {
+              ...(desktop?.env ?? localDriverEnv()),
+              BOTHARNESS_MEDIA_USER_DATA: profile,
+              ...(desktop ? { BOTHARNESS_MEDIA_DISPLAY_GENERATION: desktop.generation } : {}),
+            },
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'pipe'],
           },
@@ -343,6 +367,8 @@ export function createLocalVideoMedia(
         const poll = () => {
           polling = (async () => {
             try {
+              if (desktop && !desktop.alive())
+                throw new LocalVideoError('stale-attempt', 'The Local desktop ended.');
               if (!closed) publish(parseStatus(await request('stats')));
             } catch {
               if (!closed) failed();

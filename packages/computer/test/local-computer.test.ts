@@ -22,6 +22,10 @@ vi.mock('../src/media/install.js', () => ({
   ensureLocalVideoHelper: vi.fn(async () => undefined),
 }));
 
+vi.mock('../src/media/linux-prerequisites.js', () => ({
+  requireLinuxVideoPrerequisites: vi.fn(async () => undefined),
+}));
+
 const dirs: string[] = [];
 afterEach(async () => {
   for (const dir of dirs.splice(0)) await rm(dir, { recursive: true, force: true });

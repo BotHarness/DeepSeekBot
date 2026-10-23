@@ -38,7 +38,8 @@ import type {
 } from './provider.js';
 import { createComputerService, type ComputerService } from './service.js';
 import { createCuaDriver } from './tool/driver.js';
-import { createLocalCuaDriver } from './tool/local-driver.js';
+import { createLocalCuaDriver, localDriverEnv } from './tool/local-driver.js';
+import { createLocalDesktop, type LocalDesktop } from './tool/local-desktop.js';
 import { installSystemPackages } from '../../core/src/system/system-packages.js';
 import { detectTailnetAddress } from '../../core/src/devices/routes.js';
 import { createSelkiesWebRtc } from '../../core/src/http/selkies-webrtc.js';
@@ -349,7 +350,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   let authorizationRevision = 0;
   const authorizationScope = (): string => `${target()}:${String(authorizationRevision)}`;
   const target = (): ComputerTarget => computerTarget(readLive(config.target));
-  const migratedLocal = (): boolean => process.platform === 'win32' && target() === 'local';
+  const migratedLocal = (): boolean =>
+    ['win32', 'linux'].includes(process.platform) && target() === 'local';
+  let localDesktop: LocalDesktop | undefined;
   const runtime = createComputerTargetRuntime({
     target,
     onChange: () => {
@@ -362,8 +365,22 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
     create: (selected) => {
       if (selected === 'local') {
+        localDesktop =
+          process.platform === 'linux'
+            ? createLocalDesktop({
+                env: localDriverEnv(),
+                onEvent: (detail) => diagnostics.record('lifecycle', detail),
+                onInvalidate: (reason) => {
+                  toolProvider.resetRuntime();
+                  void localVideo
+                    .resetRuntime({ pause: reason === 'unavailable' })
+                    .catch(() => diagnostics.record('lifecycle', 'phase=desktop-cleanup-refused'));
+                },
+              })
+            : undefined;
         const driver = createLocalCuaDriver({
           runner,
+          desktop: localDesktop,
           onEvent: (detail) => diagnostics.record('lifecycle', detail),
         });
         const provider = createLocalComputerProvider({
@@ -426,6 +443,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     pause: createComputerPauseStore(join(resolveDshHome(), 'botharness', 'computer-pause.json')),
     driver,
     media: createLocalVideoMedia({
+      desktop: () => localDesktop?.current(),
       onEvent: (detail) => diagnostics.record('lifecycle', detail),
     }),
     isRunning: () => migratedLocal() && runtime.isRunning(),
