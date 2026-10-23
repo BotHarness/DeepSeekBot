@@ -24,6 +24,8 @@ export interface ChannelCreationPort {
   create(operation: Omit<ChannelCreationOperation, 'kind'>): Promise<string>;
 }
 
+export class ChannelCreationNotAccepted extends Error {}
+
 function savedRecord(value: unknown): ChannelCreationRecord | undefined {
   if (
     typeof value !== 'object' ||
@@ -153,6 +155,7 @@ export function createChannelCreation(options: {
       await ready;
       if (!state.loaded || state.busy || state.loading || state.result) return;
       let record = state.record;
+      const fresh = record.kind === 'draft';
       if (record.kind === 'draft') {
         if (state.error) return;
         const deviceId = options.port.deviceId(record.hostId);
@@ -177,6 +180,21 @@ export function createChannelCreation(options: {
         const result = await options.port.create(input);
         publish({ result });
       } catch (error) {
+        if (fresh && error instanceof ChannelCreationNotAccepted) {
+          const draft: ChannelCreationRecord = {
+            kind: 'draft',
+            hostId: operation.hostId,
+            name: operation.name,
+            members: operation.members,
+          };
+          try {
+            await options.storage.write(draft);
+            publish({ record: draft });
+          } catch {
+            publish({ error: 'storage-invalid' });
+            return;
+          }
+        }
         publish({ error: error instanceof Error ? error.message : 'unreachable' });
       } finally {
         publish({ busy: false });

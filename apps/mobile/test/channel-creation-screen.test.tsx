@@ -89,7 +89,15 @@ vi.mock('../src/host/native-channel-creation', () => ({
   useChannelCreation: () => useSyncExternalStore(controller.subscribe, controller.getSnapshot),
 }));
 vi.mock('../src/host/host-session', () => ({
-  hostSession: { switchTo: fixture.switchTo },
+  hostSession: {
+    switchTo: fixture.switchTo,
+    getState: () => ({
+      hosts: [
+        { hostId: 'A', hostName: 'Laptop', deviceId: 'phone' },
+        { hostId: 'B', hostName: 'Desktop', deviceId: 'phone' },
+      ],
+    }),
+  },
   useHostSession: () => ({
     hosts: [
       { hostId: 'A', hostName: 'Laptop', deviceId: 'phone' },

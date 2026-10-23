@@ -1,7 +1,7 @@
 import { createHostClient, deviceRefusal, MethodRefused, type HostClient } from './client';
 import type { SavedHost } from './hosts';
 import type { HostCarrier } from './carrier';
-import type { ChannelCreationPort } from './channel-creation';
+import { ChannelCreationNotAccepted, type ChannelCreationPort } from './channel-creation';
 
 export function channelCreationTransport(
   hosts: () => readonly SavedHost[],
@@ -11,6 +11,7 @@ export function channelCreationTransport(
     hostId: string,
     deviceId: string,
     run: (client: HostClient) => Promise<T>,
+    creation = false,
   ) => {
     const host = hosts().find((host) => host.hostId === hostId && host.deviceId === deviceId);
     if (!host) throw new Error('target-unpaired');
@@ -21,6 +22,7 @@ export function channelCreationTransport(
           entry.deviceId === deviceId &&
           entry.credential === host.credential,
       );
+    let uncertain = false;
     for (const route of host.routes) {
       if (!paired()) throw new Error('target-unpaired');
       const client = createHostClient({ ...host, routes: [route], carrier });
@@ -31,8 +33,17 @@ export function channelCreationTransport(
       } catch (error) {
         const refusal = deviceRefusal(error);
         if (refusal) throw new Error(refusal);
-        if (error instanceof MethodRefused) throw new Error(error.code);
+        if (error instanceof MethodRefused) {
+          if (
+            creation &&
+            !uncertain &&
+            ['unknown-bot', 'archived-bot', 'protected-bot', 'invalid-input'].includes(error.code)
+          )
+            throw new ChannelCreationNotAccepted(error.code);
+          throw new Error(error.code);
+        }
         if (!paired()) throw new Error('target-unpaired');
+        uncertain = true;
       } finally {
         client.stop();
       }
@@ -74,33 +85,38 @@ export function channelCreationTransport(
       });
     },
     create(operation) {
-      return request(operation.hostId, operation.deviceId, async (client) => {
-        const result = await client.call<unknown>('channelCreate', {
-          name: operation.name,
-          members: operation.members,
-          operationKey: operation.operationKey,
-        });
-        if (
-          typeof result !== 'object' ||
-          result === null ||
-          !('channel' in result) ||
-          typeof result.channel !== 'object' ||
-          result.channel === null ||
-          !('id' in result.channel) ||
-          typeof result.channel.id !== 'string' ||
-          !('receipt' in result) ||
-          typeof result.receipt !== 'object' ||
-          result.receipt === null ||
-          !('operationKey' in result.receipt) ||
-          result.receipt.operationKey !== operation.operationKey ||
-          !('status' in result.receipt) ||
-          result.receipt.status !== 'completed' ||
-          !('channelId' in result.receipt) ||
-          result.receipt.channelId !== result.channel.id
-        )
-          throw new MethodRefused('invalid-response', 'Invalid Channel result');
-        return result.channel.id;
-      });
+      return request(
+        operation.hostId,
+        operation.deviceId,
+        async (client) => {
+          const result = await client.call<unknown>('channelCreate', {
+            name: operation.name,
+            members: operation.members,
+            operationKey: operation.operationKey,
+          });
+          if (
+            typeof result !== 'object' ||
+            result === null ||
+            !('channel' in result) ||
+            typeof result.channel !== 'object' ||
+            result.channel === null ||
+            !('id' in result.channel) ||
+            typeof result.channel.id !== 'string' ||
+            !('receipt' in result) ||
+            typeof result.receipt !== 'object' ||
+            result.receipt === null ||
+            !('operationKey' in result.receipt) ||
+            result.receipt.operationKey !== operation.operationKey ||
+            !('status' in result.receipt) ||
+            result.receipt.status !== 'completed' ||
+            !('channelId' in result.receipt) ||
+            result.receipt.channelId !== result.channel.id
+          )
+            throw new MethodRefused('invalid-response', 'Invalid Channel result');
+          return result.channel.id;
+        },
+        true,
+      );
     },
   };
 }

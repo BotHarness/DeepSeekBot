@@ -1,5 +1,11 @@
 import { Checkbox, Host, Row, Text } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, toggleable, weight, testID } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  defaultMinSize,
+  fillMaxWidth,
+  toggleable,
+  weight,
+  testID,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
 import type { ParticipantChoiceProps } from './participant-choice';
 export function ParticipantChoice({
@@ -20,6 +26,7 @@ export function ParticipantChoice({
         verticalAlignment="center"
         modifiers={[
           fillMaxWidth(),
+          defaultMinSize({ minHeight: theme.touch }),
           testID(`create-channel-bot-${id}`),
           toggleable(checked, onChange, { role: 'checkbox', enabled: !disabled }),
         ]}

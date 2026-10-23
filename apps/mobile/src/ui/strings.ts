@@ -22,6 +22,8 @@ const en = {
     empty: 'No Bots available on this computer.',
     open: 'Open channel',
     resume: 'Continue channel creation',
+    membersChanged: 'Some Bots are no longer available. Reload and choose again.',
+    invalid: 'Check the channel name and selected Bots.',
   },
   marketplace: {
     title: 'Bot Marketplace',
@@ -1601,6 +1603,8 @@ const zh: typeof en = {
     empty: '这台电脑没有可选的 Bot。',
     open: '打开频道',
     resume: '继续创建频道',
+    membersChanged: '部分 Bot 已不可用，请重新加载并选择。',
+    invalid: '请检查频道名称和所选 Bot。',
   },
   marketplace: {
     title: 'Bot 市场',

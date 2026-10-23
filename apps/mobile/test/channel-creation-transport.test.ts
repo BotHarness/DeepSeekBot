@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { channelCreationTransport } from '../src/host/channel-creation-transport';
 import { createChannelCreation } from '../src/host/channel-creation';
+import { ChannelCreationNotAccepted } from '../src/host/channel-creation';
 import type { HostCarrier } from '../src/host/carrier';
 import type { SavedHost } from '../src/host/hosts';
 
@@ -83,4 +84,40 @@ it('does not send to another pairing after a submitted destination is unpaired',
     }),
   ).rejects.toThrow('target-unpaired');
   expect(request).not.toHaveBeenCalled();
+});
+
+it('keeps an ambiguous first-route mutation locked even when another route refuses its replay', async () => {
+  const request = vi
+    .fn<HostCarrier['request']>()
+    .mockRejectedValueOnce(new Error('reply lost'))
+    .mockResolvedValueOnce({
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          type: 'server-response',
+          result: { ok: false, error: { code: 'unknown-bot', message: 'Unknown Bot' } },
+        }),
+    });
+  const target: SavedHost = {
+    hostId: 'B',
+    hostName: 'B',
+    deviceId: 'phone',
+    credential: 'credential',
+    routes: ['https://b.ts.net', 'https://b2.ts.net'],
+  };
+  const port = channelCreationTransport(() => [target], { request, openSocket: vi.fn() });
+  let error: unknown;
+  try {
+    await port.create({
+      hostId: 'B',
+      deviceId: 'phone',
+      name: 'Team',
+      members: ['ada'],
+      operationKey: 'channel-uncertain',
+    });
+  } catch (caught) {
+    error = caught;
+  }
+  expect(error).toBeInstanceOf(Error);
+  expect(error).not.toBeInstanceOf(ChannelCreationNotAccepted);
 });

@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { createChannelCreation } from '../src/host/channel-creation';
+import { ChannelCreationNotAccepted, createChannelCreation } from '../src/host/channel-creation';
 
 it('clears members immediately on a different Host and ignores late candidate reads', async () => {
   let finishA: ((bots: { slug: string; displayName: string }[]) => void) | undefined;
@@ -81,4 +81,67 @@ it('retains the submitted Host and key across lost responses and app restart', a
   expect(operations).toHaveLength(2);
   expect(operations[1]).toEqual(operations[0]);
   expect(reopened.getSnapshot().result).toBe('group-original');
+});
+
+it('lets the Human correct a fresh operation explicitly rejected before Host acceptance', async () => {
+  let rejected = true;
+  let key = 0;
+  const created: string[][] = [];
+  const controller = createChannelCreation({
+    key: () => `channel-correct-${++key}`,
+    storage: { read: async () => undefined, write: async () => {} },
+    port: {
+      deviceId: () => 'phone',
+      candidates: async () => [
+        { slug: 'ada', displayName: 'Ada' },
+        { slug: 'bo', displayName: 'Bo' },
+      ],
+      create: async (operation) => {
+        if (rejected) throw new ChannelCreationNotAccepted('archived-bot');
+        created.push(operation.members);
+        return 'group-fixed';
+      },
+    },
+  });
+  await controller.ready;
+  await controller.selectHost('A');
+  controller.rename('Team');
+  controller.toggle('ada');
+  await controller.submit();
+  expect(controller.getSnapshot().record.kind).toBe('draft');
+  expect(controller.getSnapshot().record.name).toBe('Team');
+  await controller.refresh();
+  controller.toggle('ada');
+  controller.toggle('bo');
+  rejected = false;
+  await controller.submit();
+  expect(controller.getSnapshot().result).toBe('group-fixed');
+  expect(created).toEqual([['bo']]);
+});
+
+it('does not unlock an old operation on a refusal that can also happen during receipt replay', async () => {
+  const record = {
+    kind: 'submitted',
+    hostId: 'A',
+    name: 'Team',
+    members: ['ada'],
+    deviceId: 'phone',
+    operationKey: 'channel-uncertain-001',
+  };
+  const controller = createChannelCreation({
+    key: () => 'must-not-use',
+    storage: { read: async () => record, write: async () => {} },
+    port: {
+      deviceId: () => 'phone',
+      candidates: async () => [],
+      create: async () => {
+        throw new ChannelCreationNotAccepted('unknown-bot');
+      },
+    },
+  });
+  await controller.ready;
+  await controller.submit();
+  expect(controller.getSnapshot().record).toEqual(record);
+  await controller.selectHost('B');
+  expect(controller.getSnapshot().record.hostId).toBe('A');
 });

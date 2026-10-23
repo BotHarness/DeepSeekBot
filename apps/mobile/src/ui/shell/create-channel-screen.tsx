@@ -53,13 +53,17 @@ export function CreateChannelScreen() {
     opening.current = true;
     try {
       const current = channelCreation.getSnapshot();
-      const target = hosts.find((host) => host.hostId === current.record.hostId);
+      const target = hostSession
+        .getState()
+        .hosts.find((host) => host.hostId === current.record.hostId);
       if (
         !current.result ||
         !target ||
         (current.record.kind === 'submitted' && target.deviceId !== current.record.deviceId)
-      )
+      ) {
+        setOpenError(true);
         return;
+      }
       await conversationFilter.ready;
       if (!focus.current || AppState.currentState !== 'active') return;
       if (!(await hostSession.switchTo(target.hostId))) {
@@ -143,7 +147,13 @@ export function CreateChannelScreen() {
                 <Text accessibilityRole="alert">{t.botCreation.targetUnavailable}</Text>
               ) : null}
               {state.error ? (
-                <Text accessibilityRole="alert">{creationError(state.error)}</Text>
+                <Text accessibilityRole="alert">
+                  {['unknown-bot', 'archived-bot', 'protected-bot'].includes(state.error)
+                    ? t.channelCreation.membersChanged
+                    : state.error === 'invalid-input'
+                      ? t.channelCreation.invalid
+                      : creationError(state.error)}
+                </Text>
               ) : null}
               {!state.loaded ? (
                 <Text>{t.botCreation.working}</Text>
