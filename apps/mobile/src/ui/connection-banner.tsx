@@ -2,6 +2,7 @@ import { Text } from './primitives/system-text';
 import { Pressable, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
+import { connectionRecoveryText } from './connection-recovery';
 import { t } from './strings';
 import { useTheme } from './theme';
 
@@ -29,7 +30,7 @@ export function ConnectionBanner({
     connection.status === 'refused'
       ? t.deviceRefusal[connection.code]
       : connection.status === 'unreachable'
-        ? connection.reason
+        ? connectionRecoveryText(connection.route)
         : undefined;
   return (
     <View

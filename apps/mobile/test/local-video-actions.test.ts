@@ -1,6 +1,12 @@
 import { expect, it, vi } from 'vitest';
 import { localVideoActions, watchLocalVideoForeground } from '../src/host/local-video-actions';
 import type { LocalVideoClientState } from '../../../packages/computer/src/local-video-client';
+import type { ConnectionState } from '../src/host/client';
+
+const connected = {
+  status: 'connected',
+  route: 'http://192.168.1.2:4321',
+} satisfies ConnectionState;
 
 it('keeps one hand-back action and Reconnect available when a stall removes input eligibility', () => {
   const state: LocalVideoClientState = {
@@ -26,20 +32,54 @@ it('keeps one hand-back action and Reconnect available when a stall removes inpu
       media: { status: 'stalled', captureAlive: true, width: 1280, height: 720 },
     },
   };
-  expect(localVideoActions(state)).toEqual({ handBack: true, reconnect: true });
+  expect(localVideoActions(state, connected)).toEqual({ handBack: true, recovery: 'video' });
   const { grant: _grant, ...released } = state.host!;
-  expect(localVideoActions({ ...state, host: released })).toEqual({
+  expect(localVideoActions({ ...state, host: released }, connected)).toEqual({
     handBack: true,
-    reconnect: true,
+    recovery: 'video',
   });
   expect(
-    localVideoActions({ ...state, host: { ...released, paused: false, controlHeld: false } }),
-  ).toEqual({ handBack: false, reconnect: true });
-  expect(localVideoActions({ ...state, host: undefined, status: 'opening' })).toEqual({
+    localVideoActions(
+      { ...state, host: { ...released, paused: false, controlHeld: false } },
+      connected,
+    ),
+  ).toEqual({ handBack: false, recovery: 'video' });
+  expect(localVideoActions({ ...state, host: undefined, status: 'opening' }, connected)).toEqual({
     handBack: false,
-    reconnect: false,
+    recovery: undefined,
   });
 });
+
+it.each([
+  {
+    connection: { status: 'unreachable', route: connected.route, attempt: 1, reason: 'network' },
+    recovery: 'host',
+  },
+  { connection: { status: 'reconnecting', route: connected.route, attempt: 2 }, recovery: 'host' },
+  {
+    connection: {
+      status: 'refused',
+      route: connected.route,
+      code: 'device-revoked',
+      reason: 'revoked',
+    },
+    recovery: 'pair',
+  },
+  { connection: { status: 'connecting', route: connected.route }, recovery: undefined },
+  { connection: { status: 'stopped', route: connected.route }, recovery: undefined },
+] satisfies Array<{ connection: ConnectionState; recovery: 'host' | 'pair' | undefined }>)(
+  'offers $recovery for $connection.status even without a video binding',
+  ({ connection, recovery }) => {
+    const state: LocalVideoClientState = {
+      status: 'idle',
+      host: undefined,
+      presenting: false,
+      busy: false,
+      code: undefined,
+    };
+    expect(localVideoActions(state, connection)).toEqual({ handBack: false, recovery });
+  },
+);
 
 it('starts only while foreground and retires the listener on blur or disconnection', () => {
   const viewer = { start: vi.fn(async () => {}), stop: vi.fn(async () => {}) };

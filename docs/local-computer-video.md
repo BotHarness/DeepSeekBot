@@ -20,6 +20,12 @@ T1 uses direct WebRTC with no configured STUN/TURN servers. The phone's signalin
 
 When video stalls, input is disabled but **Hand back**, exit and **Reconnect** remain available. Hand back is available while the Computer is paused or the caller retains a grant, separately from eligibility to send input. Reconnect closes the old attempt before opening observation again; it does not restore control, resume Bots or replay input.
 
+## Connection checks
+
+If the phone cannot reach a LAN Host, connect it to the computer's Wi-Fi, allow Local Network access and enable local access in the computer's **Settings → Devices**, then choose **Retry**. Turning Wi-Fi on without joining a network is insufficient. Remote connections instead show phone-network and computer-awake/DeepSeekBot checks; an error does not establish that Wi-Fi is the cause.
+
+Computer keeps **Retry** available when the Host connection is lost, even before a viewer exists. If only video fails, keep the computer awake with Computer running and choose **Reconnect video**. Device refusal offers **Pair again**. An expired pairing code still requires a fresh code. These actions neither take control nor resume Bots; an uncertain input result still warns you to check the screen before repeating an action.
+
 ## Recovery and downgrade
 
 After takeover, a code-only rollback is unsafe: older versions ignore `botharness/computer-pause.json` and can reopen Bot access after restart. Keep the affected Computer stopped, confirm its owned media has stopped and preserve the pause record. If the Human explicitly chooses to resume Bots, use the supported new-version resume operation and its drain before downgrading. Otherwise apply a forward fix that honors the durable pause. Never delete the record or resume automatically to make a downgrade succeed.

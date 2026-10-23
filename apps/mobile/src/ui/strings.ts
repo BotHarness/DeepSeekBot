@@ -395,6 +395,8 @@ const en = {
   connecting: 'Connecting to your computer…',
   reconnecting: 'Reconnecting…',
   unreachable: 'Cannot reach your computer',
+  connectionNetworkHelp:
+    'Check this phone’s network, keep your computer awake with DeepSeekBot open, then retry.',
   refused: 'Your computer refused this app',
   deviceRefusal: {
     'device-revoked': 'This phone was removed from the paired devices on your computer.',
@@ -547,7 +549,7 @@ const en = {
   pairRefused: {
     'lan-build-required': 'Update the phone app to use local access.',
     'lan-unreachable':
-      'Check that both devices use the same network, allow Local Network access, and enable local access on your computer.',
+      'Connect this phone to your computer’s Wi-Fi, allow Local Network access and enable local access in Settings → Devices on your computer, then retry.',
     'already-paired': 'This computer is already added.',
     'host-key-required': 'Pair again using a new code from your computer.',
     'host-key-confirmation-required': 'Compare the fingerprint on your computer before pairing.',
@@ -1324,12 +1326,14 @@ const en = {
   computerVideoBuildRequired: 'Install the updated Android app to watch live video.',
   computerVideoViewerLimit: 'This Computer is already being watched. Close the other viewer first.',
   computerVideoCarrierRequired:
-    'Video control is not available through this connection yet. Use a direct trusted connection.',
+    'This connection cannot carry video yet. For local access, connect this phone to your computer’s Wi-Fi and enable local access in Settings → Devices on your computer.',
+  computerVideoConnectionIssue: (check: string) => `Cannot reach your computer. ${check}`,
   computerVideoInputUnknown:
     'The last action may have happened. Check the screen before trying again.',
   computerVideoUnavailable:
-    'Video is unavailable. Reconnect to try again. Bots stay paused if you took control.',
-  computerVideoWaiting: 'Waiting for live video. Input is disabled.',
+    'Video is unavailable; open DeepSeekBot on your computer, start Computer and reconnect. Bots stay paused if you took control.',
+  computerVideoWaiting:
+    'Waiting for live video; keep your computer awake and Computer running, then reconnect if video does not return.',
   computerVideoBotsPaused: 'Bots paused',
   computerVideoTakeover: 'Take control',
   computerVideoRelease: 'Release control · keep Bots paused',
@@ -1766,6 +1770,7 @@ const zh: typeof en = {
   connecting: '正在连接你的电脑…',
   reconnecting: '正在重新连接…',
   unreachable: '无法连接到你的电脑',
+  connectionNetworkHelp: '请检查手机网络，并确认电脑未休眠且 DeepSeekBot 正在运行，然后重试。',
   refused: '你的电脑拒绝了这个应用',
   deviceRefusal: {
     'device-revoked': '电脑已将这台手机从配对设备中移除。',
@@ -1911,7 +1916,8 @@ const zh: typeof en = {
   },
   pairRefused: {
     'lan-build-required': '请更新手机 App 后再使用局域网连接。',
-    'lan-unreachable': '请确认手机和电脑在同一网络，允许本地网络权限，并在电脑上开启局域网连接。',
+    'lan-unreachable':
+      '请把手机连到电脑所在的 Wi-Fi，允许本地网络访问，并在电脑的「设置 → 设备」中开启局域网连接，然后重试。',
     'already-paired': '这台电脑已添加。',
     'host-key-required': '请使用电脑上的新二维码重新配对。',
     'host-key-confirmation-required': '请先核对电脑上的指纹，再继续配对。',
@@ -2659,10 +2665,14 @@ const zh: typeof en = {
   computerLoading: '正在加载 Computer 画面…',
   computerVideoBuildRequired: '请安装新版 Android 应用以观看实时视频。',
   computerVideoViewerLimit: '已有设备正在查看这台 Computer。请先关闭另一端。',
-  computerVideoCarrierRequired: '此连接暂不支持视频控制。请使用可信的直连。',
+  computerVideoCarrierRequired:
+    '当前连接暂不支持视频。可把手机连到电脑所在的 Wi-Fi，并在电脑的「设置 → 设备」中开启局域网连接。',
+  computerVideoConnectionIssue: (check: string) => `无法连接电脑。${check}`,
   computerVideoInputUnknown: '上一次操作可能已执行。重试前请先查看画面。',
-  computerVideoUnavailable: '视频不可用，请重新连接。若你已接管，Bot 会继续暂停。',
-  computerVideoWaiting: '正在等待实时视频，暂时无法操作。',
+  computerVideoUnavailable:
+    '视频不可用，请在电脑上打开 DeepSeekBot 并启动 Computer，再重新连接。若你已接管，Bot 会继续暂停。',
+  computerVideoWaiting:
+    '正在等待实时视频，请确认电脑未休眠且 Computer 正在运行，画面未恢复时可重新连接。',
   computerVideoBotsPaused: 'Bot 已暂停',
   computerVideoTakeover: '接管控制',
   computerVideoRelease: '释放控制，保持 Bot 暂停',

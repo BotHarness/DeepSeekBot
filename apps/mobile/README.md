@@ -42,6 +42,14 @@ top-right header; exit, backgrounding and connection loss preserve a paused Bot 
 There is no visible instruction caption. Keyboard/IME and direct-touch parity remain
 tracked in [#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559).
 
+Errors offer concrete recovery steps: LAN pairing/connection failures ask you to connect the
+phone to the computer's Wi-Fi, allow local-network access and enable local access in the
+computer's Settings → Devices. Remote connection failures ask you to check the phone network
+and keep the computer awake with DeepSeekBot running. Computer offers **Retry** for a lost
+Host connection, **Reconnect video** for video failures, and **Pair again** after device
+refusal. Retrying never takes control or resumes Bots. Normal viewing has no instruction
+caption; long error guidance scrolls separately from the mouse controls.
+
 ## Toolchain
 
 Expo SDK 58 (React Native 0.88, React 19.3) inside the pnpm workspace with pnpm's default isolated linker: no `node-linker=hoisted`, no `.npmrc` change. `metro.config.js` adds one resolver rule so Metro can follow the Host sources' `.js`-suffixed TypeScript imports. Having React Native in the workspace makes pnpm link it as an optional peer of a few web packages (`morphicons`, `@tanstack/charts`); those packages only load it from their explicit React Native entry points.

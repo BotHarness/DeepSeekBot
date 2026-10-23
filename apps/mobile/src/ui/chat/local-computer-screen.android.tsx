@@ -10,7 +10,7 @@ import {
 import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useSyncExternalStore, type ComponentType } from 'react';
-import { AppState, View, useWindowDimensions } from 'react-native';
+import { AppState, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,6 +31,7 @@ import { t } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
 import { ComputerWheelButton } from './computer-wheel-button';
+import { localVideoNotice } from './local-video-notice';
 
 const idle: LocalVideoClientState = {
   status: 'idle',
@@ -81,7 +82,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
 
   if (state.status === 'unsupported') return <Legacy />;
   const host = state.host;
-  const actions = localVideoActions(state);
+  const actions = localVideoActions(state, snapshot.connection);
   const binding = host?.binding;
   const mediaMounted =
     !revoked &&
@@ -115,23 +116,25 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     if (router.canGoBack()) router.back();
     else router.replace('/');
   };
-  const message = revoked
-    ? t.browserRevoked
-    : nativeMissing
-      ? t.computerVideoBuildRequired
-      : state.code === 'viewer-limit'
-        ? t.computerVideoViewerLimit
-        : state.code === 'connect-carrier-required'
-          ? t.computerVideoCarrierRequired
-          : state.code === 'input-result-unknown'
-            ? t.computerVideoInputUnknown
-            : state.status === 'unavailable'
-              ? t.computerVideoUnavailable
-              : host?.media.status === 'stalled' ||
-                  state.code === 'media-not-live' ||
-                  (mediaMounted && !state.presenting)
-                ? t.computerVideoWaiting
-                : undefined;
+  const message = localVideoNotice({
+    connection: snapshot.connection,
+    state,
+    nativeMissing,
+    mediaMounted,
+  });
+  const recover = () => {
+    switch (actions.recovery) {
+      case 'pair':
+        router.push('/pair');
+        break;
+      case 'host':
+        client?.retryNow();
+        break;
+      case 'video':
+        void viewer?.reconnect();
+        break;
+    }
+  };
   const toggleDisabled =
     state.busy ||
     revoked ||
@@ -227,11 +230,17 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           </View>
         )}
       </View>
-      <View style={{ paddingHorizontal: space.x3, paddingBottom: space.x2 }}>
+      <View style={{ paddingHorizontal: space.x3, paddingBottom: space.x2, flexShrink: 1 }}>
         {message === undefined ? null : (
-          <Text accessibilityLiveRegion="polite" tone="muted">
-            {message}
-          </Text>
+          <ScrollView
+            testID="computer-video-recovery-message"
+            style={{ flexShrink: 1 }}
+            contentInsetAdjustmentBehavior="never"
+          >
+            <Text accessibilityLiveRegion="polite" tone="muted">
+              {message}
+            </Text>
+          </ScrollView>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
           {controlling ? (
@@ -277,13 +286,28 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                     <ComposeText>{t.computerVideoReset}</ComposeText>
                   </TextButton>
                 ) : null}
-                {!nativeMissing && !revoked && connected && actions.reconnect ? (
+                {actions.recovery === 'pair' ||
+                (!nativeMissing && actions.recovery !== undefined) ? (
                   <TextButton
-                    enabled={!state.busy}
-                    onClick={() => void viewer?.reconnect()}
-                    modifiers={[testID('computer-video-reconnect')]}
+                    enabled={actions.recovery !== 'video' || !state.busy}
+                    onClick={recover}
+                    modifiers={[
+                      testID(
+                        actions.recovery === 'pair'
+                          ? 'computer-video-pair-again'
+                          : actions.recovery === 'host'
+                            ? 'computer-video-retry-connection'
+                            : 'computer-video-reconnect',
+                      ),
+                    ]}
                   >
-                    <ComposeText>{t.computerVideoReconnect}</ComposeText>
+                    <ComposeText>
+                      {actions.recovery === 'pair'
+                        ? t.pairAgain
+                        : actions.recovery === 'host'
+                          ? t.retry
+                          : t.computerVideoReconnect}
+                    </ComposeText>
                   </TextButton>
                 ) : null}
               </Row>
