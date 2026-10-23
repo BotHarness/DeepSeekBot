@@ -31,6 +31,15 @@ Use the [Windows device queue](../../../../docs/agents/android-device-qa.md); th
 
 ## Gotchas
 
+- Android touch follow-up (#2559): one finger moves the local large arrow; tap and the
+  left/right buttons click that cursor only with live media and the current control grant.
+  Long press right-clicks. Two fingers pinch and pan only the phone preview, even while
+  observing; they never scroll or click the remote desktop. Verify zoomed clicks against
+  a harmless fixture, then release/resume and confirm disabled buttons send no input.
+  Rotate/change the stage size and reconnect to verify preview and cursor reset. Capture
+  matched before/after states and reachable light/dark large-text controls on the actual
+  Release phone build. This checklist is not a native pass result.
+
 - Android Release startup must retain WebRTC and JNI Zero native entry points via the local
   module's consumer rules. The pinned AAR supplies none. Missing rules remove JniInit and
   cause a native SIGTRAP during JNI_OnLoad before video can render. Verify the minified APK

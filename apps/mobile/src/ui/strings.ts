@@ -1337,6 +1337,9 @@ const en = {
   computerVideoReconnect: 'Reconnect video',
   computerVideoSurface: 'Live Computer video',
   computerVideoClick: 'Tap the Computer screen',
+  computerVideoTrackpad: 'Computer trackpad',
+  computerVideoTrackpadHint:
+    'Swipe to move the pointer. Tap to click. Use two fingers to zoom and pan the preview.',
   computerNotRunning: 'The Computer is not running. Start it on your computer to see it here.',
   computerUnreachable: 'Cannot reach the Computer on your computer.',
   computerWatching: 'Watching',
@@ -2658,6 +2661,8 @@ const zh: typeof en = {
   computerVideoReconnect: '重新连接视频',
   computerVideoSurface: 'Computer 实时视频',
   computerVideoClick: '点击 Computer 画面',
+  computerVideoTrackpad: '电脑触控板',
+  computerVideoTrackpadHint: '滑动移动光标，轻点单击。双指缩放、平移预览。',
   computerNotRunning: 'Computer 没有运行。在电脑上启动后会显示在这里。',
   computerUnreachable: '无法连接电脑上的 Computer。',
   computerWatching: '查看中',

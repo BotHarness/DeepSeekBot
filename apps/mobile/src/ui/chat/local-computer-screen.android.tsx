@@ -6,15 +6,16 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState, useSyncExternalStore, type ComponentType } from 'react';
-import { AppState, Pressable, ScrollView, View } from 'react-native';
+import { useCallback, useMemo, useSyncExternalStore, type ComponentType } from 'react';
+import { AppState, ScrollView, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   createLocalVideoClient,
   type LocalVideoClientState,
 } from '../../../../../packages/computer/src/local-video-client';
-import { fittedFrame, pagePoint } from '../../host/browser-viewer';
+import { videoPointerClick } from '../../host/local-video-pointer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
 import { space } from '../design/tokens';
@@ -23,6 +24,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
+import { ComputerVideoStage } from './computer-video-stage';
 
 const idle: LocalVideoClientState = {
   status: 'idle',
@@ -52,7 +54,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     (listener) => viewer?.subscribe(listener) ?? (() => {}),
     () => viewer?.getState() ?? idle,
   );
-  const [stage, setStage] = useState({ width: 0, height: 0 });
+  const cursor = useSharedValue({ x: 0, y: 0 });
   const revoked = snapshot.connection.status === 'refused';
   const connected = snapshot.connection.status === 'connected';
   const nativeMissing = NativeLocalComputerVideo === undefined;
@@ -86,7 +88,19 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     host?.media.status === 'live' &&
     !state.busy;
   const frame = { width: host?.media.width ?? 0, height: host?.media.height ?? 0 };
-  const fit = fittedFrame(frame, stage);
+  const Video = NativeLocalComputerVideo;
+  const click = (at: { x: number; y: number }, button: 'left' | 'right') => {
+    const current = viewer?.getState().host;
+    if (
+      current?.binding?.runtimeId !== binding?.runtimeId ||
+      current?.binding?.viewerId !== binding?.viewerId ||
+      current?.binding?.attemptId !== binding?.attemptId ||
+      current?.grant?.generation !== host?.grant?.generation
+    )
+      return;
+    const input = videoPointerClick(at, frame, button, driving);
+    if (input !== undefined) void viewer?.input(input);
+  };
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const close = () => {
     void viewer?.stop();
@@ -150,54 +164,41 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           {host?.paused ? ` · ${t.computerVideoBotsPaused}` : ''}
         </Text>
       </View>
-      <View
-        style={{ flex: 1, minHeight: theme.touch * 3 }}
-        onLayout={({ nativeEvent }) => setStage(nativeEvent.layout)}
-      >
-        {mediaMounted && NativeLocalComputerVideo !== undefined ? (
-          <>
-            <NativeLocalComputerVideo
-              key={binding.attemptId}
-              attemptId={binding.attemptId}
-              offer={host.offer!.sdp}
-              enabled
-              testID="computer-video-surface"
-              accessibilityLabel={t.computerVideoSurface}
-              style={{ position: 'absolute', ...fit }}
-              onDescription={({ nativeEvent }) =>
-                void viewer?.answer(nativeEvent.attemptId, nativeEvent.sdp)
-              }
-              onPresentation={({ nativeEvent }) =>
-                viewer?.playback(
-                  nativeEvent.attemptId,
-                  nativeEvent.presentedFrames,
-                  nativeEvent.lastPresentedAgoMs,
-                )
-              }
-              onMediaState={({ nativeEvent }) => {
-                if (nativeEvent.state === 'failed' || nativeEvent.state === 'closed')
-                  viewer?.mediaFailed(nativeEvent.attemptId, nativeEvent.code);
-              }}
-            />
-            <Pressable
-              testID="computer-video-click"
-              disabled={!driving}
-              accessibilityRole="button"
-              accessibilityLabel={t.computerVideoClick}
-              accessibilityState={{ disabled: !driving }}
-              style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
-              onPress={({ nativeEvent }) => {
-                const at = pagePoint(
-                  { x: nativeEvent.locationX, y: nativeEvent.locationY },
-                  frame,
-                  stage,
-                  { scale: 1, x: 0, y: 0 },
-                );
-                if (at !== undefined)
-                  void viewer?.input({ kind: 'click', ...at, button: 'left', count: 1 });
-              }}
-            />
-          </>
+      <View style={{ flex: 1, minHeight: theme.touch * 3 }}>
+        {mediaMounted && Video !== undefined ? (
+          <ComputerVideoStage
+            key={binding.attemptId}
+            frame={frame}
+            driving={driving}
+            cursor={cursor}
+            onClick={click}
+          >
+            {(size) => (
+              <Video
+                key={binding.attemptId}
+                attemptId={binding.attemptId}
+                offer={host.offer!.sdp}
+                enabled
+                testID="computer-video-surface"
+                accessibilityLabel={t.computerVideoSurface}
+                style={{ width: size.width, height: size.height }}
+                onDescription={({ nativeEvent }) =>
+                  void viewer?.answer(nativeEvent.attemptId, nativeEvent.sdp)
+                }
+                onPresentation={({ nativeEvent }) =>
+                  viewer?.playback(
+                    nativeEvent.attemptId,
+                    nativeEvent.presentedFrames,
+                    nativeEvent.lastPresentedAgoMs,
+                  )
+                }
+                onMediaState={({ nativeEvent }) => {
+                  if (nativeEvent.state === 'failed' || nativeEvent.state === 'closed')
+                    viewer?.mediaFailed(nativeEvent.attemptId, nativeEvent.code);
+                }}
+              />
+            )}
+          </ComputerVideoStage>
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             {state.status === 'opening' && !nativeMissing ? <LoadingIndicator /> : null}
@@ -208,6 +209,27 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         style={{ flexGrow: 0, maxHeight: '45%' }}
         contentContainerStyle={{ paddingHorizontal: space.x5, paddingBottom: space.x3 }}
       >
+        <Text variant="meta" tone="muted">
+          {t.computerVideoTrackpadHint}
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
+          <View style={{ flexGrow: 1 }}>
+            {action(
+              t.computerLeftClick,
+              'computer-video-left-click',
+              () => click(cursor.get(), 'left'),
+              !driving,
+            )}
+          </View>
+          <View style={{ flexGrow: 1 }}>
+            {action(
+              t.computerRightClick,
+              'computer-video-right-click',
+              () => click(cursor.get(), 'right'),
+              !driving,
+            )}
+          </View>
+        </View>
         {message === undefined ? null : (
           <Text accessibilityLiveRegion="polite" tone="muted">
             {message}
