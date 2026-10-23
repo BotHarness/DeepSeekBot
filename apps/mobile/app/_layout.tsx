@@ -52,20 +52,6 @@ function RootNavigator() {
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                {Platform.OS === 'android'
-                  ? ['create-bot', 'import-bot-git', 'create-channel'].map((name) => (
-                      <Stack.Screen
-                        key={name}
-                        name={name}
-                        options={{
-                          headerShown: false,
-                          presentation: 'transparentModal',
-                          animation: 'none',
-                          contentStyle: { backgroundColor: 'transparent' },
-                        }}
-                      />
-                    ))
-                  : null}
                 <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
                 <Stack.Screen name="channel/[id]" options={{ title: '' }} />
                 <Stack.Screen

@@ -9,6 +9,7 @@ const fixture = vi.hoisted(() => ({
   replace: vi.fn(),
   switchTo: vi.fn(async () => true),
   fail: false,
+  screen: vi.fn(),
 }));
 const creations: unknown[] = [];
 const controller = createChannelCreation({
@@ -33,7 +34,12 @@ vi.mock('react-native', async () => ({
   AppState: { currentState: 'active' },
 }));
 vi.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({ options }: { options: unknown }) => {
+      fixture.screen(options);
+      return null;
+    },
+  },
   router: { back: fixture.back, push: vi.fn(), replace: fixture.replace },
   useLocalSearchParams: () => ({ entry: 'all' }),
   useFocusEffect: (effect: () => () => void) => {
@@ -78,10 +84,6 @@ vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
   fillMaxWidth: () => ({}),
   testID: () => ({}),
 }));
-vi.mock(
-  '../src/ui/primitives/creation-form',
-  async () => import('../src/ui/primitives/creation-form.android'),
-);
 vi.mock('../src/host/native-channel-creation', () => ({
   get channelCreation() {
     return controller;
@@ -115,8 +117,8 @@ vi.mock('../src/ui/design/host-look', () => ({
 vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children }: { children?: ReactNode }) => createElement('span', null, children),
 }));
-vi.mock('../src/ui/primitives/text-field', () => ({
-  TextField: ({
+vi.mock('../src/ui/primitives/creation-field', () => ({
+  CreationField: ({
     value,
     onChangeText,
     accessibilityLabel,
@@ -132,9 +134,13 @@ vi.mock('../src/ui/primitives/text-field', () => ({
       readOnly: true,
     }),
 }));
-vi.mock('../src/ui/primitives/button', () => ({
+vi.mock('../src/ui/primitives/creation-button', () => ({
   Button: ({ label, onPress, disabled }: { label: string; onPress(): void; disabled?: boolean }) =>
     createElement('button', { onClick: onPress, disabled }, label),
+}));
+vi.mock('../src/ui/primitives/settings-row', () => ({
+  SettingsGroupItem: ({ children }: { children: ReactNode }) =>
+    createElement('div', null, children),
 }));
 vi.mock('../src/ui/primitives/keyboard-form', () => ({ renderKeyboardFormScroll: () => null }));
 import { CreateChannelScreen } from '../src/ui/shell/create-channel-screen';
@@ -148,7 +154,7 @@ afterEach(() => {
   element?.remove();
 });
 
-it('uses the Dialog to select Host-scoped Bots, reset on Host change, cancel without creating and retry the same failed submission', async () => {
+it('uses a full page to select Host-scoped Bots, reset on Host change and retry the same failed submission', async () => {
   await controller.ready;
   element = document.createElement('div');
   document.body.append(element);
@@ -161,7 +167,10 @@ it('uses the Dialog to select Host-scoped Bots, reset on Host change, cancel wit
     if (!match) throw new Error(`Missing ${label}`);
     return match;
   };
-  expect(element.querySelector('[role="dialog"]')).not.toBeNull();
+  expect(element.querySelector('[role="dialog"]')).toBeNull();
+  expect(fixture.screen).toHaveBeenLastCalledWith(
+    expect.objectContaining({ headerShown: true, presentation: 'card' }),
+  );
   expect(button(t.botCreation.create).disabled).toBe(true);
   expect(element.textContent).toContain(t.channelCreation.chooseHost);
   await act(async () => button('Laptop').click());
@@ -177,8 +186,6 @@ it('uses the Dialog to select Host-scoped Bots, reset on Host change, cancel wit
   expect(element.querySelector('[aria-label="A Ada"]')).toBeNull();
   expect(element.querySelector('[aria-label="B Ada"]')?.getAttribute('aria-checked')).toBe('false');
   expect(input.value).toBe('Design team');
-  await act(async () => button(t.cancel).click());
-  expect(fixture.back).toHaveBeenCalledOnce();
   expect(creations).toEqual([]);
   await act(async () => button('B Ada').click());
   await act(async () => button('B Bo').click());
