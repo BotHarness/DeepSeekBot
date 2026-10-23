@@ -77,6 +77,7 @@ import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
+import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
   isScheduleCommand,
@@ -123,6 +124,8 @@ export interface BotCreateFailure {
 export const BOT_CREATE_HELP = `deepseekbot: create PersonaBots without clicking
 
 Usage:
+  deepseekbot ssh-tunnel <alias> --pairing-file <private-file> --out <new-private-file>
+    --local-port <port> --remote-port <port> [--ssh-config <absolute-file>]
   deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                     [--core-memory <text> | --core-memory-stdin]
                     [--description <text>] [--role <tag> ...] [--avatar-file <image>]
@@ -537,6 +540,7 @@ const CREATE_OPTIONS = {
   cron: { type: 'string' },
   timezone: { type: 'string' },
   ...LIVE_OPTIONS,
+  ...SSH_OPTIONS,
   compact: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;
@@ -2483,6 +2487,7 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  ...SSH_COMMANDS,
   ...LIVE_COMMANDS,
   ...DIAGNOSTIC_COMMANDS,
   ...LIFECYCLE_COMMANDS,
@@ -2590,6 +2595,7 @@ export async function runBotCreateCli(
       out.stdout(BOT_CREATE_HELP.trimEnd());
       return 0;
     }
+    if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
     if (
       values['operation-key'] !== undefined &&

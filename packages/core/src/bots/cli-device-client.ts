@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { pairHost } from '../../../../apps/mobile/src/host/pairing.js';
-import { parseSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+import { parseSavedHost, serializeSavedHost } from '../../../../apps/mobile/src/host/hosts.js';
 import { createHostClient } from '../../../../apps/mobile/src/host/client.js';
 import { isLanRoute, isEncryptedRoute } from '../../../../apps/mobile/src/host/route.js';
 import { nodeDeviceCarrier } from '../devices/node-carrier.js';
@@ -66,7 +66,10 @@ export async function runDeviceClientCommand(
       },
       telemetry: { pairing: () => ({ finish: () => {} }) },
       save: async (host) => {
-        writeFileSync(values.out!, `${JSON.stringify(host)}\n`, { flag: 'wx', mode: 0o600 });
+        writeFileSync(values.out!, `${JSON.stringify(serializeSavedHost(host))}\n`, {
+          flag: 'wx',
+          mode: 0o600,
+        });
         summary = {
           hostId: host.hostId,
           deviceId: host.deviceId,
@@ -90,7 +93,7 @@ export async function runDeviceClientCommand(
     throw new CliLiveError('invalid-input', 'Cannot read the saved pairing.');
   }
   if (!host) throw new CliLiveError('invalid-input', 'Invalid saved pairing.');
-  if (!host.encryption && host.routes.some(isEncryptedRoute))
+  if (!host.encryption && host.routes.some((route) => isEncryptedRoute(route)))
     throw new CliLiveError('host-key-required', 'Upgrade this pairing from the trusted computer.');
   const client = createHostClient({ ...host, carrier: nodeDeviceCarrier() });
   let unsubscribe = () => {};
@@ -108,7 +111,7 @@ export async function runDeviceClientCommand(
             hostId: host.hostId,
             deviceId: host.deviceId,
             route: isLanRoute(snapshot.connection.route) ? 'lan' : 'remote',
-            encrypted: isEncryptedRoute(snapshot.connection.route),
+            encrypted: isEncryptedRoute(snapshot.connection.route, host.encryption),
             bots: snapshot.roster.bots.length,
             channels: snapshot.roster.channels.length,
           });
