@@ -114,6 +114,7 @@ describe('native section sheet source behavior', () => {
     expect(view.querySelector('[data-toolbar="right"] button')?.getAttribute('aria-label')).toBe(
       t.conversationSection.create,
     );
+    expect(view.querySelector('[data-toolbar="right"] button')?.textContent).toBe('');
     expect(view.querySelector('[data-testid="section-new"]')).toBeNull();
     await press(t.close);
     expect(back).toHaveBeenCalledOnce();
