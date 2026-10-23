@@ -156,6 +156,10 @@ function ScopedNavigationBar({
   const progress = useChromeProgress();
   const style = useAnimatedStyle(() => ({
     transform: [{ translateY: keepVisible ? 0 : reserved * progress.value }],
+    opacity: Platform.OS === 'android' || keepVisible ? 1 : 1 - progress.value,
+  }));
+  const fabStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: keepVisible ? 1 : 1 - progress.value }],
     opacity: keepVisible ? 1 : 1 - progress.value,
   }));
   const choose = async (action: CreationAction, target?: CreationTarget) => {
@@ -257,8 +261,13 @@ function ScopedNavigationBar({
             accessibilityElementsHidden={hidden}
             importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
             style={[
-              { position: 'absolute', right: insets.right + fab.margin, bottom: fabBottom },
-              style,
+              {
+                position: 'absolute',
+                right: insets.right + fab.margin,
+                bottom: fabBottom,
+                transformOrigin: 'center bottom',
+              },
+              fabStyle,
             ]}
           >
             {create(fab.size)}

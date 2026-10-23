@@ -486,6 +486,10 @@ The native section chooser always places **Unsectioned** first, followed by a na
 
 Marketplace topic filtering opts into glass Close on iOS, per the Human design update in #2648. Its header supplies the same horizontal inset as sheet content and a top inset below the native rounded corner. Other DrawerHeader callers retain their established material and dismissal policy.
 
+### Android navigation scroll motion
+
+Android Chats and Activity hide bottom navigation after deliberate downward scrolling and reveal it on upward scrolling. Navigation translates downward without fading. The Chats creation FAB scales to zero and fades around its bottom-center anchor, without translating. Both follow the same UI-thread scroll progress and remain visible with a screen reader active. System Reduce Motion suppresses the transition. Existing direction thresholds prevent small reversals and edge bounce from flickering the controls.
+
 ### Android Local Computer input
 
 The video toolbar places Left and Right around a dedicated two-dimensional scroll pad.
