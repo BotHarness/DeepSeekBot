@@ -46,6 +46,8 @@
     "apps/mobile/test/native-telemetry.test.ts",
     "apps/mobile/test/native-lan-socket.test.ts",
     "apps/mobile/test/native-persistence.test.ts",
+    "apps/mobile/test/native-zip-import-file.test.ts",
+    "apps/mobile/test/haptic-feedback.test.ts",
     "apps/mobile/test/native-chat-background.test.ts",
     "apps/mobile/test/inbox-screens.test.ts",
     "apps/mobile/test/action-cards.test.ts",

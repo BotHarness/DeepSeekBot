@@ -64,25 +64,35 @@ export function ApprovalView({
   const theme = useTheme();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const own = useRef(false);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) current.current = { port, pending: false, active: false };
+  const submission = current.current;
 
   const load = useCallback(async () => {
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       const notice = settledNotice(request);
       setPhase({ kind: 'ready', request, ...(notice === undefined ? {} : { notice }) });
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed', error: errorText(error) });
     }
-  }, [port]);
+  }, [port, submission]);
 
-  const seen = useRef<boolean | undefined>(undefined);
+  const seen = useRef<{ port: ApprovalPort; listed: boolean } | undefined>(undefined);
   const mount = useMounted<ViewInstance>(() => {
-    const first = seen.current === undefined;
-    const dropped = seen.current === true && !listed;
-    seen.current = listed;
-    if (first || (dropped && !own.current)) void load();
-  }, [load, listed]);
+    submission.active = true;
+    const changed = seen.current?.port !== port;
+    const dropped = seen.current?.listed === true && !listed;
+    seen.current = { port, listed };
+    if (changed) own.current = false;
+    if (changed || (dropped && !own.current)) void load();
+    return () => {
+      submission.active = false;
+    };
+  }, [load, listed, port, submission]);
 
   if (phase.kind !== 'ready')
     return (
@@ -97,12 +107,21 @@ export function ApprovalView({
 
   const { request } = phase;
   const decide = async (outcome: ApprovalChoice) => {
+    if (
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission ||
+      request.status !== 'pending'
+    )
+      return;
+    submission.pending = true;
     own.current = true;
-    haptic(outcome === 'rejected' ? 'deny' : 'approve');
     setPhase({ kind: 'ready', request, busy: outcome });
     try {
       const result = await port.decide(outcome);
+      if (!submission.active || current.current !== submission) return;
       if (result === 'accepted') {
+        haptic(outcome === 'rejected' ? 'deny' : 'approve');
         setPhase({
           kind: 'ready',
           request: { ...request, status: 'decided', outcome },
@@ -113,8 +132,11 @@ export function ApprovalView({
       const now = await port
         .load()
         .catch(() => ({ ...request, status: result }) as ApprovalRequest);
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'ready', request: now, notice: settledNotice({ ...now, status: result })! });
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       own.current = false;
       setPhase({
         kind: 'ready',

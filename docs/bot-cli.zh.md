@@ -6,6 +6,16 @@
 
 ## 用法
 
+### 可恢复的 Zip 上传与导入
+
+连接手机使用的同一个已认证 Host，运行 `bot-zip-upload --from-zip <文件> --upload-key <稳定键> --host <地址>`。结果包含 `sha256`、`sizeBytes`、`offset`、`chunkBytes` 和 `expiresAt`。命令通过 `zipUploadBegin` 和 `zipUploadChunk` 上传，使用相同键和文件可继续已确认的分块。每块原始数据为 256 KiB，base64 请求封装后仍小于加密设备通道的 4 MiB 限制。
+
+创建前运行 `bot-zip-preview --upload-key <键> --archive-sha256 <摘要> --archive-size <字节数> --host <地址>`。`zipUploadPreview` 校验完整压缩包并返回名称等信息、文件数、解压字节数和历史标志。确认名称、可选 `--description` 和重复的 `--role` 后，使用相同来源参数运行 `bot-zip-import`，并增加 `--operation-key <稳定操作键> --name <名称>`。`zipImport` 通过既有导入 owner 创建一个 Bot 及其私聊，不启动模型或授予工作区权限。
+
+导入响应丢失后，运行 `bot-zip-import-status --archive-sha256 <摘要> --operation-key <键> --name <名称>`，并原样携带可选描述和标签。`zipImportLookup` 不需要文件或上传会话。已完成回执在 Host 重启和上传过期后仍保留；重复 `bot-zip-import` 返回同一个 Bot 和私聊。相同操作键换摘要或元数据会被拒绝。未完成的上传过期后可明确重新传输，继续使用原导入操作键。
+
+暂存区独立于 Bot 的权威存储。沿用桌面端的压缩包限制：压缩及解压大小均最多 100 MiB、20,000 个文件项。Host 最多保留八个并行上传、共预留 400 MiB，以支持多个大文件并限制磁盘占用；会话 24 小时过期，在开始上传时回收。在暂存期间，上传键绑定摘要和大小。相同分块可重试，内容改变、偏移错误和最终摘要不匹配均拒绝。不保证后台传输。认证凭据沿用私有 token 文件或环境输入，不出现在输出中，也不扩大 Tob 的 CLI 权限。
+
 `deepseekbot browser-notification-clients` 列出在线 Client。`deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` 读取该浏览器的本地选择和 revision。写入时加 `--expected-revision <revision> --patch-stdin`，从标准输入传入 `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`。命令使用提供页面的 Host 的现有认证及 Client 定向控制通道；Host 不保存浏览器选择或远程凭据。版本过期或远程不存在时明确拒绝。开启前须已在浏览器授予通知权限，否则返回 `notification-permission-required`；CLI 不弹出系统授权。页面关闭后，控制目标和提醒都会结束。 开启原先未启用的类型时，先通过共享 Inbox 读完全部通知分页，完整基线就绪前保持旧选择；写入成功才是启用边界，此前条目静默，此后的群回复和 DM 可提醒。部分页失败返回 `notification-baseline-unavailable`，UI 基线的十秒期限返回 `notification-baseline-timeout`。CLI 写入还将既有 appearance relay 的请求期限（当前八秒）和取消信号传到同一 owner，并在落盘前再次检查；relay 超时或卸载后，迟到分页不能写入，已过期的通知命令不发送迟到回执。切换 Host、关闭设置、移除配对、权限丢失或释放页面会取消待完成的启用（`notification-activation-cancelled`），迟到结果不能落盘。拒绝后显式重试；页面仍订阅时，正常共享 Host Feed 观察继续。
 
 `deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均返回明确错误码；写入是否已开始按下段区分。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
@@ -913,7 +923,15 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 Host 先通过持久创建回执保留一个身份，再创建 Memory Repository 和 DM。响应丢失后重复**同一个 operation key 和同一份 payload**：已完成的回执返回原 Bot 与 DM，部分完成的操作沿用预留身份进行核对。受限模式已完成的重试走权限检查后的读取，不再申请一次创建审批。相同 key 配不同 payload 返回 `creation-key-conflict`；身份已归档或删除返回 `creation-identity-unavailable`，不会因重放而重建。`creation-memory-conflict` 表示预留目录已经存在但 Registry 身份未落地，应保留现场修复，不要删除目录或换 key 再建。回执不构成文件系统与数据库之间的原子事务，也不承诺自动修复该中断状态。
 
-已认证 Human 的在线 `create` 同样支持 `--operation-key`，限受管 Memory 的空白创建，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为，包括导入行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
+已认证 Human 的在线 `create` 同样支持 `--operation-key`，适用于受管 Memory 中的空白创建或已检查的 Git 来源，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
+
+Human 在线命令 `create-status` 在原 Host 只读查询创建回执。名称、人格、简介、标签等空白创建输入和 key 必须与原请求一致；不同输入会被拒绝。尚无操作时返回 `{receipt:null}`，否则返回 `{receipt:{operationKey,botSlug,status,channelId?}}`。`reserved` 可用完全相同的输入和 key 再次执行 `create` 恢复；`created` 指向已创建的同一个 Bot 和私聊。结果不确定时不要换 Host 或生成新 key。移动端在首次创建前先查询，以免旧 Host 不支持恢复却仍创建 Bot。
+
+```bash
+deepseekbot create-status --host <原Host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+deepseekbot create --host <原Host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+# 响应丢失后，用完全相同的参数再次执行 create-status。
+```
 
 受限 `show` 返回 `{bot, profileFingerprint}`。每次执行 `update`、`pause`、`resume`、`bot-avatar-set`、`bot-banner-set`、`bot-appearance-set` 或 `bot-primary-color-set` 前，先读取目标，再用 `--expected-profile` 传入该指纹。展示命令保留既有文件／recipe／清除／颜色参数。指纹覆盖完整 Registry record，因此任何已记录资料字段的并发变更都会使审核快照失效。Host 在审批后、调用原 owner 前重新检查，完成后返回规范资料及新指纹。遇到 `stale-setting` 重新读取，不静默覆盖。资料更新仅包含名称、简介和标签，不包含 Workspace Grants、凭据或模型配置。Human 的在线 `update` 同样必须传入 `show` 返回的 `--expected-profile`，复用原 Host owner；不会静默刷新已过期的指纹。`--description ''` 清空简介，`--role ''` 清空全部标签。
 
@@ -1289,3 +1307,15 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
 stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md)。
 `ssh-tunnel` 的本地端口只提供加密 Device Gateway，直接在浏览器打开会返回 403。请在本地 Host 浏览器中使用“添加远端”。载体会丢弃浏览器自动附带的本地登录 Cookie，不会将它发送给远端 Host。
+
+### 固定 Git 来源并恢复导入
+
+确认新导入前，先在目标 Host 检查所选来源。返回值包含规范化的 Git URL 和当前 HEAD 提交。把 URL、提交、名称、简介、标签及操作 key 一起保留；提交和恢复时不会自动改用更新的提交。
+
+```bash
+deepseekbot bot-import-preview --host <host> --from-git owner/repository
+deepseekbot create-status --host <host> --name Helper --from-git <已检查的URL> --expected-commit <提交> --operation-key import-helper-001
+deepseekbot create --host <host> --name Helper --from-git <已检查的URL> --expected-commit <提交> --operation-key import-helper-001
+```
+
+查询只读，可携带与创建一致的可选 `--description` 和重复 `--role` 参数。响应丢失或 Host 重启后仍指向同一个 Bot、受管 Memory 和私聊。若克隆后的 HEAD 与检查的提交不同，`git-source-changed` 会在发布 Bot 前拒绝；已保留的 key 仍绑定原输入。重新查看来源后，才可明确开始另一项导入。同 key 换来源或元数据返回 `creation-key-conflict`；原身份已归档或删除时返回 `creation-identity-unavailable`。不会自动调用模型或复制凭据。

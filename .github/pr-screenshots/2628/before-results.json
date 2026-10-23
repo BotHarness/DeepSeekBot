@@ -1,0 +1,98 @@
+[
+  {
+    "label": "baseline-0-light-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "baseline-0-light-intermediate",
+    "height": 53,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "baseline-0-light-maximum",
+    "height": 53,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  },
+  {
+    "label": "baseline-0-dark-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "baseline-0-dark-intermediate",
+    "height": 42,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  },
+  {
+    "label": "baseline-0-dark-maximum",
+    "height": 42,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  },
+  {
+    "label": "baseline-1-light-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "baseline-1-light-intermediate",
+    "height": 42,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  },
+  {
+    "label": "baseline-1-light-maximum",
+    "height": 42,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  },
+  {
+    "label": "baseline-1-dark-default",
+    "height": 42,
+    "minimum": 40,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": true
+  },
+  {
+    "label": "baseline-1-dark-intermediate",
+    "height": 42,
+    "minimum": 51,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  },
+  {
+    "label": "baseline-1-dark-maximum",
+    "height": 42,
+    "minimum": 71,
+    "draftRetained": true,
+    "keyboard": true,
+    "pass": false
+  }
+]

@@ -17,6 +17,7 @@
     "generate:palette": "node scripts/generate-palette.mjs"
   },
   "dependencies": {
+    "@botharness/pixel-banner": "0.1.0",
     "@expo/metro-runtime": "~58.0.15",
     "@expo/ui": "~58.0.22",
     "@tanstack/react-query": "^5.104.3",

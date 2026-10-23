@@ -37,6 +37,8 @@ import { CreationPanel } from './creation-panel';
 import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { t } from '../strings';
+import { useSelectionFeedback } from '../selection-feedback';
+import { haptic } from '../haptics';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -104,21 +106,27 @@ function ScopedNavigationBar({
   reserved,
   scope,
 }: NavigationBarLayout & { scope: string }) {
+  const currentKey = state.routes[state.index]?.key;
+  const selectTab = useSelectionFeedback(currentKey, (key) => {
+    if (key !== undefined) return navigateToTab(key);
+  });
   const { saved } = useHostSession();
   const look = useHostLook(saved?.hostId);
   const directory = useCloudConversations();
   const targets = creationTargets(
     saved ? { hostId: saved.hostId, name: shownHostName(look, saved.hostName) } : undefined,
     directory.workspaces,
-  ).filter((target) => target.kind !== 'computer');
+  ).map((target) => (target.kind === 'computer' ? { ...target, channelCreation: false } : target));
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<string>();
+  const menuOpen = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const generation = useRef(0);
   const close = () => {
+    menuOpen.current = false;
     generation.current++;
     setMenu(undefined);
     setError(undefined);
@@ -141,6 +149,22 @@ function ScopedNavigationBar({
     if (action === 'join') {
       close();
       router.push('/cloud-join');
+      return;
+    }
+    if (action === 'bot' || action === 'zip' || action === 'marketplace' || action === 'git') {
+      close();
+      router.push({
+        pathname:
+          action === 'marketplace'
+            ? '/marketplace'
+            : action === 'zip'
+              ? '/import-bot-zip'
+              : action === 'git'
+                ? '/import-bot-git'
+                : '/create-bot',
+        params:
+          target?.kind === 'computer' ? { entry: 'host', hostId: target.hostId } : { entry: 'all' },
+      });
       return;
     }
     if (!target) return;
@@ -166,9 +190,9 @@ function ScopedNavigationBar({
       setBusy(false);
     }
   };
-  const items = state.routes.map((route, index) => ({
+  const items = state.routes.map((route) => ({
     key: route.key,
-    focused: state.index === index,
+    focused: route.key === currentKey,
     activity: route.name === '(activity)',
     count: route.name === '(activity)' ? pending : 0,
     onPress: () => {
@@ -177,11 +201,14 @@ function ScopedNavigationBar({
         target: route.key,
         canPreventDefault: true,
       });
-      if (state.index !== index && !event.defaultPrevented) navigateToTab(route.key);
+      if (!event.defaultPrevented) selectTab(route.key);
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
   const create = () => {
+    if (menuOpen.current) return;
+    menuOpen.current = true;
+    haptic('menu');
     Keyboard.dismiss();
     setError(undefined);
     setMenu(scope);

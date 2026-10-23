@@ -227,7 +227,7 @@ describe('Tool approval card in the DM', () => {
     fake.answers.set('toolApprovalStatus', () => recorded('toolApprovalStatus.decided'));
     fake.answers.set('channelTimeline', () => recorded('channelTimeline.approvalDecided'));
     await press(button(view, t.reject));
-    expect(played).toEqual(['notification:warning']);
+    expect(played).toEqual([]);
     expect(line(view)).toBe(
       t.cardLine('ls /tmp/mobile-fixture', t.elsewhere(t.cardOutcome['allowed-once'])),
     );

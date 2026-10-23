@@ -309,6 +309,46 @@ describe('bridge typert service', () => {
     expect(result.channelId).toBe('dm-ada');
   });
 
+  it('forwards every lookup field and preserves receipt refusals through the RPC facade', () => {
+    const { service, methods } = setup();
+    const lookup = vi
+      .spyOn(methods, 'createLookup')
+      .mockReturnValue({ ok: true, value: { receipt: null } });
+    expect(
+      service.createLookup(
+        'lookup-ada-01',
+        'Ada',
+        ['research'],
+        'Soul',
+        'Bio',
+        'model',
+        'preset',
+        ['workspace'],
+        'avatar',
+        'memory',
+        'Remember',
+      ),
+    ).toEqual({ receipt: null });
+    expect(lookup).toHaveBeenCalledWith({
+      operationKey: 'lookup-ada-01',
+      displayName: 'Ada',
+      roles: ['research'],
+      persona: 'Soul',
+      description: 'Bio',
+      model: 'model',
+      preset: 'preset',
+      workspaces: ['workspace'],
+      avatar: 'avatar',
+      memoryLocation: 'memory',
+      coreMemory: 'Remember',
+    });
+    lookup.mockReturnValue({
+      ok: false,
+      error: { code: 'creation-key-conflict', message: 'Different input' },
+    });
+    expect(() => service.createLookup('lookup-ada-01', 'Changed')).toThrow('Different input');
+  });
+
   it('forwards the Marketplace origin of a Git install through the named RPC facade', async () => {
     const { service, methods } = setup();
     const createFromGit = vi
@@ -329,6 +369,8 @@ describe('bridge typert service', () => {
       roles: ['helper'],
       description: 'Bio',
       origin: 'marketplace',
+      operationKey: undefined,
+      expectedCommit: undefined,
     });
   });
 
@@ -622,6 +664,14 @@ describe('bridge typert service', () => {
       'activitySnapshot',
       'get',
       'create',
+      'createLookup',
+      'zipUploadBegin',
+      'zipUploadChunk',
+      'zipUploadPreview',
+      'zipImportLookup',
+      'zipImport',
+      'botImportPreview',
+      'botImportLookup',
       'createFromGit',
       'update',
       'dataResetPreview',
@@ -859,12 +909,36 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.update)).toEqual(['slug', 'patch', 'expectedProfile']);
     expect(parameterNames(service.pause)).toEqual(['slug']);
     expect(parameterNames(service.resume)).toEqual(['slug']);
+    expect(parameterNames(service.createLookup)).toEqual([
+      'operationKey',
+      'displayName',
+      'roles',
+      'persona',
+      'description',
+      'model',
+      'preset',
+      'workspaces',
+      'avatar',
+      'memoryLocation',
+      'coreMemory',
+    ]);
     expect(parameterNames(service.createFromGit)).toEqual([
       'displayName',
       'gitUrl',
       'roles',
       'description',
       'origin',
+      'operationKey',
+      'expectedCommit',
+    ]);
+    expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
+    expect(parameterNames(service.botImportLookup)).toEqual([
+      'operationKey',
+      'gitUrl',
+      'expectedCommit',
+      'displayName',
+      'roles',
+      'description',
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);

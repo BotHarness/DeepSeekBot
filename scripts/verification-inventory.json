@@ -4,6 +4,38 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.zip-bot-import",
+      "label": "Retain a selected Zip, upload bounded chunks and recover the original imported Bot and DM",
+      "source": "apps/mobile/src/host/native-zip-import-file.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2637,
+      "gap": "Host/CLI restart proof and deterministic file/transport tests do not establish native picker, foreground, keyboard or device-disconnect behavior."
+    },
+    {
+      "id": "phone.marketplace-bot-import",
+      "label": "Browse the public native Marketplace before selecting a Host and import its reviewed source",
+      "source": "apps/mobile/app/marketplace.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2636,
+      "gap": "Public catalogue API proof does not establish native rendering, keyboard behavior or successful import; Android/iOS require the shared device journey."
+    },
+    {
+      "id": "phone.blank-bot-creation",
+      "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2629,
+      "gap": "Native Android/iOS interaction remains separate from the passing PR2632 Host/CLI path; source tests do not establish native acceptance."
+    },
+    {
+      "id": "phone.git-bot-import",
+      "label": "Import a pinned Git source on a chosen paired Host and recover the same Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2635,
+      "gap": "Record the Git import Host/CLI path and Android/iOS interaction at their exact candidate; inherited blank-creation evidence does not qualify import."
+    },
+    {
       "id": "phone.local-computer-video",
       "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
       "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
@@ -745,6 +777,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
     },
     {
+      "id": "phone.haptic-feedback",
+      "label": "Immediate press feedback, semantic haptics and device-local feedback preference",
+      "source": "apps/mobile/src/ui/haptics.ts",
+      "task": 2624,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-haptic-feedback.md",
+      "gap": "Source tests do not qualify native interaction or Human tactile acceptance; both platforms require queued native and physical-device checks."
+    },
+    {
       "id": "host.ssh-tunnel",
       "label": "Computer SSH tunnel to a pinned Linux Host",
       "source": "packages/core/src/devices/ssh-tunnel.ts",
@@ -753,6 +793,14 @@
     }
   ],
   "scripts": [
+    {
+      "path": "scripts/e2e-zip-import-proof.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.zip-bot-import"],
+      "reason": "Imported helper of e2e-personabot-create.mjs, not a standalone launcher: same archive after upload restart and duplicate chunk, CLI preview/import/status, discarded accepted reply and same Bot/DM after import restart.",
+      "task": 2637,
+      "sha256": "8a2b6e3604d177e402376191a3a259f490964c572d5324573b484b6be8858ca4"
+    },
     {
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
@@ -1764,10 +1812,15 @@
     {
       "path": "scripts/e2e-personabot-create.mjs",
       "category": "mapped",
-      "behaviors": ["desktop.personabot.create"],
-      "reason": "Own pinned isolated Host; public create/read/Memory snapshot and restart persistence. Optional DM commits Human message only, not Bot response.",
-      "task": 1972,
-      "sha256": "d8fe67038816e8be69a698a4d5fe5e18d3a759a8061bf9e3fc8a3a75d85529eb"
+      "behaviors": [
+        "desktop.personabot.create",
+        "phone.blank-bot-creation",
+        "phone.git-bot-import",
+        "phone.zip-bot-import"
+      ],
+      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
+      "task": 2629,
+      "sha256": "627d12a19277bb2a10a3fb99ead3303f38a922f1cc20b136b11855d11d23df6f"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",

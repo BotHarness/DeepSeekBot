@@ -11,6 +11,9 @@ import {
   TOB_CHANNEL_CAPABILITIES,
 } from './tob/cli-channel-operations.js';
 import { createBotCreation, type BotCreationService } from './bots/creation.js';
+import { createBotImports } from './bots/imports.js';
+import { createBotZipImport, type BotZipImportService } from './bots/zip-import.js';
+import { createBotZipUploads } from './bots/zip-upload.js';
 import {
   createTobBotCreationOperations,
   TOB_BOT_CREATE_CAPABILITIES,
@@ -362,6 +365,7 @@ export interface BotHarnessCore {
   onboarding: BotOnboarding;
   tob: TobService;
   creations: BotCreationService;
+  zipImports: BotZipImportService;
   channelManagement: ChannelManagementService;
   partLibrary: PartLibrary;
   operationalDatabase: OperationalDatabaseOwner;
@@ -836,6 +840,13 @@ export function createCore(
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
+    ...(options.warn === undefined ? {} : { log: options.warn }),
+  });
+  const zipImports = createBotZipImport({
+    uploads: createBotZipUploads({ rootDir: join(dshHome, 'botharness', 'zip-uploads') }),
+    imports: createBotImports(creations),
+    registry,
+    log: (event) => options.warn?.(JSON.stringify(event)),
   });
   const channelManagement = createChannelManagement({
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
@@ -983,6 +994,7 @@ export function createCore(
     onboarding,
     tob,
     creations,
+    zipImports,
     channelManagement,
     partLibrary,
     rootDir,
@@ -2213,6 +2225,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     onboarding: core.onboarding,
     tob: core.tob,
     creations: core.creations,
+    zipImports: core.zipImports,
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
     onboardingNews: (slug) =>

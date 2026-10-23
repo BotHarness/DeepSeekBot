@@ -59,8 +59,13 @@ it('Android FAB menu asks All to choose a target even when only one Computer is 
 it('Android FAB menu offers only Computer actions in its selected scope', async () => {
   await render(computerEnvironmentKey('mac'));
   expect(host.textContent).not.toContain(t.cloudJoin.title);
-  await click(t.newPersonaBot);
+  await click(t.botCreation.blank);
   expect(pick).toHaveBeenCalledWith('bot', expect.objectContaining({ hostId: 'mac' }));
+});
+it('Android Bot action opens the native destination form from All', async () => {
+  await render();
+  await click(t.botCreation.blank);
+  expect(pick).toHaveBeenCalledWith('bot', undefined);
 });
 it('Android FAB menu dismisses without selecting a background destination', async () => {
   await render();
@@ -78,6 +83,19 @@ it('Android FAB menu goes back from the target step and closes from the FAB posi
   await click(t.newChannel);
   expect(host.textContent).toContain(t.chooseCreationTarget);
   await click(t.back);
-  expect(host.textContent).toContain(t.newPersonaBot);
+  expect(host.textContent).toContain(t.botCreation.blank);
   expect(host.textContent).not.toContain(t.chooseCreationTarget);
+});
+
+it('exposes all four source entries directly and carries only the selected Computer', async () => {
+  await render(computerEnvironmentKey('mac'));
+  for (const [label, action] of [
+    [t.botCreation.blank, 'bot'],
+    [t.botCreation.fromZip, 'zip'],
+    [t.marketplace.browse, 'marketplace'],
+    [t.botCreation.fromGit, 'git'],
+  ]) {
+    await click(label!);
+    expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
+  }
 });

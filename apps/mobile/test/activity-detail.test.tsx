@@ -3,6 +3,8 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/shell/icons', () => ({
   ChevronLeftIcon: () => null,

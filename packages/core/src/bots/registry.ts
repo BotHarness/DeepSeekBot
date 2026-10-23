@@ -39,7 +39,11 @@ import {
 } from './shared-presentation.js';
 import { isValidSlug } from './slug.js';
 import { recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
-import type { HttpsFallback, MemoryCloneResult } from '../memory/clone.js';
+import {
+  memoryRepositoryMatchesCommit,
+  type HttpsFallback,
+  type MemoryCloneResult,
+} from '../memory/clone.js';
 import { restoreBotHistory, writeBotFiles } from './bot-zip.js';
 import type { ZipEntry } from './zip-archive.js';
 import {
@@ -87,13 +91,15 @@ export interface PersonaBotRegistry {
   rootDir: string;
   create(input: CreatePersonaBotInput): CreatePersonaBotResult;
   createFromGit(
-    input: Omit<CreatePersonaBotInput, 'memoryDir'> & { gitUrl: string },
+    input: Omit<CreatePersonaBotInput, 'memoryDir'> & { gitUrl: string; expectedCommit?: string },
+    authorize?: () => void,
   ): Promise<CreatePersonaBotResult>;
   createFromFiles(
     input: Omit<CreatePersonaBotInput, 'memoryDir' | 'persona'> & {
       files: readonly ZipEntry[];
       history?: Buffer;
     },
+    authorize?: () => void,
   ): Promise<CreatePersonaBotResult>;
   get(slug: string): PersonaBotRecord | undefined;
   getHistorical(slug: string): PersonaBotRecord | undefined;
@@ -498,6 +504,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     populate: (
       staging: string,
     ) => Promise<Extract<CreatePersonaBotResult, { ok: false }>['reason'] | undefined>,
+    authorize?: () => void,
   ): Promise<CreatePersonaBotResult> => {
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined || existsSync(botDir(input.slug))) {
@@ -507,11 +514,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     let staging: string | undefined;
     let ownsBotDir = false;
     let created = false;
+    let authorizationError: unknown;
+    const checkAuthority = () => {
+      try {
+        authorize?.();
+      } catch (error) {
+        authorizationError = error;
+        throw error;
+      }
+    };
     try {
+      checkAuthority();
       mkdirSync(rootDir, { recursive: true });
       staging = mkdtempSync(join(rootDir, prefix));
       const failure = await populate(staging);
       if (failure !== undefined) return { ok: false, reason: failure };
+      checkAuthority();
       if (read(input.slug) !== undefined || existsSync(botDir(input.slug)))
         return { ok: false, reason: 'duplicate' };
 
@@ -555,6 +573,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       syncDescriptor(presented, true);
       return { ok: true, record: presented };
     } catch {
+      if (authorizationError !== undefined) throw authorizationError;
       return { ok: false, reason: 'memory-unavailable' };
     } finally {
       if (staging !== undefined) rmSync(staging, { recursive: true, force: true });
@@ -574,29 +593,44 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (result.ok) capture('bot_created');
       return result;
     },
-    async createFromGit(input) {
-      const { gitUrl, ...recordInput } = input;
+    async createFromGit(input, authorize) {
+      const { gitUrl, expectedCommit, ...recordInput } = input;
       let httpsFallback: HttpsFallback | undefined;
-      const result = await createFromStaging(recordInput, '.git-import-', async (staging) => {
-        if (options.cloneMemory === undefined) return 'memory-unavailable';
-        const cloned = await options.cloneMemory(staging, gitUrl);
-        if (!cloned.ok) return cloned.code;
-        httpsFallback = cloned.httpsFallback;
-        return undefined;
-      });
+      const result = await createFromStaging(
+        recordInput,
+        '.git-import-',
+        async (staging) => {
+          if (options.cloneMemory === undefined) return 'memory-unavailable';
+          const cloned = await options.cloneMemory(staging, gitUrl);
+          if (!cloned.ok) return cloned.code;
+          httpsFallback = cloned.httpsFallback;
+          if (
+            expectedCommit !== undefined &&
+            !(await memoryRepositoryMatchesCommit(staging, expectedCommit))
+          )
+            return 'git-source-changed';
+          return undefined;
+        },
+        authorize,
+      );
       return result.ok && httpsFallback !== undefined ? { ...result, httpsFallback } : result;
     },
-    async createFromFiles(input) {
+    async createFromFiles(input, authorize) {
       const { files, history, ...recordInput } = input;
-      return createFromStaging(recordInput, '.zip-import-', (staging) => {
-        try {
-          writeBotFiles(staging, files);
-          if (history !== undefined) restoreBotHistory(staging, history);
-          return Promise.resolve(undefined);
-        } catch {
-          return Promise.resolve('invalid-zip' as const);
-        }
-      });
+      return createFromStaging(
+        recordInput,
+        '.zip-import-',
+        (staging) => {
+          try {
+            writeBotFiles(staging, files);
+            if (history !== undefined) restoreBotHistory(staging, history);
+            return Promise.resolve(undefined);
+          } catch {
+            return Promise.resolve('invalid-zip' as const);
+          }
+        },
+        authorize,
+      );
     },
     get: active,
     getHistorical: read,

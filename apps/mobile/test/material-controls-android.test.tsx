@@ -3,6 +3,8 @@ import { act, createElement, useState, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+
 const screen = vi.hoisted(() => ({ width: 411, height: 914, scale: 3, fontScale: 1 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),

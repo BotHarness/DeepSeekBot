@@ -59,8 +59,13 @@ it('asks All to choose a target even when only one Computer is available', async
 it('offers only Computer actions in its selected scope', async () => {
   await render(computerEnvironmentKey('mac'));
   expect(host.textContent).not.toContain(t.cloudJoin.title);
-  await click(t.newPersonaBot);
+  await click(t.botCreation.blank);
   expect(pick).toHaveBeenCalledWith('bot', expect.objectContaining({ hostId: 'mac' }));
+});
+it('opens the native Bot form from All without silently choosing its active Computer', async () => {
+  await render();
+  await click(t.botCreation.blank);
+  expect(pick).toHaveBeenCalledWith('bot', undefined);
 });
 it('dismisses without selecting a background destination', async () => {
   await render();
@@ -72,4 +77,17 @@ it('joins directly without inventing a Computer target', async () => {
   await render();
   await click(t.cloudJoin.title);
   expect(pick).toHaveBeenCalledWith('join');
+});
+
+it('exposes all four source entries directly and carries only the selected Computer', async () => {
+  await render(computerEnvironmentKey('mac'));
+  for (const [label, action] of [
+    [t.botCreation.blank, 'bot'],
+    [t.botCreation.fromZip, 'zip'],
+    [t.marketplace.browse, 'marketplace'],
+    [t.botCreation.fromGit, 'git'],
+  ]) {
+    await click(label!);
+    expect(pick).toHaveBeenLastCalledWith(action, expect.objectContaining({ hostId: 'mac' }));
+  }
 });
