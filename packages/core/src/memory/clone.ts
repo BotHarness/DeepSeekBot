@@ -155,3 +155,68 @@ export async function cloneMemoryRepository(input: {
     }
   }
 }
+
+export type MemoryRepositoryPreview =
+  | { ok: true; gitUrl: string; commit: string; httpsFallback?: HttpsFallback }
+  | { ok: false; code: MemoryCloneFailureCode };
+export async function previewMemoryRepository(input: {
+  url: string;
+  timeoutMs?: number;
+}): Promise<MemoryRepositoryPreview> {
+  const url = parseMemoryGitUrl(input.url);
+  if (url === undefined) return { ok: false, code: 'invalid-git-url' };
+  const inspect = async (target: string) => {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['ls-remote', '--exit-code', '--', target, 'HEAD'],
+      {
+        timeout: input.timeoutMs ?? MEMORY_CLONE_TIMEOUT_MS,
+        maxBuffer: 512 * 1024,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'Never',
+          GIT_SSH_COMMAND: process.env['GIT_SSH_COMMAND'] ?? 'ssh -oBatchMode=yes',
+        },
+      },
+    );
+    const commit = /^((?:[a-f0-9]{40}|[a-f0-9]{64}))\s+HEAD(?:\r?\n|$)/u.exec(stdout)?.[1];
+    if (!commit) throw new Error('No repository HEAD');
+    return commit;
+  };
+  try {
+    return { ok: true, gitUrl: url, commit: await inspect(url) };
+  } catch (error) {
+    const code = cloneFailure(error);
+    const fallback = code === 'git-not-found' ? undefined : httpsUrlForSsh(url);
+    if (!fallback) return { ok: false, code };
+    try {
+      return {
+        ok: true,
+        gitUrl: url,
+        commit: await inspect(fallback),
+        httpsFallback: { from: url, to: fallback, ...sshFailure(error) },
+      };
+    } catch {
+      return { ok: false, code };
+    }
+  }
+}
+export async function memoryRepositoryMatchesCommit(
+  directory: string,
+  commit: string,
+): Promise<boolean> {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) return false;
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: directory,
+      timeout: 10000,
+      maxBuffer: 4096,
+      windowsHide: true,
+    });
+    return stdout.trim() === commit;
+  } catch {
+    return false;
+  }
+}
