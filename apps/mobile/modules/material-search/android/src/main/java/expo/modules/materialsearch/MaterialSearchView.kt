@@ -43,7 +43,7 @@ class MaterialSearchView(context: Context, appContext: AppContext) : ExpoView(co
   var autoFocus by mutableStateOf(false)
   var closable by mutableStateOf(false)
   var dark by mutableStateOf(false)
-  var foreground by mutableStateOf("")
+  var foregroundColor by mutableStateOf("")
   var surface by mutableStateOf("")
   var accent by mutableStateOf("")
   var closeLabel by mutableStateOf("")
@@ -69,8 +69,8 @@ class MaterialSearchView(context: Context, appContext: AppContext) : ExpoView(co
         val scheme = if (dark) darkColorScheme() else lightColorScheme()
         val colors = scheme.copy(
           primary = color(accent, scheme.primary),
-          onSurface = color(foreground, scheme.onSurface),
-          onSurfaceVariant = color(foreground, scheme.onSurfaceVariant),
+          onSurface = color(foregroundColor, scheme.onSurface),
+          onSurfaceVariant = color(foregroundColor, scheme.onSurfaceVariant),
           surface = color(surface, scheme.surface),
           surfaceContainerHigh = color(surface, scheme.surfaceContainerHigh),
         )

@@ -15,7 +15,7 @@ class MaterialSearchModule : Module() {
       Prop("autoFocus") { view: MaterialSearchView, value: Boolean -> view.autoFocus = value }
       Prop("closable") { view: MaterialSearchView, value: Boolean -> view.closable = value }
       Prop("dark") { view: MaterialSearchView, value: Boolean -> view.dark = value }
-      Prop("foreground") { view: MaterialSearchView, value: String -> view.foreground = value }
+      Prop("foreground") { view: MaterialSearchView, value: String -> view.foregroundColor = value }
       Prop("surface") { view: MaterialSearchView, value: String -> view.surface = value }
       Prop("accent") { view: MaterialSearchView, value: String -> view.accent = value }
       Prop("closeLabel") { view: MaterialSearchView, value: String -> view.closeLabel = value }
