@@ -199,7 +199,7 @@ export function NotificationSettings({
                     label={t.pushKind[kind]}
                     value={(preference?.preferences ?? settings!.preferences)[kind]}
                     onChange={(value) => toggle(kind, value)}
-                    disabled={preference?.syncing ?? !settings?.registered}
+                    disabled={preference?.preferences === undefined && !settings?.registered}
                   />
                 }
               />
