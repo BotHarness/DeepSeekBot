@@ -34,6 +34,7 @@ final class RemoteKeyboardView: ExpoView {
         session == self.session, UIApplication.shared.applicationState == .active else { return }
       self.onInput(["session": session, "input": value])
     }
+    input.failed = { [weak self] in self?.stop(notify: true, reason: "queue-full") }
     input.dismissed = { [weak self] in self?.stop(notify: true) }
     observer = NotificationCenter.default.addObserver(
       forName: UIApplication.willResignActiveNotification, object: nil, queue: .main
@@ -47,14 +48,18 @@ final class RemoteKeyboardView: ExpoView {
     super.didMoveToWindow()
     if window == nil { stop(notify: true) } else { sync() }
   }
-  func stop(notify: Bool) {
+  func stop(notify: Bool, reason: String? = nil) {
     guard let old = activeSession else { return }
     activeSession = nil
     dismissedSession = old
     input.accepting = false
     input.resignFirstResponder()
     input.clear()
-    if notify { onDismissed(["session": old]) }
+    if notify {
+      var payload = ["session": old]
+      if let reason { payload["reason"] = reason }
+      onDismissed(payload)
+    }
   }
   func sync() {
     if !opened || !accepting || activeSession != nil && activeSession != session {

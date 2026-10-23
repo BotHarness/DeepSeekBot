@@ -1,5 +1,5 @@
 import { Host } from '@expo/ui';
-import { Button, HStack, Image, Menu, RNHostView, Text, VStack } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, Menu, Text } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonBorderShape,
@@ -10,8 +10,6 @@ import {
   frame,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import { View } from 'react-native';
-import { ComputerScrollPad } from './computer-scroll-pad';
 import type { ComponentProps } from 'react';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -81,18 +79,13 @@ function Control({
 
 export function ComputerVideoControls({
   control,
-  pointer,
+  controlling = false,
   keyboard,
   reset,
   recovery,
 }: {
   control: Action;
-  pointer?: {
-    disabled: boolean;
-    left(): void;
-    right(): void;
-    scroll(axis: 'horizontal' | 'vertical', steps: number): void;
-  };
+  controlling?: boolean;
   keyboard?: Action & { open: boolean };
   reset?: () => void;
   recovery?: Action;
@@ -103,32 +96,10 @@ export function ComputerVideoControls({
     <Control
       testID="computer-video-control"
       action={control}
-      symbol={pointer ? 'hand.raised.fill' : 'hand.raised'}
+      symbol={controlling ? 'hand.raised.fill' : 'hand.raised'}
       prominent
     />
   );
-  const clicks = pointer ? (
-    <>
-      <Control
-        testID="computer-video-click"
-        action={{ label: t.computerLeftClick, disabled: pointer.disabled, onPress: pointer.left }}
-      />
-      <RNHostView matchContents>
-        <View style={{ width: theme.touch * 1.25, height: theme.touch }}>
-          <ComputerScrollPad
-            enabled={!pointer.disabled}
-            compact
-            toolbar
-            onScroll={pointer.scroll}
-          />
-        </View>
-      </RNHostView>
-      <Control
-        testID="computer-video-right-click"
-        action={{ label: t.computerRightClick, disabled: pointer.disabled, onPress: pointer.right }}
-      />
-    </>
-  ) : null;
   const utilities = (
     <>
       {keyboard ? (
@@ -193,21 +164,10 @@ export function ComputerVideoControls({
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
     >
-      {theme.largeText ? (
-        <VStack spacing={space.x3} modifiers={[frame({ maxWidth: Infinity })]}>
-          <HStack spacing={space.x3}>
-            {primary}
-            {utilities}
-          </HStack>
-          {clicks ? <HStack spacing={space.x3}>{clicks}</HStack> : null}
-        </VStack>
-      ) : (
-        <HStack spacing={space.x2} modifiers={[frame({ maxWidth: Infinity })]}>
-          {primary}
-          {clicks}
-          {utilities}
-        </HStack>
-      )}
+      <HStack spacing={space.x3} modifiers={[frame({ maxWidth: Infinity })]}>
+        {primary}
+        {utilities}
+      </HStack>
     </Host>
   );
 }

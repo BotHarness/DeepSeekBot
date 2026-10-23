@@ -28,6 +28,7 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../design/the
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
 import type { ComputerClickFeedback } from './computer-click-ripple';
+import { ComputerTouchpad } from './computer-touchpad';
 import { ComputerVideoControls } from './computer-video-controls.ios';
 import { ComputerVideoHeader } from './computer-video-header.ios';
 import { computerVideoStatus } from './computer-video-status';
@@ -174,8 +175,12 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         button,
       });
   };
-  const scroll = (axis: 'horizontal' | 'vertical', steps: number) => {
-    void send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
+  const scroll = (
+    point: { x: number; y: number },
+    axis: 'horizontal' | 'vertical',
+    steps: number,
+  ) => {
+    void send(videoPointerScroll({ point, frame, axis, steps, driving }));
   };
   const close = useCallback(() => {
     setKeyboardGrant(undefined);
@@ -207,6 +212,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     !nativeMissing &&
     !message &&
     (state.status === 'opening' ||
+      state.code === 'media-not-live' ||
       snapshot.connection.status === 'connecting' ||
       (mediaMounted && (!state.presenting || host?.media.status !== 'live')));
   const name = saved ? shownHostName(look, saved.hostName) : t.profileComputer;
@@ -271,6 +277,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               frame={frame}
               driving={driving}
               controlling={controlling}
+              directInput={false}
               revealCursor={keyboardOpen}
               cursor={cursor}
               preview={preview}
@@ -359,22 +366,23 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               {t.computerKeyboardIncomplete}
             </Text>
           ) : null}
+          {controlling ? (
+            <ComputerTouchpad
+              key={`${binding.attemptId}:${host?.grant?.generation}:${driving}`}
+              enabled={driving}
+              cursor={cursor}
+              frame={frame}
+              onClick={click}
+              onScroll={scroll}
+            />
+          ) : null}
           <ComputerVideoControls
             control={{
               label: actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover,
               disabled: toggleDisabled,
               onPress: () => void (actions.handBack ? viewer?.resume() : viewer?.takeover()),
             }}
-            {...(controlling
-              ? {
-                  pointer: {
-                    disabled: !driving,
-                    left: () => click(cursor.get(), 'left'),
-                    right: () => click(cursor.get(), 'right'),
-                    scroll,
-                  },
-                }
-              : {})}
+            controlling={controlling}
             {...(mediaMounted ? { reset: () => preview.set({ scale: 1, x: 0, y: 0 }) } : {})}
             {...(actions.recovery && (actions.recovery === 'pair' || !nativeMissing)
               ? {
