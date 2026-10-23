@@ -427,7 +427,7 @@ const HomeContent = memo(function HomeContent({
                 testID="search-button"
                 onPress={() => setSearching(true)}
               />
-              {Platform.OS !== 'ios' && (
+              {Platform.OS !== 'ios' && Platform.OS !== 'android' && (
                 <HeaderAction
                   icon="settings"
                   label={t.settings}

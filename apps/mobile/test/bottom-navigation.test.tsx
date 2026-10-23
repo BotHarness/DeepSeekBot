@@ -117,10 +117,15 @@ it.each(['ios', 'android'])(
   },
 );
 
-it.each([0, 1])(
-  'opens the existing Settings sheet over iOS tab %s without changing selection',
-  async (index) => {
-    fixture.platform = 'ios';
+it.each([
+  ['ios', 0],
+  ['ios', 1],
+  ['android', 0],
+  ['android', 1],
+] as const)(
+  'opens the existing Settings sheet over %s tab %s without changing selection',
+  async (platform, index) => {
+    fixture.platform = platform;
     fixture.index = index;
     vi.mocked(router.push).mockClear();
     const host = document.createElement('div');
@@ -142,16 +147,3 @@ it.each([0, 1])(
     }
   },
 );
-it('keeps Settings out of the Android bottom bar', async () => {
-  fixture.platform = 'android';
-  const host = document.createElement('div');
-  document.body.append(host);
-  const root = createRoot(host);
-  try {
-    await act(async () => root.render(<BottomNavigation />));
-    expect(host.querySelector('[data-testid="settings-button"]')).toBeNull();
-  } finally {
-    act(() => root.unmount());
-    host.remove();
-  }
-});

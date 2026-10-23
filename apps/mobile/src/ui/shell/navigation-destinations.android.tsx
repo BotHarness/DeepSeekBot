@@ -26,6 +26,13 @@ import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
+  const colors = {
+    selectedIconColor: theme.color.fg,
+    selectedTextColor: theme.color.fg,
+    selectedIndicatorColor: theme.layer.raised.chosen,
+    unselectedIconColor: theme.color.muted,
+    unselectedTextColor: theme.color.muted,
+  };
   return (
     <Host
       matchContents={{ vertical: true }}
@@ -42,7 +49,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       >
         {items.map((item) => {
           const showCount = item.activity && item.count > 0;
-          const normal = item.activity ? t.activity : t.chats;
+          const normal = item.settings ? t.settings : item.activity ? t.activity : t.chats;
           const pending = t.activityPendingLabel(badgeCount(item.count));
 
           const text = (value: string) => (
@@ -62,16 +69,16 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               selected={item.focused}
               alwaysShowLabel
               onClick={item.onPress}
-              colors={{
-                selectedIconColor: theme.color.fg,
-                selectedTextColor: theme.color.fg,
-                selectedIndicatorColor: theme.layer.raised.chosen,
-                unselectedIconColor: theme.color.muted,
-                unselectedTextColor: theme.color.muted,
-              }}
+              colors={colors}
               modifiers={[
                 weight(1),
-                testID(item.activity ? 'navigation-activity' : 'navigation-chats'),
+                testID(
+                  item.settings
+                    ? 'settings-button'
+                    : item.activity
+                      ? 'navigation-activity'
+                      : 'navigation-chats',
+                ),
                 semantics({
                   contentDescription:
                     item.activity && showCount ? `${t.activity}, ${pending}` : normal,
@@ -94,9 +101,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                     ) : (
                       <Icon
                         source={
-                          item.activity
-                            ? require('../../../assets/toolbar/activity.xml')
-                            : require('../../../assets/toolbar/chats.xml')
+                          item.settings
+                            ? require('../../../assets/toolbar/settings.xml')
+                            : item.activity
+                              ? require('../../../assets/toolbar/activity.xml')
+                              : require('../../../assets/toolbar/chats.xml')
                         }
                         size={materialNavigationBar.iconSize}
                       />
@@ -110,9 +119,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                       >
                         <Icon
                           source={
-                            item.activity
-                              ? require('../../../assets/toolbar/activity.xml')
-                              : require('../../../assets/toolbar/chats.xml')
+                            item.settings
+                              ? require('../../../assets/toolbar/settings.xml')
+                              : item.activity
+                                ? require('../../../assets/toolbar/activity.xml')
+                                : require('../../../assets/toolbar/chats.xml')
                           }
                           size={materialNavigationBar.iconSize}
                         />

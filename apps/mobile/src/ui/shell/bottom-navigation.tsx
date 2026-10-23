@@ -235,7 +235,7 @@ function ScopedNavigationBar({
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
-  if (Platform.OS === 'ios') {
+  if (Platform.OS === 'ios' || Platform.OS === 'android') {
     items.push({
       key: 'settings',
       focused: false,

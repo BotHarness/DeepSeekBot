@@ -3,6 +3,7 @@ import { createRequire, Module } from 'node:module';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
 const motion = vi.hoisted(() => ({ reduced: false }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => ({ useReducedMotion: () => motion.reduced }));
@@ -42,6 +43,7 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
   };
 });
 import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.android';
+import { router } from 'expo-router';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 it.each([false, true])(
@@ -49,7 +51,7 @@ it.each([false, true])(
   async (reduced) => {
     motion.reduced = reduced;
     const requireAsset = createRequire(import.meta.url);
-    const assets = ['activity', 'chats'].map((name) =>
+    const assets = ['activity', 'chats', 'settings'].map((name) =>
       requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
     );
     for (const path of assets) {
@@ -81,6 +83,15 @@ it.each([false, true])(
                 onPress: select,
                 onLongPress() {},
               },
+              {
+                key: 'settings',
+                activity: false,
+                settings: true,
+                count: 0,
+                focused: false,
+                onPress: () => router.push('/settings'),
+                onLongPress() {},
+              },
             ],
           }),
         ),
@@ -100,6 +111,17 @@ it.each([false, true])(
           expect(Boolean(button.querySelector('i'))).toBe(count === 0);
           expect(button.getAttribute('aria-pressed')).toBe(String(focused));
         }
+        const settings = host.querySelectorAll('button')[2]!;
+        expect(settings.querySelector('[data-slot="label"]')?.textContent).toBe(t.settings);
+        expect(settings.querySelector('[data-slot="icon"] i')).not.toBeNull();
+        expect(settings.getAttribute('aria-pressed')).toBe('false');
+        vi.mocked(router.push).mockClear();
+        await act(async () => settings.click());
+        expect(router.push).toHaveBeenCalledExactlyOnceWith('/settings');
+        expect(select).not.toHaveBeenCalled();
+        expect(host.querySelectorAll('button')[1]!.getAttribute('aria-pressed')).toBe(
+          String(focused),
+        );
       }
       await act(async () => host.querySelectorAll('button')[1]!.click());
       expect(select).toHaveBeenCalledOnce();
