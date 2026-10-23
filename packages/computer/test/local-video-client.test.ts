@@ -155,6 +155,33 @@ function fixture() {
 afterEach(() => vi.useRealTimers());
 
 describe('Local Computer video consumer', () => {
+  it('hands control and Bot use back in one explicit action while keeping the preview open', async () => {
+    const h = ownerFixture();
+    try {
+      const binding = await h.acquire();
+      await h.first.input({ kind: 'scroll', direction: 'right', amount: 2, x: 40, y: 50 });
+      await h.first.input({ kind: 'scroll', direction: 'down', amount: 3, x: 40, y: 50 });
+      expect(h.effects).toHaveBeenCalledTimes(2);
+      const before = h.calls.length;
+      await h.first.resume();
+      expect(h.calls.slice(before).map((command) => command['kind'])).toEqual(['resume']);
+      expect(h.first.getState()).toMatchObject({
+        status: 'observing',
+        host: { binding, paused: false, controller: false },
+      });
+      expect(h.first.getState().host?.grant).toBeUndefined();
+      expect(h.peer.close).not.toHaveBeenCalled();
+      await expect(h.owner.runBotOperation(async () => 'Bot can operate')).resolves.toBe(
+        'Bot can operate',
+      );
+      await h.first.input(click);
+      expect(h.effects).toHaveBeenCalledTimes(2);
+    } finally {
+      await h.first.stop();
+      await h.owner.dispose();
+    }
+  });
+
   it.each(['viewer-limit', 'native-unavailable', 'stop-after-status', 'open-failed'] as const)(
     'keeps the first same-device viewer and grant intact when a second client ends at %s',
     async (mode) => {
