@@ -86,6 +86,9 @@ export function CreateBotScreen() {
   const openResult = () => openCreatedBot(visibility.lease());
   const submitted = state.record.kind === 'submitted';
   const draft = state.record.kind === 'draft' ? state.record.draft : undefined;
+  const source =
+    draft?.source ??
+    (state.record.kind === 'submitted' ? state.record.operation.source : undefined);
   const targetId =
     state.record.kind === 'submitted' ? state.record.operation.hostId : state.record.draft.hostId;
   const target = hosts.find((host) => host.hostId === targetId);
@@ -99,7 +102,7 @@ export function CreateBotScreen() {
   };
   return (
     <View ref={mounted} style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: copy.title }} />
+      <Stack.Screen options={{ title: source ? copy.importTitle : copy.title }} />
       <KeyboardFormScroll
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
@@ -113,6 +116,28 @@ export function CreateBotScreen() {
           <Text>{copy.working}</Text>
         ) : draft ? (
           <>
+            <Button
+              label={source ? copy.blank : copy.fromGit}
+              testID="create-bot-source"
+              disabled={state.busy}
+              onPress={() =>
+                void (source ? botCreation.blank() : botCreation.beginImport({ gitUrl: '' }))
+              }
+            />
+            {draft.source ? (
+              <>
+                <Text strong>{copy.gitUrl}</Text>
+                <TextField
+                  testID="import-bot-git-url"
+                  accessibilityLabel={copy.gitUrl}
+                  value={draft.source.gitUrl}
+                  onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
+                  editable={!state.busy}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+              </>
+            ) : null}
             <Text strong>{copy.destination}</Text>
             <EnvironmentPicker
               label={copy.destination}
@@ -142,16 +167,20 @@ export function CreateBotScreen() {
               editable={!state.busy}
               maxLength={120}
             />
-            <Text strong>{copy.persona}</Text>
-            <TextField
-              testID="create-bot-persona"
-              accessibilityLabel={copy.persona}
-              placeholder={copy.personaHint}
-              value={draft.persona}
-              onChangeText={(persona) => edit({ persona })}
-              multiline
-              editable={!state.busy}
-            />
+            {!draft.source ? (
+              <>
+                <Text strong>{copy.persona}</Text>
+                <TextField
+                  testID="create-bot-persona"
+                  accessibilityLabel={copy.persona}
+                  placeholder={copy.personaHint}
+                  value={draft.persona}
+                  onChangeText={(persona) => edit({ persona })}
+                  multiline
+                  editable={!state.busy}
+                />
+              </>
+            ) : null}
             <Button
               label={details ? copy.less : copy.more}
               variant="text"
@@ -180,12 +209,31 @@ export function CreateBotScreen() {
               </>
             ) : null}
             <Text tone="muted">{copy.model}</Text>
+            {draft.source ? (
+              <>
+                <Text tone="muted">
+                  {draft.source.preview ? copy.sourceReady : copy.previewHint}
+                </Text>
+                <Button
+                  label={copy.preview}
+                  testID="import-bot-preview"
+                  busy={state.busy}
+                  disabled={!draft.source.gitUrl.trim() || !target}
+                  onPress={() => void botCreation.preview()}
+                />
+              </>
+            ) : null}
             <Button
-              label={copy.create}
+              label={draft.source ? copy.import : copy.create}
               testID="create-bot-submit"
               tone="primary"
               busy={state.busy}
-              disabled={!draft.displayName.trim() || !target || state.error === 'storage-invalid'}
+              disabled={
+                !draft.displayName.trim() ||
+                !target ||
+                state.error === 'storage-invalid' ||
+                (!!draft.source && !draft.source.preview)
+              }
               onPress={submit}
             />
           </>
@@ -194,6 +242,7 @@ export function CreateBotScreen() {
             <Text variant="title" strong>
               {name}
             </Text>
+            {source ? <Text selectable>{source.gitUrl}</Text> : null}
             <Text
               selectable
             >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : copy.targetUnavailable}`}</Text>
@@ -209,7 +258,16 @@ export function CreateBotScreen() {
                   ? copy.accepted
                   : copy.uncertain}
             </Text>
-            {state.error === 'creation-identity-unavailable' ? (
+            {state.error === 'git-source-changed' ? (
+              <>
+                <Text>{copy.previousKept}</Text>
+                <Button
+                  label={copy.chooseSourceAgain}
+                  testID="import-bot-choose-source-again"
+                  onPress={() => void botCreation.newAfterSourceChanged()}
+                />
+              </>
+            ) : state.error === 'creation-identity-unavailable' ? (
               <>
                 <Text>{copy.previousKept}</Text>
                 <Button
@@ -227,7 +285,7 @@ export function CreateBotScreen() {
                   onPress={() => void openResult()}
                 />
                 <Button
-                  label={copy.another}
+                  label={source ? copy.importAnother : copy.another}
                   testID="create-bot-another"
                   onPress={() => void botCreation.another(targetId)}
                 />
