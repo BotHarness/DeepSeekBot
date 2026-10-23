@@ -28,6 +28,8 @@ const en = {
     storageError: 'Could not save this choice. Try selecting it again.',
   },
   channelCreation: {
+    chooseBots: 'Choose Bots',
+    selected: (count: number) => `${count} selected`,
     reset: 'Computer changed. Choose Bots again.',
     chooseHost: 'Choose a computer to see its Bots.',
     empty: 'No Bots available on this computer.',
@@ -1620,6 +1622,8 @@ const zh: typeof en = {
     storageError: '未能保存，请重新选择。',
   },
   channelCreation: {
+    chooseBots: '选择 Bot',
+    selected: (count: number) => `已选择 ${count} 个`,
     reset: '已切换电脑，请重新选择 Bot。',
     chooseHost: '先选择电脑，再选择 Bot。',
     empty: '这台电脑没有可选的 Bot。',
