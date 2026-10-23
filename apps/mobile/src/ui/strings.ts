@@ -17,6 +17,8 @@ const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} m
 
 const en = {
   channelCreation: {
+    chooseBots: 'Choose Bots',
+    selected: (count: number) => `${count} selected`,
     reset: 'Computer changed. Choose Bots again.',
     chooseHost: 'Choose a computer to see its Bots.',
     empty: 'No Bots available on this computer.',
@@ -1600,6 +1602,8 @@ const en = {
 
 const zh: typeof en = {
   channelCreation: {
+    chooseBots: '选择 Bot',
+    selected: (count: number) => `已选择 ${count} 个`,
     reset: '已切换电脑，请重新选择 Bot。',
     chooseHost: '先选择电脑，再选择 Bot。',
     empty: '这台电脑没有可选的 Bot。',
