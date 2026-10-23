@@ -5,6 +5,13 @@ import { expect, it, vi } from 'vitest';
 const fixture = vi.hoisted(() => ({ scope: 'all' }));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('../src/ui/shell/quick-action-routing', () => ({ useQuickActionRouting: () => () => {} }));
+vi.mock('../src/host/native-bot-creation', () => ({
+  botCreation: {
+    ready: Promise.resolve(),
+    getSnapshot: () => ({ record: { kind: 'draft' } }),
+    another: vi.fn(),
+  },
+}));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Keyboard: { dismiss: vi.fn() },

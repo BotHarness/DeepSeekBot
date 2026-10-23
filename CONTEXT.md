@@ -428,7 +428,7 @@ Historical (retired with PersonaBot Export): materializing a PersonaBot Export. 
 _Avoid_: database dump, live clone, publish
 
 **Import**:
-Creating a new PersonaBot from a shared Memory Git repository (Git URL or Bot Marketplace install); always a copy, with imported operational authorities disabled until explicitly rebound or reauthorized.
+Creating a new PersonaBot from a shared Memory Git repository (Git URL or Bot Marketplace install) or a Bot Zip; always a copy, with imported operational authorities disabled until explicitly rebound or reauthorized.
 _Avoid_: install, clone, pull, restore
 
 **Publish**:

@@ -21,6 +21,13 @@ vi.mock('react-native', async () => ({
   Keyboard: { dismiss: vi.fn() },
 }));
 vi.mock('expo-router', () => ({ router: { push: vi.fn() } }));
+vi.mock('../src/host/native-bot-creation', () => ({
+  botCreation: {
+    ready: Promise.resolve(),
+    getSnapshot: () => ({ record: { kind: 'draft' } }),
+    another: vi.fn(),
+  },
+}));
 vi.mock('expo-router/js-tabs', () => {
   const Tabs = ({ tabBar }: { tabBar(props: unknown): ReactNode }) =>
     tabBar({

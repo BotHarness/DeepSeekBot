@@ -429,6 +429,69 @@ describe('online CLI management', () => {
     ]);
   });
 
+  it.each([
+    null,
+    {
+      operationKey: 'human-lookup-01',
+      botSlug: 'minted',
+      status: 'created',
+      channelId: 'dm-minted',
+    },
+  ])('looks up a creation without resubmitting it: %j', async (receipt) => {
+    const live = await host(() => ({ ok: true, value: { receipt } }));
+    const result = await invoke(
+      [
+        'create-status',
+        '--name',
+        'Ada',
+        '--persona-stdin',
+        '--description',
+        'Bio',
+        '--role',
+        'research',
+        '--operation-key',
+        'human-lookup-01',
+      ],
+      live.url,
+      'Keep answers short.',
+    );
+    expect(result).toEqual({ code: 0, value: { receipt } });
+    expect(live.calls).toEqual([
+      {
+        method: 'createLookup',
+        args: {
+          operationKey: 'human-lookup-01',
+          displayName: 'Ada',
+          persona: 'Keep answers short.',
+          description: 'Bio',
+          roles: ['research'],
+        },
+      },
+    ]);
+  });
+
+  it('refuses missing lookup keys before networking and preserves owner lookup refusals', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: { code: 'creation-key-conflict', message: 'Different input' },
+    }));
+    for (const flags of [
+      [],
+      ['--operation-key', 'short'],
+      ['--operation-key', 'human-lookup-01', '--from-git', 'owner/repo'],
+    ])
+      expect(
+        (await invoke(['create-status', '--name', 'Ada', ...flags], live.url)).value.error.code,
+      ).toBe('usage');
+    expect(live.calls).toEqual([]);
+    const refused = await invoke(
+      ['create-status', '--name', 'Ada', '--operation-key', 'human-lookup-01'],
+      live.url,
+    );
+    expect(refused.value.error.code).toBe('creation-key-conflict');
+    expect(live.calls.map((call) => call.method)).toEqual(['createLookup']);
+  });
+
   it('carries a stable creation key and returns the canonical receipt', async () => {
     const operationKey = 'human-create-operation-01';
     const live = await host((method) => ({

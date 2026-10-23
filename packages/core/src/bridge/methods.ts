@@ -37,6 +37,7 @@ import { botProfileFingerprint } from '../bots/profile-snapshot.js';
 import {
   BotCreationError,
   type BotCreationService,
+  type BotCreationInput,
   type BotCreationReceipt,
 } from '../bots/creation.js';
 import { TobError, type TobService, type TobHome } from '../tob/service.js';
@@ -606,6 +607,7 @@ export interface BridgeMethods {
   create(
     payload: unknown,
   ): BridgeResult<{ bot: PersonaBotDetail; channelId?: string; receipt?: BotCreationReceipt }>;
+  createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
   createFromGit(
     payload: unknown,
   ): Promise<BridgeResult<{ bot: PersonaBotDetail; httpsFallback?: HttpsFallback }>>;
@@ -1027,6 +1029,54 @@ function asSlug(payload: unknown): string | undefined {
 function marketplaceLang(value: unknown): MarketplaceLanguage | undefined | false {
   if (value === undefined) return undefined;
   return MARKETPLACE_LANGUAGES.find((language) => language === value) ?? false;
+}
+
+function parseCreation(
+  payload: unknown,
+): BridgeResult<{ input: BotCreationInput; operationKey?: string }> {
+  const source = asObject(payload);
+  const displayName = source['displayName'];
+  if (typeof displayName !== 'string' || displayName.trim().length === 0) {
+    return invalidInput('displayName is required');
+  }
+  const persona = parseOptional(source, 'persona');
+  const coreMemory = parseOptional(source, 'coreMemory');
+  const roles = parseRoles(source);
+  const description = parseOptional(source, 'description');
+  const model = parseOptional(source, 'model');
+  const preset = parseOptional(source, 'preset');
+  const workspaces = parseWorkspaces(source);
+  const avatar = parseOptional(source, 'avatar');
+  const memoryLocation = parseOptional(source, 'memoryLocation');
+  if (
+    !memoryLocation.ok ||
+    !persona.ok ||
+    !coreMemory.ok ||
+    !roles.ok ||
+    !description.ok ||
+    !model.ok ||
+    !preset.ok ||
+    !workspaces.ok ||
+    !avatar.ok
+  ) {
+    return invalidInput('invalid create payload');
+  }
+  const operationKey = source['operationKey'];
+  if (operationKey !== undefined && typeof operationKey !== 'string')
+    return invalidInput('operationKey must be a string');
+  const input = {
+    displayName,
+    ...(persona.value === undefined ? {} : { persona: persona.value }),
+    ...(coreMemory.value === undefined ? {} : { coreMemory: coreMemory.value }),
+    ...(roles.value === undefined ? {} : { roles: roles.value }),
+    ...(description.value === undefined ? {} : { description: description.value }),
+    ...(model.value === undefined ? {} : { model: model.value }),
+    ...(preset.value === undefined ? {} : { preset: preset.value }),
+    ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
+    ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
+    ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
+  };
+  return { ok: true, value: { input, ...(operationKey === undefined ? {} : { operationKey }) } };
 }
 
 function parseOptional(source: Record<string, unknown>, key: string): ParsedField<string> {
@@ -2871,48 +2921,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       };
     },
     create(payload) {
-      const source = asObject(payload);
-      const displayName = source['displayName'];
-      if (typeof displayName !== 'string' || displayName.trim().length === 0) {
-        return invalidInput('displayName is required');
-      }
-      const persona = parseOptional(source, 'persona');
-      const coreMemory = parseOptional(source, 'coreMemory');
-      const roles = parseRoles(source);
-      const description = parseOptional(source, 'description');
-      const model = parseOptional(source, 'model');
-      const preset = parseOptional(source, 'preset');
-      const workspaces = parseWorkspaces(source);
-      const avatar = parseOptional(source, 'avatar');
-      const memoryLocation = parseOptional(source, 'memoryLocation');
-      if (
-        !memoryLocation.ok ||
-        !persona.ok ||
-        !coreMemory.ok ||
-        !roles.ok ||
-        !description.ok ||
-        !model.ok ||
-        !preset.ok ||
-        !workspaces.ok ||
-        !avatar.ok
-      ) {
-        return invalidInput('invalid create payload');
-      }
-      const operationKey = source['operationKey'];
-      if (operationKey !== undefined && typeof operationKey !== 'string')
-        return invalidInput('operationKey must be a string');
-      const input = {
-        displayName,
-        ...(persona.value === undefined ? {} : { persona: persona.value }),
-        ...(coreMemory.value === undefined ? {} : { coreMemory: coreMemory.value }),
-        ...(roles.value === undefined ? {} : { roles: roles.value }),
-        ...(description.value === undefined ? {} : { description: description.value }),
-        ...(model.value === undefined ? {} : { model: model.value }),
-        ...(preset.value === undefined ? {} : { preset: preset.value }),
-        ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
-        ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
-        ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
-      };
+      const parsed = parseCreation(payload);
+      if (!parsed.ok) return parsed;
+      const { input, operationKey } = parsed.value;
       if (deps.creations !== undefined) {
         try {
           const created = deps.creations.create(input, operationKey);
@@ -2942,6 +2953,27 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const result = deps.registry.create({ ...input, slug });
       if (!result.ok) return createFailure(slug, result);
       return { ok: true, value: detailOf(result.record) };
+    },
+    createLookup(payload) {
+      const parsed = parseCreation(payload);
+      if (!parsed.ok) return parsed;
+      const { input, operationKey } = parsed.value;
+      if (operationKey === undefined) return invalidInput('operationKey is required');
+      if (deps.creations === undefined)
+        return {
+          ok: false,
+          error: {
+            code: 'creation-unavailable',
+            message: 'Idempotent creation is unavailable on this Host.',
+          },
+        };
+      try {
+        return { ok: true, value: { receipt: deps.creations.lookup(operationKey, input) ?? null } };
+      } catch (error) {
+        if (error instanceof BotCreationError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
     },
     async createFromGit(payload) {
       const source = asObject(payload);

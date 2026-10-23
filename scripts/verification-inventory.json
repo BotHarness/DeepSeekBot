@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.blank-bot-creation",
+      "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2629,
+      "gap": "Native Android/iOS interaction and live Host CLI qualification must be recorded separately; source tests do not establish runtime acceptance."
+    },
+    {
       "id": "phone.local-computer-video",
       "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
       "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
@@ -1772,10 +1780,10 @@
     {
       "path": "scripts/e2e-personabot-create.mjs",
       "category": "mapped",
-      "behaviors": ["desktop.personabot.create"],
-      "reason": "Own pinned isolated Host; public create/read/Memory snapshot and restart persistence. Optional DM commits Human message only, not Bot response.",
-      "task": 1972,
-      "sha256": "d8fe67038816e8be69a698a4d5fe5e18d3a759a8061bf9e3fc8a3a75d85529eb"
+      "behaviors": ["desktop.personabot.create", "phone.blank-bot-creation"],
+      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence plus blank creation lookup and built CLI status/retry before and after restart. Native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
+      "task": 2629,
+      "sha256": "4ab37dabc5e0469a19101ed7c61ebe6c94247e1ea00cf406882c072b96d2b48a"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",

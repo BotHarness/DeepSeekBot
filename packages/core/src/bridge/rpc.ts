@@ -810,6 +810,36 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  createLookup(
+    operationKey: string,
+    displayName: string,
+    roles?: string[],
+    persona?: string,
+    description?: string,
+    model?: string,
+    preset?: string,
+    workspaces?: string[],
+    avatar?: string,
+    memoryLocation?: string,
+    coreMemory?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return unwrap(
+      this.methods.createLookup({
+        displayName,
+        roles,
+        persona,
+        description,
+        model,
+        preset,
+        workspaces,
+        avatar,
+        memoryLocation,
+        coreMemory,
+        operationKey,
+      }),
+    );
+  }
+
   async createFromGit(
     displayName: string,
     gitUrl: string,
@@ -1995,6 +2025,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'activitySnapshot',
   'get',
   'create',
+  'createLookup',
   'createFromGit',
   'update',
   'dataResetPreview',
