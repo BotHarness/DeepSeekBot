@@ -111,6 +111,7 @@ export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerShe
                 contentContainerStyle={{ paddingHorizontal: space.x5, paddingBottom: space.x5 }}
                 renderItem={({ item }) => (
                   <Host
+                    style={{ width: '100%', minHeight: theme.touch + space.x3 * 2 }}
                     matchContents={{ vertical: true }}
                     colorScheme={theme.scheme}
                     seedColor={theme.color.accent}
@@ -128,9 +129,9 @@ export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerShe
                         }),
                       ]}
                     >
-                      <RNHostView matchContents>
-                        <View>{props.renderLeading?.(item)}</View>
-                      </RNHostView>
+                      {props.renderLeading ? (
+                        <RNHostView matchContents>{props.renderLeading(item)}</RNHostView>
+                      ) : null}
                       <Text modifiers={[weight(1), padding(space.x3, 0, space.x3, 0)]}>
                         {item.displayName}
                       </Text>

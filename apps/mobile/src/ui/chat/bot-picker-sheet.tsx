@@ -1,4 +1,4 @@
-import type { ReactNode, RefCallback } from 'react';
+import type { ReactElement, RefCallback } from 'react';
 import { FlatList, View } from 'react-native';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { ParticipantChoice } from '../primitives/participant-choice';
@@ -21,7 +21,7 @@ export interface BotPickerSheetProps<T extends BotPickerCandidate> {
   onToggle(slug: string): void;
   onConfirm(): void | Promise<void>;
   onClose(): void;
-  renderLeading?(bot: T): ReactNode;
+  renderLeading?(bot: T): ReactElement;
 }
 
 export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerSheetProps<T>) {
