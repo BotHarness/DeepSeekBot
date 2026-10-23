@@ -1,0 +1,181 @@
+{
+  "date": "2026-10-24",
+  "project": 648269,
+  "timezone": "Asia/Shanghai",
+  "proof": "synthetic-owner-wire-only; not native, Host, model, or Human QA",
+  "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+  "environment": "development",
+  "platform": "android (shim; not a device)",
+  "app_version": "unknown",
+  "app_build": "unknown",
+  "sender": "actual posthog-react-native 4.81.2 via https://t.botharness.ai/batch/",
+  "http_status": 200,
+  "expected_events": 7,
+  "observed_events": 7,
+  "unique_observed_uuids": 7,
+  "event_families": 5,
+  "all_expected_properties_match": true,
+  "extra_ingested_properties": ["$sent_at"],
+  "anonymize_ips_setting": true,
+  "limitations": [
+    "Single tagged batch/readback; not exactly-once delivery proof",
+    "No native networking, pairing, chat, model, or opt-out device evidence",
+    "No new Bot-operation events sent by this synthetic baseline probe"
+  ],
+  "events": [
+    {
+      "uuid": "20aa4548-9fa5-4d61-aa3e-0b04bcfe4b0d",
+      "event": "mobile_app_opened",
+      "timestamp": "2026-10-24T04:55:38.730000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "launch_kind": "cold",
+        "paired_host_count_bucket": "0",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "schema_version": 1,
+        "source": "mobile"
+      }
+    },
+    {
+      "uuid": "dee6fce0-0749-45b7-8a27-f83afd05505c",
+      "event": "mobile_activation_step",
+      "timestamp": "2026-10-24T04:55:38.731000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "channel_kind": "dm",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "schema_version": 1,
+        "source": "mobile",
+        "step": "message_accepted"
+      }
+    },
+    {
+      "uuid": "a5058375-245d-4271-a6b9-ace8e48ec5cd",
+      "event": "mobile_activation_step",
+      "timestamp": "2026-10-24T04:55:38.731000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "channel_kind": "none",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "schema_version": 1,
+        "source": "mobile",
+        "step": "host_ready"
+      }
+    },
+    {
+      "uuid": "e705aac7-d8c5-482f-b7ec-137eb87ed5e7",
+      "event": "mobile_activation_step",
+      "timestamp": "2026-10-24T04:55:38.731000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "channel_kind": "dm",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "schema_version": 1,
+        "source": "mobile",
+        "step": "bot_message_observed"
+      }
+    },
+    {
+      "uuid": "9cc23814-1964-448f-8998-c546ba73b9cb",
+      "event": "mobile_connection_result",
+      "timestamp": "2026-10-24T04:55:38.731000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "attempt_id": "105f40ae-f027-4b17-8f81-726191b42820",
+        "duration_bucket": "under1s",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "outcome": "ready",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "reason": "none",
+        "retry_count_bucket": "0",
+        "schema_version": 1,
+        "source": "mobile",
+        "trigger": "pair"
+      }
+    },
+    {
+      "uuid": "b730a4e7-3fa4-4a1f-abf9-d0eb62877d4d",
+      "event": "mobile_pairing_result",
+      "timestamp": "2026-10-24T04:55:38.731000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "attempt_id": "3f726632-7620-4dda-8b95-8ecb2292d87e",
+        "duration_bucket": "under1s",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "method": "paste",
+        "outcome": "success",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "reason": "none",
+        "schema_version": 1,
+        "source": "mobile"
+      }
+    },
+    {
+      "uuid": "36083054-080d-4a3c-955c-502167422292",
+      "event": "mobile_pairing_started",
+      "timestamp": "2026-10-24T04:55:38.731000+08:00",
+      "properties": {
+        "$geoip_disable": true,
+        "$process_person_profile": false,
+        "$sent_at": "2026-10-23T20:55:36.656Z",
+        "app_build": "unknown",
+        "app_version": "unknown",
+        "attempt_id": "3f726632-7620-4dda-8b95-8ecb2292d87e",
+        "environment": "development",
+        "foreground_session_id": "8fb0d44c-13e7-4765-a3e3-357c926845d9",
+        "language": "en",
+        "method": "paste",
+        "platform": "android",
+        "qa_run_id": "451c43a5-ee52-406b-bf72-5230e4097084",
+        "schema_version": 1,
+        "source": "mobile"
+      }
+    }
+  ]
+}
