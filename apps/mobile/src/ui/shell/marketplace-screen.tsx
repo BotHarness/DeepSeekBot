@@ -8,6 +8,7 @@ import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { Segmented } from '../primitives/segmented';
 import { Text } from '../primitives/text';
@@ -47,7 +48,7 @@ export function MarketplaceScreen() {
             data={state.value?.bots ?? []}
             keyExtractor={(bot) => bot.id}
             contentInsetAdjustmentBehavior="automatic"
-            automaticallyAdjustKeyboardInsets
+            renderScrollComponent={renderKeyboardFormScroll}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
             contentContainerStyle={{
