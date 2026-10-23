@@ -111,9 +111,6 @@ export function CreationPanel({
                 keyboardShouldPersistTaps="handled"
                 contentContainerStyle={{ padding: space.x4, gap: space.x4 }}
               >
-                <Text variant="title" strong>
-                  {t.createHere}
-                </Text>
                 {!!error && <Text accessibilityRole="alert">{error}</Text>}
                 <View style={{ gap: space.x1 }}>
                   {actions.map((action) => {

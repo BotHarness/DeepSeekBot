@@ -1,14 +1,7 @@
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
-import {
-  Keyboard,
-  Platform,
-  Pressable,
-  View,
-  useWindowDimensions,
-  type ViewInstance,
-} from 'react-native';
+import { Platform, View, useWindowDimensions, type ViewInstance } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHostSession } from '../../host/host-session';
@@ -26,19 +19,17 @@ import { useCloudConversations } from '../../cloud/native-conversations';
 import { cloudError } from '../../cloud/client';
 import { prepareCloudCreation } from '../../cloud/prepare-creation';
 import { shownHostName } from '../design/host-look';
-import { pressTint, useDesignTheme } from '../design/theme';
+import { useDesignTheme } from '../design/theme';
 import { fab, materialNavigationBar, navigationBar, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { NavigationMaterial } from './navigation-material';
 import { NavigationDestinations } from './navigation-destinations';
-import { NavigationAction } from './navigation-action';
-import { PlusIcon } from './icons';
-import { CreationPanel } from './creation-panel';
+import { CreationMenuButton } from './creation-menu-button';
+import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { t } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
-import { haptic } from '../haptics';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -120,17 +111,9 @@ function ScopedNavigationBar({
   const theme = useDesignTheme();
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
-  const [menu, setMenu] = useState<string>();
-  const menuOpen = useRef(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const pendingCreation = useRef(false);
   const generation = useRef(0);
-  const close = () => {
-    menuOpen.current = false;
-    generation.current++;
-    setMenu(undefined);
-    setError(undefined);
-  };
   const mount = useMounted<ViewInstance>(
     () => () => {
       generation.current++;
@@ -144,15 +127,13 @@ function ScopedNavigationBar({
     opacity: 1 - progress.value,
   }));
   const choose = async (action: CreationAction, target?: CreationTarget) => {
-    if (busy) return;
+    if (pendingCreation.current) return;
     const version = generation.current;
     if (action === 'join') {
-      close();
       router.push('/cloud-join');
       return;
     }
     if (action === 'bot' || action === 'zip' || action === 'marketplace' || action === 'git') {
-      close();
       router.push({
         pathname:
           action === 'marketplace'
@@ -168,13 +149,12 @@ function ScopedNavigationBar({
       return;
     }
     if (!target) return;
+    pendingCreation.current = true;
     setBusy(true);
-    setError(undefined);
     try {
       if (target.kind === 'cloud') {
         await prepareCloudCreation(cloudClient, target.workspace);
         if (version !== generation.current) return;
-        close();
         router.push({
           pathname: action === 'invite' ? '/cloud-invitations' : '/cloud-create-channel',
           params: {
@@ -185,8 +165,10 @@ function ScopedNavigationBar({
         });
       }
     } catch (e) {
-      if (version === generation.current) setError(cloudError(e));
+      if (version === generation.current)
+        showAppDialog(t.createHere, cloudError(e), [{ text: t.close, style: 'cancel' }]);
     } finally {
+      pendingCreation.current = false;
       setBusy(false);
     }
   };
@@ -205,26 +187,14 @@ function ScopedNavigationBar({
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
-  const create = () => {
-    if (menuOpen.current) return;
-    menuOpen.current = true;
-    haptic('menu');
-    Keyboard.dismiss();
-    setError(undefined);
-    setMenu(scope);
-  };
   const fabBottom = size + bottom + fab.margin;
-  const panel = menu === scope && (
-    <CreationPanel
-      key={scope}
+  const create = (buttonSize: number) => (
+    <CreationMenuButton
       scope={scope}
       targets={targets}
-      size={navigationBar.height}
-      bottom={Platform.OS === 'android' ? fabBottom : bottom}
-      onClose={close}
-      onPick={(action, target) => void choose(action, target)}
+      size={buttonSize}
       busy={busy}
-      error={error}
+      onPick={(action, target) => void choose(action, target)}
     />
   );
   if (Platform.OS === 'android')
@@ -264,27 +234,9 @@ function ScopedNavigationBar({
               style,
             ]}
           >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t.createHere}
-              onPress={create}
-              android_ripple={{ color: pressTint(theme.color.fg) }}
-              style={{
-                width: fab.size,
-                height: fab.size,
-                borderRadius: fab.radius,
-                overflow: 'hidden',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: theme.layer.canvas.chosen,
-                elevation: fab.elevation,
-              }}
-            >
-              <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
-            </Pressable>
+            {create(fab.size)}
           </Animated.View>
         ) : null}
-        {panel}
       </>
     );
   return (
@@ -319,9 +271,8 @@ function ScopedNavigationBar({
           <NavigationMaterial />
           <NavigationDestinations items={items} />
         </View>
-        <NavigationAction size={navigationBar.height} label={t.createHere} onPress={create} />
+        {create(navigationBar.height)}
       </Animated.View>
-      {panel}
     </>
   );
 }
