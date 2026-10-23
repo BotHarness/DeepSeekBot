@@ -1,10 +1,17 @@
+import { zipFile, type ZipImportFile } from './zip-import-file';
+import type { ZipImportPreview, ZipImportSource } from './zip-import-upload';
+
 export interface BotCreationDraft {
   hostId: string;
   displayName: string;
   persona: string;
   description: string;
   tags: string;
-  source?: GitImportDraft;
+  source?: GitImportDraft | ZipImportDraft;
+}
+
+export interface ZipImportDraft extends ZipImportSource {
+  preview?: ZipImportSource & { hostId: string; deviceId: string };
 }
 
 export interface GitImportSource {
@@ -36,7 +43,7 @@ export interface BotCreationOperation {
   deviceId: string;
   operationKey: string;
   input: BlankBotInput;
-  source?: GitImportSource;
+  source?: GitImportSource | ZipImportSource;
 }
 
 export type CreationReceipt =
@@ -59,6 +66,7 @@ export interface CreationSnapshot {
   busy: boolean;
   receipt?: CreationReceipt | undefined;
   error?: string | undefined;
+  transfer?: { bytes: number; total: number } | undefined;
 }
 
 export class BotCreationFailure extends Error {
@@ -117,7 +125,54 @@ export function gitImportSource(value: unknown): GitImportSource {
   };
 }
 
-function draftSource(value: unknown): GitImportDraft {
+export function zipImportSource(value: unknown): ZipImportSource {
+  if (
+    !object(value) ||
+    value.kind !== 'zip' ||
+    typeof value.uploadKey !== 'string' ||
+    !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u.test(value.uploadKey)
+  )
+    throw new BotCreationFailure('zip-file-invalid');
+  return { ...zipFile(value), kind: 'zip', uploadKey: value.uploadKey };
+}
+
+function importSource(value: unknown): GitImportSource | ZipImportSource {
+  return object(value) && value.kind === 'zip' ? zipImportSource(value) : gitImportSource(value);
+}
+
+function sourceDraft(
+  source: GitImportSource | ZipImportSource | GitImportDraft | ZipImportDraft,
+): GitImportDraft | ZipImportDraft {
+  if (source.kind === 'zip') return zipImportSource(source);
+  return {
+    kind: 'git',
+    gitUrl: source.gitUrl,
+    ...(source.origin ? { origin: source.origin } : {}),
+    ...(source.listingId ? { listingId: source.listingId } : {}),
+    ...('commit' in source
+      ? { expectedCommit: source.commit }
+      : source.expectedCommit
+        ? { expectedCommit: source.expectedCommit }
+        : {}),
+  };
+}
+
+function draftSource(value: unknown): GitImportDraft | ZipImportDraft {
+  if (object(value) && value.kind === 'zip') {
+    const source = zipImportSource(value);
+    if (value.preview === undefined) return source;
+    const preview = value.preview;
+    if (
+      !object(preview) ||
+      typeof preview.hostId !== 'string' ||
+      typeof preview.deviceId !== 'string'
+    )
+      throw new BotCreationFailure('storage-invalid');
+    return {
+      ...source,
+      preview: { ...zipImportSource(preview), hostId: preview.hostId, deviceId: preview.deviceId },
+    };
+  }
   if (!object(value) || value.kind !== 'git' || typeof value.gitUrl !== 'string')
     throw new BotCreationFailure('storage-invalid');
   const source: GitImportDraft = {
@@ -141,7 +196,7 @@ function draftSource(value: unknown): GitImportDraft {
   };
 }
 
-function unpreviewed(source: GitImportDraft): GitImportDraft {
+function unpreviewed(source: GitImportDraft | ZipImportDraft): GitImportDraft | ZipImportDraft {
   const { preview: _preview, ...draft } = source;
   return draft;
 }
@@ -203,7 +258,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
           hostId: o.hostId,
           deviceId: o.deviceId,
           operationKey: o.operationKey,
-          ...(o.source === undefined ? {} : { source: gitImportSource(o.source) }),
+          ...(o.source === undefined ? {} : { source: importSource(o.source) }),
           input: {
             displayName: input.displayName,
             ...(input.persona === undefined ? {} : { persona: input.persona }),
@@ -250,9 +305,19 @@ export function creationReceipt(value: unknown, key: string): CreationReceipt | 
 }
 
 export interface BotCreationPort {
+  pickZip?(): Promise<ZipImportFile | null>;
+  discardZip?(file: ZipImportFile): void;
+  previewZip?(
+    target: { hostId: string; deviceId: string },
+    source: ZipImportSource,
+    progress: (bytes: number, total: number) => void,
+  ): Promise<ZipImportPreview>;
   preview?(target: { hostId: string; deviceId: string }, gitUrl: string): Promise<GitImportSource>;
   lookup(operation: BotCreationOperation): Promise<CreationReceipt | null>;
-  create(operation: BotCreationOperation): Promise<CreationReceipt>;
+  create(
+    operation: BotCreationOperation,
+    progress?: (bytes: number, total: number) => void,
+  ): Promise<CreationReceipt>;
   deviceId(hostId: string): string | undefined;
 }
 
@@ -322,14 +387,16 @@ export function createBotCreationController(options: {
       throw new BotCreationFailure('storage-write');
     }
     publish({ record });
-    const created = await options.port.create(operation);
+    const created = await options.port.create(operation, (bytes, total) =>
+      publish({ transfer: { bytes, total } }),
+    );
     if (options.port.deviceId(operation.hostId) !== operation.deviceId)
       throw new BotCreationFailure('target-unpaired');
     publish({ receipt: created });
   };
   const run = (work: () => Promise<void>): Promise<void> => {
     if (active) return active;
-    publish({ busy: true, error: undefined });
+    publish({ busy: true, error: undefined, transfer: undefined });
     active = Promise.resolve()
       .then(work)
       .catch(fail)
@@ -351,7 +418,12 @@ export function createBotCreationController(options: {
       if (storageFailed || snapshot.busy || snapshot.record.kind !== 'draft') return;
       const previous = snapshot.record.draft;
       const changed =
-        draft.hostId !== previous.hostId || draft.source?.gitUrl !== previous.source?.gitUrl;
+        draft.hostId !== previous.hostId ||
+        draft.source?.kind !== previous.source?.kind ||
+        (draft.source?.kind === 'git' &&
+          (previous.source?.kind !== 'git' || draft.source.gitUrl !== previous.source.gitUrl)) ||
+        (draft.source?.kind === 'zip' &&
+          (previous.source?.kind !== 'zip' || draft.source.fileId !== previous.source.fileId));
       const record: CreationRecord = {
         kind: 'draft',
         draft: {
@@ -365,6 +437,58 @@ export function createBotCreationController(options: {
       } catch {
         publish({ error: 'storage-write' });
       }
+    },
+    beginZip() {
+      return run(async () => {
+        await ready;
+        if (storageFailed || snapshot.record.kind !== 'draft') return;
+        if (!options.port.pickZip) throw new BotCreationFailure('zip-file-unavailable');
+        const file = await options.port.pickZip();
+        if (!file) return;
+        const record: CreationRecord = {
+          kind: 'draft',
+          draft: {
+            ...snapshot.record.draft,
+            source: { ...zipFile(file), kind: 'zip', uploadKey: options.key() },
+          },
+        };
+        try {
+          await save(record);
+          publish({ record, receipt: undefined });
+        } catch {
+          throw new BotCreationFailure('storage-write');
+        } finally {
+          options.port.discardZip?.(file);
+        }
+      });
+    },
+    restoreZip() {
+      return run(async () => {
+        await ready;
+        if (storageFailed || snapshot.record.kind !== 'submitted') return;
+        const previous = snapshot.record;
+        const source = previous.operation.source;
+        if (source?.kind !== 'zip' || !options.port.pickZip) return;
+        const file = await options.port.pickZip();
+        if (!file) return;
+        try {
+          const checked = zipFile(file);
+          if (checked.sha256 !== source.sha256 || checked.sizeBytes !== source.sizeBytes)
+            throw new BotCreationFailure('zip-file-changed');
+          const record: CreationRecord = {
+            ...previous,
+            operation: { ...previous.operation, source: { ...source, fileId: checked.fileId } },
+          };
+          try {
+            await save(record);
+            publish({ record });
+          } catch {
+            throw new BotCreationFailure('storage-write');
+          }
+        } finally {
+          options.port.discardZip?.(file);
+        }
+      });
     },
     beginImport(input: {
       gitUrl: string;
@@ -382,7 +506,8 @@ export function createBotCreationController(options: {
         const sameListing =
           input.origin === 'marketplace' &&
           !!input.listingId &&
-          previous.source?.origin === 'marketplace' &&
+          previous.source?.kind === 'git' &&
+          previous.source.origin === 'marketplace' &&
           previous.source.listingId === input.listingId;
         const draft: BotCreationDraft = {
           ...previous,
@@ -431,6 +556,43 @@ export function createBotCreationController(options: {
         if (snapshot.record.kind !== 'draft' || !snapshot.record.draft.source) return;
         const draft = snapshot.record.draft;
         const source = draft.source!;
+        if (source.kind === 'zip') {
+          const deviceId = options.port.deviceId(draft.hostId);
+          if (!deviceId) throw new BotCreationFailure('target-unpaired');
+          if (!options.port.previewZip) throw new BotCreationFailure('host-update-required');
+          const preview = await options.port.previewZip(
+            { hostId: draft.hostId, deviceId },
+            source,
+            (bytes, total) => publish({ transfer: { bytes, total } }),
+          );
+          if (options.port.deviceId(draft.hostId) !== deviceId)
+            throw new BotCreationFailure('target-unpaired');
+          const checked = zipImportSource(preview.source);
+          if (
+            checked.sha256 !== source.sha256 ||
+            checked.fileId !== source.fileId ||
+            checked.uploadKey !== source.uploadKey ||
+            checked.sizeBytes !== source.sizeBytes
+          )
+            throw new BotCreationFailure('zip-file-changed');
+          const record: CreationRecord = {
+            kind: 'draft',
+            draft: {
+              ...draft,
+              displayName: draft.displayName || preview.displayName,
+              description: draft.description || preview.description || '',
+              tags: draft.tags || preview.roles?.join(', ') || '',
+              source: { ...source, preview: { ...checked, hostId: draft.hostId, deviceId } },
+            },
+          };
+          try {
+            await save(record);
+            publish({ record });
+          } catch {
+            throw new BotCreationFailure('storage-write');
+          }
+          return;
+        }
         if (!source.gitUrl.trim()) throw new BotCreationFailure('git-url-required');
         const deviceId = options.port.deviceId(draft.hostId);
         if (!deviceId) throw new BotCreationFailure('target-unpaired');
@@ -504,15 +666,24 @@ export function createBotCreationController(options: {
           (!source ||
             source.hostId !== draft.hostId ||
             source.deviceId !== deviceId ||
-            source.gitUrl !== draft.source.gitUrl)
+            source.kind !== draft.source.kind ||
+            (source.kind === 'git' &&
+              draft.source.kind === 'git' &&
+              source.gitUrl !== draft.source.gitUrl) ||
+            (source.kind === 'zip' &&
+              draft.source.kind === 'zip' &&
+              (source.sha256 !== draft.source.sha256 ||
+                source.uploadKey !== draft.source.uploadKey)))
         )
-          throw new BotCreationFailure('git-preview-required');
+          throw new BotCreationFailure(
+            draft.source.kind === 'zip' ? 'zip-preview-required' : 'git-preview-required',
+          );
         const operation: BotCreationOperation = {
           hostId: draft.hostId,
           deviceId,
           operationKey: options.key(),
           input: normalizedBlankInput(draft),
-          ...(source ? { source: gitImportSource(source) } : {}),
+          ...(source ? { source: importSource(source) } : {}),
         };
         const record: CreationRecord = { kind: 'submitted', operation, mutationStarted: false };
         try {
@@ -554,10 +725,7 @@ export function createBotCreationController(options: {
             tags: input.roles?.join(', ') ?? '',
             ...(previous.operation.source
               ? {
-                  source: {
-                    ...previous.operation.source,
-                    expectedCommit: previous.operation.source.commit,
-                  },
+                  source: sourceDraft(previous.operation.source),
                 }
               : {}),
           },
@@ -620,7 +788,7 @@ export function createBotCreationController(options: {
         return Promise.resolve();
       const previous = snapshot.record;
       const { hostId, input, source } = previous.operation;
-      if (!source) return Promise.resolve();
+      if (!source || source.kind !== 'git') return Promise.resolve();
       return run(async () => {
         if (storageFailed) return;
         const record: CreationRecord = {
@@ -661,6 +829,12 @@ export function createBotCreationController(options: {
         const previous = snapshot.record;
         const source =
           previous.kind === 'submitted' ? previous.operation.source : previous.draft.source;
+        const nextSource =
+          source?.kind === 'git' && source.origin !== 'marketplace'
+            ? { kind: 'git' as const, gitUrl: source.gitUrl }
+            : source
+              ? sourceDraft(source)
+              : undefined;
         const record: CreationRecord = {
           kind: 'draft',
           draft: {
@@ -668,19 +842,7 @@ export function createBotCreationController(options: {
             hostId,
             ...(source
               ? {
-                  source: {
-                    kind: 'git',
-                    gitUrl: source.gitUrl,
-                    ...(source.origin ? { origin: source.origin } : {}),
-                    ...(source.listingId ? { listingId: source.listingId } : {}),
-                    ...(source.origin === 'marketplace'
-                      ? 'commit' in source
-                        ? { expectedCommit: source.commit }
-                        : source.expectedCommit
-                          ? { expectedCommit: source.expectedCommit }
-                          : {}
-                      : {}),
-                  },
+                  source: nextSource!,
                   displayName:
                     previous.kind === 'submitted'
                       ? previous.operation.input.displayName

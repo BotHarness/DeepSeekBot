@@ -87,6 +87,7 @@ export function CreateBotScreen() {
   const openResult = () => openCreatedBot(visibility.lease());
   const submitted = state.record.kind === 'submitted';
   const draft = state.record.kind === 'draft' ? state.record.draft : undefined;
+  const gitSource = draft?.source?.kind === 'git' ? draft.source : undefined;
   const source =
     draft?.source ??
     (state.record.kind === 'submitted' ? state.record.operation.source : undefined);
@@ -110,7 +111,7 @@ export function CreateBotScreen() {
       >
         {state.error ? (
           <Text accessibilityRole="alert" selectable>
-            {state.error === 'git-source-changed' && draft?.source?.origin === 'marketplace'
+            {state.error === 'git-source-changed' && gitSource?.origin === 'marketplace'
               ? t.marketplace.stale
               : creationError(state.error)}
           </Text>
@@ -138,13 +139,26 @@ export function CreateBotScreen() {
                 })
               }
             />
-            {draft.source ? (
+            <Button
+              label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.fromZip}
+              testID="import-bot-zip-pick"
+              disabled={state.busy}
+              onPress={() => void botCreation.beginZip()}
+            />
+            {draft.source?.kind === 'zip' ? (
+              <>
+                <Text strong>{copy.zipFile}</Text>
+                <Text selectable>{draft.source.fileName}</Text>
+                <Text tone="muted">{copy.zipSize(draft.source.sizeBytes)}</Text>
+              </>
+            ) : null}
+            {gitSource ? (
               <>
                 <Text strong>{copy.gitUrl}</Text>
-                {draft.source.origin === 'marketplace' ? (
+                {gitSource.origin === 'marketplace' ? (
                   <>
-                    <Text selectable>{draft.source.gitUrl}</Text>
-                    {draft.source.listingId ? (
+                    <Text selectable>{gitSource.gitUrl}</Text>
+                    {gitSource.listingId ? (
                       <Button
                         label={t.marketplace.refreshListing}
                         testID="import-bot-refresh-listing"
@@ -152,7 +166,7 @@ export function CreateBotScreen() {
                         onPress={() =>
                           router.push({
                             pathname: '/marketplace-bot',
-                            params: { id: draft.source!.listingId!, entry: 'refresh' },
+                            params: { id: gitSource.listingId!, entry: 'refresh' },
                           })
                         }
                       />
@@ -162,7 +176,7 @@ export function CreateBotScreen() {
                   <TextField
                     testID="import-bot-git-url"
                     accessibilityLabel={copy.gitUrl}
-                    value={draft.source.gitUrl}
+                    value={gitSource.gitUrl}
                     onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
                     editable={!state.busy}
                     autoCapitalize="none"
@@ -242,6 +256,11 @@ export function CreateBotScreen() {
               </>
             ) : null}
             <Text tone="muted">{copy.model}</Text>
+            {state.transfer ? (
+              <Text accessibilityLiveRegion="polite">
+                {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+              </Text>
+            ) : null}
             {draft.source ? (
               <>
                 <Text tone="muted">
@@ -251,7 +270,7 @@ export function CreateBotScreen() {
                   label={copy.preview}
                   testID="import-bot-preview"
                   busy={state.busy}
-                  disabled={!draft.source.gitUrl.trim() || !target}
+                  disabled={(draft.source.kind === 'git' && !draft.source.gitUrl.trim()) || !target}
                   onPress={() => void botCreation.preview()}
                 />
               </>
@@ -275,7 +294,23 @@ export function CreateBotScreen() {
             <Text variant="title" strong>
               {name}
             </Text>
-            {source ? <Text selectable>{source.gitUrl}</Text> : null}
+            {source ? (
+              <Text selectable>{source.kind === 'zip' ? source.fileName : source.gitUrl}</Text>
+            ) : null}
+            {state.transfer ? (
+              <Text accessibilityLiveRegion="polite">
+                {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+              </Text>
+            ) : null}
+            {source?.kind === 'zip' &&
+            (state.error === 'zip-file-missing' || state.error === 'zip-file-changed') ? (
+              <Button
+                label={copy.restoreZip}
+                testID="import-bot-zip-restore"
+                disabled={state.busy}
+                onPress={() => void botCreation.restoreZip()}
+              />
+            ) : null}
             <Text
               selectable
             >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : copy.targetUnavailable}`}</Text>
