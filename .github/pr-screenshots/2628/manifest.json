@@ -1,0 +1,79 @@
+{
+  "issue": 2628,
+  "batch": 67,
+  "baseline": "cdac072e8a1d1bd2e47191b2e302f5a9d26bd1ce",
+  "platform": "iPhone 17 Pro / iOS 27 Simulator / Debug / 402x874 at 1x",
+  "nativeFingerprint": "4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc",
+  "binaryHashes": {
+    "DeepSeekBotDev": "ba8bad85455ffe4664485a30244b13ea3251ce04dfef4041f08f47ffc8628988",
+    "DeepSeekBotDev.debug.dylib": "da27ad5eb82cc344556dcab0d53af15cba4efd6935e7d63f1d0bc8f3c62c28c7"
+  },
+  "candidateInputSourceSha256": "567624d93f4fb89d9a0ae4f9bd696d181cdff869db67d8b9b75da2d9d321b561",
+  "note": "Unmodified synthetic native screenshots. Before and After repeat the same focused long draft and OS sizes; native horizontal offset differences are the observed defect. Other-form screenshots record an intermittent residual, not a pass. Source-only tests do not prove native glyphs. Final commit validation is recorded in the PR.",
+  "files": [
+    {
+      "file": "before-l-d.png",
+      "sha256": "b08695c200c70484603550b24b60f6149a8eb05b88635c5daf108c0cd241b851"
+    },
+    {
+      "file": "after-l-d.png",
+      "sha256": "b08695c200c70484603550b24b60f6149a8eb05b88635c5daf108c0cd241b851"
+    },
+    {
+      "file": "before-l-i.png",
+      "sha256": "6fee18985d333fef61ad9704d015d04ec43c7b6e7a0c0e240a562e0734285b67"
+    },
+    {
+      "file": "after-l-i.png",
+      "sha256": "cacb5f67c1044f9e7da55129d7973e249420dd6d8cbaf9f7ed6444f9f7988168"
+    },
+    {
+      "file": "before-l-m.png",
+      "sha256": "ff7449a9ed5e967e75f6345cd186e52e34884647688f3a99936c7a8458623613"
+    },
+    {
+      "file": "after-l-m.png",
+      "sha256": "c57f77def8f602747112434526c37b5f3c94997b382f1eef5d145021f1acdf95"
+    },
+    {
+      "file": "before-d-d.png",
+      "sha256": "6d343fe82206f4102927d096e9c2bf28f61f5e0034d2376b65e28c670d644bfc"
+    },
+    {
+      "file": "after-d-d.png",
+      "sha256": "4100e7ffb6e982266382d0f9bccbc5362e662cd0b2eda8bd8755422a200053b2"
+    },
+    {
+      "file": "before-d-i.png",
+      "sha256": "a8a14ab0a1d623d7469ee615265ebf5c6868b9ecb952119e72b4bce7568c82d2"
+    },
+    {
+      "file": "after-d-i.png",
+      "sha256": "9fa5409603783649ff7c9daa61f3e59c287987bce9cb0fa9e0ab1db526059cee"
+    },
+    {
+      "file": "before-d-m.png",
+      "sha256": "c01473c05695b899fa76c5889031e6a3d819d41eaf4d926fc148177dbde9e828"
+    },
+    {
+      "file": "after-d-m.png",
+      "sha256": "335f78c7c9c22214dbdfefc4f10bde7e2648c2b3a8fef381ebb5719fd1735908"
+    },
+    {
+      "file": "failed-save.png",
+      "sha256": "bbe1fce8fdf0d688a7e1702e59c107fa4ca45e7b8bba5b47f07e930df04894a1"
+    },
+    {
+      "file": "smallest.png",
+      "sha256": "7fea97c106eb1b645e8ebf35bdba109650ff1276eb181bcf9466fa3cf09e6210"
+    },
+    {
+      "file": "other-failure.png",
+      "sha256": "7516b8d457153dcecc780c1fa41e970e7bfb66907ee7ecb14ed4a49d16d08ebe"
+    },
+    {
+      "file": "other-reopened.png",
+      "sha256": "e2fc6e824d99fbd74ff987200e523bc202543470fadaaa0745f69d4847196c95"
+    }
+  ]
+}
