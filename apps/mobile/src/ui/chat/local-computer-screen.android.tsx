@@ -1,8 +1,6 @@
 import {
   Button as ComposeButton,
   Host,
-  Icon,
-  FilledTonalIconButton,
   Row,
   Text as ComposeText,
   FilledTonalButton,
@@ -34,14 +32,14 @@ import type { DesktopInput } from '../../../../../packages/computer/src/desktop-
 import type { StageZoom } from '../../host/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
-import { computerCanvas, radius, space } from '../design/tokens';
+import { computerCanvas, space } from '../design/tokens';
 import { DesignThemeProvider, useDesignTheme, type Appearance } from '../design/theme';
-import { BotAvatar } from '../bot-avatar';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
+import { ComputerVideoHeader } from './computer-video-header.android';
 import { ComputerWheelButton } from './computer-wheel-button';
 import { ComputerScrollPad } from './computer-scroll-pad';
 import { ComputerVideoKeyboard, remoteKeyboardAvailable } from './computer-video-keyboard';
@@ -74,7 +72,7 @@ function ComputerScreen({
 }) {
   const focused = useIsFocused();
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const { client } = useHostSession();
+  const { client, saved } = useHostSession();
   const snapshot = useHostSnapshot(client);
   const router = useRouter();
   const theme = useDesignTheme();
@@ -184,7 +182,6 @@ function ComputerScreen({
     send(videoPointerClick({ point, frame, button, driving }));
   const scroll = (axis: 'horizontal' | 'vertical', steps: number) =>
     send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
-  const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const close = () => setExiting(true);
   const message = localVideoNotice({
     connection: snapshot.connection,
@@ -228,55 +225,13 @@ function ComputerScreen({
       }}
     >
       {focused ? <StatusBar style="light" /> : null}
-      <View
-        style={{
-          paddingHorizontal: space.x3,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x3,
-          paddingVertical: space.x2,
-        }}
-      >
-        <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
-          <FilledTonalIconButton
-            onClick={close}
-            modifiers={[
-              testID('computer-video-close'),
-              defaultMinSize({ minWidth: theme.touch, minHeight: theme.touch }),
-              semantics({ contentDescription: t.computerVideoExit }),
-            ]}
-          >
-            <Icon
-              source={require('../../../assets/toolbar/back.png')}
-              size={theme.type.title.line}
-            />
-          </FilledTonalIconButton>
-        </Host>
-        <View
-          accessible
-          accessibilityLiveRegion="polite"
-          accessibilityLabel={`${t.computerTitle(bot?.displayName ?? slug ?? '')}, ${controlling ? t.computerYouDriving : t.computerWatching}${host?.paused ? `, ${t.computerVideoBotsPaused}` : ''}`}
-          style={{
-            flexShrink: 1,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            minHeight: theme.touch,
-            paddingVertical: space.x2,
-            paddingLeft: space.x3,
-            paddingRight: space.x5,
-            borderRadius: radius.round,
-            backgroundColor: theme.layer.raised.fill,
-          }}
-        >
-          {bot === undefined ? null : (
-            <BotAvatar bot={bot} size={theme.type.title.line} ring={false} />
-          )}
-          <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
-            {t.computerTitle(bot?.displayName ?? slug ?? '')}
-          </Text>
-        </View>
-      </View>
+      <ComputerVideoHeader
+        hostId={saved?.hostId}
+        hostName={saved?.hostName}
+        connected={connected}
+        state={state}
+        onExit={close}
+      />
       <View style={{ flex: 1, minHeight: theme.touch }}>
         {mediaMounted && Video !== undefined ? (
           <ComputerVideoStage

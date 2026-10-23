@@ -496,7 +496,13 @@ with a separate click action. Ordinary commands use native Compose buttons.
 The Android Local Computer page keeps its surrounding canvas and safe-area background pure
 black in both app appearances, with a scoped dark theme for readable controls. Its leading
 native tonal Back button exits Computer and sits `space.x3` away from a separate capsule
-containing the Bot avatar and Computer title, following the chat header's island layout.
+containing the current paired Host environment name (including its local display alias),
+following the chat header's island layout. The header has no opaque band; the Back fill
+and capsule reuse chat header material. A native computer symbol identifies the environment.
+A small status dot is green only when capture and receiver presentation are live, amber
+while waiting for video, and muted while disconnected. Native person/Bot/pause/unknown icons
+distinguish control authority; no secondary status text is displayed. Disconnection clears
+the previously observed controller indicator. Full state remains available to accessibility.
 The capsule identifies the Computer; it is not another action. Status-bar icons stay light
 only while this screen is focused. Take control / Hand back is the filled primary action;
 keyboard visibility is a native Material toggle; Reset and recovery are tonal buttons.
@@ -505,7 +511,9 @@ The command row uses a standard, spaced group of equally tall native controls (m
 segmented groups are reserved for selecting related options, not this mix of commands.
 The pinned Expo UI adapter has no `ButtonGroup` bridge, so it uses a Compose `Row` and native
 buttons without imitating the group's neighbour-width animation. Mouse/scroll gesture
-surfaces retain the accepted tap/drag arbitration and slider feedback.
+surfaces retain the accepted tap/drag arbitration and slider feedback. Native system
+picture-in-picture and its trailing header action are deferred to #2663; no inert button
+is shown before its separate video/background/control lifecycle is implemented.
 
 ### Local Computer native keyboard
 
