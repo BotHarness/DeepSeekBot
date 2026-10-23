@@ -141,6 +141,24 @@ function driverFailed(result: unknown): boolean {
   );
 }
 
+function cursorEnabled(result: unknown, session: string): boolean {
+  const value =
+    typeof result === 'object' && result !== null && 'structuredContent' in result
+      ? result.structuredContent
+      : undefined;
+  if (
+    driverFailed(result) ||
+    typeof value !== 'object' ||
+    value === null ||
+    !('session' in value) ||
+    value.session !== session ||
+    !('enabled' in value) ||
+    typeof value.enabled !== 'boolean'
+  )
+    refuse('input-failed', 'The Computer driver did not confirm pointer setup.');
+  return value.enabled;
+}
+
 const closedMedia = (): LocalVideoMediaStatus => ({
   status: 'closed',
   captureAlive: false,
@@ -760,6 +778,17 @@ export function createLocalVideoOwner(options: {
               });
               if (driverFailed(setup))
                 refuse('input-failed', 'The Computer driver refused pointer setup.');
+              const deadline = Date.now() + operationTimeout;
+              for (;;) {
+                if (signal?.aborted)
+                  refuse('stale-grant', 'Pointer setup was cancelled before execution.');
+                checkGrant(current, command.generation);
+                const state = await options.driver.call('get_agent_cursor_state', { session });
+                if (!cursorEnabled(state, session)) break;
+                if (Date.now() >= deadline)
+                  refuse('input-failed', 'The Computer pointer setup did not finish.');
+                await new Promise<void>((resolve) => setTimeout(resolve, 16));
+              }
               current.cursorReady = true;
             }
             if (signal?.aborted)

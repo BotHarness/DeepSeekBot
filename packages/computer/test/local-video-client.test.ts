@@ -37,12 +37,14 @@ function ownerFixture() {
     },
     isRunning: () => true,
     driver: {
-      call: async (tool) =>
+      call: async (tool, args) =>
         tool === 'get_screen_size'
           ? { structuredContent: peer.display }
           : tool === 'set_agent_cursor_enabled'
             ? { content: [] }
-            : effects(),
+            : tool === 'get_agent_cursor_state'
+              ? { structuredContent: { session: args['session'], enabled: false } }
+              : effects(),
     },
     media: {
       open: async ({ onStatus }) => {

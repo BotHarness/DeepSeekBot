@@ -10,7 +10,7 @@ Open a Bot with Computer Access and choose **Computer**. Watching does not pause
 
 **Keyboard** opens a local draft field and the phone IME. Finish Chinese composition or edits, then choose **Send** to type the whole draft into the focused computer field. Only an acknowledged input clears the draft; uncertain input is never replayed. Back first dismisses the IME, then closes the panel; reopening the panel in the same grant retains its draft. Handback, disconnect, background or a replacement grant discards the draft. Password mode masks the local draft and disables autocorrect. Backspace, Tab, Enter and Escape are explicit remote key actions. While typing, the scroll-button row is hidden and the preview keeps the pointer visible above the keyboard. Native IME, maximum text size and keyboard geometry still need exact-build verification.
 
-The Host disables the driver's virtual cursor only for this video viewer's input session before its first command. The phone's local pointer remains immediate, and clicks do not wait for that duplicate overlay animation. The same authorization and drain still apply; this is not a measured latency claim.
+The Host disables the driver's virtual cursor only for this video viewer's input session before its first command, then waits for that same session's render state to confirm the cursor is disabled. A missing or invalid confirmation refuses input. The phone's local pointer remains immediate, and clicks do not wait for that duplicate overlay animation. The same authorization and drain still apply; this is not a measured latency claim.
 
 ## Harmless input fixture
 

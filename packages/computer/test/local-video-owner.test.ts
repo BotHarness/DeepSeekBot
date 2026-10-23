@@ -49,6 +49,9 @@ function harness(
       content: [],
     })),
   };
+  const cursorState = vi.fn(async (args: Record<string, unknown>) => ({
+    structuredContent: { session: args['session'], enabled: false },
+  }));
   const cursorSetup = vi.fn(async (_args: Record<string, unknown>) => ({ content: [] }));
   const geometry = { width: 1920, height: 1080, scale_factor: 1.5 };
   const probe = vi.fn(async () => ({ structuredContent: { ...geometry } }));
@@ -80,7 +83,9 @@ function harness(
           ? probe()
           : tool === 'set_agent_cursor_enabled'
             ? cursorSetup(args)
-            : driver.call(tool, args, signal),
+            : tool === 'get_agent_cursor_state'
+              ? cursorState(args)
+              : driver.call(tool, args, signal),
     },
     media,
     isRunning: () => true,
@@ -133,6 +138,7 @@ function harness(
     driver,
     geometry,
     cursorSetup,
+    cursorState,
     probe,
     writes,
     events,
@@ -164,6 +170,51 @@ describe('Local Computer owner authority', () => {
     await h.input(binding, grant!.generation, 2);
     expect(h.cursorSetup).toHaveBeenCalledTimes(1);
     expect(h.driver.call).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits for the render-side cursor to be disabled before the first click', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    const rendered = deferred<{ structuredContent: { session: unknown; enabled: boolean } }>();
+    h.cursorState.mockImplementationOnce(() => rendered.promise);
+    const input = h.input(binding, grant!.generation);
+    await vi.waitFor(() => expect(h.cursorSetup).toHaveBeenCalledTimes(1));
+    expect(h.driver.call).not.toHaveBeenCalled();
+    rendered.resolve({
+      structuredContent: { session: 'local-video:' + binding.viewerId, enabled: true },
+    });
+    await input;
+    expect(h.cursorState).toHaveBeenCalledTimes(2);
+    expect(h.driver.call).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses input when the driver does not confirm this session cursor state', async () => {
+    const h = harness();
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    h.cursorState.mockImplementationOnce(async () => ({
+      structuredContent: { session: 'another-viewer', enabled: false },
+    }));
+    await expect(h.input(binding, grant!.generation)).rejects.toMatchObject({
+      code: 'input-failed',
+    });
+    expect(h.driver.call).not.toHaveBeenCalled();
+  });
+
+  it('bounds cursor confirmation and leaves Bots paused without clicking', async () => {
+    const h = harness({ timeout: 40 });
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    h.cursorState.mockImplementation(async (args) => ({
+      structuredContent: { session: args['session'], enabled: true },
+    }));
+    await expect(h.input(binding, grant!.generation)).rejects.toMatchObject({
+      code: expect.stringMatching(/^(input-failed|input-result-unknown)$/),
+    });
+    await h.owner.handle(caller, { kind: 'release', binding });
+    expect(h.driver.call).not.toHaveBeenCalled();
+    expect(h.owner.isPaused()).toBe(true);
   });
 
   it('does not click if control is released while pointer setup is pending', async () => {
