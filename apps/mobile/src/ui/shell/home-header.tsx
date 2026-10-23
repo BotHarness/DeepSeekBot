@@ -1,10 +1,11 @@
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import type { ReactNode } from 'react';
-import { Pressable, View, type ViewInstance } from 'react-native';
+import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '../design/host-look';
+import { materialSearchHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
 import { chatList, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -37,7 +38,12 @@ export function HomeHeader({
     <View style={{ flex: 1, backgroundColor: theme.color.base }}>
       {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
       <View
+        testID="home-header"
         style={{
+          minHeight:
+            Platform.OS === 'android'
+              ? insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale)
+              : undefined,
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x2,
@@ -82,7 +88,13 @@ export function HomeHeader({
                   size={theme.type.title.line * theme.fontScale}
                 />
               )}
-              <Text variant="title" strong accessibilityRole="header" style={{ flexShrink: 1 }}>
+              <Text
+                variant="title"
+                strong
+                accessibilityRole="header"
+                numberOfLines={Platform.OS === 'android' ? 1 : undefined}
+                style={{ flexShrink: 1 }}
+              >
                 {environment.title}
               </Text>
               <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />

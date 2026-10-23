@@ -190,6 +190,7 @@ The shell is set by [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-tabs-w
     - Changes made on the desktop show when the roster refreshes. Mobile can create sections and assign conversations through **Add to section**; renaming, deleting and reordering sections remain outside this flow.
     - A Host with no sections shows one flat list by latest activity.
 - **Search** finds a PersonaBot or Channel on the current Host:
+  - Android Chats and Activity reserve the native search field's height in the resting header too, including its system-text growth, so opening or closing search does not move the content below. Their header actions use 24dp Material Symbols with the same colour and touch target.
   - Typing in the Chats search field filters the list in place, as chat apps do; there is no separate search tab.
   - It matches PersonaBot display names and Channel titles on the device, ignoring case and full-width forms, with names that start with the query first. Hidden Channels stay out. A DM result opens its chat, and a Channel result opens that Channel's chat. When nothing matches it says so. Message full-text search is not part of it.
 - **Activity** is the Human Inbox across Bots on the currently selected Host:

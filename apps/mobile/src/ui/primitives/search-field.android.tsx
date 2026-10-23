@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { View, useWindowDimensions, type ViewProps } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { materialSearch, space } from '../design/tokens';
+import { space } from '../design/tokens';
+import { materialSearchHeight } from '../design/material-search';
 import { t } from '../strings';
 import type { SearchFieldProps } from './search-field';
 
@@ -83,7 +84,7 @@ export function SearchField({
         }
         style={{
           flex: 1,
-          height: materialSearch.height + materialSearch.lineHeight * Math.max(0, fontScale - 1),
+          height: materialSearchHeight(fontScale),
         }}
       />
       {trailing}

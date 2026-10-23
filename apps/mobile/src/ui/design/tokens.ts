@@ -72,6 +72,7 @@ export const materialNavigationBar = {
 } as const;
 export const materialIconButton = {
   container: 40,
+  iconSize: 24,
 } as const;
 export const fab = {
   size: 56,
