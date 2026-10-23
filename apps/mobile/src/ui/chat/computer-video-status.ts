@@ -3,9 +3,10 @@ import type { ConnectionState } from '../../host/client';
 
 export function computerVideoStatus(state: LocalVideoClientState, connection: ConnectionState) {
   const connected = connection.status === 'connected';
+  const active = state.status === 'observing' || state.status === 'controlling';
   const live =
     connected &&
-    (state.status === 'observing' || state.status === 'controlling') &&
+    active &&
     state.presenting &&
     state.host?.media.status === 'live' &&
     state.host.media.captureAlive;
@@ -14,7 +15,7 @@ export function computerVideoStatus(state: LocalVideoClientState, connection: Co
   return {
     connection: live ? 'live' : failed ? 'disconnected' : 'waiting',
     control:
-      !connected || !state.host
+      !connected || !active || state.busy || !state.host
         ? 'unknown'
         : state.status === 'controlling' && state.host.controller && state.host.grant
           ? 'human'

@@ -58,6 +58,16 @@ describe('Computer header facts', () => {
     ).toEqual({ connection: 'waiting', control: 'unknown' });
   });
 
+  it('clears retained ownership after video failure and during handback', () => {
+    const host = { ...watching.host!, paused: true, controlHeld: true, controller: false };
+    for (const status of ['idle', 'opening', 'unavailable'] as const) {
+      expect(computerVideoStatus({ ...watching, status, host }, connected).control).toBe('unknown');
+    }
+    expect(computerVideoStatus({ ...watching, busy: true, host }, connected).control).toBe(
+      'unknown',
+    );
+  });
+
   it('distinguishes our grant, another controller, paused Bots and Bots allowed to operate', () => {
     const host = {
       ...watching.host!,
