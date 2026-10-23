@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { state, client, back } = vi.hoisted(() => ({
   state: {
     hostId: 'h1',
+    ready: true,
+    arrangement: true,
+    connection: 'connected',
     sections: [{ id: 's-existing', name: 'Host work', channelIds: [] as string[] }],
   },
   client: {
@@ -21,14 +24,46 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
-vi.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ hostId: 'h1', channelId: 'dm-ada' }),
-  useRouter: () => ({ back }),
-}));
+vi.mock('expo-router', () => {
+  const Toolbar = Object.assign(
+    ({ children, placement }: { children: ReactNode; placement: string }) => (
+      <div data-toolbar={placement}>{children}</div>
+    ),
+    {
+      Button: ({
+        children,
+        accessibilityLabel,
+        disabled,
+        onPress,
+      }: {
+        children: ReactNode;
+        accessibilityLabel: string;
+        disabled: boolean;
+        onPress(): void;
+      }) => (
+        <button aria-label={accessibilityLabel} disabled={disabled} onClick={onPress}>
+          {children}
+        </button>
+      ),
+    },
+  );
+  return {
+    Stack: { Screen: () => null, Toolbar },
+    useLocalSearchParams: () => ({ hostId: 'h1', channelId: 'dm-ada' }),
+    useRouter: () => ({ back }),
+  };
+});
 vi.mock('../src/host/host-session', () => ({
   hostSession: { getState: () => ({ saved: { hostId: state.hostId }, client }) },
   useHostSession: () => ({ saved: { hostId: state.hostId }, client }),
-  useHostSnapshot: () => ({ roster: { arrangement: { sections: state.sections } } }),
+  useHostSnapshot: () => ({
+    connection: { status: state.connection },
+    roster: state.ready
+      ? state.arrangement
+        ? { arrangement: { sections: state.sections } }
+        : {}
+      : undefined,
+  }),
 }));
 import Screen from '../app/conversation-section';
 import { t } from '../src/ui/strings';
@@ -65,9 +100,74 @@ afterEach(() => {
   client.refresh.mockResolvedValue();
   back.mockReset();
   state.hostId = 'h1';
+  state.ready = true;
+  state.arrangement = true;
+  state.connection = 'connected';
   state.sections = [{ id: 's-existing', name: 'Host work', channelIds: [] }];
 });
 describe('native section sheet source behavior', () => {
+  it('keeps Close and New in the native header contract, with section choices in the body', async () => {
+    await render();
+    expect(view.querySelector('[data-toolbar="left"] button')?.getAttribute('aria-label')).toBe(
+      t.close,
+    );
+    expect(view.querySelector('[data-toolbar="right"] button')?.getAttribute('aria-label')).toBe(
+      t.conversationSection.create,
+    );
+    expect(view.querySelector('[data-testid="section-new"]')).toBeNull();
+    await press(t.close);
+    expect(back).toHaveBeenCalledOnce();
+    expect(client.call).not.toHaveBeenCalled();
+  });
+  it('shows a native indicator until the roster arrives, then shows confirmed empty sections', async () => {
+    state.ready = false;
+    state.connection = 'connecting';
+    await render();
+    expect(view.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(view.textContent).not.toContain(t.conversationSection.empty);
+    state.ready = true;
+    state.arrangement = false;
+    await act(async () => root.render(<Screen />));
+    expect(view.querySelector('[role="progressbar"]')).toBeNull();
+    expect(view.textContent).toContain(t.conversationSection.empty);
+  });
+  it('replaces failed initial loading with retry and recovers to real choices', async () => {
+    state.ready = false;
+    state.connection = 'unreachable';
+    await render();
+    expect(view.querySelector('[role="progressbar"]')).toBeNull();
+    expect(view.textContent).toContain(t.conversationSection.loadFailed);
+    client.refresh.mockRejectedValueOnce(Error('offline'));
+    await press(t.retry);
+    expect(view.textContent).toContain(t.conversationSection.loadFailed);
+    client.refresh.mockImplementationOnce(async () => {
+      state.ready = true;
+      state.connection = 'connected';
+    });
+    await press(t.retry);
+    expect(view.textContent).toContain('Host work');
+    expect(view.textContent).not.toContain(t.conversationSection.loadFailed);
+  });
+  it('shows progress and prevents duplicate submit or dismissal while creating', async () => {
+    let resolve!: (value: unknown) => void;
+    client.call.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    await render();
+    await press(t.conversationSection.create);
+    await typeName('Work');
+    await press(t.conversationSection.submit);
+    expect(view.querySelector('[role="progressbar"]')).not.toBeNull();
+    await press(t.conversationSection.submit);
+    await press(t.back);
+    expect(client.call).toHaveBeenCalledOnce();
+    expect(view.querySelector('[data-testid="section-name"]')).not.toBeNull();
+    await act(async () => resolve({ section: { id: 'new', name: 'Work' } }));
+    expect(back).toHaveBeenCalledOnce();
+  });
   it('reads Host sections and assigns the chosen section', async () => {
     await render();
     await press('Host work');

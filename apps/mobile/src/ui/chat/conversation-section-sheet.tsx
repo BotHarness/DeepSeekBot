@@ -1,13 +1,15 @@
+import { Stack } from 'expo-router';
 import { useRef, useState, useSyncExternalStore } from 'react';
-import { FlatList, View, type ViewInstance } from 'react-native';
+import { FlatList, Platform, View, type ViewInstance } from 'react-native';
 
 import type { HostClient } from '../../host/client';
 import { useHostSnapshot } from '../../host/host-session';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
-import { DrawerHeader } from '../primitives/drawer-header';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { PullToRefresh } from '../primitives/pull-to-refresh';
+import { SectionChoice } from './section-choice';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { t } from '../strings';
@@ -52,7 +54,10 @@ export function ConversationSectionSheet({
   );
   const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot);
   const current = isCurrent();
-  const sections = current ? snapshot.roster?.arrangement?.sections : undefined;
+  const sections =
+    current && snapshot.roster ? (snapshot.roster.arrangement?.sections ?? []) : undefined;
+  const unavailable =
+    !snapshot.roster && ['unreachable', 'refused', 'stopped'].includes(snapshot.connection.status);
   const close = () => {
     if (!state.busy) onClose();
   };
@@ -71,7 +76,7 @@ export function ConversationSectionSheet({
           ? t.conversationSection.assignFailed
           : state.error === 'refresh'
             ? t.conversationSection.refreshFailed
-            : loadFailed
+            : loadFailed || unavailable
               ? t.conversationSection.loadFailed
               : undefined;
   const notice = error ? (
@@ -93,17 +98,63 @@ export function ConversationSectionSheet({
       if (mounted.current) setRefreshing(false);
     }
   };
+  const submit = () => void run(() => (state.selected ? flow.retry() : flow.create(name)));
+  const returnToList = () => {
+    if (state.busy) return;
+    setCreating(false);
+    void reload();
+  };
   return (
     <View ref={mount} style={{ flex: 1 }}>
-      <View style={{ padding: space.x5 }}>
-        <DrawerHeader
-          title={creating ? t.conversationSection.create : t.rowActions.section}
-          onClose={close}
-        />
-      </View>
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerBackVisible: false,
+          title: creating ? t.conversationSection.create : t.rowActions.section,
+          gestureEnabled: !state.busy,
+        }}
+      />
+      <Stack.Toolbar placement="left">
+        <Stack.Toolbar.Button
+          accessibilityLabel={creating ? t.back : t.close}
+          icon={Platform.OS === 'ios' ? (creating ? 'chevron.left' : 'xmark') : undefined}
+          disabled={state.busy}
+          onPress={creating ? returnToList : close}
+        >
+          {creating ? t.back : t.close}
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Button
+          accessibilityLabel={
+            creating
+              ? state.selected
+                ? t.retry
+                : t.conversationSection.submit
+              : t.conversationSection.create
+          }
+          disabled={!current || state.busy || (creating && !state.selected && !name.trim())}
+          variant={creating ? 'done' : 'plain'}
+          onPress={
+            creating
+              ? submit
+              : () => {
+                  flow.reset();
+                  setName('');
+                  setCreating(true);
+                }
+          }
+        >
+          {creating ? (state.selected ? t.retry : t.conversationSection.submit) : t.create}
+        </Stack.Toolbar.Button>
+      </Stack.Toolbar>
       {creating ? (
-        <KeyboardFormScroll contentContainerStyle={{ padding: space.x5, gap: space.x4 }}>
+        <KeyboardFormScroll
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
+        >
           {notice}
+          {state.busy ? <LoadingIndicator accessibilityLabel={t.loading} /> : null}
           {state.selected ? (
             <Text>{state.selected.name}</Text>
           ) : (
@@ -117,73 +168,66 @@ export function ConversationSectionSheet({
               autoFocus
               returnKeyType="done"
               onSubmitEditing={() => {
-                if (!state.busy && current && name.trim()) void run(() => flow.create(name));
+                if (!state.busy && current && name.trim()) submit();
               }}
             />
           )}
-          <Button
-            testID="section-create"
-            label={state.selected ? t.retry : t.conversationSection.submit}
-            tone="primary"
-            busy={state.busy}
-            disabled={!current || (!state.selected && !name.trim())}
-            onPress={() => void run(() => (state.selected ? flow.retry() : flow.create(name)))}
-          />
-          <Button
-            label={t.back}
-            disabled={state.busy}
-            onPress={() => {
-              setCreating(false);
-              void reload();
-            }}
-          />
         </KeyboardFormScroll>
       ) : (
-        <FlatList
-          data={sections ?? []}
-          keyExtractor={(section) => section.id}
-          contentContainerStyle={{ padding: space.x5, gap: space.x3 }}
-          ListHeaderComponent={
-            <>
-              {notice}
-              <Button
-                testID="section-new"
-                label={t.conversationSection.create}
-                disabled={!current || state.busy}
-                onPress={() => {
-                  flow.reset();
-                  setName('');
-                  setCreating(true);
-                }}
-              />
-              {state.selected && state.error ? (
-                <Button
-                  label={`${t.retry}: ${state.selected.name}`}
-                  busy={state.busy}
-                  disabled={!current}
-                  onPress={() => void run(flow.retry)}
+        <PullToRefresh
+          refreshing={refreshing}
+          onRefresh={() => {
+            if (!state.busy) void reload();
+          }}
+        >
+          {(pull) => (
+            <FlatList
+              {...pull}
+              data={sections ?? []}
+              keyExtractor={(section) => section.id}
+              contentInsetAdjustmentBehavior="automatic"
+              contentContainerStyle={{ padding: space.x5, gap: space.x3 }}
+              ListHeaderComponent={
+                <View style={{ gap: space.x4 }}>
+                  {notice}
+                  {state.busy ? <LoadingIndicator accessibilityLabel={t.loading} /> : null}
+                  {state.selected && state.error ? (
+                    <Button
+                      label={`${t.retry}: ${state.selected.name}`}
+                      busy={state.busy}
+                      disabled={!current}
+                      onPress={() => void run(flow.retry)}
+                    />
+                  ) : (loadFailed || unavailable) && current ? (
+                    <Button label={t.retry} busy={refreshing} onPress={() => void reload()} />
+                  ) : null}
+                </View>
+              }
+              ListEmptyComponent={
+                error ? (
+                  <View />
+                ) : (
+                  <View style={{ paddingVertical: space.x6 }}>
+                    {sections === undefined ? (
+                      <LoadingIndicator accessibilityLabel={t.loading} />
+                    ) : (
+                      <Text tone="muted">{t.conversationSection.empty}</Text>
+                    )}
+                  </View>
+                )
+              }
+              renderItem={({ item }) => (
+                <SectionChoice
+                  title={item.name}
+                  testID={`section-${item.id}`}
+                  onPress={
+                    current && !state.busy ? () => void run(() => flow.choose(item)) : undefined
+                  }
                 />
-              ) : null}
-            </>
-          }
-          ListEmptyComponent={<Text>{sections ? t.conversationSection.empty : t.loading}</Text>}
-          ListFooterComponent={
-            <Button
-              label={t.conversationSection.refresh}
-              busy={refreshing}
-              disabled={!current || state.busy}
-              onPress={() => void reload()}
-            />
-          }
-          renderItem={({ item }) => (
-            <SettingsRow
-              title={item.name}
-              testID={`section-${item.id}`}
-              selected={state.selected?.id === item.id}
-              onPress={current && !state.busy ? () => void run(() => flow.choose(item)) : undefined}
+              )}
             />
           )}
-        />
+        </PullToRefresh>
       )}
     </View>
   );
