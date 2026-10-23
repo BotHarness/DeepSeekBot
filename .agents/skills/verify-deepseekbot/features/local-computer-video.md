@@ -31,6 +31,11 @@ Use the [Windows device queue](../../../../docs/agents/android-device-qa.md); th
 
 ## Gotchas
 
+- Android Release startup must retain WebRTC and JNI Zero native entry points via the local
+  module's consumer rules. The pinned AAR supplies none. Missing rules remove JniInit and
+  cause a native SIGTRAP during JNI_OnLoad before video can render. Verify the minified APK
+  and real phone; a Debug build does not exercise R8.
+
 - Windows startup regression (no Host or phone): after verifying the installed pinned runtime, set `BOTHARNESS_VIDEO_NATIVE_TEST=1` and run `pnpm exec vitest run packages/computer/test/local-video-helper-windows.test.ts`. It opens real native capture offers twice and requires both launcher trees to drain. An optional `BOTHARNESS_VIDEO_TEST_RUNTIME` points the same verifier at a task-local runtime directory; it never installs dependencies. This does not establish Android playback, input, frame rate or Human acceptance.
 - Electron 44.9.3 writes a bootstrap CRLF before loading the Windows app and supplies an EOF stub as `process.stdin`. The supervisor permits only one exact pre-ready CR payload after launcher ownership validation; the app reads inherited fd 0 directly. Empty display-metrics notifications must not invalidate unchanged primary geometry. Native capture dimensions come from an unscaled track, because DIP × scale can round one pixel away from the real display. After draining its Job and flushing the receipt, the launcher exits through the native process boundary. Windows closes its parent pipe handles during process exit; manually closing them while a background synchronous reader is active can block. The Host cleanup deadline is unchanged.
 
