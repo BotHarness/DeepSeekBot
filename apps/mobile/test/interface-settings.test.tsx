@@ -88,16 +88,19 @@ it('updates mounted settings and theme immediately and preserves unrelated state
 });
 
 it('retries a failed save without changing the selected preference', async () => {
-  const write = vi.fn().mockImplementationOnce(() => {
-    throw new Error('disk full');
+  let failing = false;
+  const write = vi.fn(() => {
+    if (failing) throw new Error('disk full');
   });
   await interfacePreferences.restore({ read: async () => undefined, write });
+  failing = true;
   interfacePreferences.setLanguage('en');
   const host = document.createElement('div');
   const root = createRoot(host);
   try {
     await act(async () => root.render(<InterfaceSettings />));
     expect(host.textContent).toContain('Could not save this choice');
+    failing = false;
     await act(async () =>
       host.querySelector<HTMLButtonElement>('[data-testid="settings-interface-retry"]')!.click(),
     );
