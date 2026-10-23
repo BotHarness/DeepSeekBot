@@ -457,6 +457,14 @@ const en = {
   pairHint:
     'On your computer, open DeepSeekBot Settings → Devices → Pair a phone, then scan the code it shows.',
   allowCamera: 'Allow the camera to scan',
+  pairImage: {
+    choose: 'Choose QR image',
+    reading: 'Reading image…',
+    'no-code': 'No QR code found. Choose a clear image of the code.',
+    'multiple-codes':
+      'This image has more than one code. Choose an image with just the pairing code.',
+    'read-failed': 'Could not read this image. Try another image.',
+  },
   pairGuide: {
     title: 'Before you pair',
     steps: [
@@ -1799,6 +1807,13 @@ const zh: typeof en = {
   pairTitle: '与电脑配对',
   pairHint: '在电脑上打开 DeepSeekBot 设置 → 设备 → 配对手机，然后扫描二维码。',
   allowCamera: '允许使用相机扫码',
+  pairImage: {
+    choose: '从相册选择二维码',
+    reading: '正在识别图片…',
+    'no-code': '没有识别到二维码，请选择清晰的二维码图片。',
+    'multiple-codes': '图片里有多个二维码，请选择只含配对码的图片。',
+    'read-failed': '无法读取这张图片，请换一张重试。',
+  },
   pairGuide: {
     title: '配对前的准备',
     steps: [

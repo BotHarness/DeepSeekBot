@@ -1,7 +1,7 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
@@ -34,12 +34,10 @@ import {
 } from '../../../src/ui/chat/conversations';
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 import { SectionHeader } from '../../../src/ui/chat/section-header';
-import { PinnedConversationCard } from '../../../src/ui/chat/pinned-conversation-card';
-import { pinnedColumns, withPinnedBands, type PinnedBand } from '../../../src/ui/chat/pinned-grid';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
-import { pinnedGrid, space } from '../../../src/ui/design/tokens';
+import { space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -84,12 +82,6 @@ type ListRow =
       key: string;
       environment: string;
       section: Extract<ChatListItem, { kind: 'section' }>;
-    }
-  | {
-      type: 'pinned-band';
-      key: string;
-      environment: string;
-      band: PinnedBand;
     };
 export default function HomeScreen() {
   const focused = useIsFocused();
@@ -184,9 +176,6 @@ const HomeContent = memo(function HomeContent({
   const effectiveFilter = environment.key;
   const quiet = useQuietChannels(saved?.hostId);
   const collapsed = useCollapsedSections(saved?.hostId);
-  const window = useWindowDimensions();
-  const [listWidth, setListWidth] = useState<number>();
-  const columns = pinnedColumns(listWidth ?? window.width, window.fontScale);
   useFocusEffect(
     useCallback(() => {
       if (saved) refreshQuietChannels(saved);
@@ -276,27 +265,22 @@ const HomeContent = memo(function HomeContent({
       rows.filter((row) => row.type === 'computer').map((row) => [row.conversation.key, row]),
     );
     const grouped: ListRow[] = saved
-      ? withPinnedBands(
-          chatList(
-            snapshot.roster,
-            list.status === 'ready' ? list.sections.action : [],
-            collapsed,
-            list.status === 'ready' ? list.unread : {},
-            quiet,
-          ),
-          columns,
+      ? chatList(
+          snapshot.roster,
+          list.status === 'ready' ? list.sections.action : [],
+          collapsed,
+          list.status === 'ready' ? list.unread : {},
+          quiet,
         ).flatMap((item): ListRow[] => {
           const key = JSON.stringify(['computer', saved.hostId, item.key]);
           if (item.kind === 'section')
             return [{ type: 'section', key, environment: hostEnvironment, section: item }];
-          if (item.kind === 'pinned-band')
-            return [{ type: 'pinned-band', key, environment: hostEnvironment, band: item }];
           const row = hostRows.get(item.row.key);
           return row ? [row] : [];
         })
       : [];
     return [...grouped, ...rows.filter((row) => row.type === 'cloud')].filter(visible);
-  }, [rows, effectiveFilter, query, saved, snapshot.roster, list, collapsed, quiet, columns]);
+  }, [rows, effectiveFilter, query, saved, snapshot.roster, list, collapsed, quiet]);
   if (saved === undefined || (!cloud.ready && !cloud.error))
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -378,10 +362,9 @@ const HomeContent = memo(function HomeContent({
       setOpening(false);
     }
   };
-  const renderHostConversation = (conversation: Conversation, pinned: boolean, card = false) => {
-    const Component = card ? PinnedConversationCard : ConversationRow;
+  const renderHostConversation = (conversation: Conversation, pinned: boolean) => {
     return (
-      <Component
+      <ConversationRow
         key={`${saved?.hostId}:${conversation.key}`}
         previewHref={conversationPeek ? conversationHref(conversation, saved?.hostId) : undefined}
         row={conversation}
@@ -463,7 +446,6 @@ const HomeContent = memo(function HomeContent({
                 contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
                 keyboardShouldPersistTaps="handled"
                 keyboardDismissMode="on-drag"
-                onLayout={(event) => setListWidth(event.nativeEvent.layout.width)}
                 data={displayed}
                 keyExtractor={(r) => r.key}
                 ListHeaderComponent={
@@ -529,26 +511,6 @@ const HomeContent = memo(function HomeContent({
                         if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
                       }}
                     />
-                  ) : item.type === 'pinned-band' ? (
-                    <View
-                      testID="pinned-grid-band"
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'flex-start',
-                        gap: pinnedGrid.gap,
-                        paddingHorizontal: pinnedGrid.inset,
-                      }}
-                    >
-                      {item.band.rows.map((conversation) =>
-                        renderHostConversation(conversation, true, true),
-                      )}
-                      {Array.from(
-                        { length: item.band.columns - item.band.rows.length },
-                        (_, index) => (
-                          <View key={`empty:${index}`} style={{ flex: 1 }} />
-                        ),
-                      )}
-                    </View>
                   ) : item.type === 'computer' ? (
                     renderHostConversation(item.conversation, item.pinned)
                   ) : (

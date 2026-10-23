@@ -69,6 +69,8 @@ it('hides the Connect section when the Host has no account support', async () =>
   snapshot = devices();
   await render();
   expect(host.querySelector('[data-connect]')).toBeNull();
+  expect(host.querySelector('[data-pair-route-steps]')).toBeNull();
+  await act(async () => button(zhTranslate('devices.tailscale.setup'))?.click());
   expect(host.querySelector('[data-pair-route-steps]')).not.toBeNull();
 });
 

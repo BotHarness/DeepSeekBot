@@ -12,10 +12,10 @@
       "gap": "Windows helper capture, Android native rendering, physical LAN interaction and Human qualification remain unverified; source checks do not establish runtime acceptance."
     },
     {
-      "id": "phone.pinned-grid",
-      "label": "Browse Remote Host sections and responsive Pinned cards, collapse and search without changing arrangement",
-      "source": "apps/mobile/src/ui/chat/pinned-conversation-card.tsx",
-      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-grid.md",
+      "id": "phone.pinned-list",
+      "label": "Browse Remote Host sections and full Pinned conversation rows, collapse and search without changing arrangement",
+      "source": "apps/mobile/app/(tabs)/(home)/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-list.md",
       "task": 2571,
       "gap": "Centralized test center owns native iOS/Android width/text/appearance, interaction and screenshot qualification; Human visual feedback gates Organize/drag siblings."
     },

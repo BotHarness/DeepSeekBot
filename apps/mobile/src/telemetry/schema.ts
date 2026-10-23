@@ -1,6 +1,6 @@
 import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from './device-context';
 
-export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
+export type PairingMethod = 'qr' | 'image' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
   | 'lan-build-required'
@@ -89,7 +89,7 @@ const member =
   (...values: string[]) =>
   (value: unknown): value is string =>
     typeof value === 'string' && values.includes(value);
-const method = member('qr', 'paste', 'deep_link', 'account');
+const method = member('qr', 'image', 'paste', 'deep_link', 'account');
 const duration = member('under1s', '1-5s', '5-15s', '15-60s', '60plus');
 const deviceFields: Record<keyof DeviceTelemetryContext, (value: unknown) => boolean> = {
   os_version: (value) => typeof value === 'string' && /^(?:\d{1,3}\.\d{1,3}|unknown)$/u.test(value),
