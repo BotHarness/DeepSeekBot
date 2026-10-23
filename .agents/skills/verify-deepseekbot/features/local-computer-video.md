@@ -99,3 +99,12 @@ Use the assigned Mac/iOS lane and record the source SHA, installed binary/embedd
 5. Record actual screenshot evidence and source/CLI/native/Human results separately. Use the same motion and latency measurement limits above; compilation is not video proof. Unrun cases remain unverified.
 
 Mac capture startup regression is opt-in with `BOTHARNESS_VIDEO_NATIVE_TEST=1 pnpm exec vitest run packages/computer/test/local-video-helper-macos.test.ts`. It validates real capture offers and owned process-group drainage, but not iPhone rendering or interaction.
+
+### iOS Computer chrome (#2662)
+
+- Open the existing Computer entry from a paired Bot chat. Confirm the transparent native header names the selected computer (including its local rename), not the Bot; Back exits, with no duplicate bottom Exit. Canvas and letterboxing stay black in both appearances.
+- On a real receiver, live presented frames give the green connection indicator; a connection failure must clear green and stale ownership. CPU means Bots can operate, hand means Human control, and pause means Bots remain paused with no Human grant. Check accessible labels rather than relying only on colour.
+- Take over, click using both native left/right actions, reset the preview, and Hand back; correlate with Host grant/pause and harmless fixture counts. Exit while controlling must release the grant and leave Bots paused; returning must not take over automatically.
+- Check default/intermediate/maximum system text in light/dark, including long computer names, recovery and reachable bottom commands. Verify iOS 27 native glass and earlier-iOS native fallback separately. Simulator layout evidence cannot qualify native GPU presentation or takeover. PiP is deferred to #2664.
+
+- iOS click feedback: after takeover, tap the surface, use Left and Right, and long-press. Accepted left clicks show a blue ripple at the cursor; right clicks show orange. Pinch/pan the preview and repeat; the ring stays at the accepted click point. Reduce Motion shows a brief static ring. Disconnected/refused input, handback, and a replaced viewer/grant must not replay a previous ring. Correlate real remote clicks with fixture counters; a native component fixture only validates rendering.
