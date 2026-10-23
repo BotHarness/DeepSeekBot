@@ -269,7 +269,9 @@ export function CreateBotScreen() {
               </Text>
             ) : null}
             {source?.kind === 'zip' &&
-            (state.error === 'zip-file-missing' || state.error === 'zip-file-changed') ? (
+            (state.error === 'zip-file-missing' ||
+              state.error === 'zip-file-changed' ||
+              state.error === 'zip-file-read') ? (
               <Button
                 label={copy.restoreZip}
                 testID="import-bot-zip-restore"

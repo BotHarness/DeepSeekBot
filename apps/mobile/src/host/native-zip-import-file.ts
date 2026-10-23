@@ -35,16 +35,24 @@ export function pruneZipFiles(retained: readonly string[]) {
 }
 
 function open(file: File): ZipFileReader {
-  if (!file.exists) throw new BotCreationFailure('zip-file-missing');
-  const handle = file.open(FileMode.ReadOnly);
-  return {
-    sizeBytes: handle.size ?? 0,
-    async read(offset, length) {
-      handle.offset = offset;
-      return handle.readBytes(length);
-    },
-    close: () => handle.close(),
-  };
+  try {
+    if (!file.exists) throw new BotCreationFailure('zip-file-missing');
+    const handle = file.open(FileMode.ReadOnly);
+    return {
+      sizeBytes: handle.size ?? 0,
+      async read(offset, length) {
+        try {
+          handle.offset = offset;
+          return await handle.readBytes(length);
+        } catch {
+          throw new BotCreationFailure('zip-file-read');
+        }
+      },
+      close: () => handle.close(),
+    };
+  } catch (error) {
+    throw error instanceof BotCreationFailure ? error : new BotCreationFailure('zip-file-read');
+  }
 }
 
 export const nativeZipFiles: ZipFilePort = {
@@ -64,30 +72,32 @@ export const nativeZipFiles: ZipFilePort = {
     if (result.canceled) return null;
     const asset = result.assets[0];
     if (!asset) return null;
-    const source = new File(asset.uri);
-    if (source.size > ZIP_MAX_BYTES) throw new BotCreationFailure('zip-file-too-large');
-    const folder = directory();
-    folder.create({ intermediates: true, idempotent: true });
     const fileId = randomUUID();
     const retained = retainedFile(fileId);
-    selecting.add(fileId);
-    try {
-      await source.copy(retained);
-    } catch (error) {
-      selecting.delete(fileId);
-      throw error;
-    }
-    const reader = open(retained);
+    let reader: ZipFileReader | undefined;
     let completed = false;
     try {
+      const source = new File(asset.uri);
+      if (source.size > ZIP_MAX_BYTES) throw new BotCreationFailure('zip-file-too-large');
+      const folder = directory();
+      folder.create({ intermediates: true, idempotent: true });
+      selecting.add(fileId);
+      await source.copy(retained);
+      reader = open(retained);
       const sha256 = await hashZipFile(reader);
       completed = true;
       return { fileId, fileName: asset.name, sha256, sizeBytes: reader.sizeBytes };
+    } catch (error) {
+      throw error instanceof BotCreationFailure ? error : new BotCreationFailure('zip-file-read');
     } finally {
-      reader.close();
+      try {
+        reader?.close();
+      } catch {}
       if (!completed) {
         selecting.delete(fileId);
-        retained.delete();
+        try {
+          if (retained.exists) retained.delete();
+        } catch {}
       }
     }
   },

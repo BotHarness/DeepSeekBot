@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
   pick: vi.fn(),
   reads: [] as number[],
   copies: [] as string[],
+  fail: '' as '' | 'copy' | 'open' | 'read',
 }));
 vi.mock('expo-document-picker', () => ({ getDocumentAsync: state.pick }));
 vi.mock('expo-crypto', () => ({ randomUUID: () => '12345678-1234-1234-1234-123456789abc' }));
@@ -29,7 +30,7 @@ vi.mock('expo-file-system', () => {
     }
   }
   class File extends Directory {
-    get exists() {
+    override get exists() {
       return state.files.has(this.uri);
     }
     get size() {
@@ -39,16 +40,19 @@ vi.mock('expo-file-system', () => {
       await Promise.resolve();
       state.files.set(target.uri, state.files.get(this.uri)!.slice());
       state.copies.push(target.uri);
+      if (state.fail === 'copy') throw new Error('disk full');
     }
     delete() {
       state.files.delete(this.uri);
     }
     open() {
+      if (state.fail === 'open') throw new Error('access denied');
       const data = state.files.get(this.uri)!;
       return {
         offset: 0,
         size: data.length,
         async readBytes(length: number) {
+          if (state.fail === 'read') throw new Error('file unavailable');
           state.reads.push(length);
           const chunk = data.slice(this.offset, this.offset + length);
           this.offset += chunk.length;
@@ -67,6 +71,7 @@ beforeEach(() => {
   state.reads.length = 0;
   state.copies.length = 0;
   state.pick.mockReset();
+  state.fail = '';
 });
 
 it('copies the picked archive to persistent documents before hashing and can reopen it', async () => {
@@ -137,3 +142,21 @@ it('discards only an unclaimed picked file when persistence or original-file mat
   nativeZipFiles.discard?.(picked);
   await expect(nativeZipFiles.open(picked)).rejects.toMatchObject({ code: 'zip-file-missing' });
 });
+
+it.each(['copy', 'open', 'read'] as const)(
+  'cleans a failed %s and reports a local file error without keeping the selection lease',
+  async (failure) => {
+    state.files.set('cache/picked.zip', new Uint8Array(30));
+    state.pick.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'cache/picked.zip', name: 'Bot.zip' }],
+    });
+    state.fail = failure;
+    await expect(nativeZipFiles.pick()).rejects.toMatchObject({ code: 'zip-file-read' });
+    const path = 'documents/bot-imports/12345678-1234-1234-1234-123456789abc.zip';
+    expect(state.files.has(path)).toBe(false);
+    state.files.set(path, new Uint8Array(30));
+    pruneZipFiles([]);
+    expect(state.files.has(path)).toBe(false);
+  },
+);

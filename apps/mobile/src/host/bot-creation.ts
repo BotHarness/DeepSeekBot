@@ -11,6 +11,7 @@ export interface BotCreationDraft {
 }
 
 export interface ZipImportDraft extends ZipImportSource {
+  defaultsApplied?: true;
   preview?: ZipImportSource & { hostId: string; deviceId: string };
 }
 
@@ -143,7 +144,7 @@ function importSource(value: unknown): GitImportSource | ZipImportSource {
 function sourceDraft(
   source: GitImportSource | ZipImportSource | GitImportDraft | ZipImportDraft,
 ): GitImportDraft | ZipImportDraft {
-  if (source.kind === 'zip') return zipImportSource(source);
+  if (source.kind === 'zip') return { ...zipImportSource(source), defaultsApplied: true };
   return {
     kind: 'git',
     gitUrl: source.gitUrl,
@@ -159,7 +160,10 @@ function sourceDraft(
 
 function draftSource(value: unknown): GitImportDraft | ZipImportDraft {
   if (object(value) && value.kind === 'zip') {
-    const source = zipImportSource(value);
+    const source: ZipImportDraft = {
+      ...zipImportSource(value),
+      ...(value.defaultsApplied === true ? { defaultsApplied: true } : {}),
+    };
     if (value.preview === undefined) return source;
     const preview = value.preview;
     if (
@@ -579,10 +583,20 @@ export function createBotCreationController(options: {
             kind: 'draft',
             draft: {
               ...draft,
-              displayName: draft.displayName || preview.displayName,
-              description: draft.description || preview.description || '',
-              tags: draft.tags || preview.roles?.join(', ') || '',
-              source: { ...source, preview: { ...checked, hostId: draft.hostId, deviceId } },
+              displayName: source.defaultsApplied
+                ? draft.displayName
+                : draft.displayName || preview.displayName,
+              description: source.defaultsApplied
+                ? draft.description
+                : draft.description || preview.description || '',
+              tags: source.defaultsApplied
+                ? draft.tags
+                : draft.tags || preview.roles?.join(', ') || '',
+              source: {
+                ...source,
+                defaultsApplied: true,
+                preview: { ...checked, hostId: draft.hostId, deviceId },
+              },
             },
           };
           try {
