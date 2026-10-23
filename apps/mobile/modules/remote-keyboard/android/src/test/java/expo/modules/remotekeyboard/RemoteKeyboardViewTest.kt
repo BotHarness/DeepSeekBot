@@ -53,6 +53,10 @@ class RemoteKeyboardViewTest {
     view.sync()
     assertFalse(connection.commitText("late", 1))
     assertEquals(1, lost)
+    shadowOf(Looper.getMainLooper()).idle()
+    assertFalse(view.hasFocus())
+    assertFalse(view.isFocusable)
+    assertEquals(1, gained)
     view.session = "second"
     view.opened = true
     view.accepting = true

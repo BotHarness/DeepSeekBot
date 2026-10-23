@@ -65,7 +65,10 @@ export function ComputerVideoKeyboard({
           queue.current?.enqueue(nativeEvent.input, onInput, onClose);
         }}
         onDismissed={({ nativeEvent }) => {
-          if (open && nativeEvent.session === session) onClose();
+          if (open && nativeEvent.session === session) {
+            queue.current?.stop();
+            onClose();
+          }
         }}
       />
     </View>

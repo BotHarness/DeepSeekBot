@@ -7,6 +7,8 @@ import {
 } from '../src/local-video-contract.js';
 import { createLocalVideoOwner } from '../src/local-video-owner.js';
 import { localVideoCommand } from '../src/local-video-http.js';
+import { createRemoteKeyboardInput } from '../../../apps/mobile/src/host/remote-keyboard-input.js';
+import type { DesktopInput } from '../src/desktop-view.js';
 
 function deferred() {
   let resolve!: () => void;
@@ -161,6 +163,33 @@ function fixture() {
 afterEach(() => vi.useRealTimers());
 
 describe('Local Computer video consumer', () => {
+  it('delivers native multiline paste and deletion bursts through the bounded client queue', async () => {
+    const h = ownerFixture();
+    const keyboard = createRemoteKeyboardInput();
+    const failed = vi.fn();
+    try {
+      await h.acquire();
+      const inputs: DesktopInput[] = [];
+      for (const line of ['a', 'b', 'c', 'd']) {
+        if (inputs.length) inputs.push({ kind: 'key', key: 'return', modifiers: [] });
+        inputs.push({ kind: 'type', text: line });
+      }
+      for (let i = 0; i < 64; i++) inputs.push({ kind: 'key', key: 'backspace', modifiers: [] });
+      inputs.forEach((input) => keyboard.enqueue(input, (input) => h.first.input(input), failed));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(
+        h.calls.filter((call) => call['kind'] === 'input').map((call) => call['input']),
+      ).toEqual(inputs);
+      expect(h.effects).toHaveBeenCalledTimes(inputs.length);
+      expect(failed).not.toHaveBeenCalled();
+      expect(h.first.getState().status).toBe('controlling');
+    } finally {
+      keyboard.stop();
+      await h.first.stop();
+      await h.owner.dispose();
+    }
+  });
+
   it('hands control and Bot use back in one explicit action while keeping the preview open', async () => {
     const h = ownerFixture();
     try {

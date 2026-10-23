@@ -26,8 +26,8 @@ class RemoteKeyboardView(context: Context, appContext: AppContext) : ExpoView(co
   private val manager get() = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
   init {
-    isFocusable = true
-    isFocusableInTouchMode = true
+    isFocusable = false
+    isFocusableInTouchMode = false
     importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     ViewCompat.setOnApplyWindowInsetsListener(this) { _, insets ->
       val visible = insets.isVisible(WindowInsetsCompat.Type.ime())
@@ -52,6 +52,8 @@ class RemoteKeyboardView(context: Context, appContext: AppContext) : ExpoView(co
     val expected = appliedSession
     post {
       if (!isAttachedToWindow || !appliedOpen || suspended || appliedSession != expected) return@post
+      isFocusable = true
+      isFocusableInTouchMode = true
       if (requestFocus()) manager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
     }
   }
@@ -59,7 +61,10 @@ class RemoteKeyboardView(context: Context, appContext: AppContext) : ExpoView(co
   private fun closeInput() {
     connection?.closeConnection()
     connection = null
-    if (hasFocus()) {
+    val focused = hasFocus()
+    isFocusable = false
+    isFocusableInTouchMode = false
+    if (focused) {
       manager.hideSoftInputFromWindow(windowToken, 0)
       clearFocus()
     }
