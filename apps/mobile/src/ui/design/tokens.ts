@@ -9,6 +9,8 @@ export const space = {
   x6: 24,
 } as const;
 
+export const materialSearch = { height: 56, lineHeight: 24 } as const;
+
 export const radius = {
   xs: 4,
   sm: 8,

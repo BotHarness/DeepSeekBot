@@ -9,19 +9,21 @@ import { HeaderIconButton } from './header-icon-button';
 import { ChevronLeftIcon, CloseIcon } from './icons';
 import { NavigationAction } from './navigation-action';
 
+export type HeaderSearchProps = {
+  value: string;
+  placeholder: string;
+  onChangeText(text: string): void;
+  onFocusChange(focused: boolean): void;
+  onClose(): void;
+};
+
 export function HeaderSearch({
   value,
   placeholder,
   onChangeText,
   onFocusChange,
   onClose,
-}: {
-  value: string;
-  placeholder: string;
-  onChangeText(text: string): void;
-  onFocusChange(focused: boolean): void;
-  onClose(): void;
-}) {
+}: HeaderSearchProps) {
   const theme = useDesignTheme();
   const close = () => {
     Keyboard.dismiss();
