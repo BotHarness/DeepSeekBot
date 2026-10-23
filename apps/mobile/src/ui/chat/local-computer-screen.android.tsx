@@ -162,7 +162,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         }}
       >
         <Text
-          variant={landscape ? 'body' : 'title'}
+          variant="title"
           numberOfLines={1}
           style={{ flex: 1 }}
           accessibilityLiveRegion="polite"
