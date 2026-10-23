@@ -26,6 +26,16 @@ export function CreateBotScreen(props: { initialSource?: CreationEntrySource } =
   const { ready, mount } = useSheetContent();
   return (
     <View ref={mount} style={{ flex: 1 }}>
+      <Stack.Screen
+        options={{
+          title:
+            props.initialSource === 'zip'
+              ? copy.fromZip
+              : props.initialSource === 'git'
+                ? copy.fromGit
+                : copy.title,
+        }}
+      />
       {ready ? <CreationForm {...props} /> : null}
     </View>
   );
