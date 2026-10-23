@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
   platform: 'ios',
+  computerAvailable: true,
+  connection: 'connected',
   bot: { slug: 'test', displayName: 'Test', computerAccess: false, browserAccess: false },
   actions: undefined as { onComputer?: () => void } | undefined,
   push: vi.fn(),
@@ -23,7 +25,11 @@ vi.mock('expo-router', () => ({
 }));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ client: {}, saved: { hostId: 'qa' } }),
-  useHostSnapshot: () => ({ roster: { bots: [state.bot] } }),
+  useHostSnapshot: () => ({
+    computerAvailable: state.computerAvailable,
+    connection: { status: state.connection },
+    roster: { bots: [state.bot] },
+  }),
 }));
 vi.mock('../src/host/bot-profile', () => ({
   botChannels: () => [],
@@ -51,6 +57,8 @@ afterEach(async () => {
   state.push.mockReset();
   state.bot.computerAccess = false;
   state.platform = 'ios';
+  state.computerAvailable = true;
+  state.connection = 'connected';
   document.body.replaceChildren();
 });
 async function render() {
@@ -60,6 +68,24 @@ async function render() {
   await act(() => root!.render(createElement(BotProfileScreen)));
 }
 describe('Human Computer profile entry', () => {
+  it.each(['refused', 'stopped'])(
+    'hides remembered capability after device is %s',
+    async (connection) => {
+      state.connection = connection;
+      await render();
+      expect(state.actions?.onComputer).toBeUndefined();
+    },
+  );
+  it.each(['ios', 'android'])(
+    'hides unsupported Host on %s even with Bot tools enabled',
+    async (platform) => {
+      state.platform = platform;
+      state.computerAvailable = false;
+      state.bot.computerAccess = true;
+      await render();
+      expect(state.actions?.onComputer).toBeUndefined();
+    },
+  );
   it('opens the iOS Human viewer without changing the Bot tool opt-in', async () => {
     await render();
     expect(state.actions?.onComputer).toBeTypeOf('function');
@@ -70,10 +96,13 @@ describe('Human Computer profile entry', () => {
     });
     expect(state.bot.computerAccess).toBe(false);
   });
-  it.each([false, true])('keeps Android Computer Access gating unchanged (%s)', async (enabled) => {
-    state.platform = 'android';
-    state.bot.computerAccess = enabled;
-    await render();
-    expect(state.actions?.onComputer !== undefined).toBe(enabled);
-  });
+  it.each([false, true])(
+    'opens the supported Host on Android regardless of Bot tool opt-in (%s)',
+    async (enabled) => {
+      state.platform = 'android';
+      state.bot.computerAccess = enabled;
+      await render();
+      expect(state.actions?.onComputer !== undefined).toBe(true);
+    },
+  );
 });

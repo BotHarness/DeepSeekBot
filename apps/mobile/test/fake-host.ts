@@ -168,6 +168,7 @@ export class FakeHost {
           }),
         );
       }
+      if (parsed.pathname === '/botharness-device/api/computer/status') return response(404, '{}');
       const method = parsed.pathname.replace(
         /^\/botharness-device\/api\/(?:botharness\/)?/u,
         '',

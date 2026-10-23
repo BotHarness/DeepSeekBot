@@ -129,7 +129,9 @@ describe('Host client', () => {
     expect(snapshot.roster?.bots[0]).toMatchObject({ avatarSeed: 2 });
     expect(snapshot.roster?.bots[0]?.avatarUrl).toBeUndefined();
     expect(host.requests[0]).toBe(`POST ${ROUTE}/botharness-device/api/botharness/list`);
-    expect(host.requests.some((line) => line.startsWith('GET'))).toBe(false);
+    expect(host.requests.filter((line) => line.startsWith('GET'))).toEqual([
+      `GET ${ROUTE}/botharness-device/api/computer/status`,
+    ]);
   });
 
   it('shows a Host state change live, from the recorded Activity frames', async () => {
@@ -155,7 +157,7 @@ describe('Host client', () => {
     await until(target, (s) => s.roster?.bots[0]?.preview === 'mobile tracer probe');
     expect(host.requests.length).toBe(reads);
     host.push('botharness/followRoster', { type: 'changed' });
-    await until(target, () => host.requests.length === reads + 4);
+    await until(target, () => host.requests.length === reads + 5);
   });
 
   it('carries the recorded Channel sections and refreshes them when the roster changes', async () => {

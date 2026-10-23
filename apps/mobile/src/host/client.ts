@@ -1,3 +1,4 @@
+import { readComputerAvailability } from './computer-availability';
 import { encryptedCarrier, encodeBase64, ConnectRefused } from './encrypted-carrier';
 import type { HostEncryption } from './hosts';
 import type { ConnectionTelemetry } from '../telemetry/connection';
@@ -101,6 +102,7 @@ export interface RosterView {
 }
 
 export interface HostSnapshot {
+  computerAvailable?: boolean;
   connection: ConnectionState;
   roster?: RosterView;
 }
@@ -286,6 +288,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
   let snapshot: HostSnapshot = { connection: { status: 'stopped', route } };
   let bots: PersonaBotSummary[] | undefined;
+  let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
@@ -309,6 +312,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const publish = (connection?: ConnectionState): void => {
     snapshot = {
       connection: connection ?? snapshot.connection,
+      ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
     };
     if (connection !== undefined)
@@ -607,7 +611,26 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const discoverComputer = async (): Promise<void> => {
+    const currentRoute = route;
+    const currentGeneration = generation;
+    if (isEncryptedRoute(route, options.encryption) && !isLanRoute(route)) {
+      computerAvailable = false;
+      return;
+    }
+    try {
+      const available = await readComputerAvailability(api, isLanRoute(route));
+      if (currentRoute === route && currentGeneration === generation && available !== undefined) {
+        computerAvailable = available;
+        publish();
+      }
+    } catch (error) {
+      if (currentRoute === route && currentGeneration === generation) refusedBy(error);
+    }
+  };
+
   const reloadOnce = async (): Promise<void> => {
+    void discoverComputer();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       call<{ channels: ChannelListItem[] }>('channels'),
