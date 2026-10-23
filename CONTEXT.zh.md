@@ -425,7 +425,7 @@ _避免使用_：collection、bundle、pack、team
 _避免使用_：database dump、live clone、publish
 
 **Import**：
-从分享的 Memory Git 仓库（Git URL 或 Bot Marketplace 安装）创建新的 PersonaBot；始终产生副本，导入的 operational authority 会保持 disabled，直到被显式 rebind 或 reauthorize。
+从分享的 Memory Git 仓库（Git URL 或 Bot Marketplace 安装）或 Bot Zip 创建新的 PersonaBot；始终产生副本，导入的 operational authority 会保持 disabled，直到被显式 rebind 或 reauthorize。
 _避免使用_：install、clone、pull、restore
 
 **Publish**：
