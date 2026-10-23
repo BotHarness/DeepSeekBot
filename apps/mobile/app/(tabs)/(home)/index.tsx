@@ -1,7 +1,7 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
@@ -127,7 +127,10 @@ const HomeContent = memo(function HomeContent({
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const onScroll = useChromeScroll(true, searchFocused || query !== '');
+  const onScroll = useChromeScroll(
+    true,
+    searchFocused || query !== '' || (Platform.OS === 'android' && searching),
+  );
   const bottom = useFloatingTabInset();
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
@@ -436,94 +439,99 @@ const HomeContent = memo(function HomeContent({
             </>
           }
         >
-          <PullToRefresh refreshing={refreshing || directory.busy} onRefresh={() => void refresh()}>
-            {(pull) => (
-              <Animated.FlatList<ListRow>
-                {...pull}
-                renderScrollComponent={renderKeyboardFormScroll}
-                onScroll={onScroll}
-                scrollEventThrottle={1}
-                contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
-                keyboardShouldPersistTaps="handled"
-                keyboardDismissMode="on-drag"
-                data={displayed}
-                keyExtractor={(r) => r.key}
-                ListHeaderComponent={
-                  <>
-                    {saved &&
+          {(headerTravel) => (
+            <PullToRefresh
+              refreshing={refreshing || directory.busy}
+              onRefresh={() => void refresh()}
+            >
+              {(pull) => (
+                <Animated.FlatList<ListRow>
+                  {...pull}
+                  renderScrollComponent={renderKeyboardFormScroll}
+                  onScroll={onScroll}
+                  scrollEventThrottle={1}
+                  contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  data={displayed}
+                  keyExtractor={(r) => r.key}
+                  ListHeaderComponent={
+                    <>
+                      {saved &&
+                        (environment.key === 'all' ||
+                          environment.key === computerEnvironmentKey(saved.hostId)) && (
+                          <ConnectionBanner
+                            connection={snapshot.connection}
+                            onRetry={() => client?.retryNow()}
+                            onPairAgain={() => router.push('/pair')}
+                          />
+                        )}
+                      {saved &&
+                      refreshFailedHost === saved.hostId &&
                       (environment.key === 'all' ||
-                        environment.key === computerEnvironmentKey(saved.hostId)) && (
-                        <ConnectionBanner
-                          connection={snapshot.connection}
-                          onRetry={() => client?.retryNow()}
-                          onPairAgain={() => router.push('/pair')}
-                        />
+                        environment.key === computerEnvironmentKey(saved.hostId)) ? (
+                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                          <Text tone="muted">{t.hostListUnavailable}</Text>
+                          <Button
+                            testID="chat-list-retry"
+                            label={t.retry}
+                            on="canvas"
+                            onPress={() => void refresh()}
+                            disabled={refreshing}
+                          />
+                        </View>
+                      ) : null}
+                      {(directory.errors.length > 0 || cloud.error || error) && (
+                        <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
+                          {t.cloudListUnavailable}
+                          {error ? ` (${error})` : ''}
+                        </Text>
                       )}
-                    {saved &&
-                    refreshFailedHost === saved.hostId &&
-                    (environment.key === 'all' ||
-                      environment.key === computerEnvironmentKey(saved.hostId)) ? (
-                      <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                        <Text tone="muted">{t.hostListUnavailable}</Text>
-                        <Button
-                          testID="chat-list-retry"
-                          label={t.retry}
-                          on="canvas"
-                          onPress={() => void refresh()}
-                          disabled={refreshing}
-                        />
+                    </>
+                  }
+                  ListEmptyComponent={
+                    directory.busy ||
+                    (saved &&
+                      (environment.key === 'all' ||
+                        environment.key === computerEnvironmentKey(saved.hostId)) &&
+                      !snapshot.roster &&
+                      snapshot.connection.status === 'connecting') ? (
+                      <View style={{ padding: space.x6, alignItems: 'center' }}>
+                        <LoadingIndicator />
                       </View>
-                    ) : null}
-                    {(directory.errors.length > 0 || cloud.error || error) && (
-                      <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                        {t.cloudListUnavailable}
-                        {error ? ` (${error})` : ''}
+                    ) : (
+                      <Text tone="muted" style={{ padding: space.x6 }}>
+                        {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
                       </Text>
-                    )}
-                  </>
-                }
-                ListEmptyComponent={
-                  directory.busy ||
-                  (saved &&
-                    (environment.key === 'all' ||
-                      environment.key === computerEnvironmentKey(saved.hostId)) &&
-                    !snapshot.roster &&
-                    snapshot.connection.status === 'connecting') ? (
-                    <View style={{ padding: space.x6, alignItems: 'center' }}>
-                      <LoadingIndicator />
-                    </View>
-                  ) : (
-                    <Text tone="muted" style={{ padding: space.x6 }}>
-                      {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
-                    </Text>
-                  )
-                }
-                renderItem={({ item }) =>
-                  item.type === 'section' ? (
-                    <SectionHeader
-                      testID={`chat-section-${item.section.id}`}
-                      name={item.section.name ?? t.pinnedSection}
-                      count={item.section.count}
-                      needsYou={item.section.needsYou}
-                      unread={item.section.unread}
-                      collapsed={item.section.collapsed}
-                      onToggle={() => {
-                        if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
-                      }}
-                    />
-                  ) : item.type === 'computer' ? (
-                    renderHostConversation(item.conversation, item.pinned)
-                  ) : (
-                    <CloudConversationRow
-                      row={item.conversation}
-                      disabled={opening || cloud.busy || directory.busy}
-                      onPress={() => void openCloud(item.conversation)}
-                    />
-                  )
-                }
-              />
-            )}
-          </PullToRefresh>
+                    )
+                  }
+                  renderItem={({ item }) =>
+                    item.type === 'section' ? (
+                      <SectionHeader
+                        testID={`chat-section-${item.section.id}`}
+                        name={item.section.name ?? t.pinnedSection}
+                        count={item.section.count}
+                        needsYou={item.section.needsYou}
+                        unread={item.section.unread}
+                        collapsed={item.section.collapsed}
+                        onToggle={() => {
+                          if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
+                        }}
+                      />
+                    ) : item.type === 'computer' ? (
+                      renderHostConversation(item.conversation, item.pinned)
+                    ) : (
+                      <CloudConversationRow
+                        row={item.conversation}
+                        disabled={opening || cloud.busy || directory.busy}
+                        onPress={() => void openCloud(item.conversation)}
+                      />
+                    )
+                  }
+                />
+              )}
+            </PullToRefresh>
+          )}
         </HomeHeader>
       </HostDrawerEdge>
     </>

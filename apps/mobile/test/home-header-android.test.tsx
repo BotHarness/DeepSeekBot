@@ -21,6 +21,8 @@ vi.mock('react-native', async () => ({
 }));
 vi.mock('expo-router', () => ({ useIsFocused: () => true, Stack: { Screen: () => null } }));
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 24, bottom: 0, left: 0, right: 0 }),
 }));
