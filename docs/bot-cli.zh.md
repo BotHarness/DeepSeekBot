@@ -913,7 +913,7 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 Host 先通过持久创建回执保留一个身份，再创建 Memory Repository 和 DM。响应丢失后重复**同一个 operation key 和同一份 payload**：已完成的回执返回原 Bot 与 DM，部分完成的操作沿用预留身份进行核对。受限模式已完成的重试走权限检查后的读取，不再申请一次创建审批。相同 key 配不同 payload 返回 `creation-key-conflict`；身份已归档或删除返回 `creation-identity-unavailable`，不会因重放而重建。`creation-memory-conflict` 表示预留目录已经存在但 Registry 身份未落地，应保留现场修复，不要删除目录或换 key 再建。回执不构成文件系统与数据库之间的原子事务，也不承诺自动修复该中断状态。
 
-已认证 Human 的在线 `create` 同样支持 `--operation-key`，限受管 Memory 的空白创建，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为，包括导入行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
+已认证 Human 的在线 `create` 同样支持 `--operation-key`，适用于受管 Memory 中的空白创建或已检查的 Git 来源，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
 
 Human 在线命令 `create-status` 在原 Host 只读查询创建回执。名称、人格、简介、标签等空白创建输入和 key 必须与原请求一致；不同输入会被拒绝。尚无操作时返回 `{receipt:null}`，否则返回 `{receipt:{operationKey,botSlug,status,channelId?}}`。`reserved` 可用完全相同的输入和 key 再次执行 `create` 恢复；`created` 指向已创建的同一个 Bot 和私聊。结果不确定时不要换 Host 或生成新 key。移动端在首次创建前先查询，以免旧 Host 不支持恢复却仍创建 Bot。
 
@@ -1297,3 +1297,15 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 
 stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md)。
 `ssh-tunnel` 的本地端口只提供加密 Device Gateway，直接在浏览器打开会返回 403。请在本地 Host 浏览器中使用“添加远端”。载体会丢弃浏览器自动附带的本地登录 Cookie，不会将它发送给远端 Host。
+
+### 固定 Git 来源并恢复导入
+
+确认新导入前，先在目标 Host 检查所选来源。返回值包含规范化的 Git URL 和当前 HEAD 提交。把 URL、提交、名称、简介、标签及操作 key 一起保留；提交和恢复时不会自动改用更新的提交。
+
+```bash
+deepseekbot bot-import-preview --host <host> --from-git owner/repository
+deepseekbot create-status --host <host> --name Helper --from-git <已检查的URL> --expected-commit <提交> --operation-key import-helper-001
+deepseekbot create --host <host> --name Helper --from-git <已检查的URL> --expected-commit <提交> --operation-key import-helper-001
+```
+
+查询只读，可携带与创建一致的可选 `--description` 和重复 `--role` 参数。响应丢失或 Host 重启后仍指向同一个 Bot、受管 Memory 和私聊。若克隆后的 HEAD 与检查的提交不同，`git-source-changed` 会在发布 Bot 前拒绝；已保留的 key 仍绑定原输入。重新查看来源后，才可明确开始另一项导入。同 key 换来源或元数据返回 `creation-key-conflict`；原身份已归档或删除时返回 `creation-identity-unavailable`。不会自动调用模型或复制凭据。

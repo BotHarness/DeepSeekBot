@@ -701,3 +701,84 @@ describe('online CLI management', () => {
     expect(live.calls).toHaveLength(3);
   });
 });
+
+it('inspects Git source and performs read-only status lookup with the accepted commit', async () => {
+  const commit = 'a'.repeat(40);
+  const live = await host((method) => ({
+    ok: true,
+    value:
+      method === 'botImportPreview'
+        ? { source: { kind: 'git', gitUrl: 'https://github.com/owner/repo.git', commit } }
+        : { receipt: null },
+  }));
+  expect(
+    (await invoke(['bot-import-preview', '--from-git', 'owner/repo'], live.url)).value.source
+      .commit,
+  ).toBe(commit);
+  expect(
+    await invoke(
+      [
+        'create-status',
+        '--name',
+        'Imported',
+        '--from-git',
+        'owner/repo',
+        '--expected-commit',
+        commit,
+        '--operation-key',
+        'git-status-001',
+      ],
+      live.url,
+    ),
+  ).toEqual({ code: 0, value: { receipt: null } });
+  expect(live.calls).toEqual([
+    { method: 'botImportPreview', args: { gitUrl: 'https://github.com/owner/repo.git' } },
+    {
+      method: 'botImportLookup',
+      args: {
+        displayName: 'Imported',
+        gitUrl: 'https://github.com/owner/repo.git',
+        expectedCommit: commit,
+        operationKey: 'git-status-001',
+      },
+    },
+  ]);
+});
+it('creates a pinned Git import and exposes its stable receipt without inspecting a moving source again', async () => {
+  const operationKey = 'git-cli-import-001';
+  const commit = 'b'.repeat(40);
+  const receipt = { operationKey, botSlug: 'minted', status: 'created', channelId: 'dm-minted' };
+  const live = await host((method) => ({
+    ok: true,
+    value: {
+      bot: { slug: 'minted', displayName: 'Imported', memoryDir: 'host/memory' },
+      ...(method === 'createFromGit' ? { receipt } : {}),
+    },
+  }));
+  const result = await invoke(
+    [
+      'create',
+      '--name',
+      'Imported',
+      '--from-git',
+      'owner/repo',
+      '--expected-commit',
+      commit,
+      '--operation-key',
+      operationKey,
+    ],
+    live.url,
+  );
+  expect(result.code).toBe(0);
+  expect(result.value.operation).toEqual(receipt);
+  expect(live.calls[0]).toEqual({
+    method: 'createFromGit',
+    args: {
+      displayName: 'Imported',
+      gitUrl: 'https://github.com/owner/repo.git',
+      expectedCommit: commit,
+      operationKey,
+    },
+  });
+  expect(live.calls.some((call) => call.method === 'botImportPreview')).toBe(false);
+});
