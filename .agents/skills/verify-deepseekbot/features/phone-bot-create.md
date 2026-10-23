@@ -21,6 +21,8 @@ On the phone, open New → Create Bot from All or a selected Computer. Choose th
 
 The existing CI journey `node scripts/e2e-personabot-create.mjs --with-dm` separately verifies the real Host lookup and built `create-status` CLI: absent lookup, same-input/key retry, one canonical Bot/DM and recovery after Host restart. Its four `blankCreation*` result flags do not establish native UI or injected network-fault acceptance.
 
+The same journey uses a task-local Git fixture for CLI source preview, pinned import, discarded-reply readback, changed-source refusal and recovery after Host restart. Its `gitImport*` flags require an actual passing candidate run; adding the script does not establish that result. Paired-device gateway tests separately discard the accepted reply and verify revoked-device refusal.
+
 Use the designated [shared device QA runner](../../../../docs/agents/device-qa.md). This journey needs two isolated paired Hosts, no model, and a compatible native development build. Submit it to the Windows queue for Android; iOS has its own queue. Web screenshots do not qualify the native form.
 
 1. Record the candidate and native-build SHA. Capture the previous creation entry on the compatible base before loading the candidate. Use synthetic Host names and redact addresses and pairing data.

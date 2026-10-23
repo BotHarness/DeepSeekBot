@@ -1788,10 +1788,14 @@
     {
       "path": "scripts/e2e-personabot-create.mjs",
       "category": "mapped",
-      "behaviors": ["desktop.personabot.create", "phone.blank-bot-creation"],
-      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence plus blank creation lookup and built CLI status/retry before and after restart. Native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
+      "behaviors": [
+        "desktop.personabot.create",
+        "phone.blank-bot-creation",
+        "phone.git-bot-import"
+      ],
+      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal and same Bot/DM after restart. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
       "task": 2629,
-      "sha256": "4ab37dabc5e0469a19101ed7c61ebe6c94247e1ea00cf406882c072b96d2b48a"
+      "sha256": "1a7c1ad447e1a0796cc0b17e0772bcb4d42715c67d3dba072671a3a985fb9238"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
