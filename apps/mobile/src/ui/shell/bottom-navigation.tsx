@@ -118,7 +118,7 @@ function ScopedNavigationBar({
     () => () => {
       generation.current++;
     },
-    [],
+    [currentKey],
   );
   const hidden = useChromeHidden();
   const progress = useChromeProgress();
