@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createHash } from 'node:crypto';
@@ -5,7 +8,7 @@ import { createServer, request, type IncomingMessage, type Server } from 'node:h
 import type { AddressInfo, Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -17,6 +20,7 @@ import { createTempRoot, trackTestOwner } from './helpers.js';
 
 const servers: Server[] = [];
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     servers.splice(0).map(
       (server) =>
@@ -58,7 +62,7 @@ async function fakeDsh(
     }
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', () => {
+    req.on('end', async () => {
       const { [DEVICE_ROUTE_HEADER]: routeTag, ...headers } = req.headers;
       state.seen.push({
         ...headers,
@@ -76,7 +80,7 @@ async function fakeDsh(
       }
       if (rpc !== undefined) {
         const input = JSON.parse(Buffer.concat(chunks).toString());
-        const result = rpc(input.method, input.payload.args);
+        const result = await rpc(input.method, input.payload.args);
         if (result === 'lost-response') return res.destroy();
         res.writeHead(200, { 'content-type': 'application/json' });
         return res.end(JSON.stringify({ type: 'server-response', result }));
@@ -676,73 +680,101 @@ describe('Connect route provenance', () => {
 });
 
 describe('mobile creation recovery through device admission', () => {
-  it('recovers a lost create reply with the same Bot and DM and refuses revoked pairing', async () => {
-    const core = createCore({
-      dshHome: createTempRoot('gateway-create-'),
-      agents: {
-        async runOrchestrator() {},
-        async runAssignment() {},
-        async close() {},
-        requestAssignment() {
-          throw new Error('unexpected');
-        },
-      },
-    });
-    try {
-      const methods = createBridgeMethods(core);
-      let drop = true;
-      const live = await fakeDsh(undefined, undefined, (method, payload) => {
-        if (method === 'botharness/createLookup') return methods.createLookup(payload);
-        const result = methods.create(payload);
-        if (drop) {
-          drop = false;
-          return 'lost-response';
-        }
-        return result;
-      });
-      const phone = await pair(live.base, live.pairing.createOffer().offer);
-      const payload = {
-        displayName: 'Recovery',
-        persona: 'Short replies',
-        description: 'QA',
-        roles: ['qa'],
-        operationKey: 'device-create-001',
-      };
-      const call = (method: string) =>
-        fetch(live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/' + method, {
-          method: 'POST',
-          headers: {
-            authorization: 'Device ' + phone.body.credential,
-            'content-type': 'application/json',
+  it.each(['blank', 'git'] as const)(
+    'recovers a lost %s create reply with the same Bot and DM and refuses revoked pairing',
+    async (kind) => {
+      let gitSource: { gitUrl: string; expectedCommit: string } | undefined;
+      if (kind === 'git') {
+        const directory = createTempRoot('gateway-git-source-');
+        const git = (...args: string[]) =>
+          execFileSync('git', args, { cwd: directory, encoding: 'utf8', windowsHide: true }).trim();
+        git('init', '--quiet');
+        git('config', 'user.name', 'Fixture');
+        git('config', 'user.email', 'fixture@example.test');
+        writeFileSync(join(directory, 'SOUL.md'), 'Paired imported persona.');
+        git('add', '.');
+        git('commit', '--quiet', '-m', 'source');
+        vi.stubEnv('GIT_CONFIG_COUNT', '1');
+        vi.stubEnv('GIT_CONFIG_KEY_0', `url.${directory.replaceAll('\\', '/')}/.insteadOf`);
+        vi.stubEnv('GIT_CONFIG_VALUE_0', 'https://gateway.example/source.git');
+        gitSource = {
+          gitUrl: 'https://gateway.example/source.git',
+          expectedCommit: git('rev-parse', 'HEAD'),
+        };
+      }
+      const lookupMethod = kind === 'git' ? 'botImportLookup' : 'createLookup';
+      const createMethod = kind === 'git' ? 'createFromGit' : 'create';
+      const core = createCore({
+        dshHome: createTempRoot('gateway-create-'),
+        agents: {
+          async runOrchestrator() {},
+          async runAssignment() {},
+          async close() {},
+          requestAssignment() {
+            throw new Error('unexpected');
           },
-          body: JSON.stringify({
-            type: 'client-request',
-            rpcId: 'test',
-            method: 'botharness/' + method,
-            payload: { args: payload },
-          }),
+        },
+      });
+      try {
+        const methods = createBridgeMethods(core);
+        let drop = true;
+        const live = await fakeDsh(undefined, undefined, async (method, payload) => {
+          if (method === 'botharness/' + lookupMethod)
+            return kind === 'git'
+              ? methods.botImportLookup(payload)
+              : methods.createLookup(payload);
+          const result =
+            kind === 'git' ? await methods.createFromGit(payload) : methods.create(payload);
+          if (drop) {
+            drop = false;
+            return 'lost-response';
+          }
+          return result;
         });
-      expect(await (await call('createLookup')).json()).toMatchObject({
-        result: { ok: true, value: { receipt: null } },
-      });
-      expect(core.registry.list()).toHaveLength(0);
-      const lost = await call('create').catch(() => null);
-      expect(lost === null || !lost.ok).toBe(true);
-      const recovered = await (await call('createLookup')).json();
-      expect(recovered.result.value.receipt).toMatchObject({
-        operationKey: payload.operationKey,
-        status: 'created',
-      });
-      const retried = await (await call('create')).json();
-      expect(retried.result.value.receipt).toEqual(recovered.result.value.receipt);
-      expect(core.registry.list()).toHaveLength(1);
-      expect(core.channels.list()).toHaveLength(1);
-      live.pairing.revoke(phone.body.deviceId!);
-      expect((await call('createLookup')).status).toBe(401);
-      expect(core.registry.list()).toHaveLength(1);
-    } finally {
-      await core.runtime.close();
-      core.operationalDatabase.close();
-    }
-  });
+        const phone = await pair(live.base, live.pairing.createOffer().offer);
+        const payload = {
+          displayName: 'Recovery',
+          ...(gitSource ?? { persona: 'Short replies' }),
+          description: 'QA',
+          roles: ['qa'],
+          operationKey: 'device-create-001',
+        };
+        const call = (method: string) =>
+          fetch(live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/' + method, {
+            method: 'POST',
+            headers: {
+              authorization: 'Device ' + phone.body.credential,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+              type: 'client-request',
+              rpcId: 'test',
+              method: 'botharness/' + method,
+              payload: { args: payload },
+            }),
+          });
+        expect(await (await call(lookupMethod)).json()).toMatchObject({
+          result: { ok: true, value: { receipt: null } },
+        });
+        expect(core.registry.list()).toHaveLength(0);
+        const lost = await call(createMethod).catch(() => null);
+        expect(lost === null || !lost.ok).toBe(true);
+        const recovered = await (await call(lookupMethod)).json();
+        expect(recovered.result.value.receipt).toMatchObject({
+          operationKey: payload.operationKey,
+          status: 'created',
+        });
+        const retried = await (await call(createMethod)).json();
+        expect(retried.result.value.receipt).toEqual(recovered.result.value.receipt);
+        expect(core.registry.list()).toHaveLength(1);
+        expect(core.channels.list()).toHaveLength(1);
+        live.pairing.revoke(phone.body.deviceId!);
+        expect((await call(lookupMethod)).status).toBe(401);
+        expect(core.registry.list()).toHaveLength(1);
+      } finally {
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
 });
