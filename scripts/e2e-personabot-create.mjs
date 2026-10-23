@@ -4,6 +4,7 @@ import { createServer } from 'node:net';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { prepareZipImportProof } from './e2e-zip-import-proof.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const helper = join(root, 'scripts', 'dev-instance.mjs');
@@ -365,6 +366,16 @@ try {
   )
     throw new Error('Stale source published a Bot or DM');
 
+  const zipProof = await prepareZipImportProof({
+    root,
+    home,
+    port,
+    sourceSlug: receipt.botSlug,
+    rpc,
+    cookie,
+    env,
+  });
+
   stop(pid);
   await waitForStop(port);
   pid = undefined;
@@ -388,6 +399,14 @@ try {
     afterRecovery.channels.length !== completeBaseline.channels.length
   )
     throw new Error('Restart recovery duplicated a Bot or DM');
+
+  const zipImported = await zipProof.finishAfterUploadRestart(restarted);
+  stop(pid);
+  await waitForStop(port);
+  pid = undefined;
+  const zipRestarted = launch(port, false);
+  pid = zipRestarted.pid;
+  await zipImported.verifyAfterImportRestart(zipRestarted);
 
   const list = await rpc(port, 'botharness', 'list');
   const read = await rpc(port, 'botharness', 'get', { slug });
@@ -430,6 +449,9 @@ try {
       gitImportPreview: true,
       gitImportCliRecovery: true,
       gitImportAfterRestart: true,
+      zipUploadAfterRestart: true,
+      zipImportCliRecovery: true,
+      zipImportAfterRestart: true,
       ...(withDm ? { dmHistoryAfterRestart: true } : {}),
     }),
   );
