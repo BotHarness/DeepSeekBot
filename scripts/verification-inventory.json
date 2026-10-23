@@ -745,6 +745,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
     },
     {
+      "id": "phone.haptic-feedback",
+      "label": "Immediate press feedback, semantic haptics and device-local feedback preference",
+      "source": "apps/mobile/src/ui/haptics.ts",
+      "task": 2624,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-haptic-feedback.md",
+      "gap": "Source tests do not qualify native interaction or Human tactile acceptance; both platforms require queued native and physical-device checks."
+    },
+    {
       "id": "host.ssh-tunnel",
       "label": "Computer SSH tunnel to a pinned Linux Host",
       "source": "packages/core/src/devices/ssh-tunnel.ts",

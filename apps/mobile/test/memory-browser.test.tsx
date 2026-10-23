@@ -3,6 +3,8 @@ import { act, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: vi.fn(() => null) }));
 vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: vi.fn() }));

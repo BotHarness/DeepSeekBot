@@ -44,6 +44,7 @@ export function SettingsView({
   messageDisplay,
   activityCount,
   chatBackground,
+  hapticFeedback,
 }: {
   hostName: string | undefined;
   connection: ConnectionState;
@@ -54,6 +55,7 @@ export function SettingsView({
   messageDisplay?: ReactNode;
   activityCount?: ReactNode;
   chatBackground?: ReactNode;
+  hapticFeedback?: ReactNode;
 }) {
   const theme = useDesignTheme();
   const [unpairError, setUnpairError] = useState<string>();
@@ -137,6 +139,7 @@ export function SettingsView({
           />
           {activityCount}
           {chatBackground}
+          {hapticFeedback}
         </SettingsSection>
         {messageDisplay}
         <SettingsSection title={t.about} on={SHEET_GROUP}>

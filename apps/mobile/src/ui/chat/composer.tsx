@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePreventRemove } from 'expo-router';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
-import { useDesignTheme } from '../design/theme';
+import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, motion, radius, space } from '../design/tokens';
 import { HardwareSend } from '../primitives/hardware-send';
 import { Text } from '../primitives/text';
@@ -102,19 +102,21 @@ function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void
         accessibilityLabel={t.removeAttachment(file.name)}
         onPress={onRemove}
         hitSlop={space.x3}
-        style={{
+        android_ripple={{ color: pressTint(theme.color.base) }}
+        style={({ pressed }) => ({
           position: 'absolute',
           top: 0,
           right: 0,
           width: badge,
           height: badge,
           borderRadius: radius.round,
+          overflow: 'hidden',
           alignItems: 'center',
           justifyContent: 'center',
           borderWidth: edge.focus,
           borderColor: theme.color.surface,
-          backgroundColor: theme.color.fg,
-        }}
+          backgroundColor: pressed ? theme.color.muted : theme.color.fg,
+        })}
       >
         <CloseIcon color={theme.color.base} size={theme.type.meta.size} />
       </Pressable>

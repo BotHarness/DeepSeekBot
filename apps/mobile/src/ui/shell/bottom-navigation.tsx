@@ -37,6 +37,7 @@ import { CreationPanel } from './creation-panel';
 import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { t } from '../strings';
+import { useSelectionFeedback } from '../selection-feedback';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -104,6 +105,10 @@ function ScopedNavigationBar({
   reserved,
   scope,
 }: NavigationBarLayout & { scope: string }) {
+  const currentKey = state.routes[state.index]?.key;
+  const selectTab = useSelectionFeedback(currentKey, (key) => {
+    if (key !== undefined) return navigateToTab(key);
+  });
   const { saved } = useHostSession();
   const look = useHostLook(saved?.hostId);
   const directory = useCloudConversations();
@@ -166,9 +171,9 @@ function ScopedNavigationBar({
       setBusy(false);
     }
   };
-  const items = state.routes.map((route, index) => ({
+  const items = state.routes.map((route) => ({
     key: route.key,
-    focused: state.index === index,
+    focused: route.key === currentKey,
     activity: route.name === '(activity)',
     count: route.name === '(activity)' ? pending : 0,
     onPress: () => {
@@ -177,7 +182,7 @@ function ScopedNavigationBar({
         target: route.key,
         canPreventDefault: true,
       });
-      if (state.index !== index && !event.defaultPrevented) navigateToTab(route.key);
+      if (!event.defaultPrevented) selectTab(route.key);
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));

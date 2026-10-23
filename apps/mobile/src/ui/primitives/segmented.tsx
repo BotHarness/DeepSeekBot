@@ -4,6 +4,7 @@ import type { LayerName } from '../design/layers';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from './text';
+import { useSelectionFeedback } from '../selection-feedback';
 
 export type SegmentedProps<T extends string> = {
   label: string;
@@ -24,6 +25,7 @@ export function Segmented<T extends string>({
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
+  const select = useSelectionFeedback(value, onChange);
   return (
     <View
       accessibilityRole="tablist"
@@ -45,9 +47,7 @@ export function Segmented<T extends string>({
             accessibilityLabel={option.label}
             accessibilityState={{ selected }}
             hitSlop={{ top: space.x1, bottom: space.x1 }}
-            onPress={() => {
-              if (!selected) onChange(option.value);
-            }}
+            onPress={() => select(option.value)}
             style={({ pressed }) => ({
               ...(theme.largeText ? {} : { flex: 1 }),
               paddingHorizontal: space.x3,
