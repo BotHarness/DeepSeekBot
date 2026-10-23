@@ -57,6 +57,7 @@ async function render(extra = {}, onInput = vi.fn(async () => true), onClose = v
         session: 'first',
         onInput,
         onClose,
+        onFailure: vi.fn(),
         ...extra,
       }),
     ),
@@ -91,10 +92,12 @@ describe('Computer native keyboard', () => {
   });
   it('closes capture after uncertain input without replay', async () => {
     const send = vi.fn(async () => false);
-    const { onClose } = await render({}, send);
+    const onFailure = vi.fn();
+    const { onClose } = await render({ onFailure }, send);
     await act(() => props().onInput({ nativeEvent: { session: 'first', input } }));
     expect(send).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onFailure).toHaveBeenCalledWith('input-unconfirmed');
   });
   it('native keyboard Back closes only its current session', async () => {
     const { onClose } = await render();

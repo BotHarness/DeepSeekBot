@@ -1,7 +1,10 @@
 import { requireNativeView, requireOptionalNativeModule } from 'expo';
 import { useRef, type ComponentRef } from 'react';
 import { View, type NativeSyntheticEvent, type ViewProps } from 'react-native';
-import { createRemoteKeyboardInput } from '../../host/remote-keyboard-input';
+import {
+  createRemoteKeyboardInput,
+  type RemoteKeyboardFailure,
+} from '../../host/remote-keyboard-input';
 import { useMounted } from '../mounted';
 import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
 import { edge } from '../design/tokens';
@@ -32,12 +35,14 @@ export function ComputerVideoKeyboard({
   session,
   onInput,
   onClose,
+  onFailure,
 }: {
   open: boolean;
   enabled: boolean;
   session: string;
   onInput(input: DesktopInput): Promise<boolean>;
   onClose(): void;
+  onFailure(reason: RemoteKeyboardFailure): void;
 }) {
   const queue = useRef<ReturnType<typeof createRemoteKeyboardInput> | undefined>(undefined);
   const lifecycle = useMounted<ComponentRef<typeof View>>(() => {
@@ -62,7 +67,10 @@ export function ComputerVideoKeyboard({
         style={{ position: 'absolute', width: edge.hairline, height: edge.hairline }}
         onInput={({ nativeEvent }) => {
           if (!open || !enabled || nativeEvent.session !== session) return;
-          queue.current?.enqueue(nativeEvent.input, onInput, onClose);
+          queue.current?.enqueue(nativeEvent.input, onInput, (reason) => {
+            onFailure(reason);
+            onClose();
+          });
         }}
         onDismissed={({ nativeEvent }) => {
           if (open && nativeEvent.session === session) {

@@ -1,10 +1,12 @@
 import type { DesktopInput } from '../../../../packages/computer/src/desktop-view';
 
+export type RemoteKeyboardFailure = 'queue-full' | 'input-unconfirmed';
+
 export function createRemoteKeyboardInput() {
   type Pending = {
     input: DesktopInput;
     send(input: DesktopInput): Promise<boolean>;
-    failed(): void;
+    failed(reason: RemoteKeyboardFailure): void;
     cost: number;
   };
   const pending: Pending[] = [];
@@ -29,7 +31,7 @@ export function createRemoteKeyboardInput() {
       size -= item.cost;
       if (!accepted) {
         stop();
-        item.failed();
+        item.failed('input-unconfirmed');
         break;
       }
     }
@@ -42,7 +44,7 @@ export function createRemoteKeyboardInput() {
       const cost = input.kind === 'type' ? input.text.length : 1;
       if (size + cost > 2000) {
         stop();
-        failed();
+        failed('queue-full');
         return;
       }
       size += cost;

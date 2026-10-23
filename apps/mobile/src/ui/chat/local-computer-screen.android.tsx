@@ -66,6 +66,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     request: number;
   }>();
   const keyboardRequest = useRef(0);
+  const [keyboardIncomplete, setKeyboardIncomplete] = useState(false);
   const [exiting, setExiting] = useState(false);
   const viewer = useMemo(
     () =>
@@ -104,6 +105,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     keyboardGrant.viewerId === state.host?.binding?.viewerId &&
     keyboardGrant.generation === state.host?.grant?.generation;
   const setKeyboardOpen = (open: boolean) => {
+    if (open) setKeyboardIncomplete(false);
     const host = viewer?.getState().host;
     setKeyboardGrant(
       open && host?.binding && host.grant
@@ -290,6 +292,15 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             </Text>
           </ScrollView>
         )}
+        {keyboardIncomplete ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            tone="muted"
+            testID="computer-video-keyboard-error"
+          >
+            {t.computerKeyboardIncomplete}
+          </Text>
+        ) : null}
         {controlling && !keyboardOpen ? (
           <View
             style={{
@@ -330,6 +341,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             enabled={driving}
             session={keyboardGrant ? String(keyboardGrant.request) : ''}
             onInput={send}
+            onFailure={() => setKeyboardIncomplete(true)}
             onClose={() =>
               setKeyboardGrant((current) => (current === keyboardGrant ? undefined : current))
             }

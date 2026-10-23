@@ -63,7 +63,7 @@ describe('native keyboard input sequencing', () => {
     const failed = vi.fn();
     queue.enqueue({ kind: 'type', text: 'x'.repeat(2000) }, send, failed);
     queue.enqueue(key, send, failed);
-    expect(failed).toHaveBeenCalledTimes(1);
+    expect(failed).toHaveBeenCalledWith('queue-full');
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
