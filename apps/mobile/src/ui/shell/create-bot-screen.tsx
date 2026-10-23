@@ -124,7 +124,20 @@ export function CreateBotScreen() {
                 void (source ? botCreation.blank() : botCreation.beginImport({ gitUrl: '' }))
               }
             />
-            {draft.source ? (
+            <Button
+              label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.fromZip}
+              testID="import-bot-zip-pick"
+              disabled={state.busy}
+              onPress={() => void botCreation.beginZip()}
+            />
+            {draft.source?.kind === 'zip' ? (
+              <>
+                <Text strong>{copy.zipFile}</Text>
+                <Text selectable>{draft.source.fileName}</Text>
+                <Text tone="muted">{copy.zipSize(draft.source.sizeBytes)}</Text>
+              </>
+            ) : null}
+            {draft.source?.kind === 'git' ? (
               <>
                 <Text strong>{copy.gitUrl}</Text>
                 <TextField
@@ -209,6 +222,11 @@ export function CreateBotScreen() {
               </>
             ) : null}
             <Text tone="muted">{copy.model}</Text>
+            {state.transfer ? (
+              <Text accessibilityLiveRegion="polite">
+                {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+              </Text>
+            ) : null}
             {draft.source ? (
               <>
                 <Text tone="muted">
@@ -218,7 +236,7 @@ export function CreateBotScreen() {
                   label={copy.preview}
                   testID="import-bot-preview"
                   busy={state.busy}
-                  disabled={!draft.source.gitUrl.trim() || !target}
+                  disabled={(draft.source.kind === 'git' && !draft.source.gitUrl.trim()) || !target}
                   onPress={() => void botCreation.preview()}
                 />
               </>
@@ -242,7 +260,23 @@ export function CreateBotScreen() {
             <Text variant="title" strong>
               {name}
             </Text>
-            {source ? <Text selectable>{source.gitUrl}</Text> : null}
+            {source ? (
+              <Text selectable>{source.kind === 'zip' ? source.fileName : source.gitUrl}</Text>
+            ) : null}
+            {state.transfer ? (
+              <Text accessibilityLiveRegion="polite">
+                {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+              </Text>
+            ) : null}
+            {source?.kind === 'zip' &&
+            (state.error === 'zip-file-missing' || state.error === 'zip-file-changed') ? (
+              <Button
+                label={copy.restoreZip}
+                testID="import-bot-zip-restore"
+                disabled={state.busy}
+                onPress={() => void botCreation.restoreZip()}
+              />
+            ) : null}
             <Text
               selectable
             >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : copy.targetUnavailable}`}</Text>
