@@ -929,6 +929,14 @@ The Host reserves one identity in its durable creation receipt before creating t
 
 The authenticated Human online `create` also accepts `--operation-key`. It is limited to blank creation with managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior, including import behavior. Scoped Tob does not gain Git/Zip/directory import, Marketplace search or edits to another Bot's existing Memory from this slice.
 
+The Human online `create-status` command performs a read-only receipt lookup on the original Host. Pass the same name, persona, Bio, tags and other blank-create inputs with the original key; changed input is refused. It returns `{receipt:null}` before an operation exists, or `{receipt:{operationKey,botSlug,status,channelId?}}`. A `reserved` receipt can be resumed using `create` with that exact input and key; `created` identifies the existing Bot and DM. Never change Host or mint a new key to recover an uncertain result. Mobile checks this lookup before its first create, so a Host without recovery support cannot silently create an unrecoverable Bot.
+
+```bash
+deepseekbot create-status --host <original-host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+deepseekbot create --host <original-host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+# After a lost reply, repeat create-status with the exact same arguments.
+```
+
 Scoped `show` returns `{bot, profileFingerprint}`. Before every `update`, `pause`, `resume`, `bot-avatar-set`, `bot-banner-set`, `bot-appearance-set` or `bot-primary-color-set`, read the target and pass that fingerprint using `--expected-profile`. Presentation commands retain their existing file/recipe/clear/color options. The fingerprint covers the complete Registry record, so a concurrent change to any recorded profile field invalidates the reviewed snapshot. The Host rechecks it after approval and before applying the existing owner operation, then returns the canonical profile and new fingerprint. Re-read after `stale-setting`; do not silently overwrite. Profile metadata updates are limited to name, description and tags, not Workspace Grants, credentials or model configuration. Human online `update` also requires `--expected-profile` from `show` and uses the same Host owner; a stale fingerprint is not silently refreshed. Use `--description ''` to clear the bio and `--role ''` to clear all tags.
 
 ```bash

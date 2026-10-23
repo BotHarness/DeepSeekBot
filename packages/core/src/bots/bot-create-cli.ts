@@ -134,6 +134,7 @@ Usage:
   deepseekbot create --name <name> --from-git <url | owner/repo> [...]
   deepseekbot create [--name <name>] --from-zip <file> [...]
   deepseekbot create [--name <name>] --from-dir <directory> [...]
+  deepseekbot create-status --name <name> --operation-key <stable-key> [same blank create input] --host <url>
   deepseekbot list [--home <dsh-home>]
   deepseekbot show <id> [--home <dsh-home>]
   deepseekbot model-presets [--home <dsh-home>]
@@ -2599,10 +2600,10 @@ export async function runBotCreateCli(
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
     if (
       values['operation-key'] !== undefined &&
-      (!online || !['create', 'group-create', 'group-invite'].includes(command))
+      (!online || !['create', 'create-status', 'group-create', 'group-invite'].includes(command))
     )
       throw usageError(
-        '--operation-key is supported only for online Bot creation, group creation or group invitation.',
+        '--operation-key is supported only for online Bot creation or status, group creation or group invitation.',
       );
     if (
       values['expected-channel'] !== undefined &&
@@ -2622,9 +2623,11 @@ export async function runBotCreateCli(
       LIFECYCLE_COMMANDS.some((entry) => entry.command === command) ||
       (online && ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command))
     ) {
-      if (command === 'create' && rest.length > 0)
-        throw usageError('create takes no positional arguments.');
-      const input = command === 'create' ? await validatedCreate(values, readStdin) : undefined;
+      if (['create', 'create-status'].includes(command) && rest.length > 0)
+        throw usageError(`${command} takes no positional arguments.`);
+      const input = ['create', 'create-status'].includes(command)
+        ? await validatedCreate(values, readStdin)
+        : undefined;
       let bundle;
       if (input?.source.kind === 'zip') {
         const contents = readZipBundle(input.source.path);

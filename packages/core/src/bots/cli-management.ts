@@ -22,6 +22,7 @@ import type { PersonaBotDeletionPreview } from './deletion.js';
 
 export const ONLINE_MANAGEMENT_COMMANDS = [
   'create',
+  'create-status',
   'list',
   'show',
   'update',
@@ -96,7 +97,7 @@ export async function runOnlineManagement(
   const operationKey = values['operation-key'];
   if (
     operationKey !== undefined &&
-    (command !== 'create' ||
+    (!['create', 'create-status'].includes(command) ||
       !validBotCreationKey(operationKey) ||
       create?.source.kind !== 'blank' ||
       create.presetId !== undefined ||
@@ -105,9 +106,16 @@ export async function runOnlineManagement(
     usage(
       '--operation-key requires blank online creation with a valid 8–128 character key, no preset and the managed Memory location.',
     );
-  const noTarget = ['create', 'list', 'model-presets', 'model-preset-create', 'channels'].includes(
-    command,
-  );
+  if (command === 'create-status' && operationKey === undefined)
+    usage('create-status requires --operation-key.');
+  const noTarget = [
+    'create',
+    'create-status',
+    'list',
+    'model-presets',
+    'model-preset-create',
+    'channels',
+  ].includes(command);
   if (rest.length !== (noTarget ? 0 : 1))
     usage(`${command} ${noTarget ? 'takes no positional arguments' : 'requires one Bot ID'}.`);
   const slug = rest[0]?.trim();
@@ -272,6 +280,16 @@ export async function runOnlineManagement(
             },
     };
   }
+  if (command === 'create-status' && create !== undefined)
+    return rpc('createLookup', {
+      operationKey,
+      displayName: create.displayName,
+      ...(create.persona === undefined ? {} : { persona: create.persona }),
+      ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
+      ...(create.roles === undefined ? {} : { roles: create.roles }),
+      ...(create.description === undefined ? {} : { description: create.description }),
+      ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
+    });
   if (command !== 'create' || create === undefined) usage('Unsupported online management command.');
   const steps: BotCreateStep[] = [{ name: 'validate', status: 'ok' }];
   let bot: { id: string; name: string } | undefined;
