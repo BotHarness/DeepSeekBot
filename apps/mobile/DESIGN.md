@@ -491,13 +491,6 @@ Both mouse buttons retain their drag-to-scroll shortcut. The pad and wheel-butto
 surfaces are custom because a native slider does not combine two-axis relative wheel input
 with a separate click action. Ordinary commands use native Compose buttons.
 
-Keyboard opens a visible, in-memory draft and the system IME. Send commits the complete text
-through the existing controlled input path; it never streams unfinished IME composition.
-Only a current acknowledged result clears the draft. Hiding/reopening retains the same field;
-loss of control or a replacement grant unmounts it. Password mode masks text and disables
-autocorrect. Back closes the panel before leaving Computer; the header exit leaves explicitly.
+### Local Computer native keyboard
 
-One keyboard-avoiding owner resizes the screen. The preview reveals the local pointer within
-that viewport without changing zoom scale; the scroll-button row hides while typing.
-The lower controls scroll when keyboard/large-text space is limited. Pinch ends when either
-finger lifts and ignores remaining-finger focal updates; release never recenters the canvas.
+Android Local Computer uses a nonvisual native InputConnection target for the system keyboard. Compose TextField and React Native TextInput are local editors, not committed-IME event sources; a custom native target is needed to forward committed text and native deletion without displaying a second field or Send row. Composition remains inside the phone IME until committed. Native focus belongs to the explicit keyboard session, not React editor refs or video updates. Back/hide, background and control loss discard unfinished composition. Input stays inside the current Computer grant and ordered no-replay queue; an uncertain input closes keyboard capture. The preview and Hand back remain reachable while typing. This adds a native module and requires a rebuilt Android app.
