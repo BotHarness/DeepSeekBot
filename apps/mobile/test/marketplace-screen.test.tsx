@@ -7,9 +7,33 @@ import { createBotCreationController, type CreationRecord } from '../src/host/bo
 const fixture = vi.hoisted(() => {
   const fetch = vi.fn<typeof globalThis.fetch>();
   vi.stubGlobal('fetch', fetch);
-  return { fetch, params: {} as Record<string, string>, push: vi.fn() };
+  return {
+    fetch,
+    params: {} as Record<string, string>,
+    push: vi.fn(),
+    openURL: vi.fn(async () => {}),
+    link: 'docs/setup.md',
+  };
 });
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  return {
+    ...shim,
+    Linking: { openURL: fixture.openURL },
+    FlatList: (
+      props: Parameters<typeof shim.FlatList>[0] & {
+        renderScrollComponent?: (props: { children: ReactNode }) => ReactNode;
+      },
+    ) =>
+      props.renderScrollComponent
+        ? props.renderScrollComponent({ children: shim.FlatList(props) })
+        : shim.FlatList(props),
+  };
+});
+vi.mock('react-native-keyboard-controller', () => ({
+  KeyboardAwareScrollView: ({ children }: { children: ReactNode }) =>
+    createElement('div', { 'data-keyboard-form': true }, children),
+}));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 34 }),
@@ -20,8 +44,19 @@ vi.mock('react-native-svg', () => ({
   Circle: () => null,
 }));
 vi.mock('react-native-enriched-markdown', () => ({
-  EnrichedMarkdownText: ({ markdown }: { markdown: string }) =>
-    createElement('article', null, markdown),
+  EnrichedMarkdownText: ({
+    markdown,
+    onLinkPress,
+  }: {
+    markdown: string;
+    onLinkPress(event: { url: string }): void;
+  }) =>
+    createElement(
+      'article',
+      null,
+      markdown,
+      createElement('button', { onClick: () => onLinkPress({ url: fixture.link }) }, 'Readme link'),
+    ),
 }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
@@ -69,7 +104,12 @@ beforeEach(() => {
         ? { topics: [{ topic: 'writing', count: 12 }] }
         : path === '/v1/bots'
           ? { bots: [bot] }
-          : { bot, readme: '# Writer README', readmeLanguage: 'en', commitSha: 'a'.repeat(40) },
+          : {
+              bot: { ...bot, id: path.split('/').at(-1) },
+              readme: '# Writer README',
+              readmeLanguage: 'en',
+              commitSha: 'a'.repeat(40),
+            },
     );
   });
   let disk: CreationRecord | undefined;
@@ -104,6 +144,12 @@ const button = (name: string) =>
 
 it('browses without a Host, changes sort and topics, then carries All to the detail page', async () => {
   await act(async () => root.render(<MarketplaceScreen />));
+  expect(
+    element
+      .querySelector(`[aria-label="${t.marketplace.search}"]`)
+      ?.closest('[data-keyboard-form]'),
+  ).not.toBeNull();
+  expect(element.querySelectorAll('[data-keyboard-form]')).toHaveLength(1);
   expect(element.textContent).toContain('Writer');
   await act(async () => button(t.marketplace.popular).click());
   expect(fixture.fetch.mock.calls.some(([url]) => String(url).includes('sort=stars'))).toBe(true);
@@ -124,14 +170,14 @@ it('browses without a Host, changes sort and topics, then carries All to the det
 it('shows a native README and retains the chosen listing for pairing at confirmation', async () => {
   fixture.params = { id: 'screen-detail', entry: 'host', hostId: 'A' };
   await act(async () => root.render(<MarketplaceBotScreen />));
-  expect(element.querySelector('article')?.textContent).toBe('# Writer README');
+  expect(element.querySelector('article')?.textContent).toContain('# Writer README');
   await act(async () => button(t.marketplace.import).click());
   expect(controller.getSnapshot().record).toMatchObject({
     kind: 'draft',
     draft: {
       hostId: 'A',
       displayName: 'Writer',
-      source: { listingId: 'screen-writer', expectedCommit: 'a'.repeat(40) },
+      source: { listingId: 'screen-detail', expectedCommit: 'a'.repeat(40) },
     },
   });
   expect(fixture.push).toHaveBeenCalledWith({
@@ -148,7 +194,20 @@ it('keeps cached detail visible but disables import when a refresh says the list
   );
   await act(async () => button(t.marketplace.refreshListing).click());
   expect(element.textContent).toContain(t.marketplace.missing);
-  expect(element.querySelector('article')?.textContent).toBe('# Writer README');
+  expect(element.querySelector('article')?.textContent).toContain('# Writer README');
   expect(button(t.marketplace.import).disabled).toBe(true);
   expect(fixture.push).not.toHaveBeenCalled();
+});
+
+it('opens relative README links at the reviewed revision and ignores unsupported schemes', async () => {
+  fixture.params = { id: 'screen-links' };
+  await act(async () => root.render(<MarketplaceBotScreen />));
+  fixture.link = 'docs/setup.md';
+  await act(async () => button('Readme link').click());
+  expect(fixture.openURL).toHaveBeenCalledWith(
+    `https://github.com/example/writer/blob/${'a'.repeat(40)}/docs/setup.md`,
+  );
+  fixture.link = 'deepseekbot://pair';
+  await act(async () => button('Readme link').click());
+  expect(fixture.openURL).toHaveBeenCalledTimes(1);
 });

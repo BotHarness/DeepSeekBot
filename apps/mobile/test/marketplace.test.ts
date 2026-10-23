@@ -22,6 +22,24 @@ const bot = (id: string) => ({
 });
 
 describe('mobile Marketplace catalogue', () => {
+  it('rejects another listing returned for the requested identity and keeps the last correct detail', async () => {
+    const responses = [
+      Response.json({ bot: bot('writer'), readme: '# Writer', commitSha: 'a'.repeat(40) }),
+      Response.json({ bot: bot('other'), readme: '# Other', commitSha: 'b'.repeat(40) }),
+    ];
+    const client = createMarketplaceClient({
+      baseUrl: 'https://market.botharness.ai',
+      fetchImpl: async () => responses.shift()!,
+    });
+    const resource = createMobileMarketplace(client).detail('writer', 'en');
+    await resource.refresh();
+    await resource.refresh();
+    expect(resource.getSnapshot()).toMatchObject({
+      status: 'ready',
+      error: 'marketplace-unavailable',
+      value: { bot: { id: 'writer' }, readme: '# Writer', commitSha: 'a'.repeat(40) },
+    });
+  });
   it('keeps searches and languages separate when an older response arrives late', async () => {
     let finishOld!: (response: Response) => void;
     const client = createMarketplaceClient({

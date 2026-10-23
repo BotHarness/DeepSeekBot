@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import type { MarketplaceDetail } from '../../../packages/core/src/marketplace/client';
 import {
+  BotCreationFailure,
   createBotCreationController,
   type CreationRecord,
   type BotCreationOperation,
@@ -34,6 +35,7 @@ const detail: MarketplaceDetail = {
 function setup() {
   let disk: CreationRecord | undefined;
   let paired = false;
+  let keys = 0;
   const create = vi.fn(async (operation: BotCreationOperation) => ({
     operationKey: operation.operationKey,
     status: 'created' as const,
@@ -47,7 +49,7 @@ function setup() {
   }));
   const make = () =>
     createBotCreationController({
-      key: () => 'marketplace-operation-1',
+      key: () => `marketplace-operation-${++keys}`,
       storage: {
         read: async () => disk,
         write: async (record) => {
@@ -174,6 +176,63 @@ it('never replaces submitted work or imports a listing with no verified version'
     await selectMarketplaceImport(
       controller,
       { ...detail, bot: { ...detail.bot, id: 'listing-2' } },
+      { kind: 'host', hostId: 'B' },
+    ),
+  ).toBe('creation-pending');
+  expect(controller.getSnapshot().record).toEqual(original);
+  expect(test.create).toHaveBeenCalledTimes(1);
+});
+
+it.each([false, true])(
+  'starts a new explicit import after opening a completed Bot (different listing: %s)',
+  async (different) => {
+    const test = setup();
+    test.pair();
+    const controller = test.make();
+    await selectMarketplaceImport(controller, detail, { kind: 'host', hostId: 'A' });
+    await controller.preview();
+    await controller.submit();
+    await controller.acknowledge('marketplace-operation-1');
+    const reopened = test.make();
+    const next = different
+      ? { ...detail, bot: { ...detail.bot, id: 'listing-2', displayName: 'Editor' } }
+      : detail;
+    expect(await selectMarketplaceImport(reopened, next, { kind: 'all' })).toBeUndefined();
+    const draft = reopened.getSnapshot().record;
+    expect(draft).toMatchObject({
+      kind: 'draft',
+      draft: {
+        hostId: '',
+        displayName: different ? 'Editor' : 'Writer',
+        source: { listingId: different ? 'listing-2' : 'listing-1' },
+      },
+    });
+    if (draft.kind !== 'draft') throw new Error('Expected new draft');
+    await reopened.edit({ ...draft.draft, hostId: 'B' });
+    await reopened.preview();
+    await reopened.submit();
+    expect(
+      test.create.mock.calls.map(([operation]) => [operation.operationKey, operation.hostId]),
+    ).toEqual([
+      ['marketplace-operation-1', 'A'],
+      ['marketplace-operation-2', 'B'],
+    ]);
+  },
+);
+
+it('keeps an unknown import outcome frozen when another listing is selected', async () => {
+  const test = setup();
+  test.pair();
+  const controller = test.make();
+  await selectMarketplaceImport(controller, detail, { kind: 'host', hostId: 'A' });
+  await controller.preview();
+  test.create.mockRejectedValueOnce(new BotCreationFailure('unreachable'));
+  await controller.submit();
+  const original = controller.getSnapshot().record;
+  expect(
+    await selectMarketplaceImport(
+      controller,
+      { ...detail, bot: { ...detail.bot, id: 'other' } },
       { kind: 'host', hostId: 'B' },
     ),
   ).toBe('creation-pending');
