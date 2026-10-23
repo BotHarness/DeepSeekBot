@@ -76,7 +76,6 @@ class MaterialSearchView(context: Context, appContext: AppContext) : ExpoView(co
         )
         MaterialTheme(colorScheme = colors) {
           val requester = remember { FocusRequester() }
-          val searchState = rememberSearchBarState()
           val focus = LocalFocusManager.current
           val keyboard = LocalSoftwareKeyboardController.current
           var focused by remember { mutableStateOf(false) }
@@ -99,8 +98,9 @@ class MaterialSearchView(context: Context, appContext: AppContext) : ExpoView(co
           }
           // Results stay in the screen's existing virtualized list. The native search
           // bar is deliberately inline, rather than expanding an empty results overlay.
-          SearchBar(
-            state = searchState,
+          DockedSearchBar(
+            expanded = false,
+            onExpandedChange = {},
             modifier = Modifier.fillMaxWidth().semantics { testTagsAsResourceId = true },
             inputField = {
               SearchBarDefaults.InputField(
@@ -134,7 +134,7 @@ class MaterialSearchView(context: Context, appContext: AppContext) : ExpoView(co
                   },
               )
             },
-          )
+          ) {}
         }
       }
     }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
