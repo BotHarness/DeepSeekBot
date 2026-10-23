@@ -149,7 +149,9 @@ export function CreateChannelScreen() {
               {state.error ? (
                 <Text accessibilityRole="alert">
                   {['unknown-bot', 'archived-bot', 'protected-bot'].includes(state.error)
-                    ? t.channelCreation.membersChanged
+                    ? record.kind === 'draft'
+                      ? t.channelCreation.membersChanged
+                      : t.channelCreation.retained
                     : state.error === 'invalid-input'
                       ? t.channelCreation.invalid
                       : creationError(state.error)}

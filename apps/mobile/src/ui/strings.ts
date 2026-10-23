@@ -24,6 +24,7 @@ const en = {
     resume: 'Continue channel creation',
     membersChanged: 'Some Bots are no longer available. Reload and choose again.',
     invalid: 'Check the channel name and selected Bots.',
+    retained: 'Could not recover this request. Its details are kept; retry uses the same computer.',
   },
   marketplace: {
     title: 'Bot Marketplace',
@@ -1605,6 +1606,7 @@ const zh: typeof en = {
     resume: '继续创建频道',
     membersChanged: '部分 Bot 已不可用，请重新加载并选择。',
     invalid: '请检查频道名称和所选 Bot。',
+    retained: '暂时无法恢复此请求，已保留详情。重试仍使用原电脑。',
   },
   marketplace: {
     title: 'Bot 市场',
