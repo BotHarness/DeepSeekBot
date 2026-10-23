@@ -1,4 +1,4 @@
-import { Column, FilledTonalButton, Host, Icon, Text } from '@expo/ui/jetpack-compose';
+import { FilledTonalButton, Host, Icon } from '@expo/ui/jetpack-compose';
 import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { t } from '../strings';
@@ -36,17 +36,14 @@ export function ComputerMouseButton({
           semantics({ contentDescription: label }),
         ]}
       >
-        <Column horizontalAlignment="center">
-          <Icon
-            source={
-              side === 'left'
-                ? require('../../../assets/toolbar/mouse-left.xml')
-                : require('../../../assets/toolbar/mouse-right.xml')
-            }
-            size={theme.type.body.line}
-          />
-          <Text>{label}</Text>
-        </Column>
+        <Icon
+          source={
+            side === 'left'
+              ? require('../../../assets/toolbar/mouse-left.xml')
+              : require('../../../assets/toolbar/mouse-right.xml')
+          }
+          size={theme.type.title.line}
+        />
       </FilledTonalButton>
     </Host>
   );

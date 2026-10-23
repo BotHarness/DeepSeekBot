@@ -7,7 +7,7 @@ import { createHeldScroll } from '../../host/held-scroll';
 import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
-import { Text } from '../primitives/text';
+import { ComputerMouseIcon } from './computer-mouse-icon';
 import { t } from '../strings';
 import { useMounted } from '../mounted';
 
@@ -108,9 +108,11 @@ export function ComputerScrollPad({
           overflow: 'hidden',
         }}
       >
-        <Text variant="meta" tone={enabled ? 'fg' : 'muted'}>
-          {t.computerVideoScrollPad}
-        </Text>
+        <ComputerMouseIcon
+          button="scroll"
+          size={theme.type.title.line}
+          color={enabled ? theme.color.fg : theme.color.muted}
+        />
         <Animated.View
           pointerEvents="none"
           style={[

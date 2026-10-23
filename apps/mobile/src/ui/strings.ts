@@ -1500,9 +1500,6 @@ const en = {
     'On your Mac, allow Screen Recording for the capture helper in System Settings → Privacy & Security, then reconnect.',
   computerVideoSurface: 'Live Computer video',
   computerVideoClick: 'Tap the Computer screen',
-  computerTouchpad: 'Trackpad',
-  computerTouchpadHint:
-    'Slide one finger to move the pointer, tap to click. Tap two fingers for right-click; slide two fingers to scroll.',
   computerVideoTrackpad: 'Computer trackpad',
   computerVideoTrackpadHint:
     'Swipe to move the pointer. Tap to click. Use two fingers to zoom and pan the preview.',
@@ -2990,8 +2987,6 @@ const zh: typeof en = {
     '请在 Mac 系统设置 → 隐私与安全性中允许捕获程序录制屏幕，然后重新连接。',
   computerVideoSurface: 'Computer 实时视频',
   computerVideoClick: '点击 Computer 画面',
-  computerTouchpad: '触控板',
-  computerTouchpadHint: '单指滑动移动光标，轻点左键。双指轻点右键，双指滑动滚动。',
   computerVideoTrackpad: '电脑触控板',
   computerVideoTrackpadHint: '滑动移动光标，轻点单击。双指缩放、平移预览。',
   computerVideoPreviewHint: '双指缩放、平移预览。',
