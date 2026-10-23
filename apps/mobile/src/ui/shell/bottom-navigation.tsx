@@ -38,6 +38,7 @@ import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { t } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
+import { haptic } from '../haptics';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
 
@@ -120,10 +121,12 @@ function ScopedNavigationBar({
   const pending = useActivityCount().count ?? 0;
   const insets = useSafeAreaInsets();
   const [menu, setMenu] = useState<string>();
+  const menuOpen = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const generation = useRef(0);
   const close = () => {
+    menuOpen.current = false;
     generation.current++;
     setMenu(undefined);
     setError(undefined);
@@ -187,6 +190,9 @@ function ScopedNavigationBar({
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
   const create = () => {
+    if (menuOpen.current) return;
+    menuOpen.current = true;
+    haptic('menu');
     Keyboard.dismiss();
     setError(undefined);
     setMenu(scope);

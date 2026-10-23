@@ -20,6 +20,7 @@ import { GrantRequestCard, type GrantRequestPort } from '../src/ui/chat/grant-re
 import { QuestionCard } from '../src/ui/chat/question-card';
 import { QuestionView, type QuestionPort } from '../src/ui/question-view';
 import { t } from '../src/ui/strings';
+import { setHapticsEnabled } from '../src/ui/haptics';
 import { played } from './expo-haptics-shim';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -56,6 +57,7 @@ function deferred() {
 let root: Root | undefined;
 let container: HTMLElement;
 afterEach(() => {
+  setHapticsEnabled(true);
   act(() => root?.unmount());
   root = undefined;
   container?.remove();
@@ -87,6 +89,21 @@ const approvalSurfaces = [
 
 for (const surface of approvalSurfaces) {
   describe(surface.name, () => {
+    it.each([t.allowOnce, t.alwaysAllow, t.reject])(
+      'keeps %s functional with feedback off',
+      async (label) => {
+        setHapticsEnabled(false);
+        const port = {
+          load: vi.fn(async () => approval),
+          decide: vi.fn(async () => 'accepted' as const),
+        };
+        await render(surface.element(port));
+        await act(async () => button(label).click());
+        expect(port.decide).toHaveBeenCalledTimes(1);
+        expect(played).toEqual([]);
+      },
+    );
+
     for (const choice of [
       { label: t.allowOnce, outcome: 'allowed-once', feedback: 'notification:success' },
       { label: t.alwaysAllow, outcome: 'allowed-always-tool', feedback: 'notification:success' },
@@ -207,6 +224,34 @@ const questionSurfaces = [
 
 for (const surface of questionSurfaces) {
   describe(surface.name, () => {
+    for (const enabled of [true, false]) {
+      it(`submits a custom answer once with haptics ${enabled ? 'on' : 'off'}`, async () => {
+        setHapticsEnabled(enabled);
+        const response = deferred();
+        const port = { load: vi.fn(async () => question), answer: vi.fn(() => response.promise) };
+        await render(surface.element(port));
+        const field = container.querySelector<HTMLTextAreaElement>('textarea')!;
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+            field,
+            'My own answer',
+          );
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        const target = button(surface.name === 'question card' ? t.submitChoice : t.submit);
+        await act(async () => {
+          target.click();
+          target.click();
+        });
+        expect(port.answer).toHaveBeenCalledExactlyOnceWith({
+          answers: [{ id: 'choice', selected: [], custom: 'My own answer' }],
+        });
+        expect(played).toEqual([]);
+        await act(async () => response.resolve('accepted'));
+        expect(played).toEqual(enabled ? ['impact:light'] : []);
+      });
+    }
+
     for (const result of ['accepted', 'decided', 'expired'] as const) {
       it(`waits for the ${result} response without duplicate answer submission`, async () => {
         const response = deferred();
