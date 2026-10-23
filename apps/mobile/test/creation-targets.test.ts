@@ -24,14 +24,27 @@ describe('source-bound creation choices', () => {
   ];
   const targets = creationTargets({ hostId: 'mac', name: 'Mac' }, workspaces);
   it('keeps All explicit and offers no cloud Bot creation', () => {
-    expect(creationActions('all', targets)).toEqual(['channel', 'bot', 'join']);
+    expect(creationActions('all', targets)).toEqual([
+      'bot',
+      'zip',
+      'marketplace',
+      'git',
+      'channel',
+      'join',
+    ]);
     expect(targetsFor('channel', 'all', targets).map((t) => t.kind)).toEqual(['computer', 'cloud']);
     expect(targetsFor('bot', 'all', targets).map((t) => t.kind)).toEqual(['computer']);
     expect(creationActions(cloudEnvironmentKey('alice', 'org_a'), targets)).toEqual([
       'channel',
       'invite',
     ]);
-    expect(creationActions(computerEnvironmentKey('mac'), targets)).toEqual(['channel', 'bot']);
+    expect(creationActions(computerEnvironmentKey('mac'), targets)).toEqual([
+      'bot',
+      'zip',
+      'marketplace',
+      'git',
+      'channel',
+    ]);
   });
   it('does not fall back to All for a removed source, member or channel-only guest', () => {
     for (const scope of [
@@ -41,7 +54,7 @@ describe('source-bound creation choices', () => {
       computerEnvironmentKey('other'),
     ])
       expect(creationActions(scope, targets)).toEqual([]);
-    expect(creationActions('all', [])).toEqual(['bot', 'join']);
+    expect(creationActions('all', [])).toEqual(['bot', 'zip', 'marketplace', 'git', 'join']);
   });
   it('distinguishes same-name targets without granting access through their labels', () => {
     const list = creationTargets(undefined, [

@@ -10,15 +10,21 @@ import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
-import { Segmented } from '../primitives/segmented';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
+import { HeaderIconButton } from './header-icon-button';
+import { HeaderGlyph } from './header-glyph';
+import { ChevronLeftIcon, CloseIcon } from './icons';
+import { useDesignTheme } from '../design/theme';
+import { haptic } from '../haptics';
 import { locale, t } from '../strings';
 import { MarketplaceRow } from './marketplace-row';
 import { MarketplaceTopics } from './marketplace-topics';
 
 export function MarketplaceScreen() {
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
+  const theme = useDesignTheme();
+  const [searching, setSearching] = useState(false);
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<MarketplaceSort>('updated');
@@ -36,7 +42,87 @@ export function MarketplaceScreen() {
   };
   return (
     <View ref={mounted} style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: t.marketplace.title }} />
+      <Stack.Screen options={{ title: t.marketplace.title, headerShown: false }} />
+      <View
+        style={{
+          paddingTop: insets.top + space.x2,
+          paddingBottom: space.x3,
+          paddingHorizontal: space.x4,
+          gap: space.x3,
+          backgroundColor: theme.color.base,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          <HeaderIconButton label={t.back} testID="marketplace-back" onPress={() => router.back()}>
+            <ChevronLeftIcon color={theme.color.fg} size={theme.type.title.line} />
+          </HeaderIconButton>
+          {theme.fontScale > 1.5 ? (
+            <View style={{ flex: 1 }} />
+          ) : (
+            <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
+              {t.marketplace.title}
+            </Text>
+          )}
+          <HeaderIconButton
+            label={t.marketplace.search}
+            testID="marketplace-search-button"
+            selected={searching || query !== ''}
+            onPress={() => {
+              haptic('selection');
+              setSearching(!searching);
+              if (searching) Keyboard.dismiss();
+            }}
+          >
+            <HeaderGlyph icon="search" active={searching || query !== ''} />
+          </HeaderIconButton>
+          <HeaderIconButton
+            label={t.marketplace.filters}
+            testID="marketplace-filter-button"
+            selected={topic !== '' || sort !== 'updated'}
+            onPress={() => {
+              haptic('menu');
+              Keyboard.dismiss();
+              setChoosingTopic(true);
+            }}
+          >
+            <HeaderGlyph icon="filter" active={topic !== '' || sort !== 'updated'} />
+          </HeaderIconButton>
+        </View>
+        {theme.fontScale > 1.5 ? (
+          <Text variant="title" strong accessibilityRole="header">
+            {t.marketplace.title}
+          </Text>
+        ) : null}
+        {searching ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+            <View style={{ flex: 1 }}>
+              <TextField
+                autoFocus
+                testID="marketplace-search"
+                accessibilityLabel={t.marketplace.search}
+                placeholder={t.marketplace.search}
+                value={search}
+                onChangeText={setSearch}
+                returnKeyType="search"
+                onSubmitEditing={searchNow}
+                maxLength={100}
+              />
+            </View>
+            <HeaderIconButton
+              label={t.closeSearch}
+              testID="marketplace-search-close"
+              onPress={() => {
+                Keyboard.dismiss();
+                setSearching(false);
+                setSearch('');
+                setQuery('');
+              }}
+            >
+              <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
+            </HeaderIconButton>
+          </View>
+        ) : null}
+      </View>
       <PullToRefresh
         refreshing={state.busy && state.value !== undefined}
         onRefresh={() => void resource.refresh()}
@@ -58,41 +144,11 @@ export function MarketplaceScreen() {
             }}
             ListHeaderComponent={
               <View style={{ gap: space.x4 }}>
-                <TextField
-                  testID="marketplace-search"
-                  accessibilityLabel={t.marketplace.search}
-                  placeholder={t.marketplace.search}
-                  value={search}
-                  onChangeText={setSearch}
-                  returnKeyType="search"
-                  onSubmitEditing={searchNow}
-                  maxLength={100}
-                />
-                <Button
-                  testID="marketplace-search-submit"
-                  label={t.marketplace.search}
-                  onPress={searchNow}
-                />
-                <View testID="marketplace-sort">
-                  <Segmented<MarketplaceSort>
-                    label={t.marketplace.sort}
-                    value={sort}
-                    onChange={setSort}
-                    options={[
-                      { value: 'updated', label: t.marketplace.updated },
-                      { value: 'created', label: t.marketplace.newest },
-                      { value: 'stars', label: t.marketplace.popular },
-                    ]}
-                  />
-                </View>
-                <Button
-                  testID="marketplace-topics"
-                  label={topic || t.marketplace.allTopics}
-                  onPress={() => {
-                    Keyboard.dismiss();
-                    setChoosingTopic(true);
-                  }}
-                />
+                {query || topic ? (
+                  <Text variant="meta" tone="muted">
+                    {[query, topic].filter(Boolean).join(' · ')}
+                  </Text>
+                ) : null}
                 {state.error ? (
                   <View style={{ gap: space.x3 }}>
                     <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
@@ -147,6 +203,8 @@ export function MarketplaceScreen() {
       </PullToRefresh>
       {choosingTopic ? (
         <MarketplaceTopics
+          sort={sort}
+          onSort={setSort}
           value={topic}
           onChange={(value) => {
             setTopic(value);

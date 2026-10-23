@@ -13,6 +13,7 @@ import {
   PersonIcon,
   ShareIcon,
 } from './icons';
+import { FileIcon, GitCommitIcon, BrowserIcon } from './icons';
 import { t } from '../strings';
 import { creationLabel, useCreationMenu, type CreationPanelProps } from './creation-menu';
 
@@ -112,10 +113,21 @@ export function CreationPanel({
             ) : (
               actions.map((action) => {
                 const Icon =
-                  action === 'channel' ? ChatsIcon : action === 'bot' ? PersonIcon : ShareIcon;
+                  action === 'channel'
+                    ? ChatsIcon
+                    : action === 'bot'
+                      ? PersonIcon
+                      : action === 'zip'
+                        ? FileIcon
+                        : action === 'git'
+                          ? GitCommitIcon
+                          : action === 'marketplace'
+                            ? BrowserIcon
+                            : ShareIcon;
                 return (
                   <FabMenuItem
                     key={action}
+                    testID={`creation-${action}`}
                     label={creationLabel(action)}
                     disabled={busy}
                     icon={<Icon color={ink} size={icon} />}
@@ -151,11 +163,13 @@ export function CreationPanel({
 
 function FabMenuItem({
   label,
+  testID,
   icon,
   disabled,
   onPress,
 }: {
   label: string;
+  testID?: string;
   icon: ReactNode;
   disabled: boolean;
   onPress(): void;
@@ -163,6 +177,7 @@ function FabMenuItem({
   const theme = useDesignTheme();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}

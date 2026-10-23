@@ -3,12 +3,14 @@ import { useCallback, useRef, useState } from 'react';
 import { AppState, View, type ViewInstance } from 'react-native';
 import { useHostSession } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
+import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
 import type { BotCreationDraft } from '../../host/bot-creation';
 import { botCreationTargets } from '../../host/bot-creation-targets';
 import { createCreationVisibility } from '../../host/bot-creation-visibility';
 import { hostLooks } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
 import { space } from '../design/tokens';
+import { useSheetContent } from '../primitives/sheet-content';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
@@ -19,7 +21,16 @@ import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
 
-export function CreateBotScreen() {
+export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
+  const { ready, mount } = useSheetContent();
+  return (
+    <View ref={mount} style={{ flex: 1 }}>
+      {ready ? <CreationForm {...props} /> : null}
+    </View>
+  );
+}
+
+function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEntrySource } = {}) {
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
   const { hosts } = useHostSession();
   const state = useBotCreation();
@@ -45,7 +56,9 @@ export function CreateBotScreen() {
     void botCreation.ready.then(async () => {
       if (!live) return;
       const stillHere = visibility.lease();
-      await botCreation.enter(
+      const entered = await enterBotCreation(
+        botCreation,
+        initialSource,
         entry === 'all'
           ? { kind: 'all' }
           : entry === 'host' && hostId
@@ -53,6 +66,10 @@ export function CreateBotScreen() {
             : { kind: 'resume' },
       );
       if (!live) return;
+      if (entered === 'cancelled') {
+        router.back();
+        return;
+      }
       ready.current = true;
       setEntryReady(true);
       const current = botCreation.getSnapshot();
@@ -69,7 +86,7 @@ export function CreateBotScreen() {
       subscription.remove();
       visibility.blur();
     };
-  }, [entry, hostId, visibility]);
+  }, [entry, hostId, visibility, initialSource]);
   useFocusEffect(
     useCallback(() => {
       visibility.focus();
@@ -91,6 +108,8 @@ export function CreateBotScreen() {
   const source =
     draft?.source ??
     (state.record.kind === 'submitted' ? state.record.operation.source : undefined);
+  const flow = entryReady ? (source?.kind ?? (submitted ? 'blank' : initialSource)) : initialSource;
+  const importing = flow !== 'blank';
   const targetId =
     state.record.kind === 'submitted' ? state.record.operation.hostId : state.record.draft.hostId;
   const target = hosts.find((host) => host.hostId === targetId);
@@ -104,7 +123,18 @@ export function CreateBotScreen() {
   };
   return (
     <View ref={mounted} style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: source ? copy.importTitle : copy.title }} />
+      <Stack.Screen
+        options={{
+          title:
+            flow === 'zip'
+              ? copy.fromZip
+              : flow === 'git'
+                ? gitSource?.origin === 'marketplace'
+                  ? copy.importTitle
+                  : copy.fromGit
+                : copy.title,
+        }}
+      />
       <KeyboardFormScroll
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
@@ -120,31 +150,14 @@ export function CreateBotScreen() {
           <Text>{copy.working}</Text>
         ) : draft ? (
           <>
-            <Button
-              label={source ? copy.blank : copy.fromGit}
-              testID="create-bot-source"
-              disabled={state.busy}
-              onPress={() =>
-                void (source ? botCreation.blank() : botCreation.beginImport({ gitUrl: '' }))
-              }
-            />
-            <Button
-              label={t.marketplace.browse}
-              testID="create-bot-marketplace"
-              disabled={state.busy}
-              onPress={() =>
-                router.push({
-                  pathname: '/marketplace',
-                  params: draft.hostId ? { entry: 'host', hostId: draft.hostId } : { entry: 'all' },
-                })
-              }
-            />
-            <Button
-              label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.fromZip}
-              testID="import-bot-zip-pick"
-              disabled={state.busy}
-              onPress={() => void botCreation.beginZip()}
-            />
+            {initialSource === 'zip' || draft.source?.kind === 'zip' ? (
+              <Button
+                label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.fromZip}
+                testID="import-bot-zip-pick"
+                disabled={state.busy}
+                onPress={() => void botCreation.beginZip()}
+              />
+            ) : null}
             {draft.source?.kind === 'zip' ? (
               <>
                 <Text strong>{copy.zipFile}</Text>
@@ -214,7 +227,7 @@ export function CreateBotScreen() {
               editable={!state.busy}
               maxLength={120}
             />
-            {!draft.source ? (
+            {!draft.source && initialSource === 'blank' ? (
               <>
                 <Text strong>{copy.persona}</Text>
                 <TextField
@@ -276,7 +289,7 @@ export function CreateBotScreen() {
               </>
             ) : null}
             <Button
-              label={draft.source ? copy.import : copy.create}
+              label={importing ? copy.import : copy.create}
               testID="create-bot-submit"
               tone="primary"
               busy={state.busy}
@@ -284,7 +297,7 @@ export function CreateBotScreen() {
                 !draft.displayName.trim() ||
                 !target ||
                 state.error === 'storage-invalid' ||
-                (!!draft.source && !draft.source.preview)
+                (importing && !draft.source?.preview)
               }
               onPress={submit}
             />

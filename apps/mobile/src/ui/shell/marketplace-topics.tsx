@@ -10,15 +10,21 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { MarketplaceTopicSheet } from '../primitives/marketplace-topic-sheet';
 import { RadioMark } from '../primitives/radio-mark';
 import { Text } from '../primitives/text';
+import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
+import { Segmented } from '../primitives/segmented';
 import { t } from '../strings';
 import { CheckIcon } from './icons';
 
 export function MarketplaceTopics({
   value,
+  sort,
+  onSort,
   onChange,
   onClose,
 }: {
   value: string;
+  sort?: MarketplaceSort;
+  onSort?(sort: MarketplaceSort): void;
   onChange(value: string): void;
   onClose(): void;
 }) {
@@ -35,7 +41,10 @@ export function MarketplaceTopics({
         ref={mounted}
         style={{ flex: 1, backgroundColor: theme.layer.sheet.fill, paddingBottom: insets.bottom }}
       >
-        <DrawerHeader title={t.marketplace.topics} onClose={onClose} />
+        <DrawerHeader
+          title={onSort ? t.marketplace.filters : t.marketplace.topics}
+          onClose={onClose}
+        />
         <FlatList
           testID="marketplace-topic-list"
           contentInsetAdjustmentBehavior="automatic"
@@ -43,20 +52,38 @@ export function MarketplaceTopics({
           keyExtractor={(item) => item.topic}
           contentContainerStyle={{ padding: space.x5, gap: space.x2 }}
           ListHeaderComponent={
-            state.busy ? (
-              <LoadingIndicator accessibilityLabel={t.marketplace.loading} />
-            ) : state.error ? (
-              <View>
-                <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
-                <Button
-                  testID="marketplace-topics-retry"
-                  label={t.marketplace.retry}
-                  onPress={() => void resource.refresh()}
-                />
-              </View>
-            ) : (
-              <></>
-            )
+            <View style={{ gap: space.x5 }}>
+              {onSort && sort ? (
+                <View testID="marketplace-sort" style={{ gap: space.x3 }}>
+                  <Text strong>{t.marketplace.sort}</Text>
+                  <Segmented<MarketplaceSort>
+                    label={t.marketplace.sort}
+                    value={sort}
+                    onChange={onSort}
+                    options={[
+                      { value: 'updated', label: t.marketplace.updated },
+                      { value: 'created', label: t.marketplace.newest },
+                      { value: 'stars', label: t.marketplace.popular },
+                    ]}
+                  />
+                </View>
+              ) : null}
+              <Text strong>{t.marketplace.topics}</Text>
+              {state.busy ? (
+                <LoadingIndicator accessibilityLabel={t.marketplace.loading} />
+              ) : state.error ? (
+                <View>
+                  <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
+                  <Button
+                    testID="marketplace-topics-retry"
+                    label={t.marketplace.retry}
+                    onPress={() => void resource.refresh()}
+                  />
+                </View>
+              ) : (
+                <></>
+              )}
+            </View>
           }
           renderItem={({ item }) => (
             <Pressable
