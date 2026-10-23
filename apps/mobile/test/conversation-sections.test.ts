@@ -38,6 +38,25 @@ describe('Host-owned conversation sections', () => {
     expect(flow.getSnapshot()).toMatchObject({ complete: true, busy: false });
   });
 
+  it('retains an unsectioned target across failure and retries null without creating a section', async () => {
+    const { flow, request } = setup();
+    request.mockRejectedValueOnce(Error('offline'));
+    await flow.choose({ id: null, name: 'Unsectioned' });
+    expect(flow.getSnapshot()).toMatchObject({ error: 'assign', selected: { id: null } });
+    await flow.retry();
+    expect(request.mock.calls).toEqual([
+      ['channelAssign', { channelId: 'dm-ada', sectionId: null }],
+      ['channelAssign', { channelId: 'dm-ada', sectionId: null }],
+    ]);
+    expect(flow.getSnapshot()).toMatchObject({ busy: false, complete: true, error: undefined });
+  });
+  it('refuses unsectioned writes after a Host change', async () => {
+    const { flow, changeHost, calls } = setup();
+    changeHost();
+    await flow.choose({ id: null, name: 'Unsectioned' });
+    expect(calls).toEqual([]);
+    expect(flow.getSnapshot().error).toBe('changed');
+  });
   it('trims a new name, creates on the Host, then assigns the returned ID', async () => {
     const { flow, calls } = setup();
     await flow.create('  Work  ');
