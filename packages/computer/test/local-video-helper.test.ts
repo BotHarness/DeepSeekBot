@@ -119,6 +119,46 @@ function open(
 }
 
 describe('supervised Local Computer media', () => {
+  it('opens after the pinned Windows runtime emits its single bootstrap CRLF', async () => {
+    helper.ready = () => {
+      helper.event({ event: 'tree-owned', version: 1, rootPid: 54322 });
+      helper.event({ event: 'helper-message', json: '\r' });
+      helper.message({ event: 'ready', version: 1 });
+    };
+    const peer = await open();
+    expect(peer.display).toEqual({ width: 1920, height: 1080 });
+    await peer.answer({ type: 'answer', sdp: 'answer' });
+    await peer.close();
+  });
+
+  it.each(['', ' ', '\t', '{broken', '\r\r'])(
+    'still rejects non-bootstrap output %j',
+    async (json) => {
+      helper.ready = () => {
+        helper.event({ event: 'tree-owned', version: 1, rootPid: 54322 });
+        helper.event({ event: 'helper-message', json });
+      };
+      await expect(open()).rejects.toMatchObject({ code: 'disposed' });
+    },
+  );
+
+  it('rejects a second bootstrap line before ready', async () => {
+    helper.ready = () => {
+      helper.event({ event: 'tree-owned', version: 1, rootPid: 54322 });
+      helper.event({ event: 'helper-message', json: '\r' });
+      helper.event({ event: 'helper-message', json: '\r' });
+    };
+    await expect(open()).rejects.toMatchObject({ code: 'disposed' });
+  });
+
+  it('rejects a CR line after ready instead of masking malformed traffic', async () => {
+    const statuses: LocalVideoMediaStatus[] = [];
+    const peer = await open(media(), new AbortController(), statuses);
+    helper.event({ event: 'helper-message', json: '\r' });
+    expect(statuses.some((status) => status.status === 'failed')).toBe(true);
+    await peer.close();
+  });
+
   it('loads only a verified helper and closes the actual process before resolving close', async () => {
     const provider = media();
     const peer = await open(provider);
