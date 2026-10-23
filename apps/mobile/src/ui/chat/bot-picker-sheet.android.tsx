@@ -127,9 +127,9 @@ export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerShe
                         }),
                       ]}
                     >
-                      <RNHostView matchContents>
-                        <View>{props.renderLeading?.(item)}</View>
-                      </RNHostView>
+                      {props.renderLeading ? (
+                        <RNHostView matchContents>{props.renderLeading(item)}</RNHostView>
+                      ) : null}
                       <Text modifiers={[weight(1), padding(space.x3, 0, space.x3, 0)]}>
                         {item.displayName}
                       </Text>
