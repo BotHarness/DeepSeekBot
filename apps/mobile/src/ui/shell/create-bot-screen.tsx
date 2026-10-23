@@ -10,6 +10,7 @@ import { createCreationVisibility } from '../../host/bot-creation-visibility';
 import { hostLooks } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
 import { space } from '../design/tokens';
+import { useSheetContent } from '../primitives/sheet-content';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
@@ -20,9 +21,16 @@ import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
 
-export function CreateBotScreen({
-  initialSource = 'blank',
-}: { initialSource?: CreationEntrySource } = {}) {
+export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
+  const { ready, mount } = useSheetContent();
+  return (
+    <View ref={mount} style={{ flex: 1 }}>
+      {ready ? <CreationForm {...props} /> : null}
+    </View>
+  );
+}
+
+function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEntrySource } = {}) {
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
   const { hosts } = useHostSession();
   const state = useBotCreation();

@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createBotCreationController, type BotCreationOperation } from '../src/host/bot-creation';
 
 const fixture = vi.hoisted(() => ({
+  routeReady: true,
   open: vi.fn(),
   create: vi.fn(),
   hosts: [
@@ -34,6 +35,9 @@ const controller = createBotCreationController({
     },
   },
 });
+vi.mock('../src/ui/primitives/sheet-content', () => ({
+  useSheetContent: () => ({ ready: fixture.routeReady, mount: undefined }),
+}));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
@@ -80,6 +84,7 @@ let element: HTMLElement;
 afterEach(() => {
   act(() => root?.unmount());
   element?.remove();
+  fixture.routeReady = true;
 });
 
 it('shows source, editable confirmation data and target together, then requires preview before import', async () => {
@@ -107,4 +112,19 @@ it('shows source, editable confirmation data and target together, then requires 
   );
   expect(button(t.botCreation.open)).toBeDefined();
   expect(button(t.botCreation.importAnother)).toBeDefined();
+});
+
+it('does not enter the creation flow before the native route is presented', async () => {
+  fixture.routeReady = false;
+  const enter = vi.spyOn(controller, 'enter');
+  element = document.createElement('div');
+  document.body.append(element);
+  root = createRoot(element);
+  await act(async () => root.render(<CreateBotScreen initialSource="zip" />));
+  expect(element.textContent).toBe('');
+  expect(enter).not.toHaveBeenCalled();
+  fixture.routeReady = true;
+  await act(async () => root.render(<CreateBotScreen initialSource="zip" />));
+  expect(element.textContent).not.toBe('');
+  enter.mockRestore();
 });
