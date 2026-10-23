@@ -6,6 +6,7 @@ import {
 } from '../../../core/src/system/system-packages.js';
 import type { CuaDriver } from '../tool/driver.js';
 import { LocalDesktopMissingError } from '../tool/local-display.js';
+import { ensureMacVideoHelper } from '../media/install-macos.js';
 import { ensureLocalVideoHelper } from '../media/install.js';
 import {
   LOCAL_DRIVER_QUIET_ENV,
@@ -103,6 +104,17 @@ export function createLocalComputerProvider(options: {
           await options.driver.ensure(signal, (progress) => {
             if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
           });
+          if (platform === 'darwin') {
+            await ensureMacVideoHelper({
+              runner: options.runner,
+              signal,
+              arch,
+              onEvent: options.onEvent,
+              onProgress: (progress) => {
+                if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+              },
+            });
+          }
           if (platform === 'win32' && arch === 'x64') {
             await ensureLocalVideoHelper({
               runner: options.runner,

@@ -1,4 +1,12 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, screen, session } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  desktopCapturer,
+  ipcMain,
+  screen,
+  session,
+  systemPreferences,
+} = require('electron');
 const { join } = require('node:path');
 const { createReadStream } = require('node:fs');
 const commands = createReadStream(null, { fd: 0, autoClose: false });
@@ -62,7 +70,15 @@ app.commandLine.appendSwitch('disable-component-update');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.whenReady().then(async () => {
-  if (process.platform !== 'win32' || process.versions.electron !== '44.9.3') return stop();
+  if (!['win32', 'darwin'].includes(process.platform) || process.versions.electron !== '44.9.3')
+    return stop();
+  if (
+    process.platform === 'darwin' &&
+    systemPreferences.getMediaAccessStatus('screen') !== 'granted'
+  ) {
+    write({ event: 'failed', code: 'screen-recording-required' });
+    return stop();
+  }
   primary = screen.getPrimaryDisplay();
   primaryGeometry = geometry(primary);
   if (primary.bounds.x !== 0 || primary.bounds.y !== 0) return stop();

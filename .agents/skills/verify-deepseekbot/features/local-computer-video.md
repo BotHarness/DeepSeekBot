@@ -88,3 +88,14 @@ Windows display. Start from the declared native build; these are pending verific
 ### Click acknowledgement feedback
 
 On the same physical Android build, check preview tap and Left button (blue), preview long press and Right button (orange). Each ring belongs to the acknowledged click coordinate and stays there when the cursor moves; zoom/pan still maps it to that desktop location. Rapid repeats restart feedback. Wheel dragging, an invalid click, observation-only mode, lost control and a disconnected/uncertain request must not show a success ring. Enable Reduce Motion and confirm a brief static ring remains visible without expansion. Hand back/reconnect must not replay a previous click. Capture redacted key frames or a short recording; source tests do not qualify the animation timing.
+## iOS → macOS slice (#2653)
+
+Use the assigned Mac/iOS lane and record the source SHA, installed binary/embedded JS hashes, native fingerprint and Mac helper hashes. Rebuild iOS with LocalComputerVideo and LanChannel. Preserve existing device data and pairing. Start the same QA Local Computer explicitly; check Screen Recording and Accessibility. Pair or choose its approved encrypted LAN route on the same Wi-Fi. Do not treat a Tailscale HTTPS connection as this carrier.
+
+1. Open the Computer screen from the QA Bot. Confirm moving fixture IDs actually render and a static desktop remains healthy. Record decoded, rendered and drawable-presented counters separately. Watching leaves Bots unpaused and rejects input without a grant.
+2. Take control. Read back durable pause/grant, move the phone pointer and click synthetic fixture counters at several positions. Verify Retina point conversion and no off-target input. Repeated taps must not duplicate acknowledged commands.
+3. Hand back once. Confirm control is absent, Bots resumed and subsequent input refused while watching continues. A disconnected/stalled viewer must not accept input; handback remains available when connected.
+4. Background/lock, re-enter, reconnect and exit. Confirm the old native peer and Mac process group close; new observation never restores control or resumes a paused Bot. Revoke only a disposable test pairing and verify the established peer closes.
+5. Record actual screenshot evidence and source/CLI/native/Human results separately. Use the same motion and latency measurement limits above; compilation is not video proof. Unrun cases remain unverified.
+
+Mac capture startup regression is opt-in with `BOTHARNESS_VIDEO_NATIVE_TEST=1 pnpm exec vitest run packages/computer/test/local-video-helper-macos.test.ts`. It validates real capture offers and owned process-group drainage, but not iPhone rendering or interaction.

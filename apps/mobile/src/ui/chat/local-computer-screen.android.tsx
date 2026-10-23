@@ -257,8 +257,7 @@ function ComputerScreen({
         {mediaMounted && Video !== undefined ? (
           <ComputerVideoStage
             key={binding.attemptId}
-            attemptId={binding.attemptId}
-            clickFeedback={clickFeedback}
+            clickFeedback={{ attemptId: binding.attemptId, events: clickFeedback }}
             frame={frame}
             driving={driving}
             controlling={controlling}

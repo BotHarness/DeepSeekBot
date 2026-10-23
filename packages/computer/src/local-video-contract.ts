@@ -118,6 +118,7 @@ export type LocalVideoRefusal =
   | 'queue-full'
   | 'request-too-large'
   | 'operation-timeout'
+  | 'screen-recording-required'
   | 'helper-missing'
   | 'helper-start-failed'
   | 'helper-failed'

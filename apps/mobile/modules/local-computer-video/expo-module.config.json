@@ -1,6 +1,10 @@
 {
-  "platforms": ["android"],
+  "platforms": ["android", "apple"],
   "android": {
     "modules": ["expo.modules.localcomputervideo.LocalComputerVideoModule"]
+  },
+  "apple": {
+    "modules": ["LocalComputerVideoModule"],
+    "podspecPath": "ios/LocalComputerVideo.podspec"
   }
 }

@@ -27,7 +27,6 @@ type Point = { x: number; y: number };
 const TAP_SLOP = 10;
 
 export function ComputerVideoStage({
-  attemptId,
   clickFeedback,
   frame,
   driving,
@@ -38,8 +37,10 @@ export function ComputerVideoStage({
   onClick,
   children,
 }: {
-  attemptId: string;
-  clickFeedback: SharedValue<ComputerClickFeedback | undefined>;
+  clickFeedback?: {
+    attemptId: string;
+    events: SharedValue<ComputerClickFeedback | undefined>;
+  };
   frame: Size;
   driving: boolean;
   controlling: boolean;
@@ -223,10 +224,10 @@ export function ComputerVideoStage({
         >
           {children(fit)}
         </Animated.View>
-        {controlling ? (
+        {controlling && clickFeedback !== undefined ? (
           <ComputerClickRipple
-            feedback={clickFeedback}
-            attemptId={attemptId}
+            feedback={clickFeedback.events}
+            attemptId={clickFeedback.attemptId}
             enabled={driving}
             frame={frame}
             stage={stage}
