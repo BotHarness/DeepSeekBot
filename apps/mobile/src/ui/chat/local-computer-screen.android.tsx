@@ -82,7 +82,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
 
   if (state.status === 'unsupported') return <Legacy />;
   const host = state.host;
-  const actions = localVideoActions(state, snapshot.connection);
+  const actions = localVideoActions({ state, connection: snapshot.connection });
   const binding = host?.binding;
   const mediaMounted =
     !revoked &&

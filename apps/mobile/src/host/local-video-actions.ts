@@ -4,10 +4,13 @@ import type {
 } from '../../../../packages/computer/src/local-video-client';
 import type { ConnectionState } from './client';
 
-export function localVideoActions(
-  state: LocalVideoClientState,
-  connection: ConnectionState,
-): {
+export function localVideoActions({
+  state,
+  connection,
+}: {
+  state: LocalVideoClientState;
+  connection: ConnectionState;
+}): {
   handBack: boolean;
   recovery: 'host' | 'video' | 'pair' | undefined;
 } {

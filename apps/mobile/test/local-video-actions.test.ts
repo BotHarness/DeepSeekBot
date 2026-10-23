@@ -32,19 +32,29 @@ it('keeps one hand-back action and Reconnect available when a stall removes inpu
       media: { status: 'stalled', captureAlive: true, width: 1280, height: 720 },
     },
   };
-  expect(localVideoActions(state, connected)).toEqual({ handBack: true, recovery: 'video' });
-  const { grant: _grant, ...released } = state.host!;
-  expect(localVideoActions({ ...state, host: released }, connected)).toEqual({
+  expect(localVideoActions({ state, connection: connected })).toEqual({
     handBack: true,
     recovery: 'video',
   });
+  const { grant: _grant, ...released } = state.host!;
+  expect(localVideoActions({ state: { ...state, host: released }, connection: connected })).toEqual(
+    {
+      handBack: true,
+      recovery: 'video',
+    },
+  );
   expect(
-    localVideoActions(
-      { ...state, host: { ...released, paused: false, controlHeld: false } },
-      connected,
-    ),
+    localVideoActions({
+      state: { ...state, host: { ...released, paused: false, controlHeld: false } },
+      connection: connected,
+    }),
   ).toEqual({ handBack: false, recovery: 'video' });
-  expect(localVideoActions({ ...state, host: undefined, status: 'opening' }, connected)).toEqual({
+  expect(
+    localVideoActions({
+      state: { ...state, host: undefined, status: 'opening' },
+      connection: connected,
+    }),
+  ).toEqual({
     handBack: false,
     recovery: undefined,
   });
@@ -77,7 +87,7 @@ it.each([
       busy: false,
       code: undefined,
     };
-    expect(localVideoActions(state, connection)).toEqual({ handBack: false, recovery });
+    expect(localVideoActions({ state, connection })).toEqual({ handBack: false, recovery });
   },
 );
 
