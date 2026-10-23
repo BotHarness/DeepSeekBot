@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 
 import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
@@ -16,7 +16,8 @@ export default function BotProfileScreen() {
   const router = useRouter();
   const theme = useDesignTheme();
   const { client, saved } = useHostSession();
-  const roster = useHostSnapshot(client).roster;
+  const snapshot = useHostSnapshot(client);
+  const roster = snapshot.roster;
   const bot = roster?.bots.find((entry) => entry.slug === slug);
   const channels = useMemo(() => botChannels(roster, slug ?? ''), [roster, slug]);
   const profile = useMemo(
@@ -63,7 +64,9 @@ export default function BotProfileScreen() {
                 }),
             }
           : {}),
-        ...(Platform.OS === 'ios' || bot.computerAccess
+        ...(snapshot.computerAvailable === true &&
+        snapshot.connection.status !== 'refused' &&
+        snapshot.connection.status !== 'stopped'
           ? {
               onComputer: () =>
                 router.push({
