@@ -3151,7 +3151,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       )
         return invalidInput('Stable Git lookup needs its complete original input');
       const imports =
-        deps.imports ?? (deps.creations ? createBotImports(deps.creations) : undefined);
+        deps.imports ??
+        (deps.creations
+          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+          : undefined);
       if (!imports)
         return {
           ok: false,
@@ -3179,7 +3182,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const gitUrl = asObject(payload)['gitUrl'];
       if (typeof gitUrl !== 'string') return invalidInput('gitUrl is required');
       const imports =
-        deps.imports ?? (deps.creations ? createBotImports(deps.creations) : undefined);
+        deps.imports ??
+        (deps.creations
+          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+          : undefined);
       if (!imports) return unavailable();
       try {
         return { ok: true, value: await imports.previewGit(gitUrl) };
@@ -3208,7 +3214,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!roles.ok || !description.ok) return invalidInput('invalid create payload');
       if (source['operationKey'] !== undefined) {
         const imports =
-          deps.imports ?? (deps.creations ? createBotImports(deps.creations) : undefined);
+          deps.imports ??
+          (deps.creations
+            ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+            : undefined);
         if (
           !imports ||
           typeof source['operationKey'] !== 'string' ||

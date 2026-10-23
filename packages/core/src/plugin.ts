@@ -840,6 +840,7 @@ export function createCore(
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
+    ...(options.warn === undefined ? {} : { log: options.warn }),
   });
   const zipImports = createBotZipImport({
     uploads: createBotZipUploads({ rootDir: join(dshHome, 'botharness', 'zip-uploads') }),

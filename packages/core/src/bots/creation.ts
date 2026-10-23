@@ -103,6 +103,7 @@ export function createBotCreation(options: {
   database: OperationalDatabaseModulePort;
   registry: PersonaBotRegistry;
   channels: ChannelStore;
+  log?: (message: string) => void;
 }): BotCreationService {
   const { database, registry, channels } = options;
   const read = (key: string) =>
@@ -238,7 +239,52 @@ export function createBotCreation(options: {
   };
   return {
     lookupImport,
-    importBot,
+    async importBot(input, operationKey, authorize) {
+      const startedAt = performance.now();
+      const log = (phase: 'started' | 'complete' | 'refused', reason?: string) => {
+        try {
+          options.log?.(
+            'bot-import initiator=import-request phase=' +
+              phase +
+              ' source=' +
+              input.source.kind +
+              ' durationMs=' +
+              (phase === 'started' ? 0 : Math.round(performance.now() - startedAt)) +
+              (reason === undefined ? '' : ' reason=' + reason),
+          );
+        } catch {}
+      };
+      log('started');
+      try {
+        const result = await importBot(input, operationKey, authorize);
+        log('complete');
+        return result;
+      } catch (error) {
+        const reason =
+          error instanceof BotCreationError &&
+          [
+            'invalid-operation-key',
+            'creation-key-conflict',
+            'creation-memory-conflict',
+            'creation-identity-unavailable',
+            'creation-dm-unavailable',
+            'git-source-changed',
+            'git-not-found',
+            'invalid-git-url',
+            'git-clone-failed',
+            'git-clone-timeout',
+            'invalid-zip',
+            'memory-unavailable',
+            'duplicate',
+            'invalid-slug',
+            'invalid-input',
+          ].includes(error.code)
+            ? error.code
+            : 'import-failed';
+        log('refused', reason);
+        throw error;
+      }
+    },
     lookup(operationKey, input) {
       checkedKey(operationKey);
       const row = read(operationKey);
