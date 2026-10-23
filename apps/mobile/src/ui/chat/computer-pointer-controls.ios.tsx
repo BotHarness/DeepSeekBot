@@ -48,7 +48,6 @@ export function ComputerPointerControls({
             buttonStyle(glass ? 'glass' : 'bordered'),
             buttonBorderShape('roundedRectangle'),
             controlSize('regular'),
-            // Only this icon-only label has fixed native metrics; no visible text is capped.
             dynamicTypeSize('large'),
             tint(theme.color.fg),
             disabled(!enabled),
