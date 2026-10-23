@@ -54,12 +54,12 @@ Bot详情 -> 现有创建控制器: 导入
 
 基线：5f093cf0b5023cf5ccfdd7a8849b86763dd36805。
 
-PR head：ac4ab24a6b8a4c28a748e7d36fda504eeefed135。
+PR head：09e62f500bf73f17fcaeeb7c7e5802680994a1bb。
 
 实际原生应用源码：f6f3fa09f；后续提交仅增加、裁剪证据图片。
 
 [PR 与前后截图](https://github.com/BotHarness/DeepSeekBot/pull/2645)
 
-[入口状态逻辑](https://github.com/BotHarness/DeepSeekBot/blob/ac4ab24a6b8a4c28a748e7d36fda504eeefed135/apps/mobile/src/host/bot-creation-entry.ts)
+[入口状态逻辑](https://github.com/BotHarness/DeepSeekBot/blob/09e62f500bf73f17fcaeeb7c7e5802680994a1bb/apps/mobile/src/host/bot-creation-entry.ts)
 
-[原生界面与验收范围](https://github.com/BotHarness/DeepSeekBot/blob/ac4ab24a6b8a4c28a748e7d36fda504eeefed135/.github/pr-screenshots/qa72/README.md)
+[原生界面与验收范围](https://github.com/BotHarness/DeepSeekBot/blob/09e62f500bf73f17fcaeeb7c7e5802680994a1bb/.github/pr-screenshots/qa72/README.md)
