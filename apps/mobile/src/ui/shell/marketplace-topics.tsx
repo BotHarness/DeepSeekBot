@@ -10,21 +10,15 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { MarketplaceTopicSheet } from '../primitives/marketplace-topic-sheet';
 import { RadioMark } from '../primitives/radio-mark';
 import { Text } from '../primitives/text';
-import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
-import { Segmented } from '../primitives/segmented';
 import { t } from '../strings';
 import { CheckIcon } from './icons';
 
 export function MarketplaceTopics({
   value,
-  sort,
-  onSort,
   onChange,
   onClose,
 }: {
   value: string;
-  sort?: MarketplaceSort;
-  onSort?(sort: MarketplaceSort): void;
   onChange(value: string): void;
   onClose(): void;
 }) {
@@ -39,12 +33,17 @@ export function MarketplaceTopics({
     <MarketplaceTopicSheet onClose={onClose}>
       <View
         ref={mounted}
-        style={{ flex: 1, backgroundColor: theme.layer.sheet.fill, paddingBottom: insets.bottom }}
+        style={{ flex: 1, backgroundColor: theme.overlay.fill, paddingBottom: insets.bottom }}
       >
-        <DrawerHeader
-          title={onSort ? t.marketplace.filters : t.marketplace.topics}
-          onClose={onClose}
-        />
+        <View
+          style={{ paddingHorizontal: space.x5, paddingTop: space.x5, paddingBottom: space.x3 }}
+        >
+          <DrawerHeader
+            title={t.marketplace.topics}
+            onClose={onClose}
+            glassClose={Platform.OS === 'ios'}
+          />
+        </View>
         <FlatList
           testID="marketplace-topic-list"
           contentInsetAdjustmentBehavior="automatic"
@@ -53,22 +52,6 @@ export function MarketplaceTopics({
           contentContainerStyle={{ padding: space.x5, gap: space.x2 }}
           ListHeaderComponent={
             <View style={{ gap: space.x5 }}>
-              {onSort && sort ? (
-                <View testID="marketplace-sort" style={{ gap: space.x3 }}>
-                  <Text strong>{t.marketplace.sort}</Text>
-                  <Segmented<MarketplaceSort>
-                    label={t.marketplace.sort}
-                    value={sort}
-                    onChange={onSort}
-                    options={[
-                      { value: 'updated', label: t.marketplace.updated },
-                      { value: 'created', label: t.marketplace.newest },
-                      { value: 'stars', label: t.marketplace.popular },
-                    ]}
-                  />
-                </View>
-              ) : null}
-              <Text strong>{t.marketplace.topics}</Text>
               {state.busy ? (
                 <LoadingIndicator accessibilityLabel={t.marketplace.loading} />
               ) : state.error ? (

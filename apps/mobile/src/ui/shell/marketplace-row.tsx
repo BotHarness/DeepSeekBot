@@ -30,11 +30,6 @@ export function MarketplaceRow({ bot, onPress }: { bot: MarketplaceEntry; onPres
         </Text>
         <Text tone="muted">{bot.fullName}</Text>
         {bot.description ? <Text numberOfLines={3}>{bot.description}</Text> : null}
-        {bot.descriptionGenerated ? (
-          <Text variant="meta" tone="muted">
-            {t.marketplace.generated}
-          </Text>
-        ) : null}
         {bot.roles.length > 0 ? (
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
             {bot.roles.map((role) => (

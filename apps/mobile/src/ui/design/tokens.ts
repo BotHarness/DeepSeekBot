@@ -196,6 +196,8 @@ export const scrim = {
   dark: 0.6,
 } as const;
 
+export const marketplaceDiscovery = { featuredTopics: 6 } as const;
+
 export const marketplaceArt = {
   aspectRatio: 3,
   cardAvatar: 56,

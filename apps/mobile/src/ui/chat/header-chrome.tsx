@@ -24,6 +24,7 @@ export function useChatHeaderHeight(): number {
 
 export function HeaderCircleButton({
   label,
+  testID,
   onPress,
   children,
   selected = false,
@@ -31,6 +32,7 @@ export function HeaderCircleButton({
   disabled = false,
 }: {
   label: string;
+  testID?: string;
   onPress(): void;
   children: ReactNode;
   selected?: boolean;
@@ -41,6 +43,7 @@ export function HeaderCircleButton({
   const glass = useLiquidGlass();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected, disabled }}

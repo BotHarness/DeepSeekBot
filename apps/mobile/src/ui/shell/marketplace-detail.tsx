@@ -51,11 +51,6 @@ export function MarketplaceDetail({
             {bot.fullName}
           </Text>
           {bot.description ? <Text selectable>{bot.description}</Text> : null}
-          {bot.descriptionGenerated ? (
-            <Text variant="meta" tone="muted">
-              {t.marketplace.generated}
-            </Text>
-          ) : null}
           {bot.roles.length > 0 ? <Text selectable>{bot.roles.join(' · ')}</Text> : null}
           {bot.topics.length > 0 ? (
             <Text tone="muted" selectable>
