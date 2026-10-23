@@ -60,7 +60,9 @@ function NavigationLayout() {
           theme.type.meta.line * fontScale * (fontScale > 1.3 ? 2 : 1) +
           space.x5,
       );
-  const bottom = android ? insets.bottom : Math.max(insets.bottom, space.x4);
+  const bottom = android
+    ? insets.bottom + materialNavigationBar.margin
+    : Math.max(insets.bottom, space.x4);
   const reserved = size + bottom + space.x5;
   const quickActions = useQuickActionRouting();
   return (
@@ -208,16 +210,14 @@ function ScopedNavigationBar({
           style={[
             {
               position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: 0,
-              minHeight: size + bottom,
-              paddingBottom: bottom,
-              paddingLeft: insets.left,
-              paddingRight: insets.right,
+              left: insets.left + materialNavigationBar.margin,
+              right: insets.right + materialNavigationBar.margin,
+              bottom,
+              minHeight: size,
+              borderRadius: radius.round,
+              overflow: 'hidden',
               flexDirection: 'row',
               backgroundColor: theme.layer.raised.fill,
-              elevation: materialNavigationBar.elevation,
             },
             style,
           ]}

@@ -45,10 +45,10 @@ export const navigationBar = {
 } as const;
 export const materialNavigationBar = {
   height: 64,
+  margin: 16,
   indicatorWidth: 56,
   indicatorHeight: 32,
   iconLabelGap: 4,
-  elevation: 3,
 } as const;
 export const materialIconButton = {
   container: 40,

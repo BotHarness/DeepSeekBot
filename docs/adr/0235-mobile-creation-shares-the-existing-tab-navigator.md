@@ -21,3 +21,7 @@ The iOS tab bar is now app-owned presentation. Native glass support does not pro
 ## Amendment: Android Material 3 (2026-10-19)
 
 Android now follows Material 3 instead of sharing the island: the same JS tab navigator renders a docked flexible navigation bar (64dp, pill indicator) and creation moves to a FAB on Chats that opens a FAB menu. Routes, creation targets, preflight and dismissal rules above are unchanged. Expo UI 58 wraps only the baseline 80dp Compose `NavigationBar` and has no FAB menu, so both are React Native views drawn to the m3.material.io token values; revisit when Expo UI exposes `ShortNavigationBar` and `FloatingActionButtonMenu`.
+
+## Amendment: Android floating navigation (2026-10-24)
+
+Following the Human's M3 Expressive floating-toolbar reference, the Android navigation container now floats 16dp above the bottom safe area, inset 16dp from each horizontal safe edge, with full-pill corners and no elevation or shadow. It retains the opaque raised surface, destination labels and indicators, system text scaling, scroll hide/reveal, and the separate Chats creation FAB. This borrows the floating toolbar's container treatment for app-owned navigation; it does not turn destinations into toolbar actions. Lists reserve the detached bar's height and bottom gap, and the FAB and its menu move with that gap. Native Android visual and large-text qualification remains pending in the shared QA lane.
