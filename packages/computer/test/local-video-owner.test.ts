@@ -57,7 +57,9 @@ function harness(
   const cursorState = vi.fn(async (args: Record<string, unknown>) => ({
     structuredContent: { session: args['session'], enabled: false },
   }));
-  const cursorSetup = vi.fn(async (_args: Record<string, unknown>) => ({ content: [] }));
+  const cursorSetup = vi.fn<(args: Record<string, unknown>) => Promise<unknown>>(async () => ({
+    content: [],
+  }));
   const geometry = { width: 1920, height: 1080, scale_factor: 1.5 };
   const probe = vi.fn(async () => ({ structuredContent: { ...geometry } }));
   const peer = {
@@ -94,7 +96,7 @@ function harness(
     },
     media,
     isRunning: () => true,
-    inputCoordinates: options.points ? 'points' : 'pixels',
+    driverPlatform: options.points ? 'darwin' : 'win32',
     now: () => time,
     onEvent: (detail) => events.push(detail),
     operationTimeoutMs: options.timeout ?? 1_000,
@@ -160,7 +162,7 @@ function harness(
 }
 
 describe('Local Computer owner authority', () => {
-  it('maps Retina video pixels to Mac logical points once, preserving explicit takeover', async () => {
+  it('preserves Retina video pixels for the Mac driver after validating logical geometry', async () => {
     const h = harness({ points: true });
     h.geometry.width = 960;
     h.geometry.height = 540;
@@ -172,7 +174,7 @@ describe('Local Computer owner authority', () => {
     await h.input(binding, grant!.generation, 1);
     expect(h.driver.call).toHaveBeenCalledWith(
       'click',
-      expect.objectContaining({ x: 10, y: 15, scope: 'desktop' }),
+      expect.objectContaining({ x: 20, y: 30, scope: 'desktop' }),
       undefined,
     );
     await h.owner.handle(caller, {
@@ -229,6 +231,45 @@ describe('Local Computer owner authority', () => {
     await h.input(binding, grant!.generation, 2);
     expect(h.cursorSetup).toHaveBeenCalledTimes(1);
     expect(h.driver.call).toHaveBeenCalledTimes(2);
+  });
+
+  it('allows Mac desktop input when the embedded driver explicitly has no cursor overlay', async () => {
+    const h = harness({ points: true });
+    h.geometry.scale_factor = 1;
+    h.cursorSetup.mockResolvedValue({
+      isError: true,
+      structuredContent: {
+        refusal: { code: 'facility_unavailable', facility: 'macos_cursor_overlay' },
+      },
+    });
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    await h.input(binding, grant!.generation, 1);
+    await h.input(binding, grant!.generation, 2);
+    expect(h.cursorSetup).toHaveBeenCalledTimes(1);
+    expect(h.cursorState).not.toHaveBeenCalled();
+    expect(h.driver.call).toHaveBeenCalledTimes(2);
+    expect(h.owner.isPaused()).toBe(true);
+  });
+
+  it.each([
+    { points: false, code: 'facility_unavailable', facility: 'macos_cursor_overlay' },
+    { points: true, code: 'permission_denied', facility: 'macos_cursor_overlay' },
+    { points: true, code: 'facility_unavailable', facility: 'desktop_input' },
+  ])('refuses other pointer setup failures: %j', async ({ points, code, facility }) => {
+    const h = harness({ points });
+    h.geometry.scale_factor = 1;
+    h.cursorSetup.mockResolvedValue({
+      isError: true,
+      structuredContent: { refusal: { code, facility } },
+    });
+    const binding = await h.connect();
+    const { grant } = await h.take(binding);
+    await expect(h.input(binding, grant!.generation)).rejects.toMatchObject({
+      code: 'input-failed',
+    });
+    expect(h.driver.call).not.toHaveBeenCalled();
+    expect(h.owner.isPaused()).toBe(true);
   });
 
   it('waits for the render-side cursor to be disabled before the first click', async () => {

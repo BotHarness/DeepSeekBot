@@ -431,7 +431,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     }),
     isRunning: () => migratedLocal() && runtime.isRunning(),
     supported: migratedLocal,
-    inputCoordinates: process.platform === 'darwin' ? 'points' : 'pixels',
+    driverPlatform: process.platform === 'darwin' ? 'darwin' : 'win32',
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
   });
   service.localVideo = localVideo;

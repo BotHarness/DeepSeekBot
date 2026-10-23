@@ -141,6 +141,27 @@ function driverFailed(result: unknown): boolean {
   );
 }
 
+function macCursorOverlayUnavailable(result: unknown): boolean {
+  if (
+    !driverFailed(result) ||
+    typeof result !== 'object' ||
+    result === null ||
+    !('structuredContent' in result)
+  )
+    return false;
+  const value = result.structuredContent;
+  if (typeof value !== 'object' || value === null || !('refusal' in value)) return false;
+  const refusal = value.refusal;
+  return (
+    typeof refusal === 'object' &&
+    refusal !== null &&
+    'code' in refusal &&
+    refusal.code === 'facility_unavailable' &&
+    'facility' in refusal &&
+    refusal.facility === 'macos_cursor_overlay'
+  );
+}
+
 function cursorEnabled(result: unknown, session: string): boolean {
   const value =
     typeof result === 'object' && result !== null && 'structuredContent' in result
@@ -193,7 +214,7 @@ export function createLocalVideoOwner(options: {
   readonly media: LocalVideoMedia;
   readonly isRunning: () => boolean;
   readonly supported?: () => boolean;
-  readonly inputCoordinates?: 'pixels' | 'points';
+  readonly driverPlatform?: 'darwin' | 'win32';
   readonly now?: () => number;
   readonly onEvent?: (detail: string) => void;
   readonly operationTimeoutMs?: number;
@@ -554,7 +575,7 @@ export function createLocalVideoOwner(options: {
     return active;
   };
 
-  const requireGeometry = async (current: Viewer): Promise<number> => {
+  const requireGeometry = async (current: Viewer): Promise<void> => {
     const probe = options.driver.call('get_screen_size', {
       session: `local-video:${current.binding.viewerId}`,
     });
@@ -567,7 +588,7 @@ export function createLocalVideoOwner(options: {
       structuredContent?: { width?: unknown; height?: unknown; scale_factor?: unknown };
     } | null;
     const geometry = value?.structuredContent;
-    const scale = options.inputCoordinates === 'points' ? geometry?.scale_factor : 1;
+    const scale = options.driverPlatform === 'darwin' ? geometry?.scale_factor : 1;
     if (
       value?.isError === true ||
       typeof scale !== 'number' ||
@@ -580,7 +601,6 @@ export function createLocalVideoOwner(options: {
       Math.round(geometry.height * scale) !== current.peer?.display.height
     )
       refuse('media-not-live', 'The input display does not match the video. Reconnect the viewer.');
-    return scale;
   };
 
   const runCommand = async (
@@ -715,7 +735,7 @@ export function createLocalVideoOwner(options: {
           await drain(humans);
           trace.source = 'geometry';
           trace.external = 'get_screen_size';
-          const coordinateScale = await requireGeometry(current);
+          await requireGeometry(current);
           trace.source = 'owner';
           checkViewer(caller, command.binding);
           requireRunning();
@@ -762,18 +782,12 @@ export function createLocalVideoOwner(options: {
           checkGrant(current, command.generation);
           trace.source = 'geometry';
           trace.external = 'get_screen_size';
-          const coordinateScale = await requireGeometry(current);
+          await requireGeometry(current);
           trace.source = 'owner';
           if (signal?.aborted)
             refuse('stale-grant', 'The queued input was cancelled before execution.');
           checkGrant(current, command.generation);
-          const scaled =
-            (input.kind === 'click' || input.kind === 'scroll') &&
-            input.x !== undefined &&
-            input.y !== undefined
-              ? { ...input, x: input.x / coordinateScale, y: input.y / coordinateScale }
-              : input;
-          const call = desktopInputCall(scaled, undefined);
+          const call = desktopInputCall(input, undefined);
           trace.source = 'driver';
           trace.external = 'desktop-input';
           const effect = (async () => {
@@ -784,10 +798,12 @@ export function createLocalVideoOwner(options: {
                 session,
                 enabled: false,
               });
-              if (driverFailed(setup))
+              const overlayAbsent =
+                options.driverPlatform === 'darwin' && macCursorOverlayUnavailable(setup);
+              if (driverFailed(setup) && !overlayAbsent)
                 refuse('input-failed', 'The Computer driver refused pointer setup.');
               const deadline = Date.now() + operationTimeout;
-              for (;;) {
+              while (!overlayAbsent) {
                 if (signal?.aborted)
                   refuse('stale-grant', 'Pointer setup was cancelled before execution.');
                 checkGrant(current, command.generation);
