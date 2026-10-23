@@ -59,6 +59,7 @@ export function createLocalVideoMedia(
       let profile: string | undefined;
       let output = '';
       let outputRejected = false;
+      let bootstrapLineSeen = false;
       let nextId = 1;
       let closing: Promise<void> | undefined;
       let closed = false;
@@ -301,6 +302,10 @@ export function createLocalVideoMedia(
                 treeStopped
               )
                 return failed();
+              if (ready && !bootstrapLineSeen && envelope.json === '\r') {
+                bootstrapLineSeen = true;
+                continue;
+              }
               const message: unknown = JSON.parse(envelope.json);
               if (typeof message !== 'object' || message === null) return failed();
               if ('event' in message) {

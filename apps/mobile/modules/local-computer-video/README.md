@@ -26,6 +26,16 @@ This version was selected against the published native API. Compilation, decodin
 ABI/page-size compatibility and presentation on the project's SDK 58 / React Native 0.88
 development client remain physical-build qualification requirements.
 
+## Release JNI retention
+
+The pinned AAR ships no consumer ProGuard rules. This module supplies rules for its native
+methods and annotated Java callbacks, including JNI Zero initialization. R8 otherwise removes
+`org.jni_zero.JniInit` and the native library aborts while opening the first video peer.
+The rules keep JNI names and descriptor classes while allowing unrelated Java code to shrink.
+They are module-owned consumer rules and apply to generated CNG projects without manual edits.
+Changing them requires rebuilding the Android client. Qualify with a minified Release APK,
+inspect its merged R8 rules/seeds and open real video on the phone; Debug cannot prove this fix.
+
 ## Lifetimes and limits
 
 Each server-issued media attempt creates a fresh peer. SDP is capped at 96 KiB and contains

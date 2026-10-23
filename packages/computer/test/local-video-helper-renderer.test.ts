@@ -10,7 +10,9 @@ function renderer() {
   let drawFrame: (() => void) | undefined;
   let framesEncoded: number | undefined = 1;
   let stopped = 0;
+  const captureSettings = { width: 1920, height: 1080, resizeMode: 'none' };
   const capture = {
+    getSettings: () => captureSettings,
     readyState: 'live',
     muted: false,
     applyConstraints: vi.fn(async () => undefined),
@@ -102,7 +104,7 @@ function renderer() {
     clearTimeout,
   });
   return {
-    start: () => browser.localVideoStart!(1920, 1080),
+    start: (width = 1920, height = 1080) => browser.localVideoStart!(width, height),
     stats: () => browser.localVideoStats!(),
     sourceFrame: () => sourceFrame?.(),
     duplicate: () => {
@@ -116,6 +118,7 @@ function renderer() {
       now += ms;
     },
     capture,
+    captureSettings,
     video,
     peerClosed,
     peerConfig,
@@ -124,6 +127,26 @@ function renderer() {
 }
 
 describe('Windows helper capture and video liveness', () => {
+  it('uses unscaled physical capture when rounded display DIPs differ by one pixel', async () => {
+    const app = renderer();
+    app.captureSettings.width = 2560;
+    app.captureSettings.height = 1440;
+    app.video.videoWidth = 2560;
+    app.video.videoHeight = 1440;
+    expect(await app.start(2560, 1441)).toMatchObject({ display: { width: 2560, height: 1440 } });
+    expect(app.capture.applyConstraints).toHaveBeenCalledWith({
+      resizeMode: { exact: 'none' },
+      frameRate: { min: 1, ideal: 30, max: 30 },
+    });
+  });
+
+  it('refuses a capture track that reports resampling', async () => {
+    const app = renderer();
+    app.captureSettings.resizeMode = 'crop-and-scale';
+    await expect(app.start()).rejects.toThrow('Display geometry mismatch');
+    expect(app.peerConfig).not.toHaveBeenCalled();
+  });
+
   it('keeps a static display live when actual source frames continue with unchanged pixels', async () => {
     const app = renderer();
     await app.start();
