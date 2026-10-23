@@ -5,7 +5,7 @@ import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { DrawerMaterial } from '../primitives/drawer-material';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CloudIcon, ComputerIcon } from './icons';
 
 export type WorkspaceTab = 'computers' | 'cloud';
@@ -19,6 +19,7 @@ export function WorkspaceTabs({
   selectedRef?: Ref<ViewInstance>;
   onChange(value: WorkspaceTab): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <View style={{ flexDirection: 'row', gap: space.x3 }}>

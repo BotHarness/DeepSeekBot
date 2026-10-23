@@ -25,7 +25,7 @@ import { materialMenu, space } from '../design/tokens';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   menuGroups,
   menuLabel,
@@ -54,6 +54,7 @@ export function MessageActions({
   onCopy,
   onShareText,
 }: MessageActionsProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (target === undefined) return null;
   const { message } = target;

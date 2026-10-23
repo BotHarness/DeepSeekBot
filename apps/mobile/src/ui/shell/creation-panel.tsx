@@ -16,7 +16,7 @@ import { NavigationMaterial } from './navigation-material';
 import { Text } from '../primitives/text';
 import { ComputerIcon, CloudIcon, PersonIcon, ChatsIcon, ShareIcon } from './icons';
 import { FileIcon, GitCommitIcon, BrowserIcon } from './icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { creationLabel, useCreationMenu, type CreationPanelProps } from './creation-menu';
 
 export function CreationPanel({
@@ -29,6 +29,7 @@ export function CreationPanel({
   busy,
   error,
 }: CreationPanelProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();

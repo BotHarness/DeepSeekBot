@@ -35,7 +35,7 @@ import { VoiceButton } from './voice-button';
 import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
 import { PlusMenuButton } from '../primitives/plus-menu-button';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   composerActions,
   composerFieldHeight,
@@ -45,6 +45,7 @@ import {
 } from './dictation';
 
 function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const tile = theme.touch + space.x5;
   const badge = theme.type.meta.line + space.x1;
@@ -194,6 +195,7 @@ export function Composer({
   inputRef?: Ref<ComposerInput>;
   onFocusChange?(focused: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [footerHeight, setFooterHeight] = useState(0);

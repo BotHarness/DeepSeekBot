@@ -19,10 +19,11 @@ import { EnvironmentPicker } from '../primitives/environment-picker';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
 import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useDesignTheme } from '../design/theme';
 
 export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
+  useStrings();
   const { ready, mount } = useSheetContent();
   return (
     <View ref={mount} style={{ flex: 1 }}>
@@ -42,6 +43,7 @@ export function CreateBotScreen(props: { initialSource?: CreationEntrySource } =
 }
 
 function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEntrySource } = {}) {
+  const t = useStrings();
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
   const { hosts } = useHostSession();
   const theme = useDesignTheme();

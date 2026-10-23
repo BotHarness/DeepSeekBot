@@ -8,7 +8,7 @@ import { edge, motion, radius, space } from '../design/tokens';
 import { glassShadow, useDesignTheme, type DesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, CopyIcon, ShareIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { BubbleBody } from './message-bubble';
 import { placeMenu, type Rect } from './menu-placement';
 import {
@@ -80,6 +80,7 @@ function ReactionIsland({
   message: ConversationMessage;
   onReact(emoji: string, active: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));
   return (
@@ -188,6 +189,7 @@ function MessageMenu({
   onShareText(text: string): void;
   onOpen(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const pressedIn = useRef(false);

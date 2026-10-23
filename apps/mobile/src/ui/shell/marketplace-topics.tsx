@@ -10,7 +10,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { MarketplaceTopicSheet } from '../primitives/marketplace-topic-sheet';
 import { RadioMark } from '../primitives/radio-mark';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CheckIcon } from './icons';
 
 export function MarketplaceTopics({
@@ -22,6 +22,7 @@ export function MarketplaceTopics({
   onChange(value: string): void;
   onClose(): void;
 }) {
+  const t = useStrings();
   const resource = marketplace.topics;
   const state = useCatalogueResource(resource);
   const theme = useDesignTheme();

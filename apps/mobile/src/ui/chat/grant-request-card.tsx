@@ -9,7 +9,7 @@ import { haptic } from '../haptics';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ActionCard, CardButtons, CardLine, CardNote } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { FolderPickerSheet, type FolderPickerPort } from './folder-picker-sheet';
@@ -45,6 +45,7 @@ export function GrantRequestCard({
   wide?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const known = useRef(resolved);
   const current = useRef({ port, pending: undefined as Promise<void> | undefined, active: false });

@@ -16,9 +16,10 @@ import { Text } from '../../src/ui/primitives/text';
 import { TextField } from '../../src/ui/primitives/text-field';
 import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function PairTailscaleScreen() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { width } = useWindowDimensions();
   const scan = Math.min(width * pairingScan.widthRatio, pairingScan.maxSize);

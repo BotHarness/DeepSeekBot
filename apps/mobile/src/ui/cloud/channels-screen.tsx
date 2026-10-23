@@ -19,7 +19,7 @@ import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CloudChannelName } from './channel-name';
 
 function ChannelFormScroll({
@@ -45,6 +45,7 @@ function renderGuestChannelFormScroll(props: ScrollViewProps) {
 }
 
 export function CloudChannelsScreen() {
+  const t = useStrings();
   const snapshot = useCloudSnapshot();
   const { instanceId, organizationId, guest, channelId, accountScope } = useLocalSearchParams<{
     accountScope?: string;
@@ -85,6 +86,7 @@ function ChannelWorkspace({
   guest: boolean;
   initialChannelId?: string | undefined;
 }) {
+  const t = useStrings();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme(),
     insets = useSafeAreaInsets();

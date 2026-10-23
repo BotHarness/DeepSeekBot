@@ -23,11 +23,12 @@ import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { radius, space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { SheetCallout, SheetNote } from './sheet';
 import { useInviteSelection, type InviteSheetProps } from './invite-selection';
 
 export function InviteSheet(props: InviteSheetProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();

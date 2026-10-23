@@ -24,10 +24,11 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { accountActionIcon, space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { AccountPanelProps } from './account-panel';
 
 export function AccountPanel(props: AccountPanelProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const locked = props.loading || props.busy;
   return (

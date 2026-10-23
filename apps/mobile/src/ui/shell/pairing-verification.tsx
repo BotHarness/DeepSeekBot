@@ -7,7 +7,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { PairingActions } from '../primitives/pairing-actions';
 import { RowIcon } from '../primitives/row-icon';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { usePairing } from './use-pairing';
 
 export function PairingVerification({
@@ -17,6 +17,7 @@ export function PairingVerification({
   pairing: ReturnType<typeof usePairing>;
   progress?: string | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [details, setDetails] = useState(false);
   const verification = pairing.verification;

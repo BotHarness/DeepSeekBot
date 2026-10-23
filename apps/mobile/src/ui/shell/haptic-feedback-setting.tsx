@@ -2,9 +2,10 @@ import { hapticPreferences, useHapticPreferences } from '../../host/native-hapti
 import { SHEET_GROUP } from '../chat/sheet';
 import { SettingsRow } from '../primitives/settings-row';
 import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function HapticFeedbackSetting() {
+  const t = useStrings();
   const state = useHapticPreferences();
   return (
     <SettingsRow

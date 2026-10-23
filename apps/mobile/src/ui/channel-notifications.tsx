@@ -9,7 +9,7 @@ import { useMounted } from './mounted';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Toggle } from './primitives/toggle';
 import { Loading, Notice, errorText } from './request-parts';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 
 export interface ChannelNotificationsPort {
   load(): Promise<PushSettings>;
@@ -32,6 +32,7 @@ export function ChannelNotifications({
   hostMuted: boolean;
   port: ChannelNotificationsPort;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [settings, setSettings] = useState<PushSettings | undefined>();
   const [muted, setMuted] = useState<boolean | undefined>();

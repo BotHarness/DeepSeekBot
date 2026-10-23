@@ -20,10 +20,11 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
 import { materialNavigationBar } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
   const colors = {

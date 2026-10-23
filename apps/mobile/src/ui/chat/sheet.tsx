@@ -10,7 +10,7 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { SheetGrabber } from '../primitives/sheet-grabber';
 import { DrawerHeader } from '../primitives/drawer-header';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export const SHEET_GROUP: LayerName = 'raised';
@@ -50,6 +50,7 @@ export function Sheet({
   avoidKeyboard?: boolean;
   animationType?: 'none' | 'slide' | 'fade';
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
@@ -209,6 +210,7 @@ export function SheetFailed({
   onRetry(): void;
   on?: LayerName;
 }) {
+  const t = useStrings();
   return (
     <View style={{ gap: space.x3, padding: space.x5, alignItems: 'flex-start' }}>
       <Text tone="danger">{message}</Text>

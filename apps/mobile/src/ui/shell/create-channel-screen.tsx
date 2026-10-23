@@ -19,9 +19,10 @@ import { SettingsGroupItem } from '../primitives/settings-row';
 import { ParticipantChoice } from '../primitives/participant-choice';
 import { space } from '../design/tokens';
 import { creationError } from './bot-creation-copy';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function CreateChannelScreen() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { entry, hostId } = useLocalSearchParams<{ entry?: string; hostId?: string }>();
   const { hosts } = useHostSession();

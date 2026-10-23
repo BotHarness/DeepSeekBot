@@ -105,3 +105,5 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 
 | Three-action tool approval and coherent Full Access | yes | `scripts/e2e-tool-approval-simple.mjs` | [tool-approval-simple.md](tool-approval-simple.md) |
 | Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |
+
+| Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |

@@ -17,7 +17,7 @@ import {
 import { computerCanvas, pointer } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
 import type { Size } from './zoom-math';
 import { videoPinchUpdate } from './computer-video-gestures';
@@ -52,6 +52,7 @@ export function ComputerVideoStage({
   onClick(point: Point, button: 'left' | 'right'): void;
   children(size: Size): ReactNode;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const origin = useSharedValue({ scale: 1, x: 0, y: 0, focalX: 0, focalY: 0 });

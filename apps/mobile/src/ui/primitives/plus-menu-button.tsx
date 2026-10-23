@@ -5,7 +5,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { PlusIcon } from '../shell/icons';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 import type { PlusMenuButtonProps } from './plus-menu';
 export type { PlusMenuButtonProps, PlusMenuItem } from './plus-menu';
@@ -17,6 +17,7 @@ export function PlusMenuButton({
   disabled = false,
   items,
 }: PlusMenuButtonProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
   const opened = useRef(false);

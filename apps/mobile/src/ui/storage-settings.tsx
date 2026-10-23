@@ -28,7 +28,7 @@ import { Text } from './primitives/text';
 import { Toggle } from './primitives/toggle';
 import { ActionButton, LoadFailed, Loading, Notice, errorText } from './request-parts';
 import { CheckIcon } from './shell/icons';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 
 export interface StorageSettingsPort {
   usage(): Promise<StorageUsage>;
@@ -54,6 +54,7 @@ function failure(error: unknown): string {
 }
 
 export function StorageSettings({ port }: { port: StorageSettingsPort }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [usage, setUsage] = useState<StorageUsage>();
   const [loadError, setLoadError] = useState<string>();

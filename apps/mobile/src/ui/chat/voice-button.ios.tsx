@@ -1,5 +1,5 @@
 import { useDesignTheme } from '../design/theme';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { composerControl } from './composer-chrome';
 import { NativeComposerButton } from './native-composer-button.ios';
 
@@ -14,6 +14,7 @@ export function VoiceButton({
   onCancel(): void;
   onHeld(held: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <NativeComposerButton

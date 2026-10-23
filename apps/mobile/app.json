@@ -32,6 +32,7 @@
       }
     },
     "plugins": [
+      ["expo-localization", { "supportedLocales": ["en", "zh-Hans"], "supportsRTL": false }],
       "./with-lan-channel",
       "expo-router",
       [

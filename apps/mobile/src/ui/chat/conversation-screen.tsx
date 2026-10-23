@@ -122,7 +122,7 @@ import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
 import { KeyboardChatFrame, useListBottomSafeArea } from '../primitives/keyboard-frame';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
@@ -145,6 +145,7 @@ export function ConversationScreen({
   focus: string | undefined;
   latestWindowOnly?: boolean;
 }) {
+  const t = useStrings();
   const { client, saved } = useHostSession();
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
@@ -294,6 +295,7 @@ function ChatConversation({
   focus: string | undefined;
   latestWindowOnly: boolean;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
   const headerOverlap = useHeaderOverlap();
@@ -755,6 +757,7 @@ function ChatConversation({
       );
     },
     [
+      t,
       dm,
       playback,
       focused,

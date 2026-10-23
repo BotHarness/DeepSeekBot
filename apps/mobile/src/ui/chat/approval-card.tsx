@@ -20,7 +20,7 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import {
   ActionCard,
   CardButtons,
@@ -123,6 +123,7 @@ export function ApprovalCard({
   wide?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const known = useRef(resolution !== undefined);
   const current = useRef({ port, pending: false, active: false });

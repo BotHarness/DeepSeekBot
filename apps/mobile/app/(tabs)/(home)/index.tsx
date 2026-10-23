@@ -54,7 +54,7 @@ import { conversationPeek } from '../../../src/ui/shell/conversation-peek';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { conversationHref, openConversation } from '../../../src/ui/shell/open-conversation';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 
@@ -106,6 +106,7 @@ const HomeContent = memo(function HomeContent({
   snapshot: ReturnType<typeof useHostSnapshot>;
   list: ReturnType<typeof useInbox>;
 }) {
+  const t = useStrings();
   const router = useRouter();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
@@ -173,7 +174,7 @@ const HomeContent = memo(function HomeContent({
         directory.workspaces,
         t.allEnvironments,
       ),
-    [saved, look, cloud.rows, directory.workspaces],
+    [t, saved, look, cloud.rows, directory.workspaces],
   );
   const environment = filters.find((item) => item.key === filter) ?? filters[0]!;
   const effectiveFilter = environment.key;

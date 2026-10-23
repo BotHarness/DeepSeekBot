@@ -9,7 +9,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { computerHeaderState } from './computer-header-state';
 import { headerGlassFill, titleChipFill } from './header-chrome';
 
@@ -26,6 +26,7 @@ export function ComputerVideoHeader({
   state: LocalVideoClientState;
   onExit(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const look = useHostLook(hostId);
   const name = shownHostName(look, hostName ?? t.computerEnvironment);

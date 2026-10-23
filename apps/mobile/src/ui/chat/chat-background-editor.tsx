@@ -12,7 +12,7 @@ import { Button } from '../primitives/button';
 import { PercentageSlider } from '../primitives/percentage-slider';
 import { Text } from '../primitives/text';
 import { Segmented } from '../primitives/segmented';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { backgroundOverflow } from './background-position';
 import { BackgroundPreview } from './background-preview';
 
@@ -33,6 +33,7 @@ export function ChatBackgroundEditor({
   onDone(): void;
   onCancel(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const state = useSyncExternalStore(edit.subscribe, edit.getSnapshot);
   const [pickError, setPickError] = useState(false);
@@ -228,6 +229,7 @@ export function ChatBackgroundEditor({
 }
 
 function PreviewMessages() {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <>

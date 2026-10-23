@@ -8,7 +8,7 @@ import { edge, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
 import { headerIslands } from './header-kind';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { edgeFadeStops } from './edge-fade';
 
 const ICON = 22;
@@ -90,6 +90,7 @@ export function titleChipFill(theme: DesignTheme, pressed: boolean) {
 }
 
 export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: boolean }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <HeaderCircleButton label={t.back} onPress={onPress} plain={plain === true}>

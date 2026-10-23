@@ -11,7 +11,7 @@ import { radius, space } from '../design/tokens';
 import { DayBars } from '../primitives/day-bars';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { tokenAmount } from '../shell/usage-card';
 
 export function tokenTotalText(total: TokenTotal, compact = true): string {
@@ -22,6 +22,7 @@ export function tokenTotalText(total: TokenTotal, compact = true): string {
 }
 
 function Glance({ activity, onOpen }: { activity: ProfileActivity; onOpen(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glance = weekGlance(activity);
   const range = t.activityRange(

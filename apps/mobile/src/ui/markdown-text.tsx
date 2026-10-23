@@ -11,7 +11,7 @@ import { StreamReveal, nativeStreamReveal } from './primitives/stream-reveal';
 import { renderMarkdownInline } from './markdown-inline';
 import { MarkdownTable } from './markdown-table';
 import { isMarkdownTable } from './markdown-blocks';
-import { t } from './strings';
+import { useStrings } from './strings';
 
 export function MarkdownText({
   tokens,
@@ -30,6 +30,7 @@ export function MarkdownText({
   renderInlineBlock?(tokens: Token[], heading: boolean): ReactNode;
   onOpenLink?: ((url: string) => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const visible = (entries: Token[]) =>
     entries.filter((token) => !['space', 'def', 'checkbox'].includes(token.type));

@@ -12,7 +12,8 @@ import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { errorText, Notice } from './request-parts';
 import { UsageCard } from './shell/usage-card';
-import { t } from './strings';
+import { InterfaceSettings } from './interface-settings';
+import { useStrings, t } from './strings';
 
 export interface SettingsActions {
   onUsage(): void;
@@ -25,14 +26,14 @@ export interface SettingsActions {
   onCopyVersion(text: string): void;
 }
 
-const STATUS: Record<ConnectionState['status'], string> = {
+const statusLabels = (): Record<ConnectionState['status'], string> => ({
   connected: t.connected,
   connecting: t.connecting,
   reconnecting: t.reconnecting,
   refused: t.refused,
   unreachable: t.unreachable,
   stopped: '',
-};
+});
 
 export function SettingsView({
   hostName,
@@ -57,10 +58,13 @@ export function SettingsView({
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [unpairError, setUnpairError] = useState<string>();
   const [versionCopied, setVersionCopied] = useState(false);
-  const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
+  const status = [statusLabels()[connection.status], connection.route].filter(
+    (part) => part !== '',
+  );
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
       <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
@@ -128,7 +132,8 @@ export function SettingsView({
         {unpairError === undefined ? null : (
           <Notice tone="danger">{`${t.unpairFailed} ${unpairError}`}</Notice>
         )}
-        <SettingsSection title={t.interface} on={SHEET_GROUP}>
+        <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
+          <InterfaceSettings />
           <SettingsRow
             on={SHEET_GROUP}
             title={t.appIcon}

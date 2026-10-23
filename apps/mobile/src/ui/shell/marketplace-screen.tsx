@@ -19,11 +19,12 @@ import { HeaderGlyph } from './header-glyph';
 import { ChevronLeftIcon, CloseIcon, CheckIcon } from './icons';
 import { useDesignTheme } from '../design/theme';
 import { haptic } from '../haptics';
-import { locale, t } from '../strings';
+import { useStrings, locale } from '../strings';
 import { MarketplaceRow } from './marketplace-row';
 import { MarketplaceTopics } from './marketplace-topics';
 
 export function MarketplaceScreen() {
+  const t = useStrings();
   const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
   const theme = useDesignTheme();
   const [searching, setSearching] = useState(false);

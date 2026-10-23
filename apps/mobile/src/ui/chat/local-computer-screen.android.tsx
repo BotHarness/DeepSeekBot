@@ -39,7 +39,7 @@ import { computerCanvas, space } from '../design/tokens';
 import { DesignThemeProvider, useDesignTheme, type Appearance } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
 import { ComputerVideoHeader } from './computer-video-header.android';
@@ -74,6 +74,7 @@ function ComputerScreen({
   Legacy: ComponentType;
   fallbackAppearance: Appearance;
 }) {
+  const t = useStrings();
   const focused = useIsFocused();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { client, saved } = useHostSession();

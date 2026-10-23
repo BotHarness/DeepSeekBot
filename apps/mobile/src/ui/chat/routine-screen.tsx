@@ -7,11 +7,12 @@ import { errorText } from '../../host/bot-settings';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import type { BotScheduleSummary } from '../../host/wire';
 import { SheetPage } from '../primitives/sheet-page';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { RoutineSheet } from './routine-sheet';
 import { SheetFailed, SheetLoading, SheetNote } from './sheet';
 
 export function RoutineScreen({ edit = false }: { edit?: boolean }) {
+  const t = useStrings();
   const { slug, id } = useLocalSearchParams<{ slug: string; id?: string }>();
   const router = useRouter();
   const { client, saved } = useHostSession();
@@ -42,7 +43,7 @@ export function RoutineScreen({ edit = false }: { edit?: boolean }) {
       return () => {
         live = false;
       };
-    }, [routines, id, attempt]),
+    }, [t, routines, id, attempt]),
   );
   const title =
     id === undefined

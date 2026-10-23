@@ -1,7 +1,7 @@
 import { Button, Checkbox, FieldGroup, Host, ListItem, Text as NativeText } from '@expo/ui';
 import type { PairingFailure } from '../../host/pairing';
 import { useDesignTheme } from '../design/theme';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export interface AccountComputerRow {
   id: string;
@@ -29,6 +29,7 @@ export interface AccountPanelProps {
 export type AccountPairResult = PairingFailure | 'added';
 
 export function AccountPanel(props: AccountPanelProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const locked = props.loading || props.busy;
   return (

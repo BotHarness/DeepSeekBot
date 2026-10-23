@@ -10,7 +10,7 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function CloudOrganizationsScreen() {
   const { instanceId } = useLocalSearchParams<{ instanceId: string }>();
@@ -28,6 +28,7 @@ function OrganizationWorkspace({
   instanceId: string;
   snapshot: CloudSnapshot;
 }) {
+  const t = useStrings();
   const row = snapshot.rows.find((r) => r.config.instanceId === instanceId);
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();

@@ -36,7 +36,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.ios';
 import { ComputerVideoStage } from './computer-video-stage';
 import { localVideoNotice } from './local-video-notice';
@@ -52,6 +52,7 @@ const idle: LocalVideoClientState = {
 };
 
 export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
+  const t = useStrings();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { client, saved } = useHostSession();
   const look = useHostLook(saved?.hostId);
@@ -243,7 +244,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         },
       ],
     }),
-    [name, status, theme, close],
+    [t, name, status, theme, close],
   );
   if (state.status === 'unsupported')
     return (

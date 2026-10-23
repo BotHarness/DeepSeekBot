@@ -19,7 +19,7 @@ import {
 } from './request-parts';
 import { useMounted } from './mounted';
 import { haptic } from './haptics';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 import { useTheme } from './theme';
 
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
@@ -61,6 +61,7 @@ export function ApprovalView({
   botName: string;
   listed?: boolean;
 }) {
+  const t = useStrings();
   const theme = useTheme();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const own = useRef(false);

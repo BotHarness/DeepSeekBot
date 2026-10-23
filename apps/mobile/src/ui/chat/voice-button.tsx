@@ -3,7 +3,7 @@ import { PanResponder, View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { MicIcon, RecordingStopIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { composerControl, composerPrimary, micAlwaysFilled } from './composer-chrome';
 import { voiceDrag, voiceRelease } from './dictation';
 
@@ -20,6 +20,7 @@ export function VoiceButton({
   onCancel(): void;
   onHeld(held: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [held, setHeld] = useState(false);
   const size = composerControl(theme);

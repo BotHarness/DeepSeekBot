@@ -49,7 +49,7 @@ import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { HostTile } from './host-tile';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
@@ -295,6 +295,7 @@ function HostRow({
   address: string;
   selected: boolean;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const android = !glass && Platform.OS === 'android';
@@ -440,6 +441,7 @@ function CloudServiceRow({
   server: string;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   return (
@@ -470,6 +472,7 @@ function CloudServiceRow({
 }
 
 function AccountHostRow({ host, onPress }: { host: ConnectHost; onPress(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const status = host.online ? t.pairAccount.pair : t.pairAccount.offline;
@@ -505,6 +508,7 @@ function AccountHostRow({ host, onPress }: { host: ConnectHost; onPress(): void 
 }
 
 export function WorkspaceButton() {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <Pressable
@@ -546,6 +550,7 @@ function WorkspaceRow({
   disabled: boolean;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   return (
@@ -591,6 +596,7 @@ function WorkspaceRow({
 }
 
 export function HostDrawer() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const insets = useSafeAreaInsets();

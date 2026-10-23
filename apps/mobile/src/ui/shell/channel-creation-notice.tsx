@@ -7,9 +7,10 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function ChannelCreationNotice() {
+  const t = useStrings();
   const state = useChannelCreation();
   const path = usePathname();
   const keyboardOpen = useKeyboardState((state) => state.isVisible);

@@ -5,7 +5,7 @@ import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { BackIcon } from '../shell/back-icon';
 import { CheckIcon, CloseIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { Text } from './text';
 import { HeaderCircleButton } from '../chat/header-chrome';
 
@@ -45,10 +45,10 @@ export function DrawerHeader({
   headingRef,
   onClose,
   glassClose = false,
-  closeLabel = t.close,
+  closeLabel: requestedCloseLabel,
   onBack,
   onConfirm,
-  confirmLabel = t.done,
+  confirmLabel: requestedConfirmLabel,
 }: {
   title: string;
   subtitle?: string;
@@ -61,6 +61,9 @@ export function DrawerHeader({
   onConfirm?: () => void;
   confirmLabel?: string;
 }) {
+  const t = useStrings();
+  const closeLabel = requestedCloseLabel ?? t.close;
+  const confirmLabel = requestedConfirmLabel ?? t.done;
   const theme = useDesignTheme();
   const slot = { width: theme.touch, minHeight: theme.touch };
   return (

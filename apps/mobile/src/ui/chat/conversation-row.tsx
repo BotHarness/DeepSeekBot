@@ -9,7 +9,7 @@ import { chatList, edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
 import {
   countBadge,
@@ -49,6 +49,7 @@ export function ConversationRow({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
 }) {
+  const t = useStrings();
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;

@@ -1,4 +1,6 @@
 import type { DeviceRefusal } from '../host/client';
+import { useSyncExternalStore } from 'react';
+import { interfacePreferences } from './interface-preferences';
 import type { PairingFailure } from '../host/pairing';
 import type { PushKind, PushRefusal } from '../host/push';
 import type { AggregatedState } from '../host/wire';
@@ -16,6 +18,15 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  interfacePreferences: {
+    language: 'Language',
+    appearance: 'Appearance',
+    system: 'Follow system',
+    light: 'Light',
+    dark: 'Dark',
+    local: 'Saved on this phone.',
+    storageError: 'Could not save this choice. Try selecting it again.',
+  },
   channelCreation: {
     reset: 'Computer changed. Choose Bots again.',
     chooseHost: 'Choose a computer to see its Bots.',
@@ -1599,6 +1610,15 @@ const en = {
 };
 
 const zh: typeof en = {
+  interfacePreferences: {
+    language: '语言',
+    appearance: '外观',
+    system: '跟随系统',
+    light: '浅色',
+    dark: '深色',
+    local: '保存在这台手机上。',
+    storageError: '未能保存，请重新选择。',
+  },
   channelCreation: {
     reset: '已切换电脑，请重新选择 Bot。',
     chooseHost: '先选择电脑，再选择 Bot。',
@@ -3084,12 +3104,19 @@ const zh: typeof en = {
   hostLookMissing: '这台电脑已不再配对。',
 };
 
-export const locale: 'zh' | 'en' = Intl.DateTimeFormat()
-  .resolvedOptions()
-  .locale.toLowerCase()
-  .startsWith('zh')
-  ? 'zh'
-  : 'en';
+export let locale = interfacePreferences.getSnapshot().locale;
+export let t = locale === 'zh' ? zh : en;
+interfacePreferences.subscribe(() => {
+  locale = interfacePreferences.getSnapshot().locale;
+  t = locale === 'zh' ? zh : en;
+});
 
-export const t = locale === 'zh' ? zh : en;
+export function useStrings(): typeof en {
+  const state = useSyncExternalStore(
+    interfacePreferences.subscribe,
+    interfacePreferences.getSnapshot,
+    interfacePreferences.getSnapshot,
+  );
+  return state.locale === 'zh' ? zh : en;
+}
 export const activityStrings = { en: en.activityRow, zh: zh.activityRow };

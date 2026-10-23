@@ -1,7 +1,7 @@
 import { FilledTonalButton, Host, RNHostView, useMaterialColors } from '@expo/ui/jetpack-compose';
 import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ComputerMouseIcon } from './computer-mouse-icon';
 
 export function ComputerMouseButton({
@@ -15,6 +15,7 @@ export function ComputerMouseButton({
   compact: boolean;
   onClick(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const colors = useMaterialColors({ colorScheme: theme.scheme, seedColor: theme.color.accent });
   const label = side === 'left' ? t.computerLeftClick : t.computerRightClick;

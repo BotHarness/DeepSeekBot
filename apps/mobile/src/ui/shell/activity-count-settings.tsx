@@ -12,9 +12,10 @@ import { space } from '../design/tokens';
 import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function ActivityCountLink() {
+  const t = useStrings();
   const router = useRouter();
   const { kinds } = useActivityCountPreferences();
   return (
@@ -34,6 +35,7 @@ export function ActivityCountLink() {
 }
 
 export function ActivityCountSettings() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const state = useActivityCountPreferences();
   return (

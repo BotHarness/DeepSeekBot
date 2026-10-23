@@ -7,7 +7,7 @@ import { useDesignTheme } from '../design/theme';
 import { materialSearchHeight } from '../design/material-search';
 import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { HeaderAction } from './header-action';
 import { HeaderSearch } from './header-search';
 
@@ -34,6 +34,7 @@ export function ActivityToolbar({
   onFilter,
   onHeight,
 }: ActivityToolbarProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [searching, setSearching] = useState(false);

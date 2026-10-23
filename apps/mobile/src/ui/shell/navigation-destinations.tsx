@@ -5,9 +5,10 @@ import { NavigationIcon } from './navigation-icon';
 import { Text } from '../primitives/text';
 import { badgeCount } from '../primitives/badge-count';
 import { ChatsIcon, ActivityIcon, SettingsIcon } from './icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';
   return (

@@ -4,7 +4,7 @@ import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CountBadge } from '../primitives/count-badge';
 import { countBadge } from './conversations';
 
@@ -25,6 +25,7 @@ export function SectionHeader({
   onToggle(): void;
   testID?: string;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const Chevron = collapsed ? ChevronRightIcon : ChevronDownIcon;
   const badge = collapsed ? countBadge({ needsYou, unread, muted: false }) : undefined;
