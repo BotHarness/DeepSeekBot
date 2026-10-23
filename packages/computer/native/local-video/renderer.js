@@ -26,20 +26,22 @@ function fail() {
 }
 window.addEventListener('beforeunload', stop);
 
-window.localVideoStart = async (width, height) => {
+window.localVideoStart = async () => {
   if (peer || source) throw new Error('Already started');
   try {
     source = await navigator.mediaDevices.getDisplayMedia({
       audio: false,
       video: {
         frameRate: { ideal: 30, max: 30 },
-        width: { ideal: width, max: width },
-        height: { ideal: height, max: height },
+        resizeMode: 'none',
       },
     });
     const track = source.getVideoTracks()[0];
 
-    await track.applyConstraints({ frameRate: { min: 1, ideal: 30, max: 30 } });
+    await track.applyConstraints({
+      resizeMode: { exact: 'none' },
+      frameRate: { min: 1, ideal: 30, max: 30 },
+    });
     track.addEventListener('ended', fail);
     track.addEventListener('mute', fail);
     video = document.createElement('video');
@@ -56,7 +58,16 @@ window.localVideoStart = async (width, height) => {
     const canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    if (canvas.width !== width || canvas.height !== height)
+    const settings = track.getSettings();
+    if (
+      settings.resizeMode !== 'none' ||
+      canvas.width < 1 ||
+      canvas.height < 1 ||
+      canvas.width > 8192 ||
+      canvas.height > 8192 ||
+      settings.width !== canvas.width ||
+      settings.height !== canvas.height
+    )
       throw new Error('Display geometry mismatch');
     const context = canvas.getContext('2d', { alpha: false });
     if (!context) throw new Error('No video canvas');

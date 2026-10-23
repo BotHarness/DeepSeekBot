@@ -145,6 +145,9 @@ internal static class LocalVideoLauncher
         return false;
     }
 
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GetCurrentProcess();
+
     public static int Main(string[] args)
     {
         Guid launchGuid;
@@ -263,11 +266,11 @@ internal static class LocalVideoLauncher
             // Last-handle close also kills the job after launcher crash/forced exit.
             Close(ref job); Close(ref host); Close(ref process.Thread); Close(ref process.Process);
             Close(ref childInput); Close(ref childOutput); Close(ref childError);
-            Close(ref parentInput); Close(ref parentOutput); Close(ref parentError);
             if (attributesInitialized) DeleteProcThreadAttributeList(attributes);
             if (attributes != IntPtr.Zero) Marshal.FreeHGlobal(attributes);
             if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
         }
+        TerminateProcess(GetCurrentProcess(), (uint)result);
         return result;
     }
 }

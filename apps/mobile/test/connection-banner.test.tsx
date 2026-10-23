@@ -107,7 +107,7 @@ describe.each([
   },
 );
 
-it('keeps unreachable diagnostics and the retry action', async () => {
+it('keeps the tried route and offers readable recovery instead of a raw network error', async () => {
   const { view, pairAgain, retry } = await render(
     {
       status: 'unreachable',
@@ -117,7 +117,8 @@ it('keeps unreachable diagnostics and the retry action', async () => {
     },
     'zh-CN',
   );
-  expect(view.textContent).toContain('Network unavailable');
+  expect(view.textContent).toContain('请检查手机网络');
+  expect(view.textContent).not.toContain('Network unavailable');
   expect(view.textContent).toContain('https://example.test');
   const button = view.querySelector('button');
   expect(button?.textContent).toBe('重试');
@@ -125,3 +126,40 @@ it('keeps unreachable diagnostics and the retry action', async () => {
   expect(retry).toHaveBeenCalledOnce();
   expect(pairAgain).not.toHaveBeenCalled();
 });
+
+it.each([
+  {
+    locale: 'zh-CN',
+    check: '请把手机连到电脑所在的 Wi-Fi',
+    devices: '设置 → 设备',
+    action: '重试',
+  },
+  {
+    locale: 'en-US',
+    check: 'Connect this phone to your computer’s Wi-Fi',
+    devices: 'Settings → Devices',
+    action: 'Retry',
+  },
+])(
+  'offers LAN checks and a working retry in $locale',
+  async ({ locale, check, devices, action }) => {
+    const { view, retry, pairAgain } = await render(
+      {
+        status: 'unreachable',
+        route: 'http://192.168.1.2:4321',
+        attempt: 1,
+        reason: 'lan-unreachable',
+      },
+      locale,
+    );
+    expect(view.textContent).toContain(check);
+    expect(view.textContent).toContain(devices);
+    expect(view.textContent).not.toContain('lan-unreachable');
+    expect(view.textContent).not.toContain('tailnet');
+    const button = view.querySelector('button');
+    expect(button?.textContent).toBe(action);
+    await act(async () => button?.click());
+    expect(retry).toHaveBeenCalledOnce();
+    expect(pairAgain).not.toHaveBeenCalled();
+  },
+);

@@ -1,5 +1,7 @@
 const { app, BrowserWindow, desktopCapturer, ipcMain, screen, session } = require('electron');
 const { join } = require('node:path');
+const { createReadStream } = require('node:fs');
+const commands = createReadStream(null, { fd: 0, autoClose: false });
 
 const LIMIT = 128 * 1024;
 let window;
@@ -7,8 +9,21 @@ let stopping = false;
 let input = '';
 let busy = false;
 let primary;
+let primaryGeometry;
 let rendererReady = false;
 let answerWaiter;
+
+function geometry(display) {
+  return JSON.stringify([
+    display.id,
+    display.bounds.x,
+    display.bounds.y,
+    display.bounds.width,
+    display.bounds.height,
+    display.scaleFactor,
+    display.rotation,
+  ]);
+}
 
 function write(value) {
   if (stopping) return;
@@ -34,8 +49,8 @@ function stop() {
   }
 }
 
-process.stdin.on('end', stop);
-process.stdin.on('error', stop);
+commands.on('end', stop);
+commands.on('error', stop);
 process.stdout.on('error', stop);
 process.on('SIGTERM', stop);
 process.on('uncaughtException', stop);
@@ -49,6 +64,7 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.whenReady().then(async () => {
   if (process.platform !== 'win32' || process.versions.electron !== '44.9.3') return stop();
   primary = screen.getPrimaryDisplay();
+  primaryGeometry = geometry(primary);
   if (primary.bounds.x !== 0 || primary.bounds.y !== 0) return stop();
   const captureSession = session.fromPartition('local-computer-video');
   window = new BrowserWindow({
@@ -116,7 +132,9 @@ app.whenReady().then(async () => {
   });
 
   screen.on('display-removed', stop);
-  screen.on('display-metrics-changed', stop);
+  screen.on('display-metrics-changed', () => {
+    if (geometry(screen.getPrimaryDisplay()) !== primaryGeometry) stop();
+  });
   await window.loadFile(join(__dirname, 'renderer.html'));
 });
 
@@ -140,13 +158,7 @@ async function command(message) {
   try {
     let result;
     if (message.op === 'offer') {
-      const width = Math.round(primary.size.width * primary.scaleFactor);
-      const height = Math.round(primary.size.height * primary.scaleFactor);
-      if (width < 1 || height < 1 || width > 8192 || height > 8192) throw new Error('Display size');
-      result = await window.webContents.executeJavaScript(
-        `window.localVideoStart(${width}, ${height})`,
-        true,
-      );
+      result = await window.webContents.executeJavaScript('window.localVideoStart()', true);
     } else if (message.op === 'answer') {
       if (typeof message.sdp !== 'string' || Buffer.byteLength(message.sdp) > 96 * 1024)
         throw new Error('signal');
@@ -177,8 +189,8 @@ async function command(message) {
   }
 }
 
-process.stdin.setEncoding('utf8');
-process.stdin.on('data', (chunk) => {
+commands.setEncoding('utf8');
+commands.on('data', (chunk) => {
   if (stopping) return;
   input += chunk;
   if (Buffer.byteLength(input) > LIMIT) return stop();

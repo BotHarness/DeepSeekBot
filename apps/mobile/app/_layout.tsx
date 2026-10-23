@@ -41,6 +41,7 @@ function RootNavigator() {
             <View testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
                 screenOptions={{
+                  orientation: 'portrait',
                   headerStyle: { backgroundColor: theme.background },
                   headerTintColor: theme.ink,
                   headerShadowVisible: false,
@@ -147,6 +148,7 @@ function RootNavigator() {
                   name="computer/[slug]"
                   options={{
                     title: t.profileComputer,
+                    orientation: Platform.OS === 'android' ? 'all' : 'portrait',
                     presentation: 'fullScreenModal',
                     headerShown: false,
                     gestureEnabled: false,

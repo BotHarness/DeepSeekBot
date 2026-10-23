@@ -2,20 +2,35 @@ import type {
   LocalVideoClient,
   LocalVideoClientState,
 } from '../../../../packages/computer/src/local-video-client';
+import type { ConnectionState } from './client';
 
-export function localVideoActions(state: LocalVideoClientState): {
-  release: boolean;
-  reconnect: boolean;
+export function localVideoActions({
+  state,
+  connection,
+}: {
+  state: LocalVideoClientState;
+  connection: ConnectionState;
+}): {
+  handBack: boolean;
+  recovery: 'host' | 'video' | 'pair' | undefined;
 } {
+  const reconnectVideo =
+    state.status === 'unavailable' ||
+    state.status === 'idle' ||
+    (state.host?.binding !== undefined &&
+      (state.host.media.status === 'stalled' ||
+        !state.presenting ||
+        state.code === 'media-not-live'));
   return {
-    release: state.host?.binding !== undefined && state.host.grant !== undefined,
-    reconnect:
-      state.status === 'unavailable' ||
-      state.status === 'idle' ||
-      (state.host?.binding !== undefined &&
-        (state.host.media.status === 'stalled' ||
-          !state.presenting ||
-          state.code === 'media-not-live')),
+    handBack: state.host?.paused === true || state.host?.grant !== undefined,
+    recovery:
+      connection.status === 'refused'
+        ? 'pair'
+        : connection.status === 'unreachable' || connection.status === 'reconnecting'
+          ? 'host'
+          : connection.status === 'connected' && reconnectVideo
+            ? 'video'
+            : undefined,
   };
 }
 

@@ -18,6 +18,38 @@ Pairing gives the phone a per-device credential, kept only in Keychain/Keystore.
 
 Carrier decision and evidence: [ADR-0200](../../docs/adr/0200-the-mobile-app-reads-live-state-over-the-dsh-remote-stream-socket.md).
 
+## Android Local Computer video controls
+
+The native Windows → Android video viewer opens as an observer, with no mouse or click buttons.
+After **Take control**, swipe one finger to move the large local arrow, then tap to left-click
+at that arrow. The icon + **Left** / **Right** buttons and a long press act at the same cursor.
+Remote clicks require **Take control**, a current grant
+and live video; observing and moving the local arrow do not pause Bots.
+
+Use two fingers to pinch and pan the phone preview, while watching or controlling. This does
+not scroll or drag the remote desktop. The canvas starts at the top and keeps its zoom and
+position when fingers lift, including below fit size. **Reset view** restores its default fit
+and top position without remote input. Showing/hiding control buttons preserves the preview;
+width/display changes and reconnect reset the preview and cursor.
+
+Computer supports Android landscape; other screens remain portrait. The compact toolbar keeps
+**Left** at its left edge and **Right** at its right edge. Tap either button to click; drag it
+horizontally or vertically to scroll the remote desktop at the cursor. The slider follows the
+chosen drag axis (Left starts horizontal, Right vertical); dragging never also clicks.
+The single **Take control** / **Hand back** button explicitly pauses or resumes Bots.
+Hand back releases control and resumes Bots together, retaining observation. Exit is in the
+top-right header; exit, backgrounding and connection loss preserve a paused Bot state.
+There is no visible instruction caption. Keyboard/IME and direct-touch parity remain
+tracked in [#2559](https://github.com/BotHarness/DeepSeekBot/issues/2559).
+
+Errors offer concrete recovery steps: LAN pairing/connection failures ask you to connect the
+phone to the computer's Wi-Fi, allow local-network access and enable local access in the
+computer's Settings → Devices. Remote connection failures ask you to check the phone network
+and keep the computer awake with DeepSeekBot running. Computer offers **Retry** for a lost
+Host connection, **Reconnect video** for video failures, and **Pair again** after device
+refusal. Retrying never takes control or resumes Bots. Normal viewing has no instruction
+caption; long error guidance scrolls separately from the mouse controls.
+
 ## Toolchain
 
 Expo SDK 58 (React Native 0.88, React 19.3) inside the pnpm workspace with pnpm's default isolated linker: no `node-linker=hoisted`, no `.npmrc` change. `metro.config.js` adds one resolver rule so Metro can follow the Host sources' `.js`-suffixed TypeScript imports. Having React Native in the workspace makes pnpm link it as an optional peer of a few web packages (`morphicons`, `@tanstack/charts`); those packages only load it from their explicit React Native entry points.
