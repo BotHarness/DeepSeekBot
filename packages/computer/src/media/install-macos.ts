@@ -114,8 +114,8 @@ export async function ensureMacVideoHelper(options: {
   const directory = resolve(options.dir ?? macVideoHelperDirectory(arch));
   options.signal?.throwIfAborted();
   if (await verifyMacVideoHelper(directory, arch)) return;
-  await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
-  const staging = await mkdtemp(join(dirname(directory), '.video-install-'));
+  let staging: string | undefined;
+  let stage: 'prepare' | 'download' | 'verify' | 'extract' | 'install' = 'prepare';
   let previous: string | undefined;
   let installed = false;
   const started = Date.now();
@@ -123,6 +123,9 @@ export async function ensureMacVideoHelper(options: {
     `phase=media-install platform=darwin version=${VERSION} archiveBytes=${build.bytes}`,
   );
   try {
+    await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
+    staging = await mkdtemp(join(dirname(directory), '.video-install-'));
+    stage = 'download';
     const response = await fetch(build.url, {
       signal: AbortSignal.any([
         AbortSignal.timeout(120_000),
@@ -156,9 +159,12 @@ export async function ensureMacVideoHelper(options: {
     } finally {
       await file.close();
     }
+    stage = 'verify';
     if (bytes !== build.bytes || hash.digest('hex') !== build.sha256)
       throw new Error('Runtime checksum mismatch');
     options.signal?.throwIfAborted();
+    stage = 'extract';
+    options.onEvent?.('phase=media-extract platform=darwin command=ditto timeoutMs=60000');
     const extracted = join(staging, 'runtime');
     await mkdir(extracted, { mode: 0o700 });
     const result = await options.runner.run(['/usr/bin/ditto', '-x', '-k', archive, extracted], {
@@ -166,7 +172,9 @@ export async function ensureMacVideoHelper(options: {
       timeoutMs: 60_000,
       maxOutputBytes: 64 * 1024,
     });
+    options.onEvent?.(`phase=media-extract-exit platform=darwin exitCode=${result.code}`);
     if (result.code !== 0) throw new Error('Runtime extraction failed');
+    stage = 'verify';
     const files = await inventory(await realpath(extracted));
     await writeFile(
       join(extracted, MANIFEST),
@@ -176,6 +184,7 @@ export async function ensureMacVideoHelper(options: {
     if (!(await verifyMacVideoHelper(extracted, arch)))
       throw new Error('Runtime verification failed');
     options.signal?.throwIfAborted();
+    stage = 'install';
     try {
       await lstat(directory);
       previous = `${directory}.invalid-${randomUUID()}`;
@@ -186,16 +195,31 @@ export async function ensureMacVideoHelper(options: {
     await rename(extracted, directory);
     installed = true;
     options.onEvent?.(`phase=media-installed platform=darwin durationMs=${Date.now() - started}`);
-  } catch {
+  } catch (error) {
+    const errno =
+      error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    const reason = options.signal?.aborted
+      ? 'cancelled'
+      : ['ENOSPC', 'EACCES', 'EPERM', 'ENOENT'].includes(errno)
+        ? errno
+        : `${stage}-failed`;
     options.onEvent?.(
-      `phase=media-install-refused platform=darwin durationMs=${Date.now() - started}`,
+      `phase=media-install-refused platform=darwin stage=${stage} code=${reason} durationMs=${Date.now() - started}`,
     );
-    throw new LocalVideoError(
-      'helper-missing',
-      'Mac video setup failed. Check the connection and start Local Computer again.',
-    );
+    options.signal?.throwIfAborted();
+    const message =
+      reason === 'ENOSPC'
+        ? 'Mac video setup ran out of disk space. Free some space and start Local Computer again.'
+        : reason === 'EACCES' || reason === 'EPERM'
+          ? 'Mac video setup could not write its runtime. Check folder permissions and start Local Computer again.'
+          : stage === 'download'
+            ? 'Mac video download failed. Check the connection and start Local Computer again.'
+            : stage === 'verify'
+              ? 'Mac video runtime verification failed. Start Local Computer again to download a verified copy.'
+              : 'Mac video runtime installation failed. Check available disk space and folder permissions, then start Local Computer again.';
+    throw new LocalVideoError('helper-missing', message);
   } finally {
-    await rm(staging, { recursive: true, force: true });
+    if (staging) await rm(staging, { recursive: true, force: true });
     if (previous) {
       if (installed) await rm(previous, { recursive: true, force: true });
       else await rename(previous, directory);

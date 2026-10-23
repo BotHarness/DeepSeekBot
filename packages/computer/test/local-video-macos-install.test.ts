@@ -2,8 +2,9 @@ import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ensureMacVideoHelper,
   macVideoBuild,
   MAC_VIDEO_EXECUTABLE,
   verifyMacVideoHelper,
@@ -11,6 +12,7 @@ import {
 
 const directories: string[] = [];
 afterEach(async () => {
+  vi.unstubAllGlobals();
   for (const directory of directories.splice(0))
     await rm(directory, { recursive: true, force: true });
 });
@@ -62,4 +64,37 @@ describe('Mac pinned capture runtime', () => {
     await writeFile(path, JSON.stringify(manifest));
     expect(await verifyMacVideoHelper(dir, 'arm64')).toBe(false);
   });
+});
+
+it('distinguishes a bounded download failure from checksum verification and preserves cancellation', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'mac-video-download-'));
+  directories.push(dir);
+  const events: string[] = [];
+  const runner = { run: vi.fn() };
+  const options = {
+    dir: join(dir, 'runtime'),
+    arch: 'arm64',
+    runner,
+    onEvent: (event: string) => events.push(event),
+  };
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('private URL')));
+  await expect(ensureMacVideoHelper(options)).rejects.toThrow('download failed');
+  expect(events.at(-1)).toContain('stage=download code=download-failed');
+  expect(events.join(' ')).not.toContain('private URL');
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('bad runtime')));
+  await expect(ensureMacVideoHelper(options)).rejects.toThrow('verification failed');
+  expect(events.at(-1)).toContain('stage=verify code=verify-failed');
+  expect(runner.run).not.toHaveBeenCalled();
+  const controller = new AbortController();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(() => {
+      controller.abort();
+      throw controller.signal.reason;
+    }),
+  );
+  await expect(
+    ensureMacVideoHelper({ ...options, signal: controller.signal }),
+  ).rejects.toMatchObject({ name: 'AbortError' });
+  expect(events.at(-1)).toContain('code=cancelled');
 });
