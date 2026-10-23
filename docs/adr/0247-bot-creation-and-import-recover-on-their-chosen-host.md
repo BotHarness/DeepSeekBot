@@ -26,6 +26,14 @@ The [mobile design](../../apps/mobile/DESIGN.md#native-bot-creation-and-import) 
 
 ## Trade-off and qualification
 
+### Bounded Zip transfer
+
+Zip transfer uses the existing authenticated Host RPC capability with 256 KiB raw chunks. Base64 expansion stays below the encrypted gateway's 4 MiB JSON request limit; a whole desktop-size archive would not. Native file reads and hashing use bounded chunks, with a retained app-owned file for explicit recovery. The existing archive reader keeps its 100 MiB archive limit and entry/content validation.
+
+Host staging is temporary transfer state, separate from canonical import receipts. Immutable chunk files and an atomic manifest survive restart; repeated identical chunks return the acknowledged position. Each upload binds a key, SHA-256 and byte size. The Host permits eight unexpired sessions and 400 MiB of reserved archive bytes, bounding both many small uploads and up to four maximum-size archives. A session expires 24 hours after its first admission, without extension on activity. Admission reclaims expired staging. A completed import remains readable from its canonical receipt after staging or the phone's file is gone.
+
+The import fingerprint binds raw archive SHA-256 and accepted metadata. The Host verifies the full archive before publishing through Registry, Memory and Channel owners. This permits source-free completed readback while refusing changed bytes under the original operation. An unresolved phone operation keeps its local file reference; if unavailable, explicit reselection must match the original hash and size. No new HTTP authority, anonymous upload route or Tob permission is introduced.
+
 Simply retrying the desktop import calls would keep the mobile work smaller, but a lost response can then produce two identities. Durable Host coordination adds lifecycle and persistence work and was chosen as part of the feature's required behavior.
 
 Qualification must lose a response after the Host durably accepts the request, reconnect or restart the client, and recover the same Bot and DM for each source. Host restart and partial-write recovery must preserve the chosen identity or return an explicit repair refusal. Interrupted Zip transfer may resend the same artifact without a second identity. Source/target changes must not be mistaken for retries; an explicitly requested additional copy must receive a distinct operation and Bot. Native interaction and real Host/CLI evidence must each name their verified candidate; source completion alone does not qualify either surface.

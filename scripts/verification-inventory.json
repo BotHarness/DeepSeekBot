@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.zip-bot-import",
+      "label": "Retain a selected Zip, upload bounded chunks and recover the original imported Bot and DM",
+      "source": "apps/mobile/src/host/native-zip-import-file.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2637,
+      "gap": "Host/CLI restart proof and deterministic file/transport tests do not establish native picker, foreground, keyboard or device-disconnect behavior."
+    },
+    {
       "id": "phone.marketplace-bot-import",
       "label": "Browse the public native Marketplace before selecting a Host and import its reviewed source",
       "source": "apps/mobile/app/marketplace.tsx",
@@ -785,6 +793,14 @@
     }
   ],
   "scripts": [
+    {
+      "path": "scripts/e2e-zip-import-proof.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.zip-bot-import"],
+      "reason": "Imported helper of e2e-personabot-create.mjs, not a standalone launcher: same archive after upload restart and duplicate chunk, CLI preview/import/status, discarded accepted reply and same Bot/DM after import restart.",
+      "task": 2637,
+      "sha256": "1727796ca36de7fc2d2308784ccb83ffbdca13e1024ed1fb4e9c6fcf745ae3a7"
+    },
     {
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
@@ -1799,11 +1815,12 @@
       "behaviors": [
         "desktop.personabot.create",
         "phone.blank-bot-creation",
-        "phone.git-bot-import"
+        "phone.git-bot-import",
+        "phone.zip-bot-import"
       ],
-      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal and same Bot/DM after restart. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
+      "reason": "Own pinned isolated Host; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
       "task": 2629,
-      "sha256": "1a7c1ad447e1a0796cc0b17e0772bcb4d42715c67d3dba072671a3a985fb9238"
+      "sha256": "627d12a19277bb2a10a3fb99ead3303f38a922f1cc20b136b11855d11d23df6f"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
