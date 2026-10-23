@@ -1280,3 +1280,7 @@ The application-defined mobile account session and saved Host credentials remain
 ### iOS and macOS Local Computer extension (#2653)
 
 The same application-defined Computer owner now supports a macOS sender and an iOS receiver over the existing Device LAN carrier. Explicit setup installs a checksum-pinned Electron bundle; an owned process group supervises capture and cleanup. The iOS Expo module uses pinned WebRTC with one retiring peer slot and bounded latest-frame Metal presentation. No new DSH interception, identity or durable control store is introduced. Mac geometry validation compares logical display size and backing scale with physical capture size; input remains in capture pixels because the pinned driver performs the logical-point conversion; stale geometry, missing presentation or a missing grant refuses clicks. Foreground watching, explicit takeover and handback preserve ADR-0245 pause semantics. Builds, visible output and Human acceptance are recorded separately.
+
+### Android control and navigation presentation
+
+Android Computer uses native Material command buttons and a floating toolbar; the custom two-axis pad repeats wheel input only during an active held gesture, serializing acknowledgements through the existing viewer input authority. Android Chats/Activity use native Material navigation items with horizontal icon-label content, preserving the existing tab navigator and Activity count source (ADR-0235). These presentation changes add no Host endpoint or persistent authority.

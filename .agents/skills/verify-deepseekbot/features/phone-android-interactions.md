@@ -81,3 +81,11 @@ From global Settings → Activity count, verify a device with no saved choice de
 PNG/XML, MP4 and JSON proof stay in the batch's machine-local evidence directory. The script refuses capture on a pairing-link screen. It does not create a Host, change a model, send a message, erase storage, or prove iOS behavior, notifications or background delivery.
 
 Android accessibility can include the dimmed chat behind the sheet. Check the title within the sheet list bounds. The keyboard pixel detector samples unused input space beside the microphone; placeholder glyphs must not stand in for composer movement. A missing or obscured composer still fails the motion check.
+
+## Android toolbar follow-up (#2559 / #2669)
+
+On a long Chats or Activity list, scroll down: the bottom navigation slides down, while the Chats FAB shrinks and fades at its bottom-center anchor without downward travel. Reverse mid-animation and verify both reveal together. Small reversals and bottom bounce must not flicker them; returning to the top reveals them. Enable TalkBack while hidden and confirm both become visible and stay operable during further scrolling. Test Reduce Motion and ensure hidden controls cannot intercept touches.
+
+This follow-up supersedes the earlier mouse-button wheel shortcuts and floating Android navigation capsule. On the new head, verify Left and Right only click; hold the central pad at each edge for several seconds to keep scrolling, return to neutral or release to stop, and verify diagonal input. Background, disconnect, lose control and leave the screen during a hold: no later scroll should replay. Confirm slow acknowledgements cannot build a request backlog. Click feedback lasts 300 ms. Before takeover, keyboard and Reset are absent; after takeover they are accessible icon controls inside the native floating toolbar.
+
+On Chats and Activity, verify the full-width native navigation bar with horizontal labels in light/dark, English/Chinese, portrait/landscape and default/maximum text sizes. Activity keeps its icon and changes only its label for zero, positive and 99+ pending counts, selected or not. Check Reduce Motion, TalkBack names, last-row clearance, creation FAB clearance and system navigation insets. iOS is unchanged. Capture real before/after states from the same device; these native cases remain pending for this head.
