@@ -2,13 +2,16 @@ import {
   Button as ComposeButton,
   Host,
   Icon,
-  IconButton,
+  FilledTonalIconButton,
   Row,
   Text as ComposeText,
-  TextButton,
+  FilledTonalButton,
+  ToggleButton,
 } from '@expo/ui/jetpack-compose';
-import { semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
+import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
+import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
+import { useIsFocused } from 'expo-router/react-navigation';
 import {
   useCallback,
   useMemo,
@@ -31,8 +34,9 @@ import type { DesktopInput } from '../../../../../packages/computer/src/desktop-
 import type { StageZoom } from '../../host/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
-import { space } from '../design/tokens';
-import { useDesignTheme } from '../design/theme';
+import { computerCanvas, radius, space } from '../design/tokens';
+import { DesignThemeProvider, useDesignTheme, type Appearance } from '../design/theme';
+import { BotAvatar } from '../bot-avatar';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
@@ -52,6 +56,23 @@ const idle: LocalVideoClientState = {
 };
 
 export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
+  const theme = useDesignTheme();
+  const fallbackAppearance = { scheme: theme.scheme, accent: theme.color.accent };
+  return (
+    <DesignThemeProvider appearance={{ scheme: 'dark', accent: theme.color.accent }}>
+      <ComputerScreen Legacy={Legacy} fallbackAppearance={fallbackAppearance} />
+    </DesignThemeProvider>
+  );
+}
+
+function ComputerScreen({
+  Legacy,
+  fallbackAppearance,
+}: {
+  Legacy: ComponentType;
+  fallbackAppearance: Appearance;
+}) {
+  const focused = useIsFocused();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const { client } = useHostSession();
   const snapshot = useHostSnapshot(client);
@@ -126,7 +147,12 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       else router.replace('/');
     }, [exiting, router, viewer]),
   );
-  if (state.status === 'unsupported') return <Legacy />;
+  if (state.status === 'unsupported')
+    return (
+      <DesignThemeProvider appearance={fallbackAppearance}>
+        <Legacy />
+      </DesignThemeProvider>
+    );
   const host = state.host;
   const actions = localVideoActions({ state, connection: snapshot.connection });
   const binding = host?.binding;
@@ -198,38 +224,57 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         paddingBottom: insets.bottom,
         paddingLeft: insets.left,
         paddingRight: insets.right,
-        backgroundColor: theme.layer.canvas.fill,
+        backgroundColor: computerCanvas.background,
       }}
     >
+      {focused ? <StatusBar style="light" /> : null}
       <View
         style={{
           paddingHorizontal: space.x3,
           flexDirection: 'row',
           alignItems: 'center',
           gap: space.x3,
+          paddingVertical: space.x2,
         }}
       >
-        <Text
-          variant="title"
-          numberOfLines={1}
-          style={{ flex: 1 }}
+        <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
+          <FilledTonalIconButton
+            onClick={close}
+            modifiers={[
+              testID('computer-video-close'),
+              defaultMinSize({ minWidth: theme.touch, minHeight: theme.touch }),
+              semantics({ contentDescription: t.computerVideoExit }),
+            ]}
+          >
+            <Icon
+              source={require('../../../assets/toolbar/back.png')}
+              size={theme.type.title.line}
+            />
+          </FilledTonalIconButton>
+        </Host>
+        <View
+          accessible
           accessibilityLiveRegion="polite"
           accessibilityLabel={`${t.computerTitle(bot?.displayName ?? slug ?? '')}, ${controlling ? t.computerYouDriving : t.computerWatching}${host?.paused ? `, ${t.computerVideoBotsPaused}` : ''}`}
+          style={{
+            flexShrink: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
+            minHeight: theme.touch,
+            paddingVertical: space.x2,
+            paddingLeft: space.x3,
+            paddingRight: space.x5,
+            borderRadius: radius.round,
+            backgroundColor: theme.layer.raised.fill,
+          }}
         >
-          {t.computerTitle(bot?.displayName ?? slug ?? '')}
-        </Text>
-        <View testID="computer-video-close">
-          <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
-            <IconButton
-              onClick={close}
-              modifiers={[semantics({ contentDescription: t.computerVideoExit })]}
-            >
-              <Icon
-                source={require('../../../assets/toolbar/close.png')}
-                size={theme.type.title.line}
-              />
-            </IconButton>
-          </Host>
+          {bot === undefined ? null : (
+            <BotAvatar bot={bot} size={theme.type.title.line} ring={false} />
+          )}
+          <Text strong numberOfLines={1} style={{ flexShrink: 1 }}>
+            {t.computerTitle(bot?.displayName ?? slug ?? '')}
+          </Text>
         </View>
       </View>
       <View style={{ flex: 1, minHeight: theme.touch }}>
@@ -279,7 +324,11 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       <ScrollView
         style={{ flexShrink: 1, flexGrow: 0 }}
         keyboardShouldPersistTaps="always"
-        contentContainerStyle={{ paddingHorizontal: space.x3, paddingBottom: space.x2 }}
+        contentContainerStyle={{
+          paddingHorizontal: space.x4,
+          paddingBottom: space.x3,
+          gap: space.x3,
+        }}
       >
         {message === undefined ? null : (
           <ScrollView
@@ -353,12 +402,18 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             keyboardShouldPersistTaps="always"
             contentContainerStyle={{ flexGrow: 1 }}
           >
-            <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
-              <Row verticalAlignment="center">
+            <Host
+              matchContents
+              colorScheme={theme.scheme}
+              seedColor={theme.color.accent}
+              ignoreSafeAreaKeyboardInsets
+            >
+              <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: space.x3 }}>
                 <ComposeButton
                   enabled={!toggleDisabled}
                   onClick={() => void (actions.handBack ? viewer?.resume() : viewer?.takeover())}
                   modifiers={[
+                    defaultMinSize({ minHeight: theme.touch }),
                     testID('computer-video-control'),
                     semantics({
                       contentDescription: actions.handBack
@@ -372,10 +427,14 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                   </ComposeText>
                 </ComposeButton>
                 {controlling ? (
-                  <TextButton
+                  <ToggleButton
                     enabled={remoteKeyboardAvailable && (keyboardOpen || driving)}
-                    onClick={() => setKeyboardOpen(!keyboardOpen)}
-                    modifiers={[testID('computer-video-keyboard')]}
+                    checked={keyboardOpen}
+                    onCheckedChange={setKeyboardOpen}
+                    modifiers={[
+                      testID('computer-video-keyboard'),
+                      defaultMinSize({ minHeight: theme.touch }),
+                    ]}
                   >
                     <ComposeText>
                       {!remoteKeyboardAvailable
@@ -384,22 +443,26 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                           ? t.computerHideKeyboard
                           : t.computerVideoKeyboard}
                     </ComposeText>
-                  </TextButton>
+                  </ToggleButton>
                 ) : null}
                 {mediaMounted ? (
-                  <TextButton
+                  <FilledTonalButton
                     onClick={() => preview.set({ scale: 1, x: 0, y: 0 })}
-                    modifiers={[testID('computer-video-reset')]}
+                    modifiers={[
+                      testID('computer-video-reset'),
+                      defaultMinSize({ minHeight: theme.touch }),
+                    ]}
                   >
                     <ComposeText>{t.computerVideoReset}</ComposeText>
-                  </TextButton>
+                  </FilledTonalButton>
                 ) : null}
                 {actions.recovery === 'pair' ||
                 (!nativeMissing && actions.recovery !== undefined) ? (
-                  <TextButton
+                  <FilledTonalButton
                     enabled={actions.recovery !== 'video' || !state.busy}
                     onClick={recover}
                     modifiers={[
+                      defaultMinSize({ minHeight: theme.touch }),
                       testID(
                         actions.recovery === 'pair'
                           ? 'computer-video-pair-again'
@@ -416,7 +479,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                           ? t.retry
                           : t.computerVideoReconnect}
                     </ComposeText>
-                  </TextButton>
+                  </FilledTonalButton>
                 ) : null}
               </Row>
             </Host>

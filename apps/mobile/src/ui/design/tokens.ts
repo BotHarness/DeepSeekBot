@@ -1,5 +1,7 @@
 export type PlatformOS = 'ios' | 'android';
 
+export const computerCanvas = { background: '#000000' } as const;
+
 export const space = {
   x1: 2,
   x2: 4,
