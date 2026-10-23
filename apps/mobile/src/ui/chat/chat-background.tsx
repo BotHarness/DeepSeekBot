@@ -5,7 +5,7 @@ import type { BackgroundChoice } from '../../host/chat-background';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export const ChatBackground = memo(function ChatBackground({
   choice,
@@ -14,6 +14,7 @@ export const ChatBackground = memo(function ChatBackground({
   choice: BackgroundChoice;
   imageUri(id: string): string;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [failed, setFailed] = useState<string>();
   const missing = choice.kind === 'image' && failed === choice.id;

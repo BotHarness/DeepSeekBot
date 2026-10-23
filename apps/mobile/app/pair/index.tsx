@@ -13,9 +13,10 @@ import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../../src/ui/primitives/settings-row';
 import { Text } from '../../src/ui/primitives/text';
 import { PairingGuide } from '../../src/ui/shell/pairing-guide';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function PairChoiceScreen() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
   const firstPairing = useHostSession().hosts.length === 0;

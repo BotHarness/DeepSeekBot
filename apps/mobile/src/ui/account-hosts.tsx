@@ -5,7 +5,7 @@ import type { SavedHost } from '../host/hosts';
 import { accountHostAdded } from '../host/account-pairing';
 import { confirmDestructive } from './primitives/app-dialog';
 import { AccountPanel, type AccountPairResult } from './primitives/account-panel';
-import { t } from './strings';
+import { useStrings } from './strings';
 
 export function AccountHosts(props: {
   account: Pick<
@@ -24,6 +24,7 @@ export function AccountHosts(props: {
   results: Readonly<Record<string, AccountPairResult>>;
   onPair(hosts: ConnectHost[]): Promise<void>;
 }) {
+  const t = useStrings();
   const { account } = props;
   const [email, setEmail] = useState<string | undefined | null | false>(false);
   const [hosts, setHosts] = useState<ConnectHost[]>();
@@ -89,7 +90,7 @@ export function AccountHosts(props: {
       return () => {
         generation.current += 1;
       };
-    }, [account]),
+    }, [t, account]),
   );
 
   const run = async (

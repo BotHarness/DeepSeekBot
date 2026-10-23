@@ -16,12 +16,15 @@ import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
-import { t } from '../src/ui/strings';
+import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
+import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function RootLayout() {
+  const preferences = useNativeInterfacePreferences();
+  if (!preferences.loaded) return null;
   return (
     <HostAccentProvider>
       <RootNavigator />
@@ -30,6 +33,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
+  const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
   const routing = usePushRouting();
@@ -38,7 +42,7 @@ function RootNavigator() {
       <KeyboardRoot>
         <SafeAreaProvider>
           <View ref={routing} style={{ flex: 1 }}>
-            <StatusBar style="auto" />
+            <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
             <View testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
                 screenOptions={{

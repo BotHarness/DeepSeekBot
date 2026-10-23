@@ -1,5 +1,5 @@
 import { PlusMenuButton, type PlusMenuItem } from '../primitives/plus-menu-button';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { creationMenuItems, type CreationMenuItem } from './creation-menu-items';
 import type { CreationMenuButtonProps } from './creation-menu-button';
 const symbols = {
@@ -12,6 +12,7 @@ const symbols = {
   join: 'person.2',
 } as const;
 export function CreationMenuButton(props: CreationMenuButtonProps) {
+  const t = useStrings();
   const convert = (item: CreationMenuItem): PlusMenuItem => ({
     id: `creation-${item.key}`,
     label: item.label,

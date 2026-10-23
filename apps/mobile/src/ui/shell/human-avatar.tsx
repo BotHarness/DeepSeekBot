@@ -5,7 +5,7 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { PersonIcon } from './icons';
 
 export function humanInitial(name: string | undefined): string | undefined {
@@ -19,6 +19,7 @@ export function HumanAvatarButton({
   loadName: (() => Promise<string | undefined>) | undefined;
   onPress: () => void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [name, setName] = useState<string>();
   const mount = useMounted<ViewInstance>(() => {

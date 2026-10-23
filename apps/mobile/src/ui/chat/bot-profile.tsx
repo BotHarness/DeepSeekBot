@@ -23,7 +23,7 @@ import {
   MessageIcon,
   PlusIcon,
 } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
@@ -191,6 +191,7 @@ function ProfileHeader({
   actions: BotProfileActions;
   settings: ReactNode;
 }) {
+  const t = useStrings();
   return (
     <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x5 }}>
       <BotAvatar bot={bot} size={AVATAR} />
@@ -262,6 +263,7 @@ function ProfileRow({
   onRetry(): void;
   actions: BotProfileActions;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'activity')
     return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
@@ -436,6 +438,7 @@ export function BotProfileSheet({
   settings?: ReactNode;
   initialProfile?: BotProfile | undefined;
 }) {
+  const t = useStrings();
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());

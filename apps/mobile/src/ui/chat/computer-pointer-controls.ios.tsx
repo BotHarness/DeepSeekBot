@@ -15,7 +15,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { ComputerScrollPad } from './computer-scroll-pad';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ComputerMouseIcon } from './computer-mouse-icon';
 
 export function ComputerPointerControls({
@@ -29,6 +29,7 @@ export function ComputerPointerControls({
   onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
   onMotion?: ((direction: { x: number; y: number }) => Promise<boolean>) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const mouseButton = (side: 'left' | 'right') => {

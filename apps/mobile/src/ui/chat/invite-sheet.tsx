@@ -4,7 +4,7 @@ import { useDesignTheme } from '../design/theme';
 import { BotAvatar } from '../bot-avatar';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { PlusIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { SHEET_GROUP, Sheet, SheetNote } from './sheet';
 import { useRef, useState } from 'react';
 import { useMounted } from '../mounted';
@@ -12,6 +12,7 @@ import { errorText } from '../../host/bot-settings';
 import { radius } from '../design/tokens';
 
 export function InviteSheet({ candidates, onInvite, onClose }: InviteSheetProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const alive = useRef(false);
   const mount = useMounted<unknown>(() => {

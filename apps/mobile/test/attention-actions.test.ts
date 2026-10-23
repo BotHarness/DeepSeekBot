@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { interfacePreferences } from '../src/ui/interface-preferences';
+
+beforeEach(() => interfacePreferences.setLanguage('en'));
+afterEach(() => interfacePreferences.setLanguage('system'));
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: navigate }) }));

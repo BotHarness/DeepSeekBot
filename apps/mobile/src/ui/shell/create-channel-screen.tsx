@@ -20,9 +20,10 @@ import { BotPickerSheet } from '../chat/bot-picker-sheet';
 import { CreationConfirm } from '../primitives/creation-confirm';
 import { space } from '../design/tokens';
 import { creationError } from './bot-creation-copy';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function CreateChannelScreen() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { entry, hostId } = useLocalSearchParams<{ entry?: string; hostId?: string }>();
   const { hosts } = useHostSession();

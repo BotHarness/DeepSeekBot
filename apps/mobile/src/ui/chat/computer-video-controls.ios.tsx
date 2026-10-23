@@ -15,7 +15,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { haptic } from '../haptics';
 import { useLiquidGlass } from '../primitives/drawer-material';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 type Action = { label: string; disabled: boolean; onPress(): void };
 
@@ -90,6 +90,7 @@ export function ComputerVideoControls({
   reset?: () => void;
   recovery?: Action;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const primary = (

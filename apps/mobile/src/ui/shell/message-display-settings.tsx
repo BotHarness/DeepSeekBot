@@ -3,10 +3,11 @@ import { SHEET_GROUP } from '../chat/sheet';
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CheckIcon } from './icons';
 
 export function MessageDisplaySettings() {
+  const t = useStrings();
   const state = useMessageDisplay();
   const theme = useDesignTheme();
   return (

@@ -9,7 +9,7 @@ import { HardwareSend } from '../primitives/hardware-send';
 import { TextInput } from '../primitives/system-text';
 import { Text } from '../primitives/text';
 import { ArrowUpIcon, CheckIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { HeaderCircleButton } from './header-chrome';
 
 export function DraftEditor({
@@ -35,6 +35,7 @@ export function DraftEditor({
   selection?: { start: number; end: number } | undefined;
   onSelection?: ((caret: number) => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   return (

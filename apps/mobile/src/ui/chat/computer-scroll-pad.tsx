@@ -9,7 +9,7 @@ import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { ComputerMouseIcon } from './computer-mouse-icon';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
 
 export function ComputerScrollPad({
@@ -23,6 +23,7 @@ export function ComputerScrollPad({
   onScroll(axis: 'horizontal' | 'vertical', steps: number): Promise<boolean>;
   onMotion?: ((direction: { x: number; y: number }) => Promise<boolean>) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const colors = buttonColors(theme, 'secondary', 'canvas');
   const size = useSharedValue({ width: theme.touch * 2, height: theme.touch * 1.5 });

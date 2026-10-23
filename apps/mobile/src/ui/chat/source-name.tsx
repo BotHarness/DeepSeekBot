@@ -5,7 +5,7 @@ import { Text } from '../primitives/text';
 import { hostColorInk, type HostLook } from '../design/host-look';
 import { HostGlyph } from '../shell/host-tile';
 import { CloudIcon, ComputerIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 export function SourceName({
   name,
   source,
@@ -15,6 +15,7 @@ export function SourceName({
   source: 'computer' | 'cloud';
   look?: HostLook | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const Icon = source === 'cloud' ? CloudIcon : ComputerIcon;
   const size = theme.type.meta.size * theme.fontScale;

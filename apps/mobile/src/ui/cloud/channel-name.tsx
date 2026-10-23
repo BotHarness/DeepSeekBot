@@ -3,9 +3,10 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { CloudIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function CloudChannelName({ name }: { name: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <View

@@ -24,10 +24,11 @@ import type { BotPickerSheetProps } from './bot-picker-sheet';
 import { useDesignTheme } from '../design/theme';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { SheetCallout, SheetNote } from './sheet';
 
 export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerSheetProps<T>) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();

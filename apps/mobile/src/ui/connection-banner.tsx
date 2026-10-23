@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native';
 
 import type { ConnectionState } from '../host/client';
 import { connectionRecoveryText } from './connection-recovery';
-import { t } from './strings';
+import { useStrings } from './strings';
 import { useTheme } from './theme';
 
 export function ConnectionBanner({
@@ -15,6 +15,7 @@ export function ConnectionBanner({
   onRetry(): void;
   onPairAgain(): void;
 }) {
+  const t = useStrings();
   const theme = useTheme();
   if (connection.status === 'connected' || connection.status === 'stopped') return null;
   const severe = connection.status === 'refused' || connection.status === 'unreachable';

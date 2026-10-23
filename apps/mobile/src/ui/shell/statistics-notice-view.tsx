@@ -5,7 +5,7 @@ import { Sheet } from '../chat/sheet';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function StatisticsNoticeView({
   visible,
@@ -16,6 +16,7 @@ export function StatisticsNoticeView({
   onClose(): void;
   onSettings(): void;
 }) {
+  const t = useStrings();
   const [expanded, setExpanded] = useState(false);
   const [linkError, setLinkError] = useState(false);
   const open = (url: string) => {

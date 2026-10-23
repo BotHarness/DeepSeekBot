@@ -5,7 +5,7 @@ import type { RequestRef } from '../../host/requests';
 import { CardLine, CardNote, ActionCard } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function PrivateInputCard({
   target,
@@ -24,6 +24,7 @@ export function PrivateInputCard({
   group?: BubbleGroup;
   wide?: boolean;
 }) {
+  const t = useStrings();
   const router = useRouter();
   const { saved } = useHostSession();
   const category = t.kind['private-input']!;

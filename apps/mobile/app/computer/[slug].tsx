@@ -32,7 +32,7 @@ import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
 import { CloseIcon, HandBackIcon } from '../../src/ui/shell/icons';
 import { useMounted } from '../../src/ui/mounted';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';
 
@@ -43,6 +43,7 @@ export default function ComputerScreen() {
 }
 
 function LegacyComputerScreen() {
+  const t = useStrings();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const theme = useDesignTheme();

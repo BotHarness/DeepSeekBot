@@ -13,12 +13,13 @@ import { HapticFeedbackSetting } from '../../src/ui/shell/haptic-feedback-settin
 import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow } from '../../src/ui/primitives/settings-row';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 import { SettingsView } from '../../src/ui/settings-view';
 import { openHostDrawer } from '../../src/ui/shell/host-drawer';
 import { noticeHostKept } from '../../src/ui/unpair-notice';
 
 export default function SettingsScreen() {
+  const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
   const { connection } = useHostSnapshot(client);

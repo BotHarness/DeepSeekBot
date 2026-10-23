@@ -5,7 +5,7 @@ import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { useDesignTheme, pressTint } from '../design/theme';
 import { fab, materialMenu } from '../design/tokens';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { MenuIcon } from '../primitives/menu-icon';
 import { PlusIcon } from './icons';
@@ -13,6 +13,7 @@ import { creationMenuItems, type CreationMenuItem } from './creation-menu-items'
 import type { CreationMenuButtonProps } from './creation-menu-button';
 
 export function CreationMenuButton(props: CreationMenuButtonProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
   const opened = useRef(false);

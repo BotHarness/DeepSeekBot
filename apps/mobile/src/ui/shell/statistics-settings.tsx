@@ -3,9 +3,10 @@ import { mobileTelemetry } from '../../telemetry/native';
 import { SHEET_GROUP } from '../chat/sheet';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function StatisticsSettings() {
+  const t = useStrings();
   const state = useSyncExternalStore(mobileTelemetry.subscribe, mobileTelemetry.getSnapshot);
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState(false);

@@ -24,7 +24,7 @@ import {
 import { useMounted } from './mounted';
 import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { haptic } from './haptics';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 import { useTheme } from './theme';
 
 export interface QuestionPort {
@@ -57,6 +57,7 @@ export function QuestionView({
   botName: string;
   listed?: boolean;
 }) {
+  const t = useStrings();
   const theme = useTheme();
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>({});

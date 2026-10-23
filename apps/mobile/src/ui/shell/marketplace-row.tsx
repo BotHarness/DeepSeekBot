@@ -4,9 +4,10 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { MarketplaceArt } from './marketplace-art';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function MarketplaceRow({ bot, onPress }: { bot: MarketplaceEntry; onPress(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <Pressable

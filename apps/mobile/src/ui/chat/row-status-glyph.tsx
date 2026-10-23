@@ -14,7 +14,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { useDesignTheme } from '../design/theme';
 import { rowGlyph } from '../design/tokens';
 import { useMounted } from '../mounted';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useTheme, type Theme } from '../theme';
 import type { RowStatus } from './conversations';
 
@@ -90,6 +90,7 @@ function shape(status: Shown, color: string, cut: string): ReactElement {
 }
 
 export function RowStatusGlyph({ status }: { status: RowStatus }) {
+  const t = useStrings();
   const theme = useTheme();
   const canvas = useDesignTheme().layer.canvas.fill;
   const reduced = useReducedMotion();

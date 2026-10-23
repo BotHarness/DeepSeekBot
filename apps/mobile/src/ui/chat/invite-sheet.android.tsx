@@ -1,11 +1,12 @@
 import { BotAvatar } from '../bot-avatar';
 import { radius } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { BotPickerSheet } from './bot-picker-sheet';
 import { useInviteSelection, type InviteSheetProps } from './invite-selection';
 
 export function InviteSheet(props: InviteSheetProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const draft = useInviteSelection(props);
   return (

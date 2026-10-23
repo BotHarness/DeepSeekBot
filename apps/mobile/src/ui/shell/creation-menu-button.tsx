@@ -3,7 +3,7 @@ import { NavigationAction } from './navigation-action';
 import { CreationPanel } from './creation-panel';
 import type { CreationPanelProps } from './creation-menu';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export type CreationMenuButtonProps = Pick<
   CreationPanelProps,
@@ -11,6 +11,7 @@ export type CreationMenuButtonProps = Pick<
 >;
 
 export function CreationMenuButton(props: CreationMenuButtonProps) {
+  const t = useStrings();
   const [open, setOpen] = useState(false);
   const opened = useRef(false);
   const close = () => {

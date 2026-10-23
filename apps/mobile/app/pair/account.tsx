@@ -9,9 +9,10 @@ import { AccountHosts } from '../../src/ui/account-hosts';
 import type { AccountPairResult } from '../../src/ui/primitives/account-panel';
 import { PairingVerification } from '../../src/ui/shell/pairing-verification';
 import { usePairing } from '../../src/ui/shell/use-pairing';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function PairAccountScreen() {
+  const t = useStrings();
   const pairing = usePairing({ stayOnPage: true, preventDuplicates: true });
   const session = useHostSession();
   const params = useLocalSearchParams<{ account?: string }>();

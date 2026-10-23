@@ -11,7 +11,7 @@ import { useDesignTheme } from '../design/theme';
 import { chatList, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ChatsIcon, ChevronDownIcon, CloudIcon } from './icons';
 import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
@@ -28,6 +28,7 @@ export function HomeHeader({
   search?: ReactNode;
   children: ReactNode | ((headerTravel: number) => ReactNode);
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();

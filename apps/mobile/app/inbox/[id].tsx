@@ -20,7 +20,7 @@ import { ATTENTION_KINDS, AttentionItemView } from '../../src/ui/attention-item'
 import { GrantRequestCard } from '../../src/ui/chat/grant-request-card';
 import { QuestionView } from '../../src/ui/question-view';
 import { Notice } from '../../src/ui/request-parts';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 import { useTheme } from '../../src/ui/theme';
 
 type Params = {
@@ -33,6 +33,7 @@ type Params = {
 };
 
 export default function InboxItemScreen() {
+  const t = useStrings();
   const theme = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<Params>();

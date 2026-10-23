@@ -9,9 +9,10 @@ import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function BotProfileScreen() {
+  const t = useStrings();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const theme = useDesignTheme();

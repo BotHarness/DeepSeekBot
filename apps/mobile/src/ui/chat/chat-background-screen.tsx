@@ -12,7 +12,7 @@ import { useHostSession } from '../../host/host-session';
 import type { BackgroundScope, BackgroundEdit } from '../../host/chat-background';
 import { ChatBackgroundEditor } from './chat-background-editor';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 function Editor({ scope }: { scope: BackgroundScope | undefined }) {
@@ -61,6 +61,7 @@ export default function ChatBackgroundScreen({
 }: {
   deviceDefault?: boolean;
 }) {
+  const t = useStrings();
   const params = useLocalSearchParams<{ hostId?: string; channelId?: string }>();
   const { hosts } = useHostSession();
   const state = useChatBackgrounds();

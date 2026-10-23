@@ -35,7 +35,7 @@ import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
 import type { NavigationDestination } from './navigation-destination';
 
@@ -50,6 +50,7 @@ export function BottomNavigation() {
 }
 
 function NavigationLayout() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
@@ -119,6 +120,7 @@ function ScopedNavigationBar({
   onNativeHeight,
   scope,
 }: NavigationBarLayout & { scope: string }) {
+  const t = useStrings();
   const currentKey = state.routes[state.index]?.key;
   const selectTab = useSelectionFeedback(currentKey, (key) => {
     if (key !== undefined) return navigateToTab(key);

@@ -9,7 +9,7 @@ import { Button } from './primitives/button';
 import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { TextField } from './primitives/text-field';
 import { Text } from './primitives/text';
-import { t } from './strings';
+import { useStrings } from './strings';
 
 type Request = Awaited<ReturnType<typeof loadPrivateInput>>;
 export function PrivateInputForm({
@@ -21,6 +21,7 @@ export function PrivateInputForm({
   target: RequestRef;
   after?(): void;
 }) {
+  const t = useStrings();
   const [request, setRequest] = useState<Request>();
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);

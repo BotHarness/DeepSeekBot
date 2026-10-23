@@ -12,7 +12,7 @@ import { SectionChoice, SectionChoiceDivider } from './section-choice';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
 import { createSectionFlow } from './conversation-sections';
 
@@ -27,6 +27,7 @@ export function ConversationSectionSheet({
   isCurrent(): boolean;
   onClose(): void;
 }) {
+  const t = useStrings();
   const snapshot = useHostSnapshot(client);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');

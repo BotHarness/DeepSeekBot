@@ -9,7 +9,7 @@ import { useMounted } from '../mounted';
 import { Chip } from '../primitives/chip';
 import { Segmented } from '../primitives/segmented';
 import { useSelectionFeedback } from '../selection-feedback';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function MarketplaceDiscovery({
   sort,
@@ -22,6 +22,7 @@ export function MarketplaceDiscovery({
   topic: string;
   onTopic(value: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const chooseSort = useSelectionFeedback(sort, onSort);
   const options = [

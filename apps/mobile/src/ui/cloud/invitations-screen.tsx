@@ -14,7 +14,7 @@ import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { confirmDestructive } from '../primitives/app-dialog';
 function revokeLabel(guest: boolean, state: string): string {
   return guest && state === 'accepted' ? t.cloudGuests.revoke : t.cloudInvitations.revoke;
@@ -40,6 +40,7 @@ function renderInvitationScroll(props: ScrollViewProps) {
   return <InvitationScroll {...props} />;
 }
 export function CloudInvitationsScreen() {
+  const t = useStrings();
   const { instanceId, organizationId, channelId, channelName, kind, accountScope } =
     useLocalSearchParams<{
       instanceId: string;
@@ -89,6 +90,7 @@ function InvitationWorkspace({
   channelName?: string | undefined;
   guest: boolean;
 }) {
+  const t = useStrings();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme(),
     insets = useSafeAreaInsets();

@@ -11,11 +11,12 @@ import { Button } from '../primitives/button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { Text } from '../primitives/text';
-import { locale, t } from '../strings';
+import { useStrings, locale } from '../strings';
 import { creationError } from './bot-creation-copy';
 import { MarketplaceDetail } from './marketplace-detail';
 
 export function MarketplaceBotScreen() {
+  const t = useStrings();
   const { id, hostId, entry } = useLocalSearchParams<{
     id?: string;
     hostId?: string;

@@ -17,7 +17,7 @@ import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
 import { Toggle } from './primitives/toggle';
 import { ActionButton, Loading, Notice, errorText } from './request-parts';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 
 export interface NotificationSettingsPort {
   load(): Promise<PushSettings>;
@@ -70,6 +70,7 @@ export function NotificationSettings({
   onEnable(): void;
   onOpenSettings(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [settings, setSettings] = useState<PushSettings | undefined>();
   const [error, setError] = useState<string | undefined>();

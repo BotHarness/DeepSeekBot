@@ -5,7 +5,7 @@ import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 import type { DesignTheme } from '../design/theme';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { SheetGrabber } from './sheet-grabber';
 
 export function sheetScreenOptions(theme: DesignTheme, full = false) {
@@ -30,6 +30,7 @@ export function SheetScreen({
   onClose?: () => void;
   modalGrabber?: boolean;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
   const close = onClose ?? (() => router.back());

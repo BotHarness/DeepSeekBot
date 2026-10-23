@@ -27,7 +27,7 @@ import {
 } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, PlusIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
 import { InviteSheet } from './invite-sheet';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
@@ -124,6 +124,7 @@ function RenameSheet({
   onSave(name: string): Promise<boolean>;
   onClose(): void;
 }) {
+  const t = useStrings();
   const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
   const next = draft.trim();
@@ -190,6 +191,7 @@ export function GroupInfoSheet({
   onDisbanded(): void;
   background?: ReactNode;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -421,6 +423,7 @@ function GroupRow({
   onCancelInvite(pending: GroupPending): void;
   onDecide(pending: GroupPending, accept: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'empty')
     return (

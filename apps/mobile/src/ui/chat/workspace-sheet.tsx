@@ -22,7 +22,7 @@ import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
 import { CheckIcon, ChevronRightIcon, CloseIcon, FolderIcon, PlusIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import {
   Sheet,
   type SheetPageProps,
@@ -75,6 +75,7 @@ type BrowseRow =
 const OFF = 'off';
 
 export function OpenFolderTarget({ listing }: { listing: Loadable<HostFolderListing> }) {
+  const t = useStrings();
   return listing.status === 'ready' ? (
     <SheetNote>{t.authorizeTarget(listing.value.path)}</SheetNote>
   ) : null;
@@ -244,6 +245,7 @@ export function WorkspaceSheet({
   onTemplates(templates: ApprovalTemplates): void;
   onClose(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [mode, setMode] = useState<Mode>('main');
   const [listing, setListing] = useState<Loadable<HostFolderListing>>({

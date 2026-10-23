@@ -24,7 +24,7 @@ import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { Chip } from '../primitives/chip';
 import { ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { RoutineTarget } from '../../host/routines';
 import { firingText, routineDetail, when } from './routine-text';
 import {
@@ -157,6 +157,7 @@ function RoutineEditor({
   preview: Loadable<string[]> | undefined;
   onChange(patch: Partial<RoutineForm>): void;
 }) {
+  const t = useStrings();
   const problem = routineProblem(form);
   return (
     <>
@@ -275,6 +276,7 @@ export function RoutineSheet({
   onChanged(): void;
   onClose(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [routine, setRoutine] = useState<BotScheduleSummary | undefined>(
     target.kind === 'open' ? target.routine : undefined,

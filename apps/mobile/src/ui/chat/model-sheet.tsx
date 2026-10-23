@@ -13,7 +13,7 @@ import {
 import { useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { CheckIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import {
   Sheet,
   type SheetPageProps,
@@ -55,6 +55,7 @@ export function ModelSheet({
   onPreset(presetId: string): Promise<void>;
   onClose(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();

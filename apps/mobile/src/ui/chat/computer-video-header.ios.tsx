@@ -4,7 +4,7 @@ import { accessibilityLabel, font, frame, lineLimit } from '@expo/ui/swift-ui/mo
 import { useWindowDimensions } from 'react-native';
 import type { DesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { computerVideoStatus } from './computer-video-status';
 
 export function ComputerVideoHeader({
@@ -16,6 +16,7 @@ export function ComputerVideoHeader({
   status: ReturnType<typeof computerVideoStatus>;
   theme: DesignTheme;
 }) {
+  const t = useStrings();
   const { width } = useWindowDimensions();
   const connectionLabel =
     status.connection === 'live'

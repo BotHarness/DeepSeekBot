@@ -10,9 +10,10 @@ import {
   previewStorageMessages,
 } from '../../src/host/storage';
 import { StorageSettings, type StorageSettingsPort } from '../../src/ui/storage-settings';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function StorageScreen() {
+  const t = useStrings();
   const { saved, client } = useHostSession();
   const port = useMemo<StorageSettingsPort | undefined>(
     () =>
@@ -29,7 +30,7 @@ export default function StorageScreen() {
               if (cleared.includes(false)) throw new Error(t.storage.imageCacheFailed);
             },
           },
-    [client],
+    [t, client],
   );
   if (port === undefined) return null;
   return <StorageSettings key={saved?.hostId} port={port} />;

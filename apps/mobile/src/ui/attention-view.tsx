@@ -12,7 +12,7 @@ import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { Text } from './primitives/text';
 import { TextField } from './primitives/text-field';
 import { errorText } from './request-parts';
-import { t } from './strings';
+import { useStrings } from './strings';
 
 function Page({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
@@ -48,6 +48,7 @@ function Well({ children }: { children: string }) {
 }
 
 function useAction(after: (() => void) | undefined, port: object, requestId: string) {
+  const t = useStrings();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [done, setDone] = useState<string>();
@@ -93,6 +94,7 @@ function useAction(after: (() => void) | undefined, port: object, requestId: str
 }
 
 function Done({ category, text }: { category: string; text: string }) {
+  const t = useStrings();
   return (
     <Page>
       <CardLine text={t.cardLine(category, text)} tone="success" />
@@ -115,6 +117,7 @@ export function AutoRejectionView({
   port: AutoRejectionPort;
   after?(): void;
 }) {
+  const t = useStrings();
   const { busy, error, done, run } = useAction(after, port, item.id);
   const category = t.kind['auto-rejection']!;
   if (done !== undefined) return <Done category={category} text={done} />;
@@ -180,6 +183,7 @@ export function RepairView({
   after?(): void;
   onOpenChat?(): void;
 }) {
+  const t = useStrings();
   const { busy, error, done, run } = useAction(after, port, item.id);
   const category = t.kind['bot-message-needs-repair']!;
   if (done !== undefined) return <Done category={category} text={done} />;
@@ -240,6 +244,7 @@ export function JoinRequestView({
   port: JoinRequestPort;
   after?(): void;
 }) {
+  const t = useStrings();
   const { busy, error, done, run } = useAction(after, port, item.id);
   const category = t.kind['group-join-request']!;
   if (done !== undefined) return <Done category={category} text={done} />;
@@ -305,6 +310,7 @@ export function AssignmentView({
   port: AssignmentPort;
   after?(): void;
 }) {
+  const t = useStrings();
   const [phase, setPhase] = useState<AssignmentPhase>({ kind: 'loading' });
   const [draft, setDraft] = useState('');
   const [sent, setSent] = useState<{ body: string }>();

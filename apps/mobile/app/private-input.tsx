@@ -3,9 +3,10 @@ import { useHostSession } from '../src/host/host-session';
 import { PrivateInputForm } from '../src/ui/private-input-form';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { Text } from '../src/ui/primitives/text';
-import { t } from '../src/ui/strings';
+import { useStrings } from '../src/ui/strings';
 
 export default function PrivateInputScreen() {
+  const t = useStrings();
   const { client, saved, inbox } = useHostSession();
   const { hostId, channelId, messageId, botSlug } = useLocalSearchParams<{
     hostId: string;

@@ -2,7 +2,7 @@ import type { ReactNode, RefCallback } from 'react';
 import { FlatList, View } from 'react-native';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { ParticipantChoice } from '../primitives/participant-choice';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { Sheet, SheetCallout } from './sheet';
 
 export interface BotPickerCandidate {
@@ -25,6 +25,7 @@ export interface BotPickerSheetProps<T extends BotPickerCandidate> {
 }
 
 export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerSheetProps<T>) {
+  const t = useStrings();
   return (
     <View ref={props.mount}>
       <Sheet visible label={props.title} onClose={props.onClose}>

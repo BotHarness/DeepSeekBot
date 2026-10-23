@@ -139,6 +139,8 @@ const { useDictation } = await import('../src/host/speech');
 const { t } = await import('../src/ui/strings');
 const { played } = await import('./expo-haptics-shim');
 const { setHapticsEnabled } = await import('../src/ui/haptics');
+const { interfacePreferences } = await import('../src/ui/interface-preferences');
+const strings = await import('../src/ui/strings');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -199,6 +201,8 @@ beforeEach(async () => {
 
 afterEach(() => {
   act(() => root?.unmount());
+  interfacePreferences.setLanguage('system');
+  interfacePreferences.setAppearance('system');
   host.remove();
 });
 
@@ -221,6 +225,28 @@ const result = (transcript: string, isFinal: boolean) => ({
 });
 
 describe('Composer dictation', () => {
+  it.each(['ios', 'android'])(
+    'retains the mounted draft and caret while language and appearance change on %s',
+    async (platform) => {
+      speech.platform = platform;
+      await press('Pick Mika');
+      const input = field();
+      input.focus();
+      input.setSelectionRange(1, 3);
+      await act(async () => interfacePreferences.setLanguage('zh'));
+      expect(button(strings.t.send)).not.toBeNull();
+      await act(async () => interfacePreferences.setAppearance('dark'));
+      expect(field()).toBe(input);
+      expect(input.value).toBe('@Mika ');
+      expect(input.selectionStart).toBe(1);
+      expect(input.selectionEnd).toBe(3);
+      expect(document.activeElement).toBe(input);
+      await act(async () => interfacePreferences.setLanguage('en'));
+      expect(field()).toBe(input);
+      expect(button(strings.t.send)).not.toBeNull();
+      expect(sent).not.toHaveBeenCalled();
+    },
+  );
   it.each(['ios', 'android'])(
     'keeps Send disabled through disconnect and restores the same draft on %s',
     async (platform) => {

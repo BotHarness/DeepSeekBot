@@ -20,7 +20,7 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ActionCard, CardButtons, CardLine, type CardLineTone } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { DraftEditor } from './draft-editor';
@@ -88,6 +88,7 @@ function Option({
   disabled: boolean;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const badge = theme.type.body.line * theme.fontScale + space.x2;
   return (
@@ -158,6 +159,7 @@ function QuestionFields({
   onChange(next: QuestionDraft): void;
   onPick?(label: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const multiple = question.multiSelect === true;
   const [editing, setEditing] = useState(false);
@@ -287,6 +289,7 @@ export function QuestionCard({
   answeredHere?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const known = useRef(resolution !== undefined);
   const current = useRef({ port, pending: false, active: false });
   if (current.current.port !== port) {

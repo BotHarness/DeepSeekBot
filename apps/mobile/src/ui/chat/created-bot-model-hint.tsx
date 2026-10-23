@@ -6,7 +6,7 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { creationCopy as copy } from '../shell/bot-creation-copy';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function CreatedBotModelHint({
   slug,
@@ -15,6 +15,7 @@ export function CreatedBotModelHint({
   slug: string;
   hostId: string | undefined;
 }) {
+  const t = useStrings();
   const { saved } = useHostSession();
   const [shown, setShown] = useState(true);
   if (!shown || saved?.hostId !== hostId) return null;

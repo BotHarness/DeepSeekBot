@@ -7,9 +7,10 @@ import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { ComposerCircleButton, composerBar } from './composer-chrome';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const layer = theme.layer.raised;
   const badge = theme.type.meta.line;

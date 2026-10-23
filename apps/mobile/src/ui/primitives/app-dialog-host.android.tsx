@@ -14,13 +14,14 @@ import { useSyncExternalStore } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { appDialogs, type DialogAction } from './dialog-state';
 import { materialMenu, space } from '../design/tokens';
 import { MaterialMenuGroup } from './material-menu.android';
 import { MenuIcon } from './menu-icon';
 
 export function AppDialogHost() {
+  const t = useStrings();
   const shown = useSyncExternalStore(
     appDialogs.subscribe,
     appDialogs.getSnapshot,

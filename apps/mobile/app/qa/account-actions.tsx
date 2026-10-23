@@ -10,7 +10,7 @@ import { AccountHosts } from '../../src/ui/account-hosts';
 import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
 import { space } from '../../src/ui/design/tokens';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function AccountActionsFixtureRoute() {
   if (!__DEV__ || !Application.applicationId?.endsWith('.dev')) return <Redirect href="/" />;
@@ -18,6 +18,7 @@ export default function AccountActionsFixtureRoute() {
 }
 
 function AccountActionsFixture() {
+  const t = useStrings();
   const params = useLocalSearchParams<{ scenario?: string }>();
   const scenarios: AccountFixtureScenario[] = [
     'success',

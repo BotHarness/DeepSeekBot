@@ -2,11 +2,12 @@ import { Host, ListItem } from '@expo/ui';
 import { HorizontalDivider, Icon } from '@expo/ui/jetpack-compose';
 import { semantics } from '@expo/ui/jetpack-compose/modifiers';
 import { space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useDesignTheme } from '../design/theme';
 import type { SectionChoiceProps } from './section-choice';
 
 export function SectionChoice({ title, testID, onPress, selected = false }: SectionChoiceProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <Host

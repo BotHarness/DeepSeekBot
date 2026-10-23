@@ -4,7 +4,7 @@ import { BackHandler, Keyboard, Platform, View, type ViewInstance } from 'react-
 import { useDesignTheme } from '../design/theme';
 import { SearchField } from '../primitives/search-field';
 import { useMounted } from '../mounted';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { HeaderIconButton } from './header-icon-button';
 import { ChevronLeftIcon, CloseIcon } from './icons';
 import { NavigationAction } from './navigation-action';
@@ -24,6 +24,7 @@ export function HeaderSearch({
   onFocusChange,
   onClose,
 }: HeaderSearchProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const close = () => {
     Keyboard.dismiss();

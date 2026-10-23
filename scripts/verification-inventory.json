@@ -4,6 +4,13 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.interface-preferences",
+      "label": "Phone-local language and appearance choices preserve the active chat and draft",
+      "source": "apps/mobile/src/ui/interface-preferences.ts",
+      "task": 2702,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-interface.md"
+    },
+    {
       "id": "phone.zip-bot-import",
       "label": "Retain a selected Zip, upload bounded chunks and recover the original imported Bot and DM",
       "source": "apps/mobile/src/host/native-zip-import-file.ts",

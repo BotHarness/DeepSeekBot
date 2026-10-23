@@ -5,7 +5,7 @@ import { View, useWindowDimensions, type ViewProps } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { materialSearchHeight } from '../design/material-search';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { SearchFieldProps } from './search-field';
 
 type NativeSearchProps = ViewProps & {
@@ -44,6 +44,7 @@ export function SearchField({
   floating = false,
   trailing,
 }: SearchFieldProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { fontScale } = useWindowDimensions();
   const [eventCount, setEventCount] = useState(0);

@@ -7,7 +7,7 @@ import { radius, space } from '../design/tokens';
 import { MarkdownView } from '../markdown-view';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { marketplaceReadmeLink } from '../../marketplace/readme-links';
 
 export function MarketplaceDetail({
@@ -21,6 +21,7 @@ export function MarketplaceDetail({
   disabled: boolean;
   onImport(): void;
 }) {
+  const t = useStrings();
   const bot = detail.bot;
   const theme = useDesignTheme();
   const openLink = useCallback(
