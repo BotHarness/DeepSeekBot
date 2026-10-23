@@ -40,9 +40,9 @@ export function MarketplaceScreen() {
   const mounted = useMounted<ViewInstance>(() => {
     void resource.refresh();
   }, [resource]);
-  const searchNow = () => {
+  const searchNow = (submitted = search) => {
     Keyboard.dismiss();
-    const next = search.trim();
+    const next = submitted.trim();
     setSearch(next);
     if (next === query) void resource.refresh();
     else setQuery(next);
@@ -239,7 +239,7 @@ export function MarketplaceScreen() {
               <HeaderCircleButton
                 label={t.marketplace.search}
                 testID="marketplace-search-submit"
-                onPress={searchNow}
+                onPress={() => searchNow()}
               >
                 <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
               </HeaderCircleButton>
