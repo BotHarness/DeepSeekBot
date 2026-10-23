@@ -9,7 +9,7 @@ import {
   type ComponentType,
 } from 'react';
 import { AppState, ScrollView, View, type ViewInstance } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
 import { ComputerVideoKeyboard, remoteKeyboardAvailable } from './computer-video-keyboard';
 import { StatusBar } from 'expo-status-bar';
@@ -66,6 +66,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     [outerTheme.fontScale, outerTheme.largeText],
   );
   const insets = useSafeAreaInsets();
+  const softKeyboardVisible = useKeyboardState((state) => state.isVisible);
   const viewer = useMemo(
     () =>
       client === undefined
@@ -347,7 +348,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           style={{ flexShrink: 1, flexGrow: 0 }}
           contentContainerStyle={{
             padding: space.x3,
-            paddingBottom: space.x3 + (keyboardOpen ? 0 : insets.bottom),
+            paddingBottom: space.x3 + (softKeyboardVisible ? 0 : insets.bottom),
             gap: space.x2,
           }}
         >
