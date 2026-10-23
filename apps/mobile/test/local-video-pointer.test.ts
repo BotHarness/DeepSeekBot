@@ -12,7 +12,7 @@ describe('native video trackpad', () => {
     const cursor = moveCursor({ x: 1280, y: 720 }, { x: 50, y: -25 }, frame, portrait, zoom);
     expect(cursor).toEqual({ x: 1440, y: 640 });
     expect(stagePoint(cursor, frame, portrait, zoom)).toEqual({ x: 290, y: 305 });
-    expect(videoPointerClick(cursor, frame, 'left', true)).toEqual({
+    expect(videoPointerClick({ point: cursor, frame, button: 'left', driving: true })).toEqual({
       kind: 'click',
       x: 1440,
       y: 640,
@@ -22,7 +22,9 @@ describe('native video trackpad', () => {
   });
 
   it('keeps right clicks inside the final real display pixel', () => {
-    expect(videoPointerClick({ x: 2560, y: 1440 }, frame, 'right', true)).toEqual({
+    expect(
+      videoPointerClick({ point: { x: 2560, y: 1440 }, frame, button: 'right', driving: true }),
+    ).toEqual({
       kind: 'click',
       x: 2559,
       y: 1439,
@@ -32,11 +34,22 @@ describe('native video trackpad', () => {
   });
 
   it('never turns an observer or unavailable geometry into a click', () => {
-    expect(videoPointerClick({ x: 100, y: 100 }, frame, 'left', false)).toBeUndefined();
     expect(
-      videoPointerClick({ x: 0, y: 0 }, { width: 0, height: 0 }, 'left', true),
+      videoPointerClick({ point: { x: 100, y: 100 }, frame, button: 'left', driving: false }),
     ).toBeUndefined();
-    expect(videoPointerClick({ x: -1, y: 100 }, frame, 'left', true)).toBeUndefined();
-    expect(videoPointerClick({ x: NaN, y: 100 }, frame, 'left', true)).toBeUndefined();
+    expect(
+      videoPointerClick({
+        point: { x: 0, y: 0 },
+        frame: { width: 0, height: 0 },
+        button: 'left',
+        driving: true,
+      }),
+    ).toBeUndefined();
+    expect(
+      videoPointerClick({ point: { x: -1, y: 100 }, frame, button: 'left', driving: true }),
+    ).toBeUndefined();
+    expect(
+      videoPointerClick({ point: { x: NaN, y: 100 }, frame, button: 'left', driving: true }),
+    ).toBeUndefined();
   });
 });

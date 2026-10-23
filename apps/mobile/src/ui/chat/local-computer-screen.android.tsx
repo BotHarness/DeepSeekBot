@@ -98,7 +98,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       current?.grant?.generation !== host?.grant?.generation
     )
       return;
-    const input = videoPointerClick(at, frame, button, driving);
+    const input = videoPointerClick({ point: at, frame, button, driving });
     if (input !== undefined) void viewer?.input(input);
   };
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
@@ -213,7 +213,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           {t.computerVideoTrackpadHint}
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
-          <View style={{ flexGrow: 1 }}>
+          <View style={{ flexBasis: '45%', flexGrow: 1 }}>
             {action(
               t.computerLeftClick,
               'computer-video-left-click',
@@ -221,7 +221,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               !driving,
             )}
           </View>
-          <View style={{ flexGrow: 1 }}>
+          <View style={{ flexBasis: '45%', flexGrow: 1 }}>
             {action(
               t.computerRightClick,
               'computer-video-right-click',

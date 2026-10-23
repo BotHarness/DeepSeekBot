@@ -1,11 +1,16 @@
 import type { DesktopInput } from '../../../../packages/computer/src/desktop-view';
 
-export function videoPointerClick(
-  point: { x: number; y: number },
-  frame: { width: number; height: number },
-  button: 'left' | 'right',
-  driving: boolean,
-): Extract<DesktopInput, { kind: 'click' }> | undefined {
+export function videoPointerClick({
+  point,
+  frame,
+  button,
+  driving,
+}: {
+  point: { x: number; y: number };
+  frame: { width: number; height: number };
+  button: 'left' | 'right';
+  driving: boolean;
+}): Extract<DesktopInput, { kind: 'click' }> | undefined {
   if (
     !driving ||
     !Number.isFinite(point.x) ||
