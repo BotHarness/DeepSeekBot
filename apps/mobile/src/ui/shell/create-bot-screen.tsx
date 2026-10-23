@@ -108,7 +108,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
   const source =
     draft?.source ??
     (state.record.kind === 'submitted' ? state.record.operation.source : undefined);
-  const flow = source?.kind ?? (submitted ? 'blank' : initialSource);
+  const flow = entryReady ? (source?.kind ?? (submitted ? 'blank' : initialSource)) : initialSource;
   const importing = flow !== 'blank';
   const targetId =
     state.record.kind === 'submitted' ? state.record.operation.hostId : state.record.draft.hostId;

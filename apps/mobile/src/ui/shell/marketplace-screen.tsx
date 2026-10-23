@@ -56,9 +56,13 @@ export function MarketplaceScreen() {
           <HeaderIconButton label={t.back} testID="marketplace-back" onPress={() => router.back()}>
             <ChevronLeftIcon color={theme.color.fg} size={theme.type.title.line} />
           </HeaderIconButton>
-          <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
-            {t.marketplace.title}
-          </Text>
+          {theme.fontScale > 1.5 ? (
+            <View style={{ flex: 1 }} />
+          ) : (
+            <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
+              {t.marketplace.title}
+            </Text>
+          )}
           <HeaderIconButton
             label={t.marketplace.search}
             testID="marketplace-search-button"
@@ -84,6 +88,11 @@ export function MarketplaceScreen() {
             <HeaderGlyph icon="filter" active={topic !== '' || sort !== 'updated'} />
           </HeaderIconButton>
         </View>
+        {theme.fontScale > 1.5 ? (
+          <Text variant="title" strong accessibilityRole="header">
+            {t.marketplace.title}
+          </Text>
+        ) : null}
         {searching ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
             <View style={{ flex: 1 }}>
