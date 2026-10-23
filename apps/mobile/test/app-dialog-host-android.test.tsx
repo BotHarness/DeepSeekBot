@@ -68,7 +68,8 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
   return {
     ...nativeMenu,
     AlertDialog,
-    Column: pass,
+    Column: ({ children, modifiers }: { children?: ReactNode; modifiers?: { id?: string }[] }) =>
+      createElement('section', { 'data-testid': modifiers?.find((m) => m.id)?.id }, children),
     HorizontalDivider: () => createElement('hr'),
     Host: pass,
     ListItem,
@@ -106,6 +107,29 @@ const buttons = (view: HTMLElement, slot: string) => [
 ];
 
 describe('Android dialogs use the Material 3 AlertDialog', () => {
+  it('places the conversation avatar and name in a separate header above three commands', () => {
+    const view = mount();
+    act(() =>
+      appDialogs.open(
+        'Launch team',
+        undefined,
+        [
+          { text: 'Pin', icon: 'pin' },
+          { text: 'Move to section', icon: 'folder' },
+          { text: 'Mute', icon: 'mute' },
+        ],
+        'menu',
+        createElement('img', { alt: 'Launch avatar' }),
+      ),
+    );
+    const header = view.querySelector('[data-testid="action-menu-header"]')!;
+    expect(header.textContent).toBe('Launch team');
+    expect(header.querySelector('img')?.alt).toBe('Launch avatar');
+    const items = [...view.querySelectorAll('[data-menu-item]')];
+    expect(items.map((item) => item.textContent)).toEqual(['Pin', 'Move to section', 'Mute']);
+    expect(items.every((item) => item.querySelector('i[data-symbol]'))).toBe(true);
+    expect(header.contains(items[0]!)).toBe(false);
+  });
   it('confirms with Cancel as the dismiss button and the destructive action as confirm', async () => {
     const unpair = vi.fn(async () => undefined);
     const view = mount();
