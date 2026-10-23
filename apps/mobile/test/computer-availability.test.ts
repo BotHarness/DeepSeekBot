@@ -94,3 +94,56 @@ it('all Bots share their own Host capability while model tool opt-ins remain dis
   await supported.refresh();
   expect((await settled(supported, false)).computerAvailable).toBe(false);
 });
+
+it('discards old-generation credential refusals but honors current probe revocation', async () => {
+  const host = new FakeHost();
+  let releaseOld!: () => void;
+  const oldGate = new Promise<void>((resolve) => {
+    releaseOld = resolve;
+  });
+  let calls = 0;
+  let oldRead = false;
+  let revoke = false;
+  const client = createHostClient({
+    hostId: 'supported-host',
+    credential: host.credential,
+    routes: [route],
+    carrier: {
+      ...host.carrier,
+      request: async (url, init) => {
+        if (!url.endsWith('/api/computer/status')) return host.carrier.request(url, init);
+        calls += 1;
+        if (calls === 1) {
+          await oldGate;
+          return {
+            status: 401,
+            text: async () => {
+              oldRead = true;
+              return JSON.stringify({ code: 'device-revoked' });
+            },
+          };
+        }
+        return {
+          status: revoke ? 401 : 200,
+          text: async () =>
+            JSON.stringify(revoke ? { code: 'device-revoked' } : { probe: { available: true } }),
+        };
+      },
+    },
+  });
+  clients.push(client);
+  client.start();
+  await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+  expect(calls).toBe(1);
+  client.stop();
+  client.start();
+  await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+  await settled(client, true);
+  releaseOld();
+  await vi.waitFor(() => expect(oldRead).toBe(true));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(client.getSnapshot().connection.status).toBe('connected');
+  revoke = true;
+  await client.refresh();
+  await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('refused'));
+});

@@ -625,7 +625,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         publish();
       }
     } catch (error) {
-      refusedBy(error);
+      if (currentRoute === route && currentGeneration === generation) refusedBy(error);
     }
   };
 
