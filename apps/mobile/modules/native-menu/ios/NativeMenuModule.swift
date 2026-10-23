@@ -42,7 +42,7 @@ final class NativeMenuView: ExpoView {
   var fill = UIColor.secondarySystemBackground { didSet { configure() } }
   var iconSize = 22.0 { didSet { configure() } }
 
-  required init(appContext: AppContext) {
+  required init(appContext: AppContext? = nil) {
     super.init(appContext: appContext)
     addSubview(button)
     button.showsMenuAsPrimaryAction = true
