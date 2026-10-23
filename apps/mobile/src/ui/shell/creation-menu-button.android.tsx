@@ -43,25 +43,27 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
                 </DropdownMenuItem.Text>
               </DropdownMenuItem>
             )}
-            {(parent?.children ?? creationMenuItems(props)).map((item) => (
-              <DropdownMenuItem
-                key={item.key}
-                enabled={!props.busy}
-                modifiers={[testID(`creation-${item.key}`)]}
-                onClick={() => {
-                  if (item.children) {
-                    setParent(item);
-                    return;
-                  }
-                  close();
-                  props.onPick(item.action, item.target);
-                }}
-              >
-                <DropdownMenuItem.Text>
-                  <Text>{item.label}</Text>
-                </DropdownMenuItem.Text>
-              </DropdownMenuItem>
-            ))}
+            {(parent?.children ?? creationMenuItems({ ...props, nativeChannelForm: true })).map(
+              (item) => (
+                <DropdownMenuItem
+                  key={item.key}
+                  enabled={!props.busy}
+                  modifiers={[testID(`creation-${item.key}`)]}
+                  onClick={() => {
+                    if (item.children) {
+                      setParent(item);
+                      return;
+                    }
+                    close();
+                    props.onPick(item.action, item.target);
+                  }}
+                >
+                  <DropdownMenuItem.Text>
+                    <Text>{item.label}</Text>
+                  </DropdownMenuItem.Text>
+                </DropdownMenuItem>
+              ),
+            )}
           </DropdownMenu.Items>
         </DropdownMenu>
       </Host>

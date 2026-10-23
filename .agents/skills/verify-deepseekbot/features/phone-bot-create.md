@@ -8,6 +8,8 @@ Git import uses the same target, confirmation, operation record and completion p
 
 - `target`: All explicitly chooses from every paired Host; a scoped Host is inherited. Changing the target preserves the draft and does not switch browsing.
 - `form`: native name/persona fields, optional Bio/tags, validation and keyboard-safe submission.
+- `android-dialog`: blank Bot and direct Git forms use the native Material 3 Dialog, with a native scrim, Cancel and a trailing Create/Import action. Confirm actual keyboard/focus, text scaling and Back/scrim behavior; the JavaScript adapter tests do not prove native rendering.
+- `channel-dialog`: Android New Channel selects a Remote Host, name and multiple eligible Bots in a virtualized native-checkbox list. Changing Host immediately clears candidates and selection, retains the name, ignores late reads and never resurrects old selections. Submission retains the original pairing/input/key; a continuation notice survives leaving the form.
 - `receipt`: the original Host, pairing identity, operation key and input survive app restart. Repeated taps and uncertain replies cannot create another Bot.
 - `completion`: active progress opens the new DM on its Host; leaving progress retains an Open Bot action without taking over navigation.
 - `refusal`: unsupported Hosts refuse before mutation; unavailable/revoked targets, changed input and archived results never fall back to another Host or fresh operation.
@@ -17,7 +19,7 @@ Git import uses the same target, confirmation, operation record and completion p
 
 ## How to get to it (user POV)
 
-On the phone, open New from All or a selected Computer. Choose Create from scratch, Import Zip, Browse Marketplace or Import Git directly. Blank and Git have dedicated pages; Zip starts with the native file picker. Choose the Computer when needed, enter a name and persona, optionally expand more details, and create. Pending or completed creation remains reachable after leaving the form.
+On the phone, open New from All or a selected Computer. Choose Create from scratch, Import Zip, Browse Marketplace or Import Git directly. Blank and direct Git use a native Dialog on Android and retain their pages on iOS; Zip starts with the native file picker. Choose the Computer when needed, enter a name and persona, optionally expand more details, and create. Android also offers New Channel: choose the Computer before selecting participant Bots. Pending or completed creation remains reachable after leaving the form.
 
 ## Driving it with verify-app
 
@@ -49,6 +51,8 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 Pair visible evidence with CLI `create-status` using the saved operation key and exact submitted input, canonical Bot/DM reads, and bounded redacted transport logs. Source tests cover deterministic lost-response and storage-failure branches; do not report those as native fault-injection results unless actually driven.
 
 ## Gotchas
+
+- Android #2673: capture matched before/after blank and Git forms, plus the former channel-creation absence and the new Dialog. Drive light/dark and default/intermediate/maximum text with a real keyboard and TalkBack. Create a named channel with two Bots on A, then repeat after A → B → A: selections must reset at each different Host and the name must survive. Compare the returned Channel and exact members with CLI `channel create`/Channel readback on the selected Host; no other Host may receive the mutation. Protected Tob uses a Host-provided marker, never its display name or a fixed ID. Cancel/Back/scrim before submission must create nothing. Drop a reply after acceptance, reopen and explicitly retry the same operation key; one canonical Channel must remain. Leave during submission: no background navigation, and Continue channel creation exposes the result. Keep native evidence and deterministic stale-response source tests separately identified.
 
 - The operation key is bound to one Host and exact input. Never substitute a new key, pairing or target to make a failed journey pass.
 - Before starting a mutation, lookup must establish recovery support. A missing method is a compatibility refusal, not a reason to call legacy create.

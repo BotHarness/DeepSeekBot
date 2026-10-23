@@ -33,3 +33,14 @@ it('preserves explicit target selection for legacy channel actions', () => {
     }),
   ]);
 });
+
+it('opens the native channel form from All before choosing a Host, including without pairing', () => {
+  for (const ts of [[], targets]) {
+    const item = creationMenuItems({ scope: 'all', targets: ts, nativeChannelForm: true }).find(
+      (item) => item.action === 'channel',
+    );
+    expect(item?.action).toBe('channel');
+    expect(item?.children).toBeUndefined();
+    expect(item?.target).toBeUndefined();
+  }
+});

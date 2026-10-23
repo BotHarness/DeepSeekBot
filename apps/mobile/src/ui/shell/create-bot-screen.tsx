@@ -1,6 +1,6 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, View, type ViewInstance } from 'react-native';
+import { AppState, Platform, View, type ViewInstance } from 'react-native';
 import { useHostSession } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
@@ -20,6 +20,7 @@ import { creationCopy as copy, creationError } from './bot-creation-copy';
 import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
+import { CreationForm as FormSurface } from '../primitives/creation-form';
 
 export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
   const { ready, mount } = useSheetContent();
@@ -121,10 +122,36 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
     visibility.arm();
     void botCreation.submit();
   };
+  const title =
+    flow === 'zip'
+      ? copy.fromZip
+      : flow === 'git'
+        ? gitSource?.origin === 'marketplace'
+          ? copy.importTitle
+          : copy.fromGit
+        : copy.title;
+  const submitDisabled =
+    !draft ||
+    !entryReady ||
+    state.busy ||
+    !draft.displayName.trim() ||
+    !target ||
+    state.error === 'storage-invalid' ||
+    (importing && !draft.source?.preview);
+  const dialog =
+    Platform.OS === 'android' && initialSource !== 'zip' && gitSource?.origin !== 'marketplace';
   return (
     <View ref={mounted} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
+          ...(dialog
+            ? {
+                headerShown: false,
+                presentation: 'transparentModal',
+                animation: 'none',
+                contentStyle: { backgroundColor: 'transparent' },
+              }
+            : { headerShown: true }),
           title:
             flow === 'zip'
               ? copy.fromZip
@@ -135,265 +162,286 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                 : copy.title,
         }}
       />
-      <KeyboardFormScroll
-        contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
-      >
-        {state.error ? (
-          <Text accessibilityRole="alert" selectable>
-            {state.error === 'git-source-changed' && gitSource?.origin === 'marketplace'
-              ? t.marketplace.stale
-              : creationError(state.error)}
-          </Text>
-        ) : null}
-        {!state.loaded || !entryReady ? (
-          <Text>{copy.working}</Text>
-        ) : draft ? (
-          <>
-            {initialSource === 'zip' || draft.source?.kind === 'zip' ? (
-              <Button
-                label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.fromZip}
-                testID="import-bot-zip-pick"
-                disabled={state.busy}
-                onPress={() => void botCreation.beginZip()}
-              />
-            ) : null}
-            {draft.source?.kind === 'zip' ? (
-              <>
-                <Text strong>{copy.zipFile}</Text>
-                <Text selectable>{draft.source.fileName}</Text>
-                <Text tone="muted">{copy.zipSize(draft.source.sizeBytes)}</Text>
-              </>
-            ) : null}
-            {gitSource ? (
-              <>
-                <Text strong>{copy.gitUrl}</Text>
-                {gitSource.origin === 'marketplace' ? (
-                  <>
-                    <Text selectable>{gitSource.gitUrl}</Text>
-                    {gitSource.listingId ? (
-                      <Button
-                        label={t.marketplace.refreshListing}
-                        testID="import-bot-refresh-listing"
-                        disabled={state.busy}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/marketplace-bot',
-                            params: { id: gitSource.listingId!, entry: 'refresh' },
-                          })
-                        }
-                      />
-                    ) : null}
-                  </>
-                ) : (
-                  <TextField
-                    testID="import-bot-git-url"
-                    accessibilityLabel={copy.gitUrl}
-                    value={gitSource.gitUrl}
-                    onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
-                    editable={!state.busy}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                )}
-              </>
-            ) : null}
-            <Text strong>{copy.destination}</Text>
-            <EnvironmentPicker
-              label={copy.destination}
-              placeholder={copy.choose}
-              value={draft.hostId}
-              options={botCreationTargets(
-                hosts.map((host) => ({
-                  hostId: host.hostId,
-                  name: shownHostName(hostLooks.look(host.hostId), host.hostName),
-                })),
-              )}
-              onChange={(hostId) => edit({ hostId })}
-            />
-            {hosts.length === 0 || !target ? (
-              <Button
-                label={copy.pair}
-                testID="create-bot-pair"
-                onPress={() => router.push('/pair')}
-              />
-            ) : null}
-            <Text strong>{copy.name}</Text>
-            <TextField
-              testID="create-bot-name"
-              accessibilityLabel={copy.name}
-              value={draft.displayName}
-              onChangeText={(displayName) => edit({ displayName })}
-              editable={!state.busy}
-              maxLength={120}
-            />
-            {!draft.source && initialSource === 'blank' ? (
-              <>
-                <Text strong>{copy.persona}</Text>
-                <TextField
-                  testID="create-bot-persona"
-                  accessibilityLabel={copy.persona}
-                  placeholder={copy.personaHint}
-                  value={draft.persona}
-                  onChangeText={(persona) => edit({ persona })}
-                  multiline
-                  editable={!state.busy}
-                />
-              </>
-            ) : null}
-            <Button
-              label={details ? copy.less : copy.more}
-              variant="text"
-              testID="create-bot-details"
-              onPress={() => setDetails(!details)}
-            />
-            {details ? (
-              <>
-                <Text>{copy.bio}</Text>
-                <TextField
-                  testID="create-bot-bio"
-                  accessibilityLabel={copy.bio}
-                  value={draft.description}
-                  onChangeText={(description) => edit({ description })}
-                  multiline
-                  editable={!state.busy}
-                />
-                <Text>{copy.tags}</Text>
-                <TextField
-                  testID="create-bot-tags"
-                  accessibilityLabel={copy.tags}
-                  value={draft.tags}
-                  onChangeText={(tags) => edit({ tags })}
-                  editable={!state.busy}
-                />
-              </>
-            ) : null}
-            <Text tone="muted">{copy.model}</Text>
-            {state.transfer ? (
-              <Text accessibilityLiveRegion="polite">
-                {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
-              </Text>
-            ) : null}
-            {draft.source ? (
-              <>
-                <Text tone="muted">
-                  {draft.source.preview ? copy.sourceReady : copy.previewHint}
-                </Text>
-                <Button
-                  label={copy.preview}
-                  testID="import-bot-preview"
-                  busy={state.busy}
-                  disabled={(draft.source.kind === 'git' && !draft.source.gitUrl.trim()) || !target}
-                  onPress={() => void botCreation.preview()}
-                />
-              </>
-            ) : null}
-            <Button
-              label={importing ? copy.import : copy.create}
-              testID="create-bot-submit"
-              tone="primary"
-              busy={state.busy}
-              disabled={
-                !draft.displayName.trim() ||
-                !target ||
-                state.error === 'storage-invalid' ||
-                (importing && !draft.source?.preview)
+      <FormSurface
+        nativeDialog={dialog}
+        dismissLabel={submitted ? t.close : t.cancel}
+        title={title}
+        onDismiss={() => router.back()}
+        action={
+          dialog && draft
+            ? {
+                label: state.busy ? copy.working : importing ? copy.import : copy.create,
+                onPress: submit,
+                disabled: submitDisabled,
+                testID: 'create-bot-submit',
               }
-              onPress={submit}
-            />
-          </>
-        ) : submitted ? (
-          <View style={{ gap: space.x5 }}>
-            <Text variant="title" strong>
-              {name}
+            : undefined
+        }
+      >
+        <KeyboardFormScroll
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
+        >
+          {state.error ? (
+            <Text accessibilityRole="alert" selectable>
+              {state.error === 'git-source-changed' && gitSource?.origin === 'marketplace'
+                ? t.marketplace.stale
+                : creationError(state.error)}
             </Text>
-            {source ? (
-              <Text selectable>{source.kind === 'zip' ? source.fileName : source.gitUrl}</Text>
-            ) : null}
-            {state.transfer ? (
-              <Text accessibilityLiveRegion="polite">
-                {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
-              </Text>
-            ) : null}
-            {source?.kind === 'zip' &&
-            (state.error === 'zip-file-missing' ||
-              state.error === 'zip-file-changed' ||
-              state.error === 'zip-file-read') ? (
-              <Button
-                label={copy.restoreZip}
-                testID="import-bot-zip-restore"
-                disabled={state.busy}
-                onPress={() => void botCreation.restoreZip()}
+          ) : null}
+          {!state.loaded || !entryReady ? (
+            <Text>{copy.working}</Text>
+          ) : draft ? (
+            <>
+              {initialSource === 'zip' || draft.source?.kind === 'zip' ? (
+                <Button
+                  label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.fromZip}
+                  testID="import-bot-zip-pick"
+                  disabled={state.busy}
+                  onPress={() => void botCreation.beginZip()}
+                />
+              ) : null}
+              {draft.source?.kind === 'zip' ? (
+                <>
+                  <Text strong>{copy.zipFile}</Text>
+                  <Text selectable>{draft.source.fileName}</Text>
+                  <Text tone="muted">{copy.zipSize(draft.source.sizeBytes)}</Text>
+                </>
+              ) : null}
+              {gitSource ? (
+                <>
+                  <Text strong>{copy.gitUrl}</Text>
+                  {gitSource.origin === 'marketplace' ? (
+                    <>
+                      <Text selectable>{gitSource.gitUrl}</Text>
+                      {gitSource.listingId ? (
+                        <Button
+                          label={t.marketplace.refreshListing}
+                          testID="import-bot-refresh-listing"
+                          disabled={state.busy}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/marketplace-bot',
+                              params: { id: gitSource.listingId!, entry: 'refresh' },
+                            })
+                          }
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    <TextField
+                      testID="import-bot-git-url"
+                      accessibilityLabel={copy.gitUrl}
+                      value={gitSource.gitUrl}
+                      onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
+                      editable={!state.busy}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  )}
+                </>
+              ) : null}
+              <Text strong>{copy.destination}</Text>
+              <EnvironmentPicker
+                label={copy.destination}
+                placeholder={copy.choose}
+                value={draft.hostId}
+                options={botCreationTargets(
+                  hosts.map((host) => ({
+                    hostId: host.hostId,
+                    name: shownHostName(hostLooks.look(host.hostId), host.hostName),
+                  })),
+                )}
+                onChange={(hostId) => edit({ hostId })}
               />
-            ) : null}
-            <Text
-              selectable
-            >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : copy.targetUnavailable}`}</Text>
-            <Text tone="muted">
-              {state.record.kind === 'submitted' && state.record.mutationStarted
-                ? copy.targetFixed
-                : copy.beforeSend}
-            </Text>
-            <Text accessibilityLiveRegion="polite">
-              {state.receipt?.status === 'created'
-                ? copy.completed
-                : state.receipt
-                  ? copy.accepted
-                  : copy.uncertain}
-            </Text>
-            {state.error === 'git-source-changed' ? (
-              <>
-                <Text>{copy.previousKept}</Text>
+              {hosts.length === 0 || !target ? (
                 <Button
-                  label={copy.chooseSourceAgain}
-                  testID="import-bot-choose-source-again"
-                  onPress={() => void botCreation.newAfterSourceChanged()}
+                  label={copy.pair}
+                  testID="create-bot-pair"
+                  onPress={() => router.push('/pair')}
                 />
-              </>
-            ) : state.error === 'creation-identity-unavailable' ? (
-              <>
-                <Text>{copy.previousKept}</Text>
+              ) : null}
+              <Text strong>{copy.name}</Text>
+              <TextField
+                testID="create-bot-name"
+                accessibilityLabel={copy.name}
+                value={draft.displayName}
+                onChangeText={(displayName) => edit({ displayName })}
+                editable={!state.busy}
+                maxLength={120}
+              />
+              {!draft.source && initialSource === 'blank' ? (
+                <>
+                  <Text strong>{copy.persona}</Text>
+                  <TextField
+                    testID="create-bot-persona"
+                    accessibilityLabel={copy.persona}
+                    placeholder={copy.personaHint}
+                    value={draft.persona}
+                    onChangeText={(persona) => edit({ persona })}
+                    multiline
+                    editable={!state.busy}
+                  />
+                </>
+              ) : null}
+              <Button
+                label={details ? copy.less : copy.more}
+                variant="text"
+                testID="create-bot-details"
+                onPress={() => setDetails(!details)}
+              />
+              {details ? (
+                <>
+                  <Text>{copy.bio}</Text>
+                  <TextField
+                    testID="create-bot-bio"
+                    accessibilityLabel={copy.bio}
+                    value={draft.description}
+                    onChangeText={(description) => edit({ description })}
+                    multiline
+                    editable={!state.busy}
+                  />
+                  <Text>{copy.tags}</Text>
+                  <TextField
+                    testID="create-bot-tags"
+                    accessibilityLabel={copy.tags}
+                    value={draft.tags}
+                    onChangeText={(tags) => edit({ tags })}
+                    editable={!state.busy}
+                  />
+                </>
+              ) : null}
+              <Text tone="muted">{copy.model}</Text>
+              {state.transfer ? (
+                <Text accessibilityLiveRegion="polite">
+                  {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+                </Text>
+              ) : null}
+              {draft.source ? (
+                <>
+                  <Text tone="muted">
+                    {draft.source.preview ? copy.sourceReady : copy.previewHint}
+                  </Text>
+                  <Button
+                    label={copy.preview}
+                    testID="import-bot-preview"
+                    busy={state.busy}
+                    disabled={
+                      (draft.source.kind === 'git' && !draft.source.gitUrl.trim()) || !target
+                    }
+                    onPress={() => void botCreation.preview()}
+                  />
+                </>
+              ) : null}
+              {!dialog ? (
                 <Button
-                  label={copy.newAfterUnavailable}
-                  testID="create-bot-new-after-unavailable"
-                  onPress={() => void botCreation.newAfterUnavailable()}
-                />
-              </>
-            ) : state.receipt?.status === 'created' ? (
-              <>
-                <Button
-                  label={copy.open}
-                  testID="create-bot-open"
+                  label={importing ? copy.import : copy.create}
+                  testID="create-bot-submit"
                   tone="primary"
-                  onPress={() => void openResult()}
+                  busy={state.busy}
+                  disabled={
+                    !draft.displayName.trim() ||
+                    !target ||
+                    state.error === 'storage-invalid' ||
+                    (importing && !draft.source?.preview)
+                  }
+                  onPress={submit}
                 />
+              ) : null}
+            </>
+          ) : submitted ? (
+            <View style={{ gap: space.x5 }}>
+              <Text variant="title" strong>
+                {name}
+              </Text>
+              {source ? (
+                <Text selectable>{source.kind === 'zip' ? source.fileName : source.gitUrl}</Text>
+              ) : null}
+              {state.transfer ? (
+                <Text accessibilityLiveRegion="polite">
+                  {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+                </Text>
+              ) : null}
+              {source?.kind === 'zip' &&
+              (state.error === 'zip-file-missing' ||
+                state.error === 'zip-file-changed' ||
+                state.error === 'zip-file-read') ? (
                 <Button
-                  label={source ? copy.importAnother : copy.another}
-                  testID="create-bot-another"
-                  onPress={() => void botCreation.another(targetId)}
+                  label={copy.restoreZip}
+                  testID="import-bot-zip-restore"
+                  disabled={state.busy}
+                  onPress={() => void botCreation.restoreZip()}
                 />
-              </>
-            ) : (
-              <Button
-                label={copy.retry}
-                testID="create-bot-retry"
-                busy={state.busy}
-                onPress={submit}
-              />
-            )}
-            {state.record.kind === 'submitted' &&
-            !state.record.mutationStarted &&
-            !state.receipt &&
-            !state.busy ? (
-              <Button
-                label={copy.edit}
-                testID="create-bot-edit"
-                onPress={() => void botCreation.editBeforeSend()}
-              />
-            ) : null}
-          </View>
-        ) : null}
-      </KeyboardFormScroll>
+              ) : null}
+              <Text
+                selectable
+              >{`${copy.destination}: ${target ? shownHostName(hostLooks.look(target.hostId), target.hostName) : copy.targetUnavailable}`}</Text>
+              <Text tone="muted">
+                {state.record.kind === 'submitted' && state.record.mutationStarted
+                  ? copy.targetFixed
+                  : copy.beforeSend}
+              </Text>
+              <Text accessibilityLiveRegion="polite">
+                {state.receipt?.status === 'created'
+                  ? copy.completed
+                  : state.receipt
+                    ? copy.accepted
+                    : copy.uncertain}
+              </Text>
+              {state.error === 'git-source-changed' ? (
+                <>
+                  <Text>{copy.previousKept}</Text>
+                  <Button
+                    label={copy.chooseSourceAgain}
+                    testID="import-bot-choose-source-again"
+                    onPress={() => void botCreation.newAfterSourceChanged()}
+                  />
+                </>
+              ) : state.error === 'creation-identity-unavailable' ? (
+                <>
+                  <Text>{copy.previousKept}</Text>
+                  <Button
+                    label={copy.newAfterUnavailable}
+                    testID="create-bot-new-after-unavailable"
+                    onPress={() => void botCreation.newAfterUnavailable()}
+                  />
+                </>
+              ) : state.receipt?.status === 'created' ? (
+                <>
+                  <Button
+                    label={copy.open}
+                    testID="create-bot-open"
+                    tone="primary"
+                    onPress={() => void openResult()}
+                  />
+                  <Button
+                    label={source ? copy.importAnother : copy.another}
+                    testID="create-bot-another"
+                    onPress={() => void botCreation.another(targetId)}
+                  />
+                </>
+              ) : (
+                <Button
+                  label={copy.retry}
+                  testID="create-bot-retry"
+                  busy={state.busy}
+                  onPress={submit}
+                />
+              )}
+              {state.record.kind === 'submitted' &&
+              !state.record.mutationStarted &&
+              !state.receipt &&
+              !state.busy ? (
+                <Button
+                  label={copy.edit}
+                  testID="create-bot-edit"
+                  onPress={() => void botCreation.editBeforeSend()}
+                />
+              ) : null}
+            </View>
+          ) : null}
+        </KeyboardFormScroll>
+      </FormSurface>
     </View>
   );
 }

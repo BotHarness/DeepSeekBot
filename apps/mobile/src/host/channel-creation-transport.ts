@@ -1,0 +1,106 @@
+import { createHostClient, deviceRefusal, MethodRefused, type HostClient } from './client';
+import type { SavedHost } from './hosts';
+import type { HostCarrier } from './carrier';
+import type { ChannelCreationPort } from './channel-creation';
+
+export function channelCreationTransport(
+  hosts: () => readonly SavedHost[],
+  carrier: HostCarrier,
+): ChannelCreationPort {
+  const request = async <T>(
+    hostId: string,
+    deviceId: string,
+    run: (client: HostClient) => Promise<T>,
+  ) => {
+    const host = hosts().find((host) => host.hostId === hostId && host.deviceId === deviceId);
+    if (!host) throw new Error('target-unpaired');
+    const paired = () =>
+      hosts().some(
+        (entry) =>
+          entry.hostId === hostId &&
+          entry.deviceId === deviceId &&
+          entry.credential === host.credential,
+      );
+    for (const route of host.routes) {
+      if (!paired()) throw new Error('target-unpaired');
+      const client = createHostClient({ ...host, routes: [route], carrier });
+      try {
+        const result = await run(client);
+        if (!paired()) throw new Error('target-unpaired');
+        return result;
+      } catch (error) {
+        const refusal = deviceRefusal(error);
+        if (refusal) throw new Error(refusal);
+        if (error instanceof MethodRefused) throw new Error(error.code);
+        if (!paired()) throw new Error('target-unpaired');
+      } finally {
+        client.stop();
+      }
+    }
+    throw new Error('unreachable');
+  };
+  return {
+    deviceId: (id) => hosts().find((host) => host.hostId === id)?.deviceId,
+    async candidates(hostId) {
+      const deviceId = hosts().find((host) => host.hostId === hostId)?.deviceId;
+      if (!deviceId) throw new Error('target-unpaired');
+      return request(hostId, deviceId, async (client) => {
+        const result = await client.call<unknown>('list');
+        if (
+          typeof result !== 'object' ||
+          result === null ||
+          !('bots' in result) ||
+          !Array.isArray(result.bots)
+        )
+          throw new MethodRefused('invalid-response', 'Invalid Bot list');
+        return result.bots.flatMap((bot: unknown) => {
+          if (
+            typeof bot !== 'object' ||
+            bot === null ||
+            !('slug' in bot) ||
+            typeof bot.slug !== 'string' ||
+            !('displayName' in bot) ||
+            typeof bot.displayName !== 'string'
+          )
+            throw new MethodRefused('invalid-response', 'Invalid Bot');
+          if (
+            ('paused' in bot && bot.paused === true) ||
+            ('deleted' in bot && bot.deleted === true) ||
+            ('tob' in bot && bot.tob !== undefined)
+          )
+            return [];
+          return [{ slug: bot.slug, displayName: bot.displayName }];
+        });
+      });
+    },
+    create(operation) {
+      return request(operation.hostId, operation.deviceId, async (client) => {
+        const result = await client.call<unknown>('channelCreate', {
+          name: operation.name,
+          members: operation.members,
+          operationKey: operation.operationKey,
+        });
+        if (
+          typeof result !== 'object' ||
+          result === null ||
+          !('channel' in result) ||
+          typeof result.channel !== 'object' ||
+          result.channel === null ||
+          !('id' in result.channel) ||
+          typeof result.channel.id !== 'string' ||
+          !('receipt' in result) ||
+          typeof result.receipt !== 'object' ||
+          result.receipt === null ||
+          !('operationKey' in result.receipt) ||
+          result.receipt.operationKey !== operation.operationKey ||
+          !('status' in result.receipt) ||
+          result.receipt.status !== 'completed' ||
+          !('channelId' in result.receipt) ||
+          result.receipt.channelId !== result.channel.id
+        )
+          throw new MethodRefused('invalid-response', 'Invalid Channel result');
+        return result.channel.id;
+      });
+    },
+  };
+}

@@ -16,6 +16,13 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  channelCreation: {
+    reset: 'Computer changed. Choose Bots again.',
+    chooseHost: 'Choose a computer to see its Bots.',
+    empty: 'No Bots available on this computer.',
+    open: 'Open channel',
+    resume: 'Continue channel creation',
+  },
   marketplace: {
     title: 'Bot Marketplace',
     browse: 'Browse Marketplace',
@@ -1588,6 +1595,13 @@ const en = {
 };
 
 const zh: typeof en = {
+  channelCreation: {
+    reset: '已切换电脑，请重新选择 Bot。',
+    chooseHost: '先选择电脑，再选择 Bot。',
+    empty: '这台电脑没有可选的 Bot。',
+    open: '打开频道',
+    resume: '继续创建频道',
+  },
   marketplace: {
     title: 'Bot 市场',
     browse: '浏览市场',
