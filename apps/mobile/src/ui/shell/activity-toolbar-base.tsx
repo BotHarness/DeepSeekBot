@@ -4,7 +4,7 @@ import { Keyboard, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { HeaderAction } from './header-action';
@@ -67,7 +67,7 @@ export function ActivityToolbar({
             flexDirection: 'row',
             alignItems: 'center',
             gap: space.x2,
-            paddingHorizontal: space.x4,
+            paddingHorizontal: tabHeader.gutter,
           }}
         >
           {!unavailable && searching ? (
