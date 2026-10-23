@@ -15,6 +15,11 @@ vi.mock('../src/media/install.js', () => ({
   verifyLocalVideoAssets: mocks.assets,
   verifyLocalVideoHelper: mocks.verify,
 }));
+vi.mock('../src/media/install-macos.js', () => ({
+  MAC_VIDEO_EXECUTABLE: 'Electron.app/Contents/MacOS/Electron',
+  macVideoHelperDirectory: () => 'mac-runtime',
+  verifyMacVideoHelper: mocks.verify,
+}));
 vi.mock('../src/tool/local-driver.js', () => ({ localDriverEnv: () => ({ PATH: 'test-path' }) }));
 import { createLocalVideoMedia } from '../src/media/supervisor.js';
 import type { LocalVideoMediaStatus } from '../src/local-video-contract.js';
@@ -93,7 +98,7 @@ beforeEach(() => {
   mocks.verify.mockResolvedValue(true);
   helper = new Helper();
   mocks.spawn.mockImplementation((_command, args) => {
-    helper.launchId = args[3];
+    helper.launchId = args.at(-1);
     setImmediate(() => helper.ready());
     return helper;
   });
@@ -302,5 +307,42 @@ describe('supervised Local Computer media', () => {
     expect(spawnOptions.env).not.toHaveProperty('NODE_OPTIONS');
     expect(spawnOptions.windowsHide).toBe(true);
     await peer.close();
+  });
+});
+
+describe('Mac video supervisor', () => {
+  it.each(['arm64', 'x64'])(
+    'owns the Mac launcher tree on %s and closes it before reuse',
+    async (arch) => {
+      const provider = createLocalVideoMedia({ platform: 'darwin', arch });
+      const session = await open(provider);
+      expect(mocks.assets).toHaveBeenCalledWith('assets', 'darwin');
+      expect(mocks.spawn).toHaveBeenCalledWith(
+        process.execPath,
+        expect.arrayContaining([
+          'assets/launcher-macos.cjs',
+          'mac-runtime/Electron.app/Contents/MacOS/Electron',
+        ]),
+        expect.objectContaining({ env: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }) }),
+      );
+      await session.close();
+      expect(helper.commands.at(-1)?.['op']).toBe('close');
+      expect(helper.exited).toBe(true);
+    },
+  );
+
+  it('reports Mac Screen Recording permission separately from helper failure', async () => {
+    mocks.spawn.mockImplementation((_command, args) => {
+      helper.launchId = args.at(-1);
+      setImmediate(() => {
+        helper.event({ event: 'tree-owned', version: 1, rootPid: 54322 });
+        helper.message({ event: 'failed', code: 'screen-recording-required' });
+      });
+      return helper;
+    });
+    await expect(
+      open(createLocalVideoMedia({ platform: 'darwin', arch: 'arm64' })),
+    ).rejects.toMatchObject({ code: 'screen-recording-required' });
+    expect(helper.exited).toBe(true);
   });
 });

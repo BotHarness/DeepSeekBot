@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const source = readFileSync(new URL('../native/local-video/main.cjs', import.meta.url), 'utf8');
 
-async function main(fakeStdinEof = false) {
+async function main(fakeStdinEof = false, platform = 'win32', permission = 'granted') {
   const commands = new PassThrough();
   const output: string[] = [];
   const primary = {
@@ -44,6 +44,7 @@ async function main(fakeStdinEof = false) {
     app,
     BrowserWindow,
     desktopCapturer: {},
+    systemPreferences: { getMediaAccessStatus: vi.fn(() => permission) },
     ipcMain,
     screen,
     session: {
@@ -61,7 +62,7 @@ async function main(fakeStdinEof = false) {
       write: (line: string) => output.push(line),
     }),
     env: { BOTHARNESS_MEDIA_USER_DATA: 'test' },
-    platform: 'win32',
+    platform,
     versions: { electron: '44.9.3' },
   });
   const readPipe = vi.fn(() => commands);
@@ -121,4 +122,25 @@ describe('Windows media helper startup', () => {
       helper.commands.destroy();
     },
   );
+});
+
+describe('Mac media permission gate', () => {
+  it('refuses capture before creating a window when Screen Recording is absent', async () => {
+    const helper = await main(false, 'darwin', 'denied');
+    expect(helper.app.exit).toHaveBeenCalled();
+    expect(helper.output.map((line) => JSON.parse(line))).toContainEqual({
+      event: 'failed',
+      code: 'screen-recording-required',
+    });
+    expect(helper.contents.executeJavaScript).not.toHaveBeenCalled();
+    helper.commands.destroy();
+  });
+  it('uses the same bounded video protocol on an authorized Mac', async () => {
+    const helper = await main(false, 'darwin');
+    expect(helper.app.exit).not.toHaveBeenCalled();
+    expect(helper.output.map((line) => JSON.parse(line))).toContainEqual(
+      expect.objectContaining({ event: 'ready' }),
+    );
+    helper.commands.destroy();
+  });
 });

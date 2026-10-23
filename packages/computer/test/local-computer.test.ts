@@ -18,6 +18,10 @@ import { LocalDesktopMissingError } from '../src/tool/local-display.js';
 import type { CuaDriver } from '../src/tool/driver.js';
 import type { ComputerProvider, ComputerRuntimeRunner } from '../src/provider.js';
 
+vi.mock('../src/media/install-macos.js', () => ({
+  ensureMacVideoHelper: vi.fn(async () => undefined),
+}));
+
 vi.mock('../src/media/install.js', () => ({
   ensureLocalVideoHelper: vi.fn(async () => undefined),
 }));

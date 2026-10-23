@@ -141,6 +141,27 @@ function driverFailed(result: unknown): boolean {
   );
 }
 
+function macCursorOverlayUnavailable(result: unknown): boolean {
+  if (
+    !driverFailed(result) ||
+    typeof result !== 'object' ||
+    result === null ||
+    !('structuredContent' in result)
+  )
+    return false;
+  const value = result.structuredContent;
+  if (typeof value !== 'object' || value === null || !('refusal' in value)) return false;
+  const refusal = value.refusal;
+  return (
+    typeof refusal === 'object' &&
+    refusal !== null &&
+    'code' in refusal &&
+    refusal.code === 'facility_unavailable' &&
+    'facility' in refusal &&
+    refusal.facility === 'macos_cursor_overlay'
+  );
+}
+
 function cursorEnabled(result: unknown, session: string): boolean {
   const value =
     typeof result === 'object' && result !== null && 'structuredContent' in result
@@ -193,6 +214,7 @@ export function createLocalVideoOwner(options: {
   readonly media: LocalVideoMedia;
   readonly isRunning: () => boolean;
   readonly supported?: () => boolean;
+  readonly driverPlatform?: 'darwin' | 'win32';
   readonly now?: () => number;
   readonly onEvent?: (detail: string) => void;
   readonly operationTimeoutMs?: number;
@@ -309,7 +331,7 @@ export function createLocalVideoOwner(options: {
   const requireRunning = (): void => {
     requireActive();
     if (options.supported?.() === false)
-      refuse('unsupported-platform', 'Local Computer video currently requires Windows.');
+      refuse('unsupported-platform', 'Local Computer video requires Windows or macOS.');
     if (!options.isRunning()) refuse('not-running', 'Start the Local Computer first.');
   };
   const requireRuntime = (value: string): void => {
@@ -563,19 +585,22 @@ export function createLocalVideoOwner(options: {
     const result = await bounded(probe, operationTimeout, 'operation-timeout');
     const value = result as {
       isError?: unknown;
-      structuredContent?: { width?: unknown; height?: unknown };
+      structuredContent?: { width?: unknown; height?: unknown; scale_factor?: unknown };
     } | null;
     const geometry = value?.structuredContent;
+    const scale = options.driverPlatform === 'darwin' ? geometry?.scale_factor : 1;
     if (
       value?.isError === true ||
-      geometry?.width !== current.peer?.display.width ||
-      geometry?.height !== current.peer?.display.height ||
-      geometry?.width === undefined
+      typeof scale !== 'number' ||
+      !Number.isFinite(scale) ||
+      scale < 1 ||
+      scale > 4 ||
+      typeof geometry?.width !== 'number' ||
+      typeof geometry.height !== 'number' ||
+      Math.round(geometry.width * scale) !== current.peer?.display.width ||
+      Math.round(geometry.height * scale) !== current.peer?.display.height
     )
-      refuse(
-        'media-not-live',
-        'The Windows input display does not match the video. Reconnect the viewer.',
-      );
+      refuse('media-not-live', 'The input display does not match the video. Reconnect the viewer.');
   };
 
   const runCommand = async (
@@ -596,10 +621,7 @@ export function createLocalVideoOwner(options: {
       sweep();
       if (command.kind === 'status') {
         if (options.supported?.() === false)
-          refuse(
-            'unsupported-platform',
-            'Local Computer video currently requires Windows Local Computer.',
-          );
+          refuse('unsupported-platform', 'Local Computer video requires Windows or macOS.');
         return state(caller);
       }
       if (command.kind === 'open') return await open(caller, trace, signal);
@@ -776,10 +798,12 @@ export function createLocalVideoOwner(options: {
                 session,
                 enabled: false,
               });
-              if (driverFailed(setup))
+              const overlayAbsent =
+                options.driverPlatform === 'darwin' && macCursorOverlayUnavailable(setup);
+              if (driverFailed(setup) && !overlayAbsent)
                 refuse('input-failed', 'The Computer driver refused pointer setup.');
               const deadline = Date.now() + operationTimeout;
-              for (;;) {
+              while (!overlayAbsent) {
                 if (signal?.aborted)
                   refuse('stale-grant', 'Pointer setup was cancelled before execution.');
                 checkGrant(current, command.generation);
