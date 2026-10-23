@@ -1,0 +1,11 @@
+{
+  "base": "bbd6294ba65e264901d7c2d2fc395c68895f5e04",
+  "candidate": "fbc51cd8d76f474a45ea6e331779cfd7d56b8385",
+  "platform": "iOS27/iPhone17Pro Simulator",
+  "viewport": "402x874",
+  "textSize": "large (default)",
+  "before": "No application haptic request on create/attachment opening",
+  "after": "One request per opening; two opens each = four total; closing silent",
+  "off": "Actual saved preference OFF; both menus functional; zero additional requests",
+  "boundary": "Instrumented provider requests and native UI, not felt vibration; no layout change intended. Real approval/question requests and physical/Android acceptance not established by these images."
+}
