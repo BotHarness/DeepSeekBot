@@ -168,13 +168,15 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       accepted.host.binding.viewerId === binding.viewerId &&
       accepted.host.binding.attemptId === binding.attemptId &&
       accepted.host.grant?.generation === host?.grant?.generation
-    )
+    ) {
+      haptic('selection');
       clickFeedback.set({
         sequence: ++clickSequence.current,
         attemptId: binding.attemptId,
         point: { x: input.x, y: input.y },
         button,
       });
+    }
   };
   const scroll = (
     point: { x: number; y: number },
