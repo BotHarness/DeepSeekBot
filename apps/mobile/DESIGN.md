@@ -65,6 +65,12 @@ This first slice retains one active Computer plus authorized Organizations. It d
 
 The older Host-band and environment-strip descriptions below record prior presentation behavior. The Chats Header and drawer selection above supersede those entry layouts; Host customization (name, icon, colour) remains available in the drawer.
 
+## iOS Computer viewer
+
+The iOS Computer viewer uses the chat's transparent native navigation bar. A leading system Back button exits the viewer; it releases the viewer's input grant without resuming paused Bots. The title is the active paired computer's local display name, never the Bot that opened it. The single-line navigation title keeps semantic Dynamic Type and its full accessible name; status glyphs have separate accessible labels. A green dot requires both a connected Host and live native frame presentation, amber means waiting, and a warning glyph means disconnected. This is picture availability, not a latency or connection-stability score. Hand, CPU and pause symbols distinguish Human control, Bots allowed to operate and paused Bots; unavailable ownership stays unknown.
+
+The video canvas and letterboxing are pure black in both app appearances, with a local dark media-control palette. UIKit owns the transparent navigation controls and SwiftUI owns the compact bottom buttons: Liquid Glass where supported, system bordered buttons on earlier iOS, including Reduce Transparency. Take over / Hand back remains an explicit labelled command; reset is an accessible symbol button; controlling adds left/right click commands. These use the existing pointer and grant path. Two-finger preview and one-finger relative pointer gestures stay unchanged. Controls wrap and the control area scrolls at accessibility sizes. Back does not stand in for Hand back. Picture in Picture is deferred to #2664; there is no inactive placeholder control.
+
 ## Native Bot creation and import
 
 Accepted scope, 2026-10-23. PR #2632 implements native blank creation and its recovery path; native qualification remains separate. The following contract also governs the remaining Git, Marketplace and Zip import slices tracked by #2634.

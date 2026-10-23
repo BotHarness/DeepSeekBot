@@ -144,6 +144,8 @@ export const edgeFade = {
   samples: 8,
 } as const;
 
+export const computerVideo = { canvas: '#000000' } as const;
+
 export const pointer = {
   fill: '#ffffff',
   rim: '#0f1115',

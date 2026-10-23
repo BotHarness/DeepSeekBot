@@ -30,6 +30,7 @@ export function ComputerVideoStage({
   driving,
   controlling,
   revealCursor,
+  backgroundColor,
   cursor,
   preview,
   onClick,
@@ -39,6 +40,7 @@ export function ComputerVideoStage({
   driving: boolean;
   controlling: boolean;
   revealCursor: boolean;
+  backgroundColor?: string;
   cursor: SharedValue<Point>;
   preview: SharedValue<StageZoom>;
   onClick(point: Point, button: 'left' | 'right'): void;
@@ -210,7 +212,11 @@ export function ComputerVideoStage({
           )
             onClick(cursor.get(), nativeEvent.actionName === 'longpress' ? 'right' : 'left');
         }}
-        style={{ flex: 1, overflow: 'hidden', backgroundColor: theme.color.surface }}
+        style={{
+          flex: 1,
+          overflow: 'hidden',
+          backgroundColor: backgroundColor ?? theme.color.surface,
+        }}
       >
         <Animated.View
           pointerEvents="none"

@@ -1,15 +1,22 @@
 import { Host } from '@expo/ui';
-import { Button, Text as NativeText, VStack } from '@expo/ui/swift-ui';
+import { Button, HStack, Image, Text as NativeText, VStack } from '@expo/ui/swift-ui';
 import {
   accessibilityLabel,
   buttonStyle,
   controlSize,
+  buttonBorderShape,
   disabled,
   font,
   frame as nativeFrame,
 } from '@expo/ui/swift-ui/modifiers';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useSyncExternalStore, type ComponentType } from 'react';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  useCallback,
+  useMemo,
+  useSyncExternalStore,
+  type ComponentProps,
+  type ComponentType,
+} from 'react';
 import { AppState, ScrollView, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,8 +28,13 @@ import { videoPointerClick } from '../../host/local-video-pointer';
 import type { StageZoom } from '../../host/browser-viewer';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { localVideoActions, watchLocalVideoForeground } from '../../host/local-video-actions';
-import { space } from '../design/tokens';
-import { useDesignTheme } from '../design/theme';
+import { computerVideo, space } from '../design/tokens';
+import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../design/theme';
+import { useHostLook } from '../../host/native-host-look';
+import { shownHostName } from '../design/host-look';
+import { useLiquidGlass } from '../primitives/drawer-material';
+import { ComputerVideoHeader } from './computer-video-header.ios';
+import { computerVideoStatus } from './computer-video-status';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { haptic } from '../haptics';
@@ -41,10 +53,13 @@ const idle: LocalVideoClientState = {
 
 export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const { slug } = useLocalSearchParams<{ slug: string }>();
-  const { client } = useHostSession();
+  const { client, saved } = useHostSession();
+  const look = useHostLook(saved?.hostId);
   const snapshot = useHostSnapshot(client);
   const router = useRouter();
-  const theme = useDesignTheme();
+  const outerTheme = useDesignTheme();
+  const theme = { ...outerTheme, ...resolveTheme('dark', {}, 'ios') };
+  const glass = useLiquidGlass();
   const insets = useSafeAreaInsets();
   const viewer = useMemo(
     () =>
@@ -98,7 +113,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   };
   const close = () => {
     void viewer?.stop();
-    router.canGoBack() ? router.back() : router.replace('/');
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
   };
   const recover = () => {
     if (actions.recovery === 'pair') router.push('/pair');
@@ -119,7 +135,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     nativeMissing,
     mediaMounted,
   });
-  const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
+  const name = saved ? shownHostName(look, saved.hostName) : t.profileComputer;
+  const status = computerVideoStatus(state, snapshot.connection);
   const Video = NativeLocalComputerVideo;
   const action = (
     id: string,
@@ -127,6 +144,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     onPress: () => void,
     unavailable = false,
     prominent = false,
+    symbol?: ComponentProps<typeof Image>['systemName'],
   ) => (
     <Button
       testID={id}
@@ -137,137 +155,187 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         }
       }}
       modifiers={[
-        buttonStyle(prominent ? 'borderedProminent' : 'bordered'),
+        buttonStyle(
+          glass
+            ? prominent
+              ? 'glassProminent'
+              : 'glass'
+            : prominent
+              ? 'borderedProminent'
+              : 'bordered',
+        ),
+        buttonBorderShape(symbol ? 'circle' : 'capsule'),
         controlSize('large'),
         disabled(unavailable),
         accessibilityLabel(label),
         nativeFrame({ minHeight: theme.touch }),
       ]}
     >
-      <NativeText modifiers={[font({ textStyle: 'body' }), nativeFrame({ maxWidth: Infinity })]}>
-        {label}
-      </NativeText>
+      {symbol ? (
+        <Image
+          systemName={symbol}
+          size={theme.type.title.line}
+          modifiers={[
+            nativeFrame({ minWidth: theme.touch - space.x5, minHeight: theme.touch - space.x5 }),
+          ]}
+        />
+      ) : (
+        <NativeText modifiers={[font({ textStyle: 'body' })]}>{label}</NativeText>
+      )}
     </Button>
   );
   return (
-    <View
-      style={{
-        flex: 1,
-        paddingTop: insets.top,
-        paddingBottom: insets.bottom,
-        paddingLeft: insets.left,
-        paddingRight: insets.right,
-        backgroundColor: theme.layer.canvas.fill,
-      }}
-    >
-      <View style={{ paddingHorizontal: space.x3, paddingVertical: space.x2 }}>
-        <Text variant="title" accessibilityLiveRegion="polite">
-          {t.computerTitle(bot?.displayName ?? slug ?? '')}
-        </Text>
-        <Text tone="muted" accessibilityLiveRegion="polite">
-          {controlling ? t.computerYouDriving : t.computerWatching}
-          {host?.paused ? ` · ${t.computerVideoBotsPaused}` : ''}
-        </Text>
-      </View>
-      <View style={{ flex: 1, minHeight: theme.touch }}>
-        {mediaMounted && Video !== undefined ? (
-          <ComputerVideoStage
-            key={binding.attemptId}
-            frame={frame}
-            driving={driving}
-            controlling={controlling}
-            revealCursor={false}
-            cursor={cursor}
-            preview={preview}
-            onClick={click}
-          >
-            {(size) => (
-              <Video
-                key={binding.attemptId}
-                attemptId={binding.attemptId}
-                offer={host.offer!.sdp}
-                enabled
-                testID="computer-video-surface"
-                accessibilityLabel={t.computerVideoSurface}
-                style={{ width: size.width, height: size.height }}
-                onDescription={({ nativeEvent }) =>
-                  void viewer?.answer(nativeEvent.attemptId, nativeEvent.sdp)
-                }
-                onPresentation={({ nativeEvent }) =>
-                  viewer?.playback(
-                    nativeEvent.attemptId,
-                    nativeEvent.presentedFrames,
-                    nativeEvent.lastPresentedAgoMs,
-                  )
-                }
-                onMediaState={({ nativeEvent }) => {
-                  if (nativeEvent.state === 'failed' || nativeEvent.state === 'closed')
-                    viewer?.mediaFailed(nativeEvent.attemptId, nativeEvent.code);
-                }}
-              />
-            )}
-          </ComputerVideoStage>
-        ) : (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            {state.status === 'opening' && !nativeMissing ? <LoadingIndicator /> : null}
-          </View>
-        )}
-      </View>
-      <ScrollView
-        style={{ flexShrink: 1, flexGrow: 0 }}
-        contentContainerStyle={{ padding: space.x3, gap: space.x2 }}
+    <DesignThemeProvider appearance={{ scheme: 'dark' }}>
+      <View
+        style={{
+          flex: 1,
+          paddingTop: insets.top + theme.touch + space.x3,
+          paddingBottom: insets.bottom,
+          paddingLeft: insets.left,
+          paddingRight: insets.right,
+          backgroundColor: computerVideo.canvas,
+        }}
       >
-        {message ? (
-          <Text
-            testID="computer-video-recovery-message"
-            tone="muted"
-            accessibilityLiveRegion="polite"
-          >
-            {message}
-          </Text>
-        ) : null}
-        <Host
-          matchContents={{ vertical: true }}
-          colorScheme={theme.scheme}
-          seedColor={theme.color.accent}
+        <Stack.Screen
+          options={{
+            headerShown: true,
+            headerTransparent: true,
+            headerStyle: {},
+            headerShadowVisible: false,
+            headerBackVisible: false,
+            headerTintColor: theme.color.fg,
+            statusBarStyle: 'light',
+            title: '',
+            headerTitle: () => <ComputerVideoHeader name={name} status={status} theme={theme} />,
+            unstable_headerLeftItems: () => [
+              {
+                type: 'button',
+                label: t.computerVideoExit,
+                identifier: 'computer-video-close',
+                icon: { type: 'sfSymbol', name: 'chevron.left' },
+                onPress: () => {
+                  haptic('selection');
+                  close();
+                },
+              },
+            ],
+          }}
+        />
+        <View style={{ flex: 1, minHeight: theme.touch }}>
+          {mediaMounted && Video !== undefined ? (
+            <ComputerVideoStage
+              key={binding.attemptId}
+              frame={frame}
+              driving={driving}
+              controlling={controlling}
+              revealCursor={false}
+              backgroundColor={computerVideo.canvas}
+              cursor={cursor}
+              preview={preview}
+              onClick={click}
+            >
+              {(size) => (
+                <Video
+                  key={binding.attemptId}
+                  attemptId={binding.attemptId}
+                  offer={host.offer!.sdp}
+                  enabled
+                  testID="computer-video-surface"
+                  accessibilityLabel={t.computerVideoSurface}
+                  style={{ width: size.width, height: size.height }}
+                  onDescription={({ nativeEvent }) =>
+                    void viewer?.answer(nativeEvent.attemptId, nativeEvent.sdp)
+                  }
+                  onPresentation={({ nativeEvent }) =>
+                    viewer?.playback(
+                      nativeEvent.attemptId,
+                      nativeEvent.presentedFrames,
+                      nativeEvent.lastPresentedAgoMs,
+                    )
+                  }
+                  onMediaState={({ nativeEvent }) => {
+                    if (nativeEvent.state === 'failed' || nativeEvent.state === 'closed')
+                      viewer?.mediaFailed(nativeEvent.attemptId, nativeEvent.code);
+                  }}
+                />
+              )}
+            </ComputerVideoStage>
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              {state.status === 'opening' && !nativeMissing ? <LoadingIndicator /> : null}
+            </View>
+          )}
+        </View>
+        <ScrollView
+          style={{ flexShrink: 1, flexGrow: 0 }}
+          contentContainerStyle={{ padding: space.x3, gap: space.x2 }}
         >
-          <VStack spacing={space.x2} modifiers={[nativeFrame({ maxWidth: Infinity })]}>
-            {action(
-              'computer-video-control',
-              actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover,
-              () => void (actions.handBack ? viewer?.resume() : viewer?.takeover()),
-              toggleDisabled,
-              true,
-            )}
-            {controlling
-              ? action(
-                  'computer-video-click',
-                  t.computerLeftClick,
-                  () => click(cursor.get(), 'left'),
-                  !driving,
-                )
-              : null}
-            {mediaMounted
-              ? action('computer-video-reset', t.computerVideoReset, () =>
-                  preview.set({ scale: 1, x: 0, y: 0 }),
-                )
-              : null}
-            {actions.recovery && (actions.recovery === 'pair' || !nativeMissing)
-              ? action(
-                  'computer-video-reconnect',
-                  actions.recovery === 'pair'
-                    ? t.pairAgain
-                    : actions.recovery === 'host'
-                      ? t.retry
-                      : t.computerVideoReconnect,
-                  recover,
-                  state.busy,
-                )
-              : null}
-            {action('computer-video-close', t.computerVideoExit, close)}
-          </VStack>
-        </Host>
-      </ScrollView>
-    </View>
+          {message ? (
+            <Text
+              testID="computer-video-recovery-message"
+              tone="muted"
+              accessibilityLiveRegion="polite"
+            >
+              {message}
+            </Text>
+          ) : null}
+          <Host
+            matchContents={{ vertical: true }}
+            colorScheme={theme.scheme}
+            seedColor={theme.color.accent}
+          >
+            <VStack spacing={space.x3} modifiers={[nativeFrame({ maxWidth: Infinity })]}>
+              <HStack spacing={space.x3}>
+                {action(
+                  'computer-video-control',
+                  actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover,
+                  () => void (actions.handBack ? viewer?.resume() : viewer?.takeover()),
+                  toggleDisabled,
+                  true,
+                )}
+                {mediaMounted
+                  ? action(
+                      'computer-video-reset',
+                      t.computerVideoReset,
+                      () => preview.set({ scale: 1, x: 0, y: 0 }),
+                      false,
+                      false,
+                      'arrow.up.left.and.arrow.down.right',
+                    )
+                  : null}
+              </HStack>
+              {controlling ? (
+                <HStack spacing={space.x4}>
+                  {action(
+                    'computer-video-click',
+                    t.computerLeftClick,
+                    () => click(cursor.get(), 'left'),
+                    !driving,
+                  )}
+                  {action(
+                    'computer-video-right-click',
+                    t.computerRightClick,
+                    () => click(cursor.get(), 'right'),
+                    !driving,
+                  )}
+                </HStack>
+              ) : null}
+              {actions.recovery && (actions.recovery === 'pair' || !nativeMissing)
+                ? action(
+                    'computer-video-reconnect',
+                    actions.recovery === 'pair'
+                      ? t.pairAgain
+                      : actions.recovery === 'host'
+                        ? t.retry
+                        : t.computerVideoReconnect,
+                    recover,
+                    state.busy,
+                  )
+                : null}
+            </VStack>
+          </Host>
+        </ScrollView>
+      </View>
+    </DesignThemeProvider>
   );
 }
