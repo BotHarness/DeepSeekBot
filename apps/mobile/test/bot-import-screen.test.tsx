@@ -8,6 +8,7 @@ const fixture = vi.hoisted(() => ({
   routeReady: true,
   android: false,
   open: vi.fn(),
+  screen: vi.fn(),
   create: vi.fn(),
   hosts: [
     { hostId: 'A', hostName: 'Laptop' },
@@ -50,7 +51,12 @@ vi.mock('react-native', async () => ({
   AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
 }));
 vi.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({ options }: { options: unknown }) => {
+      fixture.screen(options);
+      return null;
+    },
+  },
   router: { push: vi.fn() },
   useLocalSearchParams: () => ({ entry: 'resume' }),
   useFocusEffect: () => {},
@@ -69,21 +75,17 @@ vi.mock('../src/ui/design/host-look', () => ({
 vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children }: { children: ReactNode }) => createElement('span', null, children),
 }));
-vi.mock('../src/ui/primitives/text-field', () => ({
-  TextField: ({ value, accessibilityLabel }: { value: string; accessibilityLabel: string }) =>
+vi.mock('../src/ui/primitives/creation-field', () => ({
+  CreationField: ({ value, accessibilityLabel }: { value: string; accessibilityLabel: string }) =>
     createElement('input', { value, 'aria-label': accessibilityLabel, readOnly: true }),
 }));
-vi.mock('../src/ui/primitives/button', () => ({
+vi.mock('../src/ui/primitives/creation-button', () => ({
   Button: ({ label, onPress, disabled }: { label: string; onPress(): void; disabled?: boolean }) =>
     createElement('button', { onClick: onPress, disabled }, label),
 }));
 vi.mock('../src/ui/primitives/keyboard-form', () => ({
   KeyboardFormScroll: ({ children }: { children: ReactNode }) =>
     createElement('div', null, children),
-}));
-vi.mock('../src/ui/primitives/creation-form', () => ({
-  CreationForm: ({ nativeDialog, children }: { nativeDialog?: boolean; children: ReactNode }) =>
-    createElement('section', { role: nativeDialog ? 'dialog' : undefined }, children),
 }));
 vi.mock('../src/ui/shell/open-created-bot', () => ({ openCreatedBot: fixture.open }));
 import { CreateBotScreen } from '../src/ui/shell/create-bot-screen';
@@ -162,4 +164,24 @@ it('keeps Marketplace progress in its existing page when reopening a submitted i
   root = createRoot(element);
   await act(async () => root.render(<CreateBotScreen initialSource="git" />));
   expect(element.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it('opens Android blank creation as a back-navigable page with its action inside the form', async () => {
+  await controller.another('A');
+  await controller.blank();
+  fixture.android = true;
+  element = document.createElement('div');
+  document.body.append(element);
+  root = createRoot(element);
+  await act(async () => root.render(<CreateBotScreen />));
+  expect(element.querySelector('[role="dialog"]')).toBeNull();
+  expect(fixture.screen).toHaveBeenLastCalledWith(
+    expect.objectContaining({ headerShown: true, presentation: 'card' }),
+  );
+  expect(element.querySelector(`[aria-label="${t.botCreation.name}"]`)).not.toBeNull();
+  expect(
+    [...element.querySelectorAll('button')].find(
+      (button) => button.textContent === t.botCreation.create,
+    ),
+  ).toBeDefined();
 });

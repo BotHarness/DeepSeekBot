@@ -1,6 +1,6 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, Platform, View, type ViewInstance } from 'react-native';
+import { AppState, View, type ViewInstance } from 'react-native';
 import { useHostSession } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
@@ -12,15 +12,14 @@ import { shownHostName } from '../design/host-look';
 import { space } from '../design/tokens';
 import { useSheetContent } from '../primitives/sheet-content';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { Button } from '../primitives/button';
+import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
-import { TextField } from '../primitives/text-field';
+import { CreationField as TextField } from '../primitives/creation-field';
 import { EnvironmentPicker } from '../primitives/environment-picker';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
 import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
 import { t } from '../strings';
-import { CreationForm as FormSurface } from '../primitives/creation-form';
 import { useDesignTheme } from '../design/theme';
 
 export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
@@ -140,55 +139,17 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
     !target ||
     state.error === 'storage-invalid' ||
     (importing && !draft.source?.preview);
-  const dialog =
-    Platform.OS === 'android' &&
-    initialSource !== 'zip' &&
-    source?.kind !== 'zip' &&
-    !(source?.kind === 'git' && source.origin === 'marketplace');
   return (
     <View ref={mounted} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          ...(dialog
-            ? {
-                headerShown: false,
-                presentation: 'transparentModal',
-                animation: 'none',
-                contentStyle: { backgroundColor: 'transparent' },
-              }
-            : Platform.OS === 'android'
-              ? {
-                  headerShown: true,
-                  presentation: 'card',
-                  contentStyle: { backgroundColor: theme.color.base },
-                }
-              : { headerShown: true }),
-          title:
-            flow === 'zip'
-              ? copy.fromZip
-              : flow === 'git'
-                ? gitSource?.origin === 'marketplace'
-                  ? copy.importTitle
-                  : copy.fromGit
-                : copy.title,
+          headerShown: true,
+          presentation: 'card',
+          contentStyle: { backgroundColor: theme.overlay.fill },
+          title,
         }}
       />
-      <FormSurface
-        nativeDialog={dialog}
-        dismissLabel={submitted ? t.close : t.cancel}
-        title={title}
-        onDismiss={() => router.back()}
-        action={
-          dialog && draft
-            ? {
-                label: state.busy ? copy.working : importing ? copy.import : copy.create,
-                onPress: submit,
-                disabled: submitDisabled,
-                testID: 'create-bot-submit',
-              }
-            : undefined
-        }
-      >
+      <View style={{ flex: 1 }}>
         <KeyboardFormScroll
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
@@ -221,7 +182,6 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
               ) : null}
               {gitSource ? (
                 <>
-                  <Text strong>{copy.gitUrl}</Text>
                   {gitSource.origin === 'marketplace' ? (
                     <>
                       <Text selectable>{gitSource.gitUrl}</Text>
@@ -272,7 +232,6 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                   onPress={() => router.push('/pair')}
                 />
               ) : null}
-              <Text strong>{copy.name}</Text>
               <TextField
                 testID="create-bot-name"
                 accessibilityLabel={copy.name}
@@ -283,7 +242,6 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
               />
               {!draft.source && initialSource === 'blank' ? (
                 <>
-                  <Text strong>{copy.persona}</Text>
                   <TextField
                     testID="create-bot-persona"
                     accessibilityLabel={copy.persona}
@@ -303,7 +261,6 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
               />
               {details ? (
                 <>
-                  <Text>{copy.bio}</Text>
                   <TextField
                     testID="create-bot-bio"
                     accessibilityLabel={copy.bio}
@@ -312,7 +269,6 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                     multiline
                     editable={!state.busy}
                   />
-                  <Text>{copy.tags}</Text>
                   <TextField
                     testID="create-bot-tags"
                     accessibilityLabel={copy.tags}
@@ -344,18 +300,13 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                   />
                 </>
               ) : null}
-              {!dialog ? (
+              {draft ? (
                 <Button
                   label={importing ? copy.import : copy.create}
                   testID="create-bot-submit"
                   tone="primary"
                   busy={state.busy}
-                  disabled={
-                    !draft.displayName.trim() ||
-                    !target ||
-                    state.error === 'storage-invalid' ||
-                    (importing && !draft.source?.preview)
-                  }
+                  disabled={submitDisabled}
                   onPress={submit}
                 />
               ) : null}
@@ -452,7 +403,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
             </View>
           ) : null}
         </KeyboardFormScroll>
-      </FormSurface>
+      </View>
     </View>
   );
 }

@@ -6,7 +6,7 @@ import { useDesignTheme } from '../design/theme';
 import { materialMenu } from '../design/tokens';
 import { MaterialMenuGroup } from './material-menu.android';
 import { MenuIcon } from './menu-icon';
-import { Button } from './button';
+import { Button } from './creation-button';
 import type { EnvironmentPickerProps } from './environment-picker';
 
 export function EnvironmentPicker({

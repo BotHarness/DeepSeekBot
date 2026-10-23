@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, FlatList, Platform, View } from 'react-native';
+import { AppState, FlatList, View } from 'react-native';
 import { channelCreation, useChannelCreation } from '../../host/native-channel-creation';
 import { hostSession, useHostSession } from '../../host/host-session';
 import { hostLooks } from '../../host/native-host-look';
@@ -9,18 +9,20 @@ import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { botCreationTargets } from '../../host/bot-creation-targets';
 import { shownHostName } from '../design/host-look';
 import { useMounted } from '../mounted';
-import { CreationForm } from '../primitives/creation-form';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { EnvironmentPicker } from '../primitives/environment-picker';
-import { TextField } from '../primitives/text-field';
+import { CreationField as TextField } from '../primitives/creation-field';
 import { Text } from '../primitives/text';
-import { Button } from '../primitives/button';
+import { Button } from '../primitives/creation-button';
+import { useDesignTheme } from '../design/theme';
+import { SettingsGroupItem } from '../primitives/settings-row';
 import { ParticipantChoice } from '../primitives/participant-choice';
 import { space } from '../design/tokens';
 import { creationError } from './bot-creation-copy';
 import { t } from '../strings';
 
 export function CreateChannelScreen() {
+  const theme = useDesignTheme();
   const { entry, hostId } = useLocalSearchParams<{ entry?: string; hostId?: string }>();
   const { hosts } = useHostSession();
   const state = useChannelCreation();
@@ -111,35 +113,33 @@ export function CreateChannelScreen() {
       <Stack.Screen
         options={{
           title: t.newChannel,
-          ...(Platform.OS === 'android'
-            ? {
-                headerShown: false,
-                presentation: 'transparentModal',
-                animation: 'none',
-                contentStyle: { backgroundColor: 'transparent' },
-              }
-            : {}),
+          headerShown: true,
+          presentation: 'card',
+          contentStyle: { backgroundColor: theme.overlay.fill },
         }}
       />
-      <CreationForm
-        dismissLabel={record.kind === 'submitted' ? t.close : t.cancel}
-        title={t.newChannel}
-        onDismiss={() => router.back()}
-        action={state.result ? undefined : action}
-      >
+      <View style={{ flex: 1 }}>
         <FlatList
           data={record.kind === 'draft' && !state.loading && !state.error ? state.candidates : []}
           keyExtractor={(bot) => bot.slug}
           renderScrollComponent={renderKeyboardFormScroll}
-          contentContainerStyle={{ padding: space.x4, gap: space.x4 }}
-          renderItem={({ item: bot }) => (
-            <ParticipantChoice
-              id={bot.slug}
-              label={bot.displayName}
-              checked={record.members.includes(bot.slug)}
-              disabled={state.busy}
-              onChange={() => channelCreation.toggle(bot.slug)}
-            />
+          contentContainerStyle={{ paddingVertical: space.x5 }}
+          ListHeaderComponentStyle={{ padding: space.x5, gap: space.x5 }}
+          ListFooterComponentStyle={{ padding: space.x5 }}
+          renderItem={({ item: bot, index }) => (
+            <SettingsGroupItem
+              first={index === 0}
+              last={index === state.candidates.length - 1}
+              on="raised"
+            >
+              <ParticipantChoice
+                id={bot.slug}
+                label={bot.displayName}
+                checked={record.members.includes(bot.slug)}
+                disabled={state.busy}
+                onChange={() => channelCreation.toggle(bot.slug)}
+              />
+            </SettingsGroupItem>
           )}
           ListHeaderComponent={
             <>
@@ -179,7 +179,6 @@ export function CreateChannelScreen() {
                   {hosts.length === 0 ? (
                     <Button label={t.botCreation.pair} onPress={() => router.push('/pair')} />
                   ) : null}
-                  <Text strong>{t.groupName}</Text>
                   <TextField
                     testID="create-channel-name"
                     accessibilityLabel={t.groupName}
@@ -226,17 +225,18 @@ export function CreateChannelScreen() {
                   void open();
                 }}
               />
-            ) : Platform.OS !== 'android' ? (
+            ) : (
               <Button
                 label={action.label}
                 testID="create-channel-submit"
                 disabled={disabled}
+                tone="primary"
                 onPress={action.onPress}
               />
-            ) : undefined
+            )
           }
         />
-      </CreationForm>
+      </View>
     </View>
   );
 }
