@@ -799,7 +799,7 @@
       "behaviors": ["phone.zip-bot-import"],
       "reason": "Imported helper of e2e-personabot-create.mjs, not a standalone launcher: same archive after upload restart and duplicate chunk, CLI preview/import/status, discarded accepted reply and same Bot/DM after import restart.",
       "task": 2637,
-      "sha256": "1727796ca36de7fc2d2308784ccb83ffbdca13e1024ed1fb4e9c6fcf745ae3a7"
+      "sha256": "8a2b6e3604d177e402376191a3a259f490964c572d5324573b484b6be8858ca4"
     },
     {
       "path": "scripts/e2e-tool-approval-simple.mjs",

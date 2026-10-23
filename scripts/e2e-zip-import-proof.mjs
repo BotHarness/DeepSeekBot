@@ -27,6 +27,13 @@ export async function prepareZipImportProof({ root, home, port, sourceSlug, rpc,
     description: 'Zip receipt proof',
     roles: ['portable'],
   };
+  const lookupInput = {
+    operationKey: input.operationKey,
+    sha256: input.sha256,
+    displayName: input.displayName,
+    description: input.description,
+    roles: input.roles,
+  };
   const call = (method, args) => rpc(port, 'botharness', method, args);
   const cli = (instance, command, args) => {
     const login = new URL(instance.url);
@@ -78,7 +85,7 @@ export async function prepareZipImportProof({ root, home, port, sourceSlug, rpc,
     '--role',
     input.roles[0],
   ];
-  const absent = await call('zipImportLookup', input);
+  const absent = await call('zipImportLookup', lookupInput);
   if (absent.receipt !== null) throw new Error('Zip proof lookup unexpectedly found an operation');
   const begun = await call('zipUploadBegin', identity);
   if (begun.offset !== 0 || begun.chunkBytes !== 262_144)
@@ -111,7 +118,7 @@ export async function prepareZipImportProof({ root, home, port, sourceSlug, rpc,
       const beforeBots = (await call('list', {})).bots.length;
       const beforeChannels = (await call('channels', {})).channels.length;
       await call('zipImport', input);
-      const receipt = (await call('zipImportLookup', input)).receipt;
+      const receipt = (await call('zipImportLookup', lookupInput)).receipt;
       const assertReceipt = (actual) => {
         if (
           !receipt ||
@@ -124,7 +131,7 @@ export async function prepareZipImportProof({ root, home, port, sourceSlug, rpc,
           throw new Error('Zip recovery changed the Bot or DM');
       };
       const verify = async (current) => {
-        assertReceipt((await call('zipImportLookup', input)).receipt);
+        assertReceipt((await call('zipImportLookup', lookupInput)).receipt);
         assertReceipt(
           cli(current, 'bot-zip-import-status', [
             '--archive-sha256',
