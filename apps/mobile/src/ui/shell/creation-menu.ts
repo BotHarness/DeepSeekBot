@@ -37,6 +37,8 @@ export function useCreationMenu({
   const choices = choosing ? targetsFor(choosing, scope, targets) : [];
   const pick = (action: CreationAction) => {
     if (action === 'join') return onPick(action);
+    if (action === 'bot')
+      return onPick(action, scope === 'all' ? undefined : targetsFor(action, scope, targets)[0]);
     if (scope === 'all') return setChoosing(action);
     const target = targetsFor(action, scope, targets)[0];
     if (target) onPick(action, target);

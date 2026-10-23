@@ -41,7 +41,7 @@ describe('source-bound creation choices', () => {
       computerEnvironmentKey('other'),
     ])
       expect(creationActions(scope, targets)).toEqual([]);
-    expect(creationActions('all', [])).toEqual(['join']);
+    expect(creationActions('all', [])).toEqual(['bot', 'join']);
   });
   it('distinguishes same-name targets without granting access through their labels', () => {
     const list = creationTargets(undefined, [
