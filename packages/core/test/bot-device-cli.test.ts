@@ -153,6 +153,38 @@ describe('Agent Browser and Computer commands', () => {
     ]);
   });
 
+  it('sends continuous scrolling and its explicit stop through the existing authenticated video input command', async () => {
+    const live = await host(() => ({ json: { ok: true } }));
+    const input = {
+      binding: { runtimeId: 'r', viewerId: 'v', attemptId: 'a', computerId: 'local' },
+      generation: 7,
+      sequence: 1,
+      input: { kind: 'scroll-motion', vx: 0, vy: -200, x: 40, y: 50 },
+    };
+    expect(
+      (
+        await invokeWithStdin(
+          ['computer-video', 'input', '--args-stdin'],
+          live.url,
+          JSON.stringify(input),
+        )
+      ).code,
+    ).toBe(0);
+    await invokeWithStdin(
+      ['computer-video', 'input', '--args-stdin'],
+      live.url,
+      JSON.stringify({ ...input, sequence: 2, input: { ...input.input, vx: 0, vy: 0 } }),
+    );
+    expect(live.calls).toEqual([
+      { method: 'POST', path: '/api/computer/video', body: { kind: 'input', ...input } },
+      {
+        method: 'POST',
+        path: '/api/computer/video',
+        body: { kind: 'input', ...input, sequence: 2, input: { ...input.input, vx: 0, vy: 0 } },
+      },
+    ]);
+  });
+
   it('never repeats an unknown video input and preserves its coded refusal', async () => {
     const live = await host(() => ({
       status: 409,

@@ -24,6 +24,7 @@ import { createTransferTokens } from './transfer-tokens.js';
 import { createIdleWatcher } from './idle.js';
 import { DesktopViewError, createDesktopView, parseDesktopInput } from './desktop-view.js';
 import { createComputerPauseStore, createLocalVideoOwner } from './local-video-owner.js';
+import { createMacScroll } from './macos-scroll.js';
 import { createLocalVideoHttp } from './local-video-http.js';
 import { LOCAL_VIDEO_PATH, LocalVideoError } from './local-video-contract.js';
 import { createLocalVideoMedia } from './media/supervisor.js';
@@ -432,6 +433,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
     isRunning: () => migratedLocal() && runtime.isRunning(),
     supported: migratedLocal,
     driverPlatform: process.platform === 'darwin' ? 'darwin' : 'win32',
+    ...(process.platform === 'darwin'
+      ? { scrollMotion: createMacScroll((detail) => diagnostics.record('lifecycle', detail)) }
+      : {}),
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
   });
   service.localVideo = localVideo;

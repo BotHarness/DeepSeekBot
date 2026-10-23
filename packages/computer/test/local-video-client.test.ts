@@ -18,7 +18,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function ownerFixture() {
+function ownerFixture(scrollMotion?: import('../src/macos-scroll.js').ScrollMotion) {
   vi.useFakeTimers();
   vi.setSystemTime(10_000);
   const caller = { deviceId: 'same-admitted-device' };
@@ -38,6 +38,7 @@ function ownerFixture() {
       },
     },
     isRunning: () => true,
+    ...(scrollMotion === undefined ? {} : { scrollMotion }),
     driver: {
       call: async (tool, args) =>
         tool === 'get_screen_size'
@@ -647,4 +648,33 @@ describe('Local Computer video consumer', () => {
     expect(calls.map(({ body }) => body['kind'])).toEqual(['status']);
     await client.stop();
   });
+});
+
+it('finger-up bypasses pending startup through the actual client and owner without late motion', async () => {
+  const startup = deferred();
+  let opening = false;
+  const effects = vi.fn();
+  const scrollMotion = {
+    update: vi.fn(async (_input: unknown, allowed: () => void) => {
+      opening = true;
+      await startup.promise;
+      allowed();
+      effects();
+    }),
+    stop: vi.fn(async () => {
+      if (opening) startup.resolve();
+    }),
+  };
+  const f = ownerFixture(scrollMotion);
+  await f.acquire();
+  const first = f.first.input({ kind: 'scroll-motion', x: 40, y: 50, vx: 0, vy: -200 });
+  await vi.advanceTimersByTimeAsync(0);
+  expect(scrollMotion.update).toHaveBeenCalledOnce();
+  const stopped = await f.first.input({ kind: 'scroll-motion', x: 40, y: 50, vx: 0, vy: 0 });
+  expect(stopped).toBe(true);
+  expect(await first).toBe(false);
+  expect(effects).not.toHaveBeenCalled();
+  expect(f.first.getState().status).toBe('controlling');
+  await f.first.stop();
+  await f.owner.dispose();
 });
