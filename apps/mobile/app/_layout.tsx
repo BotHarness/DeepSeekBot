@@ -149,7 +149,7 @@ function RootNavigator() {
                   options={{
                     title: t.profileComputer,
                     orientation: Platform.OS === 'android' ? 'all' : 'portrait',
-                    presentation: 'fullScreenModal',
+                    presentation: Platform.OS === 'ios' ? 'card' : 'fullScreenModal',
                     headerShown: false,
                     gestureEnabled: false,
                   }}
