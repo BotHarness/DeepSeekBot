@@ -32,6 +32,7 @@ export function ComputerVideoStage({
   driving,
   controlling,
   revealCursor,
+  directInput = true,
   cursor,
   preview,
   onClick,
@@ -45,6 +46,7 @@ export function ComputerVideoStage({
   driving: boolean;
   controlling: boolean;
   revealCursor: boolean;
+  directInput?: boolean;
   cursor: SharedValue<Point>;
   preview: SharedValue<StageZoom>;
   onClick(point: Point, button: 'left' | 'right'): void;
@@ -130,7 +132,7 @@ export function ComputerVideoStage({
     });
 
   const trackpad = Gesture.Pan()
-    .enabled(controlling)
+    .enabled(controlling && directInput)
     .maxPointers(1)
     .minDistance(TAP_SLOP)
     .onTouchesDown((event, manager) => {
@@ -155,7 +157,7 @@ export function ComputerVideoStage({
     });
 
   const tap = Gesture.Tap()
-    .enabled(driving)
+    .enabled(driving && directInput)
     .onTouchesDown((event, manager) => {
       if (event.numberOfTouches > 1) manager.fail();
     })
@@ -164,7 +166,7 @@ export function ComputerVideoStage({
       if (success && driving) scheduleOnRN(onClick, cursor.get(), 'left');
     });
   const rightClick = Gesture.LongPress()
-    .enabled(driving)
+    .enabled(driving && directInput)
     .numberOfPointers(1)
     .onTouchesDown((event, manager) => {
       if (event.numberOfTouches > 1) manager.fail();
@@ -198,11 +200,13 @@ export function ComputerVideoStage({
         ref={mount}
         onLayout={layout}
         accessible
-        accessibilityLabel={t.computerVideoTrackpad}
-        accessibilityHint={controlling ? t.computerVideoTrackpadHint : t.computerVideoPreviewHint}
-        accessibilityRole={controlling ? 'button' : 'image'}
+        accessibilityLabel={directInput ? t.computerVideoTrackpad : t.computerVideoSurface}
+        accessibilityHint={
+          controlling && directInput ? t.computerVideoTrackpadHint : t.computerVideoPreviewHint
+        }
+        accessibilityRole={controlling && directInput ? 'button' : 'image'}
         accessibilityActions={
-          driving
+          driving && directInput
             ? [
                 { name: 'activate', label: t.computerLeftClick },
                 { name: 'longpress', label: t.computerRightClick },

@@ -45,6 +45,33 @@ describe.each(['en-US', 'zh-CN'])('Computer recovery notices in %s', (locale) =>
     expect(expected).not.toContain('raw private error');
   });
 
+  it('allows spinner-only waiting without suppressing recovery errors', async () => {
+    const { t } = await load();
+    const { localVideoNotice } = await import('../src/ui/chat/local-video-notice');
+    const options = {
+      connection: connected,
+      state: { ...idle, status: 'observing' as const },
+      nativeMissing: false,
+      mediaMounted: true,
+    };
+    expect(localVideoNotice(options)).toBe(t.computerVideoWaiting);
+    expect(localVideoNotice({ ...options, showWaiting: false })).toBeUndefined();
+    expect(
+      localVideoNotice({
+        ...options,
+        showWaiting: false,
+        state: { ...idle, code: 'screen-recording-required' },
+      }),
+    ).toBe(t.computerVideoMacPermission);
+    expect(
+      localVideoNotice({
+        ...options,
+        showWaiting: false,
+        state: { ...idle, code: 'input-result-unknown' },
+      }),
+    ).toBe(t.computerVideoInputUnknown);
+  });
+
   it('keeps remote network checks separate from LAN requirements', async () => {
     const { notice, t } = await load();
     expect(

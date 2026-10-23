@@ -8,11 +8,13 @@ export function localVideoNotice({
   state,
   nativeMissing,
   mediaMounted,
+  showWaiting = true,
 }: {
   connection: ConnectionState;
   state: LocalVideoClientState;
   nativeMissing: boolean;
   mediaMounted: boolean;
+  showWaiting?: boolean;
 }): string | undefined {
   if (connection.status === 'refused') return t.deviceRefusal[connection.code];
   if (state.code === 'input-result-unknown') return t.computerVideoInputUnknown;
@@ -27,9 +29,10 @@ export function localVideoNotice({
   if (state.code === 'screen-recording-required') return t.computerVideoMacPermission;
   if (state.status === 'unavailable') return t.computerVideoUnavailable;
   if (
-    state.host?.media.status === 'stalled' ||
-    state.code === 'media-not-live' ||
-    (mediaMounted && !state.presenting)
+    showWaiting &&
+    (state.host?.media.status === 'stalled' ||
+      state.code === 'media-not-live' ||
+      (mediaMounted && !state.presenting))
   )
     return t.computerVideoWaiting;
   return undefined;
