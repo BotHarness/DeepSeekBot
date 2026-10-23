@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { moveCursor, stagePoint } from '../src/host/browser-viewer';
 import {
   resizeVideoPreview,
+  revealVideoPointer,
   videoPointerClick,
   videoPointerPosition,
   videoPointerScroll,
@@ -61,6 +62,20 @@ describe('native video trackpad', () => {
     const corner = videoPointerPosition({ point: { x: 0, y: 0 }, frame, stage: after, zoom });
     expect(corner.x).toBeCloseTo(-115.5555556);
     expect(corner.y).toBeCloseTo(-20);
+  });
+
+  it('keeps the remote typing target visible when the keyboard reduces the viewport', () => {
+    const stage = { width: 400, height: 120 };
+    const point = { x: 1280, y: 1200 };
+    const zoom = { scale: 3, x: -500, y: 300 };
+    const revealed = revealVideoPointer({ point, frame, stage, zoom });
+    expect(revealed.scale).toBe(zoom.scale);
+    const at = videoPointerPosition({ point, frame, stage, zoom: revealed });
+    expect(at.x).toBeGreaterThanOrEqual(24);
+    expect(at.x).toBeLessThanOrEqual(376);
+    expect(at.y).toBeGreaterThanOrEqual(24);
+    expect(at.y).toBeLessThanOrEqual(96);
+    expect(revealVideoPointer({ point, frame, stage, zoom: revealed })).toEqual(revealed);
   });
 
   it('places the canvas at the top and keeps a freely panned, zoomed cursor aligned', () => {

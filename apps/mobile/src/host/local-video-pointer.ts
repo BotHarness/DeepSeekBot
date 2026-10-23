@@ -105,3 +105,24 @@ function inputPoint({
     y: Math.min(frame.height - 1, Math.round(point.y)),
   };
 }
+
+export function revealVideoPointer({
+  point,
+  frame,
+  stage,
+  zoom,
+}: {
+  point: { x: number; y: number };
+  frame: { width: number; height: number };
+  stage: StageLayout;
+  zoom: StageZoom;
+}): StageZoom {
+  'worklet';
+  const at = videoPointerPosition({ point, frame, stage, zoom });
+  const inset = Math.min(24, stage.width / 4, stage.height / 4);
+  return {
+    ...zoom,
+    x: zoom.x + Math.max(inset, Math.min(stage.width - inset, at.x)) - at.x,
+    y: zoom.y + Math.max(inset, Math.min(stage.height - inset, at.y)) - at.y,
+  };
+}
