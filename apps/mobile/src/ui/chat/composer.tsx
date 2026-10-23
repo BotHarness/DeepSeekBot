@@ -2,7 +2,6 @@ import { TextInput } from '../primitives/system-text';
 import { useRef, useState, type ComponentRef, type ReactNode, type Ref } from 'react';
 import {
   Image,
-  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -17,23 +16,13 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { usePreventRemove } from 'expo-router';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, motion, radius, space } from '../design/tokens';
 import { HardwareSend } from '../primitives/hardware-send';
 import { Text } from '../primitives/text';
-import {
-  ArrowUpIcon,
-  CameraIcon,
-  ChevronUpIcon,
-  CloseIcon,
-  FileIcon,
-  LockIcon,
-  PhotoIcon,
-  PlusIcon,
-} from '../shell/icons';
+import { ArrowUpIcon, ChevronUpIcon, CloseIcon, FileIcon, LockIcon } from '../shell/icons';
 import {
   ComposerCircleButton,
   ComposerFieldMaterial,
@@ -45,6 +34,7 @@ import { ComposerActionButton } from './composer-action';
 import { VoiceButton } from './voice-button';
 import { DraftEditor } from './draft-editor';
 import { haptic } from '../haptics';
+import { PlusMenuButton } from '../primitives/plus-menu-button';
 import { t } from '../strings';
 import {
   composerActions,
@@ -53,12 +43,6 @@ import {
   dictating,
   type DictationStatus,
 } from './dictation';
-
-const SOURCES: Array<{ source: PickSource; label: string; Icon: typeof PhotoIcon }> = [
-  { source: 'photos', label: t.attachPhotos, Icon: PhotoIcon },
-  { source: 'camera', label: t.attachCamera, Icon: CameraIcon },
-  { source: 'file', label: t.attachFile, Icon: FileIcon },
-];
 
 function AttachmentTile({ file, onRemove }: { file: PickedFile; onRemove(): void }) {
   const theme = useDesignTheme();
@@ -165,54 +149,6 @@ function LockHint({ style }: { style: ViewStyle }) {
   );
 }
 
-function AttachMenu({ onPick }: { onPick(source: PickSource): void }) {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        flexDirection: theme.largeText ? 'column' : 'row',
-        gap: space.x3,
-        justifyContent: 'space-around',
-        paddingTop: space.x5,
-        paddingBottom: space.x2,
-      }}
-    >
-      {SOURCES.map(({ source, label, Icon }) => (
-        <Pressable
-          key={source}
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          onPress={() => onPick(source)}
-          style={({ pressed }) => ({
-            alignItems: 'center',
-            gap: space.x2,
-            minWidth: theme.touch * 2,
-            opacity: pressed ? 0.6 : 1,
-          })}
-        >
-          <View
-            style={{
-              width: theme.touch + space.x3,
-              height: theme.touch + space.x3,
-              borderRadius: radius.round,
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: theme.color.surface,
-              borderWidth: edge.hairline,
-              borderColor: theme.color.border,
-            }}
-          >
-            <Icon color={theme.color.fg} size={theme.type.display.size} />
-          </View>
-          <Text variant="meta" tone="muted">
-            {label}
-          </Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
 export type ComposerInput = ComponentRef<typeof TextInput>;
 
 export function Composer({
@@ -261,12 +197,6 @@ export function Composer({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [footerHeight, setFooterHeight] = useState(0);
-  const [menu, setMenuState] = useState(false);
-  const menuOpen = useRef(false);
-  const setMenu = (open: boolean) => {
-    menuOpen.current = open;
-    setMenuState(open);
-  };
   const [held, setHeld] = useState(false);
   const [editing, setEditing] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
@@ -297,9 +227,6 @@ export function Composer({
       });
   };
   const listening = dictating(dictation);
-  usePreventRemove(Platform.OS === 'android' && menu && canAttach && !listening, () =>
-    setMenu(false),
-  );
   const actions = composerActions({
     text: value,
     files: files.length,
@@ -312,14 +239,6 @@ export function Composer({
     if (!canSend) return;
     haptic('send');
     onSend();
-  };
-  const toggleMenu = () => {
-    const open = !menuOpen.current;
-    if (open) {
-      haptic('menu');
-      Keyboard.dismiss();
-    }
-    setMenu(open);
   };
   const expanded = theme.largeText || wraps;
   const stacked = composerStacked(actions, files.length, expanded);
@@ -339,21 +258,33 @@ export function Composer({
       <CloseIcon color={theme.color.fg} size={icon} />
     </ComposerCircleButton>
   ) : canAttach ? (
-    <ComposerCircleButton
+    <PlusMenuButton
       key="lead"
-      label={menu ? t.closeAttach : t.attach}
-      symbol={menu ? 'xmark' : 'plus'}
+      label={t.attach}
+      testID="composer-attach"
       size={integratedLeading ? button : bar}
       embedded={integratedLeading}
-      testID="composer-attach"
-      onPress={toggleMenu}
-    >
-      {menu ? (
-        <CloseIcon color={theme.color.fg} size={icon} />
-      ) : (
-        <PlusIcon color={theme.color.fg} size={icon} />
-      )}
-    </ComposerCircleButton>
+      items={[
+        {
+          id: 'composer-attach-photos',
+          label: t.attachPhotos,
+          symbol: 'photo',
+          run: () => onPick('photos'),
+        },
+        {
+          id: 'composer-attach-camera',
+          label: t.attachCamera,
+          symbol: 'camera',
+          run: () => onPick('camera'),
+        },
+        {
+          id: 'composer-attach-file',
+          label: t.attachFile,
+          symbol: 'folder',
+          run: () => onPick('file'),
+        },
+      ]}
+    />
   ) : null;
   const field = (
     <TextInput
@@ -370,7 +301,6 @@ export function Composer({
               onSelection(event.nativeEvent.selection.end),
           })}
       onFocus={() => {
-        setMenu(false);
         onFocusChange?.(true);
       }}
       onBlur={() => onFocusChange?.(false)}
@@ -422,7 +352,6 @@ export function Composer({
         key="voice"
         active={listening}
         onStart={() => {
-          setMenu(false);
           onDictate();
         }}
         onStop={onStopDictation}
@@ -585,14 +514,6 @@ export function Composer({
               (footer === undefined ? 0 : footerHeight) +
               pill.height +
               space.x3,
-          }}
-        />
-      ) : null}
-      {menu && canAttach && !listening ? (
-        <AttachMenu
-          onPick={(source) => {
-            setMenu(false);
-            onPick(source);
           }}
         />
       ) : null}

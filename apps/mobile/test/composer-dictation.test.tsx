@@ -500,6 +500,7 @@ describe.each(['ios', 'android'])('%s composer haptic coverage', (platform) => {
     });
     expect(played).toEqual(['impact:light']);
     expect(button(t.attach)).not.toBeNull();
+    await press(t.close);
     await press(t.attach);
     expect(played).toEqual(['impact:light', 'impact:light']);
     await press(t.attachPhotos);
@@ -513,8 +514,8 @@ describe.each(['ios', 'android'])('%s composer haptic coverage', (platform) => {
     setHapticsEnabled(false);
     await act(async () => root!.render(<Harness />));
     await press(t.attach);
-    expect(button(t.closeAttach)).not.toBeNull();
-    await press(t.closeAttach);
+    expect(button(t.close)).not.toBeNull();
+    await press(t.close);
     await press('Pick Mika');
     await press(t.send);
     expect(sent).toHaveBeenCalledTimes(1);
