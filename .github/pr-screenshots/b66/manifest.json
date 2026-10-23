@@ -1,0 +1,289 @@
+{
+  "batch": 66,
+  "pr": 2625,
+  "qualification": {
+    "sourceBefore": "55a8954a1282cadc908b545349dfac5b25861739",
+    "sourceAfter": "fb3cc0d334a91f7cb0414e2dc94804cf182944d7",
+    "installedBinaryBuildSource": "0b71799a5326635b11bd1b102893b44de33b665f",
+    "iosFingerprint": "4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc",
+    "executableSHA256": "ba8bad85455ffe4664485a30244b13ea3251ce04dfef4041f08f47ffc8628988",
+    "debugDylibSHA256": "da27ad5eb82cc344556dcab0d53af15cba4efd6935e7d63f1d0bc8f3c62c28c7",
+    "bundleId": "ai.botharness.deepseekbot.dev",
+    "configuration": "Debug-iphonesimulator",
+    "rebuildRequired": false,
+    "qualification": "Both fresh iOS-only fingerprints equal embedded installed fingerprint, and executable/dylib match preserved Batch62 qualified binary. Earlier cross-platform strict88a fingerprint is a different options scope.",
+    "checkedAt": "2026-10-23T04:05:35.426508+00:00"
+  },
+  "device": "iPhone 17 Pro / iOS 27 Simulator",
+  "captureSize": "402x874 @1x",
+  "hostSource": "fb3cc0d334a91f7cb0414e2dc94804cf182944d7",
+  "ci": {
+    "run": 39897394670,
+    "result": "all applicable jobs and aggregate PASS"
+  },
+  "loadedModules": {
+    "before": "ea46e582f72760f4f37efab386368a9d0a5b3a71f3e7c9307a87155e8caa5351",
+    "after": "885238646d588eb965de52c61a09ef1a6b7efc2a847367fa51c9c0ce641de077",
+    "before-empty": "ea46e582f72760f4f37efab386368a9d0a5b3a71f3e7c9307a87155e8caa5351"
+  },
+  "nativePass": [
+    "Unsectioned first, native divider, neutral title and primary check on canonical current destination",
+    "Populated and confirmed-empty lists: matched Before/After x light/dark x default/intermediate/maximum text (24 PNGs)",
+    "iOS accessibility selected trait identifies only current choice; actual screen-reader speech not tested",
+    "DM and group clear membership then reopen correctly; pins and complete timelines preserved",
+    "Current Work and current Unsectioned taps close with canonical state unchanged; native RPC dispatch count not measured",
+    "Stopped test Host: failed clear retains Work selection and offers retry; canonical state unchanged",
+    "Paused task-owned Host during retry: pending spinner, rows/Close disabled, repeat/Close/swipe do not dismiss; resume completes clear",
+    "Temporary empty Host: selected Unsectioned closes and canonical roster unchanged"
+  ],
+  "untested": [
+    "Initial loading before roster resolves",
+    "In-flight Host-switch guard and refresh-only failure",
+    "Android, physical Release device, Human acceptance",
+    "Actual VoiceOver speech/focus, rotation and wider screens",
+    "Prior B64-TYPE-1 input height/font issue is not requalified or resolved; remains tracked in #2619"
+  ],
+  "cleanup": {
+    "originalFixtureAndTimelines": "exact equality with initial state",
+    "temporaryPairing": "explicit Human approval; exact key revoked and native connection removed",
+    "temporaryGroup": "deleted only owned empty-member group",
+    "device": "My Mac, light, large restored",
+    "runtime": "see local cleanup report; no phone installation/release/deployment"
+  },
+  "images": [
+    {
+      "file": "b-ld.png",
+      "sourceCapture": "before-list-light-default.png",
+      "sha256": "7ae89926fb44f67c737dc15111d63e9364b07fdb4f09be19213b818613d94639",
+      "phase": "before",
+      "theme": "light",
+      "text": "default"
+    },
+    {
+      "file": "b-li.png",
+      "sourceCapture": "before-list-light-intermediate.png",
+      "sha256": "129a52ead91f8bbd2432fccf92827e5da81e55249e9595f4a4e77af0b5481d59",
+      "phase": "before",
+      "theme": "light",
+      "text": "intermediate"
+    },
+    {
+      "file": "b-lm.png",
+      "sourceCapture": "before-list-light-maximum.png",
+      "sha256": "07208202c33821a5d1bc1c5b0e82e5ab295de5500d181f763dea1f7466045c91",
+      "phase": "before",
+      "theme": "light",
+      "text": "maximum"
+    },
+    {
+      "file": "b-dd.png",
+      "sourceCapture": "before-list-dark-default.png",
+      "sha256": "b247d1ed16774b59f498073727ce75e38b54f911cbb8b980522ee26d26e1c814",
+      "phase": "before",
+      "theme": "dark",
+      "text": "default"
+    },
+    {
+      "file": "b-di.png",
+      "sourceCapture": "before-list-dark-intermediate.png",
+      "sha256": "95aaa22de61a5399255f9d3051c56064e82884d4d7ec5c2af73ea2b6c2fe2468",
+      "phase": "before",
+      "theme": "dark",
+      "text": "intermediate"
+    },
+    {
+      "file": "b-dm.png",
+      "sourceCapture": "before-list-dark-maximum.png",
+      "sha256": "e562dfd0e97a205e4158c381cabc87f22195494fd5d262a1955b524bea8e1ab4",
+      "phase": "before",
+      "theme": "dark",
+      "text": "maximum"
+    },
+    {
+      "file": "a-ld.png",
+      "sourceCapture": "after-list-light-default.png",
+      "sha256": "0f955d7654672fbbde3258559e8667515eb2ee3906b4608e8788778a2d8ee44a",
+      "phase": "after",
+      "theme": "light",
+      "text": "default"
+    },
+    {
+      "file": "a-li.png",
+      "sourceCapture": "after-list-light-intermediate.png",
+      "sha256": "e8227c62da6b0c63abc4b8c500f7859aa9162dbef78a1021a07a5a5429b46664",
+      "phase": "after",
+      "theme": "light",
+      "text": "intermediate"
+    },
+    {
+      "file": "a-lm.png",
+      "sourceCapture": "after-list-light-maximum.png",
+      "sha256": "7e18a768164dca52da67b99ba062c3fbdae3ee3a2aa5731ee4639668b898a22e",
+      "phase": "after",
+      "theme": "light",
+      "text": "maximum"
+    },
+    {
+      "file": "a-dd.png",
+      "sourceCapture": "after-list-dark-default.png",
+      "sha256": "646ef466f7ee43dfe51dfdfe6cdb2978fb71aca69f61d9a1b0c4648be23079e0",
+      "phase": "after",
+      "theme": "dark",
+      "text": "default"
+    },
+    {
+      "file": "a-di.png",
+      "sourceCapture": "after-list-dark-intermediate.png",
+      "sha256": "4b4be272e73af91b4ad8ce638506f68ad50c9b7e9b54088f18ea4dc026d2dd23",
+      "phase": "after",
+      "theme": "dark",
+      "text": "intermediate"
+    },
+    {
+      "file": "a-dm.png",
+      "sourceCapture": "after-list-dark-maximum.png",
+      "sha256": "85ead010372ddddaf82e66098c3af4495437144ef7ecc6ce915e4b3f5f94ae55",
+      "phase": "after",
+      "theme": "dark",
+      "text": "maximum"
+    },
+    {
+      "file": "error.png",
+      "sourceCapture": "failed-clear.png",
+      "sha256": "10d5c001901e4da97503ea270a6991102f63822c2e1fcacbb862e14e4c0382c1"
+    },
+    {
+      "file": "pending.png",
+      "sourceCapture": "pending.png",
+      "sha256": "705ef185cc01f0f0b3fab05a88cb1ff948deb35e63a191ba98e748b0aa7e790c"
+    },
+    {
+      "file": "guards.png",
+      "sourceCapture": "pending-guards.png",
+      "sha256": "bdee199ac8a4aea09fcb1f3514f39e6e351a2552a2728728a9ce45a34efad5d3"
+    },
+    {
+      "file": "none.png",
+      "sourceCapture": "dm-unsectioned.png",
+      "sha256": "814ae6973e9f27ceafd8b6d4a5e2952bd849341f4a11eef1473df0300d35d295"
+    },
+    {
+      "file": "none-max.png",
+      "sourceCapture": "dm-unsectioned-max.png",
+      "sha256": "7705a24761e95199a3d813f35902021ddfe1c2e5b623aa684b7e5aed0834a852"
+    },
+    {
+      "file": "group.png",
+      "sourceCapture": "group-work.png",
+      "sha256": "7ed72ee12d8d28a58a4e1adcb74c0663a23755ac7994213e8ca9465def008a7f"
+    },
+    {
+      "file": "eb-ld.png",
+      "sourceCapture": "before-empty-light-default.png",
+      "phase": "before",
+      "theme": "light",
+      "text": "default",
+      "state": "confirmed-empty",
+      "sha256": "1a30b0e45561bee3ace13934ae9254d15cac409bf1624b0c82734eda1a53626f"
+    },
+    {
+      "file": "eb-li.png",
+      "sourceCapture": "before-empty-light-intermediate.png",
+      "phase": "before",
+      "theme": "light",
+      "text": "intermediate",
+      "state": "confirmed-empty",
+      "sha256": "3ea4777bb8046fe7349efa654e87d1cd9665dba11ae9261f57b5de9cbc3bbb89"
+    },
+    {
+      "file": "eb-lm.png",
+      "sourceCapture": "before-empty-light-maximum.png",
+      "phase": "before",
+      "theme": "light",
+      "text": "maximum",
+      "state": "confirmed-empty",
+      "sha256": "5a801f70bff44d93ffe2806afd0f1b941a10e5d6369cdc9f0d4b5bfc496caec6"
+    },
+    {
+      "file": "eb-dd.png",
+      "sourceCapture": "before-empty-dark-default.png",
+      "phase": "before",
+      "theme": "dark",
+      "text": "default",
+      "state": "confirmed-empty",
+      "sha256": "567e86d86660f045ecb7c8b25650b0dc061e7017fd0836a9ffae452874282ef7"
+    },
+    {
+      "file": "eb-di.png",
+      "sourceCapture": "before-empty-dark-intermediate.png",
+      "phase": "before",
+      "theme": "dark",
+      "text": "intermediate",
+      "state": "confirmed-empty",
+      "sha256": "c718889c3260a220483c42728f097bb01282e1a9d211864061e6c11add5117f6"
+    },
+    {
+      "file": "eb-dm.png",
+      "sourceCapture": "before-empty-dark-maximum.png",
+      "phase": "before",
+      "theme": "dark",
+      "text": "maximum",
+      "state": "confirmed-empty",
+      "sha256": "6ce933f32a85e33eaa466b5d302cefaa922dd1b03d0973a94f5282e0aee96345"
+    },
+    {
+      "file": "ea-ld.png",
+      "sourceCapture": "after-empty-light-default.png",
+      "phase": "after",
+      "theme": "light",
+      "text": "default",
+      "state": "confirmed-empty",
+      "sha256": "9a48e61136d9b8c452dfb34210df540ff547f4ce09c298c31a7543112f4f0f3c"
+    },
+    {
+      "file": "ea-li.png",
+      "sourceCapture": "after-empty-light-intermediate.png",
+      "phase": "after",
+      "theme": "light",
+      "text": "intermediate",
+      "state": "confirmed-empty",
+      "sha256": "db5935b5e3c322a8f6c0d4fcfe5a5f9beca1011dec660c6e9d17e22b272416fe"
+    },
+    {
+      "file": "ea-lm.png",
+      "sourceCapture": "after-empty-light-maximum.png",
+      "phase": "after",
+      "theme": "light",
+      "text": "maximum",
+      "state": "confirmed-empty",
+      "sha256": "8ccd9e01c90624421095081f32859a0b904a152e92bd05cfd66b4e1b5cd5e39c"
+    },
+    {
+      "file": "ea-dd.png",
+      "sourceCapture": "after-empty-dark-default.png",
+      "phase": "after",
+      "theme": "dark",
+      "text": "default",
+      "state": "confirmed-empty",
+      "sha256": "83aab479e850995369188ab211d16bada9f50ae530841ce84737396f79d4dda2"
+    },
+    {
+      "file": "ea-di.png",
+      "sourceCapture": "after-empty-dark-intermediate.png",
+      "phase": "after",
+      "theme": "dark",
+      "text": "intermediate",
+      "state": "confirmed-empty",
+      "sha256": "badeae747c0561c0ed02808e60d4551553c7f778d213527ca56637ad323e79f5"
+    },
+    {
+      "file": "ea-dm.png",
+      "sourceCapture": "after-empty-dark-maximum.png",
+      "phase": "after",
+      "theme": "dark",
+      "text": "maximum",
+      "state": "confirmed-empty",
+      "sha256": "dcb02b5129447e4345a7ae6e1e7809f5009554eedc6d01559f4dfad649a3c16b"
+    }
+  ]
+}
