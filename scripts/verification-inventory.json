@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.marketplace-bot-import",
+      "label": "Browse the public native Marketplace before selecting a Host and import its reviewed source",
+      "source": "apps/mobile/app/marketplace.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2636,
+      "gap": "Public catalogue API proof does not establish native rendering, keyboard behavior or successful import; Android/iOS require the shared device journey."
+    },
+    {
       "id": "phone.blank-bot-creation",
       "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
       "source": "apps/mobile/app/create-bot.tsx",
