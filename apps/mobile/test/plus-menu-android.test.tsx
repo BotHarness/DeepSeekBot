@@ -9,11 +9,13 @@ vi.mock('react-native', async () => ({
 vi.mock('../src/cloud/available', () => ({ cloudAvailable: true }));
 vi.mock('../src/ui/shell/icons', () => ({ PlusIcon: () => null }));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
+  ...(await import('./compose-menu-shim')).modifiers,
   fillMaxSize: () => ({}),
   testID: () => ({}),
 }));
-vi.mock('@expo/ui/jetpack-compose', () => {
+vi.mock('@expo/ui/jetpack-compose', async () => {
+  const nativeMenu = (await import('./compose-menu-shim')).components;
   const pass = ({ children }: { children?: ReactNode }) => children ?? null;
   const DropdownMenu = ({
     expanded,
@@ -49,7 +51,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       children,
     );
   DropdownMenuItem.Text = pass;
-  return { Box: pass, Host: pass, Text: pass, DropdownMenu, DropdownMenuItem };
+  return { ...nativeMenu, Box: pass, Host: pass, Text: pass, DropdownMenu, DropdownMenuItem };
 });
 import { PlusMenuButton } from '../src/ui/primitives/plus-menu-button.android';
 import { haptic } from '../src/ui/haptics';
@@ -84,7 +86,7 @@ function render(disabled = false) {
   );
 }
 function click(label: string) {
-  const button = [...host.querySelectorAll('button')].find(
+  const button = [...host.querySelectorAll<HTMLElement>('button, [role=button]')].find(
     (b) => b.getAttribute('aria-label') === label || b.textContent === label,
   );
   expect(button).toBeDefined();
@@ -122,3 +124,8 @@ it('does not open, select or vibrate while attachment capacity is exhausted', ()
   expect(pick).not.toHaveBeenCalled();
   expect(haptic).not.toHaveBeenCalled();
 });
+
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ name }: { name: { android: string } }) =>
+    createElement('i', { 'data-symbol': name.android }),
+}));

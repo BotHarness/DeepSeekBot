@@ -9,11 +9,13 @@ vi.mock('react-native', async () => ({
 vi.mock('../src/cloud/available', () => ({ cloudAvailable: true }));
 vi.mock('../src/ui/shell/icons', () => ({ PlusIcon: () => null }));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
+  ...(await import('./compose-menu-shim')).modifiers,
   fillMaxSize: () => ({}),
   testID: () => ({}),
 }));
-vi.mock('@expo/ui/jetpack-compose', () => {
+vi.mock('@expo/ui/jetpack-compose', async () => {
+  const nativeMenu = (await import('./compose-menu-shim')).components;
   const pass = ({ children }: { children?: ReactNode }) => children ?? null;
   const DropdownMenu = ({
     expanded,
@@ -49,7 +51,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       children,
     );
   DropdownMenuItem.Text = pass;
-  return { Box: pass, Host: pass, Text: pass, DropdownMenu, DropdownMenuItem };
+  return { ...nativeMenu, Box: pass, Host: pass, Text: pass, DropdownMenu, DropdownMenuItem };
 });
 import { CreationMenuButton } from '../src/ui/shell/creation-menu-button.android';
 import { creationTargets } from '../src/host/creation-targets';
@@ -85,7 +87,7 @@ function render(scope = 'all', busy = false) {
   );
 }
 function click(label: string) {
-  const b = [...host.querySelectorAll('button')].find(
+  const b = [...host.querySelectorAll<HTMLElement>('button, [role=button]')].find(
     (b) => b.getAttribute('aria-label') === label || b.textContent === label,
   );
   expect(b, label).toBeDefined();
@@ -137,3 +139,8 @@ it('blocks the trigger while preparation is pending', () => {
   expect(host.querySelector('section')).toBeNull();
   expect(haptic).not.toHaveBeenCalled();
 });
+
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ name }: { name: { android: string } }) =>
+    createElement('i', { 'data-symbol': name.android }),
+}));

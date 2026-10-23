@@ -9,7 +9,7 @@ interface NativeProps {
   opened: boolean;
   accepting: boolean;
   onInput(event: { nativeEvent: KeyboardInputEvent }): void;
-  onDismissed(event: { nativeEvent: { session: string } }): void;
+  onDismissed(event: { nativeEvent: { session: string; reason?: 'queue-full' } }): void;
 }
 const native = vi.hoisted((): { current?: NativeProps } => ({}));
 vi.mock('react-native', async () => {
@@ -98,6 +98,21 @@ describe('Computer native keyboard', () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(onFailure).toHaveBeenCalledWith('input-unconfirmed');
+  });
+  it('stops without replay when native input capacity is exceeded', async () => {
+    const onFailure = vi.fn();
+    const { onInput, onClose } = await render({ onFailure });
+    await act(() =>
+      props().onDismissed({ nativeEvent: { session: 'previous', reason: 'queue-full' } }),
+    );
+    expect(onFailure).not.toHaveBeenCalled();
+    await act(() =>
+      props().onDismissed({ nativeEvent: { session: 'first', reason: 'queue-full' } }),
+    );
+    await act(() => props().onInput({ nativeEvent: { session: 'first', input } }));
+    expect(onFailure).toHaveBeenCalledWith('queue-full');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(onInput).not.toHaveBeenCalled();
   });
   it('native keyboard Back closes only its current session', async () => {
     const { onClose } = await render();

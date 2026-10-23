@@ -229,6 +229,7 @@ function openHostMenu(row: HostDrawerRow, name: string): void {
     name,
     hostMenuActions(row, name).map((action) => ({
       text: action.label,
+      icon: action.icon,
       style: action.destructive === true ? ('destructive' as const) : ('default' as const),
       onPress: action.run,
     })),

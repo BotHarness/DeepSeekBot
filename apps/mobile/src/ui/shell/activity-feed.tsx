@@ -780,6 +780,7 @@ const ActivityPage = memo(function ActivityPage({
             return [
               {
                 text: t.activitySnoozeChoice[choice](time),
+                icon: 'clock' as const,
                 onPress: () => snoozeTo(item, choice),
               },
             ];

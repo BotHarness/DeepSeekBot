@@ -1,11 +1,13 @@
-import { Box, DropdownMenu, DropdownMenuItem, Host, Text } from '@expo/ui/jetpack-compose';
-import { fillMaxSize, testID as nativeTestID } from '@expo/ui/jetpack-compose/modifiers';
+import { Box, Column, DropdownMenu, Host } from '@expo/ui/jetpack-compose';
+import { fillMaxSize, width } from '@expo/ui/jetpack-compose/modifiers';
 import { useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { radius } from '../design/tokens';
+import { materialMenu, radius } from '../design/tokens';
 import { haptic } from '../haptics';
 import { PlusIcon } from '../shell/icons';
+import { MaterialMenuGroup } from './material-menu.android';
+import { MenuIcon } from './menu-icon';
 import type { PlusMenuButtonProps } from './plus-menu';
 
 export function PlusMenuButton({
@@ -30,27 +32,44 @@ export function PlusMenuButton({
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
       >
-        <DropdownMenu expanded={open} onDismissRequest={close}>
+        <DropdownMenu
+          expanded={open}
+          onDismissRequest={close}
+          color="transparent"
+          shadowElevation={0}
+        >
           <DropdownMenu.Trigger>
             <Box modifiers={[fillMaxSize()]} />
           </DropdownMenu.Trigger>
           <DropdownMenu.Items>
-            {items.map((item) => (
-              <DropdownMenuItem
-                key={item.id}
-                enabled={!disabled}
-                modifiers={[nativeTestID(item.id)]}
-                onClick={() => {
-                  if (disabled) return;
-                  close();
-                  item.run();
-                }}
-              >
-                <DropdownMenuItem.Text>
-                  <Text>{item.label}</Text>
-                </DropdownMenuItem.Text>
-              </DropdownMenuItem>
-            ))}
+            <Column modifiers={[width(materialMenu.width)]}>
+              <MaterialMenuGroup
+                items={items.map((item) => ({
+                  key: item.id,
+                  label: item.label,
+                  testID: item.id,
+                  disabled,
+                  icon: (
+                    <MenuIcon
+                      icon={
+                        item.symbol === 'photo'
+                          ? 'photo'
+                          : item.symbol === 'camera'
+                            ? 'camera'
+                            : 'folder'
+                      }
+                      color={theme.color.muted}
+                      size={materialMenu.iconSize}
+                    />
+                  ),
+                  onPress: () => {
+                    if (disabled) return;
+                    close();
+                    item.run();
+                  },
+                }))}
+              />
+            </Column>
           </DropdownMenu.Items>
         </DropdownMenu>
       </Host>

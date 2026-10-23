@@ -13,6 +13,21 @@ export const space = {
 
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
 
+export const materialMenu = {
+  containerRadius: 16,
+  outerItemRadius: 12,
+  innerItemRadius: 4,
+  groupPadding: 2,
+  groupGap: 2,
+  itemHeight: 44,
+  horizontalPadding: 16,
+  verticalPadding: 8,
+  iconLabelGap: 12,
+  iconSize: 20,
+  width: 280,
+  elevation: 3,
+} as const;
+
 export const radius = {
   xs: 4,
   sm: 8,

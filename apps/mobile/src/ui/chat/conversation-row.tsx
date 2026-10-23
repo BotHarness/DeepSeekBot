@@ -102,6 +102,12 @@ export function ConversationRow({
                 title,
                 availableActions.map((action) => ({
                   text: action.label,
+                  icon:
+                    action.key === 'read'
+                      ? ('check' as const)
+                      : action.key === 'section'
+                        ? ('folder' as const)
+                        : action.key,
                   onPress: () => act(action.key),
                 })),
               )

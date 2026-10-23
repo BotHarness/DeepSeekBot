@@ -1,0 +1,333 @@
+{
+  "applicationSource": "412942e9c22381ea3dfe5de516095174e9145cb3",
+  "capturedComponentsSource": "02030d7aa",
+  "postCaptureChanges": "632a869c5 restores accepted-click haptics in the real screen; 412942e9c integrates main 8a6a5ac3287b. Touchpad, toolbar and Apple keyboard component bytes are unchanged; main shared ripple duration changed from 150 to 300 ms and was not recaptured. These images are component-fixture evidence, not final integrated/physical acceptance.",
+  "mainIntegrated": "8a6a5ac3287b0f30f61f4b3f885ffa3aa607a6c7",
+  "device": "QA iOS 27 iPhone 17 Pro Simulator, 402 x 874 points",
+  "binary": {
+    "buildSource": "80cce3fa3d29b46e92ad4f44f1fe53fbe7828c6b plus bounded-input changes",
+    "version": "0.0.1",
+    "build": "1",
+    "files": {
+      "DeepSeekBotDev": "3255c89c4218cc3a813fb65fa2bb3f98667313541b8899d41711a19e231498a8",
+      "__preview.dylib": "fcc88b6cec4efcbe64572d188ef62a93b99805ac8d90a2ab2be9d3b48de8490f",
+      "DeepSeekBotDev.debug.dylib": "8b768a22ba6b923a1e4a9f00d52659101fbce1e4bd3bad5166c8f286f86bfde3"
+    },
+    "devScheme": "exp+deepseekbot",
+    "bundle": "ai.botharness.deepseekbot.dev",
+    "installation": "in-place; existing data and Keychain retained"
+  },
+  "nativeSourceHashes": {
+    "apps/mobile/modules/remote-keyboard/ios/RemoteTextInput.swift": "2d2580a1e77eb1256950f30bc89e0d08c0f64092fae5cef1673bf9543948ddea",
+    "apps/mobile/modules/remote-keyboard/ios/RemoteKeyboardModule.swift": "8e771061b4ad418eb49cfbbbef98cba86474c1c8b7404d0fc9008e345ca0e4ab",
+    "apps/mobile/modules/remote-keyboard/ios/RemoteKeyboard.podspec": "2bcd0abe15f971a1d3ce2cf31b61e915b7fd91bc8fa56828ec16992a63f0ccc8",
+    "apps/mobile/modules/remote-keyboard/expo-module.config.json": "81d412316b8f5680ba674cb60c98ec605441ff033276a0095ff52571525f781b"
+  },
+  "scope": "Actual native production components in temporary local fixture with local callbacks only. No Host input or grants. Temporary route removed.",
+  "results": {
+    "oneFingerTap": "PASS one left callback",
+    "oneFingerMove": "PASS cursor changed from 400,300 to 446,289; subsequent tap used new point",
+    "twoFingerTap": "PASS one right callback, no extra left",
+    "twoFingerScroll": "PASS two-pointer native pan emitted scroll at 446,289; no click",
+    "softKeyboard": "PASS actual native keyboard; toolbar bottom565 above keyboard start573",
+    "keys": "PASS actual h/i/Return/Backspace once each; injected committed Unicode emoji and Chinese once. This is not Chinese marked-text composition proof.",
+    "dismissReopen": "PASS no replay",
+    "handback": "PASS local state hides touchpad/keyboard and dismisses soft keyboard",
+    "more": "PASS native Reset/Reconnect local callbacks",
+    "sizes": "PASS default/intermediate/maximum system text in light/dark: pad132pt, actions46pt, all hittable. Maximum fixture diagnostic text occupies preview space; this does not qualify full-screen large-text remote caret visibility."
+  },
+  "unverified": [
+    "Physical iPhone remote acceptance and haptic sensation",
+    "Chinese IME marked composition/cancellation",
+    "VoiceOver pointer navigation and hardware-keyboard layout",
+    "Real remote input, system four-finger Spaces gestures, hover",
+    "Final integrated shared ripple timing",
+    "Android native tests (Android interaction unchanged)"
+  ],
+  "matrix": [
+    {
+      "size": "large",
+      "appearance": "light",
+      "actions": [
+        {
+          "id": "computer-video-touchpad",
+          "rect": {
+            "x": 8,
+            "height": 132,
+            "width": 386,
+            "y": 646
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-control",
+          "rect": {
+            "x": 123.66666666666666,
+            "height": 46,
+            "width": 46,
+            "y": 786
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-keyboard",
+          "rect": {
+            "x": 178,
+            "height": 46,
+            "width": 46,
+            "y": 786
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-more",
+          "rect": {
+            "x": 232.33333333333331,
+            "height": 46,
+            "width": 46,
+            "y": 786
+          },
+          "hittable": true
+        }
+      ]
+    },
+    {
+      "size": "large",
+      "appearance": "dark",
+      "actions": [
+        {
+          "id": "computer-video-touchpad",
+          "rect": {
+            "x": 8,
+            "y": 646,
+            "width": 386,
+            "height": 132
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-control",
+          "rect": {
+            "x": 123.66666666666666,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-keyboard",
+          "rect": {
+            "x": 178,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-more",
+          "rect": {
+            "x": 232.33333333333331,
+            "y": 786,
+            "width": 46,
+            "height": 46
+          },
+          "hittable": true
+        }
+      ]
+    },
+    {
+      "size": "accessibility-medium",
+      "appearance": "light",
+      "actions": [
+        {
+          "id": "computer-video-touchpad",
+          "rect": {
+            "y": 646,
+            "x": 8,
+            "width": 386,
+            "height": 132
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-control",
+          "rect": {
+            "y": 786,
+            "x": 124,
+            "width": 46,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-keyboard",
+          "rect": {
+            "y": 786,
+            "x": 178,
+            "width": 46,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-more",
+          "rect": {
+            "y": 786,
+            "x": 232,
+            "width": 46,
+            "height": 46
+          },
+          "hittable": true
+        }
+      ]
+    },
+    {
+      "size": "accessibility-medium",
+      "appearance": "dark",
+      "actions": [
+        {
+          "id": "computer-video-touchpad",
+          "rect": {
+            "width": 386,
+            "height": 132,
+            "y": 646,
+            "x": 8
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-control",
+          "rect": {
+            "x": 124,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-keyboard",
+          "rect": {
+            "x": 178,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-more",
+          "rect": {
+            "x": 232,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        }
+      ]
+    },
+    {
+      "size": "accessibility-extra-extra-extra-large",
+      "appearance": "light",
+      "actions": [
+        {
+          "id": "computer-video-touchpad",
+          "rect": {
+            "x": 8,
+            "width": 386,
+            "y": 646,
+            "height": 132
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-control",
+          "rect": {
+            "x": 124,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-keyboard",
+          "rect": {
+            "x": 178,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-more",
+          "rect": {
+            "x": 232,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        }
+      ]
+    },
+    {
+      "size": "accessibility-extra-extra-extra-large",
+      "appearance": "dark",
+      "actions": [
+        {
+          "id": "computer-video-touchpad",
+          "rect": {
+            "x": 8,
+            "width": 386,
+            "y": 646,
+            "height": 132
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-control",
+          "rect": {
+            "x": 124,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-keyboard",
+          "rect": {
+            "x": 178,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        },
+        {
+          "id": "computer-video-more",
+          "rect": {
+            "x": 232,
+            "width": 46,
+            "y": 786,
+            "height": 46
+          },
+          "hittable": true
+        }
+      ]
+    }
+  ],
+  "before": "Historical qa81 component capture c2d73e77c088, same 402x874 Simulator/default text; toolbar matches merged #2668. Not a newly rebuilt before binary.",
+  "cleanup": {
+    "allOwnedProcessesExited": true,
+    "portsReleased": [8106, 8107],
+    "pairingChanges": false,
+    "phoneChanges": false,
+    "originalDocuments": "7/8 byte-identical; only avatar notification cache changed"
+  }
+}

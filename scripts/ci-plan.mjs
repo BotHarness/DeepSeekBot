@@ -83,6 +83,10 @@ export const RULES = [
   none('apps/presentations/**', 'Slides embedded in the docs site', true),
   related('apps/mobile/{app,src,test,scripts}/**', 'Mobile app source, tests and scripts'),
   related('apps/mobile/modules/**/app.plugin.js', 'Local native config plugins'),
+  none(
+    'apps/mobile/modules/**/ios/**',
+    'Apple Expo adapters, compiled and exercised in the reserved Mac native QA batch',
+  ),
   none('apps/mobile/modules/**', 'Local Expo modules, checked by Android native unit tests'),
   none('apps/mobile/targets/**', 'Apple extension targets, built on a Mac by Expo prebuild'),
   related('apps/mobile/{app.json,app.config.js,eas.json,metro.config.js}', 'Mobile app config'),

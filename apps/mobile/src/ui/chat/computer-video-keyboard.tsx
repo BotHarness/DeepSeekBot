@@ -19,7 +19,9 @@ interface NativeKeyboardProps extends ViewProps {
   opened: boolean;
   accepting: boolean;
   onInput(event: NativeSyntheticEvent<KeyboardInputEvent>): void;
-  onDismissed(event: NativeSyntheticEvent<{ session: string }>): void;
+  onDismissed(
+    event: NativeSyntheticEvent<{ session: string; reason?: RemoteKeyboardFailure }>,
+  ): void;
 }
 
 const NativeKeyboard =
@@ -75,6 +77,7 @@ export function ComputerVideoKeyboard({
         onDismissed={({ nativeEvent }) => {
           if (open && nativeEvent.session === session) {
             queue.current?.stop();
+            if (nativeEvent.reason) onFailure(nativeEvent.reason);
             onClose();
           }
         }}
