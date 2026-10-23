@@ -1,7 +1,7 @@
 # Native UI check — #2644
 
 - Before: `5f093cf0b5023cf5ccfdd7a8849b86763dd36805`. After application source: `f6f3fa09f3adb04401668d90ce151e77f946ec77`.
-- iOS 27 Simulator, iPhone 17 Pro, 402 × 874 points. English light screenshots use the same public catalogue entries. Menu images crop the same bottom 300 points to exclude unrelated chats.
+- iOS 27 Simulator, iPhone 17 Pro, 402 × 874 points. English light screenshots use the same public catalogue entries. Menu images crop the same 300-point menu region to exclude unrelated chats.
 - Existing Debug development client + task-owned Metro. Native fingerprint `4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc` matches the installed binary; no native dependency changed. Executable SHA-256 `ba8bad85455ffe4664485a30244b13ea3251ce04dfef4041f08f47ffc8628988`.
 
 | Case | Result |
