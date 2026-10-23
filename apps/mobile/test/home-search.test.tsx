@@ -435,7 +435,7 @@ describe('Search in the Chats header', () => {
       sections: [{ id: 'work', name: 'Work', channelIds: ['launch-team'] }],
     };
     const view = await home();
-    expect(view.querySelector('[data-testid="pinned-conversation-bot:ada"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="conversation-row-bot:ada"]')).not.toBeNull();
     expect(view.querySelector('[data-testid="chat-section-work"]')).not.toBeNull();
     expect(view.querySelector('[role="tab"]')).toBeNull();
     expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
@@ -468,7 +468,7 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).toContain('Ada');
     await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
     expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
-    expect(view.querySelector('[data-testid="pinned-grid-band"]')).toBeNull();
+    expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
     expect(rows(view).join(' ')).not.toContain('Ada, Done');
     expect(rows(view).join(' ')).toContain('Cloud general');
     hostState.connecting = true;
@@ -810,7 +810,6 @@ describe('Chats row actions share the Host path', () => {
         sectionOrder: [],
       };
       const view = await home();
-      await type(view, 'Ada');
       for (const key of ['unpin', 'unmute'] as const) {
         await act(async () =>
           view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
@@ -838,12 +837,12 @@ describe('Remote Host section and Pinned presentation', () => {
     roster.arrangement = { pins: ['launch-team'], hidden: [], sections: [], sectionOrder: [] };
     const view = await home();
     expect(
-      view.querySelector('[data-testid="pinned-conversation-channel:launch-team"]'),
+      view.querySelector('[data-testid="conversation-row-channel:launch-team"]'),
     ).not.toBeNull();
     await type(view, 'a');
     expect(rows(view)[0]).toBe('Ada, Done');
     expect(rows(view)[1]).toContain('Launch team');
-    expect(view.querySelector('[data-testid="pinned-grid-band"]')).toBeNull();
+    expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
   });
   const seed = () => {
     roster.arrangement = {
@@ -865,31 +864,29 @@ describe('Remote Host section and Pinned presentation', () => {
   const ordered = (view: HTMLElement) =>
     [...view.querySelectorAll('[data-testid]')]
       .map((node) => node.getAttribute('data-testid'))
-      .filter(
-        (id) =>
-          id?.startsWith('chat-section-') ||
-          id?.startsWith('conversation-row-') ||
-          id?.startsWith('pinned-conversation-'),
-      );
+      .filter((id) => id?.startsWith('chat-section-') || id?.startsWith('conversation-row-'));
   const toggle = async (view: HTMLElement, id: string) =>
     act(async () =>
       view.querySelector<HTMLButtonElement>(`[data-testid="chat-section-${id}"]`)!.click(),
     );
 
-  it('renders canonical sections, loose rows and one pinned card; search restores full rows and clearing restores arrangement', async () => {
+  it('renders pinned and section chats with the same full rows and restores arrangement after search', async () => {
     seed();
+    hostState.unread = true;
     const view = await home();
     expect(ordered(view)).toEqual([
       'chat-section-pinned',
-      'pinned-conversation-bot:ada',
+      'conversation-row-bot:ada',
       'chat-section-work',
       'conversation-row-channel:launch-team',
       'conversation-row-bot:xiaoming',
       'chat-section-empty',
     ]);
-    const card = view.querySelector('[data-testid="pinned-conversation-bot:ada"]')!;
-    expect(card.textContent).toContain('Ada');
-    expect(card.textContent).not.toContain('Done');
+    const pinned = view.querySelector('[data-testid="conversation-row-bot:ada"]')!;
+    expect(pinned.textContent).toContain('Ada');
+    expect(pinned.textContent).toContain('Done');
+    expect(pinned.textContent).toContain('2');
+    expect(pinned.getAttribute('aria-label')).toContain(t.unreadCount(2));
     await type(view, 'Ada');
     expect(ordered(view)).toEqual(['conversation-row-bot:ada']);
     expect(view.textContent).toContain('Done');
@@ -904,50 +901,42 @@ describe('Remote Host section and Pinned presentation', () => {
     const view = await home();
     await toggle(view, 'pinned');
     await toggle(view, 'work');
-    expect(ordered(view)).not.toContain('pinned-conversation-bot:ada');
+    expect(ordered(view)).not.toContain('conversation-row-bot:ada');
     expect(ordered(view)).not.toContain('conversation-row-channel:launch-team');
     await type(view, 'Ada');
     expect(ordered(view)).toEqual(['conversation-row-bot:ada']);
     await type(view, '');
-    expect(ordered(view)).not.toContain('pinned-conversation-bot:ada');
+    expect(ordered(view)).not.toContain('conversation-row-bot:ada');
     hostState.hostId = 'h2';
     await act(async () => root!.render(<HomeScreen />));
-    expect(ordered(view)).toContain('pinned-conversation-bot:ada');
+    expect(ordered(view)).toContain('conversation-row-bot:ada');
     expect(ordered(view)).toContain('conversation-row-channel:launch-team');
     hostState.hostId = 'h1';
     await act(async () => root!.render(<HomeScreen />));
-    expect(ordered(view)).not.toContain('pinned-conversation-bot:ada');
+    expect(ordered(view)).not.toContain('conversation-row-bot:ada');
     expect(call).not.toHaveBeenCalled();
   });
 
   it.each(['ios', 'android'] as const)(
-    'keeps pinned card menu operations and native preview boundary on %s',
+    'keeps pinned row menu operations and native preview boundary on %s',
     async (platform) => {
       seed();
       hostState.actions = true;
       Platform.OS = platform;
       const view = await home();
-      const menu = () =>
-        view.querySelector<HTMLButtonElement>(`[aria-label="${t.conversationActions('Ada')}"]`)!;
-      await act(async () => menu().click());
-      await act(async () =>
-        menus.at(-1)!.find((action) => action.text === t.rowActions.unpin)!.onPress!(),
-      );
+      await rowMenuAction(view, 'unpin');
       expect(call).toHaveBeenLastCalledWith('rosterBatch', {
         action: 'unpin',
         channelIds: ['dm-ada'],
       });
-      await act(async () => menu().click());
-      await act(async () =>
-        menus.at(-1)!.find((action) => action.text === t.rowActions.section)!.onPress!(),
-      );
+      await rowMenuAction(view, 'section');
       expect(push).toHaveBeenLastCalledWith({
         pathname: '/conversation-section',
         params: { hostId: 'h1', channelId: 'dm-ada' },
       });
       expect(
         view
-          .querySelector('[data-testid="pinned-conversation-bot:ada"]')
+          .querySelector('[data-testid="conversation-row-bot:ada"]')
           ?.parentElement?.querySelector('[data-testid="native-preview"]') != null,
       ).toBe(platform === 'ios');
       roster.arrangement = { ...roster.arrangement!, pins: [] };
