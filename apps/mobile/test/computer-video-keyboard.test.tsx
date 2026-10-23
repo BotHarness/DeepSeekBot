@@ -12,6 +12,13 @@ interface NativeProps {
   onDismissed(event: { nativeEvent: { session: string } }): void;
 }
 const native = vi.hoisted((): { current?: NativeProps } => ({}));
+vi.mock('react-native', async () => {
+  const { createElement } = await import('react');
+  return {
+    View: ({ children, ...props }: { children?: import('react').ReactNode }) =>
+      createElement('div', props, children),
+  };
+});
 vi.mock('expo', async () => {
   const { createElement } = await import('react');
   return {

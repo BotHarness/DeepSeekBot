@@ -1,5 +1,8 @@
 import { requireNativeView, requireOptionalNativeModule } from 'expo';
-import type { NativeSyntheticEvent, ViewProps } from 'react-native';
+import { useRef } from 'react';
+import { View, type NativeSyntheticEvent, type ViewProps } from 'react-native';
+import { createRemoteKeyboardInput } from '../../host/remote-keyboard-input';
+import { useMounted } from '../mounted';
 import type { DesktopInput } from '../../../../../packages/computer/src/desktop-view';
 import { edge } from '../design/tokens';
 
@@ -36,26 +39,35 @@ export function ComputerVideoKeyboard({
   onInput(input: DesktopInput): Promise<boolean>;
   onClose(): void;
 }) {
+  const queue = useRef<ReturnType<typeof createRemoteKeyboardInput> | undefined>(undefined);
+  const lifecycle = useMounted<View>(() => {
+    const current = createRemoteKeyboardInput();
+    queue.current = current;
+    return () => {
+      current.stop();
+      if (queue.current === current) queue.current = undefined;
+    };
+  }, [open, enabled, session]);
   if (NativeKeyboard === undefined) return null;
   return (
-    <NativeKeyboard
-      testID="computer-video-native-keyboard"
-      session={session}
-      opened={open}
-      accepting={open && enabled}
+    <View
+      ref={lifecycle}
       style={{ position: 'absolute', width: edge.hairline, height: edge.hairline }}
-      onInput={({ nativeEvent }) => {
-        if (!open || !enabled || nativeEvent.session !== session) return;
-        void onInput(nativeEvent.input).then(
-          (accepted) => {
-            if (!accepted) onClose();
-          },
-          () => onClose(),
-        );
-      }}
-      onDismissed={({ nativeEvent }) => {
-        if (open && nativeEvent.session === session) onClose();
-      }}
-    />
+    >
+      <NativeKeyboard
+        testID="computer-video-native-keyboard"
+        session={session}
+        opened={open}
+        accepting={open && enabled}
+        style={{ position: 'absolute', width: edge.hairline, height: edge.hairline }}
+        onInput={({ nativeEvent }) => {
+          if (!open || !enabled || nativeEvent.session !== session) return;
+          queue.current?.enqueue(nativeEvent.input, onInput, onClose);
+        }}
+        onDismissed={({ nativeEvent }) => {
+          if (open && nativeEvent.session === session) onClose();
+        }}
+      />
+    </View>
   );
 }

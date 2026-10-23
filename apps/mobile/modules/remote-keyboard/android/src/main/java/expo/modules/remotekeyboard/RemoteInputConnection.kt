@@ -1,5 +1,6 @@
 package expo.modules.remotekeyboard
 
+import android.text.Editable
 import android.text.Selection
 import android.view.KeyEvent
 import android.view.View
@@ -13,6 +14,8 @@ internal class RemoteInputConnection(
   private val emit: (Map<String, Any>) -> Unit,
 ) : BaseInputConnection(target, true) {
   private var closed = false
+
+  override fun getEditable(): Editable = checkNotNull(super.getEditable())
 
   private fun active(): Boolean = !closed && accepting()
 
@@ -69,10 +72,18 @@ internal class RemoteInputConnection(
   private fun delete(before: Int, after: Int, codePoints: Boolean): Boolean {
     if (!active() || before !in 0..64 || after !in 0..64) return false
     if (editable.isNotEmpty()) {
-      val changed = if (codePoints) super.deleteSurroundingTextInCodePoints(before, after)
-        else super.deleteSurroundingText(before, after)
+      val buffer = editable
+      val start = minOf(Selection.getSelectionStart(buffer), Selection.getSelectionEnd(buffer)).coerceAtLeast(0)
+      val end = maxOf(Selection.getSelectionStart(buffer), Selection.getSelectionEnd(buffer)).coerceAtLeast(start)
+      val from = if (codePoints) Character.offsetByCodePoints(buffer, start, -minOf(before, Character.codePointCount(buffer, 0, start)))
+        else (start - before).coerceAtLeast(0)
+      val to = if (codePoints) Character.offsetByCodePoints(buffer, end, minOf(after, Character.codePointCount(buffer, end, buffer.length)))
+        else (end + after).coerceAtMost(buffer.length)
+      buffer.delete(end, to)
+      buffer.delete(from, start)
+      Selection.setSelection(buffer, from, end - (start - from))
       selectionChanged()
-      return changed
+      return true
     }
     repeat(before) { key("backspace") }
     repeat(after) { key("delete") }
