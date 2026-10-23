@@ -1,13 +1,13 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { desktopInputCall } from './desktop-view.js';
-import { parseLocalVideoInput } from './local-video-contract.js';
+import { desktopInputCall, parseDesktopInput } from './desktop-view.js';
 import type { ScrollMotion } from './macos-scroll.js';
 import type { CuaDriver } from './tool/driver.js';
 import {
   LOCAL_VIDEO_LIMITS,
   LocalVideoError,
+  type LocalVideoInput,
   type LocalVideoBinding,
   type LocalVideoCaller,
   type LocalVideoCommand,
@@ -18,6 +18,27 @@ import {
   type LocalVideoRefusal,
   type LocalVideoState,
 } from './local-video-contract.js';
+
+function parseLocalVideoInput(body: Record<string, unknown>): LocalVideoInput | undefined {
+  if (body['kind'] !== 'scroll-motion') return parseDesktopInput(body);
+  const { x, y, vx, vy } = body;
+  if (
+    typeof x !== 'number' ||
+    !Number.isFinite(x) ||
+    x < 0 ||
+    typeof y !== 'number' ||
+    !Number.isFinite(y) ||
+    y < 0 ||
+    typeof vx !== 'number' ||
+    !Number.isFinite(vx) ||
+    Math.abs(vx) > 200 ||
+    typeof vy !== 'number' ||
+    !Number.isFinite(vy) ||
+    Math.abs(vy) > 200
+  )
+    return undefined;
+  return { kind: 'scroll-motion', x, y, vx, vy };
+}
 
 export interface ComputerPauseStore {
   read(): boolean;
