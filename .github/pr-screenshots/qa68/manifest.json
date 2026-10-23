@@ -1,0 +1,144 @@
+{
+  "batch": 68,
+  "before": "fb3cc0d334a91f7cb0414e2dc94804cf182944d7",
+  "candidate": "e488264d5907a7be637ad2204745f4333b8d129d",
+  "includesMergedHaptics": "cdac072e8a1d1bd2e47191b2e302f5a9d26bd1ce",
+  "native": "Existing qualified Debug binary; iOS 27, iPhone 17 Pro Simulator; 402x874 screenshots",
+  "fingerprint": "4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc",
+  "settings": "Before absence vs after OFF following cold restart; same locale/theme/system text. Scrolled to expose target; exact scroll offsets differ because inserted row and reflow. Visual visibility only; native accessibility FAIL #2633.",
+  "input": "Same live long English/CJK draft and real keyboard; six states passed at 42/63.33/94.67 pt; default restoration verified separately. Single-line text horizontally scrolls to caret.",
+  "navigation": [
+    {
+      "step": "actual-activity",
+      "expected": 1,
+      "events": [
+        {
+          "at": 1792735636419,
+          "moment": "selection"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "step": "repeat-current-activity",
+      "expected": 0,
+      "events": [],
+      "pass": true
+    },
+    {
+      "step": "actual-chats",
+      "expected": 1,
+      "events": [
+        {
+          "at": 1792735643150,
+          "moment": "selection"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "step": "repeat-current-chats",
+      "expected": 0,
+      "events": [],
+      "pass": true
+    },
+    {
+      "step": "actual-activity-again",
+      "expected": 1,
+      "events": [
+        {
+          "at": 1792735649997,
+          "moment": "selection"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "step": "return-chats",
+      "expected": 1,
+      "events": [
+        {
+          "at": 1792735653417,
+          "moment": "selection"
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "inputResults": [
+    {
+      "label": "combined-input-0-light-default",
+      "height": 42,
+      "minimum": 40,
+      "draftRetained": true,
+      "keyboard": true,
+      "pass": true
+    },
+    {
+      "label": "combined-input-0-light-intermediate",
+      "height": 63.333335876464844,
+      "minimum": 51,
+      "draftRetained": true,
+      "keyboard": true,
+      "pass": true
+    },
+    {
+      "label": "combined-input-0-light-maximum",
+      "height": 94.66666412353516,
+      "minimum": 71,
+      "draftRetained": true,
+      "keyboard": true,
+      "pass": true
+    },
+    {
+      "label": "combined-input-0-dark-default",
+      "height": 42,
+      "minimum": 40,
+      "draftRetained": true,
+      "keyboard": true,
+      "pass": true
+    },
+    {
+      "label": "combined-input-0-dark-intermediate",
+      "height": 63.333335876464844,
+      "minimum": 51,
+      "draftRetained": true,
+      "keyboard": true,
+      "pass": true
+    },
+    {
+      "label": "combined-input-0-dark-maximum",
+      "height": 94.66666412353516,
+      "minimum": 71,
+      "draftRetained": true,
+      "keyboard": true,
+      "pass": true
+    }
+  ],
+  "notQualified": [
+    "Physical tactile acceptance",
+    "Android",
+    "VoiceOver speech/gestures",
+    "Approval/choice native decisions: normal real model attempt returned 429 GoUsageLimitError",
+    "Attachment removal and rapid coalesced navigation",
+    "Release timing/animation performance"
+  ],
+  "files": {
+    "b-l-d.png": "4d3d1a687561fa0439fc6c94e4940b1c89d74f8da329ee3799013cdc918dd9a8",
+    "b-l-i.png": "c9b2b882dfc093204b909471af4c0b8db46216c923a46dc570bd07700ad9e3f7",
+    "b-l-m.png": "f9de2b906bd6dae5f7e7be9f5fc64f645d2fa0ad5cd42ce015d3fb2667059211",
+    "b-d-d.png": "a76776f4de70b428de93842e6e697a2e2dcf583e1b08c973f2166955977ea4a0",
+    "b-d-i.png": "6ff45c1dd942ef3a23251a4f78a26e73378236ae0987a69f5b568540997a76e8",
+    "b-d-m.png": "2e1a88eb15b1c7f9ca849489d8db308f622995c05d9482ee34cbaf03ec818010",
+    "a-l-d.png": "783ac67bcb961975fe13d2b90a62d73edca67219a6bffd37d2d084f90e912e58",
+    "a-l-i.png": "c9fde3e52599209ae41a825a915863cd7c2f8546757df6ee68d9ac604e9378ca",
+    "a-l-m.png": "499d6b5860e73b68a405e67cb109ee23e974e669946bc7de6c719cd58df185a8",
+    "a-d-d.png": "75d0efaf24be3442cafa63cb68f650771c0469bf97f5fdb2a18071ded4eab9b8",
+    "a-d-i.png": "abc278823fb6d29ec43f9378907cad5ea3c1d220db5e728a46484f927dc37553",
+    "a-d-m.png": "b94a47d0b30662f3a9f08a4ebf79cd69a3c830c7844bc6b21b814a5a71cda235",
+    "input-l.png": "c57f77def8f602747112434526c37b5f3c94997b382f1eef5d145021f1acdf95",
+    "input-d.png": "335f78c7c9c22214dbdfefc4f10bde7e2648c2b3a8fef381ebb5719fd1735908",
+    "off.png": "eea6f813934e73689db9f23420412a2374a5f4f6a2c8ae333738acc40b528085",
+    "on.png": "d831d4d182e8210bccade8d675003f7191bbe659d50c536b8c54a32a7ec284b7"
+  }
+}

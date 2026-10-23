@@ -1,0 +1,116 @@
+[
+  {
+    "capture": "after-settings-dark-default.json",
+    "nodes": [
+      {
+        "type": "Other",
+        "label": "Haptic feedback, Haptic feedback",
+        "identifier": null,
+        "enabled": false,
+        "hittable": false,
+        "value": null,
+        "rect": {
+          "x": 16,
+          "height": 44,
+          "width": 370,
+          "y": 551.333308537801
+        }
+      }
+    ]
+  },
+  {
+    "capture": "after-settings-dark-intermediate.json",
+    "nodes": [
+      {
+        "type": "Other",
+        "label": "Haptic feedback, Haptic feedback",
+        "identifier": null,
+        "enabled": false,
+        "hittable": false,
+        "value": null,
+        "rect": {
+          "width": 370,
+          "x": 16,
+          "height": 56.333251953125,
+          "y": 497.9999910990398
+        }
+      }
+    ]
+  },
+  {
+    "capture": "after-settings-dark-maximum.json",
+    "nodes": [
+      {
+        "type": "Other",
+        "label": "Haptic feedback, Haptic feedback",
+        "identifier": null,
+        "enabled": false,
+        "hittable": false,
+        "value": null,
+        "rect": {
+          "width": 370,
+          "height": 140.333251953125,
+          "x": 16,
+          "y": 418.33331425984716
+        }
+      }
+    ]
+  },
+  {
+    "capture": "after-settings-light-default.json",
+    "nodes": [
+      {
+        "type": "Other",
+        "label": "Haptic feedback, Haptic feedback",
+        "identifier": null,
+        "enabled": false,
+        "hittable": false,
+        "value": null,
+        "rect": {
+          "width": 370,
+          "x": 16,
+          "y": 416.6666418711344,
+          "height": 44
+        }
+      }
+    ]
+  },
+  {
+    "capture": "after-settings-light-intermediate.json",
+    "nodes": [
+      {
+        "type": "Other",
+        "label": "Haptic feedback, Haptic feedback",
+        "identifier": null,
+        "enabled": false,
+        "hittable": false,
+        "value": null,
+        "rect": {
+          "x": 16,
+          "width": 370,
+          "height": 56.333251953125,
+          "y": 533.9999910990398
+        }
+      }
+    ]
+  },
+  {
+    "capture": "after-settings-light-maximum.json",
+    "nodes": [
+      {
+        "type": "Other",
+        "label": "Haptic feedback, Haptic feedback",
+        "identifier": null,
+        "enabled": false,
+        "hittable": false,
+        "value": null,
+        "rect": {
+          "y": 382.33331425984716,
+          "x": 16,
+          "width": 370,
+          "height": 140.333251953125
+        }
+      }
+    ]
+  }
+]
