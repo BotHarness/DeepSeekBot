@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { AppState } from 'react-native';
 
 import type { BubblePlayback, ConversationPlayback } from '../../host/conversation-playback';
@@ -18,7 +18,7 @@ export function useReplyHaptic(
     snapshot.message.card === undefined &&
     snapshot.message.body.trim() !== '';
   const streaming = snapshot?.streaming === true;
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (playback === undefined || !hasText) return;
     let seen = started.get(playback);
     if (seen === undefined) {
