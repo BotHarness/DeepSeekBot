@@ -134,7 +134,8 @@ Usage:
   deepseekbot create --name <name> --from-git <url | owner/repo> [...]
   deepseekbot create [--name <name>] --from-zip <file> [...]
   deepseekbot create [--name <name>] --from-dir <directory> [...]
-  deepseekbot create-status --name <name> --operation-key <stable-key> [same blank create input] --host <url>
+  deepseekbot bot-import-preview --from-git <url | owner/repo> --host <url>
+  deepseekbot create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
   deepseekbot list [--home <dsh-home>]
   deepseekbot show <id> [--home <dsh-home>]
   deepseekbot model-presets [--home <dsh-home>]
@@ -503,6 +504,7 @@ const CREATE_OPTIONS = {
   'from-zip': { type: 'string' },
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
+  'expected-commit': { type: 'string' },
   'memory-location': { type: 'string' },
   home: { type: 'string' },
   'orchestrator-provider': { type: 'string' },
@@ -603,7 +605,7 @@ function mintSlug(): string {
   return `bot-${randomUUID().replaceAll('-', '')}`;
 }
 
-function expandGitHubRef(value: string): string | undefined {
+export function expandGitHubRef(value: string): string | undefined {
   const raw = value.trim();
   if (raw.length === 0) return undefined;
   const shorthand = raw.replace(/^github\.com\//iu, '').replace(/\.git$/iu, '');
@@ -2618,6 +2620,11 @@ export async function runBotCreateCli(
       ].includes(command)
     )
       throw usageError('--expected-channel is supported only for reviewed group changes.');
+    if (
+      values['expected-commit'] !== undefined &&
+      (!online || !['create', 'create-status'].includes(command))
+    )
+      throw usageError('--expected-commit is supported only for online Git creation or status.');
     if (
       DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) ||
       LIFECYCLE_COMMANDS.some((entry) => entry.command === command) ||

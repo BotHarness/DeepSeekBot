@@ -1,6 +1,8 @@
-# Native blank Bot creation
+# Native Bot creation and Git import
 
 A Human creates a blank Bot on a chosen paired Host. The phone retains the exact creation operation before sending it; reconnecting recovers the original PersonaBot and Human DM.
+
+Git import uses the same target, confirmation, operation record and completion path. A read-only source preview supplies an immutable commit before the submitted operation is saved. Recovery keeps that commit; if the remote branch advances before it can be imported, show the source-change refusal rather than silently selecting new content.
 
 ## Sub-features
 
@@ -9,6 +11,7 @@ A Human creates a blank Bot on a chosen paired Host. The phone retains the exact
 - `receipt`: the original Host, pairing identity, operation key and input survive app restart. Repeated taps and uncertain replies cannot create another Bot.
 - `completion`: active progress opens the new DM on its Host; leaving progress retains an Open Bot action without taking over navigation.
 - `refusal`: unsupported Hosts refuse before mutation; unavailable/revoked targets, changed input and archived results never fall back to another Host or fresh operation.
+- `git`: a Git link, confirmed commit and editable name/Bio/tags produce one ordinary Bot with the imported personality; retry preserves its source, identity and DM.
 
 ## How to get to it (user POV)
 
@@ -17,6 +20,8 @@ On the phone, open New → Create Bot from All or a selected Computer. Choose th
 ## Driving it with verify-app
 
 The existing CI journey `node scripts/e2e-personabot-create.mjs --with-dm` separately verifies the real Host lookup and built `create-status` CLI: absent lookup, same-input/key retry, one canonical Bot/DM and recovery after Host restart. Its four `blankCreation*` result flags do not establish native UI or injected network-fault acceptance.
+
+The same journey uses a task-local Git fixture for CLI source preview, pinned import, discarded-reply readback, changed-source refusal and recovery after Host restart. Its `gitImport*` flags require an actual passing candidate run; adding the script does not establish that result. Paired-device gateway tests separately discard the accepted reply and verify revoked-device refusal.
 
 Use the designated [shared device QA runner](../../../../docs/agents/device-qa.md). This journey needs two isolated paired Hosts, no model, and a compatible native development build. Submit it to the Windows queue for Android; iOS has its own queue. Web screenshots do not qualify the native form.
 
@@ -28,6 +33,8 @@ Use the designated [shared device QA runner](../../../../docs/agents/device-qa.m
 6. Leave progress before completion. Confirm the current page remains in place; use the completion action to open the same Bot on B. Repeat after app restart.
 7. In task-owned fixtures only, revoke the paired device, unpair/re-pair it, archive the result, and change input under the same key. Each must show the appropriate refusal without creation on another Host. An old Host without the lookup method must receive no create mutation.
 8. Check English and Chinese, light/dark, default/intermediate/maximum text size, real keyboard focus changes, multiline growth, accessible control names and reachable actions. Capture matched PNG/XML and the actual create/recovery interactions. Preserve the Human's settings, pairings and data.
+9. Choose Git import with a task-owned fixture repository. Enter its link, edit name/Bio/tags, switch target before submission and verify every field remains. Confirm the source and create on B. Compare imported personality, ordinary identity and original DM through the Host CLI. Reopen after losing the accepted response; retry must preserve the same identity and pinned commit without a second Bot.
+10. Advance the controlled Git fixture after source confirmation. A still-pending import must refuse changed source rather than use the new commit. A previously completed import must return its original result even if the repository is later unavailable. Record these as separate branches; do not change the saved operation to make recovery pass.
 
 Pair visible evidence with CLI `create-status` using the saved operation key and exact submitted input, canonical Bot/DM reads, and bounded redacted transport logs. Source tests cover deterministic lost-response and storage-failure branches; do not report those as native fault-injection results unless actually driven.
 

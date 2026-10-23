@@ -1,3 +1,4 @@
+import type { BotImportsService } from '../bots/imports.js';
 import { isAuthenticatedOwner } from './owner-compat.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
@@ -840,15 +841,54 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  async botImportPreview(
+    gitUrl: string,
+  ): Promise<Awaited<ReturnType<BotImportsService['previewGit']>>> {
+    return unwrapAsync(this.methods.botImportPreview({ gitUrl }));
+  }
+  botImportLookup(
+    operationKey: string,
+    gitUrl: string,
+    expectedCommit: string,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return unwrap(
+      this.methods.botImportLookup({
+        operationKey,
+        gitUrl,
+        expectedCommit,
+        displayName,
+        roles,
+        description,
+      }),
+    );
+  }
   async createFromGit(
     displayName: string,
     gitUrl: string,
     roles?: string[],
     description?: string,
     origin?: 'marketplace',
-  ): Promise<{ bot: PersonaBotDetail; httpsFallback?: HttpsFallback }> {
+    operationKey?: string,
+    expectedCommit?: string,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    httpsFallback?: HttpsFallback;
+    receipt?: BotCreationReceipt;
+    channelId?: string;
+  }> {
     return unwrapAsync(
-      this.methods.createFromGit({ displayName, gitUrl, roles, description, origin }),
+      this.methods.createFromGit({
+        displayName,
+        gitUrl,
+        roles,
+        description,
+        origin,
+        operationKey,
+        expectedCommit,
+      }),
     );
   }
 
@@ -2026,6 +2066,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'get',
   'create',
   'createLookup',
+  'botImportPreview',
+  'botImportLookup',
   'createFromGit',
   'update',
   'dataResetPreview',

@@ -513,6 +513,8 @@ describe('plugin entry', () => {
       'get',
       'create',
       'createLookup',
+      'botImportPreview',
+      'botImportLookup',
       'createFromGit',
       'update',
       'dataResetPreview',

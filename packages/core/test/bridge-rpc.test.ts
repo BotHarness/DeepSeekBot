@@ -369,6 +369,8 @@ describe('bridge typert service', () => {
       roles: ['helper'],
       description: 'Bio',
       origin: 'marketplace',
+      operationKey: undefined,
+      expectedCommit: undefined,
     });
   });
 
@@ -663,6 +665,8 @@ describe('bridge typert service', () => {
       'get',
       'create',
       'createLookup',
+      'botImportPreview',
+      'botImportLookup',
       'createFromGit',
       'update',
       'dataResetPreview',
@@ -919,6 +923,17 @@ describe('bridge typert service', () => {
       'roles',
       'description',
       'origin',
+      'operationKey',
+      'expectedCommit',
+    ]);
+    expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
+    expect(parameterNames(service.botImportLookup)).toEqual([
+      'operationKey',
+      'gitUrl',
+      'expectedCommit',
+      'displayName',
+      'roles',
+      'description',
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);

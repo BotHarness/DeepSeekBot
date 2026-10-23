@@ -4,6 +4,24 @@ export interface BotCreationDraft {
   persona: string;
   description: string;
   tags: string;
+  source?: GitImportDraft;
+}
+
+export interface GitImportSource {
+  kind: 'git';
+  gitUrl: string;
+  commit: string;
+  origin?: 'marketplace';
+  listingId?: string;
+}
+
+export interface GitImportDraft {
+  kind: 'git';
+  gitUrl: string;
+  origin?: 'marketplace';
+  listingId?: string;
+  expectedCommit?: string;
+  preview?: GitImportSource & { hostId: string; deviceId: string };
 }
 
 export interface BlankBotInput {
@@ -18,6 +36,7 @@ export interface BotCreationOperation {
   deviceId: string;
   operationKey: string;
   input: BlankBotInput;
+  source?: GitImportSource;
 }
 
 export type CreationReceipt =
@@ -69,7 +88,7 @@ export function normalizedBlankInput(draft: BotCreationDraft): BlankBotInput {
   ];
   return {
     displayName: draft.displayName.trim(),
-    ...(persona ? { persona } : {}),
+    ...(persona && !draft.source ? { persona } : {}),
     ...(description ? { description } : {}),
     ...(roles.length ? { roles } : {}),
   };
@@ -77,6 +96,54 @@ export function normalizedBlankInput(draft: BotCreationDraft): BlankBotInput {
 
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
+}
+
+export function gitImportSource(value: unknown): GitImportSource {
+  if (
+    !object(value) ||
+    value.kind !== 'git' ||
+    typeof value.gitUrl !== 'string' ||
+    !value.gitUrl.trim() ||
+    typeof value.commit !== 'string' ||
+    !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(value.commit)
+  )
+    throw new BotCreationFailure('invalid-source');
+  return {
+    kind: 'git',
+    gitUrl: value.gitUrl,
+    commit: value.commit,
+    ...(value.origin === 'marketplace' ? { origin: 'marketplace' } : {}),
+    ...(typeof value.listingId === 'string' ? { listingId: value.listingId } : {}),
+  };
+}
+
+function draftSource(value: unknown): GitImportDraft {
+  if (!object(value) || value.kind !== 'git' || typeof value.gitUrl !== 'string')
+    throw new BotCreationFailure('storage-invalid');
+  const source: GitImportDraft = {
+    kind: 'git',
+    gitUrl: value.gitUrl,
+    ...(value.origin === 'marketplace' ? { origin: 'marketplace' } : {}),
+    ...(typeof value.listingId === 'string' ? { listingId: value.listingId } : {}),
+    ...(typeof value.expectedCommit === 'string' ? { expectedCommit: value.expectedCommit } : {}),
+  };
+  if (value.preview === undefined) return source;
+  const preview = value.preview;
+  if (
+    !object(preview) ||
+    typeof preview.hostId !== 'string' ||
+    typeof preview.deviceId !== 'string'
+  )
+    throw new BotCreationFailure('storage-invalid');
+  return {
+    ...source,
+    preview: { ...gitImportSource(preview), hostId: preview.hostId, deviceId: preview.deviceId },
+  };
+}
+
+function unpreviewed(source: GitImportDraft): GitImportDraft {
+  const { preview: _preview, ...draft } = source;
+  return draft;
 }
 
 export function parseCreationRecord(value: unknown): CreationRecord {
@@ -100,6 +167,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
           persona: d.persona,
           description: d.description,
           tags: d.tags,
+          ...(d.source === undefined ? {} : { source: draftSource(d.source) }),
         },
       };
   }
@@ -135,6 +203,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
           hostId: o.hostId,
           deviceId: o.deviceId,
           operationKey: o.operationKey,
+          ...(o.source === undefined ? {} : { source: gitImportSource(o.source) }),
           input: {
             displayName: input.displayName,
             ...(input.persona === undefined ? {} : { persona: input.persona }),
@@ -181,6 +250,7 @@ export function creationReceipt(value: unknown, key: string): CreationReceipt | 
 }
 
 export interface BotCreationPort {
+  preview?(target: { hostId: string; deviceId: string }, gitUrl: string): Promise<GitImportSource>;
   lookup(operation: BotCreationOperation): Promise<CreationReceipt | null>;
   create(operation: BotCreationOperation): Promise<CreationReceipt>;
   deviceId(hostId: string): string | undefined;
@@ -279,7 +349,16 @@ export function createBotCreationController(options: {
     async edit(draft: BotCreationDraft) {
       await ready;
       if (storageFailed || snapshot.busy || snapshot.record.kind !== 'draft') return;
-      const record: CreationRecord = { kind: 'draft', draft: { ...draft } };
+      const previous = snapshot.record.draft;
+      const changed =
+        draft.hostId !== previous.hostId || draft.source?.gitUrl !== previous.source?.gitUrl;
+      const record: CreationRecord = {
+        kind: 'draft',
+        draft: {
+          ...draft,
+          ...(changed && draft.source ? { source: unpreviewed(draft.source) } : {}),
+        },
+      };
       publish({ record, error: undefined });
       try {
         await save(record);
@@ -287,13 +366,120 @@ export function createBotCreationController(options: {
         publish({ error: 'storage-write' });
       }
     },
+    beginImport(input: {
+      gitUrl: string;
+      displayName?: string;
+      description?: string;
+      roles?: string[];
+      origin?: 'marketplace';
+      listingId?: string;
+      expectedCommit?: string;
+    }) {
+      return run(async () => {
+        await ready;
+        if (storageFailed || snapshot.record.kind !== 'draft') return;
+        const previous = snapshot.record.draft;
+        const sameListing =
+          input.origin === 'marketplace' &&
+          !!input.listingId &&
+          previous.source?.origin === 'marketplace' &&
+          previous.source.listingId === input.listingId;
+        const draft: BotCreationDraft = {
+          ...previous,
+          source: {
+            kind: 'git',
+            gitUrl: input.gitUrl,
+            ...(input.origin ? { origin: input.origin } : {}),
+            ...(input.listingId ? { listingId: input.listingId } : {}),
+            ...(input.expectedCommit ? { expectedCommit: input.expectedCommit } : {}),
+          },
+          ...(sameListing || input.displayName === undefined
+            ? {}
+            : { displayName: input.displayName }),
+          ...(sameListing || input.description === undefined
+            ? {}
+            : { description: input.description }),
+          ...(sameListing || input.roles === undefined ? {} : { tags: input.roles.join(', ') }),
+        };
+        const record: CreationRecord = { kind: 'draft', draft };
+        try {
+          await save(record);
+          publish({ record, receipt: undefined });
+        } catch {
+          throw new BotCreationFailure('storage-write');
+        }
+      });
+    },
+    blank() {
+      return run(async () => {
+        await ready;
+        if (storageFailed || snapshot.record.kind !== 'draft') return;
+        const { source: _source, ...draft } = snapshot.record.draft;
+        const record: CreationRecord = { kind: 'draft', draft };
+        try {
+          await save(record);
+          publish({ record });
+        } catch {
+          throw new BotCreationFailure('storage-write');
+        }
+      });
+    },
+    preview() {
+      return run(async () => {
+        await ready;
+        if (storageFailed) throw new BotCreationFailure('storage-invalid');
+        if (snapshot.record.kind !== 'draft' || !snapshot.record.draft.source) return;
+        const draft = snapshot.record.draft;
+        const source = draft.source!;
+        if (!source.gitUrl.trim()) throw new BotCreationFailure('git-url-required');
+        const deviceId = options.port.deviceId(draft.hostId);
+        if (!deviceId) throw new BotCreationFailure('target-unpaired');
+        if (!options.port.preview) throw new BotCreationFailure('host-update-required');
+        const preview = gitImportSource(
+          await options.port.preview({ hostId: draft.hostId, deviceId }, source.gitUrl.trim()),
+        );
+        if (options.port.deviceId(draft.hostId) !== deviceId)
+          throw new BotCreationFailure('target-unpaired');
+        if (source.expectedCommit && preview.commit !== source.expectedCommit)
+          throw new BotCreationFailure('git-source-changed');
+        const record: CreationRecord = {
+          kind: 'draft',
+          draft: {
+            ...draft,
+            source: {
+              ...source,
+              gitUrl: preview.gitUrl,
+              preview: {
+                ...preview,
+                ...(source.origin ? { origin: source.origin } : {}),
+                ...(source.listingId ? { listingId: source.listingId } : {}),
+                hostId: draft.hostId,
+                deviceId,
+              },
+            },
+          },
+        };
+        try {
+          await save(record);
+          publish({ record });
+        } catch {
+          throw new BotCreationFailure('storage-write');
+        }
+      });
+    },
     enter(entry: { kind: 'all' } | { kind: 'host'; hostId: string } | { kind: 'resume' }) {
       return run(async () => {
         await ready;
         if (storageFailed || entry.kind === 'resume' || snapshot.record.kind !== 'draft') return;
         const record: CreationRecord = {
           kind: 'draft',
-          draft: { ...snapshot.record.draft, hostId: entry.kind === 'host' ? entry.hostId : '' },
+          draft: {
+            ...snapshot.record.draft,
+            hostId: entry.kind === 'host' ? entry.hostId : '',
+            ...(snapshot.record.draft.source
+              ? { source: unpreviewed(snapshot.record.draft.source) }
+              : {}),
+          },
         };
         publish({ record });
         try {
@@ -312,11 +498,21 @@ export function createBotCreationController(options: {
         if (!draft.displayName.trim()) throw new BotCreationFailure('name-required');
         const deviceId = options.port.deviceId(draft.hostId);
         if (!deviceId) throw new BotCreationFailure('target-unpaired');
+        const source = draft.source?.preview;
+        if (
+          draft.source &&
+          (!source ||
+            source.hostId !== draft.hostId ||
+            source.deviceId !== deviceId ||
+            source.gitUrl !== draft.source.gitUrl)
+        )
+          throw new BotCreationFailure('git-preview-required');
         const operation: BotCreationOperation = {
           hostId: draft.hostId,
           deviceId,
           operationKey: options.key(),
           input: normalizedBlankInput(draft),
+          ...(source ? { source: gitImportSource(source) } : {}),
         };
         const record: CreationRecord = { kind: 'submitted', operation, mutationStarted: false };
         try {
@@ -356,6 +552,14 @@ export function createBotCreationController(options: {
             persona: input.persona ?? '',
             description: input.description ?? '',
             tags: input.roles?.join(', ') ?? '',
+            ...(previous.operation.source
+              ? {
+                  source: {
+                    ...previous.operation.source,
+                    expectedCommit: previous.operation.source.commit,
+                  },
+                }
+              : {}),
           },
         };
         try {
@@ -407,6 +611,43 @@ export function createBotCreationController(options: {
         }
       });
     },
+    newAfterSourceChanged() {
+      if (
+        snapshot.error !== 'git-source-changed' ||
+        snapshot.record.kind !== 'submitted' ||
+        !snapshot.record.operation.source
+      )
+        return Promise.resolve();
+      const previous = snapshot.record;
+      const { hostId, input, source } = previous.operation;
+      if (!source) return Promise.resolve();
+      return run(async () => {
+        if (storageFailed) return;
+        const record: CreationRecord = {
+          kind: 'draft',
+          draft: {
+            hostId,
+            displayName: input.displayName,
+            persona: '',
+            description: input.description ?? '',
+            tags: input.roles?.join(', ') ?? '',
+            source: {
+              kind: 'git',
+              gitUrl: source.gitUrl,
+              ...(source.origin ? { origin: source.origin, expectedCommit: source.commit } : {}),
+              ...(source.listingId ? { listingId: source.listingId } : {}),
+            },
+          },
+          unavailableOperations: [...(previous.unavailableOperations ?? []), previous.operation],
+        };
+        try {
+          await save(record);
+          publish({ record, receipt: undefined });
+        } catch {
+          throw new BotCreationFailure('storage-write');
+        }
+      });
+    },
     another(hostId = '') {
       return run(async () => {
         await ready;
@@ -417,7 +658,45 @@ export function createBotCreationController(options: {
             snapshot.receipt?.status !== 'created')
         )
           return;
-        const record: CreationRecord = { kind: 'draft', draft: { ...emptyDraft(), hostId } };
+        const previous = snapshot.record;
+        const source =
+          previous.kind === 'submitted' ? previous.operation.source : previous.draft.source;
+        const record: CreationRecord = {
+          kind: 'draft',
+          draft: {
+            ...emptyDraft(),
+            hostId,
+            ...(source
+              ? {
+                  source: {
+                    kind: 'git',
+                    gitUrl: source.gitUrl,
+                    ...(source.origin ? { origin: source.origin } : {}),
+                    ...(source.listingId ? { listingId: source.listingId } : {}),
+                    ...(source.origin === 'marketplace'
+                      ? 'commit' in source
+                        ? { expectedCommit: source.commit }
+                        : source.expectedCommit
+                          ? { expectedCommit: source.expectedCommit }
+                          : {}
+                      : {}),
+                  },
+                  displayName:
+                    previous.kind === 'submitted'
+                      ? previous.operation.input.displayName
+                      : previous.draft.displayName,
+                  description:
+                    previous.kind === 'submitted'
+                      ? (previous.operation.input.description ?? '')
+                      : previous.draft.description,
+                  tags:
+                    previous.kind === 'submitted'
+                      ? (previous.operation.input.roles?.join(', ') ?? '')
+                      : previous.draft.tags,
+                }
+              : {}),
+          },
+        };
         try {
           await save(record);
           publish({ record, receipt: undefined, error: undefined });

@@ -18,6 +18,16 @@ const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} m
 const en = {
   botCreation: {
     title: 'Create Bot',
+    importTitle: 'Import Bot',
+    fromGit: 'Import from Git link',
+    blank: 'Create a blank Bot',
+    gitUrl: 'Git link',
+    preview: 'Check source',
+    previewHint: 'Choose an environment and check the source before importing.',
+    sourceReady: 'Source checked. Review the name and environment, then import.',
+    import: 'Import Bot',
+    importAnother: 'Import another copy',
+    chooseSourceAgain: 'Choose source for a different Bot',
     name: 'Name',
     persona: 'Persona',
     personaHint: 'How should this Bot behave?',
@@ -48,6 +58,13 @@ const en = {
     previousKept:
       'The original creation details stay saved. A different Bot starts a separate creation.',
     errors: {
+      'git-url-required': 'Enter a Git link.',
+      'git-preview-required': 'Check this source in the selected environment before importing.',
+      'invalid-source': 'The computer could not confirm the source. Check it again.',
+      'git-source-changed':
+        'The source changed after it was checked. The original import stays saved.',
+      'invalid-git-url': 'This Git link is not supported. Check the link and try again.',
+      'git-failed': 'The computer could not read this repository. Check its access and try again.',
       'storage-invalid':
         'Could not read the saved creation. Keep this app’s data and try reopening the app.',
       'storage-write': 'Could not save your creation on this phone. Free some space and try again.',
@@ -1478,6 +1495,16 @@ const en = {
 const zh: typeof en = {
   botCreation: {
     title: '创建 Bot',
+    importTitle: '导入 Bot',
+    fromGit: '从 Git 链接导入',
+    blank: '创建空白 Bot',
+    gitUrl: 'Git 链接',
+    preview: '检查来源',
+    previewHint: '请选择环境，检查来源后再导入。',
+    sourceReady: '来源已确认，核对名称和环境后即可导入。',
+    import: '导入 Bot',
+    importAnother: '再导入一份',
+    chooseSourceAgain: '重新选择来源，导入另一个 Bot',
     name: '名称',
     persona: '人设',
     personaHint: '这个 Bot 应该如何回应和行动？',
@@ -1507,6 +1534,12 @@ const zh: typeof en = {
     newAfterUnavailable: '创建另一个 Bot',
     previousKept: '原创建记录会保留。创建另一个 Bot 将开始新的操作。',
     errors: {
+      'git-url-required': '请输入 Git 链接。',
+      'git-preview-required': '请先在所选环境中检查此来源，再导入。',
+      'invalid-source': '电脑未能确认来源，请再次检查。',
+      'git-source-changed': '检查后来源已变更，已保留原导入记录。',
+      'invalid-git-url': '暂不支持此 Git 链接，请检查后重试。',
+      'git-failed': '电脑无法读取此仓库，请检查访问权限后重试。',
       'storage-invalid': '无法读取已保存的创建操作。请保留 App 数据，并尝试重新打开 App。',
       'storage-write': '无法在手机上保存此次创建。请释放一些空间后重试。',
       'name-required': '请输入 Bot 名称。',

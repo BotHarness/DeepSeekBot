@@ -65,7 +65,7 @@ The older Host-band and environment-strip descriptions below record prior presen
 
 ## Native Bot creation and import
 
-Accepted scope, 2026-10-23; implementation pending. The current Bot creation entry still opens the embedded full client. The following target replaces that fallback for Bot creation and import.
+Accepted scope, 2026-10-23. PR #2632 implements native blank creation and its recovery path; native qualification remains separate. The following contract also governs the remaining Git, Marketplace and Zip import slices tracked by #2634.
 
 - **Native flow.** Blank Bot creation, Bot Marketplace browsing and import, Git-link import, and Bot Zip import use native mobile pages. All four creation sources are in scope; the import sources match the desktop client.
 - **Explicit destination from All.** The destination chooser lists all paired Remote Hosts, rather than only the currently active Host. The Human explicitly chooses the target. The most recently used Host may be preselected but never bypasses this choice; there is no separate default-creation-environment setting.
@@ -81,11 +81,11 @@ Accepted scope, 2026-10-23; implementation pending. The current Bot creation ent
 - **Model readiness.** A new Bot follows the destination Host's default model settings. A missing or unusable model does not prevent creation or roll back a created Bot. Its DM clearly offers model configuration before conversation can proceed. Creating a Bot never automatically sends a model test message; successful creation and a successful model reply remain distinct evidence.
 - **Existing ownership.** The selected Host owns the new PersonaBot and its Memory. Marketplace, Git and Zip imports create a fresh Bot through their existing Host-owned capabilities. The phone remains a client.
 
-Product decisions for this scope are settled. Implementation and runtime qualification remain pending. The Host owns the operation states and reconciliation; the phone owns draft/selected-file retention, presentation and navigation. Read-only Marketplace access must work independently of a destination Host, through the mobile data layer rather than screen-owned network calls.
+Product decisions for this scope are settled. The Host owns the operation states and reconciliation; the phone owns draft/selected-file retention, presentation and navigation. Read-only Marketplace access must work independently of a destination Host, through the mobile data layer rather than screen-owned network calls. Issues and PRs record implementation and runtime qualification for each source.
 
 ### Delivery and acceptance
 
-Deliver runnable vertical slices: native blank creation with target selection and durable result recovery first; Git and Marketplace imports through the same confirmation/recovery path next; then Zip selection, metadata, foreground upload and interrupted-upload recovery. Each slice includes its Host owner, canonical persistence, authenticated client path, native interaction and matching CLI coverage. Validate the first slice and obtain Human feedback before broadening; all four sources remain required for the complete feature.
+Deliver runnable vertical slices: native blank creation with target selection and durable result recovery first; Git and Marketplace imports through the same confirmation/recovery path next; then Zip selection, metadata, foreground upload and interrupted-upload recovery. Each slice includes its Host owner, canonical persistence, authenticated client path, native interaction and matching CLI coverage. The Human authorized implementing all remaining slices as stacked PRs while first-slice native acceptance proceeds in parallel. Each PR records its own qualification; untested native behavior stays explicit. All four sources remain required for the complete feature.
 
 - Exercise All with multiple paired Hosts and a preselected recent Host, and entry from A. Change the destination to B before submission without losing source/name edits. Only the confirmed target may receive the mutation.
 - Browse the Marketplace before pairing or while Hosts are offline, then pair/connect without losing the selected listing. Reconnection must not submit a draft without the Human's action.
