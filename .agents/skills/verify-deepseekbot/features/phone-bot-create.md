@@ -12,7 +12,7 @@ Git import uses the same target, confirmation, operation record and completion p
 - `completion`: active progress opens the new DM on its Host; leaving progress retains an Open Bot action without taking over navigation.
 - `refusal`: unsupported Hosts refuse before mutation; unavailable/revoked targets, changed input and archived results never fall back to another Host or fresh operation.
 - `git`: a Git link, confirmed commit and editable name/Bio/tags produce one ordinary Bot with the imported personality; retry preserves its source, identity and DM.
-- `marketplace`: browse the public catalogue before choosing a Host; native search, topics, details and README retain the selected listing and reviewed commit through confirmation.
+- `marketplace`: browse the public catalogue before choosing a Host; native search, topics, details and README retain the selected listing and reviewed commit through confirmation. Android discovery uses a standard button group for sorting and borderless filter chips for topics. Check selected fill, unchanged repeat taps, actual result changes and the large-text radio-list alternative in light and dark themes.
 - `zip`: retain the selected file, preview on the chosen Host, edit metadata and submit the same archive through bounded uploads. Recovery checks the original receipt before requiring file bytes.
 
 ## How to get to it (user POV)

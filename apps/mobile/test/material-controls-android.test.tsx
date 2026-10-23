@@ -33,26 +33,26 @@ vi.mock('react-native', async () => ({
       props.children,
     ),
 }));
-const rows = vi.hoisted(() => new Set<symbol>());
-vi.mock('@expo/ui/jetpack-compose', async () => {
-  const { useRef } = await import('react');
+vi.mock('@expo/ui/jetpack-compose', () => {
   return {
     Host: ({ children }: { children: ReactNode }) => children,
     Text: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
-    SingleChoiceSegmentedButtonRow: ({ children }: { children: ReactNode }) => {
-      const row = useRef(Symbol('row'));
-      rows.add(row.current);
-      return createElement('div', { 'data-testid': 'segmented-row' }, children);
-    },
-    SegmentedButton: Object.assign(
-      (props: { selected: boolean; onClick(): void; children: ReactNode }) =>
-        createElement(
-          'button',
-          { 'data-testid': 'segment', 'aria-pressed': props.selected, onClick: props.onClick },
-          props.children,
-        ),
-      { Label: ({ children }: { children: ReactNode }) => children },
-    ),
+    Row: ({ children }: { children: ReactNode }) =>
+      createElement('div', { 'data-testid': 'button-group' }, children),
+    ToggleButton: (props: {
+      checked: boolean;
+      onCheckedChange(checked: boolean): void;
+      children: ReactNode;
+    }) =>
+      createElement(
+        'button',
+        {
+          'data-testid': 'group-button',
+          'aria-pressed': props.checked,
+          onClick: () => props.onCheckedChange(!props.checked),
+        },
+        props.children,
+      ),
     Slider: (props: { value: number; onValueChange(value: number): void }) =>
       createElement('input', {
         'data-testid': 'native-slider',
@@ -66,7 +66,13 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
 });
 vi.mock('../src/ui/shell/icons', () => ({ ChevronRightIcon: () => null }));
 vi.mock('../src/ui/primitives/radio-mark', () => import('../src/ui/primitives/radio-mark.android'));
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxWidth: () => ({}) }));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  fillMaxWidth: () => ({}),
+  selectableGroup: () => ({}),
+  weight: () => ({}),
+  defaultMinSize: () => ({}),
+  testID: () => ({}),
+}));
 
 import { PercentageSlider } from '../src/ui/primitives/percentage-slider.android';
 import { RadioMark } from '../src/ui/primitives/radio-mark.android';
@@ -87,7 +93,7 @@ async function mount(node: ReactNode) {
   return host;
 }
 
-it('renders Segmented as Material segmented buttons and only reports a new choice', async () => {
+it('renders a Material button group and only reports a new choice', async () => {
   const changed = vi.fn();
   function Period() {
     const [value, setValue] = useState<'day' | 'week'>('day');
@@ -108,7 +114,9 @@ it('renders Segmented as Material segmented buttons and only reports a new choic
   }
   const view = await mount(<Period />);
   expect(view.querySelector('[role="radiogroup"][aria-label="Period"]')).not.toBeNull();
-  const [today, week] = [...view.querySelectorAll<HTMLButtonElement>('[data-testid="segment"]')];
+  const [today, week] = [
+    ...view.querySelectorAll<HTMLButtonElement>('[data-testid="group-button"]'),
+  ];
   expect(today!.getAttribute('aria-pressed')).toBe('true');
   await act(async () => today!.click());
   expect(changed).not.toHaveBeenCalled();
@@ -152,7 +160,7 @@ it('hides the decorative Material radio from accessibility', async () => {
   expect(radio.closest('[aria-hidden="true"]')).not.toBeNull();
 });
 
-it('rebuilds the native segmented row when the option set changes, so each segment gets its new shape', async () => {
+it('shows new choices while retaining the selected option when available periods change', async () => {
   const options = (extended: boolean) => [
     { value: 'today', label: 'Today' },
     { value: 'week', label: '7 days' },
@@ -162,18 +170,21 @@ it('rebuilds the native segmented row when the option set changes, so each segme
     <Segmented label="Period" value="week" options={options(extended)} onChange={() => {}} />
   );
   const view = await mount(render(false));
-  rows.clear();
-  await act(async () => root!.render(render(false)));
-  const steady = rows.size;
   await act(async () => root!.render(render(true)));
-  expect(view.querySelectorAll('[data-testid="segment"]')).toHaveLength(3);
-  expect(rows.size).toBe(steady + 1);
+  const buttons = [...view.querySelectorAll('[data-testid="group-button"]')];
+  expect(buttons.map((button) => button.textContent)).toEqual(['Today', '7 days', '4 weeks']);
+  expect(buttons.map((button) => button.getAttribute('aria-pressed'))).toEqual([
+    'false',
+    'true',
+    'false',
+  ]);
 });
 
 it('turns Segmented into a radio list when the labels cannot fit on one line', async () => {
   const periods = ['Today', '7 days', '4 weeks', '12 weeks'];
-  expect(segmentsFit(periods, 411, 1)).toBe(true);
-  expect(segmentsFit(periods, 411, 2)).toBe(false);
+  expect(segmentsFit(periods, 440, 1)).toBe(true);
+  expect(segmentsFit(periods, 411, 1)).toBe(false);
+  expect(segmentsFit(periods, 440, 2)).toBe(false);
   screen.fontScale = 2;
   try {
     const changed = vi.fn();
@@ -185,7 +196,7 @@ it('turns Segmented into a radio list when the labels cannot fit on one line', a
         onChange={changed}
       />,
     );
-    expect(view.querySelector('[data-testid="segmented-row"]')).toBeNull();
+    expect(view.querySelector('[data-testid="button-group"]')).toBeNull();
     expect(view.querySelectorAll('[data-testid="native-radio"]')).toHaveLength(4);
     const week = [...view.querySelectorAll('button')].find(
       (button) => button.getAttribute('aria-label') === '12 weeks',
