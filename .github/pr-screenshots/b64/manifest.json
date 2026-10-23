@@ -1,0 +1,205 @@
+{
+  "batch": 64,
+  "pr": 2620,
+  "before": "76078cfc7fc551ae5a4f4b057153085355528dd3",
+  "after": "24b5c27786538e733a12588c3d1b34a1c2a29485",
+  "device": "iPhone 17 Pro Simulator, iOS27 beta,402x874pt",
+  "nativeFingerprint": "4176fdf936e537bf2a1b7f6f5d906e2ca1615ecc",
+  "binarySource": "0b71799a5326635b11bd1b102893b44de33b665f",
+  "afterLoadedSectionModuleSHA256": "0951c39cd0b19655c0b95f35a512bda613576a30dab20d9d5a88da932c01dd52",
+  "status": "functional subset PASS; live text-size acceptance FAIL",
+  "finding": "B64-TYPE-1: first full size/theme cycle yielded clipped text and42pt input at maximum vs73.33pt Before; subsequent reopening restored height but horizontal scroll/caret visibility remained inconsistent. Draft value unchanged; root cause not attributed.",
+  "untested": [
+    "Android",
+    "physical Release",
+    "VoiceOver/TalkBack",
+    "CJK IME composition (CJK text was entered)",
+    "initial cold-load spinner and confirmed empty on native",
+    "failed-assign/retry without duplicate create",
+    "failed-refresh retry",
+    "Host switch while pending",
+    "rotation/wide layout"
+  ],
+  "files": [
+    {
+      "file": "bl-l-d.png",
+      "sourceCapture": "before-list-light-default.png",
+      "sha256": "976599051a77183ee72b9d81a17132abf033d457c66131d29ae596b3ef6cdb29",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bl-l-i.png",
+      "sourceCapture": "before-list-light-intermediate.png",
+      "sha256": "efa11e6a69367e43a3a18eec735d349cca6e0c30c4473189d35c85805d770701",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bl-l-m.png",
+      "sourceCapture": "before-list-light-maximum.png",
+      "sha256": "2744c7a31a0b0b655b1a596418944c8f1ada285e70162af1ff8f4c7b65d4e57d",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bl-d-d.png",
+      "sourceCapture": "before-list-dark-default.png",
+      "sha256": "7cdd2eed57c632e1219fb6989affd7b62055578ab88d5289ad49c00d129d362f",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bl-d-i.png",
+      "sourceCapture": "before-list-dark-intermediate.png",
+      "sha256": "2f9399df7e56bdeb6615ec7be94c0e8d7cde8d986a09b8755e83af5d47f69605",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bl-d-m.png",
+      "sourceCapture": "before-list-dark-maximum.png",
+      "sha256": "4348a87283d2eaa317fc17b94d32f24a415a6283c6e1d3aa8ae6e6cb7dddb49c",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bc-l-d.png",
+      "sourceCapture": "before-create-light-default.png",
+      "sha256": "f8641a9d6b992f21892ab3443e8714d29ec44e356679edbbfba6049e5978f5e3",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bc-l-i.png",
+      "sourceCapture": "before-create-light-intermediate.png",
+      "sha256": "ed010f26ba6ba7b67fe19364c5e06cb7445e81a311e00390f7a0c577130b1fcc",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bc-l-m.png",
+      "sourceCapture": "before-create-light-maximum.png",
+      "sha256": "ead94de1b7f23e72794c54b15b28389d1150e78733a8d243a7ac84e24982a462",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bc-d-d.png",
+      "sourceCapture": "before-create-dark-default.png",
+      "sha256": "cd74bfeaf0043b8f9ede4d6cc9ebd82d61297ff6e209bdb62cf428a93f8629a4",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bc-d-i.png",
+      "sourceCapture": "before-create-dark-intermediate.png",
+      "sha256": "6e1e489e70b9198d50662bee49fc863853a11a82a4196035a7ce123a4233e5aa",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "bc-d-m.png",
+      "sourceCapture": "before-create-dark-maximum.png",
+      "sha256": "771a51561e8eef9c857c484a819b8cb060c961fb93138d14e9940e11f1073375",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "al-l-d.png",
+      "sourceCapture": "after-list-light-default.png",
+      "sha256": "890405a52259684936ca5d07c7e8eccf2277032799ac11bd7f20e77f32c0649a",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "al-l-i.png",
+      "sourceCapture": "after-list-light-intermediate.png",
+      "sha256": "0a2205f3c72cef57ab9366f5ef180709e683a78f9db143a31f0bf4d15315aa7e",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "al-l-m.png",
+      "sourceCapture": "after-list-light-maximum.png",
+      "sha256": "02a6b13d6ea93d7978ef76bbbdb4d5a2bc3432420e7a92a41e73d5176f28a0ed",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "al-d-d.png",
+      "sourceCapture": "after-list-dark-default.png",
+      "sha256": "91720df92349d10cc596b22cb14fee45c6e84bae6095a098e3ce5aab8bbf042b",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "al-d-i.png",
+      "sourceCapture": "after-list-dark-intermediate.png",
+      "sha256": "89bcb6d399232245de736c6194914780d319b92d8fc46cc44f04123f02676b22",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "al-d-m.png",
+      "sourceCapture": "after-list-dark-maximum.png",
+      "sha256": "2514aac2e41e7c020ba74841bd85e62408fb064d915e019dccc1bbc9fd88e082",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "ac-l-d.png",
+      "sourceCapture": "after-create-light-default.png",
+      "sha256": "2c1126ebf8b2c4898f60431411ad822d8ee352c2524238947ce192fc2e53ee54",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "ac-l-i.png",
+      "sourceCapture": "after-create-light-intermediate.png",
+      "sha256": "5fdad355bb0fdd51782a074892a755ed86e78a665b766cf3cb34884fac7edf73",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "ac-l-m.png",
+      "sourceCapture": "after-create-light-maximum.png",
+      "sha256": "dee0963164dd1f239b3fac9f42150613290270725569658d23fc7f8703d2f5c4",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "ac-d-d.png",
+      "sourceCapture": "after-create-dark-default.png",
+      "sha256": "510ffb6d6bf01af8cee85aa964cd6d15a3bc289c9b6b8478c1079bde2268f8b9",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "ac-d-i.png",
+      "sourceCapture": "after-create-dark-intermediate.png",
+      "sha256": "a8a14ab0a1d623d7469ee615265ebf5c6868b9ecb952119e72b4bce7568c82d2",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "ac-d-m.png",
+      "sourceCapture": "after-create-dark-maximum.png",
+      "sha256": "071292f979159395f561990f7af1836e907d1dcc13b906250a0159e6043b58c7",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "spaces.png",
+      "sourceCapture": "spaces-disabled.png",
+      "sha256": "c7b833d22cff44d87afd68711a3fd04ec9fe35019e0002dc35ad7369946b08a1",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "failed.png",
+      "sourceCapture": "create-failure.png",
+      "sha256": "69000de5405c0f4a52c193e5f1cb2a285043a8a3a1411f6d7890f9bbdd98249d",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "pending.png",
+      "sourceCapture": "pending.png",
+      "sha256": "3944ef0ad83acc25e10ae47b16716bc9393241bcba820214e47e3cb088899a16",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "guards.png",
+      "sourceCapture": "pending-guards.png",
+      "sha256": "c937ddb292fb1aa3e1f4f242a537fe21cca27a2ab9e3bf34908fb3638bec4b03",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "repeat-max.png",
+      "sourceCapture": "recheck-create-dark-maximum.png",
+      "sha256": "d611da486ca3e0050c688b912563081c76664893456be6be3f2329ad9cc99eaa",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    },
+    {
+      "file": "recovered.png",
+      "sourceCapture": "max-recheck.png",
+      "sha256": "133b78c21fa1e1b2b32acccb725d6fff092b53076c984f673633656f401413bd",
+      "review": "visually inspected synthetic QA content; unchanged pixels"
+    }
+  ]
+}
