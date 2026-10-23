@@ -1,7 +1,7 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
@@ -427,12 +427,14 @@ const HomeContent = memo(function HomeContent({
                 testID="search-button"
                 onPress={() => setSearching(true)}
               />
-              <HeaderAction
-                icon="settings"
-                label={t.settings}
-                testID="settings-button"
-                onPress={() => router.push('/settings')}
-              />
+              {Platform.OS !== 'android' ? (
+                <HeaderAction
+                  icon="settings"
+                  label={t.settings}
+                  testID="settings-button"
+                  onPress={() => router.push('/settings')}
+                />
+              ) : null}
             </>
           }
         >

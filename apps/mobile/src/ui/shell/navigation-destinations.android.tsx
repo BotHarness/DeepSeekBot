@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import {
   Host,
   NavigationBar,
@@ -26,6 +27,13 @@ import type { NavigationDestination } from './navigation-destination';
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
+  const colors = {
+    selectedIconColor: theme.color.fg,
+    selectedTextColor: theme.color.fg,
+    selectedIndicatorColor: theme.layer.raised.chosen,
+    unselectedIconColor: theme.color.muted,
+    unselectedTextColor: theme.color.muted,
+  };
   return (
     <Host
       matchContents={{ vertical: true }}
@@ -62,13 +70,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               selected={item.focused}
               alwaysShowLabel
               onClick={item.onPress}
-              colors={{
-                selectedIconColor: theme.color.fg,
-                selectedTextColor: theme.color.fg,
-                selectedIndicatorColor: theme.layer.raised.chosen,
-                unselectedIconColor: theme.color.muted,
-                unselectedTextColor: theme.color.muted,
-              }}
+              colors={colors}
               modifiers={[
                 weight(1),
                 testID(item.activity ? 'navigation-activity' : 'navigation-chats'),
@@ -134,6 +136,27 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             </NavigationBarItem>
           );
         })}
+        <NavigationBarItem
+          selected={false}
+          alwaysShowLabel
+          onClick={() => router.push('/settings')}
+          colors={colors}
+          modifiers={[
+            weight(1),
+            testID('settings-button'),
+            semantics({ contentDescription: t.settings }),
+          ]}
+        >
+          <NavigationBarItem.Icon>
+            <Icon
+              source={require('../../../assets/toolbar/settings.xml')}
+              size={materialNavigationBar.iconSize}
+            />
+          </NavigationBarItem.Icon>
+          <NavigationBarItem.Label>
+            <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{t.settings}</Text>
+          </NavigationBarItem.Label>
+        </NavigationBarItem>
       </NavigationBar>
     </Host>
   );
