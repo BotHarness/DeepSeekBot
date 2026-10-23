@@ -28,7 +28,7 @@ import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../design/the
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '../design/host-look';
 import type { ComputerClickFeedback } from './computer-click-ripple';
-import { ComputerTouchpad } from './computer-touchpad';
+import { ComputerPointerControls } from './computer-pointer-controls.ios';
 import { ComputerVideoControls } from './computer-video-controls.ios';
 import { ComputerVideoHeader } from './computer-video-header.ios';
 import { computerVideoStatus } from './computer-video-status';
@@ -178,13 +178,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       });
     }
   };
-  const scroll = (
-    point: { x: number; y: number },
-    axis: 'horizontal' | 'vertical',
-    steps: number,
-  ) => {
-    void send(videoPointerScroll({ point, frame, axis, steps, driving }));
-  };
+  const scroll = (axis: 'horizontal' | 'vertical', steps: number) =>
+    send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
   const close = useCallback(() => {
     setKeyboardGrant(undefined);
     void viewer?.stop();
@@ -279,7 +274,6 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
               frame={frame}
               driving={driving}
               controlling={controlling}
-              directInput={false}
               revealCursor={keyboardOpen}
               cursor={cursor}
               preview={preview}
@@ -345,40 +339,47 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             }
           />
         ) : null}
-        <ScrollView
-          keyboardShouldPersistTaps="always"
-          style={{ flexShrink: 1, flexGrow: 0 }}
-          contentContainerStyle={{
+        <View
+          testID="computer-video-dock"
+          style={{
+            flexShrink: 1,
+            flexGrow: 0,
             padding: space.x3,
             paddingBottom: space.x3 + (softKeyboardVisible ? 0 : insets.bottom),
             gap: space.x2,
           }}
         >
-          {message ? (
-            <Text
-              testID="computer-video-recovery-message"
-              tone="muted"
-              accessibilityLiveRegion="polite"
+          {message || keyboardIncomplete ? (
+            <ScrollView
+              keyboardShouldPersistTaps="always"
+              style={{ flexShrink: 1, flexGrow: 0 }}
+              contentContainerStyle={{ gap: space.x2 }}
             >
-              {message}
-            </Text>
+              {message ? (
+                <Text
+                  testID="computer-video-recovery-message"
+                  tone="muted"
+                  accessibilityLiveRegion="polite"
+                >
+                  {message}
+                </Text>
+              ) : null}
+              {keyboardIncomplete ? (
+                <Text
+                  tone="muted"
+                  accessibilityLiveRegion="polite"
+                  testID="computer-video-keyboard-error"
+                >
+                  {t.computerKeyboardIncomplete}
+                </Text>
+              ) : null}
+            </ScrollView>
           ) : null}
-          {keyboardIncomplete ? (
-            <Text
-              tone="muted"
-              accessibilityLiveRegion="polite"
-              testID="computer-video-keyboard-error"
-            >
-              {t.computerKeyboardIncomplete}
-            </Text>
-          ) : null}
-          {controlling ? (
-            <ComputerTouchpad
+          {controlling && !keyboardOpen ? (
+            <ComputerPointerControls
               key={`${binding.attemptId}:${host?.grant?.generation}:${driving}`}
               enabled={driving}
-              cursor={cursor}
-              frame={frame}
-              onClick={click}
+              onClick={(button) => void click(cursor.get(), button)}
               onScroll={scroll}
             />
           ) : null}
@@ -419,7 +420,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                 }
               : {})}
           />
-        </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </DesignThemeProvider>
   );

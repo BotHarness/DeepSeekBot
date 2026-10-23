@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
@@ -63,7 +63,7 @@ export default function BotProfileScreen() {
                 }),
             }
           : {}),
-        ...(bot.computerAccess
+        ...(Platform.OS === 'ios' || bot.computerAccess
           ? {
               onComputer: () =>
                 router.push({
