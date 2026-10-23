@@ -7,11 +7,12 @@ import {
   Text as ComposeText,
   TextButton,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useSyncExternalStore, type ComponentType } from 'react';
+import { semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
+import { useFocusEffect, useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState, useSyncExternalStore, type ComponentType } from 'react';
 import { AppState, ScrollView, View, useWindowDimensions } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
+import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -31,6 +32,8 @@ import { t } from '../strings';
 import { NativeLocalComputerVideo } from './local-computer-video.android';
 import { ComputerVideoStage } from './computer-video-stage';
 import { ComputerWheelButton } from './computer-wheel-button';
+import { ComputerScrollPad } from './computer-scroll-pad';
+import { ComputerVideoKeyboard } from './computer-video-keyboard';
 import { localVideoNotice } from './local-video-notice';
 
 const idle: LocalVideoClientState = {
@@ -50,6 +53,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const insets = useSafeAreaInsets();
   const window = useWindowDimensions();
   const landscape = window.width > window.height;
+  const [keyboardGrant, setKeyboardGrant] = useState<{ viewerId: string; generation: number }>();
+  const [exiting, setExiting] = useState(false);
   const viewer = useMemo(
     () =>
       client === undefined
@@ -80,6 +85,29 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     }, [viewer, connected]),
   );
 
+  const keyboardOpen =
+    connected &&
+    state.status === 'controlling' &&
+    keyboardGrant !== undefined &&
+    keyboardGrant.viewerId === state.host?.binding?.viewerId &&
+    keyboardGrant.generation === state.host?.grant?.generation;
+  const setKeyboardOpen = (open: boolean) => {
+    const host = viewer?.getState().host;
+    setKeyboardGrant(
+      open && host?.binding && host.grant
+        ? { viewerId: host.binding.viewerId, generation: host.grant.generation }
+        : undefined,
+    );
+  };
+  usePreventRemove(keyboardOpen && !exiting, () => setKeyboardOpen(false));
+  useFocusEffect(
+    useCallback(() => {
+      if (!exiting) return;
+      void viewer?.stop();
+      if (router.canGoBack()) router.back();
+      else router.replace('/');
+    }, [exiting, router, viewer]),
+  );
   if (state.status === 'unsupported') return <Legacy />;
   const host = state.host;
   const actions = localVideoActions({ state, connection: snapshot.connection });
@@ -95,7 +123,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
   const driving = controlling && state.presenting && host?.media.status === 'live' && !state.busy;
   const frame = { width: host?.media.width ?? 0, height: host?.media.height ?? 0 };
   const Video = NativeLocalComputerVideo;
-  const send = (input: DesktopInput | undefined) => {
+  const send = (input: DesktopInput | undefined): Promise<boolean> => {
     const current = viewer?.getState().host;
     if (
       current?.binding?.runtimeId !== binding?.runtimeId ||
@@ -103,19 +131,17 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
       current?.binding?.attemptId !== binding?.attemptId ||
       current?.grant?.generation !== host?.grant?.generation
     )
-      return;
-    if (input !== undefined) void viewer?.input(input);
+      return Promise.resolve(false);
+    return input === undefined
+      ? Promise.resolve(false)
+      : (viewer?.input(input) ?? Promise.resolve(false));
   };
   const click = (point: { x: number; y: number }, button: 'left' | 'right') =>
     send(videoPointerClick({ point, frame, button, driving }));
   const scroll = (axis: 'horizontal' | 'vertical', steps: number) =>
     send(videoPointerScroll({ point: cursor.get(), frame, axis, steps, driving }));
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
-  const close = () => {
-    void viewer?.stop();
-    if (router.canGoBack()) router.back();
-    else router.replace('/');
-  };
+  const close = () => setExiting(true);
   const message = localVideoNotice({
     connection: snapshot.connection,
     state,
@@ -146,7 +172,8 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
         !host.media.captureAlive));
 
   return (
-    <View
+    <KeyboardAvoidingView
+      behavior="padding"
       style={{
         flex: 1,
         paddingTop: insets.top,
@@ -194,6 +221,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             frame={frame}
             driving={driving}
             controlling={controlling}
+            revealCursor={keyboardOpen}
             cursor={cursor}
             preview={preview}
             onClick={click}
@@ -230,7 +258,11 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
           </View>
         )}
       </View>
-      <View style={{ paddingHorizontal: space.x3, paddingBottom: space.x2, flexShrink: 1 }}>
+      <ScrollView
+        style={{ flexShrink: 1, flexGrow: 0 }}
+        keyboardShouldPersistTaps="always"
+        contentContainerStyle={{ paddingHorizontal: space.x3, paddingBottom: space.x2 }}
+      >
         {message === undefined ? null : (
           <ScrollView
             testID="computer-video-recovery-message"
@@ -242,30 +274,59 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
             </Text>
           </ScrollView>
         )}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-          {controlling ? (
+        {controlling && !keyboardOpen ? (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x3,
+              paddingVertical: space.x2,
+            }}
+          >
             <ComputerWheelButton
-              key={`left-${host?.grant?.generation}`}
+              key={'left-' + host?.grant?.generation}
               side="left"
               enabled={driving}
               compact={landscape}
-              onClick={() => click(cursor.get(), 'left')}
+              onClick={() => void click(cursor.get(), 'left')}
               onScroll={scroll}
             />
-          ) : null}
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Host
-              matchContents={{ vertical: true }}
-              style={{ width: '100%' }}
-              colorScheme={theme.scheme}
-              seedColor={theme.color.accent}
-            >
-              <Row verticalAlignment="center" modifiers={[fillMaxWidth()]}>
+            <ComputerScrollPad
+              key={host?.grant?.generation}
+              enabled={driving}
+              compact={landscape}
+              onScroll={scroll}
+            />
+            <ComputerWheelButton
+              key={'right-' + host?.grant?.generation}
+              side="right"
+              enabled={driving}
+              compact={landscape}
+              onClick={() => void click(cursor.get(), 'right')}
+              onScroll={scroll}
+            />
+          </View>
+        ) : null}
+        {controlling ? (
+          <ComputerVideoKeyboard
+            key={host?.grant?.generation}
+            open={keyboardOpen}
+            enabled={driving}
+            onInput={send}
+          />
+        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+          <ScrollView
+            horizontal
+            keyboardShouldPersistTaps="always"
+            contentContainerStyle={{ flexGrow: 1 }}
+          >
+            <Host matchContents colorScheme={theme.scheme} seedColor={theme.color.accent}>
+              <Row verticalAlignment="center">
                 <ComposeButton
                   enabled={!toggleDisabled}
                   onClick={() => void (actions.handBack ? viewer?.resume() : viewer?.takeover())}
                   modifiers={[
-                    weight(1),
                     testID('computer-video-control'),
                     semantics({
                       contentDescription: actions.handBack
@@ -278,6 +339,17 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                     {actions.handBack ? t.computerVideoHandBack : t.computerVideoTakeover}
                   </ComposeText>
                 </ComposeButton>
+                {controlling ? (
+                  <TextButton
+                    enabled={keyboardOpen || driving}
+                    onClick={() => setKeyboardOpen(!keyboardOpen)}
+                    modifiers={[testID('computer-video-keyboard')]}
+                  >
+                    <ComposeText>
+                      {keyboardOpen ? t.computerHideKeyboard : t.computerVideoKeyboard}
+                    </ComposeText>
+                  </TextButton>
+                ) : null}
                 {mediaMounted ? (
                   <TextButton
                     onClick={() => preview.set({ scale: 1, x: 0, y: 0 })}
@@ -312,19 +384,9 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
                 ) : null}
               </Row>
             </Host>
-          </View>
-          {controlling ? (
-            <ComputerWheelButton
-              key={`right-${host?.grant?.generation}`}
-              side="right"
-              enabled={driving}
-              compact={landscape}
-              onClick={() => click(cursor.get(), 'right')}
-              onScroll={scroll}
-            />
-          ) : null}
+          </ScrollView>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

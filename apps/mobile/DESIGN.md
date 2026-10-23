@@ -483,3 +483,21 @@ For same-name Organization tabs, show a collision-only secondary source label (O
 The native section chooser always places **Unsectioned** first, followed by a native divider and custom sections. Titles remain neutral; only the checkmark for the Host-confirmed current membership uses the primary/accent color. Do not mark Unsectioned selected before the roster loads. Selecting the current destination closes without writes; selecting Unsectioned clears membership through the existing Host command and does not delete the chat.
 
 Marketplace topic filtering opts into glass Close on iOS, per the Human design update in #2648. Its header supplies the same horizontal inset as sheet content and a top inset below the native rounded corner. Other DrawerHeader callers retain their established material and dismissal policy.
+
+### Android Local Computer input
+
+The video toolbar places Left and Right around a dedicated two-dimensional scroll pad.
+Both mouse buttons retain their drag-to-scroll shortcut. The pad and wheel-button gesture
+surfaces are custom because a native slider does not combine two-axis relative wheel input
+with a separate click action. Ordinary commands use native Compose buttons.
+
+Keyboard opens a visible, in-memory draft and the system IME. Send commits the complete text
+through the existing controlled input path; it never streams unfinished IME composition.
+Only a current acknowledged result clears the draft. Hiding/reopening retains the same field;
+loss of control or a replacement grant unmounts it. Password mode masks text and disables
+autocorrect. Back closes the panel before leaving Computer; the header exit leaves explicitly.
+
+One keyboard-avoiding owner resizes the screen. The preview reveals the local pointer within
+that viewport without changing zoom scale; the scroll-button row hides while typing.
+The lower controls scroll when keyboard/large-text space is limited. Pinch ends when either
+finger lifts and ignores remaining-finger focal updates; release never recenters the canvas.

@@ -79,6 +79,7 @@ interface Viewer {
   answered: boolean;
   disconnected: boolean;
   inputGated: boolean;
+  cursorReady: boolean;
   closing?: Promise<void>;
 }
 
@@ -110,7 +111,8 @@ interface OperationTrace {
     | 'media-open'
     | 'media-answer'
     | 'media-close'
-    | 'desktop-input';
+    | 'desktop-input'
+    | 'cursor-setup';
   cause?: LocalVideoRefusal;
 }
 
@@ -131,6 +133,30 @@ interface Grant {
   readonly generation: number;
   expiresAt: number;
   sequence: number;
+}
+
+function driverFailed(result: unknown): boolean {
+  return (
+    typeof result === 'object' && result !== null && 'isError' in result && result.isError === true
+  );
+}
+
+function cursorEnabled(result: unknown, session: string): boolean {
+  const value =
+    typeof result === 'object' && result !== null && 'structuredContent' in result
+      ? result.structuredContent
+      : undefined;
+  if (
+    driverFailed(result) ||
+    typeof value !== 'object' ||
+    value === null ||
+    !('session' in value) ||
+    value.session !== session ||
+    !('enabled' in value) ||
+    typeof value.enabled !== 'boolean'
+  )
+    refuse('input-failed', 'The Computer driver did not confirm pointer setup.');
+  return value.enabled;
 }
 
 const closedMedia = (): LocalVideoMediaStatus => ({
@@ -432,6 +458,7 @@ export function createLocalVideoOwner(options: {
       answered: false,
       disconnected: false,
       inputGated: false,
+      cursorReady: false,
     };
 
     viewer = current;
@@ -741,19 +768,39 @@ export function createLocalVideoOwner(options: {
           const call = desktopInputCall(input, undefined);
           trace.source = 'driver';
           trace.external = 'desktop-input';
-          const effect = options.driver.call(call.tool, {
-            ...call.args,
-            session: `local-video:${current.binding.viewerId}`,
-          });
+          const effect = (async () => {
+            const session = 'local-video:' + current.binding.viewerId;
+            if (!current.cursorReady) {
+              trace.external = 'cursor-setup';
+              const setup = await options.driver.call('set_agent_cursor_enabled', {
+                session,
+                enabled: false,
+              });
+              if (driverFailed(setup))
+                refuse('input-failed', 'The Computer driver refused pointer setup.');
+              const deadline = Date.now() + operationTimeout;
+              for (;;) {
+                if (signal?.aborted)
+                  refuse('stale-grant', 'Pointer setup was cancelled before execution.');
+                checkGrant(current, command.generation);
+                const state = await options.driver.call('get_agent_cursor_state', { session });
+                if (!cursorEnabled(state, session)) break;
+                if (Date.now() >= deadline)
+                  refuse('input-failed', 'The Computer pointer setup did not finish.');
+                await new Promise<void>((resolve) => setTimeout(resolve, 16));
+              }
+              current.cursorReady = true;
+            }
+            if (signal?.aborted)
+              refuse('stale-grant', 'The queued input was cancelled before execution.');
+            checkGrant(current, command.generation);
+            trace.external = 'desktop-input';
+            return options.driver.call(call.tool, { ...call.args, session });
+          })();
           humans.add(effect);
           try {
             const result = await effect;
-            if (
-              typeof result === 'object' &&
-              result !== null &&
-              'isError' in result &&
-              result.isError === true
-            )
+            if (driverFailed(result))
               refuse('input-failed', 'The Computer driver refused this input.');
           } finally {
             humans.delete(effect);

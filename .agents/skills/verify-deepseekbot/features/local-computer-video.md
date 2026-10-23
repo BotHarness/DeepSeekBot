@@ -22,12 +22,35 @@ Use the [Windows device queue](../../../../docs/agents/android-device-qa.md); th
 
 1. Launch/doctor the batch Host using `scripts/verify-app.mjs`. Save its home for the restart test. Start Local Computer via CLI and record helper install/verification, startup and missing-dependency results. Open the harmless fixture at `packages/computer/test/fixtures/local-video-motion.html` on that display.
 2. Observe beyond 30 seconds. Verify native output and `computer-video status`: pause false, one viewer, no controller. Tap without takeover: the fixture must not change. Exercise direct tools for two Bots.
-3. In portrait and landscape, verify the toolbar has Left at its left edge, Right at its right edge, the control toggle and Reset between, no instruction caption, and exit at the top right. Use `computer-video-control`, `computer-video-left-click`, `computer-video-right-click`, `computer-video-reset` and `computer-video-close` with their visible labels. Take control, click once, then drag each mouse button horizontally and vertically over a harmless scrollable page. Check the slider follows the chosen axis, the page scrolls at the cursor and releasing a drag causes no click. Hand back once: the same viewer stays open, control disappears and both Bots can operate. Compare UI/CLI/fixture; separately use CLI release, expiry and resume to prove durable pause remains fail-closed. Owner regressions inject delayed operations, persistence failures, drain timeout, queued stale input and lost acknowledgement; mark simulated faults separately from device evidence. Repeat toolbar reachability at default, intermediate and maximum text sizes in light/dark; leave native results unqualified until actually run.
+3. In portrait and landscape, verify the toolbar has Left at its left edge, Right at its right edge, the two-dimensional scroll pad between and a separate command row below, no instruction caption, and exit at the top right. Use `computer-video-control`, `computer-video-left-click`, `computer-video-right-click`, `computer-video-reset` and `computer-video-close` with their visible labels. Take control, click once, then drag each mouse button horizontally and vertically over a harmless scrollable page. Check the slider follows the chosen axis, the page scrolls at the cursor and releasing a drag causes no click. Hand back once: the same viewer stays open, control disappears and both Bots can operate. Compare UI/CLI/fixture; separately use CLI release, expiry and resume to prove durable pause remains fail-closed. Owner regressions inject delayed operations, persistence failures, drain timeout, queued stale input and lost acknowledgement; mark simulated faults separately from device evidence. Repeat toolbar reachability at default, intermediate and maximum text sizes in light/dark; leave native results unqualified until actually run.
 4. Pause then restart only this Host with the same home. Check pause remains true, runtime changes and old grant fails. Explicitly resume by current runtimeId without media. Use legacy frame/takeover/input commands to prove `update-required` rather than a bypass.
 5. Separately interrupt control, capture and receiver presentation. Verify no input against a confirmed stale picture, Hand back remains available and explicitly resumes Bots, and Reconnect closes the old attempt before fresh observation without a grant or Bot resume. Exit, background and connection loss must keep pause. Separately prove static text remains usable. Record the first failure and run `verify-app observe` before retry. Revoke an established device and observe cessation of new receiver frame IDs plus actual peer/track/helper cleanup, not just a status change.
 6. Exercise background/foreground, phone lock, immediate startup cancellation, helper crash, slow consumers, bounded teardown and second viewer refusal. Disconnect phone Wi-Fi during LAN pairing and during Computer viewing: check for Wi-Fi/local-network permission/Settings → Devices guidance, and `computer-video-retry-connection` before a viewer exists. Restoring the network and Retry returns to observation without takeover or Bot resume. Separately fail only video (`computer-video-reconnect`), refuse the device (`computer-video-pair-again`), and expire a QR; verify each retains its own recovery. Remote connection errors must not require same-Wi-Fi. Error guidance must remain scrollable with reachable controls in landscape/large text. Preserve callback/queue boundary regression results and exact task-owned process census. Native media errors and Connect refusals must never request a replacement image.
 7. On a declared LAN path, warm up 10 seconds and record 60 seconds of unique moving frame IDs. Cross-check EGL/TextureView counters against visible frame output; require at least 15 actual presented FPS. For 100 isolated taps record physical touch and first visible counter change on one clock, then nearest-rank p95 (sample 95), including temporal uncertainty; require at most 500 ms. Check static text readability separately. Selected ICE pair evidence identifies the path; RTT and encoded/decoded FPS are separate metrics.
 8. Obtain Human feedback on observe/takeover/release/resume, light/dark and reachable large-text controls. Record pass/fail/untested per requirement. Missing native or Human evidence blocks qualification, even if all source tests pass.
+
+## Input refinement checks
+
+Run `node scripts/computer-input-fixture.mjs 4488 60` and open its localhost URL on the
+Windows display. Start from the declared native build; these are pending verification steps.
+
+- Observe and control: pinch at off-center locations, lift each finger first in separate runs,
+  then release both. Compare the last two-finger frame with the released frame; no shift,
+  remote click or pointer movement is allowed. Repeat below-fit and enlarged previews.
+- Use `computer-video-scroll-pad` over the fixture's horizontal, vertical and 2D regions.
+  Verify offsets in both directions and diagonally; no click on release. Retest the existing
+  left/right drag shortcuts. An observer has no pointer, scroll pad or keyboard controls.
+- Open `computer-video-keyboard`, enter synthetic Chinese through the real IME in
+  `computer-video-text`, edit the candidate, and send once with `computer-video-send-text`.
+  Compare the computer field, not just the local draft. Test Tab, Backspace, Enter, Escape,
+  password masking, native IME Send, panel hide/reopen and Android Back. Header exit must
+  still leave immediately. Check portrait/landscape, light/dark and all three text sizes.
+- The remote target and Send/Hand back must stay reachable with the soft keyboard open.
+  Stall media, lose connection, hand back and replace the grant while a draft/input is pending:
+  no replay, no old draft crossing grants, no false successful-clear.
+- Move the local pointer far from the previous click and click the fixture. Inspect the
+  current viewer's driver session: no duplicate virtual-cursor glide before the click.
+  Bot sessions keep their own cursor setting. Record observed latency separately.
 
 ## Gotchas
 
