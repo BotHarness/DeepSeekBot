@@ -8,7 +8,8 @@ const system = vi.hoisted(() => ({
   changed: undefined as ((enabled: boolean) => void) | undefined,
   remove: vi.fn(),
 }));
-vi.mock('react-native', () => ({
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
   Platform: { OS: 'android' },
   AccessibilityInfo: {
     isScreenReaderEnabled: system.query,

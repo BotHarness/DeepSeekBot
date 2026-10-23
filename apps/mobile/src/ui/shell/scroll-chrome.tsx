@@ -1,13 +1,5 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
-import { AccessibilityInfo, Platform } from 'react-native';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { AccessibilityInfo, Platform, View, type ViewInstance } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import {
   useAnimatedReaction,
@@ -22,6 +14,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { scrollChrome } from '../design/tokens';
+import { useMounted } from '../mounted';
 import { scrollChromeStep, type ScrollChromeState } from './scroll-chrome-model';
 
 type Chrome = {
@@ -41,7 +34,7 @@ function useLocalChrome(): Chrome {
 export function ScrollChromeProvider({ children }: { children: ReactNode }) {
   const chrome = useLocalChrome();
   const { screenReader } = chrome;
-  useEffect(() => {
+  const mount = useMounted<ViewInstance>(() => {
     if (Platform.OS !== 'android') return;
     let active = true;
     let changed = false;
@@ -59,7 +52,13 @@ export function ScrollChromeProvider({ children }: { children: ReactNode }) {
       listener.remove();
     };
   }, [screenReader]);
-  return <Context.Provider value={chrome}>{children}</Context.Provider>;
+  return (
+    <Context.Provider value={chrome}>
+      <View ref={mount} style={{ flex: 1 }}>
+        {children}
+      </View>
+    </Context.Provider>
+  );
 }
 
 export function useScrollChrome() {
