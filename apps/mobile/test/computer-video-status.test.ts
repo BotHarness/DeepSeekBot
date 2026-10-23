@@ -79,6 +79,9 @@ describe('Computer header facts', () => {
     expect(
       computerVideoStatus({ ...watching, status: 'controlling', host }, connected).control,
     ).toBe('human');
+    for (const code of ['media-not-live', 'control-required', 'queue-full']) {
+      expect(computerVideoStatus({ ...watching, host, code }, connected).control).toBe('unknown');
+    }
     const { grant: _grant, ...released } = host;
     expect(
       computerVideoStatus({ ...watching, host: { ...released, controller: false } }, connected)

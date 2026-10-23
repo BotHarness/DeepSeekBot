@@ -19,10 +19,12 @@ export function computerVideoStatus(state: LocalVideoClientState, connection: Co
         ? 'unknown'
         : state.status === 'controlling' && state.host.controller && state.host.grant
           ? 'human'
-          : state.host.controlHeld
-            ? 'other-human'
-            : state.host.paused
-              ? 'paused'
-              : 'bot',
+          : state.host.controller
+            ? 'unknown'
+            : state.host.controlHeld
+              ? 'other-human'
+              : state.host.paused
+                ? 'paused'
+                : 'bot',
   } as const;
 }
