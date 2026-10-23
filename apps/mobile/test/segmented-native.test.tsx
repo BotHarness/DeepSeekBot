@@ -11,19 +11,29 @@ vi.mock('react-native', async () => ({
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('@expo/ui/jetpack-compose', () => {
   const pass = ({ children }: { children?: ReactNode }) => children ?? null;
-  const SegmentedButton = ({
-    selected,
-    onClick,
+  const ToggleButton = ({
+    checked,
+    onCheckedChange,
     children,
   }: {
-    selected: boolean;
-    onClick(): void;
+    checked: boolean;
+    onCheckedChange(checked: boolean): void;
     children: ReactNode;
-  }) => createElement('button', { 'aria-pressed': String(selected), onClick }, children);
-  SegmentedButton.Label = pass;
-  return { Host: pass, SingleChoiceSegmentedButtonRow: pass, SegmentedButton, Text: pass };
+  }) =>
+    createElement(
+      'button',
+      { 'aria-pressed': String(checked), onClick: () => onCheckedChange(!checked) },
+      children,
+    );
+  return { Host: pass, Row: pass, ToggleButton, Text: pass };
 });
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxWidth: () => ({}) }));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  fillMaxWidth: () => ({}),
+  selectableGroup: () => ({}),
+  weight: () => ({}),
+  defaultMinSize: () => ({}),
+  testID: () => ({}),
+}));
 vi.mock('@expo/ui/swift-ui', () => ({
   Host: ({ children }: { children?: ReactNode }) => children ?? null,
   Picker: ({
@@ -65,6 +75,7 @@ afterEach(() => {
   host?.remove();
   vi.clearAllMocks();
   dimensions.width = 390;
+  dimensions.fontScale = 1;
 });
 
 const options = [
@@ -266,7 +277,7 @@ describe('native segmented control', () => {
     });
   }
 
-  it('uses Material 3 segmented buttons on Android and reports only a new choice', () => {
+  it('keeps one Android button selected and reports only a new choice', () => {
     const onChange = vi.fn();
     const view = render(
       createElement(AndroidSegmented, { label: 'Preview', options, value: 'light', onChange }),
@@ -277,6 +288,36 @@ describe('native segmented control', () => {
     expect(onChange).not.toHaveBeenCalled();
     act(() => buttons[1]!.click());
     expect(onChange).toHaveBeenCalledWith('dark');
+  });
+
+  it('shows readable radio choices at large Android text sizes', () => {
+    dimensions.fontScale = 3;
+    const onChange = vi.fn();
+    const view = render(
+      createElement(AndroidSegmented, {
+        label: 'Sort Bots',
+        options: [
+          { value: 'updated', label: 'Recently updated' },
+          { value: 'created', label: 'Recently added' },
+          { value: 'stars', label: 'Most popular' },
+        ],
+        value: 'updated',
+        onChange,
+      }),
+    );
+    const choices = [...view.querySelectorAll('[role="radio"]')];
+    expect(choices.map((choice) => choice.textContent)).toEqual([
+      'Recently updated',
+      'Recently added',
+      'Most popular',
+    ]);
+    expect(choices.map((choice) => choice.getAttribute('aria-checked'))).toEqual([
+      'true',
+      'false',
+      'false',
+    ]);
+    act(() => choices[2]!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith('stars');
   });
 
   it('uses a SwiftUI segmented picker on iOS with one tagged segment per option', () => {

@@ -1,10 +1,11 @@
+import { Host, Row, ToggleButton, Text as ComposeText } from '@expo/ui/jetpack-compose';
 import {
-  Host,
-  SegmentedButton,
-  SingleChoiceSegmentedButtonRow,
-  Text as ComposeText,
-} from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
+  defaultMinSize,
+  fillMaxWidth,
+  selectableGroup,
+  testID,
+  weight,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
 import { pressTint, useDesignTheme } from '../design/theme';
@@ -16,8 +17,7 @@ import { Text } from './text';
 import { useSelectionFeedback } from '../selection-feedback';
 
 const LABEL_SIZE = 14;
-const SEGMENT_PADDING = 24;
-const CHECK_WIDTH = 26;
+const BUTTON_PADDING = 32;
 
 function labelWidth(text: string, fontScale: number): number {
   let ems = 0;
@@ -27,7 +27,10 @@ function labelWidth(text: string, fontScale: number): number {
 
 export function segmentsFit(labels: readonly string[], width: number, fontScale: number): boolean {
   const widest = Math.max(0, ...labels.map((text) => labelWidth(text, fontScale)));
-  return labels.length * (widest + SEGMENT_PADDING) + CHECK_WIDTH <= width - space.x5 * 2;
+  return (
+    labels.length * (widest + BUTTON_PADDING) + Math.max(0, labels.length - 1) * space.x4 <=
+    width - space.x5 * 2
+  );
 }
 
 export function Segmented<T extends string>({
@@ -59,6 +62,7 @@ export function Segmented<T extends string>({
           return (
             <Pressable
               key={option.value}
+              testID={`button-group-${option.value}`}
               accessibilityRole="radio"
               accessibilityLabel={option.label}
               accessibilityState={{ checked: selected }}
@@ -91,32 +95,36 @@ export function Segmented<T extends string>({
         matchContents={{ vertical: true }}
         style={{ width: '100%' }}
       >
-        <SingleChoiceSegmentedButtonRow
-          key={options.map((option) => option.value).join('\n')}
-          modifiers={[fillMaxWidth()]}
+        <Row
+          horizontalArrangement={{ spacedBy: space.x4 }}
+          verticalAlignment="center"
+          modifiers={[fillMaxWidth(), selectableGroup()]}
         >
           {options.map((option) => (
-            <SegmentedButton
+            <ToggleButton
               key={option.value}
-              selected={option.value === value}
-              onClick={() => select(option.value)}
+              checked={option.value === value}
+              onCheckedChange={(checked) => {
+                if (checked) select(option.value);
+              }}
+              modifiers={[
+                weight(1),
+                defaultMinSize({ minHeight: theme.touch }),
+                testID(`button-group-${option.value}`),
+              ]}
               colors={{
-                activeContainerColor: layer.chosen,
-                activeContentColor: theme.color.fg,
-                activeBorderColor: theme.color.muted,
-                inactiveContainerColor: 'transparent',
-                inactiveContentColor: theme.color.fg,
-                inactiveBorderColor: theme.color.muted,
+                checkedContainerColor: layer.chosen,
+                checkedContentColor: theme.color.fg,
+                containerColor: layer.inset,
+                contentColor: theme.color.fg,
               }}
             >
-              <SegmentedButton.Label>
-                <ComposeText maxLines={1} softWrap={false}>
-                  {option.label}
-                </ComposeText>
-              </SegmentedButton.Label>
-            </SegmentedButton>
+              <ComposeText maxLines={1} softWrap={false}>
+                {option.label}
+              </ComposeText>
+            </ToggleButton>
           ))}
-        </SingleChoiceSegmentedButtonRow>
+        </Row>
       </Host>
     </View>
   );
