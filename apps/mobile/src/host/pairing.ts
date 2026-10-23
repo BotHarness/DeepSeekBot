@@ -18,7 +18,7 @@ export const DEVICE_PREFIX = '/botharness-device';
 
 export interface PairingPayload {
   enrollment?: { body: string; signature: string };
-  encryption?: { protocol: 'connect-noise-xk-v1'; publicKey: string };
+  encryption?: { protocol: 'connect-noise-xk-v1'; publicKey: string; loopback?: 'encrypted' };
   host: { id: string; name: string };
   offer: string;
   routes: string[];
@@ -76,7 +76,7 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
   }
   const host = record(value['host']);
   if (
-    value['v'] !== 1 ||
+    (value['v'] !== 1 && value['v'] !== 2) ||
     typeof host['id'] !== 'string' ||
     typeof host['name'] !== 'string' ||
     typeof value['offer'] !== 'string' ||
@@ -84,6 +84,19 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
     !Array.isArray(value['routes'])
   )
     return { ok: false, code: 'link-invalid' };
+  if (value['v'] === 2) {
+    const encryption = record(value['encryption']);
+    if (
+      encryption['loopback'] !== 'encrypted' ||
+      encryption['protocol'] !== 'connect-noise-xk-v1' ||
+      typeof encryption['publicKey'] !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(encryption['publicKey']) ||
+      value['routes'].length !== 1 ||
+      typeof value['routes'][0] !== 'string' ||
+      !/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/u.test(value['routes'][0])
+    )
+      return { ok: false, code: 'link-invalid' };
+  }
   if (Date.parse(value['expiresAt']) <= now) return { ok: false, code: 'link-expired' };
   const routes = value['routes'].flatMap((route) => {
     const checked = typeof route === 'string' ? checkRoute(route) : undefined;
@@ -103,6 +116,9 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
         ? {
             encryption: {
               protocol: 'connect-noise-xk-v1' as const,
+              ...(record(value['encryption'])['loopback'] === 'encrypted'
+                ? { loopback: 'encrypted' as const }
+                : {}),
               publicKey: String(record(value['encryption'])['publicKey']),
             },
           }
@@ -348,6 +364,7 @@ async function redeemEncrypted(options: {
     return { ok: false, code: 'host-key-confirmation-required' };
   if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
   const encryption: HostEncryption = {
+    ...(advertised.loopback === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
     protocol: advertised.protocol,
     hostKey: advertised.publicKey,
     deviceKey: keyHex(secureRandom(options.carrier)),

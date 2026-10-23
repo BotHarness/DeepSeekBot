@@ -1,4 +1,4 @@
-import { parseSavedHosts, type SavedHosts } from './hosts';
+import { parseSavedHosts, serializeSavedHost, type SavedHosts } from './hosts';
 
 export type { SavedHost, SavedHosts } from './hosts';
 
@@ -21,6 +21,7 @@ export async function saveHosts(state: SavedHosts): Promise<void> {
   const storage = store();
   if (!storage) throw new Error('storage-unavailable');
   if (state.hosts.length === 0) storage.removeItem(KEY);
-  else storage.setItem(KEY, JSON.stringify(state));
+  else
+    storage.setItem(KEY, JSON.stringify({ ...state, hosts: state.hosts.map(serializeSavedHost) }));
   storage.removeItem(SINGLE_KEY);
 }

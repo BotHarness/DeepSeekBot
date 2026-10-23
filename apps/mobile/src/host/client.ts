@@ -359,8 +359,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
-            computerAccess: bot.computerAccess === true && !isConnectRoute(route),
-            browserAccess: bot.browserAccess === true && !isEncryptedRoute(route),
+            computerAccess:
+              bot.computerAccess === true &&
+              (!isEncryptedRoute(route, options.encryption) || isLanRoute(route)),
+            browserAccess:
+              bot.browserAccess === true && !isEncryptedRoute(route, options.encryption),
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
@@ -380,7 +383,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
 
   const resource = (path: string): RemoteSource => {
-    if (checkRoute(route).ok && !isEncryptedRoute(route))
+    if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
       return { uri: absolute(path), headers: authorization };
     const origin = route;
     return {
@@ -403,7 +406,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
     if (!checkRoute(route).ok) return {};
-    if (!isEncryptedRoute(route))
+    if (!isEncryptedRoute(route, options.encryption))
       return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = route + path;
     const cached = avatars.get(key);
@@ -478,7 +481,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     withDeadline(async (signal) => {
       const name = method.includes('/') ? method : `botharness/${method}`;
       const refusal =
-        isEncryptedRoute(via) && options.encryption === undefined
+        isEncryptedRoute(via, options.encryption) && options.encryption === undefined
           ? secretRouteRefusal(name)
           : undefined;
       if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
@@ -557,7 +560,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           },
         };
       if (
-        isEncryptedRoute(route) &&
+        isEncryptedRoute(route, options.encryption) &&
         /^\/api\/(?:browser|computer)\//u.test(path) &&
         !(isLanRoute(route) && path === LOCAL_VIDEO_PATH)
       )
@@ -949,7 +952,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     upload,
     resource,
     secretInputAllowed: () =>
-      checkRoute(route).ok && (!isEncryptedRoute(route) || options.encryption !== undefined),
+      checkRoute(route).ok &&
+      (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);

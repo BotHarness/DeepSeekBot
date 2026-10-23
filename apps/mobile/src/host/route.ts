@@ -59,6 +59,15 @@ export function isLanRoute(route: string): boolean {
   }
 }
 
-export function isEncryptedRoute(route: string): boolean {
-  return isConnectRoute(route) || isLanRoute(route);
+export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encrypted' }): boolean {
+  if (isConnectRoute(route) || isLanRoute(route)) return true;
+  if (encryption?.loopback !== 'encrypted') return false;
+  try {
+    const hostname = new URL(route).hostname;
+    return (
+      hostname === 'localhost' || hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/u.test(hostname)
+    );
+  } catch {
+    return false;
+  }
 }

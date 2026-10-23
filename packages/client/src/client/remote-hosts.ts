@@ -10,7 +10,11 @@ import {
   createConversation,
   type Conversation,
 } from '../../../../apps/mobile/src/host/conversation.js';
-import { parseSavedHost, type SavedHost } from '../../../../apps/mobile/src/host/hosts.js';
+import {
+  parseSavedHost,
+  serializeSavedHost,
+  type SavedHost,
+} from '../../../../apps/mobile/src/host/hosts.js';
 import {
   createInbox,
   prepareNotificationBaseline,
@@ -268,7 +272,7 @@ export function createRemoteHosts(options: {
 
   const save = (): void => {
     try {
-      const hosts = [...clients.values()].map(({ host }) => host);
+      const hosts = [...clients.values()].map(({ host }) => serializeSavedHost(host));
       if (hosts.length === 0) storage?.removeItem(REMOTE_HOSTS_STORAGE_KEY);
       else storage?.setItem(REMOTE_HOSTS_STORAGE_KEY, JSON.stringify(hosts));
     } catch {}
@@ -367,7 +371,11 @@ export function createRemoteHosts(options: {
         if (!storage) throw new Error('storage-unavailable');
         storage.setItem(
           REMOTE_HOSTS_STORAGE_KEY,
-          JSON.stringify([...[...clients.values()].map(({ host }) => host), redeemed.host]),
+          JSON.stringify(
+            [...[...clients.values()].map(({ host }) => host), redeemed.host].map(
+              serializeSavedHost,
+            ),
+          ),
         );
       } catch {
         return { ok: false, code: 'storage-failure' };
