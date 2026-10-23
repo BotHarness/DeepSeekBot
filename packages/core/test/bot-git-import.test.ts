@@ -11,9 +11,10 @@ afterEach(async () => {
   for (const close of closes.splice(0).reverse()) await close();
   vi.unstubAllEnvs();
 });
-function fixture(home = createTempRoot('git-import-receipt-')) {
+function fixture(home = createTempRoot('git-import-receipt-'), warn?: (message: string) => void) {
   const core = createCore({
     dshHome: home,
+    ...(warn === undefined ? {} : { warn }),
     agents: {
       async runOrchestrator() {},
       async runAssignment() {},
@@ -31,7 +32,12 @@ function fixture(home = createTempRoot('git-import-receipt-')) {
     core.operationalDatabase.close();
   };
   closes.push(close);
-  return { core, home, close, bridge: createBridgeMethods(core) };
+  return {
+    core,
+    home,
+    close,
+    bridge: createBridgeMethods({ ...core, ...(warn === undefined ? {} : { warn }) }),
+  };
 }
 function repository() {
   const dir = createTempRoot('git-import-source-');
@@ -177,4 +183,82 @@ it('refuses invalid or unsupported keyed import before creating an identity', as
     error: { code: 'creation-unavailable' },
   });
   expect(f.core.registry.list()).toHaveLength(0);
+});
+
+it('writes bounded source inspection and import lifecycle diagnostics through the existing Host logger', async () => {
+  const source = repository();
+  const messages: string[] = [];
+  const f = fixture(undefined, (message) => messages.push(message));
+  const request = {
+    operationKey: 'private-operation-01',
+    displayName: 'Private Bot name',
+    gitUrl: source.url,
+    expectedCommit: source.commit,
+  };
+  expect((await f.bridge.botImportPreview({ gitUrl: source.url })).ok).toBe(true);
+  expect((await f.bridge.createFromGit(request)).ok).toBe(true);
+  expect(
+    (await f.bridge.createFromGit({ ...request, displayName: 'Changed private name' })).ok,
+  ).toBe(false);
+  expect(
+    (
+      await f.bridge.botImportPreview({
+        gitUrl: 'https://user:private-secret@example.com/repo.git',
+      })
+    ).ok,
+  ).toBe(false);
+  expect(messages).toEqual(
+    expect.arrayContaining([
+      expect.stringMatching(
+        /^bot-import-preview initiator=bot-import-preview phase=started command=git-ls-remote durationMs=0$/,
+      ),
+      expect.stringMatching(
+        /^bot-import-preview initiator=bot-import-preview phase=complete command=git-ls-remote durationMs=\d+$/,
+      ),
+      expect.stringMatching(
+        /^bot-import-preview initiator=bot-import-preview phase=refused command=git-ls-remote durationMs=\d+ reason=invalid-git-url$/,
+      ),
+      expect.stringMatching(
+        /^bot-import initiator=import-request phase=complete source=git durationMs=\d+$/,
+      ),
+      expect.stringMatching(
+        /^bot-import initiator=import-request phase=refused source=git durationMs=\d+ reason=creation-key-conflict$/,
+      ),
+    ]),
+  );
+  expect(messages.join(' ')).not.toMatch(
+    /fixture.example|private-operation|Private Bot|private-secret|Immutable source|Changed private/,
+  );
+  expect(messages.every((message) => message.length < 256)).toBe(true);
+});
+
+it('logs a bounded Git inspection fallback without disclosing remote addresses or subprocess output', async () => {
+  const source = repository();
+  const messages: string[] = [];
+  vi.stubEnv('GIT_CONFIG_COUNT', '3');
+  vi.stubEnv('GIT_CONFIG_KEY_1', `url.${source.dir.replaceAll('\\', '/')}/missing/.insteadOf`);
+  vi.stubEnv('GIT_CONFIG_VALUE_1', 'git@fallback.example:owner/repo.git');
+  vi.stubEnv('GIT_CONFIG_KEY_2', `url.${source.dir.replaceAll('\\', '/')}/.insteadOf`);
+  vi.stubEnv('GIT_CONFIG_VALUE_2', 'https://fallback.example/owner/repo.git');
+  const f = fixture(undefined, (message) => messages.push(message));
+  const result = await f.bridge.botImportPreview({ gitUrl: 'git@fallback.example:owner/repo.git' });
+  expect(result).toMatchObject({
+    ok: true,
+    value: {
+      source: {
+        commit: source.commit,
+        httpsFallback: { to: 'https://fallback.example/owner/repo.git' },
+      },
+    },
+  });
+  expect(messages).toEqual(
+    expect.arrayContaining([
+      expect.stringMatching(
+        /^bot-import-preview initiator=bot-import-preview phase=fallback command=git-ls-remote durationMs=\d+ reason=git-clone-failed$/,
+      ),
+    ]),
+  );
+  expect(messages.join(' ')).not.toMatch(
+    /fallback.example|missing|fatal:|SOUL.md|git-import-source/,
+  );
 });
