@@ -37,6 +37,7 @@ function pairedViewerHost(kind: 'browser' | 'computer') {
       }
       if (!path.includes(`/api/${kind}/`)) return host.carrier.request(url, init);
       if (host.revoked) return answer(401, { code: 'device-revoked' });
+      if (path.endsWith('/status')) return answer(200, { probe: { available: true } });
       if (path.endsWith('/takeover')) {
         const body = JSON.parse(String(init.body)) as { active: boolean };
         paused = body.active;

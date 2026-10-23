@@ -52,7 +52,9 @@ async function settled(client: HostClient, available: boolean) {
 }
 function paired(hostId: string, capability: () => boolean | undefined) {
   const host = new FakeHost();
-  const sample = wire.rpc.list.at(-1)!.body.result.value.bots[0]!;
+  const recordedList = wire.rpc.list.at(-1)!.body;
+  if (typeof recordedList === 'string') throw new Error('Expected recorded roster response');
+  const sample = recordedList.result.value.bots[0]!;
   host.methods.set('list', () => ({
     bots: [
       { ...sample, slug: 'tools-on', computerAccess: true },
