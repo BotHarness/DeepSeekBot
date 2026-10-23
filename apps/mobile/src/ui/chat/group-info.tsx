@@ -283,6 +283,7 @@ export function GroupInfoSheet({
       memberName(member),
       memberActions(member).map((action) => ({
         text: action.label,
+        icon: action.icon,
         onPress: action.run,
         ...(action.destructive === true ? { style: 'destructive' as const } : {}),
       })),
