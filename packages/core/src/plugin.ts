@@ -1747,7 +1747,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   registerChannelUserQuestions(ctx, userQuestions);
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
+  const deviceCallReleases = new Map<symbol, () => void>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
+  ctx.effect(
+    () => () => {
+      for (const release of deviceCallReleases.values()) release();
+      deviceCallReleases.clear();
+    },
+    'botharness: device approval execution leases',
+  );
   ctx.effect(() => () => toolApproval.close(), 'botharness: Channel tool approvals');
   registerChannelToolApproval(ctx, toolApproval);
   ctx.on(
@@ -1782,6 +1790,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             ownsTool?(name: string): boolean;
             needsAuthorization?(sessionId: string): boolean;
             authorizationScope?(): string;
+            approvalScope?(sessionId: string): string;
+            authorizeCall?(token: symbol, authorized: () => boolean): () => void;
             markAuthorized?(sessionId: string, scope?: string): boolean | void;
           }
         | undefined;
@@ -1798,8 +1808,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             reason: 'Computer Target changed while awaiting Human approval; request a new action.',
           };
         const authorizationScope = computerTools.authorizationScope?.();
+        if (!computerTools.approvalScope || !computerTools.authorizeCall)
+          return { kind: 'deny', reason: 'Computer approval Provider is unavailable' };
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackComputer = toolApproval.track(execution, 'web-only', false, 'computer');
+        const untrackComputer = toolApproval.track(
+          execution,
+          'operation',
+          false,
+          'computer',
+          undefined,
+          {
+            authorizationScope: () => computerTools.approvalScope!(agent.session.id),
+          },
+        );
         if (computerApproval === undefined || untrackComputer === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1821,7 +1842,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   : reviewerRejectionText(reviewed),
             };
           }
-          if (computerTools.markAuthorized?.(agent.session.id, authorizationScope) === false)
+          if (
+            !toolApproval.usesStandingRule(agent, execution.callId) &&
+            computerTools.markAuthorized?.(agent.session.id, authorizationScope) === false
+          )
             return {
               kind: 'deny',
               reason:
@@ -1830,6 +1854,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
             return { kind: 'deny', reason: 'Approval authority changed before execution' };
+          if (toolApproval.usesStandingRule(agent, execution.callId))
+            deviceCallReleases.set(
+              execution.token,
+              computerTools.authorizeCall(execution.token, () =>
+                guard(execution.name, execution.arguments),
+              ),
+            );
           approvedCalls.set(execution.token, guard);
           return await next();
         } catch {
@@ -1844,6 +1875,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             executionSignal?(sessionId: string): AbortSignal | undefined;
             needsAuthorization?(sessionId: string): boolean;
             authorizationScope?(sessionId?: string): string;
+            approvalScope?(sessionId: string): string;
+            authorizeCall?(token: symbol, authorized: () => boolean): () => void;
             markAuthorized?(sessionId: string, scope?: string): boolean | void;
           }
         | undefined;
@@ -1864,8 +1897,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               'Browser authority changed while awaiting Human approval; request a new action.',
           };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
+        if (!browserTools.approvalScope || !browserTools.authorizeCall)
+          return { kind: 'deny', reason: 'Browser approval Provider is unavailable' };
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackBrowser = toolApproval.track(execution, 'web-only', false, 'browser');
+        const untrackBrowser = toolApproval.track(
+          execution,
+          'operation',
+          false,
+          'browser',
+          undefined,
+          {
+            authorizationScope: () => browserTools.approvalScope!(agent.session.id),
+          },
+        );
         if (browserApproval === undefined || untrackBrowser === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1887,7 +1931,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   : reviewerRejectionText(reviewed),
             };
           }
-          if (browserTools.markAuthorized?.(agent.session.id, browserAuthorizationScope) === false)
+          if (
+            !toolApproval.usesStandingRule(agent, execution.callId) &&
+            browserTools.markAuthorized?.(agent.session.id, browserAuthorizationScope) === false
+          )
             return {
               kind: 'deny',
               reason:
@@ -1896,6 +1943,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
             return { kind: 'deny', reason: 'Approval authority changed before execution' };
+          if (toolApproval.usesStandingRule(agent, execution.callId))
+            deviceCallReleases.set(
+              execution.token,
+              browserTools.authorizeCall(execution.token, () =>
+                guard(execution.name, execution.arguments),
+              ),
+            );
           approvedCalls.set(execution.token, guard);
           return await next();
         } catch {
@@ -1954,7 +2008,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                           JSON.stringify(execution.arguments) ?? '',
                           templateInUse,
                         )
-                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. Only a Human can approve this; neither a saved rule nor the Approval Reviewer answers it.'
+                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
                       : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
@@ -2068,6 +2122,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'tools/result',
     (execution) => {
+      deviceCallReleases.get(execution.token)?.();
+      deviceCallReleases.delete(execution.token);
       approvedCalls.delete(execution.token);
       if (execution.agent !== undefined)
         core.runtime.settleAssignmentTool?.(execution.agent.session.id, execution.callId);

@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 更新下游审批指南与验收路径，说明管理与设备操作的显式持久授权；DSH/Cordis Context 与 Skill 行为不变（[#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)）。
+
 - 补充 Profile 路径及参数检查、macOS/Linux 独立后台准备进程追踪，并明确 Windows 与环境继承的验证边界 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
 
 - 补充安装与 Host 进程归属持久化、清理期间重复扫描及 Windows 独立 Home 并行的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).

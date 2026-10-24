@@ -301,6 +301,34 @@ describe('curated catalog and audit redaction', () => {
 });
 
 describe('per-PersonaBot registration, authorization, and tabs', () => {
+  it('keeps a standing approval on its exact execution and rechecks revocation', async () => {
+    const h = harness({ access: true });
+    h.created();
+    const tool = h.state.definitions.get('browser_open')!;
+    const call = Object.assign(execution('browser_open'), { token: Symbol('approved-call') });
+    let active = true;
+    const release = h.provider.authorizeCall(call.token, () => active);
+    try {
+      await expect(tool.execute({ url: 'https://example.com' }, call)).resolves.toBeDefined();
+      expect(h.provider.needsAuthorization('session-a')).toBe(true);
+      await expect(
+        h.state.definitions.get('browser_observe')!.execute({}, execution('browser_observe')),
+      ).rejects.toThrow('not authorized');
+      active = false;
+      await expect(tool.execute({ url: 'https://example.com' }, call)).rejects.toThrow(
+        'not authorized',
+      );
+      active = true;
+      release();
+      await expect(tool.execute({ url: 'https://example.com' }, call)).rejects.toThrow(
+        'not authorized',
+      );
+    } finally {
+      release();
+      await h.provider.dispose();
+    }
+  });
+
   it('Daily Browser exposes only observation and retains Session authorization and audit', async () => {
     const observe = vi.fn(async () => ({
       url: 'https://example.com/page',
