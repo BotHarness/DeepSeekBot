@@ -4044,6 +4044,15 @@ export const zh = {
   'devices.tailscale.title': '通过 Tailscale',
   'devices.tailscale.notice': '适合不在同一网络的手机和电脑，两端需接入同一 Tailscale 网络。',
   'devices.tailscale.ready': '电脑地址已发布，手机需保持 Tailscale 连接。',
+  'devices.tailscale.stopped':
+    'Tailscale 已断开或未登录。请先在手机和电脑上恢复连接，再展开设置检查端口。',
+  'devices.connection.stale': '暂时无法检查连接，请重试。',
+  'devices.connection.checked': '上次检查：{when}。',
+  'devices.connection.retry': '重试',
+  'devices.connection.unchecked': '连接状态待检查',
+  'devices.connect.recovery':
+    '请检查电脑网络。连接会自动重试；仍无法恢复时，请退出账号后重新登录。',
+  'devices.pair.routeChanged': '连接地址已变化，请重新生成二维码。',
   'devices.tailscale.setup': '查看连接步骤',
   'devices.tailscale.hide': '收起连接步骤',
   'devices.lan.title': '同一局域网',
@@ -8506,6 +8515,15 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.tailscale.notice':
     'For a phone and computer on different networks. Both must join the same Tailscale network.',
   'devices.tailscale.ready': 'Computer address published. Keep Tailscale connected on your phone.',
+  'devices.tailscale.stopped':
+    'Tailscale is disconnected or signed out. Reconnect it on both devices, then open setup to check the port.',
+  'devices.connection.stale': 'Cannot check the connection right now. Please retry.',
+  'devices.connection.checked': 'Last checked: {when}.',
+  'devices.connection.retry': 'Retry',
+  'devices.connection.unchecked': 'Connection needs checking',
+  'devices.connect.recovery':
+    'Check this computer’s network. The connection retries automatically. If it stays disconnected, sign out and sign in again.',
+  'devices.pair.routeChanged': 'The connection address changed. Generate a new code.',
   'devices.tailscale.setup': 'Show connection steps',
   'devices.tailscale.hide': 'Hide connection steps',
   'devices.lan.title': 'Same local network',

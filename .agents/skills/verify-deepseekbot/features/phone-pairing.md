@@ -1,5 +1,13 @@
 # Phone pairing and paired devices
 
+## Connection recovery (#2731)
+
+Run `pnpm exec vitest run packages/client/test/phone-route-recovery.test.tsx apps/mobile/test/phone-connection-recovery.test.ts apps/mobile/test/connection-banner.test.tsx` for deterministic route loss/restoration, foreground and periodic silent-loss probes, saved-route switching, revoke refusal, stale settings and QR retry/invalidation. These tests do not qualify OS VPN transitions.
+
+Run `node scripts/e2e-phone-recovery.mjs --name <n> --theme light` (and `--theme dark`) against a task-owned isolated Web Host. It temporarily enables only that Host's LAN access, uses a real pairing offer, injects browser-scoped status/offer failures and route removal, then restores LAN state. `--before --bundle <exact-base-client.js>` replaces only the matching served UI module for baseline captures. Evidence is cropped to exclude QR payloads and fingerprints. On Devices, also expand Tailscale and verify the Host's actual port. Cached devices remain on a failed status check, status becomes unknown and Pair a phone is disabled; Retry after restoring transport must clear the warning. A failed offer has Retry without a loading label. Route changes hide the old QR/link and offer regeneration. Keep screenshots, ARIA, console and canonical route/device reads; browser-injected failures do not qualify OS networking.
+
+In the designated native QA window, retain pairing and cached Host content while disconnecting/restoring Tailscale on each end, moving between Wi-Fi/cellular, and foregrounding after a silent loss. Retry must resume the same paired device; only an explicit revoke asks to pair again. Repeat Connect and encrypted LAN loss/restoration, both languages/themes and larger text; restore original OS networking. Keep Android, iOS and Human acceptance separate. Never alter another task's Serve mapping, phone data or shared Host.
+
 ## QR images and connection guidance (#2614)
 
 Use the existing pairing → fingerprint comparison → exact-device approval → visible Host content journey. Input method and network route are independent: selecting a QR image must not change the offer's authority or route policy.

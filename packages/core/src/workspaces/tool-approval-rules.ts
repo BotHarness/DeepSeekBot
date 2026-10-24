@@ -72,6 +72,7 @@ export interface ToolApprovalRuleStore {
   match(
     input: Pick<ToolApprovalRule, 'botSlug' | 'role' | 'scopeKey' | 'toolName' | 'input'> & {
       externalDecision?: 'operation' | 'web-only' | 'each-use';
+      explicitOnly?: boolean;
     },
   ): ToolApprovalRule | undefined;
   createPending(
@@ -136,6 +137,7 @@ export function createToolApprovalRuleStore(
       ) as unknown as RuleRow[];
       for (const row of rows) {
         const rule = record(row);
+        if (input.explicitOnly && rule.kind === 'all-opaque') continue;
         if (!authorized(rule)) {
           store.revoke(rule.botSlug, rule.id);
           continue;

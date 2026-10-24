@@ -18,7 +18,7 @@ export async function approveTobCliOperation(options: {
   const { execution, operation, signal, channelApproval, approval, authorize } = options;
   const actor = execution.agent;
   const command = 'command' in operation ? operation.command : 'settings-set';
-  const requireHumanReview = [
+  const requireExplicitApproval = [
     'release-install',
     'release-restart',
     'bot-delete-confirm',
@@ -34,7 +34,7 @@ export async function approveTobCliOperation(options: {
       : 'global';
   authorize();
   if (!actor || signal.aborted) throw new TobError('agent-context-expired');
-  if (!requireHumanReview && options.fullAccess())
+  if (!requireExplicitApproval && options.fullAccess())
     return () => {
       authorize();
       if (signal.aborted || !options.fullAccess()) throw new TobError('approval-authority-changed');
@@ -51,7 +51,7 @@ export async function approveTobCliOperation(options: {
     signal,
   };
   const untrack = channelApproval?.track(call, 'operation', false, undefined, undefined, {
-    requireHumanReview,
+    requireExplicitApproval,
   });
   if (!untrack || !approval || !channelApproval) {
     untrack?.();
@@ -74,7 +74,7 @@ export async function approveTobCliOperation(options: {
             ? 'approval-cancelled'
             : 'approval-unavailable',
       );
-    const guard = channelApproval.executionGuard(actor, call.callId);
+    const guard = channelApproval.approvedExecutionGuard(actor, call.callId);
     const check = () => {
       authorize();
       if (signal.aborted || !guard?.(call.name, call.arguments))

@@ -27,9 +27,9 @@ export function LanguageSetting({ on = 'sheet' }: { on?: LayerName }) {
       testID="settings-language"
       value={state.language}
       options={[
-        { value: 'system', label: t.system },
-        { value: 'zh', label: '简体中文' },
-        { value: 'en', label: 'English' },
+        { value: 'system', label: t.system, icon: 'system' },
+        { value: 'zh', label: '简体中文', icon: 'language' },
+        { value: 'en', label: 'English', icon: 'language' },
       ]}
       onChange={interfacePreferences.setLanguage}
     />
@@ -47,9 +47,9 @@ export function AppearanceSetting({ on = 'sheet' }: { on?: LayerName }) {
       testID="settings-appearance"
       value={state.appearance}
       options={[
-        { value: 'system', label: t.system },
-        { value: 'light', label: t.light },
-        { value: 'dark', label: t.dark },
+        { value: 'system', label: t.system, icon: 'system' },
+        { value: 'light', label: t.light, icon: 'light' },
+        { value: 'dark', label: t.dark, icon: 'dark' },
       ]}
       onChange={interfacePreferences.setAppearance}
     />

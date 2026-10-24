@@ -128,6 +128,35 @@ it('keeps the tried route and offers readable recovery instead of a raw network 
 });
 
 it.each([
+  { locale: 'zh-CN', route: 'https://studio.tailnet.ts.net', detail: 'Tailscale 已连接到同一网络' },
+  {
+    locale: 'en-US',
+    route: 'https://studio.tailnet.ts.net',
+    detail: 'Tailscale is connected on both devices',
+  },
+  {
+    locale: 'zh-CN',
+    route: 'https://studio.deepseekbot.dev',
+    detail: 'DeepSeekBot Connect 已登录且连接正常',
+  },
+  {
+    locale: 'en-US',
+    route: 'https://studio.deepseekbot.dev',
+    detail: 'DeepSeekBot Connect is signed in and connected',
+  },
+])('offers route-specific recovery for $route in $locale', async ({ locale, route, detail }) => {
+  const { view, retry, pairAgain } = await render(
+    { status: 'unreachable', route, attempt: 2, reason: 'network failed' },
+    locale,
+  );
+  expect(view.textContent).toContain(detail);
+  expect(view.textContent).toContain(locale === 'zh-CN' ? '设置 → 设备' : 'Settings → Devices');
+  await act(async () => view.querySelector('button')?.click());
+  expect(retry).toHaveBeenCalledOnce();
+  expect(pairAgain).not.toHaveBeenCalled();
+});
+
+it.each([
   {
     locale: 'zh-CN',
     check: '请把手机连到电脑所在的 Wi-Fi',

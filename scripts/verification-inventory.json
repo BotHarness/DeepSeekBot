@@ -820,9 +820,9 @@
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
       "behaviors": ["desktop.approval.three-actions"],
-      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and Full Access Human-only management.",
-      "task": 2080,
-      "sha256": "ae02a942c136a8b8875eb21e5cbc703931654c564bf1a1a0fbf0b891fb7f0d79"
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access.",
+      "task": 2730,
+      "sha256": "3607ad6451c22fe6bcc6979e5caca8cb2ce2e907afdaca70fe0a72f0edeb219e"
     },
     {
       "path": "scripts/e2e-workspace-request-write.mjs",
@@ -2294,6 +2294,14 @@
       "reason": "Installs verified local release archives through a loopback registry; checks global coexistence, independent removal, exit codes and npm exec on Windows and Linux; no live Host check.",
       "task": 2722,
       "sha256": "bd94e7543dd95c2ab9e84bf0598d0f24bb534e3157897fb884896dcf261afe87"
+    },
+    {
+      "path": "scripts/e2e-phone-recovery.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA.",
+      "task": 2731,
+      "sha256": "70e000a0d26b20f7658f88cad4cc3e33f01fb62afa201569ee8ca874c561171b"
     }
   ],
   "native": [

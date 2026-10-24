@@ -300,11 +300,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let everConnected = false;
   let attempt = 0;
   let generation = 0;
+  let connectionSequence = 0;
   let socket: HostSocket | undefined;
   let wake: (() => void) | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let reloading: Promise<void> | undefined;
   let reloadAgain = false;
+  let disconnectCurrent: ((reason: string) => void) | undefined;
   const followers = new Set<Follower>();
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
@@ -606,6 +608,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     if (error instanceof CredentialRefused && running) {
       running = false;
       generation += 1;
+      disconnectCurrent?.(error.message);
       socket?.close();
       publish({ status: 'refused', route, code: error.code, reason: error.message });
     }
@@ -768,7 +771,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const connectOnce = async (current: number): Promise<void> => {
+    const sequence = ++connectionSequence;
     await pickRoute();
+    if (!running || current !== generation) return;
     const baselines = { roster: false, activity: false };
     let resolveReady: () => void = () => {};
     let rejectReady: (error: Error) => void = () => {};
@@ -780,6 +785,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
     const closed = new Promise<string>((resolve) => {
       resolveClosed = resolve;
     });
+    const disconnect = (reason: string): void => {
+      interruptFollowers(reason);
+      socket?.close();
+      carrier.close?.();
+      resolveClosed(reason);
+    };
     let opened = false;
     streams = new Map();
     const endCore = (frame: MuxServerFrame): void => {
@@ -799,7 +810,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       socketOrigin(route) + DEVICE_PREFIX + REMOTE_STREAM_MUX_PATH,
       {
         open: () => {
-          if (current !== generation) return;
+          if (current !== generation || sequence !== connectionSequence) return;
           opened = true;
           const carrier = socket;
           liveSocket = {
@@ -829,7 +840,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           for (const follower of followers) openFollower(follower);
         },
         message: (text) => {
-          if (current !== generation) return;
+          if (current !== generation || sequence !== connectionSequence) return;
           let frame: MuxServerFrame;
           try {
             frame = JSON.parse(text) as MuxServerFrame;
@@ -845,7 +856,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
           }
         },
         closed: (reason) => {
-          if (current === generation) interruptFollowers(reason || 'The live connection closed.');
+          if (current === generation && sequence === connectionSequence)
+            interruptFollowers(reason || 'The live connection closed.');
           rejectReady(new Unreachable(reason || 'The live connection closed.'));
           resolveClosed(reason);
         },
@@ -869,8 +881,34 @@ export function createHostClient(options: HostClientOptions): HostClient {
     if (current !== generation) return;
     attempt = 0;
     everConnected = true;
+    disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
-    await closed;
+    const health = setInterval(() => {
+      void refreshConnected(() => call('list')).catch(() => undefined);
+    }, 20_000);
+    try {
+      await closed;
+    } finally {
+      clearInterval(health);
+      if (disconnectCurrent === disconnect) disconnectCurrent = undefined;
+    }
+  };
+
+  const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
+    const disconnect = disconnectCurrent;
+    try {
+      await read();
+    } catch (error) {
+      if (running && disconnect !== undefined && disconnect === disconnectCurrent) {
+        refusedBy(error);
+        if (running && error instanceof Unreachable) {
+          const reason = error instanceof Error ? error.message : 'The Host could not be reached.';
+          publish({ status: 'unreachable', route, attempt: Math.max(1, attempt), reason });
+          disconnect(reason);
+        }
+      }
+      throw error;
+    }
   };
 
   const loop = async (current: number): Promise<void> => {
@@ -923,6 +961,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     stop() {
       running = false;
+      disconnectCurrent?.('stopped');
       interruptFollowers('stopped');
       generation += 1;
       clearTimeout(retryTimer);
@@ -941,7 +980,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       if (!running) return;
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
-        void reload().then(
+        void refreshConnected().then(
           () => {
             if (running && snapshot.connection.status === 'connected')
               options.telemetry?.update('connected');
@@ -953,7 +992,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       wake?.();
     },
     async refresh() {
-      if (snapshot.connection.status === 'connected') await reload();
+      if (snapshot.connection.status === 'connected') await refreshConnected();
       else this.retryNow();
     },
     async call<T>(method: string, args: Record<string, unknown> = {}) {

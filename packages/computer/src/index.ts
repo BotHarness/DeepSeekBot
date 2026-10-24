@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import ComputerUseRegistry from './native-registry.js';
+import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readdir, rename, rm, stat } from 'node:fs/promises';
@@ -350,6 +351,15 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   let authorizationRevision = 0;
   const authorizationScope = (): string => `${target()}:${String(authorizationRevision)}`;
   const target = (): ComputerTarget => computerTarget(readLive(config.target));
+  const savedTargetScope = createDeviceApprovalScope(
+    join(resolveDshHome(), 'botharness', 'computer-approval-target.json'),
+    () =>
+      JSON.stringify(
+        target() === 'local'
+          ? ['local']
+          : ['container', config.containerName, config.volumeName, config.dataDir, config.image],
+      ),
+  );
   const migratedLocal = (): boolean =>
     (process.platform === 'win32' || process.platform === 'darwin') && target() === 'local';
   const runtime = createComputerTargetRuntime({
@@ -410,6 +420,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   ctx.on('loader/volatile-update', (paths) => {
     if (!paths.some((path) => path[0] === 'target')) return;
     authorizationRevision += 1;
+    savedTargetScope.invalidate();
     toolProvider.resetRuntime();
     void runtime
       .sync()
@@ -477,6 +488,9 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
   ctx.provide('botharnessComputerTools', {
     reconcileBot: (slug: string) => toolProvider.reconcileBot(slug),
     ownsTool: (name: string) => ownsComputerTool(name),
+    approvalScope: () => savedTargetScope.current(),
+    authorizeCall: (token: symbol, authorized: () => boolean) =>
+      toolProvider.authorizeCall(token, authorized),
     needsAuthorization: (sessionId: string) => toolProvider.needsAuthorization(sessionId),
     authorizationScope,
     markAuthorized: (sessionId: string, scope?: string) =>
