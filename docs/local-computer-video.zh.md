@@ -28,7 +28,7 @@ Host 在该观看端首次输入前关闭它独有的驱动虚拟光标，并等
 
 新观看端没有自动或手动图片回退。本机能力缺失、协商失败或媒体中断会显示拒绝与重试状态，不轮询 `/api/computer/frame`。迁移后的 Windows 本机 Computer 对旧帧、输入和接管入口返回 `update-required`。Bot 截图是独立能力，暂停期间同样拒绝。
 
-T1 使用直连 WebRTC，未配置 STUN/TURN。手机的信令和控制复用既有加密 LAN 通道、固定 Host 密钥和已批准的设备身份；只有服务端拥有的 LAN listener 才把准确的视频命令路径直接分派给 Computer owner。Hosted Connect 虽已具备加密 carrier，仍返回 `connect-carrier-required`；远程媒体验收属于后续切片。没有 WebView 或明文回退，也没有自配 TURN、音频、剪贴板、后台观看或解锁功能。
+T1 使用直连 WebRTC，未配置 STUN/TURN。手机的信令和控制复用既有加密 LAN 通道、固定 Host 密钥和已批准的设备身份；加密 carrier 内只有服务端拥有的 LAN listener 才分派视频命令。普通认证 HTTPS Device gateway 也可分派同一命令，包括 Tailscale HTTPS；两条准入路径共用 Computer owner。Hosted Connect 虽已具备加密 carrier，仍返回 `connect-carrier-required`；macOS/iOS 的 Tailscale 跨网观看、光标与交还已有具体构建验收，Windows/Android 跨网及其他验收仍待完成。没有 WebView 或明文回退，也没有自配 TURN、音频、剪贴板、后台观看或解锁功能。
 
 画面停滞时禁止输入，但「交还 Bot」、退出和「重新连接」仍可用。Computer 暂停或调用者保留 grant 时即可明确交还，与能否输入分开。重新连接先关闭旧 attempt，再恢复观看，不恢复控制权、不恢复 Bot、不重放输入。
 
@@ -58,7 +58,7 @@ Host 断线时，即使尚未创建观看端，Computer 也保留「重试」入
 
 明确启动本机电脑时安装 Electron 44.9.3 的 Apple silicon（130,639,665 字节）或 Intel（134,522,186 字节）运行时；观看不会安装软件。独立启动器拥有采集进程组，关闭、输入管道断开和 Host 退出均清理整组；未确认清理时禁止替换。保留签名应用与内部框架链接。
 
-在 macOS 系统设置中授予采集助手和现有电脑驱动屏幕录制权限，并为输入授予辅助功能权限。缺少采集权限返回 `screen-recording-required`，授权后重启本机电脑再试。iPhone 需允许本地网络访问；Tailscale HTTPS 与托管 Connect 不支持这条视频控制路径。
+在 macOS 系统设置中授予采集助手和现有电脑驱动屏幕录制权限，并为输入授予辅助功能权限。缺少采集权限返回 `screen-recording-required`，授权后重启本机电脑再试。使用 LAN 时，iPhone 需允许本地网络访问并连接相同 Wi-Fi。Tailscale HTTPS 也支持跨网络访问，参见[远控使用步骤](mobile-pairing.zh.md#通过-tailscale-远控电脑)。托管 Connect 当前拒绝桌面视频。
 
 Mac 视频使用物理像素，输入驱动使用逻辑点。Host 每次校验“逻辑尺寸 × 缩放比例 = 采集尺寸”，点击只除以比例一次；无效比例、尺寸改变或旧控制权均拒绝输入。观看不自动接管，失败不回退截图。
 
