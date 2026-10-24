@@ -97,6 +97,8 @@
       "expo-web-browser"
     ],
     "web": {
+      "name": "Tobs",
+      "shortName": "Tobs",
       "output": "single"
     },
     "experiments": {
