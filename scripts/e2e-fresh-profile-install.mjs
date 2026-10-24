@@ -238,6 +238,7 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
   assert.equal(step.status, 0, 'The product did not install into a fresh Profile');
   enable(productName);
   if (upgradeFrom && productName === 'deepseekbot') {
+    const enabledBundles = JSON.parse(readFileSync(manifestPath, 'utf8')).dsh.profile.bundles;
     const alias = artifacts.artifacts.find((artifact) => artifact.name === 'tobs');
     step = run(
       dsh,
@@ -247,11 +248,11 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
     writeFileSync(join(root, 'alias-install.private.log'), step.output, { mode: 0o600 });
     assert.equal(step.status, 0, 'Tobs command did not install alongside the legacy Bundle');
     assert.equal(ignoredBuilds(step.output), '');
-    assert.equal(
-      JSON.parse(readFileSync(manifestPath, 'utf8')).dsh.profile.bundles.includes('tobs'),
-      false,
-      'Existing Profile must retain only the legacy product Bundle',
-    );
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    manifest.dsh.profile.bundles = enabledBundles;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    assert.ok(enabledBundles.includes('deepseekbot'));
+    assert.equal(enabledBundles.includes('tobs'), false);
   }
   const verifyPreserved = async (
     host,

@@ -10,4 +10,6 @@ Both packages can be installed globally together: `tobs` owns only the `tobs` ex
 
 The Tobs DSH Bundle uses the same component versions, Patch and Loader identities as DeepSeekBot. Existing Profiles can keep their `deepseekbot` Bundle entry. Do not create a second Profile or copy user data for the rename.
 
+`dsh plugin add` enables newly installed Bundles. If you add Tobs to an existing Profile, keep exactly one product entry in that Profile's `dsh.profile.bundles`: retain `deepseekbot` to keep the old Bundle active, or replace it with `tobs` to switch. Preserve the Profile and its data; do not enable both product Bundles together.
+
 Website: https://tobs.app/en/

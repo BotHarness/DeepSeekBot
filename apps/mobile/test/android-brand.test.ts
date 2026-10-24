@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -53,3 +53,77 @@ it.each([
     }
   },
 );
+
+it('retains pairing and sharing routes when an alternate launcher disables MainActivity', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'tobs-android-entry-'));
+  const filename = join(root, 'app/src/main/AndroidManifest.xml');
+  mkdirSync(join(root, 'app/src/main'), { recursive: true });
+  const launcher = {
+    action: [{ $: { 'android:name': 'android.intent.action.MAIN' } }],
+    category: [{ $: { 'android:name': 'android.intent.category.LAUNCHER' } }],
+  };
+  const routes = ['VIEW', 'SEND', 'SEND_MULTIPLE'].map((action) => ({
+    action: [{ $: { 'android:name': `android.intent.action.${action}` } }],
+    category: [{ $: { 'android:name': 'android.intent.category.DEFAULT' } }],
+    data: [
+      {
+        $:
+          action === 'VIEW'
+            ? { 'android:scheme': 'deepseekbot-dev' }
+            : { 'android:mimeType': 'text/plain' },
+      },
+    ],
+  }));
+  try {
+    await AndroidConfig.Manifest.writeAndroidManifestAsync(filename, {
+      manifest: {
+        $: {
+          'xmlns:android': 'http://schemas.android.com/apk/res/android',
+          package: 'ai.botharness.deepseekbot.dev',
+        },
+        application: [
+          {
+            $: { 'android:name': '.MainApplication' },
+            activity: [
+              {
+                $: { 'android:name': '.MainActivity', 'android:exported': 'true' },
+                'intent-filter': [launcher, ...routes],
+              },
+            ],
+            'activity-alias': [
+              {
+                $: {
+                  'android:name': '.MainActivityDeepSeekBotSimple',
+                  'android:targetActivity': '.MainActivity',
+                  'android:enabled': 'false',
+                  'android:exported': 'true',
+                },
+                'intent-filter': [launcher],
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const config = brand({ name: 'Tobs', slug: 'deepseekbot' });
+    const run = () =>
+      config.mods.android.finalized({
+        ...config,
+        modRequest: { platformProjectRoot: root, projectRoot: root },
+      });
+    await run();
+    const first = readFileSync(filename, 'utf8');
+    await run();
+    expect(readFileSync(filename, 'utf8')).toBe(first);
+    const application = AndroidConfig.Manifest.getMainApplicationOrThrow(
+      await AndroidConfig.Manifest.readAndroidManifestAsync(filename),
+    );
+    const alias = application['activity-alias'][0];
+    expect(alias['intent-filter']).toEqual([launcher, ...routes]);
+    expect(alias.$['android:name']).toBe('.MainActivityDeepSeekBotSimple');
+    expect(alias.$['android:enabled']).toBe('false');
+    expect(application.activity[0]['intent-filter']).toEqual([launcher, ...routes]);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
