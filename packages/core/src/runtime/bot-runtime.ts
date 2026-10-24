@@ -493,6 +493,7 @@ export const MAX_CREATED_BOT_TAG_LENGTH = 32;
 export const MAX_CREATED_BOT_BIO_LENGTH = 160;
 
 export interface OrchestratorChannelAccess {
+  replySource?(sourceEventId: string): { channelId: string; messageId: string };
   list(input?: ChannelListInput): ChannelListPage;
   read(input?: { channelId?: string; before?: string; limit?: number }): ChannelMessageView[];
 
@@ -567,6 +568,7 @@ export interface OrchestratorChannelAccess {
     yieldToMessageIds?: string[];
   }): import('../channels/send-review.js').SendReviewOutcome;
   send(input: {
+    replySourceEventId?: string;
     observationId?: string;
     draftId?: string;
     freshnessOverride?: import('../channels/send-review.js').FreshnessOverride;
@@ -3413,7 +3415,8 @@ class BotRuntimeImplementation implements BotRuntime {
     turn.askNoticed = true;
     const where =
       channel.type === 'group' ? `Group ${JSON.stringify(channel.name)}` : 'your Human DM';
-    return `Not shown to the Human yet. First tell them what is going on, as a colleague would: send one short channel_send to ${where} (channel_id ${JSON.stringify(channelId)}) saying in a sentence or two what you are about to do and what you need from them. Then call ${toolName} again with the same arguments and the request will be shown. This is asked once per turn.`;
+    const sendTool = channel.type === 'group' ? 'channel_send' : 'bot_send_message';
+    return `Not shown to the Human yet. First tell them what is going on, as a colleague would: send one short ${sendTool} to ${where} (channel_id ${JSON.stringify(channelId)}) saying in a sentence or two what you are about to do and what you need from them. Then call ${toolName} again with the same arguments and the request will be shown. This is asked once per turn.`;
   }
 
   canRequestPrivateInput(sessionId: string, selected?: string): boolean {
@@ -5485,7 +5488,28 @@ class BotRuntimeImplementation implements BotRuntime {
             }),
       };
     };
+    const replySource = (id: string) => {
+      const source = this.#database.read((db) => {
+        requireSourceEffects(db, id, botSlug);
+        return db
+          .prepare(`SELECT e.channel_id, e.message_id FROM source_events e
+            JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+            WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind = 'human-message'`)
+          .get(id, botSlug);
+      });
+      if (typeof source?.channel_id !== 'string' || typeof source.message_id !== 'string')
+        throw new Error('Trusted local Human reply source is unavailable');
+      const channel = resolve(source.channel_id);
+      if (
+        channel.type !== 'dm' ||
+        channel.botSlug !== botSlug ||
+        !this.#channels.hasMessage(channel.id, source.message_id)
+      )
+        throw new Error('Trusted local Human reply source is unavailable');
+      return { channelId: channel.id, messageId: source.message_id };
+    };
     return {
+      replySource,
       list: (input = {}) => {
         if (input.type !== undefined && input.type !== 'group' && input.type !== 'dm') {
           throw new Error('channel_list: type must be group or dm');
@@ -6132,6 +6156,11 @@ class BotRuntimeImplementation implements BotRuntime {
         return result;
       },
       send: async (input) => {
+        if (input.replySourceEventId !== undefined) {
+          const reply = replySource(input.replySourceEventId);
+          if (input.channelId !== reply.channelId || input.replyTo !== reply.messageId)
+            throw new Error('Reply destination does not match the trusted source');
+        }
         requireReplySource();
         const steered = this.#turnSources.get(botSlug);
         const turnChannelIds =
@@ -6287,7 +6316,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }
         beforeSend();
         const message: ChannelMessage = {
-          id: this.#createMessageId(),
+          id: this.#deliveryMessageId(sessionId, input.deliveryKey),
           at: this.#now().toISOString(),
           author: { kind: 'bot', slug: botSlug },
           body,
@@ -6295,13 +6324,15 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
           ...this.#perf(sessionId, body),
         };
-        const appended = await this.#channels.appendMessage(channel.id, message, {
+        const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {
           sessionId,
-          sourceEventId,
+          sourceEventId: input.replySourceEventId ?? sourceEventId,
         });
-        if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
+        if (result.status === 'missing') throw new Error(`Channel disappeared: ${channel.id}`);
+        if (result.status === 'conflict')
+          throw new Error('Human DM delivery key has different content');
         if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
-        return appended;
+        return result.message;
       },
     };
   }

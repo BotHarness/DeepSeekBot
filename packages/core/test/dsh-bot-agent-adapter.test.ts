@@ -1877,6 +1877,7 @@ describe('DSH Bot Agent adapter', () => {
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
     expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
+      'bot_send_message',
       'memory_switch_branch',
       'memory_continue_from_commit',
       'list_assignment_models',
@@ -1937,11 +1938,11 @@ describe('DSH Bot Agent adapter', () => {
     expect(rolePrompt.indexOf('## Reply delivery contract')).toBeLessThan(
       rolePrompt.indexOf('Use three complementary sources'),
     );
-    expect(rolePrompt).toContain('Reading content or images does not send an answer');
-    expect(rolePrompt).toContain('Never imitate an earlier assistant-only answer');
-    expect(rolePrompt).toContain('If the Human explicitly asks for no reply');
-    expect(rolePrompt).toContain('External IM uses bridge_reply or bridge_reply_file');
-    expect(rolePrompt).toContain('retry an uncertain send blindly');
+    expect(rolePrompt).toContain('Your assistant text is private Session output');
+    expect(rolePrompt).toContain('Do not acknowledge every request');
+    expect(rolePrompt).toContain('Respect requests for silence');
+    expect(rolePrompt).toContain('external IM uses its bridge tools');
+    expect(rolePrompt).toContain('do not retry uncertain sends blindly');
     expect(rolePrompt).toContain('call ask_secret at once');
     expect(rolePrompt).toContain('never ask them to paste a secret into a Channel');
     expect(rolePrompt.replace(/\{\{(?:provider|model|cwd)\}\}/g, '')).not.toContain('{{');
@@ -1950,7 +1951,9 @@ describe('DSH Bot Agent adapter', () => {
     const deliveryPrompt = host.scopes
       .get('orchestrator-ada')
       ?.sections.find((section) => section.name === 'botharness:reply-delivery')?.text;
-    expect(deliveryPrompt).toContain('MUST deliver any intended Human-facing answer');
+    expect(deliveryPrompt).toContain(
+      'Deliver intended local Human DM text through bot_send_message',
+    );
     expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
     expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
     const received = host.received.get('orchestrator-ada')?.[0]?.content;
