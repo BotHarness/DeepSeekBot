@@ -1,5 +1,7 @@
 # 安装 DeepSeekBot
 
+rc.3 开发适配单独记录在[升级说明](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/dsh-rc3-upgrade.md)中；这不代表本页所列稳定包已重新通过资格验证。
+
 在 DeepSeek Harness（DSH）中安装 **DeepSeekBot** 插件，启用后创建第一个 PersonaBot。只需安装一个产品包，Core、Client、Browser、Computer 和已验证的 IM Provider 会随包一起安装。
 
 本页安装公共 npm 正式包 **`deepseekbot@1.4.1`**。推荐 **DSH `0.2.1-rc.2`**；同一组发布包已在 **0.2.0-rc.2 与 0.2.1-rc.2** 验证安装、Host 启动、Bot／DM 创建和重启持久化。声明安装范围为 `>=0.2.0-rc.2 <0.3.0-0`，不代表所有版本均已运行验证。下方 DSH 0.2.0-rc.1 截图属于历史界面记录；请按当前文字步骤操作。升级前备份 Profile，回退旧版可能需要恢复升级前备份。

@@ -23,6 +23,6 @@ Preconditions: `launch` reported a model credential, `doctor` passes, and the de
 ## Gotchas
 
 - The bottom-right Window Companion covers the `Send` button at 1440×900, so `--click Send` lands on the companion. Press Enter instead.
-- `--wait-text` ignores the composer value but matches the sent Human message. A reply word that also appears in the prompt passes before the Bot answers.
+- `--wait-text` ignores the composer value but matches the sent Human message, sidebar previews and error details. A reply word in the prompt passes before the Bot answers; `42` also matches a `429` quota failure. Use a distinctive computed answer, inspect the actual conversation screenshot and require a canonical Bot-authored reply without `sessionFailure`.
 - On a keyless Host the message sends and the session fails. That is a missing precondition, not a product failure.
 - `--click-text "DeepSeek Bot"` matches the conversation header chip last and opens the conversation menu (View profile goes directly to the full profile). The DM is already selected on first entry.

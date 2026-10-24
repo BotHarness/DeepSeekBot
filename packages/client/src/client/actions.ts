@@ -138,6 +138,7 @@ import {
   createRosterSection,
   errorMessage,
   loadWorkspaceOptions,
+  loadHostFolders,
   loadWorkspaceGrants,
   loadToolApprovalRules,
   loadApprovalTemplates,
@@ -335,6 +336,7 @@ export interface HostDirectoryListing {
   crumbs: { name: string; path: string; hidden: boolean }[];
   entries: { name: string; path: string; hidden: boolean }[];
   truncated: boolean;
+  roots?: { name: string; path: string; hidden: boolean }[];
 }
 
 export interface BridgeActions {
@@ -959,7 +961,6 @@ export function createActions(
   clientStore: ClientStore,
   folderAccess?: {
     pickDirectory(): Promise<string | null>;
-    listDirectory?(path?: string, signal?: AbortSignal): Promise<HostDirectoryListing>;
     createWorkspace(input: { path: string }): Promise<{ workspaceId: string }>;
     openSession?(sessionId: string): void;
     nativeFiles?: NativeHostFiles;
@@ -1620,11 +1621,7 @@ export function createActions(
       setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
     setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
       setModelPlan(call, slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels),
-    listHostFolders(path, signal) {
-      if (folderAccess?.listDirectory === undefined)
-        throw new Error('DSH folder browser is unavailable');
-      return folderAccess.listDirectory(path, signal);
-    },
+    listHostFolders: (path, signal) => loadHostFolders(call, path, signal),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
       const path = await folderAccess.pickDirectory();

@@ -70,6 +70,18 @@ function artifactSet(version = '0.0.0-test.823') {
 }
 
 describe('packaged product selection', () => {
+  it.each(['0.2.0-rc.2', '0.2.1-rc.2', '0.2.1-rc.99'])(
+    'retains build provenance %s without requiring the current SDK pin',
+    (dsh) => {
+      const { root } = artifactSet();
+      const path = join(root, 'artifacts.json');
+      const manifest = JSON.parse(readFileSync(path, 'utf8'));
+      writeFileSync(path, JSON.stringify({ ...manifest, dsh }));
+      expect(verifiedProductArtifacts(root).dsh).toBe(dsh);
+      writeFileSync(path, JSON.stringify({ ...manifest, dsh: 'latest' }));
+      expect(() => verifiedProductArtifacts(root)).toThrow('qualified package set');
+    },
+  );
   it('installs one product Bundle from verified artifacts without a developer Provider or workspace links', () => {
     const { root } = artifactSet();
     const saved = {
@@ -327,7 +339,7 @@ describe('release composition', () => {
       '@botharness/computer': '0.0.0-test.823',
       '@botharness/core': '0.0.0-test.823',
       '@botharness/ui': '0.0.0-test.823',
-      '@botharness/im-provider': '4.32.0-botharness.21',
+      '@botharness/im-provider': '4.32.0-botharness.22',
     });
     expect(release.optionalDependencies).toEqual(
       Object.fromEntries(cloudflaredPackageNames.map((name) => [name, '0.0.0-test.823'])),

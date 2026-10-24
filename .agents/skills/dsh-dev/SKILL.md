@@ -23,7 +23,7 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
-Use the worktree's local `@deepseek-ai/dsh@0.2.1-rc.2`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
+The reproducible build baseline is `@deepseek-ai/dsh@0.2.1-rc.3`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
 corepack pnpm build
@@ -40,6 +40,18 @@ Before launch and before finishing or handing off a run, follow
 outlives the launcher: record its ownership, then verify process exit and port release before
 removing its Profile or worktree. Keep a running environment only under the documented handoff
 or shared QA lease.
+
+
+The launcher holds a Home-wide preparation lock and records the running Host before verification. A live owner prevents dependency/Profile changes, even on another port or Profile. After a launcher exits, its recorded lock can be recovered; a lock without ownership evidence is preserved for manual inspection. On Windows, an unrecorded legacy DSH process whose Home cannot be determined blocks preparation until it is stopped. Startup verification failures terminate the owned Host and observed descendants, wait for exit, and preserve the Profile/log; an incomplete shutdown retains ownership for recovery. Go adapters containing the exact reviewed native fix skip the local patch; unknown or ambiguous request shapes remain refusals.
+
+
+Preparation commands now wait for an IPC start signal after their independent process-group ownership has been persisted. This covers installs, builds and configuration exports. Reusing a Home checks recorded groups even after the launcher or successfully handed-off Host exits. Failure cleanup stops the parent and repeatedly rescans descendants until release or a bounded refusal. Windows permits CLI paths explicitly belonging to another managed Home; ambiguous legacy CLI ownership remains a refusal.
+
+Profile names accept only letters, digits, underscores and hyphens; missing option values and invalid ports refuse before preparation. The profiles directory, selected Profile, manifest, workspace settings and model patch must not be symbolic links.
+
+On macOS/Linux, each preparation command also inherits a unique ownership marker, persisted before its IPC start signal. Process scans use this marker to find descendants that create a new session and outlive their parents; preparation refuses and stops such leftovers, and interrupted runs block Home reuse until they exit. Environment output is never logged. This is cooperative lifecycle tracking, not OS containment: commands that deliberately clear the marker must manage and register their own resources. Windows retains parent-chain tracking; independently reparented Windows daemons are not qualified by the POSIX regression and require separate resource ownership.
+
+Restart only after both the Host process and its HTTP listener have stopped. A closed port alone does not prove shutdown. On Linux, an exited zombie may still answer a PID existence probe; lifecycle checks use its process state and still check live descendants.
 
 ## DSH 0.2.1 migration contracts
 
@@ -442,3 +454,18 @@ The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cro
 ### PersonaBot native question answerer precedence (#2590)
 
 The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis waterfall. A prior native Client answerer can wait without calling `next`, preventing a later application-defined Channel answerer from seeing the request. Register the existing Channel question owner with `prepend: true`, as Channel approvals already do. Retain its exact live-Agent and Session Ownership checks; unowned requests must still call `next`. A real two-Host browser must show the card in both the owning conversation and remote Activity, accept an answer and resume the same native tool call. A pending tool trace alone does not prove a Channel card was created.
+
+### DSH 0.2.1-rc.3 upgrade
+
+The development CLI and SDK pin is rc.3. Preserve the independently pinned rc.2
+`dsh-client-ui-theme` build input for reproducibility. The copied Desktop zoom adapter
+now checks protocol and content integrity instead of rejecting another rc label. Ordinary
+Hosts supply their own native theme unless the optional override is explicitly installed.
+Native Desktop qualification remains separate. Keep Provider build provenance unchanged.
+The rc.3 file-tool and Go Session patches retain the reviewed rc.2 implementation.
+
+### Forward-compatible launch admission (#2713)
+
+Build pins and historical qualification versions are evidence, not runtime allowlists. `--dsh-version <version>` selects an isolated CLI without editing workspace dependencies; otherwise use the installed CLI. Native Host metadata owns the API floor (`>=0.2.0-0`, prereleases included), and Host-provided DSH modules have no npm peer ranges that exclude future prerelease tuples. The Go runtime first installs the selected native adapter, locates the unique matching request shape, and stages the reviewed patch at its actual line number; changed or ambiguous code is refused with a concrete diagnostic. This avoids pnpm patch failures caused only by line-number drift between rc versions; catalog and authenticated API checks still fail on real incompatibility. The optional zoom adapter checks its protocol, platform and transformed bytes rather than a Desktop version label. Stop a task-owned Host before switching its Profile runtime; never mutate another task’s Profile. Forward admission is not proof of future runtime behavior.
+
+The verification wrapper also accepts `verify-app launch --dsh-version <version>`. Its doctor reads the recorded launched runtime and compares it with the recorded launch version, not the workspace SDK; older instance records without a runtime path must be relaunched before claiming version verification. Packaged artifact `dsh` records build provenance and does not need to equal the current SDK. Stage Go patches using the actual installed adapter package version, which can differ from the CLI version. Optional IM launch metadata is prepared before starting the detached Host.

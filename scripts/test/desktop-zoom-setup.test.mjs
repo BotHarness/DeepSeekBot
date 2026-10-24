@@ -45,6 +45,7 @@ function fixture(profile = 'qa', entry = 'deepseekbot') {
     join(root, 'desktop-theme/botharness-zoom-compat.json'),
     JSON.stringify({
       sourceVersion: '0.2.1-rc.2',
+      adapterVersion: 1,
       platforms: ['macos', 'windows'],
       clientAfter: createHash('sha256').update('qualified').digest('hex'),
     }),
@@ -110,7 +111,7 @@ it('uses the native package manager to enable and remove only its own Profile al
     restartRequired: true,
     runtimeVerified: false,
   });
-  expect(f.run.mock.calls[1][1]).toEqual([
+  expect(f.run.mock.calls[0][1]).toEqual([
     'plugin',
     '--profile',
     'qa',
@@ -191,8 +192,10 @@ it('shares the native profile writer lock and releases it after refusals', () =>
   expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('profile-busy');
   expect(readFileSync(lock, 'utf8')).toBe('other writer');
   rmSync(lock);
-  f.run.mockImplementationOnce(() => '0.2.2');
-  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('version-unsupported');
+  f.run.mockImplementationOnce(() => {
+    throw Error('inspection-failed');
+  });
+  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('inspection-failed');
   expect(() => readFileSync(lock)).toThrow();
 });
 it.each(['win32', 'linux'])('refuses enabling on %s before any package operation', (platform) => {
@@ -202,11 +205,10 @@ it.each(['win32', 'linux'])('refuses enabling on %s before any package operation
   );
   expect(f.run).not.toHaveBeenCalled();
 });
-it('refuses unknown Host releases and other owners instead of replacing them', () => {
+it('does not query a CLI version and refuses replacing another theme owner', () => {
   const f = fixture();
-  f.run.mockImplementationOnce(() => '0.2.0-rc.2');
-  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('version-unsupported');
-  expect(f.run).toHaveBeenCalledTimes(1);
+  expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(true);
+  expect(f.run.mock.calls.some(([, args]) => args.includes('--version'))).toBe(false);
   const manifest = JSON.parse(readFileSync(f.path));
   manifest.dependencies['@deepseek-ai/dsh-client-ui-theme'] = 'file:other.tgz';
   writeFileSync(f.path, JSON.stringify(manifest));
@@ -226,12 +228,11 @@ it('refuses stale grouped product composition and changed client bytes', () => {
 });
 it('reports uncertain package outcome without retrying or claiming runtime success', () => {
   const f = fixture();
-  f.run.mockImplementationOnce(() => '0.2.1-rc.2');
   f.run.mockImplementationOnce(() => {
     throw Error('interrupted');
   });
   expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('outcome-unconfirmed');
-  expect(f.run).toHaveBeenCalledTimes(2);
+  expect(f.run).toHaveBeenCalledTimes(1);
 });
 it('requires an explicit target and refuses unknown or repeated flags', () => {
   expect(() => runDesktopZoomSetup(['enable'])).toThrow('explicit-profile-required');
@@ -304,9 +305,9 @@ it('preserves a foreign writer that replaced the lock during a Windows transacti
   f.run.mockImplementationOnce(() => {
     rmSync(lock);
     writeFileSync(lock, 'other writer');
-    return '0.2.2';
+    throw Error('inspection-failed');
   });
-  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('version-unsupported');
+  expect(() => configureDesktopZoom({ ...f, action: 'enable' })).toThrow('inspection-failed');
   expect(readFileSync(lock, 'utf8')).toBe('other writer');
 });
 

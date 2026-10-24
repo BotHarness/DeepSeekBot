@@ -335,10 +335,11 @@
       "description": "Workspace access and grant controls.",
       "scope": "Host",
       "surfaces": [
+        "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('grant.browseLocation')}",
         "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('access.scopeTitle')}",
         "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('access.title')}"
       ],
-      "commands": ["grants", "grant-create", "grant-revoke"]
+      "commands": ["folder-browse", "grants", "grant-create", "grant-revoke"]
     },
     {
       "id": "im-apps",

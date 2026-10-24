@@ -272,11 +272,6 @@ export function apply(ctx: ClientContext): void {
       if (picker === undefined) throw new Error('DSH folder picker is unavailable');
       return picker.pickDirectory();
     },
-    listDirectory: (path, signal) => {
-      const picker = ctx.get('uiWorkspace');
-      if (picker === undefined) throw new Error('DSH folder browser is unavailable');
-      return picker.listDirectory(path, signal);
-    },
     createWorkspace: (input) => {
       const workspaces = ctx.get('workspaces');
       if (workspaces === undefined) throw new Error('DSH Workspace controller is unavailable');

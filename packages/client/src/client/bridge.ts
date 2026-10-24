@@ -3737,6 +3737,43 @@ function parseWorkspaceGrant(value: unknown): WorkspaceGrantView | undefined {
   };
 }
 
+export async function loadHostFolders(
+  call: BridgeCall,
+  path?: string,
+  signal?: AbortSignal,
+): Promise<import('../../../core/src/workspaces/folder-browse.js').FolderListing> {
+  const value = asRecord(
+    await unwrap(call, 'folderBrowse', path === undefined ? {} : { path }, signal),
+  );
+  const folders = (items: unknown): { name: string; path: string; hidden: boolean }[] => {
+    if (!Array.isArray(items)) throw new Error('Invalid Host folder list');
+    return items.map((item) => {
+      const row = asRecord(item);
+      if (
+        typeof row?.['name'] !== 'string' ||
+        typeof row['path'] !== 'string' ||
+        typeof row['hidden'] !== 'boolean'
+      )
+        throw new Error('Invalid Host folder entry');
+      return { name: row['name'], path: row['path'], hidden: row['hidden'] };
+    });
+  };
+  if (
+    typeof value?.['path'] !== 'string' ||
+    typeof value['home'] !== 'string' ||
+    typeof value['truncated'] !== 'boolean'
+  )
+    throw new Error('Invalid Host folder listing');
+  return {
+    path: value['path'],
+    home: value['home'],
+    truncated: value['truncated'],
+    crumbs: folders(value['crumbs']),
+    entries: folders(value['entries']),
+    roots: folders(value['roots']),
+  };
+}
+
 export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceOption[]> {
   const rows = asRecord(await unwrap(call, 'workspaceOptions', {}))?.['workspaces'];
   if (!Array.isArray(rows)) throw new Error('invalid workspaceOptions response');

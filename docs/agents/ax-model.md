@@ -55,7 +55,7 @@ this header; the first real QA turn failed with HTTP 400 `MissingSessionID`.
 
 For an opted-in AX launch, the helper installs an independent pinned CLI under the isolated
 home's `ax-cli` directory (or `packaged-cli` for product-artifact qualification). It applies the
-reviewed `dsh-llm-pi-ai` pnpm patch (re-keyed to `0.2.1-rc.2`): only the Go route adds the actual
+reviewed `dsh-llm-pi-ai` pnpm patch (re-keyed to `0.2.1-rc.3`): only the Go route adds the actual
 `GenerateOptions.sessionId`, removes case-insensitive collisions with a configured static
 header, and retains native `User-Agent` attribution and other headers. Missing Session identity
 stays missing; no fixed, random or substitute identity is supplied. Other Providers keep their
@@ -67,7 +67,7 @@ under the runtime directory and fails with `ERR_PNPM_PATCH_NOT_FOUND`, especiall
 worktree and isolated home are on different drives. Each launch refreshes the staged bytes from
 the worktree; other workspace settings and patch entries are preserved.
 
-The repository default is DSH `0.2.1-rc.2`; its installed adapter still omits the header.
+The repository default is DSH `0.2.1-rc.3`; its installed adapter still omits the header.
 Runtime qualification of this pin remains required. Historical RC2 evidence: the DSH
 `0.2.0-rc.2` adapter omitted the header, the patch applied unchanged, and the adapter regression
 (`scripts/test/dev-go-session.test.mjs`) passed against the patched RC2 package. On 2026-10-13 a
