@@ -31,7 +31,10 @@ function existingHost(home) {
         ],
         { encoding: 'utf8' },
       )
-    : spawnSync('ps', ['axeww', '-o', 'pid=,command='], { encoding: 'utf8' });
+    : spawnSync('ps', ['axeww', '-o', 'pid=,command='], {
+        encoding: 'utf8',
+        maxBuffer: 32 * 1024 * 1024,
+      });
   if (result.error || result.status !== 0)
     throw new Error('Cannot verify development Home process ownership');
   const entries = windows

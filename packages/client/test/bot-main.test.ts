@@ -1491,3 +1491,96 @@ describe('Bot main question developer details', () => {
     }
   });
 });
+
+describe('return to latest messages', () => {
+  it('appears on ordinary history scroll, counts live messages and hides after return', async () => {
+    const previous = store.getSnapshot();
+    const bot = {
+      slug: 'timeline-return',
+      displayName: 'Timeline return',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-24T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-timeline-return',
+      type: 'dm' as const,
+      name: bot.displayName,
+      members: [bot.slug],
+      botSlug: bot.slug,
+      createdAt: bot.createdAt,
+      updatedAt: bot.createdAt,
+    };
+    const message = (id: string): ChannelMessage => ({
+      id,
+      at: bot.createdAt,
+      author: { kind: 'bot', slug: bot.slug },
+      body: id,
+    });
+    const actions = {
+      profileActivity: async () => ({
+        slug: bot.slug,
+        modelUsageStatus: 'ready',
+        modelUsageRows: [],
+      }),
+      modelPlanState: async () => ({}),
+      modelCatalog: async () => ({ models: [] }),
+      listWorkspaceGrants: async () => [],
+      botSourcePolicies: async () => [],
+      markRead: async () => undefined,
+      ...inertSubmissionActions,
+    } as unknown as BridgeActions;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: bot.slug });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [message('first')],
+      revision: 1,
+      sending: false,
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const viewport = container.querySelector<HTMLElement>('.bh-chat-body')!;
+      Object.defineProperties(viewport, {
+        scrollHeight: { value: 2000 },
+        clientHeight: { value: 500 },
+      });
+      const button = () => container.querySelector<HTMLButtonElement>('.bh-timeline-new');
+      expect(button()).toBeNull();
+      await act(async () => {
+        viewport.scrollTop = 1000;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
+      expect(button()?.textContent).toBe('');
+      expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
+      await act(async () => {
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third')],
+          revision: 3,
+        });
+      });
+      expect(button()?.textContent).toBe('2');
+      expect(button()?.getAttribute('aria-description')).toBe(
+        zhTranslate('messages.unseen', { count: 2 }),
+      );
+      await act(async () => button()!.click());
+      expect(viewport.scrollTop).toBe(2000);
+      expect(button()).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+});
