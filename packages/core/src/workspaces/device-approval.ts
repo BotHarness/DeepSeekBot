@@ -14,8 +14,13 @@ export function createDeviceApprovalScope(file: string, identity: () => string) 
     renameSync(temporary, file);
   };
   const current = (): string => {
-    if (target === undefined && existsSync(file))
-      target = Target.parse(JSON.parse(readFileSync(file, 'utf8')));
+    if (target === undefined && existsSync(file)) {
+      try {
+        target = Target.parse(JSON.parse(readFileSync(file, 'utf8')));
+      } catch {
+        target = undefined;
+      }
+    }
     const selected = identity();
     const next =
       target?.identity === selected ? target : { identity: selected, epoch: randomUUID() };

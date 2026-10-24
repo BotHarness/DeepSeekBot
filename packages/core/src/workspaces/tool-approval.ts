@@ -87,6 +87,7 @@ type TrackedCall = ToolApprovalRequestCard & {
   automatic?: boolean;
   requireExplicitApproval?: boolean;
   humanReviewed?: boolean;
+  reviewerApproved?: boolean;
   authorizationScope?: () => string;
   rememberable?: boolean;
   remembered?: boolean;
@@ -320,8 +321,10 @@ export class ChannelToolApproval {
       !policyChange &&
       !tracked.requireExplicitApproval &&
       this.#overrides.delete(overrideKey(tracked))
-    )
+    ) {
+      tracked.humanReviewed = true;
       return 'allowed-once';
+    }
     const template =
       policyChange || tracked.requireExplicitApproval
         ? undefined
@@ -439,7 +442,13 @@ export class ChannelToolApproval {
     callId: string,
   ): ((name: string, args: unknown) => boolean) | undefined {
     const tracked = this.#tracked.get(callKey(agent.session.id, callId));
-    if (!tracked || (!tracked.automatic && !tracked.humanReviewed)) return;
+    if (
+      !tracked ||
+      (!tracked.automatic &&
+        !tracked.humanReviewed &&
+        !(tracked.reviewerApproved && !this.#explicitRuleRequired(tracked)))
+    )
+      return;
     return this.executionGuard(agent, callId);
   }
 
@@ -985,6 +994,7 @@ export class ChannelToolApproval {
     }
     log(review.outcome);
     await this.#trip(tracked, template.name, channelId, allowed);
+    if (allowed) tracked.reviewerApproved = true;
     if (!allowed) {
       if (this.#reviewRejections.size >= 256)
         this.#reviewRejections.delete(this.#reviewRejections.keys().next().value!);

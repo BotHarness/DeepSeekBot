@@ -31,10 +31,13 @@ device grant. Its Provider checks the captured current-rule fence before use. Th
 identity includes configuration and a persisted epoch; switching targets rotates that epoch so a
 restart cannot resurrect a previous target scope. Browser rules also include the assigned Browser
 Profile and the paired Chrome Profile identity; temporary borrowed connections remain distinct.
+An unreadable or malformed target record is replaced by a newly persisted epoch; failure to save
+that replacement refuses the call.
 
-Tob's broker additionally requires a committed Human decision or a currently matched saved rule,
-so a native allowed-once response alone never authorizes its write. Command-specific confirmations,
-revision checks and deletion tokens remain in force.
+Tob's broker additionally requires a committed Human decision or a currently matched saved rule
+for sensitive operations. Ordinary operations retain committed model-review approval and Human
+overrides. A native allowed-once response alone never authorizes a brokered write. Command-specific
+confirmations, revision checks and deletion tokens remain in force.
 
 External reviewers still require current approve and save-rules authority, and the Provider must
 support confirmed rule cards. A once-only reviewer does not gain permission to write lasting

@@ -31,7 +31,9 @@ function fixture(policy?: { rules?: ToolApprovalRuleStore; autoApproval?: ToolAu
   } as unknown as ChannelStore;
   const owner = { sessionId: 'tob-root', botSlug: 'tob', rootRole: 'orchestrator' as const };
   const ownership = { resolve: () => owner } as unknown as SessionOwnership;
-  const actor = { session: { id: owner.sessionId, header: { cwd: '/test/tob' } } } as Agent;
+  const actor = {
+    session: { id: owner.sessionId, header: { cwd: '/test/tob' }, snapshotEvents: () => [] },
+  } as unknown as Agent;
   let scope = 'initial';
   let authorized = true;
   let fullAccess = false;
@@ -122,6 +124,73 @@ function writeAfterApproval(options: Parameters<typeof approveTobCliOperation>[0
 }
 
 describe('Tob CLI operations use existing Channel approval', () => {
+  it('accepts a committed model-review approval for an ordinary settings write', async () => {
+    const review = vi.fn(async () => ({ outcome: 'allow' as const, reason: 'Allowed' }));
+    const f = fixture({
+      autoApproval: {
+        template: () => ({ name: 'routine', text: 'Allow ordinary settings' }),
+        review,
+        log: vi.fn(),
+      },
+    });
+    const pending = writeAfterApproval(f.options);
+    const result = await pending.result;
+    expect(result).toMatchObject({ ok: true });
+    expect(pending.write).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(f.messages.some((message) => message.toolAutoApproval?.outcome === 'allowed')).toBe(
+      true,
+    );
+    expect(f.channelApproval.requests('tob')).toEqual([]);
+    f.setScope('changed');
+    if (!result.ok) throw new Error('Expected approved write');
+    expect(() => result.guard()).toThrow('approval-authority-changed');
+  });
+
+  it('accepts a committed Human override for an ordinary settings write', async () => {
+    const f = fixture();
+    f.messages.push({
+      id: 'ordinary-rejection',
+      at: new Date().toISOString(),
+      author: { kind: 'system' },
+      body: 'Rejected',
+      toolAutoApproval: {
+        botSlug: 'tob',
+        sessionId: 'tob-root',
+        callId: 'older-settings-call',
+        toolName: 'deepseekbot settings-set',
+        input: JSON.stringify({
+          parentShellCallId: 'original-shell',
+          scope: 'global',
+          ...f.operation,
+        }),
+        template: 'routine',
+        outcome: 'rejected',
+        reason: 'Needs review',
+      },
+    });
+    expect(await f.channelApproval.overrideRejection('dm-tob', 'ordinary-rejection')).toMatchObject(
+      {
+        ok: true,
+      },
+    );
+    const pending = writeAfterApproval(f.options);
+    expect(await pending.result).toMatchObject({ ok: true });
+    expect(pending.write).toHaveBeenCalledTimes(1);
+    expect(f.channelApproval.requests('tob')).toEqual([]);
+  });
+
+  it('rejects an ordinary native approval outcome without a committed decision or review', async () => {
+    const f = fixture();
+    f.request.mockResolvedValueOnce('allowed-once');
+    const pending = writeAfterApproval(f.options);
+    expect(await pending.result).toMatchObject({
+      ok: false,
+      error: { code: 'approval-authority-changed' },
+    });
+    expect(pending.write).not.toHaveBeenCalled();
+  });
+
   it('reviews parsed global old/new values and revision without replacing the parent Shell call', async () => {
     const f = fixture();
     const untrackShell = f.channelApproval.track(f.execution)!;
