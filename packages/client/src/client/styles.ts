@@ -22,6 +22,9 @@ export const CSS =
   ACTIVITY_INBOX_CSS +
   `
 .bh-guide { display: flex; flex-direction: column; gap: ${space.x4}; padding: ${space.x5}; overflow: auto; height: 100%; box-sizing: border-box; color: ${color.fg}; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; }
+.bh-guide-topics { display: flex; flex-wrap: wrap; gap: ${space.x2}; }
+.bh-guide-topics button[aria-pressed="true"] { background: ${color.accentTint}; color: ${color.fg}; }
+.bh-guide-topics button { max-width: 100%; white-space: normal; }
 .bh-guide h3 { margin: 0; font-size: ${text.bodySize}; line-height: ${text.bodyLine}; font-weight: ${text.strong}; }
 .bh-guide p { margin: 0; white-space: pre-wrap; }
 .bh-guide-questions { display: flex; flex-direction: column; gap: ${space.x3}; }

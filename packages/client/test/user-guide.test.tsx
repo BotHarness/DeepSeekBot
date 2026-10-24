@@ -33,6 +33,14 @@ it('opens the answer inline and supports collapsing the same question', () => {
   const root = createRoot(host);
   try {
     act(() => root.render(createElement(panel.component, { channel: undefined })));
+    const chips = [...host.querySelectorAll<HTMLButtonElement>('.bh-guide-topics button')];
+    expect(chips.map((button) => button.textContent)).toEqual(['全部', 'Models']);
+    expect(chips[0]!.getAttribute('aria-pressed')).toBe('true');
+    expect(host.querySelector('[role="combobox"]')).toBeNull();
+    act(() => chips[1]!.click());
+    expect(chips[1]!.getAttribute('aria-pressed')).toBe('true');
+    act(() => chips[0]!.click());
+    expect(chips[0]!.getAttribute('aria-pressed')).toBe('true');
     const trigger = host.querySelector<HTMLButtonElement>('.bh-guide-question')!;
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     act(() => trigger.click());

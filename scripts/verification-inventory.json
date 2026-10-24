@@ -2288,7 +2288,7 @@
     },
     {
       "path": "scripts/e2e-user-guide.mjs",
-      "sha256": "29998d9ede11f908694e10dcf130e2f97b5b70df94f40194d1aab5998da1bf45",
+      "sha256": "66c73df65415fdf6bceb7fa4c45bd1730bbffb4fbf0fc4f0f0b619c2ec8bb456",
       "category": "mapped",
       "reason": "Task-owned real Client model-guide journey; S1 qualification remains pending.",
       "task": 2717,

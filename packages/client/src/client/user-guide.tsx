@@ -27,22 +27,13 @@ export function createUserGuidePanel(
     scope: 'global',
     order: 900,
     defaultPosition: { zone: 'right' },
-    component: () => <UserGuide help={help} panels={panels} t={t} />,
+    component: () => <UserGuide help={help} t={t} />,
   };
 }
-function UserGuide({
-  help,
-  panels,
-  t,
-}: {
-  help: ClientHelpService;
-  panels: DockPanelHost;
-  t: BotHarnessTranslate;
-}): ReactElement {
+function UserGuide({ help, t }: { help: ClientHelpService; t: BotHarnessTranslate }): ReactElement {
   useSyncExternalStore(store.subscribe, store.getSnapshot);
   const topics = useSyncExternalStore(help.subscribe, help.topics);
   const state = useSyncExternalStore(help.subscribe, help.state);
-  const registered = useSyncExternalStore(panels.subscribe, panels.panels);
   const [query, setQuery] = useState('');
   const [topicId, setTopic] = useState('');
   const [selected, select] = useState<string>();
@@ -50,10 +41,11 @@ function UserGuide({
   const [target, setTarget] = useState('');
   const [preserved, setPreserved] = useState(false);
   const [busy, setBusy] = useState(false);
-  const topic = topics.find((item) => item.id === topicId);
+  const activeTopic = topics.some((item) => item.id === topicId) ? topicId : '';
+  const topic = topics.find((item) => item.id === activeTopic);
   const questions = help
     .search(query)
-    .filter((q) => !topicId || topic?.questions.some((item) => item.id === q.id));
+    .filter((q) => !activeTopic || topic?.questions.some((item) => item.id === q.id));
   const answer = topics.flatMap((item) => item.questions).find((q) => q.id === selected);
   const availability = answer ? help.availability(answer.id) : undefined;
   const run = (action: () => Promise<void>) => {
@@ -72,29 +64,26 @@ function UserGuide({
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
-      <Select
-        label={t('guide.topics')}
-        value={topicId}
-        options={[
-          { value: '', label: t('guide.common') },
-          ...topics.map((item) => ({ value: item.id, label: helpText(item.title, t) })),
-          ...registered
-            .filter(
-              (p) =>
-                p.id !== USER_GUIDE_PANEL &&
-                !p.id.startsWith('instance:') &&
-                !topics.some((item) => item.panelId === p.id),
-            )
-            .map((p) => ({ value: 'panel:' + p.id, label: p.title })),
-        ]}
-        onChange={(value) => {
-          setTopic(value);
-          select(undefined);
-          setNotice('');
-          setPreserved(false);
-        }}
-      />
-      {topic && <Note>{helpText(topic.overview, t)}</Note>}
+      <div className="bh-guide-topics" role="group" aria-label={t('guide.topics')}>
+        {[{ id: '', title: { en: 'All', zh: '全部' } }, ...topics].map((item) => (
+          <Button
+            key={item.id}
+            size="sm"
+            variant="outline"
+            aria-pressed={activeTopic === item.id}
+            onClick={() => {
+              setTopic(item.id);
+              select(undefined);
+              setTarget('');
+              setNotice('');
+              setPreserved(false);
+            }}
+          >
+            {helpText(item.title, t)}
+          </Button>
+        ))}
+      </div>
+      {topic && helpText(topic.overview, t) && <Note>{helpText(topic.overview, t)}</Note>}
       <div className="bh-guide-questions">
         {questions.length ? (
           questions.map((q) => (

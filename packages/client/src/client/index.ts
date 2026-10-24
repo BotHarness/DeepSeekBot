@@ -1,3 +1,4 @@
+import { installPanelHelp } from './help-panels.js';
 import { createHelpService } from './help-service.js';
 import { startHelpTour } from './internal-tour.js';
 import { createUserGuidePanel, helpText } from './user-guide.js';
@@ -491,6 +492,7 @@ export function apply(ctx: ClientContext): void {
     ),
   );
   ctx.provide('clientHelp', clientHelp);
+  ctx.effect(() => installPanelHelp(clientHelp, dockPanels));
   ctx.effect(() => {
     if (typeof window === 'undefined') return () => {};
     const key = Symbol.for('botharness.clientHelp');

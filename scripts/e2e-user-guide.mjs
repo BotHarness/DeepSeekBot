@@ -139,7 +139,22 @@ try {
     assert(content.result.topics.some((t) => t.id === 'vrm:companion-help'));
   }
   await page.locator('.bh-workspace-rail button[aria-label="User guide"]').click();
-  await page.locator('.bh-guide-question').click();
+  assert.equal(
+    await page.$eval(
+      '.bh-guide-topics button[aria-pressed="true"]',
+      (element) => element.textContent,
+    ),
+    'All',
+  );
+  const categories = await page.$$eval('.bh-guide-topics button', (buttons) =>
+    buttons.map((button) => button.textContent),
+  );
+  for (const category of categories) {
+    await page.locator(`.bh-guide-topics ::-p-text(${category})`).click();
+    assert.ok((await page.$$eval('.bh-guide-question', (questions) => questions.length)) > 0);
+  }
+  await page.locator('.bh-guide-topics ::-p-text(All)').click();
+  await page.locator('[id="help-question-botharness:change-model"]').click();
   await page.waitForSelector('.bh-guide-answer', { timeout: 5000 });
   await capture('answer');
   await click('Tob: Idle Tob No messages yet');

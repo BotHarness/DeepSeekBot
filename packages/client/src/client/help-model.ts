@@ -77,7 +77,6 @@ export function modelHelp(
     topics: [
       {
         id: 'botharness:models',
-        panelId: CHANNEL_BODY_PANEL,
         title: { en: 'Models', zh: '模型' },
         overview: { en: 'Choose the model used by a Bot.', zh: '选择 Bot 使用的模型。' },
         questions: [
