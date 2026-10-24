@@ -4,6 +4,8 @@ import { useDesignTheme } from '../design/theme';
 import { SystemSymbol } from './system-symbol';
 
 const ROW_ICONS = {
+  language: { ios: 'globe', android: 'translate' },
+  appearance: { ios: 'circle.lefthalf.filled', android: 'contrast' },
   model: { ios: 'cpu', android: 'memory' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
   notifications: { ios: 'bell', android: 'notifications' },

@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { SettingsRow } from './settings-row';
+import { RowIcon, type RowIconName } from './row-icon';
+import type { LayerName } from '../design/layers';
 
 export type PreferenceRowProps<T extends string> = {
   title: string;
+  icon: RowIconName;
+  on?: LayerName;
   testID: string;
   value: T;
   options: readonly { value: T; label: string }[];
@@ -12,6 +16,8 @@ export type PreferenceRowProps<T extends string> = {
 
 export function PreferenceRow<T extends string>({
   title,
+  icon,
+  on = 'sheet',
   testID,
   value,
   options,
@@ -21,7 +27,9 @@ export function PreferenceRow<T extends string>({
   return (
     <View>
       <SettingsRow
+        on={on}
         title={title}
+        leading={<RowIcon name={icon} />}
         detail={options.find((option) => option.value === value)?.label ?? value}
         testID={testID}
         expanded={open}
@@ -30,6 +38,7 @@ export function PreferenceRow<T extends string>({
       {open
         ? options.map((option) => (
             <SettingsRow
+              on={on}
               key={option.value}
               title={option.label}
               selected={option.value === value}

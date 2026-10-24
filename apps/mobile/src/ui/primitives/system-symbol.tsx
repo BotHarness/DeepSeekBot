@@ -1,5 +1,5 @@
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import type { ColorValue } from 'react-native';
+import { Platform, type ColorValue } from 'react-native';
 
 export type SystemSymbolProps = {
   name: SymbolViewProps['name'];
@@ -10,7 +10,11 @@ export type SystemSymbolProps = {
 export function SystemSymbol({ name, size, color }: SystemSymbolProps) {
   return (
     <SymbolView
-      name={name}
+      name={
+        Platform.OS === 'web' && typeof name === 'object' && name.android !== undefined
+          ? { ...name, web: name.web ?? name.android }
+          : name
+      }
       size={size}
       tintColor={color}
       accessible={false}

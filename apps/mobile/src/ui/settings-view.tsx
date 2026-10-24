@@ -12,7 +12,7 @@ import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { errorText, Notice } from './request-parts';
 import { UsageCard } from './shell/usage-card';
-import { InterfaceSettings } from './interface-settings';
+import { AppearanceSetting, InterfaceSaveNotice, LanguageSetting } from './interface-settings';
 import { useStrings, t } from './strings';
 
 export interface SettingsActions {
@@ -133,7 +133,8 @@ export function SettingsView({
           <Notice tone="danger">{`${t.unpairFailed} ${unpairError}`}</Notice>
         )}
         <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
-          <InterfaceSettings />
+          <LanguageSetting on={SHEET_GROUP} />
+          <AppearanceSetting on={SHEET_GROUP} />
           <SettingsRow
             on={SHEET_GROUP}
             title={t.appIcon}
@@ -146,6 +147,7 @@ export function SettingsView({
           {chatBackground}
           {hapticFeedback}
         </SettingsSection>
+        <InterfaceSaveNotice />
         {messageDisplay}
         <SettingsSection title={t.about} on={SHEET_GROUP}>
           <SettingsRow
