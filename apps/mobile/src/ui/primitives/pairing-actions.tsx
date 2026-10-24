@@ -21,7 +21,7 @@ export function PairingActions({ primary, secondary, details }: PairingActionsPr
       seedColor={theme.color.accent}
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
     >
-      <Column spacing={space.x3} alignment="center" style={{ width }}>
+      <Column spacing={space.x3} alignment="center" style={width === undefined ? {} : { width }}>
         {primary ? <NativeButton {...primary} style={{ paddingVertical: space.x3 }} /> : null}
         <NativeButton {...secondary} variant="outlined" style={{ paddingVertical: space.x3 }} />
         {details ? (
