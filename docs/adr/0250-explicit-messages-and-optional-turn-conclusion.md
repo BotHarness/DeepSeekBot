@@ -36,9 +36,19 @@ The existing `bot-tool` CLI dispatches the same Tool without a model; there is n
 turn to conclude on that path. Each separate CLI invocation is a new operation. This slice does
 not promise a durable retry command across distinct Tool calls, persisted cleanup intent, or
 external unknown-outcome reconciliation. These remain required follow-up slices in #2435.
-Group/Bot DM sends, attachments and external IM retain their existing protected routes until
-migrated end to end. In particular, Group draft review and external Outbox checks cannot be
-bypassed by adopting the new name. No `final_reply_json` field is added.
+The second slice extends the same Tool to Group/Bot DM, imported attachments and external IM.
+Trusted source classification selects the existing Channel or Outbox owner. Group drafts retain
+freshness review, recovery and membership fences. External replies accept an independent message
+key; legacy callers without one retain their prior identity. Canonical Outbox payload checks
+reject reuse with changed content. Only accepted delivery with a receipt permits optional Inbox
+resolution and turn conclusion. No `final_reply_json` field is added.
+
+External file replies currently accept one imported file and empty text; unsupported combinations
+are refused before sending. Reaction, draft-inspection/drop and source-sharing actions remain
+separate. The model catalog exposes only `bot_send_message` for text/attachment delivery and
+`channel_action` for reactions and draft inspection/drop. Legacy send names remain callable
+only through the direct CLI compatibility path. Durable cross-call retry and stored cleanup
+intentions still require the next slice.
 
 ## Consequences
 

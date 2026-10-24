@@ -1087,3 +1087,52 @@ describe('busy Group progress through the direct tool', () => {
     },
   );
 });
+
+it('unified messaging preserves Group draft review before committing', async () => {
+  await fixture(async ({ core, channelId, human, tool }) => {
+    expect((await tool('channel_action', { action: 'inspect' })).status).toBe('inspected');
+    await expect(tool('bot_send_message', { body: 'Do not send', recover: true })).rejects.toThrow(
+      'Recovery requires',
+    );
+    await human('question', 'What is the release date?');
+    const read = await tool('channel_read', {});
+    await human('correction', 'Use October 21, not October 20.');
+    const held = await tool('bot_send_message', {
+      body: 'October 20',
+      observation_id: read.observationIds[channelId],
+      end_turn: true,
+    });
+    expect(held.status).toBe('held');
+    expect(
+      core.channels.readMessages(channelId).filter((message) => message.author.kind === 'bot'),
+    ).toHaveLength(0);
+    const sent = await tool('bot_send_message', {
+      body: 'October 21',
+      draft_id: held.draftId,
+      observation_id: held.review!.observationId,
+    });
+    expect(sent.status).toBe('committed');
+    expect(
+      core.channels
+        .readMessages(channelId)
+        .filter((message) => message.author.kind === 'bot')
+        .map((message) => message.body),
+    ).toEqual(['October 21']);
+  });
+});
+
+it('channel actions cannot smuggle a message through extra delivery arguments', async () => {
+  await fixture(async ({ core, channelId, human, tool }) => {
+    await human('reaction-target', 'React only');
+    await tool('channel_action', {
+      action: 'react',
+      react_to: 'reaction-target',
+      reaction: '👍',
+      body: 'must not send',
+      attachments: [{ name: 'injected.txt', mime: 'text/plain', size: 1, hash: 'a'.repeat(64) }],
+    });
+    expect(
+      core.channels.readMessages(channelId).filter((message) => message.author.kind === 'bot'),
+    ).toHaveLength(0);
+  });
+});

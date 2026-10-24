@@ -1,3 +1,6 @@
+import { createCore } from '../src/plugin.js';
+import { createTempRoot } from './helpers.js';
+import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -265,3 +268,83 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     }
   });
 });
+
+it('rejects Group recovery parameters on a DM before sending', async () => {
+  const f = await fixture();
+  try {
+    await f.send('Question', async (run) => {
+      const tool = createBotMessageTool(() => run);
+      await expect(
+        tool.execute(
+          {
+            source_event_id: run.triage!.current()[0],
+            body: 'Do not send',
+            draft_id: 'old-draft',
+            recover: true,
+          },
+          {
+            callId: ToolCallId('bad-recovery'),
+            signal: new AbortController().signal,
+          } as ToolRunContext,
+        ),
+      ).rejects.toMatchObject({ code: 'invalid-review' });
+    });
+    expect(
+      f.core.channels.readMessages(f.dm.id).some((message) => message.body === 'Do not send'),
+    ).toBe(false);
+  } finally {
+    await f.close();
+  }
+}, 60000);
+
+it('keeps an explicitly selected Group source as causation when newer input exists', async () => {
+  const runs: OrchestratorAgentRun[] = [];
+  const core = createCore({
+    dshHome: createTempRoot('explicit-group-source-'),
+    triageContinuation: false,
+    agents: {
+      async runOrchestrator(run) {
+        runs.push(run);
+      },
+      async runAssignment() {},
+      requestAssignment() {
+        throw new Error('Unexpected Assignment');
+      },
+      async close() {},
+    },
+  });
+  try {
+    core.registry.create({ slug: 'ada', displayName: 'Ada' });
+    const group = core.channels.createGroup({ name: 'Source QA', members: ['ada'] });
+    for (const id of ['first', 'second']) {
+      await core.channels.appendMessage(group.id, {
+        id,
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada ' + id,
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      core.runtime.admitGroupMessage(group.id, id);
+      await core.runtime.whenIdle();
+    }
+    const first = runs[0]!.triage!.current()[0]!;
+    const latest = runs.at(-1)!;
+    expect(latest.triage!.current()[0]).not.toBe(first);
+    const tool = createBotMessageTool(() => latest);
+    const result = receipt(
+      await tool.execute({ source_event_id: first, body: 'Answer to the first request' }, {
+        callId: ToolCallId('earlier-source'),
+        signal: new AbortController().signal,
+      } as ToolRunContext),
+    );
+    const message = core.channels
+      .readMessages(group.id)
+      .find((entry) => entry.id === result.messageId)!;
+    expect(message.replyTo).toBe('first');
+    expect(message.botCausation?.parentSourceEventId).toBe(first);
+    expect(message.botCausation?.rootSourceEventId).toBe(first);
+  } finally {
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+}, 60000);
