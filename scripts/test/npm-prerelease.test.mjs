@@ -61,10 +61,10 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       mkdirSync(join(dir, 'package/cli'));
       writeFileSync(
         join(dir, 'package/cli/index.mjs'),
-        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("deepseekbot packed help"); };',
+        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("tobs: packed help"); };',
       );
     }
-    if (name === 'deepseekbot') {
+    if (name === 'deepseekbot' || name === 'tobs') {
       manifest.bin = { deepseekbot: './dist/deepseekbot.mjs' };
       mkdirSync(join(dir, 'package/dist'));
       writeFileSync(
@@ -73,7 +73,7 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       );
       manifest.dependencies = Object.fromEntries(
         publicationOrder
-          .slice(0, -1)
+          .filter((n) => !['deepseekbot', 'tobs'].includes(n))
           .filter((n) => !platformPackages.has(n))
           .map((n) => [n, n === productImProvider.name ? productImProvider.version : version]),
       );
@@ -85,6 +85,15 @@ function fixture(productVersion = '0.1.0-alpha.1') {
         join(dir, 'package/cordis.im.patch.yml'),
         "- insert:\n    - id: xmanrui-dsh-im\n      name: '@botharness/im-provider'\n    - id: botharness-core\n      name: '@botharness/core'\n    - id: botharness-client\n      name: '@botharness/ui'\n    - id: botharness-browser\n      name: '@botharness/browser'\n    - id: botharness-computer\n      name: '@botharness/computer'\n",
       );
+      if (name === 'tobs') {
+        manifest.bin = { tobs: './src/tobs.mjs' };
+        manifest.dependencies.deepseekbot = version;
+        mkdirSync(join(dir, 'package/src'));
+        writeFileSync(
+          join(dir, 'package/src/tobs.mjs'),
+          'import "deepseekbot/dist/deepseekbot.mjs";',
+        );
+      }
     }
     if (name === productImProvider.name) {
       manifest.botharness = { managedByProduct: true };
@@ -426,8 +435,9 @@ describe('reviewed npm prerelease', () => {
     const packages = publicationOrder.map(entry);
     const waves = publicationWaves(packages);
     expect(waves.map((wave) => wave.map(({ artifact }) => artifact.name))).toEqual([
-      publicationOrder.slice(0, -1),
+      publicationOrder.slice(0, -2),
       ['deepseekbot'],
+      ['tobs'],
     ]);
     expect(publicationWaves([entry('deepseekbot')])).toHaveLength(1);
     const events = [];
@@ -437,11 +447,14 @@ describe('reviewed npm prerelease', () => {
       return new Promise((done) => pending.set(artifact.name, done));
     });
     await Promise.resolve();
-    expect(events).toEqual(publicationOrder.slice(0, -1).map((name) => `start ${name}`));
-    for (const name of publicationOrder.slice(0, -1)) pending.get(name)();
+    expect(events).toEqual(publicationOrder.slice(0, -2).map((name) => `start ${name}`));
+    for (const name of publicationOrder.slice(0, -2)) pending.get(name)();
     await new Promise((done) => setTimeout(done, 0));
     expect(events.at(-1)).toBe('start deepseekbot');
     pending.get('deepseekbot')();
+    await new Promise((done) => setTimeout(done, 0));
+    expect(events.at(-1)).toBe('start tobs');
+    pending.get('tobs')();
     await run;
     const product = vi.fn();
     await expect(

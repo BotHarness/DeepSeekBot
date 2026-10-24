@@ -122,226 +122,226 @@ export interface BotCreateFailure {
   bot?: { id: string; name: string };
 }
 
-export const BOT_CREATE_HELP = `deepseekbot: create PersonaBots without clicking
+export const BOT_CREATE_HELP = `tobs: manage your Bots
 
 Usage:
-  deepseekbot ssh-tunnel <alias> --pairing-file <private-file> --out <new-private-file>
+  tobs ssh-tunnel <alias> --pairing-file <private-file> --out <new-private-file>
     --local-port <port> --remote-port <port> [--ssh-config <absolute-file>]
-  deepseekbot create --name <name> [--persona <text> | --persona-stdin]
+  tobs create --name <name> [--persona <text> | --persona-stdin]
                     [--core-memory <text> | --core-memory-stdin]
                     [--description <text>] [--role <tag> ...] [--avatar-file <image>]
                     [--preset <model-preset-id>] [--memory-location <absolute-dir>]
                     [--home <dsh-home>] [--operation-key <stable-key> (online blank creation)]
-  deepseekbot create --name <name> --from-git <url | owner/repo> [...]
-  deepseekbot create [--name <name>] --from-zip <file> [...]
-  deepseekbot create [--name <name>] --from-dir <directory> [...]
-  deepseekbot bot-import-preview --from-git <url | owner/repo> --host <url>
-  deepseekbot create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
-  deepseekbot list [--home <dsh-home>]
-  deepseekbot bot-zip-upload --from-zip <file> --upload-key <key> --host <url>
-  deepseekbot bot-zip-preview --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --host <url>
-  deepseekbot bot-zip-import --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --operation-key <key> --name <name> --host <url>
-  deepseekbot bot-zip-import-status --archive-sha256 <hash> --operation-key <key> --name <name> --host <url>
-  deepseekbot show <id> [--home <dsh-home>]
-  deepseekbot model-presets [--home <dsh-home>]
-  deepseekbot model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
+  tobs create --name <name> --from-git <url | owner/repo> [...]
+  tobs create [--name <name>] --from-zip <file> [...]
+  tobs create [--name <name>] --from-dir <directory> [...]
+  tobs bot-import-preview --from-git <url | owner/repo> --host <url>
+  tobs create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
+  tobs list [--home <dsh-home>]
+  tobs bot-zip-upload --from-zip <file> --upload-key <key> --host <url>
+  tobs bot-zip-preview --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --host <url>
+  tobs bot-zip-import --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --operation-key <key> --name <name> --host <url>
+  tobs bot-zip-import-status --archive-sha256 <hash> --operation-key <key> --name <name> --host <url>
+  tobs show <id> [--home <dsh-home>]
+  tobs model-presets [--home <dsh-home>]
+  tobs model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
                                   [--orchestrator-effort <e>] --assignment-provider <p>
                                   --assignment-model <m> [--assignment-effort <e>] [--home <dsh-home>]
                                   [--plan-stdin (online Host only)]
-  deepseekbot model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
-  deepseekbot model-plan <id> [--home <dsh-home>]
-  deepseekbot pause <id> [--home <dsh-home>]
-  deepseekbot resume <id> [--home <dsh-home>]
-  deepseekbot update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]
-  deepseekbot human-name-set (--name <text> | --clear) [--home <dsh-home>]
-  deepseekbot channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
-  deepseekbot memory-snapshot <id> [--home <dsh-home>]
-  deepseekbot memory-file <id> --path <file> [--home <dsh-home>]
-  deepseekbot memory-history <id> [--limit <n>] [--home <dsh-home>]
-  deepseekbot memory-diff <id> --sha <commit> [--home <dsh-home>]
-  deepseekbot memory-save <id> --path <file> (--body <text> | --body-stdin)
+  tobs model-preset-apply <id> --preset <preset-id> [--expected-revision <n>] [--preset-revision <n>] [--home <dsh-home>]
+  tobs model-plan <id> [--home <dsh-home>]
+  tobs pause <id> [--home <dsh-home>]
+  tobs resume <id> [--home <dsh-home>]
+  tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]
+  tobs human-name-set (--name <text> | --clear) [--home <dsh-home>]
+  tobs channel-human-name-set <channel> (--nickname <text> | --clear) [--home <dsh-home>]
+  tobs memory-snapshot <id> [--home <dsh-home>]
+  tobs memory-file <id> --path <file> [--home <dsh-home>]
+  tobs memory-history <id> [--limit <n>] [--home <dsh-home>]
+  tobs memory-diff <id> --sha <commit> [--home <dsh-home>]
+  tobs memory-save <id> --path <file> (--body <text> | --body-stdin)
                              [--expected-head <sha>] [--edit-id <id>] [--home <dsh-home>]
-  deepseekbot channels [--home <dsh-home>]
-  deepseekbot channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
-  deepseekbot channel-media-target <channel> --source-event <id> --attachment <id>
-  deepseekbot channel-media-download <channel> --source-event <id> --attachment <id> --out <path>
-  deepseekbot grants <id> [--home <dsh-home>]
-  deepseekbot grant-revoke <id> --grant <grant> [--home <dsh-home>]   online: add --confirm
-  deepseekbot grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
-  deepseekbot schedules <id> [--home <dsh-home>]
-  deepseekbot schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
+  tobs channels [--home <dsh-home>]
+  tobs channel-messages <channel> [--limit <n>] [--before <id>] [--home <dsh-home>]
+  tobs channel-media-target <channel> --source-event <id> --attachment <id>
+  tobs channel-media-download <channel> --source-event <id> --attachment <id> --out <path>
+  tobs grants <id> [--home <dsh-home>]
+  tobs grant-revoke <id> --grant <grant> [--home <dsh-home>]   online: add --confirm
+  tobs grant-write-set <id> --grant <grant> (--enabled | --disabled) [--home <dsh-home>]
+  tobs schedules <id> [--home <dsh-home>]
+  tobs schedule-create <id> --title <t> --prompt <p> (--every <s> | --daily <HH:MM> |
                                   --weekly <HH:MM> --weekdays <0-6,..> | --once-date <d> --once-time <t> |
                                   --cron <expr>) [--timezone <tz>] [--enabled|--disabled] [--locked] [--home <dsh-home>]
-  deepseekbot schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
-  deepseekbot schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
-  deepseekbot schedule-history <id> --sid <schedule> [--home <dsh-home>]
-  deepseekbot schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
-  deepseekbot schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
-  deepseekbot pairings <id> [--home <dsh-home>]
-  deepseekbot secret-put <NAME> [--home <dsh-home>]            secret value arrives on stdin only
-  deepseekbot secret-list [--home <dsh-home>]                  names, sources, writability; never values
-  deepseekbot secret-unset <NAME> [--home <dsh-home>]
-  deepseekbot search <words>                                   find commands by words
-  deepseekbot send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
-  deepseekbot send-status <id> --message-id <Human-message-id>
-  deepseekbot tool-approval-status <channel> --message-id <card-id>
-  deepseekbot tool-approval-decide <channel> --message-id <card-id> --outcome allowed-once|rejected
-  deepseekbot user-question-status <channel> --message-id <card-id>
-  deepseekbot user-question-answer <channel> --message-id <card-id> --answer-stdin
-  deepseekbot ask-secret-status <channel> --message-id <card-id>
-  deepseekbot ask-secret-submit <channel> --message-id <card-id> --values-stdin
-  deepseekbot ask-secret-cancel <channel> --message-id <card-id>
-  deepseekbot ask-secret-account-status <channel> --message-id <configured-card-id>
-  deepseekbot ask-secret-replace <channel> --message-id <configured-card-id>
-  deepseekbot ask-secret-revoke <channel> --message-id <configured-card-id>
-  deepseekbot ask-secret-accounts <id>
-  deepseekbot release-info [--since <version>]
-  deepseekbot release-check
-  deepseekbot release-install <version> --confirm
-  deepseekbot release-restart --confirm
-  deepseekbot plugin-check [--force]
-  deepseekbot plugin-install <package> <version> --confirm
-  deepseekbot plugin-restart --confirm
-  deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>]
-  deepseekbot marketplace-topics
-  deepseekbot marketplace-detail <owner/repo>
-  deepseekbot marketplace-submit <github-repo-url>
-  deepseekbot marketplace-report <owner/repo> [--reason <text>]
-  deepseekbot data-reset-preview
-  deepseekbot data-reset-confirm --confirmation-stdin --confirm
-  deepseekbot telemetry-status
-  deepseekbot telemetry-set (--enabled | --disabled)
-  deepseekbot git-status
-  deepseekbot git-install
-  deepseekbot pairing-list <id>
-  deepseekbot pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ...] [--confirm]
-  deepseekbot workspace-options
-  deepseekbot grant-create <id> --workspace <workspace-id>
-  deepseekbot browser-access-set <id> (--enabled | --disabled)
-  deepseekbot computer-access-set <id> (--enabled | --disabled)
-  deepseekbot access <id>
-  deepseekbot access-set <id> --mode workspace-write|danger-full-access [--scope chat|assignments] [--acknowledge-risk]
-  deepseekbot settings <namespace>
-  deepseekbot settings-set <namespace> --patch-stdin [--expected-revision <n> --previous-value <json>]
-  deepseekbot workspace-create <absolute-path>
-  deepseekbot channel <channel-id>
-  deepseekbot group-create <name> [--member <bot-id> ...] [--operation-key <key>]
-  deepseekbot group-invite <channel-id> --bot <bot-id> [--operation-key <key>] [--expected-channel <fingerprint>]
-  deepseekbot group-invite-cancel <channel-id> --invitation <invitation-id> [--expected-channel <fingerprint>]
-  deepseekbot group-join-decide <channel-id> --request <join-request-id> (--accept | --decline) [--expected-channel <fingerprint>]
-  deepseekbot channel-rename <channel-id> --name <name> [--expected-channel <fingerprint>]
-  deepseekbot group-avatar-set <channel-id> (--avatar-file <path> | --clear) [--expected-channel <fingerprint>]
-  deepseekbot group-wake-policies <channel-id>
-  deepseekbot group-wake-set <channel-id> --bot <bot-id> (--mode all|mentions|digest|silent | --inherit) [--count <n>] [--interval <seconds>] [--expected-channel <fingerprint>]
-  deepseekbot group-member-remove <channel-id> --bot <bot-id> [--expected-channel <fingerprint>]
-  deepseekbot im-app-add <discord|slack|qq|dingtalk|wecom|matrix> --credentials-stdin
-  deepseekbot im-app-status <platform>
-  deepseekbot im-app-remove <platform> --app <app-id>
-  deepseekbot im-bind <id> --app <app-id>
-  deepseekbot im-unbind <id> --app <app-id>
-  deepseekbot im-status <id>
-  deepseekbot channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
-  deepseekbot channel-ingests <channel>
-  deepseekbot browser-open <id>
-  deepseekbot browser-frame <id> --out <absolute-file>
-  deepseekbot browser-takeover <id> (--enabled | --disabled)
-  deepseekbot browser-input <id> --args-stdin
-  deepseekbot browser-stop <id>
-  deepseekbot computer-start [--target local|container]
-  deepseekbot computer-status
-  deepseekbot computer-stop
-  deepseekbot browser-tools
-  deepseekbot browser-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
-  deepseekbot memory-file-target|memory-graph|memory-commit-diff|memory-changes <id> [...]
-  deepseekbot memory-working-diff <id> --path <file> --kind staged|unstaged|untracked|current
-  deepseekbot memory-checkpoints|memory-versions <id>
-  deepseekbot memory-restore <id> --checkpoint <id> --expected-current <id>
-  deepseekbot memory-restore-commit <id> --sha <commit> --expected-head <commit> [--name <version>]
-  deepseekbot memory-version-name <id> --sha <commit> --name <version>
-  deepseekbot memory-version-unname <id> --tag <version>
-  deepseekbot memory-repair <id> --expected-head <commit>
-  deepseekbot memory-move <id> (--memory-location <absolute-dir> | --default-location)
-  deepseekbot model-catalog
-  deepseekbot model-plan-set <id> --plan-stdin [--expected-revision <n>]
-  deepseekbot model-plan-customize <id> --orchestrator-provider <p> --orchestrator-model <m> [--orchestrator-effort <e>]
-  deepseekbot model-plan-inherit <id> [--expected-revision <n>]
-  deepseekbot model-plan-assignments-set <id> --plan-stdin [--expected-revision <n>]
-  deepseekbot model-preset-update <preset-id> [--name <n>] [--orchestrator-provider/-model/-effort ...]
+  tobs schedule-update <id> --sid <schedule> [--title ...] [--prompt ...] [trigger ...] [--home <dsh-home>]
+  tobs schedule-delete <id> --sid <schedule> [--confirm] [--home <dsh-home>]
+  tobs schedule-history <id> --sid <schedule> [--home <dsh-home>]
+  tobs schedule-run-now <id> --sid <schedule> [--home <dsh-home>]
+  tobs schedule-preview (--every <s> | --daily ... | ...) [--home <dsh-home>]
+  tobs pairings <id> [--home <dsh-home>]
+  tobs secret-put <NAME> [--home <dsh-home>]            secret value arrives on stdin only
+  tobs secret-list [--home <dsh-home>]                  names, sources, writability; never values
+  tobs secret-unset <NAME> [--home <dsh-home>]
+  tobs search <words>                                   find commands by words
+  tobs send <id> (--body <text> | --body-stdin) [--message-id human-<UUID>] [--timeout <seconds>]
+  tobs send-status <id> --message-id <Human-message-id>
+  tobs tool-approval-status <channel> --message-id <card-id>
+  tobs tool-approval-decide <channel> --message-id <card-id> --outcome allowed-once|rejected
+  tobs user-question-status <channel> --message-id <card-id>
+  tobs user-question-answer <channel> --message-id <card-id> --answer-stdin
+  tobs ask-secret-status <channel> --message-id <card-id>
+  tobs ask-secret-submit <channel> --message-id <card-id> --values-stdin
+  tobs ask-secret-cancel <channel> --message-id <card-id>
+  tobs ask-secret-account-status <channel> --message-id <configured-card-id>
+  tobs ask-secret-replace <channel> --message-id <configured-card-id>
+  tobs ask-secret-revoke <channel> --message-id <configured-card-id>
+  tobs ask-secret-accounts <id>
+  tobs release-info [--since <version>]
+  tobs release-check
+  tobs release-install <version> --confirm
+  tobs release-restart --confirm
+  tobs plugin-check [--force]
+  tobs plugin-install <package> <version> --confirm
+  tobs plugin-restart --confirm
+  tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>]
+  tobs marketplace-topics
+  tobs marketplace-detail <owner/repo>
+  tobs marketplace-submit <github-repo-url>
+  tobs marketplace-report <owner/repo> [--reason <text>]
+  tobs data-reset-preview
+  tobs data-reset-confirm --confirmation-stdin --confirm
+  tobs telemetry-status
+  tobs telemetry-set (--enabled | --disabled)
+  tobs git-status
+  tobs git-install
+  tobs pairing-list <id>
+  tobs pairing-review <id> <pairing-id> --decision approve|reject|revoke [--role <role-id> | --capability <c> ...] [--confirm]
+  tobs workspace-options
+  tobs grant-create <id> --workspace <workspace-id>
+  tobs browser-access-set <id> (--enabled | --disabled)
+  tobs computer-access-set <id> (--enabled | --disabled)
+  tobs access <id>
+  tobs access-set <id> --mode workspace-write|danger-full-access [--scope chat|assignments] [--acknowledge-risk]
+  tobs settings <namespace>
+  tobs settings-set <namespace> --patch-stdin [--expected-revision <n> --previous-value <json>]
+  tobs workspace-create <absolute-path>
+  tobs channel <channel-id>
+  tobs group-create <name> [--member <bot-id> ...] [--operation-key <key>]
+  tobs group-invite <channel-id> --bot <bot-id> [--operation-key <key>] [--expected-channel <fingerprint>]
+  tobs group-invite-cancel <channel-id> --invitation <invitation-id> [--expected-channel <fingerprint>]
+  tobs group-join-decide <channel-id> --request <join-request-id> (--accept | --decline) [--expected-channel <fingerprint>]
+  tobs channel-rename <channel-id> --name <name> [--expected-channel <fingerprint>]
+  tobs group-avatar-set <channel-id> (--avatar-file <path> | --clear) [--expected-channel <fingerprint>]
+  tobs group-wake-policies <channel-id>
+  tobs group-wake-set <channel-id> --bot <bot-id> (--mode all|mentions|digest|silent | --inherit) [--count <n>] [--interval <seconds>] [--expected-channel <fingerprint>]
+  tobs group-member-remove <channel-id> --bot <bot-id> [--expected-channel <fingerprint>]
+  tobs im-app-add <discord|slack|qq|dingtalk|wecom|matrix> --credentials-stdin
+  tobs im-app-status <platform>
+  tobs im-app-remove <platform> --app <app-id>
+  tobs im-bind <id> --app <app-id>
+  tobs im-unbind <id> --app <app-id>
+  tobs im-status <id>
+  tobs channel-connect <channel> --bot <id> --conversation <external-id> [--app <app-id>]
+  tobs channel-ingests <channel>
+  tobs browser-open <id>
+  tobs browser-frame <id> --out <absolute-file>
+  tobs browser-takeover <id> (--enabled | --disabled)
+  tobs browser-input <id> --args-stdin
+  tobs browser-stop <id>
+  tobs computer-start [--target local|container]
+  tobs computer-status
+  tobs computer-stop
+  tobs browser-tools
+  tobs browser-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
+  tobs memory-file-target|memory-graph|memory-commit-diff|memory-changes <id> [...]
+  tobs memory-working-diff <id> --path <file> --kind staged|unstaged|untracked|current
+  tobs memory-checkpoints|memory-versions <id>
+  tobs memory-restore <id> --checkpoint <id> --expected-current <id>
+  tobs memory-restore-commit <id> --sha <commit> --expected-head <commit> [--name <version>]
+  tobs memory-version-name <id> --sha <commit> --name <version>
+  tobs memory-version-unname <id> --tag <version>
+  tobs memory-repair <id> --expected-head <commit>
+  tobs memory-move <id> (--memory-location <absolute-dir> | --default-location)
+  tobs model-catalog
+  tobs model-plan-set <id> --plan-stdin [--expected-revision <n>]
+  tobs model-plan-customize <id> --orchestrator-provider <p> --orchestrator-model <m> [--orchestrator-effort <e>]
+  tobs model-plan-inherit <id> [--expected-revision <n>]
+  tobs model-plan-assignments-set <id> --plan-stdin [--expected-revision <n>]
+  tobs model-preset-update <preset-id> [--name <n>] [--orchestrator-provider/-model/-effort ...]
                                   [--assignment-provider/-model/-effort ...] [--plan-stdin] [--expected-revision <n>]
-  deepseekbot overview-usage [--period today|week|month|quarter] [--after <bot-cursor>]
-  deepseekbot overview-memory [--after <bot-cursor>]
-  deepseekbot activity-overview
-  deepseekbot channel-activity-today
-  deepseekbot bot-usage <id> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--model <m>] [--provider <p>]
+  tobs overview-usage [--period today|week|month|quarter] [--after <bot-cursor>]
+  tobs overview-memory [--after <bot-cursor>]
+  tobs activity-overview
+  tobs channel-activity-today
+  tobs bot-usage <id> --start <YYYY-MM-DD> --end <YYYY-MM-DD> [--model <m>] [--provider <p>]
                         [--purpose orchestrator|assignment|subagent]
-  deepseekbot bot-session-usage <id>
-  deepseekbot bot-activity-history <id> [--before <YYYY-MM-DD>] [--weeks <1-104>]
-  deepseekbot group-activity <channel>
-  deepseekbot bot-trace <id> [--turns <1-20>] [--session <session-id>|direct]
-  deepseekbot bot-tools
-  deepseekbot bot-tool <id> <tool> [--args-stdin]
-  deepseekbot computer-tools
-  deepseekbot computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
-  deepseekbot todos
-  deepseekbot todo-add --title <text>
-  deepseekbot todo-update <todo-id> [--title <text>] [--done | --not-done]
-  deepseekbot todo-remove <todo-id>
-  deepseekbot todo-tools
-  deepseekbot todo-tool <id> <tool> [--args-stdin]
-  deepseekbot bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
-  deepseekbot bot-sessions <id> [--limit <1-100>]
-  deepseekbot bot-activity <id> [--limit <1-100>]
-  deepseekbot inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
+  tobs bot-session-usage <id>
+  tobs bot-activity-history <id> [--before <YYYY-MM-DD>] [--weeks <1-104>]
+  tobs group-activity <channel>
+  tobs bot-trace <id> [--turns <1-20>] [--session <session-id>|direct]
+  tobs bot-tools
+  tobs bot-tool <id> <tool> [--args-stdin]
+  tobs computer-tools
+  tobs computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
+  tobs todos
+  tobs todo-add --title <text>
+  tobs todo-update <todo-id> [--title <text>] [--done | --not-done]
+  tobs todo-remove <todo-id>
+  tobs todo-tools
+  tobs todo-tool <id> <tool> [--args-stdin]
+  tobs bot-attention <id> [--limit <1-100>] [--cursor <source-id>] [--state <state>]
+  tobs bot-sessions <id> [--limit <1-100>]
+  tobs bot-activity <id> [--limit <1-100>]
+  tobs inbox [--category action|info|unread|replies|handled] [--bot <id>] [--channel <id>]
                     [--limit <1-100>] [--cursor <cursor>] [--sort newest|oldest]
                     [--snoozed | --dismissed] [--kind auto-rejection]
-  deepseekbot inbox-status
-  deepseekbot inbox-dismiss <item-id> [--source-key <source-event-id>]
-  deepseekbot inbox-restore <item-id> [--source-key <source-event-id>]
-  deepseekbot inbox-allow-once <autoreject:item-id>
-  deepseekbot inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
-  deepseekbot inbox-ignore <source-event-id>
-  deepseekbot assignment-context <id> --session <session-id> --source <source-event-id>
-  deepseekbot channel-assignments <group-channel>
-  deepseekbot channel-assign <channel> (--section <section-id> | --unsectioned) [--index <n>]
-  deepseekbot session-ids
-  deepseekbot session-owner <session-id>
-  deepseekbot session-archive-set <id> --session <session-id> (--archived | --unarchived)
-  deepseekbot tool-approval-rules <id>
-  deepseekbot tool-approval-rule-revoke <id> --rule <rule-id> --confirm
-  deepseekbot private-mcp-set <id> --server <name> (--enabled | --disabled)
-  deepseekbot private-mcp-remove <id> --server <name> --confirm
-  deepseekbot bot-delete-preview <id>
-  deepseekbot bot-delete-memory-folder <id>
-  deepseekbot bot-delete-confirm <id> --confirmation-stdin --confirm [--erase-memory]
-  deepseekbot bot-delete-retry <id> --confirm
-  deepseekbot bot-avatar-set|bot-banner-set <id> (--file <image> | --clear)
-  deepseekbot bot-banner-set|bot-appearance-set <id> --recipe-stdin
-  deepseekbot bot-primary-color-set <id> (--color <#rrggbb> | --automatic)
-  deepseekbot bot-source-policies <id>
-  deepseekbot bot-source-policy-set <id> --source-class <class> [--wake <w>] [--delivery steer|turn]
+  tobs inbox-status
+  tobs inbox-dismiss <item-id> [--source-key <source-event-id>]
+  tobs inbox-restore <item-id> [--source-key <source-event-id>]
+  tobs inbox-allow-once <autoreject:item-id>
+  tobs inbox-snooze <item-id> [--source-key <source-event-id>] (--until <ISO time> | --clear)
+  tobs inbox-ignore <source-event-id>
+  tobs assignment-context <id> --session <session-id> --source <source-event-id>
+  tobs channel-assignments <group-channel>
+  tobs channel-assign <channel> (--section <section-id> | --unsectioned) [--index <n>]
+  tobs session-ids
+  tobs session-owner <session-id>
+  tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
+  tobs tool-approval-rules <id>
+  tobs tool-approval-rule-revoke <id> --rule <rule-id> --confirm
+  tobs private-mcp-set <id> --server <name> (--enabled | --disabled)
+  tobs private-mcp-remove <id> --server <name> --confirm
+  tobs bot-delete-preview <id>
+  tobs bot-delete-memory-folder <id>
+  tobs bot-delete-confirm <id> --confirmation-stdin --confirm [--erase-memory]
+  tobs bot-delete-retry <id> --confirm
+  tobs bot-avatar-set|bot-banner-set <id> (--file <image> | --clear)
+  tobs bot-banner-set|bot-appearance-set <id> --recipe-stdin
+  tobs bot-primary-color-set <id> (--color <#rrggbb> | --automatic)
+  tobs bot-source-policies <id>
+  tobs bot-source-policy-set <id> --source-class <class> [--wake <w>] [--delivery steer|turn]
                                     [--digest-count <n> --digest-interval <seconds>]
-  deepseekbot bot-source-policy-reset <id> --source-class <class>
-  deepseekbot bot-standing-limits-set <id> --soul <n> --core-memory <n>
-  deepseekbot developer-mode-set (--enabled | --disabled)
-  deepseekbot roster | human-identity | part-library
-  deepseekbot roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
-  deepseekbot roster-pins-set|roster-hidden-set [<channel>...]
-  deepseekbot roster-section-create <name>
-  deepseekbot roster-section-rename <section-id> --name <text>
-  deepseekbot roster-section-remove <section-id> --confirm
-  deepseekbot roster-section-reorder <section-id>...
-  deepseekbot roster-top-reorder section:<id>|channel:<id>...
-  deepseekbot part-library-add --part-stdin [--name <text>] [--parent <part-id>]
-  deepseekbot part-library-import --file <png|zip>
-  deepseekbot part-library-import-image --file <png> --slot <slot> --colors <n> [--name <text>]
-  deepseekbot part-library-export --out <absolute-file> [--part-id <id> | --part-stdin]
-  deepseekbot im-apps
-  deepseekbot im-authorize <feishu|weixin>
-  deepseekbot im-credentials <attempt-id> --credentials-stdin
-  deepseekbot im-verify <attempt-id> --verification-stdin
-  deepseekbot pairing-status <attempt-id> [--wait] [--timeout <seconds>]
-  deepseekbot im-cancel <attempt-id>
-  deepseekbot --help | deepseekbot create --help
+  tobs bot-source-policy-reset <id> --source-class <class>
+  tobs bot-standing-limits-set <id> --soul <n> --core-memory <n>
+  tobs developer-mode-set (--enabled | --disabled)
+  tobs roster | human-identity | part-library
+  tobs roster-batch pin|unpin|hide|move <channel>... [--section <section-id>]
+  tobs roster-pins-set|roster-hidden-set [<channel>...]
+  tobs roster-section-create <name>
+  tobs roster-section-rename <section-id> --name <text>
+  tobs roster-section-remove <section-id> --confirm
+  tobs roster-section-reorder <section-id>...
+  tobs roster-top-reorder section:<id>|channel:<id>...
+  tobs part-library-add --part-stdin [--name <text>] [--parent <part-id>]
+  tobs part-library-import --file <png|zip>
+  tobs part-library-import-image --file <png> --slot <slot> --colors <n> [--name <text>]
+  tobs part-library-export --out <absolute-file> [--part-id <id> | --part-stdin]
+  tobs im-apps
+  tobs im-authorize <feishu|weixin>
+  tobs im-credentials <attempt-id> --credentials-stdin
+  tobs im-verify <attempt-id> --verification-stdin
+  tobs pairing-status <attempt-id> [--wait] [--timeout <seconds>]
+  tobs im-cancel <attempt-id>
+  tobs --help | tobs create --help
 
 Output:
   stdout carries JSON, pretty by default; --compact condenses it to one line
@@ -599,7 +599,7 @@ function rejectSecretArgv(argv: readonly string[]): void {
 }
 
 function usageError(message: string): CliFailure {
-  return new CliFailure('usage', `${message} Run deepseekbot create --help for usage.`, 2);
+  return new CliFailure('usage', `${message} Run tobs create --help for usage.`, 2);
 }
 
 function trimmed(value: string | undefined): string | undefined {
@@ -1303,7 +1303,7 @@ function runModelPresetCreate(values: CreateValues, io: BotCreateCliIo): { prese
   try {
     try {
       const preset = modelStore(dshHome, owner).create({ name, orchestrator, assignmentDefault });
-      io.stderr(`deepseekbot: created model preset ${preset.id} ("${preset.name}")`);
+      io.stderr(`tobs: created model preset ${preset.id} ("${preset.name}")`);
       return { preset };
     } catch (error) {
       if (error instanceof Error && error.message.includes('already exists')) {
@@ -1344,7 +1344,7 @@ function runModelPresetApply(
     if (!applied.ok) {
       throw new CliFailure('unknown-preset', `Unknown model preset: ${presetId}`, 1);
     }
-    io.stderr(`deepseekbot: applied model preset "${preset.name}" to ${slug}`);
+    io.stderr(`tobs: applied model preset "${preset.name}" to ${slug}`);
     return {
       bot: { id: slug, name: applied.record.displayName },
       plan: applied.record.modelPlan ?? null,
@@ -1543,9 +1543,7 @@ async function runMemorySave(
         editId,
       }),
     );
-    io.stderr(
-      `deepseekbot: committed ${path} as ${commit.sha.slice(0, 7)} for ${opened.record.slug}`,
-    );
+    io.stderr(`tobs: committed ${path} as ${commit.sha.slice(0, 7)} for ${opened.record.slug}`);
     return { bot: memoryBot(opened.record), commit };
   } finally {
     opened.owner.close();
@@ -1609,7 +1607,7 @@ function runPause(
   try {
     const result = registry.setPaused(slug, paused);
     if (!result.ok) throw new CliFailure('unknown-bot', `Unknown bot: ${slug}`, 1);
-    io.stderr(`deepseekbot: ${paused ? 'paused' : 'resumed'} ${slug}`);
+    io.stderr(`tobs: ${paused ? 'paused' : 'resumed'} ${slug}`);
     return {
       bot: {
         id: slug,
@@ -1659,7 +1657,7 @@ function runUpdate(
         ? new CliFailure('unknown-bot', `Unknown bot: ${slug}`, 1)
         : new CliFailure('invalid-input', 'The bot could not be updated.', 1);
     }
-    io.stderr(`deepseekbot: updated ${slug}`);
+    io.stderr(`tobs: updated ${slug}`);
     return {
       bot: {
         id: slug,
@@ -1690,7 +1688,7 @@ function runHumanNameSet(
     const channels = openChannels(dshHome, owner, registry);
     try {
       const identity = channels.setHumanDefaultName(clear ? null : name!);
-      io.stderr(`deepseekbot: set the Human display name`);
+      io.stderr(`tobs: set the Human display name`);
       return { human: { humanId: identity.humanId, displayName: identity.displayName } };
     } catch (error) {
       throw new CliFailure(
@@ -1733,7 +1731,7 @@ function runChannelHumanNameSet(
         1,
       );
     }
-    io.stderr(`deepseekbot: set the Human nickname in ${channelId}`);
+    io.stderr(`tobs: set the Human nickname in ${channelId}`);
     return { channel: { id: channelId }, nickname: channels.humanNickname(channelId) ?? null };
   } finally {
     owner.close();
@@ -1874,7 +1872,7 @@ function runGrantRevoke(
     const record = requireBotRecord(registry, slug);
     try {
       const grant = openGrants(owner).revoke(record.slug, grantId);
-      io.stderr(`deepseekbot: revoked grant ${grantId} for ${record.slug}`);
+      io.stderr(`tobs: revoked grant ${grantId} for ${record.slug}`);
       return { bot: memoryBot(record), grant };
     } catch (error) {
       grantFailure(error);
@@ -1904,9 +1902,7 @@ function runGrantWriteSet(
     const record = requireBotRecord(registry, slug);
     try {
       const grant = openGrants(owner).setOrchestratorWrite(record.slug, grantId, enabled);
-      io.stderr(
-        `deepseekbot: set orchestrator write ${enabled ? 'on' : 'off'} for grant ${grantId}`,
-      );
+      io.stderr(`tobs: set orchestrator write ${enabled ? 'on' : 'off'} for grant ${grantId}`);
       return { bot: memoryBot(record), grant };
     } catch (error) {
       grantFailure(error);
@@ -1980,7 +1976,7 @@ function runScheduleCreate(
         },
         'human',
       );
-      io.stderr(`deepseekbot: created schedule ${schedule.id} for ${record.slug}`);
+      io.stderr(`tobs: created schedule ${schedule.id} for ${record.slug}`);
       return { bot: memoryBot(record), schedule };
     } catch (error) {
       scheduleFailure(error);
@@ -2030,7 +2026,7 @@ function runScheduleUpdate(
         },
         'human',
       );
-      io.stderr(`deepseekbot: updated schedule ${scheduleId} for ${record.slug}`);
+      io.stderr(`tobs: updated schedule ${scheduleId} for ${record.slug}`);
       return { bot: memoryBot(record), schedule };
     } catch (error) {
       scheduleFailure(error);
@@ -2055,7 +2051,7 @@ function runScheduleDelete(
     const record = requireBotRecord(registry, slug);
     try {
       const removed = openSchedules(owner, registry).remove(record.slug, scheduleId, 'human');
-      io.stderr(`deepseekbot: deleted schedule ${scheduleId} for ${record.slug}`);
+      io.stderr(`tobs: deleted schedule ${scheduleId} for ${record.slug}`);
       return { bot: memoryBot(record), removed };
     } catch (error) {
       scheduleFailure(error);
@@ -2106,9 +2102,7 @@ function runScheduleRunNow(
     const record = requireBotRecord(registry, slug);
     try {
       const firing = openSchedules(owner, registry).runNow(record.slug, scheduleId);
-      io.stderr(
-        `deepseekbot: recorded a manual firing for schedule ${scheduleId}; the Host executes it`,
-      );
+      io.stderr(`tobs: recorded a manual firing for schedule ${scheduleId}; the Host executes it`);
       return { bot: memoryBot(record), firing };
     } catch (error) {
       scheduleFailure(error);
@@ -2445,7 +2439,7 @@ async function runSecretPut(
       'The secret write failed validation; the previous credential file was restored.',
     );
   }
-  io.stderr(`deepseekbot: saved secret ${rawName}`);
+  io.stderr(`tobs: saved secret ${rawName}`);
   return { secret: secretRecord(rawName, io.env, true) };
 }
 
@@ -2491,7 +2485,7 @@ function runSecretUnset(
       'The secret delete failed validation; the previous credential file was restored.',
     );
   }
-  io.stderr(`deepseekbot: removed secret ${rawName}`);
+  io.stderr(`tobs: removed secret ${rawName}`);
   return { secret: secretRecord(rawName, io.env, false) };
 }
 
@@ -2880,7 +2874,7 @@ export async function runBotCreateCli(
     const result = await runCreate(values, io, readStdin);
     out.stdout(JSON.stringify(result, null, 2));
     io.stderr(
-      `deepseekbot: created ${result.bot.id} ("${result.bot.name}") in ${Math.round(performance.now() - startedAt)}ms`,
+      `tobs: created ${result.bot.id} ("${result.bot.name}") in ${Math.round(performance.now() - startedAt)}ms`,
     );
     return 0;
   } catch (error) {
@@ -2897,7 +2891,7 @@ export async function runBotCreateCli(
           2,
         ),
       );
-      io.stderr(`deepseekbot: ${error.message}`);
+      io.stderr(`tobs: ${error.message}`);
       return error.code === 'usage' ? 2 : 1;
     }
     if (error instanceof CliFailure) {
@@ -2907,7 +2901,7 @@ export async function runBotCreateCli(
         ...(error.bot === undefined ? {} : { bot: error.bot }),
       };
       out.stdout(JSON.stringify(failure, null, 2));
-      io.stderr(`deepseekbot: ${error.message}`);
+      io.stderr(`tobs: ${error.message}`);
       return error.exitCode;
     }
     if (
@@ -2918,11 +2912,11 @@ export async function runBotCreateCli(
       const failure: BotCreateFailure = {
         error: {
           code: 'usage',
-          message: `${error.message} Run deepseekbot create --help for usage.`,
+          message: `${error.message} Run tobs create --help for usage.`,
         },
       };
       out.stdout(JSON.stringify(failure, null, 2));
-      io.stderr(`deepseekbot: ${error.message}`);
+      io.stderr(`tobs: ${error.message}`);
       return 2;
     }
     if (error instanceof OperationalDatabaseError) {
@@ -2930,14 +2924,14 @@ export async function runBotCreateCli(
         error: { code: error.code, message: error.message },
       };
       out.stdout(JSON.stringify(failure, null, 2));
-      io.stderr(`deepseekbot: ${error.message}`);
+      io.stderr(`tobs: ${error.message}`);
       return 1;
     }
     const failure: BotCreateFailure = {
       error: { code: 'internal-error', message: 'The command failed before producing a result.' },
     };
     out.stdout(JSON.stringify(failure, null, 2));
-    io.stderr(`deepseekbot: ${error instanceof Error ? error.message : String(error)}`);
+    io.stderr(`tobs: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }
 }

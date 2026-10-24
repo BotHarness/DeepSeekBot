@@ -31,7 +31,7 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: deepseekbot
-        name: DeepSeekBot
+        name: Tobs
         description: 'PersonaBot 默认模式：与标准模式相同，但提问卡超过 45 秒未回答时 Bot 会继续处理其他消息，Subagent 改用 Bot 自己的 bot_subagent 工具。 The PersonaBot default: the standard mode, except that a question card left unanswered for 45 seconds no longer holds the Bot, and Subagents run through bot_subagent.'
         order: 5
         plugins:

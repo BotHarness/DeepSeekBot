@@ -219,7 +219,7 @@ describe('Bot mode setting rows', () => {
     const setBotIcon = vi.fn();
     const card = BotIconCard({
       option: 'simple',
-      label: 'DeepSeekBot 简约',
+      label: 'Tobs 简约',
       selected: false,
       onSelect: setBotIcon,
     });

@@ -266,7 +266,7 @@ export function createConnectAccount(options: {
 
   const link = async (current: AccountRecord, access: string): Promise<void> => {
     const reply = await relayCall('POST', '/v1/hosts', access, {
-      name: hostName().slice(0, 64) || 'DeepSeekBot',
+      name: hostName().slice(0, 64) || 'Tobs',
     });
     const id = (reply.body['host'] as { id?: unknown } | undefined)?.id;
     if (reply.status !== 201 || typeof id !== 'string') throw new AccountError('relay-unavailable');

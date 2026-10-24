@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   desktopZoomPath,
@@ -19,7 +19,6 @@ import {
 } from './desktop-zoom-platform.mjs';
 
 const theme = '@deepseek-ai/dsh-client-ui-theme';
-const ownedLink = 'link:node_modules/deepseekbot/desktop-theme';
 function refuse(code) {
   throw Object.assign(Error(code), { code });
 }
@@ -74,10 +73,15 @@ function configureProfileZoom({
   const directory = profileDirectory(home, profile);
   const manifestPath = join(directory, 'package.json');
   const before = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const bundles = before.dsh?.profile?.bundles ?? [];
+  const entry =
+    !bundles.includes('deepseekbot') && bundles.includes('tobs') ? 'tobs' : 'deepseekbot';
+  const product = join(directory, 'node_modules', entry);
+  const target = join(product, 'desktop-theme');
+  const ownedLink = `link:${relative(directory, target).replaceAll('\\', '/')}`;
   const current = before.dependencies?.[theme];
   if (current !== undefined && current !== ownedLink) refuse('desktop-zoom-setup-theme-conflict');
   const alias = join(directory, 'node_modules', theme);
-  const target = join(directory, 'node_modules/deepseekbot/desktop-theme');
   const linkState = () => {
     let stat;
     try {
@@ -143,9 +147,8 @@ function configureProfileZoom({
   if (action === 'enable') {
     if (platform !== 'darwin' && !(platform === 'win32' && packageCommand))
       refuse('desktop-zoom-setup-platform-unsupported');
-    const product = join(directory, 'node_modules/deepseekbot');
     const manifest = JSON.parse(readFileSync(join(product, 'package.json'), 'utf8'));
-    if (manifest.name !== 'deepseekbot' || !before.dsh?.profile?.bundles?.includes('deepseekbot'))
+    if (manifest.name !== entry || !bundles.some((name) => ['deepseekbot', 'tobs'].includes(name)))
       refuse('desktop-zoom-setup-product-not-enabled');
     const root = join(product, 'desktop-theme');
     const provenance = JSON.parse(readFileSync(join(root, 'botharness-zoom-compat.json'), 'utf8'));

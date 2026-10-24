@@ -404,11 +404,11 @@ describe('release notes views', () => {
     const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
     try {
       const dialog = view.host.querySelector('[role="dialog"]');
-      expect(dialog?.querySelector('h1')?.textContent).toBe('DeepSeekBot 1.0.1 更新内容');
+      expect(dialog?.querySelector('h1')?.textContent).toBe('Tobs 1.0.1 更新内容');
       expect(dialog?.textContent).toContain('摘要 1.0.1');
       expect(dialog?.querySelector('summary')?.textContent).toBe('v1.0.12026-10-06当前版本12 项');
       expect(dialog?.querySelector('p')?.textContent).toBe(
-        '欢迎使用 DeepSeekBot，这是当前版本带来的内容。',
+        '欢迎使用 Tobs，这是当前版本带来的内容。',
       );
       expect(dialog?.querySelector('details')?.hasAttribute('open')).toBe(true);
       const chips = dialog?.querySelectorAll('[data-release-section="Added"] [data-tone]');
@@ -466,7 +466,7 @@ describe('release notes views', () => {
         notes?.click();
       });
       const dialog = view.host.querySelector('[role="dialog"]');
-      expect(dialog?.querySelector('h1')?.textContent).toBe('DeepSeekBot 1.1.0 更新内容');
+      expect(dialog?.querySelector('h1')?.textContent).toBe('Tobs 1.1.0 更新内容');
       expect(dialog?.textContent).toContain('新增 1.1.0 #0');
       expect(dialog?.querySelector('summary')?.textContent).toContain('最新');
       const versions = dialog?.querySelectorAll('details');
@@ -739,7 +739,7 @@ it('keeps the upgrade notice short and says in one line why an install failed', 
   const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
   try {
     const dialog = () => document.body.querySelector('[role="dialog"]');
-    expect(dialog()?.textContent).toContain('DeepSeekBot 1.1.0 可升级');
+    expect(dialog()?.textContent).toContain('Tobs 1.1.0 可升级');
     expect(dialog()?.textContent).not.toContain('兼容当前 DSH');
     expect(dialog()?.textContent).not.toContain('直接在这里安装');
     const icon = dialog()?.querySelector<HTMLButtonElement>('[data-release-notice-install]');
