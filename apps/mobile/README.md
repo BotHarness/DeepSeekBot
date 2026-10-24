@@ -144,11 +144,13 @@ Agents verify native UI on a Mac with Xcode: they drive a development build on t
 Native checks happen on a Mac (above). Cloud sessions have no simulator: the container has no KVM for the Android emulator, no macOS for the iOS simulator, and the egress policy blocks `expo.dev`, so EAS cannot be driven from there; they reach a Mac through Remote Control for native checks. For PR evidence they render the same screens through React Native Web and screenshot them at a 390 × 844 phone viewport:
 
 ```bash
-EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export:web
+BOTHARNESS_MOBILE_WEB_PREVIEW=1 EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export:web
 python3 -m http.server 8099 --directory apps/mobile/dist-web &
 node apps/mobile/scripts/web-screenshot.mjs http://127.0.0.1:8099/ connect-light.png light
 node apps/mobile/scripts/web-screenshot.mjs http://127.0.0.1:8099/ connect-dark.png dark
 ```
+
+`BOTHARNESS_MOBILE_WEB_PREVIEW=1` opts into screenshot-only Metro overrides under `scripts/web-preview/`: browser-local language/appearance preferences and Material-symbol rendering. Normal app builds keep their native adapters. Use the same overrides for both base and PR exports, label the images **Expo Web layout preview**, and follow the [PR evidence workflow](../../docs/agents/pr-ui-visual-evidence.md#mobile-web-preview-first-native-evidence-follows) to supplement them with native device screenshots. Other unsupported Web paths remain unsupported.
 
 The web render is layout evidence, not native evidence: it shows the app's own views, copy, spacing and theme, but not native headers, large titles, keyboard behavior or fonts. `expo-secure-store` has no web backend, so the web build keeps the paired Host in the tab's `sessionStorage` instead (`src/host/saved-host.web.ts`), and the camera scanner only runs on a native build; paste the pairing link instead. To render screens with live data, serve `dist-web` from the Host's own origin (a small reverse proxy that forwards `/botharness-device/*` and its WebSocket upgrade to the Host; a browser cannot set headers on a WebSocket, so the proxy adds the `Authorization: Device …` header from the app's unary calls to the upgrade) and pair with a link from Settings → Devices. Native behavior is still checked on a development build (below) and reported in the PR's Human QA.
 

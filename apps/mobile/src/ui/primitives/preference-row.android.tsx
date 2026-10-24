@@ -6,11 +6,14 @@ import { useDesignTheme } from '../design/theme';
 import { materialMenu } from '../design/tokens';
 import { MaterialMenuGroup } from './material-menu.android';
 import { SettingsRow } from './settings-row';
+import { RowIcon } from './row-icon';
 import { CheckIcon } from '../shell/icons';
 import type { PreferenceRowProps } from './preference-row';
 
 export function PreferenceRow<T extends string>({
   title,
+  icon,
+  on = 'sheet',
   testID,
   value,
   options,
@@ -60,7 +63,9 @@ export function PreferenceRow<T extends string>({
         </DropdownMenu>
       </Host>
       <SettingsRow
+        on={on}
         title={title}
+        leading={<RowIcon name={icon} />}
         detail={options.find((option) => option.value === value)?.label ?? value}
         testID={testID}
         expanded={open}
