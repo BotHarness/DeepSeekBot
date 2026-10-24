@@ -31,6 +31,35 @@ function tracker() {
 }
 
 describe('Orchestrator Channel draft tracker', () => {
+  it('routes unified reply previews by trusted source and never falls back for external sources', () => {
+    const { drafts, events } = tracker();
+    drafts.begin('orchestrator-ada', {
+      channelId: 'dm-ada',
+      botSlug: 'ada',
+      canAccess: () => true,
+      replyChannel: (source) => (source === 'local-source' ? 'group-team' : undefined),
+    });
+    drafts.accept(
+      'orchestrator-ada',
+      delta('{"source_event_id":"external-source","body":"private"}', 'bot_send_message'),
+    );
+    expect(events).toEqual([]);
+    drafts.end('orchestrator-ada');
+    drafts.begin('orchestrator-ada', {
+      channelId: 'dm-ada',
+      botSlug: 'ada',
+      canAccess: () => true,
+      replyChannel: (source) => (source === 'local-source' ? 'group-team' : undefined),
+    });
+    drafts.accept(
+      'orchestrator-ada',
+      delta('{"source_event_id":"local-source","body":"hello', 'bot_send_message'),
+    );
+    expect(events).toMatchObject([
+      { type: 'update', draft: { channelId: 'group-team', body: 'hello' } },
+    ]);
+  });
+
   it('projects real tool-argument fragments into successive DM bodies, not assistant finals', () => {
     const { drafts, events } = tracker();
     drafts.accept('assignment-1', delta('{"body":"wrong"}'));

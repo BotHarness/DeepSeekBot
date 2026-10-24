@@ -52,6 +52,32 @@ function setup() {
 }
 
 describe('direct Bot tool runner', () => {
+  it('delivers an explicit local message through the same tool without a model turn', async () => {
+    const { runtime, channels, dm, host } = setup();
+    try {
+      const sent = await runtime.runDirectBotTool!(
+        'ada',
+        'bot_send_message',
+        { channel_id: dm.id, body: 'The checks passed.', end_turn: true },
+        new AbortController().signal,
+      );
+      expect(sent.result).toMatchObject({
+        channelId: dm.id,
+        status: 'committed',
+        inboxResolution: { outcome: 'not-requested' },
+      });
+      expect(channels.readMessages(dm.id)).toContainEqual(
+        expect.objectContaining({
+          body: 'The checks passed.',
+          author: { kind: 'bot', slug: 'ada' },
+        }),
+      );
+      expect(host.sessions).toHaveLength(0);
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it('requests a workspace through the same production tool without the model', async () => {
     const { runtime, channels, dm } = setup();
     try {

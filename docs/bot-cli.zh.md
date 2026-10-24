@@ -541,6 +541,18 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
+Channel 和外部 IM 可通过统一发送工具发送：
+
+```bash
+printf '{"channel_id":"dm-<bot-id>","body":"检查已通过。"}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
+```
+
+回复明确引用可信 `source_event_id`；主动发送明确指定目标。此切片的 `resolve_inbox_ids` 只能包含明确引用的这一来源，送达后才结清；单独检查 `inboxResolution`，失败时用 `inbox_resolve` 补状态，不要重发已送达消息。`end_turn` 默认 false，在原生模型回合中仅在发送及请求的结清成功后结束回合；直接 CLI 没有模型回合需要结束。未提供持久 Group `draft_id` 的普通 CLI 调用是新消息，不是通用持久重试命令；相同草稿与内容的重放保留原消息标识。当前统一入口也支持群聊、Bot DM 和外部 IM：回复使用可信 `source_event_id`，主动发送明确指定 `channel_id`、同事 `bot_id`、`bridge_targets` 返回的 `grant_id`，或 `binding_id` 与 `conversation_id` 的组合；这些目标形式与回复来源互斥。群聊保留原有草稿审查，修订时传入 `draft_id` 与 `observation_id`；重启恢复使用 `recover`。`attachments` 接受导入的附件引用；外部文件回复仅支持一个文件和空正文，主动外部文件发送会被拒绝。没有确认回执的外部发送不会结清 Inbox 或结束回合。
+
+`bot-trace --session direct` 可查看直接调用结果。
+
+`channel_action` 通过同一 `bot-tool` 执行表情与草稿动作：明确指定 `channel_id`，`action` 使用 `inspect`、`drop` 或 `react`，并提供相应草稿或消息引用。它不能发送正文。模型仅看到 `bot_send_message` 发送入口，旧发送名仅供直接 CLI 兼容。主动联系同事使用 `bot_id`；可达外部会话使用 `binding_id` 与 `conversation_id`，均与其他目标形式互斥。
+
 `bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、Subagent、提问与密钥卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
 
 `bot_create` 以该 Bot 的身份创建一个空白 PersonaBot，与 Bot 在聊天中创建时相同：`display_name` 必填；`description`、`tags`、`avatar_path`（Bot 记忆仓库或工作区授权内 PNG、JPEG 或 WebP 文件的绝对路径）、`soul`、`core_memory` 和 `memory_location` 可选。返回 `bot_id`、`display_name`、`dm_channel_id`、`memory_dir` 和 `model`（新 Bot 使用 Host 默认模型时为 `host-default`，有自己的模型后为 `set`），同时打开新 Bot 的私聊，并在创建者 Bot 的 Human 私聊中留下一条提示。拒绝时返回错误码：`invalid-input`、`invalid-avatar`、`invalid-memory-dir`、`git-not-found` 和 `memory-unavailable`。直接运行时不经过 Bot 回合中的工具审批，因为运行命令的就是 Human 本人。

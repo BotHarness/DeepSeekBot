@@ -402,7 +402,8 @@ describe('DSH Bot Agent adapter', () => {
             scope.guards.some((guard) => guard({ name })?.includes('scoped deepseekbot CLI')),
           ).toBe(tobCli);
         }
-        expect(scope.tools.map((tool) => tool.name)).toContain('channel_send');
+        expect(scope.tools.map((tool) => tool.name)).toContain('bot_send_message');
+        expect(scope.tools.map((tool) => tool.name)).not.toContain('channel_send');
         expect(scope.tools.map((tool) => tool.name)).toContain('channel_read');
         expect(
           rolePrompt?.includes("Tob is the Human's private steward, never a Group participant"),
@@ -1471,7 +1472,7 @@ describe('DSH Bot Agent adapter', () => {
       reachedSend = resolve;
     });
     let firstSend = true;
-    const host = new FakeAgentHost();
+    const host = new FakeAgentHost({ kind: 'completed' }, { sendMessage: true });
     const defaultModel = { currentSelection: () => ({ provider: 'test', model: 'test' }) };
     const adapter = createDshBotAgentAdapter({
       agents: host,
@@ -1489,6 +1490,19 @@ describe('DSH Bot Agent adapter', () => {
       inboundChannelId: 'dm-test',
       channels: {
         ...groupTools,
+        list: () => ({
+          outputLimit: 12000,
+          channels: [
+            {
+              id: 'dm-test',
+              type: 'dm',
+              kind: 'human-dm',
+              name: 'Ada',
+              members: [{ botId: 'ada', displayName: 'Ada', active: true }],
+              humanMembers: [],
+            },
+          ],
+        }),
         contacts: () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
@@ -1605,13 +1619,13 @@ describe('DSH Bot Agent adapter', () => {
 
       connected = true;
       await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(16);
-      expect(listed.at(-1)).toContain('bridge_reply');
+      expect(listed.at(-1)).toHaveLength(13);
+      expect(listed.at(-1)).not.toContain('bridge_reply');
       expect(listed.at(-1)).toContain('bridge_reachable_groups');
       expect(imPrompt()).toBe(true);
 
       await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(16);
+      expect(listed.at(-1)).toHaveLength(13);
 
       connected = false;
       await adapter.runOrchestrator({ ...run, resume: true });
@@ -1757,6 +1771,7 @@ describe('DSH Bot Agent adapter', () => {
     const host = new FakeAgentHost(
       { kind: 'completed' },
       {
+        sendMessage: true,
         onSessionEvent: (session, event) => {
           if (session.id === 'orchestrator-ada' && event.type === 'turn/start')
             expect(adapter.steerOrchestrator?.(BOT.slug, '请继续回复当前 Channel')).toBe(true);
@@ -1784,6 +1799,19 @@ describe('DSH Bot Agent adapter', () => {
       message: '请核对发布状态',
       channels: {
         ...groupTools,
+        list: () => ({
+          outputLimit: 12000,
+          channels: [
+            {
+              id: 'dm-test',
+              type: 'dm',
+              kind: 'human-dm',
+              name: 'Ada',
+              members: [{ botId: 'ada', displayName: 'Ada', active: true }],
+              humanMembers: [],
+            },
+          ],
+        }),
         contacts: () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
@@ -1850,7 +1878,9 @@ describe('DSH Bot Agent adapter', () => {
     });
     void reports;
 
-    expect(sends).toEqual([{ body: '发布状态已经核对完成。' }]);
+    expect(sends).toEqual([
+      expect.objectContaining({ channelId: 'dm-test', body: '发布状态已经核对完成。' }),
+    ]);
     expect(reports).toEqual([{ state: 'completed', summary: '发布状态正常' }]);
     expect(completions).toEqual([
       {
@@ -1877,6 +1907,7 @@ describe('DSH Bot Agent adapter', () => {
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
     expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
+      'bot_send_message',
       'memory_switch_branch',
       'memory_continue_from_commit',
       'list_assignment_models',
@@ -1920,8 +1951,7 @@ describe('DSH Bot Agent adapter', () => {
       'bot_schedule_update',
       'bot_schedule_delete',
       'group_leave',
-      'bot_dm_send',
-      'channel_send',
+      'channel_action',
     ]);
     expect(
       host.scopes
@@ -1931,26 +1961,28 @@ describe('DSH Bot Agent adapter', () => {
     ).toEqual([]);
     const channelSend = host.scopes
       .get('orchestrator-ada')
-      ?.tools.find((tool) => tool.name === 'channel_send');
+      ?.tools.find((tool) => tool.name === 'bot_send_message');
     const rolePrompt = host.scopes.get('orchestrator-ada')?.sections[0]?.text ?? '';
     expect(rolePrompt).toContain('## Reply delivery contract');
     expect(rolePrompt.indexOf('## Reply delivery contract')).toBeLessThan(
       rolePrompt.indexOf('Use three complementary sources'),
     );
-    expect(rolePrompt).toContain('Reading content or images does not send an answer');
-    expect(rolePrompt).toContain('Never imitate an earlier assistant-only answer');
-    expect(rolePrompt).toContain('If the Human explicitly asks for no reply');
-    expect(rolePrompt).toContain('External IM uses bridge_reply or bridge_reply_file');
-    expect(rolePrompt).toContain('retry an uncertain send blindly');
+    expect(rolePrompt).toContain('Your assistant text is private Session output');
+    expect(rolePrompt).toContain('Do not acknowledge every request');
+    expect(rolePrompt).toContain('Respect requests for silence');
+    expect(rolePrompt).toContain('Use the same tool for Group/Bot DM, attachments and external IM');
+    expect(rolePrompt).toContain('do not retry uncertain sends blindly');
     expect(rolePrompt).toContain('call ask_secret at once');
     expect(rolePrompt).toContain('never ask them to paste a secret into a Channel');
     expect(rolePrompt.replace(/\{\{(?:provider|model|cwd)\}\}/g, '')).not.toContain('{{');
-    expect(channelSend?.description).toContain('Assistant final text is private Session output');
-    expect(channelSend?.description).toContain('A request for "no tools"');
+    expect(channelSend?.description).toContain('Ordinary assistant text is private');
+    expect(channelSend?.description).toContain('Ordinary assistant text is private');
     const deliveryPrompt = host.scopes
       .get('orchestrator-ada')
       ?.sections.find((section) => section.name === 'botharness:reply-delivery')?.text;
-    expect(deliveryPrompt).toContain('MUST deliver any intended Human-facing answer');
+    expect(deliveryPrompt).toContain(
+      'Deliver intended Channel and external IM messages through bot_send_message',
+    );
     expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
     expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
     const received = host.received.get('orchestrator-ada')?.[0]?.content;
@@ -2001,7 +2033,9 @@ describe('DSH Bot Agent adapter', () => {
         },
       ),
     ).toMatchObject([{ type: 'text' }, { type: 'image' }]);
-    expect(JSON.stringify(channelSend?.parameters)).not.toMatch(/bot_slug|persona_bot|author/);
+    expect(JSON.stringify(channelSend?.parameters)).not.toMatch(
+      /"(?:bot_slug|persona_bot|author)"\s*:/,
+    );
     const groupAttentionSet = host.scopes
       .get('orchestrator-ada')
       ?.tools.find((tool) => tool.name === 'group_attention_set');
@@ -2469,18 +2503,20 @@ it('routes external Tools through the active owning Orchestrator without a local
         expect(
           JSON.parse(
             String(
-              await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext),
+              await permissions.execute({ source_event_id: 'source-1' }, {
+                signal,
+              } as ToolRunContext),
             ),
           ),
         ).toEqual({ queriedAt: '2026-10-11T00:00:00Z', status: 'visitor' });
-        await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext);
+        await permissions.execute({ source_event_id: 'source-1' }, { signal } as ToolRunContext);
         expect(permissionsRead).toHaveBeenCalledTimes(2);
         expect(permissionsRead).toHaveBeenCalledWith('source-1');
         const directory = tools.find((tool) => tool.name === 'bridge_directory');
         if (!directory) throw new Error('directory tool unavailable');
         await directory.execute(
           { kind: 'observed-people', source_event_id: 'source-1', limit: 1 },
-          {} as ToolRunContext,
+          { signal } as ToolRunContext,
         );
         expect(directoryRead).toHaveBeenCalledWith({
           kind: 'observed-people',
@@ -2500,7 +2536,7 @@ it('routes external Tools through the active owning Orchestrator without a local
         );
         const groups = tools.find((tool) => tool.name === 'bridge_reachable_groups');
         if (!groups) throw new Error('reachable groups tool unavailable');
-        expect(JSON.parse(String(await groups.execute({}, {} as ToolRunContext)))).toEqual([
+        expect(JSON.parse(String(await groups.execute({}, { signal } as ToolRunContext)))).toEqual([
           {
             bindingId: 'owned-app',
             platform: 'feishu',
@@ -2513,44 +2549,39 @@ it('routes external Tools through the active owning Orchestrator without a local
           },
         ]);
         const targets = tools.find((tool) => tool.name === 'bridge_targets');
-        const post = tools.find((tool) => tool.name === 'bridge_post');
+        const post = tools.find((tool) => tool.name === 'bot_send_message');
         const outbox = tools.find((tool) => tool.name === 'bridge_outbox');
         if (!targets || !post || !outbox) throw new Error('outbox tools unavailable');
-        expect(JSON.parse(String(await targets.execute({}, {} as ToolRunContext)))).toEqual([]);
+        expect(JSON.parse(String(await targets.execute({}, { signal } as ToolRunContext)))).toEqual(
+          [],
+        );
         await expect(
-          post.execute(
-            { grant_id: 'grant', request_id: 'stable_report_id', text: 'Report' },
-            {} as ToolRunContext,
-          ),
+          post.execute({ grant_id: 'grant', body: 'Report' }, { signal } as ToolRunContext),
         ).rejects.toThrow('post ownership sentinel');
         await expect(
           post.execute(
             {
               binding_id: 'owned-app',
               conversation_id: 'oc_new',
-              request_id: 'new_group_post',
-              text: 'Report',
+              body: 'Report',
             },
-            {} as ToolRunContext,
+            { signal } as ToolRunContext,
           ),
         ).rejects.toThrow('reachable post ownership sentinel');
         await expect(
-          outbox.execute({ intent_id: 'foreign' }, {} as ToolRunContext),
+          outbox.execute({ intent_id: 'foreign' }, { signal } as ToolRunContext),
         ).rejects.toThrow('outbox ownership sentinel');
         latePost = () =>
-          post.execute(
-            { grant_id: 'grant', request_id: 'stable_report_id', text: 'Report' },
-            {} as ToolRunContext,
-          );
+          post.execute({ grant_id: 'grant', body: 'Report' }, { signal } as ToolRunContext);
         const read = tools.find((tool) => tool.name === 'bridge_read');
-        const reply = tools.find((tool) => tool.name === 'bridge_reply');
+        const reply = tools.find((tool) => tool.name === 'bot_send_message');
         const share = tools.find((tool) => tool.name === 'bridge_share');
         if (!read || !reply || !share) throw new Error('external tools unavailable');
-        expect(reply.parameters).toMatchObject({ required: ['source_event_id', 'text'] });
+        expect(reply.parameters).toMatchObject({ required: ['body'] });
         expect(share.parameters).toMatchObject({ required: ['source_event_id', 'channel_id'] });
         const placed = await share.execute(
           { source_event_id: 'source-1', channel_id: 'group-team' },
-          {} as ToolRunContext,
+          { signal } as ToolRunContext,
         );
         expect(JSON.parse(String(placed))).toMatchObject({
           sourceEventId: 'source-1',
@@ -2558,17 +2589,17 @@ it('routes external Tools through the active owning Orchestrator without a local
           alreadyShared: false,
         });
         await expect(
-          read.execute({ source_event_id: 'source-1' }, {} as ToolRunContext),
+          read.execute({ source_event_id: 'source-1' }, { signal } as ToolRunContext),
         ).rejects.toThrow('owned source sentinel');
         const result = await reply.execute(
-          { source_event_id: 'source-1', text: 'Topic response' },
-          {} as ToolRunContext,
+          { source_event_id: 'source-1', body: 'Topic response' },
+          { signal } as ToolRunContext,
         );
         expect(typeof result).toBe('string');
         if (typeof result !== 'string') throw new Error('Expected serialized tool result');
         expect(JSON.parse(result)).toMatchObject({
-          sourceEventId: 'source-1',
-          state: 'provider-accepted',
+          status: 'provider-accepted',
+          intentId: 'intent',
         });
       },
     },
@@ -2581,6 +2612,7 @@ it('routes external Tools through the active owning Orchestrator without a local
   });
   await adapter.runOrchestrator({
     sessionId: 'external-ada',
+    replyDestination: () => ({ kind: 'external' }),
     resume: false,
     bot: BOT,
     inboundChannelId: undefined,
@@ -2678,13 +2710,17 @@ it('routes external Tools through the active owning Orchestrator without a local
       request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
     },
   });
-  await expect(latePost?.()).rejects.toThrow('bridge_post: unavailable');
+  await expect(latePost?.()).rejects.toThrow('Orchestrator run is unavailable');
   expect(reads).toEqual(['source-1']);
   expect(replies).toEqual([['source-1', 'Topic response']]);
-  const tool = host.scopes.get('external-ada')?.tools.find((item) => item.name === 'bridge_reply');
+  const tool = host.scopes
+    .get('external-ada')
+    ?.tools.find((item) => item.name === 'bot_send_message');
   await expect(
-    tool?.execute({ source_event_id: 'source-1', text: 'Late response' }, {} as ToolRunContext),
-  ).rejects.toThrow('bridge_reply: unavailable');
+    tool?.execute({ source_event_id: 'source-1', body: 'Late response' }, {
+      signal,
+    } as ToolRunContext),
+  ).rejects.toThrow('Orchestrator run is unavailable');
   expect(replies).toHaveLength(1);
   const contextTool = host.scopes
     .get('external-ada')

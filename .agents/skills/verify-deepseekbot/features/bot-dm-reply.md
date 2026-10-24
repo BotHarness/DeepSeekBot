@@ -6,6 +6,8 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 
 - `send` posts the Human message from the composer.
 - `run` starts the Bot's session, visible in the Channel sidebar `Sessions` tab as `Running`.
+- `explicit-send` uses `bot_send_message` for local text, with a trusted reply Source Event or explicit proactive Channel.
+- `turn-conclusion` permits `end_turn` only after a committed send and successful requested Inbox resolution; a question can leave its source open, and a later Human message still starts work.
 - `reply` commits the Bot's answer to the DM timeline.
 
 ## How to get to it (user POV)
@@ -26,3 +28,9 @@ Preconditions: `launch` reported a model credential, `doctor` passes, and the de
 - `--wait-text` ignores the composer value but matches the sent Human message, sidebar previews and error details. A reply word in the prompt passes before the Bot answers; `42` also matches a `429` quota failure. Use a distinctive computed answer, inspect the actual conversation screenshot and require a canonical Bot-authored reply without `sessionFailure`.
 - On a keyless Host the message sends and the session fails. That is a missing precondition, not a product failure.
 - `--click-text "DeepSeek Bot"` matches the conversation header chip last and opens the conversation menu (View profile goes directly to the full profile). The DM is already selected on first entry.
+
+For the explicit-send slice, correlate the visible reply with `bot-trace`: require a committed
+`bot_send_message` result, the intended reply source and Inbox resolution. Compare a send with
+`end_turn: true` against an ordinary send: the former must finish without a redundant final model
+request. Send a fresh Human message afterward and verify another reply. The direct path is
+`bot-tool <slug> bot_send_message --args-stdin`; verify its actual message in the same DM.

@@ -226,3 +226,11 @@ Uncertain side effects must remain needs-repair, and an old revoked turn must st
 refuse cross-Channel sends. Regression:
 `packages/core/test/group-recovery-revoked-source.test.ts`. A fresh DM after removal of
 only pending work is a control, not a reproduction of the active-turn restart bug.
+
+## Unified messaging entry
+
+Exercise `bot_send_message` through the model and the direct `bot-tool` CLI with explicit
+`channel_id` or trusted `source_event_id`. Preserve the held/revise/recover behavior above.
+Use `channel_action` for inspect, drop and reactions; extra delivery arguments must never
+create a Channel message. Verify streamed unified replies appear only in their authorized
+local Channel; an external reply must not preview in the current Human DM.

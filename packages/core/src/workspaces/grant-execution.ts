@@ -212,6 +212,8 @@ const BOT_TOOL_NAMES = new Set([
   'bot_dm_send',
   'bot_create',
   'channel_send',
+  'bot_send_message',
+  'channel_action',
 
   'ask_user_question',
   'ask_secret',

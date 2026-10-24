@@ -555,6 +555,31 @@ printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-to
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
+Unified Channel and external IM messaging is available through the same runner:
+
+```bash
+printf '{"channel_id":"dm-<bot-id>","body":"The checks passed."}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
+```
+
+Use exactly one of `source_event_id` (a trusted reply source), `channel_id` (an explicit proactive
+Channel target), `bot_id` (a colleague), `grant_id` (an authorized external target from `bridge_targets`), or `binding_id` with `conversation_id` (a reachable external conversation). `resolve_inbox_ids` may contain only the referenced
+source in this slice. Resolution follows delivery; inspect `inboxResolution` separately and use
+`inbox_resolve` to repair failed cleanup without sending again. `end_turn` defaults to false;
+inside a native model turn it concludes only after successful delivery and requested cleanup.
+The direct CLI has no model turn to conclude. Ordinary CLI invocations without a durable Group `draft_id` are separate messages;
+this is not a general durable retry command. Replaying the same Group draft with unchanged content retains its existing message identity. Group sends retain draft review: pass `observation_id`,
+`draft_id` and `recover` as needed. Inspection, dropping and reactions remain separate actions.
+`attachments` accepts imported references; an external file reply accepts one file with empty
+`body`, while proactive external files are refused. External delivery without a confirmed receipt
+does not resolve Inbox or conclude the turn. `bot-trace --session direct` records the direct tool result.
+
+`channel_action` runs the same reaction and Group draft code without sending text: use
+`action: "inspect" | "drop" | "react"` and explicit `channel_id`, with the required draft or
+reaction references. It is available through `bot-tool` as well. The model sees only
+`bot_send_message` for delivery; old send names remain direct-CLI compatibility commands.
+Proactive colleague text uses `bot_id`; reachable external posting uses `binding_id` with
+`conversation_id`. These target forms are exclusive with the other destination fields.
+
 `bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, Subagents, question and secret cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
 `bot_create` creates a blank PersonaBot as that Bot would from chat: `display_name` is required; `description`, `tags`, `avatar_path` (an absolute PNG, JPEG or WebP path in the Bot's Memory Repository or a Workspace Grant), `soul`, `core_memory` and `memory_location` are optional. It returns `bot_id`, `display_name`, `dm_channel_id`, `memory_dir` and `model` (`host-default` when the new Bot answers on the Host default model, `set` once it has its own), opens the new Bot's DM and adds a notice in the creating Bot's Human DM. Refusals are coded: `invalid-input`, `invalid-avatar`, `invalid-memory-dir`, `git-not-found` and `memory-unavailable`. Run directly, it skips the tool approval a Bot turn goes through, because you are the Human running it.
