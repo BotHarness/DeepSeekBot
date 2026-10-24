@@ -1436,6 +1436,8 @@ export function ChannelDock({
     options?: { presentMessages?: boolean },
   ): (() => void) => {
     if (!api || guideLease.current) throw new Error('help_layout_unavailable');
+    const previousFocus = document.activeElement;
+    const previousChannel = channelRef.current?.id;
     const normal = {
       layout: api.toJSON(),
       parked: structuredClone(parked.current),
@@ -1492,6 +1494,15 @@ export function ChannelDock({
             reuseExistingPanels: true,
           });
         save(api);
+        queueMicrotask(() => {
+          if (
+            previousFocus instanceof HTMLElement &&
+            previousFocus.isConnected &&
+            channelRef.current?.id === previousChannel &&
+            document.activeElement === document.body
+          )
+            previousFocus.focus({ preventScroll: true });
+        });
       } finally {
         clearTimeout(guideRestoreTimer.current);
         guideRestoreTimer.current = setTimeout(() => {

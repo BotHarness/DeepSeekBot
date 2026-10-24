@@ -1558,6 +1558,8 @@ it('keeps saved outer and nested geometry stable across workspace remounts', asy
       ),
     );
   const before = grid();
+  const focused = host.querySelector<HTMLInputElement>('[data-content="computer"]')!;
+  focused.focus();
   let release!: () => void;
   act(() => {
     release = registry.beginGuide(() => {});
@@ -1567,6 +1569,7 @@ it('keeps saved outer and nested geometry stable across workspace remounts', asy
   act(() => release());
   await settle();
   expect(grid()).toEqual(before);
+  expect(document.activeElement).toBe(focused);
   for (let index = 0; index < 3; index++) {
     act(() => root.unmount());
     root = createRoot(host);

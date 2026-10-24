@@ -176,6 +176,14 @@ try {
   );
   const normal = await layout();
   await click('Guide me');
+  await page.waitForSelector('.driver-popover');
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(
+    () => window[Symbol.for('botharness.clientHelp')].state().phase === 'idle',
+  );
+  await page.waitForFunction(() => document.activeElement?.textContent === 'Guide me');
+  assert.equal(await layout(), normal);
+  await click('Guide me');
   await pause(1000);
   console.log(JSON.stringify({ phase: 'after-start', state: await state() }));
   await page.waitForSelector('.driver-popover');
