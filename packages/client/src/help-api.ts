@@ -19,6 +19,7 @@ export interface HelpStep {
 export interface HelpGuide {
   readonly actionLabel?: HelpText;
   availability(): HelpAvailability;
+  subscribe?(listener: () => void): () => void;
   prepare(
     targetId: string,
     signal: AbortSignal,

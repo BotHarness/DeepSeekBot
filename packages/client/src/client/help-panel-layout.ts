@@ -1,5 +1,6 @@
 import type { HelpGuide, HelpStep } from '../help-api.js';
-import type { DockPanelHost, DockPanelRegistration } from './dock-panels.js';
+import type { DockPanelHost, DockPanelLayoutState, DockPanelRegistration } from './dock-panels.js';
+import { isMessagesPanel } from './help-panel-discovery.js';
 
 export function panelLayoutGuide(
   panels: DockPanelHost,
@@ -56,6 +57,7 @@ export function panelLayoutGuide(
           if (!panels.panels().includes(instance) || !(panels.canOpen?.(id) ?? true)) invalidated();
         });
         panels.open(id);
+        const nested = isMessagesPanel(instance);
         const visible = (selector: string) =>
           [...document.querySelectorAll(selector)].find(
             (element) => element.getClientRects().length > 0,
@@ -66,10 +68,10 @@ export function panelLayoutGuide(
               element.getAttribute('data-dock-header') === id &&
               element.getClientRects().length > 0,
           );
-        const workspace = () => visible('[data-workspace-dock]');
-        const bounds = () => header()?.closest('.dv-groupview')?.getBoundingClientRect();
+        const workspace = () =>
+          nested ? visible('[data-channel-workspace]') : visible('[data-workspace-dock]');
         const changed = (kind: 'move' | 'resize'): HelpStep => {
-          let initial: DOMRect | undefined;
+          let initial: DockPanelLayoutState | undefined;
           let completed = false;
           return {
             title:
@@ -87,17 +89,25 @@ export function panelLayoutGuide(
                     zh: '拖动此面板旁边的分隔线调整大小，再点击下一步。练习期间仍可操作其他面板。',
                   },
             resolve() {
-              initial ??= bounds();
+              initial ??= panels.layoutState(id);
               return workspace();
             },
             complete() {
-              const current = bounds();
+              const current = panels.layoutState(id);
+              if (
+                kind === 'resize' &&
+                initial &&
+                current &&
+                initial.placement !== current.placement
+              ) {
+                initial = current;
+                return completed;
+              }
               if (initial && current)
                 completed ||=
                   kind === 'move'
-                    ? Math.abs(initial.x - current.x) > 2 || Math.abs(initial.y - current.y) > 2
-                    : Math.abs(initial.width - current.width) > 2 ||
-                      Math.abs(initial.height - current.height) > 2;
+                    ? initial.placement !== current.placement
+                    : initial.placement === current.placement && initial.resize !== current.resize;
               return completed;
             },
           };
@@ -130,7 +140,7 @@ export function panelLayoutGuide(
                 en: `Open ${instance.title} from its panel control or the panel switcher. Messages subpanels use the controls in the Messages header. Choose Done to restore the original layout.`,
                 zh: `从面板按钮或面板切换器重新打开「${instance.title}」。消息子面板使用消息标题栏中的按钮。点击完成会恢复原来的布局。`,
               },
-              resolve: workspace,
+              resolve: () => visible('[data-workspace-dock]'),
               complete: () => panels.isOpen(id),
             },
           ],

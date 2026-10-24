@@ -2287,6 +2287,14 @@
       "behaviors": ["desktop.window-zoom"]
     },
     {
+      "path": "scripts/e2e-panel-guide.mjs",
+      "sha256": "1dcb1984d0b0ec0793e67b22318f9efb2fcd50e8015e2b013fddb482c570368c",
+      "category": "mapped",
+      "reason": "Task-owned S2 discovery, nested layout, Plugin camera, instance removal and cross-page Plugin disposal/recreation; closes owned restored tabs before driving and owned pages before shutdown to prevent connection starvation. Light/dark Web paths revalidated; Human and native zoom acceptance remain separate.",
+      "task": 2718,
+      "behaviors": ["desktop.user-guide"]
+    },
+    {
       "path": "scripts/e2e-user-guide.mjs",
       "sha256": "f0e52a72edaaebe09db510b1df6adcb6e8a35d45fda1bf3bb7be711e8625251c",
       "category": "mapped",

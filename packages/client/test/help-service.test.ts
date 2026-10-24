@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createHelpService } from '../src/client/help-service.js';
 import type { HelpContribution, HelpStep } from '../src/help-api.js';
 
@@ -22,6 +22,80 @@ const contribution = (
       ],
     },
   ],
+});
+it('refreshes availability snapshots without replacing a guide and releases notifications', () => {
+  const service = createHelpService(() => () => {});
+  let ready = false;
+  let notify = () => {};
+  const unsubscribe = vi.fn();
+  const off = service.register(
+    contribution({
+      availability: () =>
+        ready
+          ? { status: 'ready', target: { id: 'a', label: 'A' } }
+          : { status: 'unavailable', reason: { en: 'Wait' } },
+      subscribe(listener) {
+        notify = listener;
+        return unsubscribe;
+      },
+      prepare: async () => ({ steps: [], dispose() {} }),
+    }),
+  );
+  const before = service.topics();
+  ready = true;
+  notify();
+  expect(service.topics()).not.toBe(before);
+  expect(service.availability('example:model').status).toBe('ready');
+  expect(service.state().phase).toBe('idle');
+  off();
+  expect(unsubscribe).toHaveBeenCalledOnce();
+  const removed = service.topics();
+  notify();
+  expect(service.topics()).toBe(removed);
+});
+
+it('does not retain a contribution whose availability subscription throws', () => {
+  const service = createHelpService(() => () => {});
+  expect(() =>
+    service.register(
+      contribution({
+        availability: () => ({ status: 'ready', target: { id: 'a', label: 'A' } }),
+        subscribe() {
+          throw new Error('subscribe_failed');
+        },
+        prepare: async () => ({ steps: [], dispose() {} }),
+      }),
+    ),
+  ).toThrow('subscribe_failed');
+  expect(service.topics()).toHaveLength(0);
+  expect(() => service.register(contribution())).not.toThrow();
+});
+it('subscribes once when two questions share the same guide', () => {
+  const service = createHelpService(() => () => {});
+  const unsubscribe = vi.fn();
+  let notify = () => {};
+  const subscribe = vi.fn((listener: () => void) => {
+    notify = listener;
+    return unsubscribe;
+  });
+  const source = contribution({
+    availability: () => ({ status: 'ready', target: { id: 'a', label: 'A' } }),
+    subscribe,
+    prepare: async () => ({ steps: [], dispose() {} }),
+  });
+  const topic = source.topics[0]!;
+  const question = topic.questions[0]!;
+  const off = service.register({
+    ...source,
+    topics: [{ ...topic, questions: [question, { ...question, id: 'example:second' }] }],
+  });
+  const listener = vi.fn();
+  service.subscribe(listener);
+  notify();
+  expect(subscribe).toHaveBeenCalledOnce();
+  expect(listener).toHaveBeenCalledOnce();
+  off();
+  expect(unsubscribe).toHaveBeenCalledOnce();
 });
 it('discovers a text-only independent contribution and protects replacement from a stale disposer', () => {
   const service = createHelpService(() => () => {});

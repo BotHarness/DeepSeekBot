@@ -1,5 +1,5 @@
 import { PointerMenu } from './ds/pointer-menu.js';
-import { useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useId, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { type MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -18,6 +18,7 @@ export function usePanelMenu({
   selectedId?: string;
 }) {
   const [point, setPoint] = useState<{ x: number; y: number }>();
+  const menuId = useId();
   const trigger = useRef<HTMLElement | null>(null);
   const close = () => {
     setPoint(undefined);
@@ -47,6 +48,7 @@ export function usePanelMenu({
       tabIndex: 0,
       'aria-haspopup': 'menu' as const,
       'aria-expanded': point !== undefined,
+      'aria-controls': point ? menuId : undefined,
       onContextMenu: open,
       onKeyDown: (event: KeyboardEvent<HTMLElement>) => {
         if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) open(event);
@@ -54,6 +56,7 @@ export function usePanelMenu({
     },
     menu: point ? (
       <PointerMenu
+        menuId={menuId}
         point={point}
         dense
         autoFocus

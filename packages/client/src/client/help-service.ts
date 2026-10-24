@@ -96,6 +96,24 @@ export function createHelpService(
           ),
         ),
       });
+      const subscriptions: (() => void)[] = [];
+      try {
+        for (const guide of new Set(
+          contribution.topics.flatMap((topic) => topic.questions.map((item) => item.guide)),
+        )) {
+          if (guide?.subscribe)
+            subscriptions.push(
+              guide.subscribe(() => {
+                if (registrations.get(owned.id) !== owned) return;
+                topics = Object.freeze([...topics]);
+                publish();
+              }),
+            );
+        }
+      } catch (error) {
+        for (const unsubscribe of subscriptions) unsubscribe();
+        throw error;
+      }
       registrations.set(owned.id, owned);
       topics = Object.freeze([...registrations.values()].flatMap((c) => c.topics));
       publish();
@@ -108,6 +126,7 @@ export function createHelpService(
         )
           selection = undefined;
         registrations.delete(owned.id);
+        for (const unsubscribe of subscriptions) unsubscribe();
         topics = Object.freeze([...registrations.values()].flatMap((c) => c.topics));
         publish();
       };

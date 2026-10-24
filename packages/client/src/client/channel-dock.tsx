@@ -31,6 +31,8 @@ import {
 import {
   createContext,
   useContext,
+  useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -64,6 +66,8 @@ import {
   DEFAULT_DOCK_PANELS,
   pruneChannelDock,
   dockPanelGap,
+  channelPanelLayoutState,
+  createDockPanelLayoutTracker,
   restoreDockGaps,
   readChannelDock,
   restoreDockVisibility,
@@ -962,6 +966,7 @@ export function ChannelDock({
   const membersRef = useRef(members);
   const [dropX, setDropX] = useState<number>();
   const [api, setApi] = useState<DockviewApi>();
+  const layoutTracker = useRef(createDockPanelLayoutTracker());
   const [openIds, setOpenIds] = useState<readonly string[]>([]);
   const [runtimes, setRuntimes] = useState<ReadonlyMap<string, EntryRuntime>>(new Map());
   const unregistered = useRef<import('dockview-react').SerializedDockview['panels']>({});
@@ -1222,7 +1227,11 @@ export function ChannelDock({
       for (const panel of ready.panels) delete parked.current[panel.id];
       save(ready);
     });
-    ready.onDidLayoutChange(() => save(ready));
+    layoutTracker.current(ready.toJSON());
+    ready.onDidLayoutChange(() => {
+      layoutTracker.current(ready.toJSON());
+      save(ready);
+    });
     save(ready);
     setApi(ready);
   };
@@ -1371,6 +1380,8 @@ export function ChannelDock({
   };
 
   const canOpen = (panelId: string): boolean => {
+    if (panelId === 'bot-inbox') return channel?.type === 'dm' && inbox !== undefined;
+    if (workspace && panelId === 'members') return channel?.type === 'group';
     if (
       (byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId))?.binding ===
       'current-bot'
@@ -1446,6 +1457,8 @@ export function ChannelDock({
       order: orderRef.current,
       hidden: hiddenControlsRef.current,
       members: membersRef.current,
+      inboxOpen: inbox?.open,
+      filesOpen: files?.open,
       botSeeds: botSeeds.current,
       bots: botWorkspacesRef.current,
       seed: seed.current,
@@ -1480,6 +1493,12 @@ export function ChannelDock({
         updateHiddenControls(hiddenControlsRef.current);
         membersRef.current = latest?.members ?? normal.members;
         updateMembers(membersRef.current);
+        if (channelRef.current?.id === previousChannel) {
+          if (normal.filesOpen) files?.setOpen(true);
+          else if (normal.inboxOpen) inbox?.setOpen(true);
+          else if (normal.inboxOpen !== undefined) inbox?.setOpen(false);
+          else if (normal.filesOpen !== undefined) files?.setOpen(false);
+        }
         botSeeds.current = latest?.botPanelSeeds ?? normal.botSeeds;
         botWorkspacesRef.current = latest?.botWorkspaces ?? normal.bots;
         updateBotWorkspaces(botWorkspacesRef.current);
@@ -1526,11 +1545,17 @@ export function ChannelDock({
     return release;
   };
 
-  const layout = useRef({ open, close, canOpen, beginGuide });
-  layout.current = { open, close, canOpen, beginGuide };
+  const layoutState = (id: string) => {
+    if (!api) return;
+    if (workspace && channelPanelIds.includes(id)) return channelPanelLayoutState(childTree, id);
+    return layoutTracker.current(api.toJSON()).get(id);
+  };
+  const layout = useRef({ open, close, canOpen, beginGuide, layoutState });
+  layout.current = { open, close, canOpen, beginGuide, layoutState };
   const layoutMount = useMountedResource<HTMLSpanElement>(() => {
     if (api === undefined || registry === undefined) return;
     return registry.attach({
+      layoutState: (id) => layout.current.layoutState(id),
       beginGuide: (invalidated, options) => layout.current.beginGuide(invalidated, options),
       canOpen: (id) => layout.current.canOpen(id),
       open: (id) => layout.current.open(id),
@@ -1873,6 +1898,17 @@ function ChannelDockPanelsMenu({
   onReset(): void;
 }): ReactElement {
   const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const menuClass = `bh-panels-menu-${menuId.replaceAll(':', '')}`;
+  useLayoutEffect(() => {
+    if (!open) return;
+    const popup = document.getElementsByClassName(menuClass).item(0);
+    if (!popup) return;
+    popup.id = menuId;
+    return () => {
+      if (popup.id === menuId) popup.removeAttribute('id');
+    };
+  }, [open, menuId, menuClass]);
   const menuMount = useMountedResource<HTMLSpanElement>(
     (node) => {
       if (!open || typeof ResizeObserver === 'undefined') return;
@@ -1902,6 +1938,7 @@ function ChannelDockPanelsMenu({
       <InstantTooltipScope>
         <Menu
           open={open}
+          listClassName={menuClass}
           portal
           dense
           align="end"
@@ -1912,6 +1949,7 @@ function ChannelDockPanelsMenu({
                 aria-label={label}
                 aria-haspopup="menu"
                 aria-expanded={open}
+                aria-controls={open ? menuId : undefined}
                 onClick={() => setOpen((value) => !value)}
               >
                 <ChannelSidebarIcon name="panels-top-left" />

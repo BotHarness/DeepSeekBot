@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type InputHTMLAttributes } from 'react';
+import {
+  act,
+  createElement,
+  type ButtonHTMLAttributes,
+  type ChangeEvent,
+  type InputHTMLAttributes,
+} from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
@@ -8,6 +14,31 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
   IconChevronDownOutlineRegular: () => null,
 }));
+vi.mock('../src/client/ds/select.js', () => ({
+  Select: ({
+    label,
+    value,
+    options,
+    onChange,
+  }: {
+    label: string;
+    value: string;
+    options: { value: string; label: string }[];
+    onChange(value: string): void;
+  }) =>
+    createElement(
+      'select',
+      {
+        'aria-label': label,
+        value,
+        onChange: (event: ChangeEvent<HTMLSelectElement>) => onChange(event.currentTarget.value),
+      },
+      options.map((option) =>
+        createElement('option', { key: option.value, value: option.value }, option.label),
+      ),
+    ),
+}));
+import type { HelpAvailability } from '../src/help-api.js';
 import { createUserGuidePanel } from '../src/client/user-guide.js';
 import { createHelpService } from '../src/client/help-service.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
@@ -53,6 +84,82 @@ it('opens the answer inline and supports collapsing the same question', () => {
     act(() => host.querySelector<HTMLButtonElement>('.bh-guide-question')!.click());
     act(() => help.show('test:model'));
     expect(host.querySelector('.bh-guide-answer')?.textContent).toContain('Real picker');
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});
+
+it('drops removed target choices and starts the remaining ready target', async () => {
+  const help = createHelpService(() => () => {});
+  let availability: HelpAvailability = {
+    status: 'select',
+    targets: [
+      { id: 'first', label: 'First' },
+      { id: 'second', label: 'Second' },
+    ],
+  };
+  let notify = () => {};
+  const prepare = vi.fn(async () => ({ steps: [], dispose: () => {} }));
+  help.register({
+    id: 'test:help',
+    topics: [
+      {
+        id: 'test:topic',
+        title: { en: 'Panels' },
+        overview: { en: 'Panels' },
+        questions: [
+          {
+            id: 'test:panel',
+            title: { en: 'Camera?' },
+            answer: { en: 'Choose a camera' },
+            guide: {
+              availability: () => availability,
+              subscribe(listener) {
+                notify = listener;
+                return () => {};
+              },
+              prepare,
+            },
+          },
+        ],
+      },
+    ],
+  });
+  const panel = createUserGuidePanel(help, createDockPanelRegistry(), zhTranslate);
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    act(() => root.render(createElement(panel.component, { channel: undefined })));
+    act(() => help.show('test:panel'));
+    const choose = host.querySelector<HTMLSelectElement>('select')!;
+    act(() => {
+      choose.value = 'second';
+      choose.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(choose.value).toBe('second');
+    act(() => {
+      availability = {
+        status: 'select',
+        targets: [
+          { id: 'first', label: 'First' },
+          { id: 'third', label: 'Third' },
+        ],
+      };
+      notify();
+    });
+    expect(choose.value).toBe('');
+    expect(host.querySelector<HTMLButtonElement>('.bh-guide-actions button')!.disabled).toBe(true);
+    act(() => {
+      availability = { status: 'ready', target: { id: 'first', label: 'First' } };
+      notify();
+    });
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>('.bh-guide-actions button')!.click(),
+    );
+    expect(prepare).toHaveBeenCalledWith('first', expect.any(AbortSignal));
+    expect(help.state().phase).toBe('running');
   } finally {
     act(() => root.unmount());
     host.remove();

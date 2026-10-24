@@ -2139,7 +2139,7 @@ window.__ModuleLoader__.load({
 				y: Math.max(Math.max(margin, viewport.top), Math.min(point.y, viewport.height - height - margin))
 			};
 		}
-		function PointerMenu({ point, container = document.body, align = "start", ...props }) {
+		function PointerMenu({ point, container = document.body, align = "start", menuId, ...props }) {
 			const mount = useMountedResource$1((node) => {
 				const menu = node.querySelector("[role=\"menu\"]");
 				if (!menu) return;
@@ -2190,6 +2190,7 @@ window.__ModuleLoader__.load({
 			]);
 			return (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				ref: mount,
+				id: menuId,
 				"data-pointer-menu": "",
 				className: "bhxixxii4 bhxu96u03 bhx13vifvy bhx51uzqw bhx1kkor1i bhxp6lfbs bhx47corl",
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Menu$1, {

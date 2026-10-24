@@ -396,6 +396,29 @@ it('makes a newly opened owned popup interactive before the polling interval', a
   await Promise.resolve();
   expect(popup.classList.contains('bh-help-owned-popup')).toBe(false);
 });
+it('owns the popup linked by the highlighted trigger itself', async () => {
+  const header = document.createElement('header');
+  document.body.append(header);
+  const controller = new AbortController();
+  stop = startHelpTour(
+    [{ title: { en: 'Open' }, description: { en: 'Menu' }, resolve: () => header }],
+    controller.signal,
+    (value) => value.en,
+    { close: 'Exit', previous: 'Previous', next: 'Next', done: 'Done' },
+    () => {},
+    () => {},
+  );
+  const popup = document.createElement('div');
+  popup.id = 'header-menu';
+  header.setAttribute('aria-controls', popup.id);
+  document.body.append(popup);
+  await Promise.resolve();
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(true);
+  header.removeAttribute('aria-controls');
+  await Promise.resolve();
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(false);
+  controller.abort();
+});
 
 it('keeps the layout overlay transparent to input while workspace practice is active', () => {
   const style = document.createElement('style');

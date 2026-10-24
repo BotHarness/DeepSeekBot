@@ -2,7 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
-| User guide (S1 model path) | no for settings/drafts; yes for route reply evidence | `scripts/e2e-user-guide.mjs` | [user-guide.md](user-guide.md) |
+| User guide (S1 model and S2 panel paths) | no for settings/layout/drafts/camera; yes for route reply evidence | `scripts/e2e-user-guide.mjs`, `scripts/e2e-panel-guide.mjs` | [user-guide.md](user-guide.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
 | Bot Marketplace cards, filters, remembered sorting and upload/import | no | `verify-app` Bot mode path | [marketplace.md](marketplace.md) |
 | Connect encrypted pairing, resources and native private input | yes for DM/tool/private request | `verify-app` isolated Host and shared native QA | [connect-channel.md](connect-channel.md) |

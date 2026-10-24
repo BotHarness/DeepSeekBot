@@ -264,7 +264,9 @@ export function startHelpTour(
   const portals = new Set<Element>();
   const syncPortals = () => {
     const current = new Set<Element>();
-    for (const control of target?.querySelectorAll('[aria-controls]') ?? []) {
+    const controls = [...(target?.querySelectorAll('[aria-controls]') ?? [])];
+    if (target?.hasAttribute('aria-controls')) controls.push(target);
+    for (const control of controls) {
       for (const id of (control.getAttribute('aria-controls') ?? '').split(/\s+/)) {
         const popup = document.getElementById(id);
         if (popup && !target?.contains(popup)) current.add(popup);
