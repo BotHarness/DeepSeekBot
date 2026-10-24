@@ -130,10 +130,15 @@ try {
   await run('npm', ['install', '-g', `tobs@${version}`]);
   const baseline = await help('tobs');
   report.checks.push('new global Tobs installation');
+  await run('npm', ['install', '-g', 'deepseekbot@1.4.1', '--registry=https://registry.npmjs.org']);
+  const legacy = await run(bin('deepseekbot'), ['--help']);
+  assert.match(legacy.stdout, /deepseekbot/u);
+  assert.equal(await help('tobs'), baseline);
+  report.checks.push('published 1.4.1 legacy command coexists with Tobs');
   await run('npm', ['install', '-g', `deepseekbot@${version}`]);
   assert.equal(await help('deepseekbot'), baseline);
   assert.equal(await help('tobs'), baseline);
-  report.checks.push('same-version global coexistence and help parity');
+  report.checks.push('upgrade from 1.4.1 and same-version global coexistence');
   const errorA = await run(bin('tobs'), ['not-a-command'], 2);
   const errorB = await run(bin('deepseekbot'), ['not-a-command'], 2);
   assert.deepEqual(errorA, errorB);
