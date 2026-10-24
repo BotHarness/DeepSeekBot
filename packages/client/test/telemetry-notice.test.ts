@@ -132,7 +132,7 @@ describe('TelemetryNotice', () => {
       [...view.host.querySelectorAll('[role="dialog"]')].map((node) =>
         node.getAttribute('data-title'),
       );
-    expect(dialogs()).toEqual(['DeepSeekBot 1.0.2 更新内容']);
+    expect(dialogs()).toEqual(['Tobs 1.0.2 更新内容']);
 
     await act(async () => {
       releaseNotes.dismiss();

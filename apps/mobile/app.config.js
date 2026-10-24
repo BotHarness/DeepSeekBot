@@ -3,6 +3,7 @@ const { existsSync } = require('node:fs');
 const path = require('node:path');
 const withSharingPlugin = require('expo-sharing/app.plugin').default;
 const withIosBrand = require('./with-ios-brand');
+const withAndroidBrand = require('./with-android-brand');
 
 const mainCheckout = () => {
   try {
@@ -82,5 +83,5 @@ module.exports = ({ config }) => {
     },
     ...(store ? { name: 'DeepSeekBot', scheme: ['deepseekbot', 'app.deepseekbot.mobile'] } : {}),
   });
-  return withIosBrand(resolved);
+  return withAndroidBrand(withIosBrand(resolved));
 };

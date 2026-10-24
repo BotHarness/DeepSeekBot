@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { freshProfileOverrides, ignoredBuilds } from '../e2e-fresh-profile-install.mjs';
 
@@ -12,7 +13,7 @@ describe('fresh Profile install gate', () => {
           { name: 'deepseekbot', filename: 'deepseekbot-1.3.1.tgz' },
         ],
       }),
-    ).toEqual({ '@botharness/core': 'file:/release/botharness-core-1.3.1.tgz' });
+    ).toEqual({ '@botharness/core': `file:${join('/release', 'botharness-core-1.3.1.tgz')}` });
   });
 
   it('names the dependency whose build a user would have to approve', () => {

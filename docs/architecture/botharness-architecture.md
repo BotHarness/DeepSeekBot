@@ -336,6 +336,8 @@ Application-defined IM DM commands (`/commands`, `/help`, `/status`, `/model`, `
 
 ### 首条外部出站路径（ADR-0101）
 
+产品品牌迁移保留这一分发身份：[ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 的 `tobs` npm 入口精确依赖同版本 `deepseekbot`，使用相同组件版本和逐字节相同的 Bundle Patch。两个包分别拥有 `tobs` 与 `deepseekbot` 命令，既有 Profile 无需添加第二个 Bundle，也不迁移存储。发布顺序为组件、旧入口、新入口；发布前分别验证两个 Bundle 的全新 Profile 安装及重启，并在 Windows/Linux 验证命令共存和独立卸载。
+
 [ADR-0127](../adr/0127-product-artifacts-compose-an-independently-versioned-im-provider.md) 提议在开发用 fork 政策之外增加产品分发路径：打包的 `deepseekbot` 固定 Core、Client、Browser、Computer 和独立版本的 `@botharness/im-provider`，通过同一 Bundle Patch 激活全部六个组件（[ADR-0160](../adr/0160-deepseekbot-default-bundles-browser-computer-and-im-provider.md)）。Provider 保留 SDK、凭据、存储身份及公开 Service；Core 保留所有 application-defined authority。构建校验不可变输入、重建运行时来源和 tarball 完整性。原生优先从 CLI 安装位置解析 Bundle，因此产物验收使用独立安装的官方 CLI，避免误用开发链接。初始不连接账号；重复的 standalone Bundle 在启动前被拒绝。Provider 随产品更新。此构建路径不发布 npm、不自动资格验证其他平台，也不免除 Human QA 和生产启用门槛。参见[打包验收指南](../product-im-installation.md)。 产品 Provider 的来源、DSH 版本和运行时摘要独立于开发版固定值；改变产品输入需要递增自身版本并重做实际安装验收（[#868](https://github.com/BotHarness/BotHarness/issues/868)）。
 
 [#1115](https://github.com/BotHarness/DeepSeekBot/issues/1115) 经 application-defined Messaging Provider 的可选可达群查询／checked first-post 契约扩展同一主动发送路径。Host 保留 Binding、会话屏蔽和 Outbox authority；首次发帖只创建既有 implicit 会话条目，不生成 Source Event、Inbox 或本地 DM。Generation 89 在 Binding 保存每小时发帖限额（默认 60，可关闭），以既有 Outbox attempt-start 计数，未知结果不重试。可选契约覆盖 Lark、Slack、Discord；实际平台权限、版本绑定的原生验收及 #1111 Provider 发布仍独立。详见 [ADR-0197](../adr/0197-reachable-posts-reuse-messaging-authority-and-outbox.md)。

@@ -2,12 +2,11 @@ import { CliLiveError } from './cli-live-error.js';
 export const CONNECT_COMMANDS = [
   {
     command: 'connect-status',
-    description: 'read DeepSeekBot Connect state and the phone routes',
+    description: 'read Tobs Connect state and the phone routes',
   },
   {
     command: 'connect-enable',
-    description:
-      'run a DeepSeekBot Connect tunnel for --hostname with its connector token from stdin',
+    description: 'run a Tobs Connect tunnel for --hostname with its connector token from stdin',
   },
   {
     command: 'connect-disable',

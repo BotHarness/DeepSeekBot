@@ -1,6 +1,12 @@
 name: npm prerelease preparation
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Candidate version to prepare and qualify without publication
+        required: true
+        type: string
   pull_request:
     paths:
       - .github/workflows/npm-prerelease-*.yml
@@ -11,6 +17,8 @@ on:
       - scripts/dev-im-provider.mjs
       - scripts/product-provider/**
       - scripts/test/npm-prerelease.test.mjs
+      - scripts/e2e-fresh-profile-install.mjs
+      - scripts/e2e-tobs-commands.mjs
 
 permissions:
   contents: read
@@ -24,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      RELEASE_VERSION: ${{ format('0.1.0-alpha.1-preview.{0}.{1}', github.event.number, github.run_id) }}
+      RELEASE_VERSION: ${{ inputs.version || format('0.1.0-alpha.1-preview.{0}.{1}', github.event.number, github.run_id) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,10 +62,64 @@ jobs:
           node -e 'const fs=require("fs"); const crypto=require("crypto"); const p=process.env.RUNNER_TEMP+"/npm-prerelease/release-plan.json"; fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"Reviewed plan SHA-256: `"+crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex")+"`\n\n```json\n"+fs.readFileSync(p)+"\n```\n")'
       - uses: actions/upload-artifact@v4
         with:
-          name: npm-prerelease-${{ env.RELEASE_VERSION }}
+          name: npm-candidate-${{ github.run_id }}
           path: |
             ${{ runner.temp }}/npm-prerelease/*.tgz
             ${{ runner.temp }}/npm-prerelease/artifacts.json
             ${{ runner.temp }}/npm-prerelease/release-plan.json
           if-no-files-found: error
           retention-days: 3
+
+  qualify-host:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-candidate-${{ github.run_id }}
+          path: .release-artifacts
+      - run: node scripts/e2e-fresh-profile-install.mjs .release-artifacts .release-host-qualification
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-qualification-${{ github.run_id }}
+          path: .release-host-qualification/report.json
+
+  qualify-commands:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-candidate-${{ github.run_id }}
+          path: .release-artifacts
+      - run: node scripts/e2e-tobs-commands.mjs .release-artifacts .release-artifacts/commands.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commands-${{ matrix.os }}-${{ github.run_id }}
+          path: .release-artifacts/commands.json
