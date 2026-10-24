@@ -550,6 +550,10 @@ const en = {
   unreachable: 'Cannot reach your computer',
   connectionNetworkHelp:
     'Check this phone’s network, keep your computer awake with DeepSeekBot open, then retry.',
+  connectionTailscaleHelp:
+    'Check that Tailscale is connected on both devices to the same network. Keep DeepSeekBot open on your computer. If it still fails, check Tailscale in Settings → Devices on the computer, then retry.',
+  connectionConnectHelp:
+    'Check this phone’s internet connection. On your computer, keep DeepSeekBot open and check that DeepSeekBot Connect is signed in and connected in Settings → Devices, then retry.',
   refused: 'Your computer refused this app',
   deviceRefusal: {
     'device-revoked': 'This phone was removed from the paired devices on your computer.',
@@ -2087,6 +2091,10 @@ const zh: typeof en = {
   reconnecting: '正在重新连接…',
   unreachable: '无法连接到你的电脑',
   connectionNetworkHelp: '请检查手机网络，并确认电脑未休眠且 DeepSeekBot 正在运行，然后重试。',
+  connectionTailscaleHelp:
+    '请确认手机和电脑的 Tailscale 已连接到同一网络，并保持电脑上的 DeepSeekBot 运行。仍连不上时，在电脑「设置 → 设备」检查 Tailscale，再点重试。',
+  connectionConnectHelp:
+    '请检查手机网络。在电脑上保持 DeepSeekBot 运行，并在「设置 → 设备」确认 DeepSeekBot Connect 已登录且连接正常，再点重试。',
   refused: '你的电脑拒绝了这个应用',
   deviceRefusal: {
     'device-revoked': '电脑已将这台手机从配对设备中移除。',
