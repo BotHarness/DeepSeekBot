@@ -1,0 +1,121 @@
+{
+  "testedSource": "3897a8b8e4cb4b87292ee682c745ffdece8736d6",
+  "dsh": "0.2.1-rc.3",
+  "clientBundleSha256": "8b0effa8cdec8353bb4036a72aeff9c2c2106c693792c4ce64b29ddba1a4e297",
+  "pageExceptions": [],
+  "consoleWarningsOrErrors": [],
+  "proofs": [
+    {
+      "step": "unread",
+      "renderedMessages": 41,
+      "distanceFromBottomPx": 1401,
+      "button": "Return to latest messages",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 1
+    },
+    {
+      "step": "older",
+      "renderedMessages": 91,
+      "distanceFromBottomPx": 3139,
+      "button": "Return to latest messages",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 2
+    },
+    {
+      "step": "newer",
+      "renderedMessages": 141,
+      "distanceFromBottomPx": 3901,
+      "button": "Return to latest messages",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 3
+    },
+    {
+      "step": "history",
+      "renderedMessages": 211,
+      "distanceFromBottomPx": 350,
+      "button": "Return to latest messages",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "bottom",
+      "renderedMessages": 211,
+      "distanceFromBottomPx": 0,
+      "button": null,
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "live",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 533,
+      "button": "3 new messages · Jump to latest",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 5
+    },
+    {
+      "step": "multiline",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 450,
+      "button": "Return to latest messages",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "narrow",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "Return to latest messages",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "light",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "Return to latest messages",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "dark",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "Return to latest messages",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "final",
+      "renderedMessages": 214,
+      "distanceFromBottomPx": 16336,
+      "button": "Return to latest messages",
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 6
+    },
+    {
+      "step": "read-reopen",
+      "renderedMessages": 50,
+      "distanceFromBottomPx": 0,
+      "button": null,
+      "composerHeightPx": 152,
+      "timelineRequestsSoFar": 8
+    },
+    {
+      "step": "paged-before",
+      "renderedMessages": 30,
+      "distanceFromBottomPx": 922,
+      "button": "Return to latest messages",
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 10
+    },
+    {
+      "step": "paged-latest",
+      "renderedMessages": 50,
+      "distanceFromBottomPx": 0,
+      "button": null,
+      "composerHeightPx": 52,
+      "timelineRequestsSoFar": 11
+    }
+  ]
+}
