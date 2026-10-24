@@ -1,6 +1,7 @@
 module.exports = (config) => ({
   type: 'notification-service',
   name: 'NotificationService',
+  displayName: 'Tobs',
   bundleIdentifier: '.notification-service',
   deploymentTarget: config.ios?.deploymentTarget ?? '16.4',
   frameworks: ['Intents', 'UserNotifications'],

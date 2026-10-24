@@ -2,6 +2,7 @@ const { execFileSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
 const withSharingPlugin = require('expo-sharing/app.plugin').default;
+const withIosBrand = require('./with-ios-brand');
 
 const mainCheckout = () => {
   try {
@@ -49,7 +50,7 @@ module.exports = ({ config }) => {
   const store = process.env.DEEPSEEKBOT_APP_VARIANT === 'store';
   const firebase = googleServicesFile();
   const bundleIdentifier = store ? 'app.deepseekbot.mobile' : config.ios.bundleIdentifier;
-  return withSharing({
+  const resolved = withSharing({
     ...config,
     plugins: [
       ...config.plugins,
@@ -81,4 +82,5 @@ module.exports = ({ config }) => {
     },
     ...(store ? { name: 'DeepSeekBot', scheme: ['deepseekbot', 'app.deepseekbot.mobile'] } : {}),
   });
+  return withIosBrand(resolved);
 };
