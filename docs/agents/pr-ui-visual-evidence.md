@@ -12,6 +12,24 @@ public, commit-pinned evidence required below.
 2. Match viewport dimensions, theme, locale, test data, and UI state across each pair. Use representative data and remove secrets or personal information before publishing. For a new screen with no direct predecessor, show the prior entry point or absence state as **Before** and label it clearly.
 3. Check the images side by side. They should show the actual change without relying on a mockup or a code diff. For motion or a multi-step interaction, capture the key states and add a short recording or exact reproduction steps.
 
+## Mobile: Web preview first, native evidence follows
+
+For Expo mobile UI changes, publish an **Expo Web layout preview** in the PR first when the affected screen has a working Web path. Follow with screenshots from the affected native platforms through [shared device QA](device-qa.md). Opening a PR and getting layout feedback need not wait for a device slot.
+
+1. **Initial layout review.** Run real Expo Web exports of the base and PR revisions in a phone-sized viewport. Match the capture conditions above and include neighboring controls so alignment can be judged. Label every pair **Expo Web layout preview** and record the observed viewport, locale, theme and source revision. If Web needs compatibility adapters, use the same adapters in both exports and name them in the capture record. Do not silently replace native components or hide errors to make the preview look complete. If the screen has no usable Web path, record that blocker and proceed to the native lane.
+2. **Native follow-up.** Supplement the preview with comparable before/after screenshots from a physical iPhone and/or Android phone for every affected platform. Simulator/emulator images can land earlier, but do not replace the pending physical-device captures. Label the actual environment and build revision, and run the native interaction checks required by the feature and mobile design rules. Add native images to the PR's Change outline, or a linked follow-up comment if it has already merged, and retain the Web preview's provenance.
+3. **Keep pending work visible.** Until native results arrive, list each missing platform/state, the concrete blocker, the shared-QA queue or tracking issue, and the steps to reproduce. Report Web layout, native simulation, physical-device checks and Human acceptance separately. Web evidence does not satisfy or remove the native/Human QA gates in `apps/mobile/AGENTS.md` and `apps/mobile/DESIGN.md`. If the Human explicitly directs an earlier merge, carry the pending native work into a linked issue and queue entry instead of marking it verified or dropping it.
+
+Use these labels consistently:
+
+| Capture                          | What it can establish                                           |
+| -------------------------------- | --------------------------------------------------------------- |
+| Expo Web layout preview          | Browser-rendered layout, copy and implemented Web interactions  |
+| iOS Simulator / Android emulator | The actual native build and controls on that simulator/emulator |
+| Physical iPhone / Android phone  | The tested native behavior on the named device environment      |
+
+An iPhone-sized viewport, browser user agent, iOS-like styling or Material icons do **not** turn Expo Web into an iOS or Android native simulation. Web cannot render SwiftUI or Jetpack Compose controls. In particular, native menus, typography/text scaling, keyboard behavior, accessibility services and persistence must be qualified in their own native environments. The iOS Simulator runs on macOS; Windows agents can prepare the Web preview and submit iOS checks to the Mac lane.
+
 ## Put the evidence in the PR
 
 Place each pair directly in **Change outline**, with a short heading that names the view or interaction and viewport:
