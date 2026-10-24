@@ -226,7 +226,7 @@ export function renderArtwork(assets) {
         rect(10, 277, 936, 4, theme === 'day' ? '#97b96c' : '#49765c') +
         crew +
         text('MIT / OPEN SOURCE', 29, 266, 13, theme === 'day' ? p.soft : p.hi) +
-        text('deepseekbot.app', 928, 266, 14, theme === 'day' ? p.soft : p.hi, 'end');
+        text('tobs.app', 928, 266, 14, theme === 'day' ? p.soft : p.hi, 'end');
       writeFileSync(
         join(assets, `hero-${lang}-${theme}.svg`),
         svg(960, 310, 'Tobs — a crew of your own', hero),

@@ -24,7 +24,7 @@
 
 ## 宣传片
 
-3 分钟看懂 Tobs：一组有身份、人格和记忆的 bots，在小镇里一起做事。点击封面即可播放。
+3 分钟看懂 Tobs：一组有身份、人格和记忆的 bots，在小镇里一起做事。视频录制时仍使用旧名 DeepSeekBot；点击封面即可播放。
 
 <p align="center">
   <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-zh.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v2/zh/promo-video-v16.jpg" width="800" alt="Tobs 宣传片（3 分钟）：点击播放" /></a>

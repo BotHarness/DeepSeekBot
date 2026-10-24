@@ -24,7 +24,7 @@
 
 ## Video
 
-Tobs in three minutes: a crew of bots with their own identity, persona and memory, working together in a small town. Click the poster to play.
+Tobs in three minutes: a crew of bots with their own identity, persona and memory, working together in a small town. Recorded under the former DeepSeekBot name. Click the poster to play.
 
 <p align="center">
   <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-en.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v2/en/promo-video-v16.jpg" width="800" alt="Tobs promo video (3 minutes): click to play" /></a>
