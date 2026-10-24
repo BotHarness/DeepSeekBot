@@ -1792,7 +1792,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const authorizationScope = computerTools.authorizationScope?.();
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackComputer = toolApproval.track(execution, 'web-only', false, 'computer');
+        const untrackComputer = toolApproval.track(
+          execution,
+          'operation',
+          false,
+          'computer',
+          undefined,
+          {
+            authorizationScope: () => computerTools.authorizationScope?.() ?? '',
+          },
+        );
         if (computerApproval === undefined || untrackComputer === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1858,7 +1867,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackBrowser = toolApproval.track(execution, 'web-only', false, 'browser');
+        const untrackBrowser = toolApproval.track(
+          execution,
+          'operation',
+          false,
+          'browser',
+          undefined,
+          {
+            authorizationScope: () => browserTools.authorizationScope?.() ?? '',
+          },
+        );
         if (browserApproval === undefined || untrackBrowser === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1947,7 +1965,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                           JSON.stringify(execution.arguments) ?? '',
                           templateInUse,
                         )
-                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. Only a Human can approve this; neither a saved rule nor the Approval Reviewer answers it.'
+                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
                       : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });

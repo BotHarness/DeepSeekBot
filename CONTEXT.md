@@ -204,7 +204,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use always needs a Human approval card (ADR-0207).
+A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use needs a Human decision or an explicitly saved Tool Approval Rule in the dedicated management scope (ADR-0249).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:

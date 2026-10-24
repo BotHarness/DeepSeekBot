@@ -203,7 +203,7 @@ Web Human 或当前获授权的外部审核人显式保存且可撤销的规则�
 _避免使用_：Workspace Grant、Provider Service Grant、sandbox preset、推断的命令相似性
 
 **Approval Template**：
-Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，必须由 Human 通过审批卡确认（ADR-0207）。
+Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的 Tool Approval Rule（ADR-0249）。
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：

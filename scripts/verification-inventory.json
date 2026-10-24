@@ -695,9 +695,9 @@
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
       "behaviors": ["desktop.approval.three-actions"],
-      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and Full Access Human-only management.",
-      "task": 2080,
-      "sha256": "ae02a942c136a8b8875eb21e5cbc703931654c564bf1a1a0fbf0b891fb7f0d79"
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access.",
+      "task": 2730,
+      "sha256": "ca44892e2a09b7b826bf3432b84d25550bcc9671d3d517e62cff3638ae1bc6a1"
     },
     {
       "path": "scripts/e2e-workspace-request-write.mjs",

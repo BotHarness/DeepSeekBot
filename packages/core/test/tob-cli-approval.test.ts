@@ -304,9 +304,9 @@ describe('disruptive scoped CLI operations require Human review', () => {
   }
 
   it.each(['release-install', 'release-restart', 'bot-delete-confirm', 'bot-delete-retry'])(
-    'does not bypass %s via full access, saved rules or automatic reviewer',
+    'offers saving %s while keeping full access and the model reviewer separate',
     async (command) => {
-      const match = vi.fn(() => ({ id: 'allow-all' }));
+      const match = vi.fn(() => undefined);
       const createPending = vi.fn();
       const template = vi.fn(() => ({ name: 'allow-all', text: 'Allow operations' }));
       const review = vi.fn(async () => ({ outcome: 'allow' as const, reason: 'Allowed' }));
@@ -320,19 +320,22 @@ describe('disruptive scoped CLI operations require Human review', () => {
       const card = await f.card();
       expect(card.toolApprovalRequest).toMatchObject({
         toolName: 'deepseekbot ' + command,
-        externalDecision: 'each-use',
+        externalDecision: 'operation',
+        allowAlways: true,
       });
       expect(JSON.parse(card.toolApprovalRequest!.input)).toMatchObject({
         ...operation,
         parentShellCallId: 'original-shell',
       });
       expect(pending.write).not.toHaveBeenCalled();
-      expect(match).not.toHaveBeenCalled();
+      expect(match).toHaveBeenCalledWith(expect.objectContaining({ explicitOnly: true }));
       expect(template).not.toHaveBeenCalled();
       expect(review).not.toHaveBeenCalled();
       expect(await f.channelApproval.decide('tob', card.id, 'allowed-always-exact')).toBe(false);
       expect(await f.channelApproval.decide('tob', card.id, 'allowed-always-all')).toBe(false);
-      expect(createPending).not.toHaveBeenCalled();
+      expect(createPending).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'exact', toolName: 'deepseekbot ' + command }),
+      );
       expect(await f.channelApproval.decide('tob', card.id, 'allowed-once')).toBe(true);
       expect(await pending.result).toMatchObject({ ok: true });
       expect(pending.write).toHaveBeenCalledTimes(1);
@@ -372,7 +375,7 @@ describe('disruptive scoped CLI operations require Human review', () => {
     const pending = writeAfterApproval({ ...f.options, operation });
     const card = await f.card();
     expect(pending.write).not.toHaveBeenCalled();
-    expect(card.toolApprovalRequest!.externalDecision).toBe('each-use');
+    expect(card.toolApprovalRequest!.externalDecision).toBe('operation');
     await f.channelApproval.decide('tob', card.id, 'rejected');
     expect(await pending.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
   });

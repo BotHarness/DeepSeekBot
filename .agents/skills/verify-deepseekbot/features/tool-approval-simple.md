@@ -5,14 +5,16 @@
 - Behavior ID: `desktop.approval.three-actions`.
 - Ordinary Channel, Activity and companion reuse renders Allow once / Always allow / Reject.
 - Always allow remembers only the selected tool in the current Bot/role/authority scope; changed inputs match, another tool or revoked rule does not.
-- Human-only management keeps the middle action disabled with a reason. Full Access ordinary actions do not ask, while permission management can reach the native Human decision path.
+- Permission and policy management offers Always allow in a separate explicit scope; old ordinary rules do not gain this authority. Full Access ordinary actions do not ask; sensitive management still asks until the Human opts in.
 - Schema generation 104 preserves legacy rules and normalizes old top-level Full Access Assignment approval policy without widening its permissions.
+- Browser and Computer tools offer the same saved action; Browser rules survive a new Session for the same Bot/tool/target. Change the target and verify a new card, revoke its rule and verify prompting returns.
+- Tob install/restart/delete cards accept saved tool rules but retain command confirmation, revision and deletion-token checks. Phone secret_cli notifications expose Always allow; external reviewers retain approve/save-rules checks.
 
 ## How to get to it (user POV)
 
 Bot mode → the synthetic **2080 审批体验** Channel → Messages → a native PowerShell approval card. Read the disclosed current-tool scope, then choose **Always allow**. A later changed-input call of that tool completes without a new card. Revoke the saved rule in the folder/access panel, or through the online CLI, and another request asks again.
 
-Enable Full Access for only that QA Bot through its existing confirmation. Ordinary marker output runs directly. A recognized permission-management command still produces an individually confirmed card; Always allow is disabled. Reject it and verify no authorization was changed.
+Enable Full Access for only that QA Bot through its existing confirmation. Ordinary marker output runs directly. A recognized permission-management command still produces a card; Always allow is enabled. Save it, verify a later matching call reaches execution without a new card, revoke the rule and verify prompting returns. Reject it and verify no authorization was changed.
 
 ## Driving it with verify-app
 
@@ -23,7 +25,7 @@ node scripts/verify-app.mjs doctor --name ax2080-simple
 node scripts/e2e-tool-approval-simple.mjs --name ax2080-simple
 ```
 
-This Windows native-pwsh journey creates a synthetic Bot, uses real model calls, clicks Web Always allow, then checks changed input, other-tool rejection, CLI revoke/allow-once, Full Access ordinary output and Human-only management. It retains screenshots, card crops, ARIA, Client diagnostics, native trace, canonical decisions and rules. The model must report actual tool output; a successful decision call is not execution proof.
+This Windows native-pwsh journey creates a synthetic Bot, uses real model calls, clicks Web Always allow, then checks changed input, other-tool rejection, CLI revoke/allow-once, Full Access ordinary output and explicitly rememberable management. It retains screenshots, card crops, ARIA, Client diagnostics, native trace, canonical decisions and rules. The model must report actual tool output; a successful decision call is not execution proof.
 
 For a baseline capture, provide `--capture-report <private-json> --expect-legacy`. The private record identifies an existing task-owned instance, Bot and pending request. This mode reads and captures only; it does not decide or create a Bot. Never use a Human's real request as a disposable verification input.
 

@@ -624,7 +624,7 @@ describe('Human Inbox push source', () => {
       ]),
     ).toEqual([
       ['approval:1', 'approval', undefined, 'bash · date > now', 'tool-approval'],
-      ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval-once'],
+      ['approval:2', 'approval', 'ops', 'secret_cli', 'tool-approval'],
       ['join:1', 'approval', undefined, '请求批准执行 bash', undefined],
       ['secret:1', 'private-input', undefined, undefined, undefined],
       ['question:1', 'question', undefined, 'Which branch?', undefined],

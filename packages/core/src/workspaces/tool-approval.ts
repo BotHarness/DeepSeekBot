@@ -85,8 +85,9 @@ type TrackedCall = ToolApprovalRequestCard & {
   agent: Agent;
   scopeKey: string;
   automatic?: boolean;
-  requireHumanReview?: boolean;
+  requireExplicitApproval?: boolean;
   humanReviewed?: boolean;
+  authorizationScope?: () => string;
   rememberable?: boolean;
   remembered?: boolean;
   execution: ToolExecution;
@@ -223,7 +224,7 @@ export class ChannelToolApproval {
     rememberable = false,
     device?: 'computer' | 'browser',
     botCreatePreview?: BotCreatePreview,
-    options?: { requireHumanReview?: boolean },
+    options?: { requireExplicitApproval?: boolean; authorizationScope?: () => string },
   ): (() => void) | undefined {
     const agent = execution.agent;
     if (agent === undefined) return undefined;
@@ -240,7 +241,7 @@ export class ChannelToolApproval {
     const scopeKey = this.#scope(agent, owner);
     if (scopeKey === undefined) return undefined;
     const key = callKey(agent.session.id, execution.callId);
-    this.#tracked.set(key, {
+    const tracked: TrackedCall = {
       agent,
       botSlug: owner.botSlug,
       sessionId: agent.session.id,
@@ -250,13 +251,16 @@ export class ChannelToolApproval {
       cwd,
       input,
       scopeKey,
+      ...(options?.authorizationScope ? { authorizationScope: options.authorizationScope } : {}),
       execution,
-      externalDecision: options?.requireHumanReview ? 'each-use' : externalDecision,
-      ...(options?.requireHumanReview ? { requireHumanReview: true } : {}),
-      ...(rememberable && !options?.requireHumanReview ? { rememberable } : {}),
+      externalDecision,
+      ...(options?.requireExplicitApproval ? { requireExplicitApproval: true } : {}),
+      ...(rememberable && !options?.requireExplicitApproval ? { rememberable } : {}),
       ...(device === undefined ? {} : { device }),
       ...(botCreatePreview === undefined ? {} : { botCreatePreview }),
-    });
+    };
+    tracked.scopeKey = this.#currentScope(tracked, owner)!;
+    this.#tracked.set(key, tracked);
     return () => {
       if (this.#tracked.get(key)?.agent === agent) {
         this.#tracked.delete(key);
@@ -285,25 +289,20 @@ export class ChannelToolApproval {
     if (
       owner === undefined ||
       owner.botSlug !== tracked.botSlug ||
-      this.#scope(request.agent, owner) !== tracked.scopeKey
+      this.#currentScope(tracked, owner) !== tracked.scopeKey
     )
       return 'unavailable';
     const policyChange = this.#changesPolicy(tracked);
     if (
       !policyChange &&
-      !tracked.requireHumanReview &&
+      !tracked.requireExplicitApproval &&
       tracked.externalDecision !== 'each-use' &&
       this.#fullAccess?.(tracked.sessionId) === true
     ) {
       tracked.authorized = () => this.#fullAccess?.(tracked.sessionId) === true;
       return 'allowed-once';
     }
-    if (
-      !policyChange &&
-      !tracked.requireHumanReview &&
-      tracked.externalDecision !== 'each-use' &&
-      this.#rules?.match(tracked) !== undefined
-    ) {
+    if (tracked.externalDecision !== 'each-use' && this.#matchingRule(tracked) !== undefined) {
       tracked.automatic = true;
       return 'allowed-once';
     }
@@ -319,12 +318,12 @@ export class ChannelToolApproval {
     if (channel.type !== 'group' && channel.botSlug !== tracked.botSlug) return 'unavailable';
     if (
       !policyChange &&
-      !tracked.requireHumanReview &&
+      !tracked.requireExplicitApproval &&
       this.#overrides.delete(overrideKey(tracked))
     )
       return 'allowed-once';
     const template =
-      policyChange || tracked.requireHumanReview
+      policyChange || tracked.requireExplicitApproval
         ? undefined
         : this.#autoApproval?.template(tracked.botSlug);
     if (template !== undefined && this.#breakers.get(tracked.sessionId)?.paused !== true) {
@@ -345,11 +344,7 @@ export class ChannelToolApproval {
         cwd: tracked.cwd,
         input: tracked.input,
         externalDecision: tracked.externalDecision ?? 'operation',
-        allowAlways:
-          !policyChange &&
-          !tracked.requireHumanReview &&
-          tracked.device === undefined &&
-          (tracked.externalDecision !== 'each-use' || tracked.rememberable === true),
+        allowAlways: tracked.externalDecision !== 'each-use' || tracked.rememberable === true,
         ...(tracked.botCreatePreview === undefined
           ? {}
           : { botCreatePreview: tracked.botCreatePreview }),
@@ -419,14 +414,13 @@ export class ChannelToolApproval {
       return (
         owner !== undefined &&
         owner.botSlug === tracked.botSlug &&
-        this.#scope(agent, owner) === tracked.scopeKey &&
+        this.#currentScope(tracked, owner) === tracked.scopeKey &&
         tracked.execution.name === tracked.toolName &&
         tracked.execution.callId === tracked.callId &&
         name === tracked.toolName &&
         inputOf({ ...tracked.execution, arguments: args }) === tracked.input &&
         tracked.authorized?.() !== false &&
-        (!tracked.requireHumanReview || tracked.humanReviewed === true) &&
-        (!tracked.automatic || this.#rules?.match(tracked) !== undefined)
+        (!tracked.automatic || this.#matchingRule(tracked) !== undefined)
       );
     };
   }
@@ -440,6 +434,15 @@ export class ChannelToolApproval {
     );
   }
 
+  approvedExecutionGuard(
+    agent: Agent,
+    callId: string,
+  ): ((name: string, args: unknown) => boolean) | undefined {
+    const tracked = this.#tracked.get(callKey(agent.session.id, callId));
+    if (!tracked || (!tracked.automatic && !tracked.humanReviewed)) return;
+    return this.executionGuard(agent, callId);
+  }
+
   cancelInvalid(): void {
     for (const [messageId, pending] of this.#pending) {
       const tracked = this.#tracked.get(callKey(pending.sessionId, pending.callId));
@@ -448,7 +451,7 @@ export class ChannelToolApproval {
         tracked === undefined ||
         owner === undefined ||
         owner.botSlug !== tracked.botSlug ||
-        this.#scope(tracked.agent, owner) !== tracked.scopeKey
+        this.#currentScope(tracked, owner) !== tracked.scopeKey
       ) {
         this.#settle(messageId, 'unavailable');
       }
@@ -474,10 +477,7 @@ export class ChannelToolApproval {
     return (
       tracked !== undefined &&
       tracked.agent === agent &&
-      (tracked.requireHumanReview === true ||
-        tracked.externalDecision === 'each-use' ||
-        this.#changesPolicy(tracked) ||
-        this.#rules?.match(tracked) === undefined)
+      (tracked.externalDecision === 'each-use' || this.#matchingRule(tracked) === undefined)
     );
   }
 
@@ -597,17 +597,12 @@ export class ChannelToolApproval {
       if (
         owner === undefined ||
         owner.botSlug !== tracked.botSlug ||
-        this.#scope(tracked.agent, owner) !== tracked.scopeKey
+        this.#currentScope(tracked, owner) !== tracked.scopeKey
       ) {
         this.#settle(messageId, 'unavailable');
         return false;
       }
-      if (
-        (this.#changesPolicy(tracked) || tracked.requireHumanReview) &&
-        outcome !== 'allowed-once' &&
-        outcome !== 'rejected'
-      )
-        return false;
+      if (this.#explicitRuleRequired(tracked) && outcome === 'allowed-always-all') return false;
       const kind: ToolApprovalRule['kind'] | undefined = eachUse
         ? undefined
         : outcome === 'allowed-always-tool'
@@ -686,7 +681,7 @@ export class ChannelToolApproval {
         this.#tracked.get(callKey(pending.sessionId, pending.callId)) !== tracked ||
         !currentOwner ||
         currentOwner.botSlug !== tracked.botSlug ||
-        this.#scope(tracked.agent, currentOwner) !== tracked.scopeKey ||
+        this.#currentScope(tracked, currentOwner) !== tracked.scopeKey ||
         inputOf(tracked.execution) !== tracked.input ||
         tracked.execution.name !== tracked.toolName ||
         tracked.execution.callId !== tracked.callId ||
@@ -702,8 +697,7 @@ export class ChannelToolApproval {
         tracked.authorized = () =>
           external.authorized() && (!kind || external.rule?.authorized() === true);
       if (remember) tracked.remembered = true;
-      if (tracked.requireHumanReview && outcome === 'allowed-once' && external === undefined)
-        tracked.humanReviewed = true;
+      if (outcome !== 'rejected') tracked.humanReviewed = true;
       this.#settle(messageId, outcome === 'rejected' ? 'rejected' : 'allowed-once');
       if (outcome !== 'rejected') await this.#resume(tracked.sessionId);
       return true;
@@ -851,6 +845,28 @@ export class ChannelToolApproval {
     );
   }
 
+  #currentScope(tracked: TrackedCall, owner: SessionOwnershipRecord): string | undefined {
+    const scope = this.#scope(tracked.agent, owner);
+    if (scope === undefined) return;
+    if (tracked.authorizationScope)
+      return JSON.stringify([scope, tracked.device, tracked.authorizationScope()]);
+    return this.#explicitRuleRequired(tracked)
+      ? JSON.stringify([scope, 'explicit-approval'])
+      : scope;
+  }
+
+  #explicitRuleRequired(tracked: TrackedCall): boolean {
+    return (
+      this.#changesPolicy(tracked) ||
+      tracked.requireExplicitApproval === true ||
+      tracked.device !== undefined
+    );
+  }
+
+  #matchingRule(tracked: TrackedCall): ToolApprovalRule | undefined {
+    return this.#rules?.match({ ...tracked, explicitOnly: this.#explicitRuleRequired(tracked) });
+  }
+
   takeReviewRejection(sessionId: string, callId: string): string | undefined {
     const key = callKey(sessionId, callId);
     const reason = this.#reviewRejections.get(key);
@@ -983,6 +999,7 @@ export class ChannelToolApproval {
         cwd: string;
         toolName: string;
         input: string;
+        allOpaque: boolean;
       }
     | undefined {
     const notice = this.pending(botSlug, messageId);
@@ -996,6 +1013,7 @@ export class ChannelToolApproval {
       cwd: tracked.cwd,
       toolName: tracked.toolName,
       input: tracked.input,
+      allOpaque: !this.#explicitRuleRequired(tracked),
     };
   }
 
