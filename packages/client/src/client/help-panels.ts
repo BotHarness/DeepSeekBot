@@ -139,8 +139,8 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
             id: `botharness:panel-help:${panel.id}:layout`,
             title: { en: 'How do I rearrange or hide this panel?', zh: '如何调整或隐藏这个面板？' },
             answer: {
-              en: 'Drag the panel tab to dock it beside another panel, or drag a divider to resize it. Use the panel’s close control to hide it, then reopen it from the panel switcher. These ordinary layout changes are saved; a guide’s temporary enlargement is restored when the guide ends.',
-              zh: '拖动面板标签可调整停靠位置，拖动分隔线可调整大小。点击面板的关闭按钮即可隐藏，之后可从面板切换器重新打开。普通布局调整会保存；教程中的临时放大会在教程结束后归位。',
+              en: 'Drag the icon at the left of the panel header to dock it beside another panel, or drag a divider to resize it. Use the panel’s close control to hide it, then reopen it from the panel switcher. These ordinary layout changes are saved; a guide’s temporary enlargement is restored when the guide ends.',
+              zh: '拖动面板标题左侧的图标可调整停靠位置，拖动分隔线可调整大小。点击面板的关闭按钮即可隐藏，之后可从面板切换器重新打开。普通布局调整会保存；教程中的临时放大会在教程结束后归位。',
             },
           });
           return {
