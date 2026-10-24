@@ -2491,12 +2491,20 @@ export function createOutboundMessaging(options: {
             !source.event.reply.threadId
           )
             continue;
-          const setupReply = database.read((db) =>
+          const threadId = source.event.reply.threadId;
+          const setupReplies = database.read((db) =>
             db
-              .prepare('SELECT body FROM messaging_outbox WHERE bot_slug = ? AND request_id = ?')
-              .get(botSlug, `reply-${source.id}`),
-          ) as { body: string } | undefined;
-          const candidate = setupReply ? (JSON.parse(setupReply.body) as OutboxIntent) : undefined;
+              .prepare(`SELECT body FROM messaging_outbox
+                WHERE bot_slug = ?
+                  AND json_extract(body, '$.sourceEventId') = ?
+                  AND json_extract(body, '$.grantId') = ?
+                  AND json_extract(body, '$.reply.route.threadId') = ?
+                ORDER BY created_at DESC, id DESC`)
+              .all(botSlug, source.id, current.id, threadId),
+          ) as { body: string }[];
+          const candidate = setupReplies
+            .map(({ body }) => JSON.parse(body) as OutboxIntent)
+            .find((reply) => reply.text.trim() === 'LARK-SETUP-OK');
           const intent =
             candidate?.sourceEventId === source.id &&
             candidate.grantId === current.id &&

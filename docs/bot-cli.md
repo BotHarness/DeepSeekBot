@@ -562,12 +562,12 @@ printf '{"channel_id":"dm-<bot-id>","body":"The checks passed."}' | deepseekbot 
 ```
 
 Use exactly one of `source_event_id` (a trusted reply source), `channel_id` (an explicit proactive
-Channel target), or `grant_id` (an authorized external target from `bridge_targets`). `resolve_inbox_ids` may contain only the referenced
+Channel target), `bot_id` (a colleague), `grant_id` (an authorized external target from `bridge_targets`), or `binding_id` with `conversation_id` (a reachable external conversation). `resolve_inbox_ids` may contain only the referenced
 source in this slice. Resolution follows delivery; inspect `inboxResolution` separately and use
 `inbox_resolve` to repair failed cleanup without sending again. `end_turn` defaults to false;
 inside a native model turn it concludes only after successful delivery and requested cleanup.
-The direct CLI has no model turn to conclude. Separate CLI invocations are separate messages;
-this is not a durable retry command. Group sends retain draft review: pass `observation_id`,
+The direct CLI has no model turn to conclude. Ordinary CLI invocations without a durable Group `draft_id` are separate messages;
+this is not a general durable retry command. Replaying the same Group draft with unchanged content retains its existing message identity. Group sends retain draft review: pass `observation_id`,
 `draft_id` and `recover` as needed. Inspection, dropping and reactions remain separate actions.
 `attachments` accepts imported references; an external file reply accepts one file with empty
 `body`, while proactive external files are refused. External delivery without a confirmed receipt

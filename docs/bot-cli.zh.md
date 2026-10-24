@@ -547,7 +547,7 @@ Channel 和外部 IM 可通过统一发送工具发送：
 printf '{"channel_id":"dm-<bot-id>","body":"检查已通过。"}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
 ```
 
-回复明确引用可信 `source_event_id`；主动发送明确指定目标。此切片的 `resolve_inbox_ids` 只能包含明确引用的这一来源，送达后才结清；单独检查 `inboxResolution`，失败时用 `inbox_resolve` 补状态，不要重发已送达消息。`end_turn` 默认 false，在原生模型回合中仅在发送及请求的结清成功后结束回合；直接 CLI 没有模型回合需要结束。每次 CLI 调用都是新消息，不是持久重试命令。当前统一入口也支持群聊、Bot DM 和外部 IM：回复使用可信 `source_event_id`，主动发送明确指定 `channel_id` 或 `bridge_targets` 返回的 `grant_id`，三者只能选一个。群聊保留原有草稿审查，修订时传入 `draft_id` 与 `observation_id`；重启恢复使用 `recover`。`attachments` 接受导入的附件引用；外部文件回复仅支持一个文件和空正文，主动外部文件发送会被拒绝。没有确认回执的外部发送不会结清 Inbox 或结束回合。
+回复明确引用可信 `source_event_id`；主动发送明确指定目标。此切片的 `resolve_inbox_ids` 只能包含明确引用的这一来源，送达后才结清；单独检查 `inboxResolution`，失败时用 `inbox_resolve` 补状态，不要重发已送达消息。`end_turn` 默认 false，在原生模型回合中仅在发送及请求的结清成功后结束回合；直接 CLI 没有模型回合需要结束。未提供持久 Group `draft_id` 的普通 CLI 调用是新消息，不是通用持久重试命令；相同草稿与内容的重放保留原消息标识。当前统一入口也支持群聊、Bot DM 和外部 IM：回复使用可信 `source_event_id`，主动发送明确指定 `channel_id`、同事 `bot_id`、`bridge_targets` 返回的 `grant_id`，或 `binding_id` 与 `conversation_id` 的组合；这些目标形式与回复来源互斥。群聊保留原有草稿审查，修订时传入 `draft_id` 与 `observation_id`；重启恢复使用 `recover`。`attachments` 接受导入的附件引用；外部文件回复仅支持一个文件和空正文，主动外部文件发送会被拒绝。没有确认回执的外部发送不会结清 Inbox 或结束回合。
 
 `bot-trace --session direct` 可查看直接调用结果。
 

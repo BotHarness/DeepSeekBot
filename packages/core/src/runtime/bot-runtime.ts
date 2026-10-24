@@ -2222,6 +2222,9 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(sourceEventId),
     ) as { body: string } | undefined;
     if (source === undefined) return false;
+    const mentionPrompt =
+      `Source Event ID: ${sourceEventId}\n` +
+      this.#groupMentionPrompt(channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -2236,8 +2239,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ? this.#claimGroupContext(database, botSlug, channelId, {
               remainingCharacters: Math.max(
                 0,
-                GROUP_PROMPT_CHARACTER_BUDGET -
-                  this.#groupMentionPrompt(channelId, messageId, source.body).length,
+                GROUP_PROMPT_CHARACTER_BUDGET - mentionPrompt.length,
               ),
               includedByChannel: new Map(),
             })
@@ -2266,7 +2268,7 @@ class BotRuntimeImplementation implements BotRuntime {
       delivered = this.#steerWithMemory(
         botSlug,
         [
-          this.#groupMentionPrompt(channelId, messageId, source.body),
+          mentionPrompt,
           ...(claimed === undefined ? [] : [this.#groupContextSection(claimed)]),
         ].join('\n\n'),
       );

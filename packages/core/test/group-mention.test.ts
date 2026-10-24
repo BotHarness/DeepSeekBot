@@ -389,6 +389,7 @@ describe('Group mention tracer', () => {
         mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
       });
       core.runtime.admitGroupMessage(group.id, 'group-steer');
+      expect(steered[0]).toMatch(/^Source Event ID: [^\n]+\n\[Bot Inbox: direct Group mention/);
       expect(steered).toHaveLength(1);
       expect(steered[0]).toContain(group.id);
       expect(steered[0]).toContain('The answer is STEER-17');
