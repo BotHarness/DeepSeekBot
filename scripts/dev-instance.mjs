@@ -20,6 +20,7 @@ import {
   fchmodSync,
   existsSync,
   mkdirSync,
+  lstatSync,
   closeSync,
   openSync,
   readFileSync,
@@ -83,7 +84,7 @@ function installedDshVersion(worktree) {
   ).version;
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     home: join(homedir(), '.dsh-botharness-dev'),
     port: 3080,
@@ -100,6 +101,19 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     const next = argv[index + 1];
+    if (
+      [
+        '--dsh-version',
+        '--home',
+        '--port',
+        '--profile',
+        '--worktree',
+        '--trusted-host',
+        '--product-artifacts',
+      ].includes(flag) &&
+      (typeof next !== 'string' || next.trim() === '' || next.startsWith('--'))
+    )
+      throw new Error(`${flag} needs a value`);
     switch (flag) {
       case '--dsh-version':
         options.dshVersion = assertDshVersion(next);
@@ -110,7 +124,8 @@ function parseArgs(argv) {
         index += 1;
         break;
       case '--port':
-        options.port = Number.parseInt(next ?? '', 10);
+        if (!/^\d+$/u.test(next)) throw new Error('--port must be an integer from 1 to 65535');
+        options.port = Number(next);
         index += 1;
         break;
       case '--profile':
@@ -146,18 +161,40 @@ function parseArgs(argv) {
         throw new Error(`unknown option: ${flag}`);
     }
   }
-  if (!Number.isInteger(options.port) || options.port <= 0) {
-    throw new Error('--port must be a positive integer');
+  if (!Number.isInteger(options.port) || options.port <= 0 || options.port > 65535) {
+    throw new Error('--port must be an integer from 1 to 65535');
   }
   if (options.productArtifacts && options.imProvider)
     throw new Error(
       '--product-artifacts already includes its qualified IM Provider; omit --im-provider',
     );
+  profileDirectory(options);
   return options;
 }
 
-async function ensureProfile(options) {
+export function profileDirectory(options) {
+  if (typeof options.profile !== 'string' || !/^[A-Za-z0-9_-]+$/u.test(options.profile))
+    throw new Error('--profile must contain only letters, digits, underscores or hyphens');
   const profileDir = join(options.home, 'profiles', options.profile);
+  for (const path of [
+    join(options.home, 'profiles'),
+    profileDir,
+    join(profileDir, 'package.json'),
+    join(profileDir, 'pnpm-workspace.yaml'),
+    join(profileDir, 'botharness-ax-model.patch.yml'),
+  ]) {
+    try {
+      if (lstatSync(path).isSymbolicLink())
+        throw new Error('Profile paths must not be symbolic links');
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return profileDir;
+}
+
+async function ensureProfile(options) {
+  const profileDir = profileDirectory(options);
   const manifestPath = join(profileDir, 'package.json');
   const env = { ...process.env, DSH_HOME: options.home };
   const runtime = options.runtime ?? options.worktree;
@@ -169,6 +206,7 @@ async function ensureProfile(options) {
       { env },
     );
   }
+  profileDirectory(options);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const base = options.productArtifacts
     ? packagedProfileManifest(manifest, options.productArtifacts)
@@ -181,6 +219,7 @@ async function ensureProfile(options) {
       console.log(`Migrated into the deepseekbot umbrella: ${migrated.join(', ')}`);
   }
   const composed = options.imProvider ? withQualifiedImProvider(base) : base;
+  profileDirectory(options);
   if (options.productArtifacts) {
     const workspace = join(profileDir, 'pnpm-workspace.yaml');
     const existing = existsSync(workspace) ? readFileSync(workspace, 'utf8') : '';
@@ -367,6 +406,7 @@ async function main() {
           cwd: runtime,
         },
       );
+      profileDirectory(options);
       options.modelPatch = join(profileDir, 'botharness-ax-model.patch.yml');
       writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
     }

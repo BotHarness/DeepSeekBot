@@ -1,5 +1,5 @@
 import { createServer as httpServer } from 'node:http';
-import { statSync } from 'node:fs';
+import { readFileSync, statSync, symlinkSync } from 'node:fs';
 import { cookieFor, rpc } from '../verify-app.mjs';
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
@@ -15,7 +15,13 @@ import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { dshCommand, describeRuntime, verifyPluginLayer } from '../dev-instance.mjs';
+import {
+  dshCommand,
+  describeRuntime,
+  verifyPluginLayer,
+  parseArgs,
+  profileDirectory,
+} from '../dev-instance.mjs';
 import { assertDshVersion } from '../dsh-compatibility.mjs';
 import { qualifiedImProvider } from '../dev-im-provider.mjs';
 
@@ -288,4 +294,71 @@ it('keeps authentication separate for two Homes with the same basename', async (
     rmSync(root, { recursive: true, force: true });
     rmSync(join(tmpdir(), `dsh-${basename}.cookies`), { force: true });
   }
+});
+
+describe('development argument and Profile boundaries', () => {
+  it.each([
+    '--home',
+    '--profile',
+    '--port',
+    '--worktree',
+    '--product-artifacts',
+    '--trusted-host',
+    '--dsh-version',
+  ])('rejects missing and swallowed values for %s before preparation', (flag) => {
+    for (const args of [[flag], [flag, ''], [flag, '--json']])
+      expect(() => parseArgs(args)).toThrow('needs a value');
+  });
+  it.each(['../../outside', '..', '/tmp/outside', 'a/b', 'a\\b', 'C:\\outside', 'name with space'])(
+    'rejects unsafe Profile %s',
+    (profile) => {
+      expect(() => parseArgs(['--profile', profile])).toThrow('--profile');
+    },
+  );
+  it.each(['0', '65536', '-1', '12oops', '2.5', '1e3'])('rejects invalid port %s', (port) => {
+    expect(() => parseArgs(['--port', port])).toThrow('--port');
+  });
+  it('accepts a simple named Profile and a valid port', () => {
+    const args = parseArgs(['--home', '/tmp/bh-args', '--profile', 'web-dev_2', '--port', '65535']);
+    expect(args.profile).toBe('web-dev_2');
+    expect(args.port).toBe(65535);
+  });
+  it.each([
+    'profiles',
+    'profile',
+    'package.json',
+    'pnpm-workspace.yaml',
+    'botharness-ax-model.patch.yml',
+  ])('rejects a symlink at %s without touching its target', (level) => {
+    const home = mkdtempSync(join(tmpdir(), 'bh-profile-boundary-'));
+    const outside = mkdtempSync(join(tmpdir(), 'bh-profile-outside-'));
+    try {
+      const sentinel = join(outside, 'package.json');
+      writeFileSync(sentinel, '{"private":true}');
+      const target =
+        level === 'profiles'
+          ? join(home, 'profiles')
+          : level === 'profile'
+            ? join(home, 'profiles', 'web-dev')
+            : join(home, 'profiles', 'web-dev', level);
+      mkdirSync(
+        level === 'profiles'
+          ? home
+          : level === 'profile'
+            ? join(home, 'profiles')
+            : join(home, 'profiles', 'web-dev'),
+        { recursive: true },
+      );
+      symlinkSync(
+        !['profiles', 'profile'].includes(level) ? sentinel : outside,
+        target,
+        !['profiles', 'profile'].includes(level) ? 'file' : 'junction',
+      );
+      expect(() => profileDirectory({ home, profile: 'web-dev' })).toThrow('symbolic links');
+      expect(readFileSync(sentinel, 'utf8')).toBe('{"private":true}');
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+      rmSync(outside, { recursive: true, force: true });
+    }
+  });
 });

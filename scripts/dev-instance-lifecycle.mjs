@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, win32 } from 'node:path';
@@ -73,12 +74,17 @@ export function matchesHomeProcess(entries, home, windows = false) {
 function resourceLive(resource) {
   return (
     processIsRunning(resource.pid) ||
-    descendants(resource.pid, resource.ownedProcessGroup === true).length > 0
+    descendants(resource.pid, resource.ownedProcessGroup === true, resource.ownershipToken).length >
+      0
   );
 }
 
 function resourceRecord(child) {
-  return { pid: child.pid, ownedProcessGroup: child.ownedProcessGroup === true };
+  return {
+    pid: child.pid,
+    ownedProcessGroup: child.ownedProcessGroup === true,
+    ownershipToken: child.ownershipToken,
+  };
 }
 
 export function acquireHome(home) {
@@ -155,19 +161,29 @@ export function acquireHome(home) {
       save();
     },
     async run(command, args, options = {}) {
+      const ownershipToken = randomUUID();
       const child = spawn(
         process.execPath,
         [fileURLToPath(new URL('./dev-instance-command.mjs', import.meta.url))],
-        { ...options, detached: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] },
+        {
+          ...options,
+          env: { ...(options.env ?? process.env), BOTHARNESS_PROCESS_OWNER: ownershipToken },
+          detached: true,
+          stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+        },
       );
       child.ownedProcessGroup = process.platform !== 'win32';
+      child.ownershipToken = ownershipToken;
       let stdout = '',
         stderr = '';
       const completion = new Promise((resolve, reject) => {
         child.once('error', reject);
         child.once('exit', () => {
           try {
-            if (child.pid && descendants(child.pid, child.ownedProcessGroup).length)
+            if (
+              child.pid &&
+              descendants(child.pid, child.ownedProcessGroup, child.ownershipToken).length
+            )
               reject(new Error('Preparation left running descendants'));
           } catch (error) {
             reject(error);
@@ -196,7 +212,7 @@ export function acquireHome(home) {
           save();
           if (child.pid) child.send({ command, args });
           await completion;
-          if (descendants(child.pid, child.ownedProcessGroup).length)
+          if (descendants(child.pid, child.ownedProcessGroup, child.ownershipToken).length)
             throw new Error('Preparation left running descendants');
           return stdout;
         });
@@ -216,7 +232,7 @@ export function acquireHome(home) {
   return lease;
 }
 
-function descendants(pid, ownedProcessGroup) {
+function descendants(pid, ownedProcessGroup, ownershipToken) {
   const windows = process.platform === 'win32';
   const result = windows
     ? spawnSync(
@@ -228,7 +244,13 @@ function descendants(pid, ownedProcessGroup) {
         ],
         { encoding: 'utf8' },
       )
-    : spawnSync('ps', ['-eo', 'pid=,ppid=,pgid='], { encoding: 'utf8' });
+    : spawnSync(
+        'ps',
+        ownershipToken
+          ? ['eww', process.platform === 'darwin' ? '-axo' : '-eo', 'pid=,ppid=,pgid=,command=']
+          : ['-eo', 'pid=,ppid=,pgid='],
+        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+      );
   if (result.error || result.status !== 0)
     throw new Error('Cannot verify Host child processes; preserve its Home and log');
   const entries = windows
@@ -236,13 +258,23 @@ function descendants(pid, ownedProcessGroup) {
     : result.stdout
         .trim()
         .split('\n')
-        .map((line) => line.trim().split(/\s+/u).map(Number));
+        .map((line) => {
+          const match = /^\s*(\d+)\s+(\d+)\s+(\d+)(?:\s+(.*))?$/u.exec(line);
+          if (!match) throw new Error('Cannot parse development process ownership');
+          return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] ?? ''];
+        });
   const owned = new Set([pid]);
   let size;
   do {
     size = owned.size;
-    for (const [child, parent, group] of entries)
-      if (owned.has(parent) || (ownedProcessGroup && group === pid)) owned.add(child);
+    for (const [child, parent, group, command = ''] of entries)
+      if (
+        owned.has(parent) ||
+        (ownedProcessGroup && group === pid) ||
+        (ownershipToken &&
+          command.split(/\s+/u).includes(`BOTHARNESS_PROCESS_OWNER=${ownershipToken}`))
+      )
+        owned.add(child);
   } while (size !== owned.size);
   owned.delete(pid);
   return [...owned].reverse().filter(processIsRunning);
@@ -271,13 +303,22 @@ export async function verifyStartedHost(child, verify, timeoutMs = 15_000) {
       }
     };
     if (child.pid) {
-      for (const pid of descendants(child.pid, child.ownedProcessGroup === true)) observed.add(pid);
+      for (const pid of descendants(
+        child.pid,
+        child.ownedProcessGroup === true,
+        child.ownershipToken,
+      ))
+        observed.add(pid);
       if (!stopped()) child.kill('SIGTERM');
     }
     let released = false;
     do {
       if (child.pid)
-        for (const pid of descendants(child.pid, child.ownedProcessGroup === true))
+        for (const pid of descendants(
+          child.pid,
+          child.ownedProcessGroup === true,
+          child.ownershipToken,
+        ))
           observed.add(pid);
       child.cleanupPids = [...observed].filter(processIsRunning);
       for (const pid of child.cleanupPids) signal(pid);

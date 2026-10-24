@@ -43,6 +43,43 @@ async function stop(child) {
   }
   await until(() => members(child.pid).length === 0);
 }
+async function stopRecordedPreparation(home) {
+  const owner = join(home, '.botharness-host.json');
+  if (!existsSync(owner)) return;
+  const resources = JSON.parse(readFileSync(owner, 'utf8')).resources ?? [];
+  function live() {
+    const rows = execFileSync(
+      'ps',
+      ['eww', process.platform === 'darwin' ? '-axo' : '-eo', 'pid=,pgid=,command='],
+      { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+    ).split('\n');
+    return rows.flatMap((line) => {
+      const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/u.exec(line);
+      if (!match) return [];
+      const pid = Number(match[1]);
+      return resources.some(
+        (resource) =>
+          pid === resource.pid ||
+          Number(match[2]) === resource.pid ||
+          (resource.ownershipToken &&
+            match[3].split(/\s+/u).includes(`BOTHARNESS_PROCESS_OWNER=${resource.ownershipToken}`)),
+      ) && processIsRunning(pid)
+        ? [pid]
+        : [];
+    });
+  }
+  await until(() => {
+    const pids = live();
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch (error) {
+        if (error.code !== 'ESRCH') throw error;
+      }
+    }
+    return pids.length === 0;
+  });
+}
 const workerSource = `const server=require('node:net').createServer();server.listen(0,'127.0.0.1',()=>process.send({pid:process.pid,port:server.address().port}));`;
 function fixtureHost(respawn = false) {
   const source = `const {spawn}=require('node:child_process');function worker(){const c=spawn(process.execPath,['-e',${JSON.stringify(workerSource)}],{stdio:['ignore','ignore','ignore','ipc']});c.on('message',m=>process.send(m));}worker();${respawn ? "process.on('SIGTERM',()=>{worker();setTimeout(()=>process.exit(0),150)});" : ''}setInterval(()=>{},1000);`;
@@ -266,3 +303,87 @@ describe('Home resource ownership across handoff and interruption', () => {
     45_000,
   );
 });
+
+it.skipIf(process.platform === 'win32')(
+  'rejects and stops a preparation daemon in its own process group',
+  async () => {
+    const home = mkdtempSync(join(tmpdir(), 'bh-detached-regression-'));
+    const marker = join(home, 'worker.pid');
+    const lease = acquireHome(home);
+    let pid;
+    try {
+      const worker = `require('node:fs').writeFileSync(${JSON.stringify(marker)},String(process.pid));setInterval(()=>{},1000);`;
+      const command = `const c=require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'});c.unref();const timer=setInterval(()=>{if(require('node:fs').existsSync(${JSON.stringify(marker)}))clearInterval(timer)},10);`;
+      await expect(lease.run(process.execPath, ['-e', command])).rejects.toThrow(
+        'Preparation left running descendants',
+      );
+      pid = Number(readFileSync(marker, 'utf8'));
+      expect(processIsRunning(pid)).toBe(false);
+      lease.release();
+      expect(existsSync(join(home, '.botharness-host.json'))).toBe(false);
+      const next = acquireHome(home);
+      next.release();
+    } finally {
+      if (!pid && existsSync(marker)) pid = Number(readFileSync(marker, 'utf8'));
+      if (pid && processIsRunning(pid)) {
+        process.kill(pid, 'SIGTERM');
+        await until(() => !processIsRunning(pid));
+      }
+      await stopRecordedPreparation(home);
+      if (existsSync(join(home, '.botharness-launch-lock'))) lease.release();
+      rmSync(home, { recursive: true, force: true });
+    }
+  },
+);
+
+it.skipIf(process.platform === 'win32')(
+  'retains detached daemon ownership after launcher and command exit',
+  async () => {
+    const home = mkdtempSync(join(tmpdir(), 'bh-detached-interruption-'));
+    const marker = join(home, 'worker.json');
+    const module = new URL('../dev-instance-lifecycle.mjs', import.meta.url).href;
+    const worker = `require('node:fs').writeFileSync(${JSON.stringify(marker)},JSON.stringify({pid:process.pid,parent:process.ppid}));setInterval(()=>{},1000)`;
+    const command = `require('node:child_process').spawn(process.execPath,['-e',${JSON.stringify(worker)}],{detached:true,stdio:'ignore'}).unref();setInterval(()=>{},1000)`;
+    const launcher = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `import {acquireHome} from ${JSON.stringify(module)};const lease=acquireHome(${JSON.stringify(home)});await lease.run(process.execPath,['-e',${JSON.stringify(command)}]);lease.release();`,
+      ],
+      { stdio: 'ignore' },
+    );
+    let pids = [];
+    try {
+      await until(() => existsSync(marker));
+      const workerInfo = JSON.parse(readFileSync(marker, 'utf8'));
+      const resource = JSON.parse(readFileSync(join(home, '.botharness-host.json'), 'utf8'))
+        .resources[0];
+      pids = [workerInfo.pid, workerInfo.parent, resource.pid];
+      expect(resource.ownershipToken).toMatch(/^[a-f0-9-]{36}$/u);
+      launcher.kill('SIGKILL');
+      await once(launcher, 'exit');
+      for (const pid of [workerInfo.parent, resource.pid]) {
+        if (processIsRunning(pid)) process.kill(pid, 'SIGTERM');
+        await until(() => !processIsRunning(pid));
+      }
+      expect(processIsRunning(workerInfo.pid)).toBe(true);
+      expect(() => acquireHome(home)).toThrow('in use');
+      process.kill(workerInfo.pid, 'SIGTERM');
+      await until(() => !processIsRunning(workerInfo.pid));
+      const next = acquireHome(home);
+      next.release();
+    } finally {
+      if (launcher.exitCode === null && launcher.signalCode === null) {
+        launcher.kill();
+        await once(launcher, 'exit');
+      }
+      await stopRecordedPreparation(home);
+      for (const pid of pids) {
+        if (processIsRunning(pid)) process.kill(pid, 'SIGTERM');
+        await until(() => !processIsRunning(pid));
+      }
+      rmSync(home, { recursive: true, force: true });
+    }
+  },
+);

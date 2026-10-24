@@ -47,6 +47,10 @@ The launcher holds a Home-wide preparation lock and records the running Host bef
 
 Preparation commands now wait for an IPC start signal after their independent process-group ownership has been persisted. This covers installs, builds and configuration exports. Reusing a Home checks recorded groups even after the launcher or successfully handed-off Host exits. Failure cleanup stops the parent and repeatedly rescans descendants until release or a bounded refusal. Windows permits CLI paths explicitly belonging to another managed Home; ambiguous legacy CLI ownership remains a refusal.
 
+Profile names accept only letters, digits, underscores and hyphens; missing option values and invalid ports refuse before preparation. The profiles directory, selected Profile, manifest, workspace settings and model patch must not be symbolic links.
+
+On macOS/Linux, each preparation command also inherits a unique ownership marker, persisted before its IPC start signal. Process scans use this marker to find descendants that create a new session and outlive their parents; preparation refuses and stops such leftovers, and interrupted runs block Home reuse until they exit. Environment output is never logged. This is cooperative lifecycle tracking, not OS containment: commands that deliberately clear the marker must manage and register their own resources. Windows retains parent-chain tracking; independently reparented Windows daemons are not qualified by the POSIX regression and require separate resource ownership.
+
 Restart only after both the Host process and its HTTP listener have stopped. A closed port alone does not prove shutdown. On Linux, an exited zombie may still answer a PID existence probe; lifecycle checks use its process state and still check live descendants.
 
 ## DSH 0.2.1 migration contracts
