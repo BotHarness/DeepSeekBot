@@ -321,7 +321,7 @@ export function startHelpTour(
       popover: {
         title: html(text(step.title)),
         description: html(text(step.description)),
-        showButtons: ['previous', 'next', 'close'],
+        showButtons: index === 0 ? ['next', 'close'] : ['previous', 'next', 'close'],
         prevBtnText: labels.previous,
         nextBtnText: index === steps.length - 1 ? labels.done : labels.next,
         onPrevClick() {

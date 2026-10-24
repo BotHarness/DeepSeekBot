@@ -1,3 +1,4 @@
+import { panelLocationGuide } from './help-panel-location.js';
 import type { ClientHelpService, HelpQuestion } from '../help-api.js';
 import type { DockPanelHost } from './dock-panels.js';
 
@@ -147,7 +148,10 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
             panelId: panel.id,
             title: { en: panel.title, zh: panel.title },
             overview: { en: '', zh: '' },
-            questions,
+            questions: questions.map((question) => ({
+              ...question,
+              guide: panelLocationGuide(panels, panel),
+            })),
           };
         }),
       });

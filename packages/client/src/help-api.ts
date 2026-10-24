@@ -17,6 +17,7 @@ export interface HelpStep {
   complete?(): boolean;
 }
 export interface HelpGuide {
+  readonly actionLabel?: HelpText;
   availability(): HelpAvailability;
   prepare(
     targetId: string,

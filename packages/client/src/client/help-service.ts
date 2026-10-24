@@ -68,7 +68,16 @@ export function createHelpService(
                     title: copyText(q.title),
                     answer: copyText(q.answer),
                     ...(q.keywords ? { keywords: Object.freeze([...q.keywords]) } : {}),
-                    ...(q.guide ? { guide: Object.freeze({ ...q.guide }) } : {}),
+                    ...(q.guide
+                      ? {
+                          guide: Object.freeze({
+                            ...q.guide,
+                            ...(q.guide.actionLabel
+                              ? { actionLabel: copyText(q.guide.actionLabel) }
+                              : {}),
+                          }),
+                        }
+                      : {}),
                   }),
                 ),
               ),

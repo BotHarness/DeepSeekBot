@@ -144,7 +144,9 @@ function UserGuide({ help, t }: { help: ClientHelpService; t: BotHarnessTranslat
                           }
                           onClick={() => run(() => help.start(answer.id, target || undefined))}
                         >
-                          {t('guide.start')}
+                          {answer.guide.actionLabel
+                            ? helpText(answer.guide.actionLabel, t)
+                            : t('guide.start')}
                         </Button>
                       )}
                       {answer.askTob && (

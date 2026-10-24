@@ -85,6 +85,8 @@ The application-defined `clientHelp` Service is provided by the UI Plugin. Impor
 
 Register a namespaced contribution, topic and question, each with a unique ID. Titles, overviews and answers provide English plus optional Chinese text; English is the fallback. Questions may provide keywords and an optional guide. Text-only answers have no Guide me action. Contributions live independently of a mounted Panel and disappear on Fiber disposal. Duplicate IDs are refused; disposal is idempotent and an old disposer cannot remove a later registration.
 
+A guide may supply a localized `actionLabel` (for example, “Show location”); otherwise the action reads “Guide me”. Built-in panel FAQs use a single Driver.js location hint: the visible panel header, its visible control, or the panel switcher. The hint does not open, resize or persist panels. Dismiss it before operating the highlighted control.
+
 A guide reports ready, explicit target-selection required, or unavailable with a readable reason. Preparation revalidates its target and accepts an AbortSignal; release resources on cancellation and return an idempotent disposer. Steps resolve real feature-owned elements when reached. Operation steps supply a semantic completion predicate; clicks alone do not establish a successful setting change. Built-in model help uses the original model-plan state, not a second settings store. Do not use unrelated shell-private selectors or invoke send methods from help navigation.
 
 This is the S1 contract. An independent Plugin's real interactive tutorial is a separate S2 acceptance gate; this text-only contribution does not qualify that gate.

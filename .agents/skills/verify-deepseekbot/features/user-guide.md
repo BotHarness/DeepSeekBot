@@ -3,6 +3,7 @@
 ## Sub-features
 
 - `entry`: persistent bottom rail info opens one ordinary Global User guide panel; no automatic guide.
+- `panel-location`: panel FAQ Show location highlights its visible header, control or panel switcher through Driver.js. Done and Escape dismiss it without opening a panel or writing layout.
 - `model-faq`: search and topic selection show bilingual model-scope answers, including unavailable contexts.
 - `model-guide`: feature-owned anchors locate the real composer model control and modal. Semantic model-plan completion gates Done; mask clicks do not advance.
 - `transient-layout`: the Dock owner excludes tutorial outer/inner state from normal saved preferences; cancellation reveals normal layout and preserves settings/drafts.

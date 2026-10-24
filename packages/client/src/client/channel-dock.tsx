@@ -687,6 +687,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                 <Tooltip label={dock.t('entry.botInbox')} side="bottom" portal delayMs={500}>
                   <IconButton
                     aria-label={dock.t('entry.botInbox')}
+                    data-help-panel-control="bot-inbox"
                     aria-expanded={dock.inbox.open}
                     onClick={() => {
                       if (!dock.inbox?.open) dock.files?.setOpen(false);
@@ -701,6 +702,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                 <Tooltip label={dock.t('entry.members')} side="bottom" portal delayMs={500}>
                   <IconButton
                     aria-label={dock.t('entry.members')}
+                    data-help-panel-control="members"
                     aria-pressed={dock.members.open}
                     onClick={() => dock.members?.setOpen(!dock.members.open)}
                   >
@@ -759,6 +761,7 @@ function SubpanelControl({ id }: { id: string }) {
         <Tooltip label={label} shortcutKeys={keys} side="bottom" delayMs={500}>
           <IconButton
             aria-label={label}
+            data-help-panel-control={id}
             aria-pressed={state.state.open}
             disabled={!dock.channel}
             onClick={state.toggle}
