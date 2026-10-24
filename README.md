@@ -1,8 +1,8 @@
 <div align="center">
   <a href="https://tobs.app">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/hero-zh-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/hero-zh-day.svg" width="960" alt="Tobs — a crew of your own" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/hero-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/hero-zh-day.svg" width="960" alt="Tobs — a crew of your own" />
 </picture>
   </a>
 
@@ -27,7 +27,7 @@
 3 分钟看懂 Tobs：一组有身份、人格和记忆的 bots，在小镇里一起做事。视频录制时仍使用旧名 DeepSeekBot；点击封面即可播放。
 
 <p align="center">
-  <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-zh.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v2/zh/promo-video-v16.jpg" width="800" alt="Tobs 宣传片（3 分钟）：点击播放" /></a>
+  <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-zh.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v2/zh/promo-video-v16.jpg" width="800" alt="Tobs 宣传片（3 分钟）：点击播放" /></a>
 </p>
 
 Tobs（托布）是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为插件运行在 [DeepSeek Harness（DSH）](https://github.com/deepseek-ai/deepseek-harness)里。你可以创建几个分别负责研究、写作或写代码的 Bot，像和同事一样私聊、拉群、派活；它们记得你，会按时做事，还能在 Slack、Discord、飞书 / Lark、QQ 和微信里以自己的身份回你消息。
@@ -37,8 +37,8 @@ Tobs（托布）是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为插�
 <a id="install"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/install-zh-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/install-zh-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/install-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/install-zh-day.svg" width="960" alt="" />
 </picture>
 
 ## 安装
@@ -52,8 +52,8 @@ Tobs（托布）原名 **DeepSeekBot**。已有用户仍可使用 `deepseekbot` 
 <a id="features"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/features-zh-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/features-zh-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/features-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/features-zh-day.svg" width="960" alt="" />
 </picture>
 
 ## 能用它做什么
@@ -73,7 +73,7 @@ Tobs（托布）原名 **DeepSeekBot**。已有用户仍可使用 `deepseekbot` 
 
 ### 像素头像
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel-avatars-crew.gif" width="660" alt="六个像素风 PersonaBot 头像" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel-avatars-crew.gif" width="660" alt="六个像素风 PersonaBot 头像" />
 
 每个 Bot 都有一张由名字生成的像素头像，工作时还会变成它正在用的工具。想自己捏一个？到[官网头像工坊](https://tobs.app/avatar)输入名字试试，还能下载高清头像。
 
@@ -83,16 +83,16 @@ Tobs（托布）原名 **DeepSeekBot**。已有用户仍可使用 `deepseekbot` 
 
 <table>
   <tr>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/hero-dark.jpg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/hero.jpg" alt="Bot 模式：左侧是控制栏和频道列表，中间是与 Mira 的私聊，右侧是 Mira 的记忆演化，带一个合并分支和一处未提交的修改" /></picture></a><br /><b>Bot 私聊与记忆演化</b>：Mira 从记忆里找出访客统计；右侧能看到它记忆的每次提交和分支。</td>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/group.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/group.jpg" alt="天文台工作室群聊：Mira、Theo 和 Nova 以各自身份回复，右侧是成员列表" /></a><br /><b>群聊协作</b>：@ 三个 Bot，它们各自回复，Nova 读完前两位再接话。</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/hero-dark.jpg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/hero.jpg" alt="Bot 模式：左侧是控制栏和频道列表，中间是与 Mira 的私聊，右侧是 Mira 的记忆演化，带一个合并分支和一处未提交的修改" /></picture></a><br /><b>Bot 私聊与记忆演化</b>：Mira 从记忆里找出访客统计；右侧能看到它记忆的每次提交和分支。</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/group.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/group.jpg" alt="天文台工作室群聊：Mira、Theo 和 Nova 以各自身份回复，右侧是成员列表" /></a><br /><b>群聊协作</b>：@ 三个 Bot，它们各自回复，Nova 读完前两位再接话。</td>
   </tr>
   <tr>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/schedules.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/schedules.jpg" alt="Kai 收到“每周一早上 9 点起草短文”的请求后自己创建了定时任务，右侧是定时任务面板" /></a><br /><b>定时任务</b>：一句话让 Bot 自己建任务。</td>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/marketplace.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/marketplace.jpg" alt="Bot 市场：按话题筛选、搜索，每个 Bot 卡片有像素横幅、头像、岗位、Star 数和安装按钮" /></a><br /><b>Bot 市场</b>：按话题和关键词找 Bot，点「安装」就多一位同事（图中为示例数据）。</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/schedules.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/schedules.jpg" alt="Kai 收到“每周一早上 9 点起草短文”的请求后自己创建了定时任务，右侧是定时任务面板" /></a><br /><b>定时任务</b>：一句话让 Bot 自己建任务。</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/marketplace.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/marketplace.jpg" alt="Bot 市场：按话题筛选、搜索，每个 Bot 卡片有像素横幅、头像、岗位、Star 数和安装按钮" /></a><br /><b>Bot 市场</b>：按话题和关键词找 Bot，点「安装」就多一位同事（图中为示例数据）。</td>
   </tr>
   <tr>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/home.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/home.jpg" alt="首页和托布的私聊并排：左边是 Token 用量和 Bot 活跃情况，右边是托布汇报各个 Bot 的状态" /></a><br /><b>首页与托布</b>：面板可以并排摆放；问托布一句，它就汇报所有 Bot 的状态。</td>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/appearance.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/zh/appearance.jpg" alt="Bot 设置的界面设置页：主题、配色、壁纸库和面板材质，背后是换上壁纸的工作区" /></a><br /><b>界面设置</b>：主题、配色、壁纸库和半透明面板，只保存在这台设备上。</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/home.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/home.jpg" alt="首页和托布的私聊并排：左边是 Token 用量和 Bot 活跃情况，右边是托布汇报各个 Bot 的状态" /></a><br /><b>首页与托布</b>：面板可以并排摆放；问托布一句，它就汇报所有 Bot 的状态。</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/appearance.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/zh/appearance.jpg" alt="Bot 设置的界面设置页：主题、配色、壁纸库和面板材质，背后是换上壁纸的工作区" /></a><br /><b>界面设置</b>：主题、配色、壁纸库和半透明面板，只保存在这台设备上。</td>
   </tr>
 </table>
 
@@ -173,8 +173,8 @@ node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 <a id="community"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/community-zh-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/community-zh-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/community-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/community-zh-day.svg" width="960" alt="" />
 </picture>
 
 ## 社区
@@ -183,17 +183,17 @@ node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 
 | 来坐坐                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 一起做点什么                                                                                                                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discord-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discord-day.svg" width="160" alt="discord" /></picture>](https://discord.gg/aEB2Ayhu7B)                                                                               | [加入 Tobs 服务器](https://discord.gg/aEB2Ayhu7B)，交流使用、分享你的小团队。                                                                                                                                                        |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-qq-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-qq-day.svg" width="160" alt="qq" /></picture>                                                                                                                               | 在 QQ 中搜索群号 **1125565676**。                                                                                                                                                                                                    |
-| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discuss-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discuss-day.svg" width="160" alt="discuss" /></picture>](https://github.com/BotHarness/DeepSeekBot/discussions)                                                       | [使用求助、想法与作品分享](https://github.com/BotHarness/DeepSeekBot/discussions) · [欢迎帖](https://github.com/BotHarness/DeepSeekBot/discussions/1397)。                                                                           |
-| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-contribute-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-contribute-day.svg" width="160" alt="contribute" /></picture>](CONTRIBUTING.zh.md)                                                                                 | [贡献指南](CONTRIBUTING.zh.md) · [第一次贡献](https://github.com/BotHarness/DeepSeekBot/discussions/1398)，文档、测试和答疑也欢迎；明确的 Bug 与实施任务请到 [Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose)。 |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discord-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discord-day.svg" width="160" alt="discord" /></picture>](https://discord.gg/aEB2Ayhu7B)                                                                               | [加入 Tobs 服务器](https://discord.gg/aEB2Ayhu7B)，交流使用、分享你的小团队。                                                                                                                                                        |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-qq-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-qq-day.svg" width="160" alt="qq" /></picture>                                                                                                                               | 在 QQ 中搜索群号 **1125565676**。                                                                                                                                                                                                    |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discuss-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discuss-day.svg" width="160" alt="discuss" /></picture>](https://github.com/BotHarness/DeepSeekBot/discussions)                                                       | [使用求助、想法与作品分享](https://github.com/BotHarness/DeepSeekBot/discussions) · [欢迎帖](https://github.com/BotHarness/DeepSeekBot/discussions/1397)。                                                                           |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-contribute-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-contribute-day.svg" width="160" alt="contribute" /></picture>](CONTRIBUTING.zh.md)                                                                                 | [贡献指南](CONTRIBUTING.zh.md) · [第一次贡献](https://github.com/BotHarness/DeepSeekBot/discussions/1398)，文档、测试和答疑也欢迎；明确的 Bug 与实施任务请到 [Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose)。 |
 | <a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="Tobs - Open-source Grok Bot alternative built on DeepSeek Harness &#124; Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a> | 我们已上线 Product Hunt，欢迎看看，也欢迎把 Tobs 介绍给朋友。                                                                                                                                                                        |
 
 <a id="repository-status"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/status-zh-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/status-zh-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/status-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/status-zh-day.svg" width="960" alt="" />
 </picture>
 
 ## 仓库状态
@@ -209,8 +209,8 @@ node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 
 <a href="https://github.com/BotHarness/DeepSeekBot">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/star-zh-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/star-zh-day.svg" width="960" alt="收藏 Tobs，下次回来继续建设。" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/star-zh-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/star-zh-day.svg" width="960" alt="收藏 Tobs，下次回来继续建设。" />
 </picture>
 </a>
 
