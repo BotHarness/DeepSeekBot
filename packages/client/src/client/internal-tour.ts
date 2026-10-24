@@ -349,11 +349,19 @@ export function startHelpTour(
     event.stopImmediatePropagation();
     end('closed');
   };
+  const popupObserver = new MutationObserver(syncPortals);
+  popupObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['aria-controls'],
+  });
   const timer = setInterval(show, 100);
   const dispose = () => {
     if (stopped) return;
     stopped = true;
     clearInterval(timer);
+    popupObserver.disconnect();
     document.removeEventListener('keydown', escape, true);
     signal.removeEventListener('abort', dispose);
     tour.destroy();

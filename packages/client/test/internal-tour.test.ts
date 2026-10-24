@@ -368,3 +368,30 @@ it('releases only semantic popup ownership on abort and ends when its target dis
   controller.abort();
   expect(popup.classList.contains('bh-help-owned-popup')).toBe(false);
 });
+
+it('makes a newly opened owned popup interactive before the polling interval', async () => {
+  const dialog = document.createElement('div');
+  const input = document.createElement('input');
+  dialog.append(input);
+  document.body.append(dialog);
+  const controller = new AbortController();
+  stop = startHelpTour(
+    [{ title: { en: 'Pick' }, description: { en: 'Choose' }, resolve: () => dialog }],
+    controller.signal,
+    (value) => value.en,
+    { close: 'Exit', previous: 'Previous', next: 'Next', done: 'Done' },
+    () => {},
+    () => {},
+  );
+  const popup = document.createElement('div');
+  popup.id = 'late-options';
+  input.setAttribute('aria-controls', popup.id);
+  document.body.append(popup);
+  await Promise.resolve();
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(true);
+  controller.abort();
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(false);
+  document.body.append(document.createElement('div'));
+  await Promise.resolve();
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(false);
+});

@@ -11,5 +11,16 @@
   "files": {
     "b.png": "3cfe0abb77684284448dd127986d6af7f52b6cc705227d5a3fd381a40c5ce72b",
     "a.png": "0ff4cce8d04c6fa0158547fdc45be1d2fde322008c63831d9c134656387279b3"
+  },
+  "native": {
+    "file": "n.png",
+    "platform": "macOS Desktop 0.2.1-rc.2 arm64",
+    "locale": "zh-CN",
+    "theme": "dark",
+    "pixels": "2522x1640",
+    "source": "d516f2da4 + immediate owned-popup observer",
+    "result": "Cold start recovered UI and independent VRM help; real picker saved deepseek-official/deepseek-v4-pro; canonical revision 3; guide completed and persisted layout unchanged.",
+    "sha256": "ad8577d0f998b79b7c3eadacd793f38eabb118cdaf061e2fb77808c494a1e5e7",
+    "inspection": "Synthetic Tob, no private paths or tokens; unredacted."
   }
 }

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -35,10 +35,17 @@ it('starts the shipped CLI entry outside DSH without Host-only packages', async 
     );
     await build({ ...coreCliBundleOptions, config: false, cwd: root, outDir: join(core, 'cli') });
     const entry = join(temporary, 'deepseekbot.mjs');
-    writeFileSync(
-      entry,
-      readFileSync(new URL('../../packages/deepseekbot/src/deepseekbot.mjs', import.meta.url)),
-    );
+    await build({
+      config: false,
+      cwd: root,
+      entry: { deepseekbot: 'packages/deepseekbot/src/deepseekbot.mjs' },
+      outDir: temporary,
+      format: ['esm'],
+      platform: 'node',
+      deps: { neverBundle: ['@botharness/core/cli'] },
+      dts: false,
+      clean: false,
+    });
     const help = await exec(process.execPath, [entry, '--help'], { timeout: 20_000 });
     expect(help.stdout).toContain('channel-media-download');
     expect(help.stdout).toContain('channel-media-target');

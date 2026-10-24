@@ -442,3 +442,17 @@ The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cro
 ### PersonaBot native question answerer precedence (#2590)
 
 The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis waterfall. A prior native Client answerer can wait without calling `next`, preventing a later application-defined Channel answerer from seeing the request. Register the existing Channel question owner with `prepend: true`, as Channel approvals already do. Retain its exact live-Agent and Session Ownership checks; unowned requests must still call `next`. A real two-Host browser must show the card in both the owning conversation and remote Activity, accept an answer and resume the same native tool call. A pending tool trace alone does not prove a Channel card was created.
+
+### Linked Client rebuild while native Desktop is running (#2717)
+
+On macOS Desktop 0.2.1-rc.2, rebuilding linked Client bundles (including the VRM Client in
+`tsdown.client.config.ts`) and then reloading the running renderer produced a fatal `web-boot`
+import failure: UI failed first, dependent Browser/Computer waited for `channelSidebar`, and
+VRM reported a skipped/failed concatenated bundle. The same task Profile cold-started with the
+completed full build and loaded UI plus VRM help again; the real model picker then saved Pro and
+restored layout. The observation supports a running-graph/build mismatch, not a corrupt Profile
+or proof of a VRM implementation defect. Do not rebuild linked bundles beneath a native QA run:
+stop its exact owned Desktop and Host, verify port release, complete the build, then cold-start
+the same Profile. Preserve crash evidence. A native crash dialog can block graceful shell exit;
+follow the resource cleanup policy, stop and verify the owned Host before any scoped force exit,
+and never use the crash dialog's third-party-plugin reset as an automatic repair.
