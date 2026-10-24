@@ -443,6 +443,11 @@ export class ChannelToolApproval {
     return this.executionGuard(agent, callId);
   }
 
+  usesStandingRule(agent: Agent, callId: string): boolean {
+    const tracked = this.#tracked.get(callKey(agent.session.id, callId));
+    return tracked?.agent === agent && tracked.automatic === true;
+  }
+
   cancelInvalid(): void {
     for (const [messageId, pending] of this.#pending) {
       const tracked = this.#tracked.get(callKey(pending.sessionId, pending.callId));
@@ -691,7 +696,10 @@ export class ChannelToolApproval {
         this.#settle(messageId, 'unavailable');
         return false;
       }
-      if (rule !== undefined) this.#rules?.activate(botSlug, rule.id);
+      if (rule !== undefined) {
+        this.#rules?.activate(botSlug, rule.id);
+        tracked.automatic = true;
+      }
       if (rule !== undefined) external?.onRuleSaved?.(rule);
       if (external && outcome !== 'rejected')
         tracked.authorized = () =>

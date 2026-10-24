@@ -25,7 +25,12 @@ these operations; a Human or currently authorized external rule reviewer must se
 or exact call. Full Access and the model Approval Reviewer remain separate and cannot create
 this opt-in decision. Browser and Computer scopes include their current authorization target.
 Changing that scope or revoking a rule restores prompting; the execution fence checks ownership,
-scope and current rule authority again before effects.
+scope and current rule authority again before effects. A saved device rule grants only the native
+execution token, released by tools/result or Plugin disposal, rather than adding a Session-wide
+device grant. Its Provider checks the captured current-rule fence before use. The durable target
+identity includes configuration and a persisted epoch; switching targets rotates that epoch so a
+restart cannot resurrect a previous target scope. Browser rules also include the assigned Browser
+Profile and the paired Chrome Profile identity; temporary borrowed connections remain distinct.
 
 Tob's broker additionally requires a committed Human decision or a currently matched saved rule,
 so a native allowed-once response alone never authorizes its write. Command-specific confirmations,

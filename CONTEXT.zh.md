@@ -289,7 +289,7 @@ PersonaBot 级的开启项（默认关闭）：开启后，该 PersonaBot 的 Or
 _避免使用_：permission、grant、feature flag、developer mode
 
 **Computer Authorization**：
-PersonaBot 在 Computer 上首次行动前、由 Human 按会话给予的一次授权；profile 级「自动允许」可跳过询问。Access 决定工具是否存在，Authorization 决定它们能否运行。
+Access 使工具可用后，运行 Computer 工具所需的授权。Human 可以批准当前 Session，或为当前工具与目标保存可撤销的 Tool Approval Rule，供后续 Session 复用。持久规则逐次核验，不产生整会话授权；撤销规则或更换目标后恢复询问。profile 级「自动允许」可跳过询问。
 _避免使用_：takeover、consent dialog、per-action approval
 
 **Computer Audit**：
@@ -311,7 +311,7 @@ PersonaBot 级的开启项（默认关闭）：开启后，该 PersonaBot 的 Or
 _避免使用_：permission、grant、feature flag、extension toggle
 
 **Browser Authorization**：
-PersonaBot 在 Bot Browser 上首次行动前、由 Human 按会话给予的一次授权；profile 级「自动允许」可跳过询问。Access 决定工具是否存在，Authorization 决定它们能否运行。
+Access 使工具可用后，运行 Bot Browser 工具所需的授权。Human 可以批准当前 Session，或为当前工具、Browser Profile 与目标保存可撤销的 Tool Approval Rule，供后续 Session 复用。持久规则逐次核验，不产生整会话授权；撤销规则或更换目标后恢复询问。profile 级「自动允许」可跳过询问。
 _避免使用_：Browser Access、consent dialog、per-action approval
 
 **Browser Pause**：

@@ -292,7 +292,7 @@ The per-PersonaBot opt-in, off by default, that makes the Computer tools and the
 _Avoid_: permission, grant, feature flag, developer mode
 
 **Computer Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Computer; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Computer tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool and the current target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: takeover, consent dialog, per-action approval
 
 **Computer Audit**:
@@ -314,7 +314,7 @@ The per-PersonaBot opt-in, off by default, that makes the Bot Browser tools and 
 _Avoid_: permission, grant, feature flag, extension toggle
 
 **Browser Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Bot Browser; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Bot Browser tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool, Browser Profile and target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: Browser Access, consent dialog, per-action approval
 
 **Browser Pause**:

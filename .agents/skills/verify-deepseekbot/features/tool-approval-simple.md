@@ -8,6 +8,7 @@
 - Permission and policy management offers Always allow in a separate explicit scope; old ordinary rules do not gain this authority. Full Access ordinary actions do not ask; sensitive management still asks until the Human opts in.
 - Schema generation 104 preserves legacy rules and normalizes old top-level Full Access Assignment approval policy without widening its permissions.
 - Browser and Computer tools offer the same saved action; Browser rules survive a new Session for the same Bot/tool/target. Change the target and verify a new card, revoke its rule and verify prompting returns.
+- Device rules remain tool-specific inside the same Session: approving browser_open must not approve browser_click, and revoking browser_open must restore its card immediately. Switch targets away and back, restart the Host and verify the old scope does not return. Changing the Browser Profile must also prompt.
 - Tob install/restart/delete cards accept saved tool rules but retain command confirmation, revision and deletion-token checks. Phone secret_cli notifications expose Always allow; external reviewers retain approve/save-rules checks.
 
 ## How to get to it (user POV)
