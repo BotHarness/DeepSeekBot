@@ -5924,7 +5924,7 @@ pre.bh-memory-commit-code { padding: ${space.x3} ${space.x5}; white-space: pre-w
   text-overflow: ellipsis;
 }
 .bh-memory-commit-line[data-memory-display='compact'] > .bh-bot-dm-action-bot {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
   max-width: 40%;
 }
