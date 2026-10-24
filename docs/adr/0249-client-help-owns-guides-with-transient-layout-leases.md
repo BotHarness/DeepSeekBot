@@ -1,4 +1,4 @@
-# ADR-0248: Client Help owns contributions and guides; layout owns transient presentation
+# ADR-0249: Client Help owns contributions and guides; layout owns transient presentation
 
 - Status: Accepted for S1 implementation; Human acceptance pending
 - Date: 2026-10-24
