@@ -116,7 +116,7 @@ if (mode === 'fixture') {
   await api('browserAccessSet', { slug: bot.slug, enabled: true });
   await api('channelSend', {
     channelId: dm.id,
-    body: `Container Browser QA：只用 browser_open 打开 ${fixture}/page，然后 browser_observe，channel_send 回复标题和搜索框。不输入，不点击。`,
+    body: `Container Browser QA：只用 browser_open 打开 ${fixture}/page，然后 browser_observe，bot_send_message 回复标题和搜索框。不输入，不点击。`,
   });
   const sessionId = await until(
     async () =>
@@ -142,7 +142,7 @@ if (mode === 'fixture') {
   } else if (mode === 'act') {
     await send(
       state,
-      'Container Browser QA：用 browser_observe 获取最新 ref，再用 browser_type 输入 Aurora container QA，用 browser_click 提交搜索，再 observe 并 click 打开第一个结果 Aurora field notes，最后 browser_screenshot 截图。channel_send 回复页面标题和 INTERACTION-FIRST-RESULT 标记。不得用 browser_open 或 navigate 绕过输入点击。',
+      'Container Browser QA：用 browser_observe 获取最新 ref，再用 browser_type 输入 Aurora container QA，用 browser_click 提交搜索，再 observe 并 click 打开第一个结果 Aurora field notes，最后 browser_screenshot 截图。bot_send_message 回复页面标题和 INTERACTION-FIRST-RESULT 标记。不得用 browser_open 或 navigate 绕过输入点击。',
     );
     console.log('Real PersonaBot interaction requested.');
   } else if (mode === 'send') {
@@ -172,7 +172,7 @@ if (mode === 'fixture') {
     ).filter((r) => r.seq > state.prior);
     const results = successfulCalls(rows);
     if (mode === 'observed') {
-      for (const name of ['browser_open', 'browser_observe', 'channel_send'])
+      for (const name of ['browser_open', 'browser_observe', 'bot_send_message'])
         requireSuccess(results, name);
       assert.deepEqual(await counter(), { queries: [], firstResultOpens: 0 });
     } else {
@@ -181,7 +181,7 @@ if (mode === 'fixture') {
         'browser_type',
         'browser_click',
         'browser_screenshot',
-        'channel_send',
+        'bot_send_message',
       ])
         requireSuccess(results, name);
       assert.deepEqual(await counter(), { queries: ['Aurora container QA'], firstResultOpens: 1 });

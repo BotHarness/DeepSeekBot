@@ -102,7 +102,7 @@ const finished = async (before, marker) => {
   );
 };
 const shellPrompt = (marker, escalate = true) =>
-  `For this authorized synthetic approval UX test, first channel_send one short explanation. Then call native pwsh exactly once with description "Verify the approval action choices", command "Write-Output '${marker}'"${escalate ? ', sandbox_permissions "danger-full-access", justification "May I run this harmless marker to verify the approval buttons?"' : ', with no sandbox_permissions'}. ${escalate ? 'This tests native approval, so use the requested wider mode even though printing itself is harmless.' : ''} Do not delegate or request a folder. After the call settles, channel_send its actual tool output verbatim, then end the turn. Never retry after rejection.`;
+  `For this authorized synthetic approval UX test, first bot_send_message one short explanation. Then call native pwsh exactly once with description "Verify the approval action choices", command "Write-Output '${marker}'"${escalate ? ', sandbox_permissions "danger-full-access", justification "May I run this harmless marker to verify the approval buttons?"' : ', with no sandbox_permissions'}. ${escalate ? 'This tests native approval, so use the requested wider mode even though printing itself is harmless.' : ''} Do not delegate or request a folder. After the call settles, bot_send_message its actual tool output verbatim, then end the turn. Never retry after rejection.`;
 let browser, page;
 const click = async (label) => {
   const buttons = await page.$$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
@@ -192,7 +192,7 @@ try {
       '--name',
       report.botName,
       '--persona',
-      'Follow Human QA instructions exactly. Use the requested native tool once. Report real results with channel_send. Never retry rejected calls or delegate this QA.',
+      'Follow Human QA instructions exactly. Use the requested native tool once. Report real results with bot_send_message. Never retry rejected calls or delegate this QA.',
     ]).bot.id;
   persist();
   report.stage = 'first-request';
@@ -249,7 +249,7 @@ try {
     report.changedInputWithoutCard = true;
     report.stage = 'other-tool';
     const other = await send(
-      'This is a synthetic approval test. First channel_send a short explanation, then call bot_create exactly once with display_name "2080 Pending Creation" and description "Synthetic QA creation, reject this request". Wait for its real result; do not create it through Shell or retry after rejection. End the turn after channel_send reports the actual result.',
+      'This is a synthetic approval test. First bot_send_message a short explanation, then call bot_create exactly once with display_name "2080 Pending Creation" and description "Synthetic QA creation, reject this request". Wait for its real result; do not create it through Shell or retry after rejection. End the turn after bot_send_message reports the actual result.',
     );
     const otherRequest = await pending(other);
     assert.equal(otherRequest.toolApprovalRequest.toolName, 'bot_create');
@@ -287,7 +287,7 @@ try {
     report.fullAccessOrdinaryWithoutCard = true;
     report.stage = 'full-access-permission-change';
     const guard = await send(
-      'This is the authorized Human-only approval regression. First channel_send a short explanation, then use native pwsh once to run exactly "deepseekbot grant-write-set synthetic-unavailable --grant synthetic-unavailable --enabled", with a description. No sandbox_permissions. This tests the permission-management card under Full Access. Wait for the real result and report with channel_send; do not retry, edit settings another way, or choose another command. The Human will reject it, so no target authorization should change.',
+      'This is the authorized Human-only approval regression. First bot_send_message a short explanation, then use native pwsh once to run exactly "deepseekbot grant-write-set synthetic-unavailable --grant synthetic-unavailable --enabled", with a description. No sandbox_permissions. This tests the permission-management card under Full Access. Wait for the real result and report with bot_send_message; do not retry, edit settings another way, or choose another command. The Human will reject it, so no target authorization should change.',
     );
     const guardRequest = await pending(guard);
     assert.equal(guardRequest.toolApprovalRequest.toolName, 'pwsh');

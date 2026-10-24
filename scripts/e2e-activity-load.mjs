@@ -70,7 +70,7 @@ const send = async (channel, body) => {
   const start = performance.now();
   const value = await rpc('botToolRun', {
     slug: bot.slug,
-    tool: 'channel_send',
+    tool: 'bot_send_message',
     args: { channel_id: channel.id, body },
   });
   assert.equal(value.result.status, 'committed');

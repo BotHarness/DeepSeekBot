@@ -107,7 +107,7 @@ if (mode === '--serve') {
     const dm = (await api('channelDm', { slug: bot.slug })).channel;
     await api('channelSend', {
       channelId: dm.id,
-      body: '本地验收准备：仅用 channel_send 回复“Browser Access QA ready”，不要调用其他工具。',
+      body: '本地验收准备：仅用 bot_send_message 回复“Browser Access QA ready”，不要调用其他工具。',
     });
     const sessionId = await until(() => sessionOf(bot.slug), Boolean, 'Session unavailable');
     await until(
@@ -132,7 +132,7 @@ if (mode === '--serve') {
       const prior = Math.max(...(await events(state.sessionId)).map((e) => e.seq));
       await api('channelSend', {
         channelId: state.channelId,
-        body: `重启后 QA 预览：用 browser_open 打开 ${fixture}/page，然后 browser_observe 读取页面，用 channel_send 回复页面标题、37 箱和配送时间。不修改页面。`,
+        body: `重启后 QA 预览：用 browser_open 打开 ${fixture}/page，然后 browser_observe 读取页面，用 bot_send_message 回复页面标题、37 箱和配送时间。不修改页面。`,
       });
       console.log('Review DM sent. Approve its first Browser action in the Client.');
       const records = await until(
@@ -145,7 +145,7 @@ if (mode === '--serve') {
           .filter((e) => e.seq > prior && e.type === 'tool/call')
           .map((e) => [e.data.callId, e.data.name]),
       );
-      for (const name of ['browser_open', 'browser_observe', 'channel_send'])
+      for (const name of ['browser_open', 'browser_observe', 'bot_send_message'])
         assert.ok(
           records.some(
             (e) =>
@@ -170,7 +170,7 @@ if (mode === '--serve') {
       const priorSeq = Math.max(...(await events(state.sessionId)).map((e) => e.seq));
       await api('channelSend', {
         channelId: state.channelId,
-        body: `请用 browser_open 打开 ${fixture}/page，然后 browser_observe 读取实际页面，再用 channel_send 告诉我配送日、箱数、取货时间。不要猜测，不要截图，不要修改页面。`,
+        body: `请用 browser_open 打开 ${fixture}/page，然后 browser_observe 读取实际页面，再用 bot_send_message 告诉我配送日、箱数、取货时间。不要猜测，不要截图，不要修改页面。`,
       });
       const messages = await until(
         () => api('channelMessages', { channelId: state.channelId, limit: 100 }),
@@ -202,7 +202,7 @@ if (mode === '--serve') {
       const results = rows
         .filter((e) => e.type === 'tool/result')
         .map((e) => ({ call: calls.get(e.data.message.toolCallId), message: e.data.message }));
-      for (const name of ['browser_open', 'browser_observe', 'channel_send'])
+      for (const name of ['browser_open', 'browser_observe', 'bot_send_message'])
         assert.ok(
           results.some((r) => r.call?.name === name && !r.message.isError),
           `${name} success required`,
@@ -212,7 +212,7 @@ if (mode === '--serve') {
       ).message;
       assert.match(textOf(observation), /e\S+ a Next page/);
       assert.match(textOf(observation), /37/);
-      const reply = results.find((r) => r.call?.name === 'channel_send');
+      const reply = results.find((r) => r.call?.name === 'bot_send_message');
       const args =
         typeof reply.call.arguments === 'string'
           ? JSON.parse(reply.call.arguments)
@@ -311,7 +311,7 @@ if (mode === '--serve') {
       const otherDm = (await api('channelDm', { slug: other.slug })).channel;
       await api('channelSend', {
         channelId: otherDm.id,
-        body: '本地验收准备，仅用 channel_send 回复 ready，不要调用其他工具。',
+        body: '本地验收准备，仅用 bot_send_message 回复 ready，不要调用其他工具。',
       });
       const otherSession = await until(
         () => sessionOf(other.slug),
@@ -331,7 +331,7 @@ if (mode === '--serve') {
       const otherPrior = Math.max(...(await events(otherSession)).map((e) => e.seq));
       await api('channelSend', {
         channelId: otherDm.id,
-        body: `本地撤销验收，请 browser_open 打开 ${fixture}/page，然后 observe 并用 channel_send 回复实际结果。如果工具被拒绝，直接回复拒绝原因，不重试。`,
+        body: `本地撤销验收，请 browser_open 打开 ${fixture}/page，然后 observe 并用 bot_send_message 回复实际结果。如果工具被拒绝，直接回复拒绝原因，不重试。`,
       });
       const pendingMessages = await until(
         () => api('channelMessages', { channelId: otherDm.id, limit: 100 }),

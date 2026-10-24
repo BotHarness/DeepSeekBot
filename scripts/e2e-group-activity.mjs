@@ -145,7 +145,7 @@ async function prepare() {
       await rpc('create', {
         displayName: `${name} QA ${stamp}`,
         persona:
-          'Follow Human instructions precisely. Use native Shell only when explicitly requested by the Human. Do not delegate or react to messages from other Bots. After the requested bounded timer finishes, channel_send the requested completion marker in the originating Group and end your Turn.',
+          'Follow Human instructions precisely. Use native Shell only when explicitly requested by the Human. Do not delegate or react to messages from other Bots. After the requested bounded timer finishes, bot_send_message the requested completion marker in the originating Group and end your Turn.',
       })
     ).bot;
     await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -197,7 +197,7 @@ try {
   if (mode !== 'before-resume')
     await rpc('channelSend', {
       channelId: scene.channelId,
-      body: `${prefix} Each of you: use the native Shell command node -e "setTimeout(() => {}, 45000)" with description "Verify my Group activity". Do not delegate. After it finishes, channel_send ${marker} in this Group and end. Do not respond to the other Bot.`,
+      body: `${prefix} Each of you: use the native Shell command node -e "setTimeout(() => {}, 45000)" with description "Verify my Group activity". Do not delegate. After it finishes, bot_send_message ${marker} in this Group and end. Do not respond to the other Bot.`,
       mentions,
     });
   const approvals = await waitFor(async () => {

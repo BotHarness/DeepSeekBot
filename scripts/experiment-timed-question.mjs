@@ -64,7 +64,7 @@ try {
     await rpc('create', {
       displayName: 'RC2 native timed question qualification',
       persona:
-        'Follow the Human exactly. Do not read files, use Shell, create Assignments or retry operations. Reply only with channel_send. A pending question is not answered by ordinary chat. If ask_user_question returns pending, channel_send PENDING_1220 then end the turn. When qualified native answer_to_pending_question input later arrives, channel_send ANSWER_1220 plus the actual selected answer. Follow unrelated message requests while the question is pending.',
+        'Follow the Human exactly. Do not read files, use Shell, create Assignments or retry operations. Reply only with bot_send_message. A pending question is not answered by ordinary chat. If ask_user_question returns pending, bot_send_message PENDING_1220 then end the turn. When qualified native answer_to_pending_question input later arrives, bot_send_message ANSWER_1220 plus the actual selected answer. Follow unrelated message requests while the question is pending.',
     })
   ).bot;
   const channelId = (await rpc('channelDm', { slug: bot.slug })).channel.id;
@@ -166,10 +166,10 @@ try {
     ),
   );
   await page.screenshot({ path: output.replace(/\.json$/u, '-entry.png') });
-  await send('Reply through channel_send with exactly BASELINE_1220. Use no other tools.');
+  await send('Reply through bot_send_message with exactly BASELINE_1220. Use no other tools.');
   mark('baseline-reply', await until(() => reply('BASELINE_1220'), 'real model baseline'));
   await send(
-    'Call native ask_user_question exactly once with timeout 2: one question id wait-route, question "Which synthetic test route?", options [{label:"Canary",description:"Test route"},{label:"Stable",description:"Other route"}]. If the actual native result is pending, channel_send PENDING_1220 and end your turn. Do not invent an answer. Wait for later qualified native answer_to_pending_question input before reporting ANSWER_1220 plus the actual answer.',
+    'Call native ask_user_question exactly once with timeout 2: one question id wait-route, question "Which synthetic test route?", options [{label:"Canary",description:"Test route"},{label:"Stable",description:"Other route"}]. If the actual native result is pending, bot_send_message PENDING_1220 and end your turn. Do not invent an answer. Wait for later qualified native answer_to_pending_question input before reporting ANSWER_1220 plus the actual answer.',
   );
   const request = await until(
     async () => (await messages()).find((m) => m.userQuestionRequest),
@@ -202,7 +202,7 @@ try {
   );
   assert.equal(nativeResult[0].event.data.message.isError, false);
   await send(
-    'This is unrelated ordinary Inbox work. Reply through channel_send with exactly UNRELATED_REPLY_1220. Do not answer, approve or replace the pending question.',
+    'This is unrelated ordinary Inbox work. Reply through bot_send_message with exactly UNRELATED_REPLY_1220. Do not answer, approve or replace the pending question.',
   );
   mark(
     'unrelated-reply',

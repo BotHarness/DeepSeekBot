@@ -317,7 +317,11 @@ describe('live frames on the native stream carrier', () => {
     const tracker = new ChannelDraftTracker((event) => hub.publishDraft(event));
     tracker.begin('orchestrator-ada', { channelId: dm.id, botSlug: 'ada', canAccess: () => true });
     const reply = 'The quick brown fox, 你好。'.repeat(80);
-    const fragments = ['{"body":"', ...reply.match(/.{1,3}/gsu)!, '"}'];
+    const fragments = [
+      `{"channel_id":${JSON.stringify(dm.id)},"body":"`,
+      ...reply.match(/.{1,3}/gsu)!,
+      '"}',
+    ];
     for (const [index, fragment] of fragments.entries())
       tracker.accept('orchestrator-ada', {
         type: 'chunk',
@@ -329,7 +333,7 @@ describe('live frames on the native stream carrier', () => {
           type: 'tool-call-delta',
           index: 0,
           id: 'call-1',
-          name: 'channel_send',
+          name: 'bot_send_message',
           argumentsDelta: fragment,
         },
       } as AssistantStreamFrame);

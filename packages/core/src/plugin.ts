@@ -1984,10 +1984,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
       }
       try {
-        const notice = toolApproval.willPrompt(agent, execution.callId)
-          ? core.runtime.askNotice?.(agent.session.id, execution.name)
-          : undefined;
-        if (notice !== undefined) return { kind: 'deny', reason: notice };
         const outcome = eachUse
           ? ((await toolApproval.ask({
               agent,

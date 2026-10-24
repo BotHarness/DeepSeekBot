@@ -8,7 +8,7 @@ export function apply(ctx, config) {
   if (!config?.stateFile) throw new Error('Evaluation fault needs its own state file');
   ctx.on('tools/execute', async (exec, next) => {
     const result = await next();
-    if (exec.name !== 'channel_send' || result.isError || !existsSync(config.stateFile))
+    if (exec.name !== 'bot_send_message' || result.isError || !existsSync(config.stateFile))
       return result;
     const state = JSON.parse(readFileSync(config.stateFile, 'utf8'));
     let value = result.value;

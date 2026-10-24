@@ -132,7 +132,7 @@ const sent = previous
         marker +
         '. No other command, file modification, or subagent. After create_assignment returns, you the Orchestrator must use native Shell exactly once with command ' +
         timers.orchestrator +
-        ' and description "Group Orchestrator activity QA". After your own timer completes, end the Turn and wait for the Assignment report, without polling. After its successful completed report, use channel_send to send ' +
+        ' and description "Group Orchestrator activity QA". After your own timer completes, end the Turn and wait for the Assignment report, without polling. After its successful completed report, use bot_send_message to send ' +
         marker +
         ' to originating Group ' +
         scene.channelId +

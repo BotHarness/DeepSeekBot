@@ -80,7 +80,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Escalation QA ' + stamp,
       persona:
-        'Follow the Human exactly. Only create one requested Assignment. Never use Shell, files or subagents. Never answer a question reserved for the Human yourself. After creation channel_send ESCALATION_CREATED and end. On an Assignment Report channel_send ESCALATION_WAITING_FOR_HUMAN and end, without resuming the Assignment. When the Human explicitly sends an Assignment response, inspect_assignment and forward that exact Human response through send_assignment_request mode next-turn with answer_to equal to its canonical openAsk Source Event. After completed Report channel_send ESCALATION_RESOLVED and end.',
+        'Follow the Human exactly. Only create one requested Assignment. Never use Shell, files or subagents. Never answer a question reserved for the Human yourself. After creation bot_send_message ESCALATION_CREATED and end. On an Assignment Report bot_send_message ESCALATION_WAITING_FOR_HUMAN and end, without resuming the Assignment. When the Human explicitly sends an Assignment response, inspect_assignment and forward that exact Human response through send_assignment_request mode next-turn with answer_to equal to its canonical openAsk Source Event. After completed Report bot_send_message ESCALATION_RESOLVED and end.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });

@@ -205,7 +205,7 @@ async function fixture(
             (
               await core.runtime.runDirectBotTool!(
                 bot,
-                name,
+                args.action ? 'channel_action' : name,
                 { channel_id: group.id, ...args },
                 new AbortController().signal,
               )
@@ -238,14 +238,14 @@ describe('Group send review through the same direct model tools', () => {
         attachments: [ref],
       });
       writeFileSync(core.attachments.fileTarget(ref.fileId!).path, 'Current release notes');
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'October 20',
         observation_id: read.observationIds[channelId],
       });
       expect(held.status).toBe('held');
-      const drop = await tool('channel_send', {
+      const drop = await tool('bot_send_message', {
         body: '',
-        drop: true,
+        action: 'drop',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
         yield_to_message_ids: ['peer-with-file'],
@@ -260,19 +260,19 @@ describe('Group send review through the same direct model tools', () => {
       const read = await tool('channel_read', {});
       const peerRead = await tool('channel_read', {}, 'bob');
       const peer = await tool(
-        'channel_send',
+        'bot_send_message',
         { body: 'October 20', observation_id: peerRead.observationIds[channelId] },
         'bob',
       );
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'October 20',
         observation_id: read.observationIds[channelId],
       });
       expect(held.review?.peerMessageIds).toEqual([peer.messageId]);
       expect(held.review?.content).toContain('October 20');
-      const dropped = await tool('channel_send', {
+      const dropped = await tool('bot_send_message', {
         body: '',
-        drop: true,
+        action: 'drop',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
         yield_to_message_ids: [peer.messageId],
@@ -308,15 +308,15 @@ describe('Group send review through the same direct model tools', () => {
       const read = await tool('channel_read', {});
       const peerRead = await tool('channel_read', {}, 'bob');
       await tool(
-        'channel_send',
+        'bot_send_message',
         { body: 'October 20', observation_id: peerRead.observationIds[channelId] },
         'bob',
       );
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'The signed release record specifies 09:00 UTC',
         observation_id: read.observationIds[channelId],
       });
-      const sent = await tool('channel_send', {
+      const sent = await tool('bot_send_message', {
         body: 'The signed release record specifies 09:00 UTC',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -324,7 +324,7 @@ describe('Group send review through the same direct model tools', () => {
       expect(sent.status).toBe('committed');
       await human('new-question', 'What is the release date in Tokyo? Ada, convert the time.');
       const fresh = await tool('channel_read', {});
-      const answer = await tool('channel_send', {
+      const answer = await tool('bot_send_message', {
         body: 'October 20, 18:00 JST',
         observation_id: fresh.observationIds[channelId],
       });
@@ -337,34 +337,34 @@ describe('Group send review through the same direct model tools', () => {
     await fixture(async ({ channelId, human, tool }) => {
       await human('question', 'Question');
       const ownRead = await tool('channel_read', {});
-      const own = await tool('channel_send', {
+      const own = await tool('bot_send_message', {
         body: 'Earlier response',
         observation_id: ownRead.observationIds[channelId],
       });
       const read = await tool('channel_read', {});
       const peerRead = await tool('channel_read', {}, 'bob');
       const peer = await tool(
-        'channel_send',
+        'bot_send_message',
         { body: 'Answer', observation_id: peerRead.observationIds[channelId] },
         'bob',
       );
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Answer',
         observation_id: read.observationIds[channelId],
       });
       for (const id of ['question', 'preview-not-committed', own.messageId, peer.messageId]) {
-        const refused = await tool('channel_send', {
+        const refused = await tool('bot_send_message', {
           body: '',
-          drop: true,
+          action: 'drop',
           draft_id: held.draftId,
           observation_id: read.observationIds[channelId],
           yield_to_message_ids: [id],
         });
         expect(refused).toMatchObject({ status: 'refused', reason: 'peer-answer-not-observed' });
       }
-      const drop = await tool('channel_send', {
+      const drop = await tool('bot_send_message', {
         body: '',
-        drop: true,
+        action: 'drop',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
         yield_to_message_ids: [peer.messageId],
@@ -405,7 +405,7 @@ describe('Group send review through the same direct model tools', () => {
       const ref = core.channels.message(channelId, original.id)!.attachments![0]!;
       expect(ref.fileId).toMatch(/^file:/);
       const read = await tool('channel_read', {});
-      const sent = await tool('channel_send', {
+      const sent = await tool('bot_send_message', {
         body: 'Agenda received',
         observation_id: read.observationIds[channelId],
       });
@@ -415,13 +415,13 @@ describe('Group send review through the same direct model tools', () => {
         core.attachments.fileTarget(ref.fileId!).path,
         'Revised agenda with additional details',
       );
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Old agenda summary',
         observation_id: beforeEdit.observationIds[channelId],
       });
       expect(held.status).toBe('held');
       expect(held.changedMessageIds).toEqual([original.id]);
-      const recheck = await tool('channel_send', {
+      const recheck = await tool('bot_send_message', {
         body: 'Revised agenda received',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -442,13 +442,13 @@ describe('Group send review through the same direct model tools', () => {
     await fixture(async ({ core, channelId, human, tool }) => {
       for (let i = 0; i < 40; i++) await human(`history-${i}`, `Earlier message ${i}`);
       await human('latest-correction', 'Correction: meet at 11:00, not 10:00');
-      const held = await tool('channel_send', { body: 'Confirmed 10:00' });
+      const held = await tool('bot_send_message', { body: 'Confirmed 10:00' });
       expect(held.status).toBe('held');
       expect(held.changedMessageIds).toHaveLength(20);
       expect(held.changedMessageIds).toContain('latest-correction');
       expect(held.changedMessageIds).not.toContain('history-0');
       expect(held.review!.content).toContain('Correction: meet at 11:00');
-      const sent = await tool('channel_send', {
+      const sent = await tool('bot_send_message', {
         body: 'Confirmed 11:00',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -463,7 +463,7 @@ describe('Group send review through the same direct model tools', () => {
         original: { body: '' },
         current: { body: '' },
       });
-      const retry = await tool('channel_send', {
+      const retry = await tool('bot_send_message', {
         body: 'Duplicate 11:00',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -481,13 +481,13 @@ describe('Group send review through the same direct model tools', () => {
       const read = await tool('channel_read', {});
       for (let i = 0; i < 25; i++) await human(`new-${i}`, `New context ${i}`);
       await human('latest-correction', 'Actually 11:00');
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: '10:00',
         observation_id: read.observationIds[channelId],
       });
       expect(held.changedMessageIds).toContain('latest-correction');
       expect(held.review!.complete).toBe(false);
-      const retry = await tool('channel_send', {
+      const retry = await tool('bot_send_message', {
         body: '11:00',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -502,7 +502,7 @@ describe('Group send review through the same direct model tools', () => {
       await human('old', 'Meet at 10:00');
       const read = await tool('channel_read', {});
       await human('correction', 'Correction: meet at 11:00');
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Confirmed 10:00',
         observation_id: read.observationIds[channelId],
       });
@@ -516,7 +516,7 @@ describe('Group send review through the same direct model tools', () => {
           (view: { message: { body: string } }) => view.message.body,
         ),
       ).toEqual(['Correction: meet at 11:00']);
-      const sent = await tool('channel_send', {
+      const sent = await tool('bot_send_message', {
         body: 'Confirmed 11:00',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -534,19 +534,19 @@ describe('Group send review through the same direct model tools', () => {
       await human('question', 'Please answer');
       const read = await tool('channel_read', {});
       await human('aside', 'Coffee is ready');
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Answer',
         observation_id: read.observationIds[channelId],
       });
       expect(held.review?.complete).toBe(true);
-      const sent = await tool('channel_send', {
+      const sent = await tool('bot_send_message', {
         body: 'Answer',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
       });
       expect(sent.status).toBe('committed');
       expect(core.channels.message(channelId, sent.messageId)?.body).toBe('Answer');
-      const stale = await tool('channel_send', {
+      const stale = await tool('bot_send_message', {
         body: 'Another answer',
         observation_id: read.observationIds[channelId],
       });
@@ -559,12 +559,12 @@ describe('Group send review through the same direct model tools', () => {
       await human('question', 'Meet at 10');
       const read = await tool('channel_read', {});
       await human('aside', 'Coffee');
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Meet at 10',
         observation_id: read.observationIds[channelId],
       });
       await human('correction', 'Instead meet at 11');
-      const recheck = await tool('channel_send', {
+      const recheck = await tool('bot_send_message', {
         body: 'Meet at 10',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -572,7 +572,7 @@ describe('Group send review through the same direct model tools', () => {
       expect(recheck.status).toBe('held');
       expect(recheck.changedMessageIds).toContain('correction');
       const other = await tool(
-        'channel_send',
+        'bot_send_message',
         { body: 'Meet at 10', observation_id: held.review!.observationId },
         'bob',
       );
@@ -586,14 +586,14 @@ describe('Group send review through the same direct model tools', () => {
       const read = await tool('channel_read', {});
       await human('small', 'A small change');
       await human('large', 'x'.repeat(20_000));
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Answer',
         observation_id: read.observationIds[channelId],
       });
       expect(held.review?.complete).toBe(false);
       expect(held.review!.content.length).toBeLessThan(12_000);
       expect(held.review!.content).not.toContain('x'.repeat(100));
-      const recheck = await tool('channel_send', {
+      const recheck = await tool('bot_send_message', {
         body: 'Answer',
         draft_id: held.draftId,
         observation_id: held.review!.observationId,
@@ -610,11 +610,11 @@ describe('Group send review through the same direct model tools', () => {
       await human('gap', 'two');
       await human('last', 'three');
       const partial = await tool('channel_read', { limit: 1 });
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'one',
         observation_id: read.observationIds[channelId],
       });
-      const skipped = await tool('channel_send', {
+      const skipped = await tool('bot_send_message', {
         body: 'three',
         draft_id: held.draftId,
         observation_id: partial.observationIds[channelId],
@@ -622,12 +622,12 @@ describe('Group send review through the same direct model tools', () => {
       expect(skipped.status).toBe('held');
       expect(skipped.changedMessageIds).toContain('gap');
       expect(
-        (await tool('channel_send', { body: 'forged', observation_id: 'invented' })).status,
+        (await tool('bot_send_message', { body: 'forged', observation_id: 'invented' })).status,
       ).toBe('held');
       expect(
         (
           await tool(
-            'channel_send',
+            'bot_send_message',
             { body: 'other owner', observation_id: read.observationIds[channelId] },
             'bob',
           )
@@ -641,13 +641,13 @@ describe('Group send review through the same direct model tools', () => {
       await human('old', 'Please answer');
       const read = await tool('channel_read', {});
       await human('aside', 'Unrelated: coffee');
-      const held = await tool('channel_send', {
+      const held = await tool('bot_send_message', {
         body: 'Answer',
         observation_id: read.observationIds[channelId],
       });
       const fresh = await tool('channel_read', {});
       await human('again', 'Another change');
-      const stopped = await tool('channel_send', {
+      const stopped = await tool('bot_send_message', {
         body: 'Answer',
         draft_id: held.draftId,
         observation_id: fresh.observationIds[channelId],
@@ -657,7 +657,7 @@ describe('Group send review through the same direct model tools', () => {
       await human('third-change', 'One more unrelated change');
       expect(
         (
-          await tool('channel_send', {
+          await tool('bot_send_message', {
             body: 'Answer',
             draft_id: held.draftId,
             observation_id: newest.observationIds[channelId],
@@ -665,7 +665,8 @@ describe('Group send review through the same direct model tools', () => {
         ).status,
       ).toBe('requires-review');
       expect(
-        (await tool('channel_send', { body: '', drop: true, draft_id: held.draftId })).status,
+        (await tool('bot_send_message', { body: '', action: 'drop', draft_id: held.draftId }))
+          .status,
       ).toBe('dropped');
       const unresolved = attachOperationalModule(core.operationalDatabase, 'test').read((db) =>
         db
@@ -684,10 +685,10 @@ describe('Group send review through the same direct model tools', () => {
   it('retains membership checks after a draft has been held', async () => {
     await fixture(async ({ core, channelId, human, tool }) => {
       await human('old', 'Question');
-      const held = await tool('channel_send', { body: 'Draft' });
+      const held = await tool('bot_send_message', { body: 'Draft' });
       core.channels.removeGroupMember(channelId, 'ada');
       await expect(
-        tool('channel_send', { body: 'Draft', draft_id: held.draftId }),
+        tool('bot_send_message', { body: 'Draft', draft_id: held.draftId }),
       ).rejects.toThrow();
       expect(
         core.channels.readMessages(channelId).filter((m) => m.author.kind === 'bot'),
@@ -699,7 +700,7 @@ describe('Group send review through the same direct model tools', () => {
 it('refuses automatic recovery after restart or expiry and removes draft content on purge', async () => {
   await fixture(async ({ core, channelId, human, tool }) => {
     await human('original', 'Private original');
-    const held = await tool('channel_send', { body: 'Private draft' });
+    const held = await tool('bot_send_message', { body: 'Private draft' });
     const owner = 'direct:ada';
     const draft = core.runtime.groupSendReview!.inspect(owner, channelId, held.draftId!)!;
     const database = attachOperationalModule(core.operationalDatabase, 'test');
@@ -719,7 +720,7 @@ it('refuses automatic recovery after restart or expiry and removes draft content
     core.contentPurge.confirm(channelId, preview.sourceEventIds, preview.token);
     expect(core.runtime.groupSendReview!.inspect(owner, channelId, draft.id)).toBeUndefined();
     await expect(
-      tool('channel_send', { body: 'Private draft', draft_id: draft.id }),
+      tool('bot_send_message', { body: 'Private draft', draft_id: draft.id }),
     ).rejects.toThrow();
   });
 });
@@ -729,8 +730,8 @@ it('serializes two sends with the same observation and treats only the first as 
     await human('question', 'One answer');
     const read = await tool('channel_read', {});
     const outcomes = await Promise.all([
-      tool('channel_send', { body: 'First', observation_id: read.observationIds[channelId] }),
-      tool('channel_send', { body: 'Second', observation_id: read.observationIds[channelId] }),
+      tool('bot_send_message', { body: 'First', observation_id: read.observationIds[channelId] }),
+      tool('bot_send_message', { body: 'Second', observation_id: read.observationIds[channelId] }),
     ]);
     expect(outcomes.map((result) => result.status).sort()).toEqual(['committed', 'held']);
     expect(
@@ -743,14 +744,14 @@ async function exhaustReview(f: Parameters<Parameters<typeof fixture>[0]>[0]) {
   await f.human('busy-question', 'Meet at 11:00');
   const initial = await f.tool('channel_read', {});
   await f.human('busy-0', 'Coffee is ready');
-  let outcome = await f.tool('channel_send', {
+  let outcome = await f.tool('bot_send_message', {
     body: 'Meet at 11:00',
     observation_id: initial.observationIds[f.channelId],
   });
   for (let i = 1; i <= 2; i++) {
     const read = await f.tool('channel_read', {});
     await f.human(`busy-${i}`, `Unrelated chatter ${i}`);
-    outcome = await f.tool('channel_send', {
+    outcome = await f.tool('bot_send_message', {
       body: 'Meet at 11:00',
       draft_id: outcome.draftId,
       observation_id: read.observationIds[f.channelId],
@@ -813,10 +814,9 @@ describe('busy Group progress through the direct tool', () => {
             JSON.stringify(
               await adapter.runDirectTool!(
                 run,
-                'channel_send',
+                'channel_action',
                 {
-                  body: '',
-                  drop: true,
+                  action: 'drop',
                   draft_id: draftId,
                   channel_id: groupId,
                   resolve_inbox_ids: ['initial-request', 'busy-turn-0'],
@@ -914,7 +914,7 @@ describe('busy Group progress through the direct tool', () => {
     await fixture(async (f) => {
       const exhausted = await exhaustReview(f);
       await f.human('later-chatter', 'Tea is ready');
-      const replacement = await f.tool('channel_send', {
+      const replacement = await f.tool('bot_send_message', {
         body: 'New draft cannot reset the budget',
       });
       expect(replacement).toMatchObject({
@@ -923,7 +923,7 @@ describe('busy Group progress through the direct tool', () => {
         budget: { used: 2, limit: 2, exhausted: true },
       });
       const read = await f.tool('channel_read', {});
-      const ordinary = await f.tool('channel_send', {
+      const ordinary = await f.tool('bot_send_message', {
         body: 'Meet at 11:00',
         draft_id: exhausted.draftId,
         observation_id: read.observationIds[f.channelId],
@@ -941,7 +941,7 @@ describe('busy Group progress through the direct tool', () => {
           reason: 'Only unrelated chatter changed; the requested time remains 11:00.',
         },
       };
-      const committed = await f.tool('channel_send', override);
+      const committed = await f.tool('bot_send_message', override);
       expect(committed.status).toBe('committed');
       expect(
         f.core.runtime.groupSendReview!.inspect('direct:ada', f.channelId, exhausted.draftId!),
@@ -956,7 +956,7 @@ describe('busy Group progress through the direct tool', () => {
           draftVersion: exhausted.draftVersion,
         },
       });
-      const repeated = await f.tool('channel_send', override);
+      const repeated = await f.tool('bot_send_message', override);
       expect(repeated).toMatchObject({ status: 'committed', messageId: committed.messageId });
       expect(
         f.core.channels.readMessages(f.channelId).filter((m) => m.author.kind === 'bot'),
@@ -975,7 +975,7 @@ describe('busy Group progress through the direct tool', () => {
         observation_id: read.observationIds[f.channelId],
         freshness_override: { draftVersion: exhausted.draftVersion, reason: 'Still necessary' },
       };
-      const refused = await f.tool('channel_send', args);
+      const refused = await f.tool('bot_send_message', args);
       expect(refused).toMatchObject({
         status: 'requires-review',
         reason: 'override-context-changed-defer',
@@ -987,7 +987,7 @@ describe('busy Group progress through the direct tool', () => {
       const fresh = await f.tool('channel_read', {});
       expect(
         (
-          await f.tool('channel_send', {
+          await f.tool('bot_send_message', {
             ...args,
             body: 'Meet at 12:00',
             observation_id: fresh.observationIds[f.channelId],
@@ -999,8 +999,13 @@ describe('busy Group progress through the direct tool', () => {
         f.core.channels.readMessages(f.channelId).filter((m) => m.author.kind === 'bot'),
       ).toHaveLength(0);
       expect(
-        (await f.tool('channel_send', { body: '', draft_id: exhausted.draftId, drop: true }))
-          .status,
+        (
+          await f.tool('bot_send_message', {
+            body: '',
+            draft_id: exhausted.draftId,
+            action: 'drop',
+          })
+        ).status,
       ).toBe('dropped');
     });
   });
@@ -1014,11 +1019,11 @@ describe('busy Group progress through the direct tool', () => {
         observation_id: 'invented',
         freshness_override: { draftVersion: exhausted.draftVersion, reason: 'Still necessary' },
       };
-      expect((await f.tool('channel_send', args)).reason).toBe('override-context-not-observed');
+      expect((await f.tool('bot_send_message', args)).reason).toBe('override-context-not-observed');
       const partial = await f.tool('channel_read', { limit: 1 });
       expect(
         (
-          await f.tool('channel_send', {
+          await f.tool('bot_send_message', {
             ...args,
             observation_id: partial.observationIds[f.channelId],
           })
@@ -1026,16 +1031,16 @@ describe('busy Group progress through the direct tool', () => {
       ).toBe('override-context-not-observed');
       const full = await f.tool('channel_read', {});
       args.observation_id = full.observationIds[f.channelId]!;
-      expect((await f.tool('channel_send', args, 'bob')).reason).toBe('draft-unavailable');
+      expect((await f.tool('bot_send_message', args, 'bob')).reason).toBe('draft-unavailable');
       expect(
         (
-          await f.tool('channel_send', {
+          await f.tool('bot_send_message', {
             ...args,
             freshness_override: { draftVersion: 1, reason: 'Stale version' },
           })
         ).reason,
       ).toBe('draft-version-changed');
-      expect((await f.tool('channel_send', args)).status).toBe('committed');
+      expect((await f.tool('bot_send_message', args)).status).toBe('committed');
     });
   });
 
@@ -1071,7 +1076,7 @@ describe('busy Group progress through the direct tool', () => {
           const preview = f.core.contentPurge.preview(f.channelId, [draft.sourceEventId]);
           f.core.contentPurge.confirm(f.channelId, preview.sourceEventIds, preview.token);
         }
-        const attempt = f.tool('channel_send', {
+        const attempt = f.tool('bot_send_message', {
           body: 'Meet at 11:00',
           draft_id: exhausted.draftId,
           observation_id: read.observationIds[f.channelId],

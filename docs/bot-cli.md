@@ -203,34 +203,33 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`channel_send` accepts optional `resolve_inbox_ids`: an explicit selection of 1–200 observed Source Event or Message IDs to mark done after a committed send or successful drop. Omitting it preserves Inbox responsibility. Held/refused outcomes never resolve these IDs. When the selection is omitted, `inboxResolution.outcome` is `not-requested`: complete remaining work with `inbox_resolve` before ending the turn. Drop uses the inbound Channel when `channel_id` is omitted. Inspect `inboxResolution` separately: if it fails, repair with `inbox_resolve`, never resend a committed reply. The same parameters work through `bot-tool <bot> channel_send --args-stdin`.
+`bot_send_message` resolves only its explicit `source_event_id` when selected in `resolve_inbox_ids`, after confirmed delivery. `channel_action` with `action: "drop"` accepts 1–200 observed completed IDs and preserves protected unfinished work. Both require explicit destinations; no inbound fallback. Inspect `inboxResolution`: repair failed cleanup with `inbox_resolve`, never resend a committed message. The direct `bot-tool <bot> <tool> --args-stdin` uses the same contract.
 
-If membership in the initiating opted-in Group is revoked, this run cannot redirect its reply to another Channel. `channel_send` returns `refused` with reason `group-reply-source-revoked`. A later independent DM is unaffected.
+If membership in the initiating opted-in Group is revoked, this run cannot redirect its reply to another Channel. `bot_send_message` returns `refused` with reason `group-reply-source-revoked`. A later independent DM is unaffected.
 
 `group-send-review <channel> --accept` enables the opt-in freshness check for a local Group;
 `--off` disables it and no flag reads its state. It does not change wake settings.
 A direct `bot-tool <bot> channel_read --args-stdin` returns `observationIds` for enabled Groups.
-Pass the target's handle as `observation_id` to `channel_send`. A `held` result is not a sent
+Pass the target's handle as `observation_id` to `bot_send_message`. A `held` result is not a sent
 message: read `review.content` when present. If `review.complete` is true, pass its
 `review.observationId` as `observation_id` without another `channel_read`; otherwise read the
 missing content first. Then pass `draft_id` with the new observation and revised
-(or unchanged) `body`. At most two rechecks are allowed. Send `drop: true`, `draft_id` and an empty
-`body` to abandon the draft without resolving its Inbox item. `expired`, `refused` and
+(or unchanged) `body`. At most two rechecks are allowed. Use `channel_action` with `action: "drop"`, explicit `channel_id` and `draft_id` to abandon the draft without resolving its Inbox item. `expired`, `refused` and
 `requires-review` are terminal for automatic sending. Handles cannot cross Bot owners or Groups.
 
-After an interrupted Group send, use the same direct Tool command with
-`{"channel_id":"...","body":"","review_action":"inspect"}`. This returns at most 20 own
+After an interrupted Group send, use `bot-tool <bot> channel_action --args-stdin` with
+`{"channel_id":"...","action":"inspect"}`. This returns at most 20 own
 draft/receipt metadata entries (pending first) and `hasMore`; supply `draft_id` for an exact
 older record. It sends nothing and does not resolve Inbox work. After a Host restart, read the
-current Channel, then send `review_action:"recover"`, `draft_id`, the fresh `observation_id`
+current Channel, then send `recover:true`, `draft_id`, the fresh `observation_id`
 and corrected `body`. Old observations, expiry and exhausted retry budgets cannot be reset.
 For a committed receipt, read its canonical `messageId`; resubmitting that `draft_id` with the
 same content returns the same message ID without a new message or Admission. Changed content
 returns `draft-commit-content-changed`. Current membership, owner, source and attachment checks
 still apply; a revoked Group may be refused by the direct runner before Tool execution.
 
-For deliberate yielding, the same direct `bot-tool <bot> channel_send --args-stdin` accepts
-`{"channel_id":"...","body":"","drop":true,"draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`.
+For deliberate yielding, `bot-tool <bot> channel_action --args-stdin` accepts
+`{"channel_id":"...","action":"drop","draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`.
 Read the cited peer answers first (`review.peerMessageIds` lists fully returned peers).
 The result is `dropped` with `reason: explicit-peer-yield` and `yieldedToMessageIds`, retained
 in the draft audit and `bot-trace`. Unobserved, changed, purged, own, Human or preview-only
@@ -240,7 +239,7 @@ still use the existing send path; resolve only explicitly selected completed Inb
 
 `channel <group-channel>` returns `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}` and refuses non-group Channels. Stable creation/invitation inputs and retry semantics are described under [Tob group creation and invitations](#tob-group-creation-and-invitations); Human online commands may use them too.
 
-Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a PNG, JPEG or WebP file of at most 96 KiB. Invitation and join-request IDs are in the group's `invitations` and `joinRequests`, returned by `channels` and by every group command. `group-wake-set` sets when a member Bot wakes for ordinary group messages: `all`, `mentions`, `digest` (after `--count` messages or `--interval` seconds; defaults 5 and 30) or `silent`; `--inherit` returns the member to its Bot's default. `channel-timeline` and `channel-journal` page messages the way the chat view does; take the `revision` from `channel-timeline` as `--through`. `channel-retry` asks the Bot to answer a Human DM message again after a failed reply. `channel-unread` lists the unread Bot message count of each Channel that has any; these are the numbers the sidebar shows on each row. `channel-mute` mutes a Channel the way the sidebar menu does: it keeps its row greyed and excludes its ordinary messages, mentions and replies from Activity message lists and the global unread total; `--off` restores eligibility under the existing read/dismissal/snooze rules. Actual Channel read positions and explicit pending Human requests remain unchanged. `channel-bot-stop` stops the Bot's current turn, as the Stop button on the working status does: the Bot goes idle, the Channel records that the Human stopped it, and a Bot that is not working is refused with `not-working`. Assignments the Bot delegated keep running. `channel-react` adds your reaction to one message, or removes it with `--remove`, and returns the message's `reactions`; a message holds at most 20 of your reactions, and the emoji must be a single emoji. Bots react through `channel_send` with `react_to` and `reaction`, and an empty `body` when they only react; `bot-tool <bot> channel_send --args-stdin` runs that without the model. `channel-search` matches `--query` without case in the messages you can see, newest first, and pages with the `nextCursor` it returns.
+Renaming a Bot DM renames that Bot, as in the Web UI. `group-avatar-set` reads a PNG, JPEG or WebP file of at most 96 KiB. Invitation and join-request IDs are in the group's `invitations` and `joinRequests`, returned by `channels` and by every group command. `group-wake-set` sets when a member Bot wakes for ordinary group messages: `all`, `mentions`, `digest` (after `--count` messages or `--interval` seconds; defaults 5 and 30) or `silent`; `--inherit` returns the member to its Bot's default. `channel-timeline` and `channel-journal` page messages the way the chat view does; take the `revision` from `channel-timeline` as `--through`. `channel-retry` asks the Bot to answer a Human DM message again after a failed reply. `channel-unread` lists the unread Bot message count of each Channel that has any; these are the numbers the sidebar shows on each row. `channel-mute` mutes a Channel the way the sidebar menu does: it keeps its row greyed and excludes its ordinary messages, mentions and replies from Activity message lists and the global unread total; `--off` restores eligibility under the existing read/dismissal/snooze rules. Actual Channel read positions and explicit pending Human requests remain unchanged. `channel-bot-stop` stops the Bot's current turn, as the Stop button on the working status does: the Bot goes idle, the Channel records that the Human stopped it, and a Bot that is not working is refused with `not-working`. Assignments the Bot delegated keep running. `channel-react` adds your reaction to one message, or removes it with `--remove`, and returns the message's `reactions`; a message holds at most 20 of your reactions, and the emoji must be a single emoji. Bots react through `channel_action` with `action: "react"`, `channel_id`, `react_to` and `reaction`; `bot-tool <bot> channel_action --args-stdin` runs it without the model. Reactions cannot send text. `channel-search` matches `--query` without case in the messages you can see, newest first, and pages with the `nextCursor` it returns.
 
 `group-delete` and `channel-purge-confirm` cannot be undone and need `--confirm`. `channel-history` lists deleted groups whose content can still be purged. Purging works in two steps like the history page: `channel-purge-preview` lists the messages, Bot admissions, files and effects the chosen Source Events would remove and returns a short-lived `token`; `channel-purge-confirm` reads `{"token": …}` from stdin for the same Source Events and fails coded when the scope changed. Pick Source Events from `channel-history-sources`, which pages with the `before` cursor it returns.
 
@@ -551,7 +550,7 @@ The Harness tools a Bot uses to talk, read its Inbox and run its Channels and sc
 ```bash
 deepseekbot bot-tools
 deepseekbot bot-tool <bot-id> channel_list
-printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-tool <bot-id> channel_send --args-stdin
+printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
@@ -1113,9 +1112,9 @@ Scoped `release-install` and `release-restart` require explicit `--confirm` and 
 ### Recover an exhausted Group draft
 
 After restarting the Host, inspect the draft, read the current Group, and pass both
-`review_action: "recover"` and `freshness_override` with the current `draftVersion`,
+`recover: true` and `freshness_override` with the current `draftVersion`,
 fresh `observation_id`, original `draft_id`, and revised body to the same direct
-`bot-tool ... channel_send --args-stdin` command. Recovery does not renew the two-recheck
+`bot-tool ... bot_send_message --args-stdin` command. Recovery does not renew the two-recheck
 budget or a spent explicit override. A changed context still refuses the final attempt.
 A successful override retains a commit receipt; retrying its unchanged intent returns
 the same message ID, including after another restart. Inspection cannot include

@@ -104,7 +104,7 @@ if (phase === 'prepare') {
       scene.grantId +
       ' and key "' +
       scene.key +
-      '". Purpose: invoke native Shell exactly once with command node -e "setTimeout(() => {}, 60000)" and description "Stop recovery QA timer", then await approval. No file modification or subagent. You the Orchestrator must not use Shell. After create_assignment returns, send exactly "ASSIGNMENT_CREATED" using channel_send and end the Turn. Never approve the Assignment tool.',
+      '". Purpose: invoke native Shell exactly once with command node -e "setTimeout(() => {}, 60000)" and description "Stop recovery QA timer", then await approval. No file modification or subagent. You the Orchestrator must not use Shell. After create_assignment returns, send exactly "ASSIGNMENT_CREATED" using bot_send_message and end the Turn. Never approve the Assignment tool.',
   });
   const row = await waitFor(
     async () => (await assignmentRows()).find((a) => a.activity === 'working'),
@@ -154,7 +154,7 @@ if (phase === 'stop') {
       body:
         'Inspect Assignment Session ' +
         scene.firstSessionId +
-        ', then use stop_assignment to stop it. Do not resume it or approve its tool. After the tool confirms stopped, send exactly "ASSIGNMENT_STOPPED" using channel_send and end. Do not create any new Assignment.',
+        ', then use stop_assignment to stop it. Do not resume it or approve its tool. After the tool confirms stopped, send exactly "ASSIGNMENT_STOPPED" using bot_send_message and end. Do not create any new Assignment.',
     });
   const row = await waitFor(
     async () =>
@@ -213,7 +213,7 @@ if (phase === 'restart') {
       scene.grantId +
       ' and the same released key "' +
       scene.key +
-      '". Its purpose: immediately report_to_orchestrator state completed with summary "RESTART_REUSE_DONE". Use no Shell, file modification or subagent. After create_assignment returns, end and wait for the report; after successful report send exactly "RESTART_REUSE_DONE" using channel_send. Never resume the stopped Session.',
+      '". Its purpose: immediately report_to_orchestrator state completed with summary "RESTART_REUSE_DONE". Use no Shell, file modification or subagent. After create_assignment returns, end and wait for the report; after successful report send exactly "RESTART_REUSE_DONE" using bot_send_message. Never resume the stopped Session.',
   });
   const newer = await waitFor(
     async () => (await assignmentRows()).find((a) => a.sessionId !== scene.firstSessionId),

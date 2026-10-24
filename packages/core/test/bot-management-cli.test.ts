@@ -218,7 +218,7 @@ describe('online CLI management', () => {
     const root = mkdtempSync(join(tmpdir(), 'botharness-cli-zip-'));
     directories.push(root);
     const archive = writeZip([
-      { path: 'SOUL.md', data: Buffer.from('Reply using channel_send.') },
+      { path: 'SOUL.md', data: Buffer.from('Reply using bot_send_message.') },
       { path: '.botharness/bot.json', data: Buffer.from('{"name":"Original"}') },
     ]);
     const path = join(root, 'shared.zip');

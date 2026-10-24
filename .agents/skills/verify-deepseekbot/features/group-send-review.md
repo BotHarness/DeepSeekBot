@@ -10,10 +10,10 @@ observed basis. The Human sees only committed replies in canonical history.
   A bounded `review.content` delta supplies full newly observed messages and an explicit
   `review.observationId`; `review.complete` indicates whether an extra read is needed.
 - Recheck: explicit `draft_id` and `observation_id` allow two revisions or unchanged rechecks.
-- Drop: `drop: true` abandons the draft independently of Inbox resolution.
+- Drop: `channel_action` with `action: "drop"` abandons the draft independently of Inbox resolution.
 - Refuse: revoked membership, purged source, expired draft or restarted Host cannot auto-send.
-- Recover: `channel_send` with `review_action: inspect` exposes own metadata only. After an actual
-  isolated Host restart, a new `channel_read` observation and `review_action: recover` can revise
+- Recover: `channel_action` with `action: "inspect"` exposes own metadata only. After an actual
+  isolated Host restart, a new `channel_read` observation and `bot_send_message` with `recover: true` can revise
   the pending draft. Old observation, expiry, owner and membership checks remain effective.
 - Confirm: a committed draft receipt returns the same canonical message ID on unchanged replay;
   the message, DM action notice and Inbox Admission counts must not increase.
@@ -59,7 +59,7 @@ buckets preserved. This cohort does not replace the original pilot or erase its 
 Open the resulting Group in the Web Client and capture the original request, correction and
 final answer with `verify-app shot`; inspect console output. Compare `channelMessages` with
 the draft frames and `botToolTrace`: a held draft must have no canonical placement.
-Use `bot-tool <bot> channel_read --args-stdin`, then `channel_send` with the returned
+Use `bot-tool <bot> channel_read --args-stdin`, then `bot_send_message` with the returned
 `observationIds[channel]`; append a Human correction between those CLI calls to deterministically
 exercise the same production guard without the model. Recheck directly with `review.observationId` after reading a complete held delta.
 Verify a second intervening correction still stops it; omitted/oversized content must be
@@ -80,7 +80,7 @@ marked in the exported JSON. Check undo, skipped pairs, full message bodies and 
 
 ## Explicit completion and revoked-source regression
 
-Pass `resolve_inbox_ids` on direct `channel_send` and inspect `inboxResolution` separately
+Pass `resolve_inbox_ids` on direct `bot_send_message` and inspect `inboxResolution` separately
 from `status: committed`. A held/refused send must leave the specified work open. A successful
 drop resolves only explicitly selected observed IDs. A failure after delivery is repaired
 through `inbox_resolve`, without resending. In a real Group turn, remove the sending Bot:
@@ -90,7 +90,7 @@ oracle; cancellation/revocation succeeds only with no public Bot output in any C
 
 A send without explicit completion IDs returns `inboxResolution.outcome: not-requested`.
 Verify the Bot handles completion in the current turn, rather than creating a second cleanup
-turn. Drop may omit channel_id only when an inbound Channel exists; the draft owner/channel
+turn. Drop requires explicit channel_id; the draft owner/channel
 checks remain unchanged.
 
 ## Peer-answer yielding (#2054)
@@ -98,7 +98,7 @@ checks remain unchanged.
 Run two actual Bots on the same Group request. When B commits while A is generating, A's
 held result identifies fully returned committed peers in `review.peerMessageIds`. Read the
 content; A may drop silently with `yield_to_message_ids` and `observation_id`. Direct CLI uses
-the same `channel_send` tool. Verify `explicit-peer-yield`, durable evidence IDs and no public
+the same `channel_action` tool with `action: "drop"`. Verify `explicit-peer-yield`, durable evidence IDs and no public
 agreement bubble; Inbox work stays open unless explicitly resolved. An invented preview ID,
 Human/self message, missing observation or changed/purged peer cannot certify yielding.
 Verify independent evidence still commits and a repeated-word new Human question is answered.

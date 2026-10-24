@@ -129,10 +129,10 @@ if (mode === '--serve') {
     const run = await model(
       bot,
       action === 'open'
-        ? `本地入口 QA：browser_tabs action=open 打开 ${url}，browser_observe 确认标题，再 channel_send 回复实际标题与 URL。不要点击或输入。`
-        : `本地入口 QA：browser_tabs action=list，select URL 完全等于 ${url} 的标签，browser_observe 确认标题，再 channel_send 回复实际标题与 URL。不要打开新标签，不要点击或输入。`,
+        ? `本地入口 QA：browser_tabs action=open 打开 ${url}，browser_observe 确认标题，再 bot_send_message 回复实际标题与 URL。不要点击或输入。`
+        : `本地入口 QA：browser_tabs action=list，select URL 完全等于 ${url} 的标签，browser_observe 确认标题，再 bot_send_message 回复实际标题与 URL。不要打开新标签，不要点击或输入。`,
     );
-    for (const name of ['browser_tabs', 'browser_observe', 'channel_send'])
+    for (const name of ['browser_tabs', 'browser_observe', 'bot_send_message'])
       successful(run.rows, name);
     const v = await view(bot);
     assert.equal(v.tabs.find((t) => t.current)?.url, url);
@@ -152,7 +152,7 @@ if (mode === '--serve') {
       assert.equal((await api('list')).bots.find((b) => b.slug === bot.slug).browserAccess, true);
       await api('channelSend', {
         channelId: bot.channelId,
-        body: `本地入口 QA：browser_open 打开 ${fixture}/home；browser_tabs action=open 打开 ${fixture}/work；browser_tabs action=list；browser_observe 确认 Entry work，再 channel_send 回复实际标题与 URL。不要点击或输入。`,
+        body: `本地入口 QA：browser_open 打开 ${fixture}/home；browser_tabs action=open 打开 ${fixture}/work；browser_tabs action=list；browser_observe 确认 Entry work，再 bot_send_message 回复实际标题与 URL。不要点击或输入。`,
       });
       bot.sessionId = await until(
         async () =>
@@ -169,7 +169,7 @@ if (mode === '--serve') {
         (rows) => rows.some((e) => e.type === 'turn/end'),
         'Real model setup incomplete',
       );
-      for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'channel_send'])
+      for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'bot_send_message'])
         successful(rows, name);
       const v = await view(bot);
       assert.equal(v.tabs.length, 2);
@@ -182,9 +182,9 @@ if (mode === '--serve') {
       if ((await view(bot)).tabs.length === 0) {
         const run = await model(
           bot,
-          `本地入口 QA 恢复：browser_open 打开 ${fixture}/home，browser_tabs action=open 打开 ${fixture}/work，browser_observe 确认 Entry work，再 channel_send 回复实际标题和 URL。不要点击或输入。`,
+          `本地入口 QA 恢复：browser_open 打开 ${fixture}/home，browser_tabs action=open 打开 ${fixture}/work，browser_observe 确认 Entry work，再 bot_send_message 回复实际标题和 URL。不要点击或输入。`,
         );
-        for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'channel_send'])
+        for (const name of ['browser_open', 'browser_tabs', 'browser_observe', 'bot_send_message'])
           successful(run.rows, name);
         const v = await view(bot);
         assert.equal(v.tabs.length, 2);
@@ -221,10 +221,10 @@ if (mode === '--serve') {
       const rows = (
         await model(
           bot,
-          'Human 正在预览另一个标签。请在你的当前工作标签完成任务：browser_observe 确认 Entry next；browser_type 输入 Task token 为 CURRENT-NEXT；browser_click 点击 Complete task；browser_observe 确认 Completed: 1；channel_send 回复实际完成结果。不要切换或打开标签。',
+          'Human 正在预览另一个标签。请在你的当前工作标签完成任务：browser_observe 确认 Entry next；browser_type 输入 Task token 为 CURRENT-NEXT；browser_click 点击 Complete task；browser_observe 确认 Completed: 1；bot_send_message 回复实际完成结果。不要切换或打开标签。',
         )
       ).rows;
-      for (const name of ['browser_observe', 'browser_type', 'browser_click', 'channel_send'])
+      for (const name of ['browser_observe', 'browser_type', 'browser_click', 'bot_send_message'])
         successful(rows, name);
       assert.deepEqual((await server()).receipts, [{ page: 'next', token: 'CURRENT-NEXT' }]);
       assert.equal((await view(bot)).focused, bot.next);

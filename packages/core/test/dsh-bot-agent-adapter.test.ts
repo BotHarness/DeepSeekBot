@@ -109,7 +109,7 @@ const reportRun: OrchestratorAgentRun = {
   },
 };
 
-describe('explicit Inbox completion with channel_send', () => {
+describe('explicit Inbox completion with messaging tools', () => {
   async function fixture(
     check: (
       run: OrchestratorAgentRun,
@@ -124,7 +124,22 @@ describe('explicit Inbox completion with channel_send', () => {
     });
     const run: OrchestratorAgentRun = {
       ...reportRun,
-      channels: { ...reportRun.channels },
+      channels: {
+        ...reportRun.channels,
+        list: () => ({
+          channels: [
+            {
+              id: 'group',
+              type: 'group',
+              kind: 'group',
+              humanMembers: [],
+              name: 'Group',
+              members: [{ botId: 'ada', displayName: 'Ada', active: true }],
+            },
+          ],
+        }),
+      },
+      replyDestination: () => ({ kind: 'channel', channelId: 'group', messageId: 'request' }),
       triage: {
         current: () => [],
         list: () => ({ total: 0, snoozed: 0, groups: [] }),
@@ -138,7 +153,12 @@ describe('explicit Inbox completion with channel_send', () => {
       await check(run, async (args) =>
         JSON.parse(
           JSON.stringify(
-            await adapter.runDirectTool!(run, 'channel_send', args, new AbortController().signal),
+            await adapter.runDirectTool!(
+              run,
+              args.action ? 'channel_action' : 'bot_send_message',
+              args.action ? args : { source_event_id: 'request', ...args },
+              new AbortController().signal,
+            ),
           ),
         ),
       );
@@ -198,10 +218,10 @@ describe('explicit Inbox completion with channel_send', () => {
       run.triage!.resolve = () => {
         throw new Error('unobserved item');
       };
-      expect(await call({ body: 'Answer', resolve_inbox_ids: ['unseen'] })).toMatchObject({
+      expect(await call({ body: 'Answer', resolve_inbox_ids: ['request'] })).toMatchObject({
         status: 'committed',
         messageId: 'bot-1',
-        inboxResolution: { outcome: 'failed', retry: 'inbox_resolve' },
+        inboxResolution: { outcome: 'failed', reason: 'inbox-resolution-failed' },
       });
     });
   });
@@ -214,7 +234,7 @@ describe('explicit Inbox completion with channel_send', () => {
         draftId: input.draftId,
         reason: 'explicit-drop',
       });
-      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', action: 'drop' };
       await call(args);
       expect(resolve).not.toHaveBeenCalled();
       expect(await call({ ...args, resolve_inbox_ids: ['request'] })).toMatchObject({
@@ -242,7 +262,7 @@ describe('explicit Inbox completion with channel_send', () => {
         budget: { used: 2, limit: 2, exhausted: true },
         keepOpenInboxIds: ['request-source', 'request-message'],
       });
-      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', action: 'drop' };
       const continuation = {
         reason: 'exhausted-drop-keeps-original-work-open',
         instruction: expect.stringContaining('Use inbox_snooze'),
@@ -295,7 +315,7 @@ describe('explicit Inbox completion with channel_send', () => {
       expect(resolve).not.toHaveBeenCalled();
     });
   });
-  it('uses the inbound Channel for drop and preserves explicit Channel and refusal checks', async () => {
+  it('requires an explicit Channel for drop and preserves refusal checks', async () => {
     await fixture(async (run, call) => {
       const drop = vi.fn((input: { channelId: string; draftId: string }) => ({
         status: 'refused' as const,
@@ -305,14 +325,13 @@ describe('explicit Inbox completion with channel_send', () => {
       }));
       run.channels.dropDraft = drop;
       const resolve = vi.spyOn(run.triage!, 'resolve');
-      const args = { body: '', draft_id: 'draft', drop: true, resolve_inbox_ids: ['request'] };
-      expect(await call(args)).toMatchObject({ status: 'refused', channelId: 'dm-test' });
-      expect(drop).toHaveBeenLastCalledWith({ channelId: 'dm-test', draftId: 'draft' });
+      const args = { body: '', draft_id: 'draft', action: 'drop', resolve_inbox_ids: ['request'] };
+      await expect(call(args)).rejects.toThrow('channel_id');
       await call({ ...args, channel_id: 'explicit-group' });
       expect(drop).toHaveBeenLastCalledWith({ channelId: 'explicit-group', draftId: 'draft' });
       run.inboundChannelId = undefined;
-      await expect(call(args)).rejects.toThrow('explicit or inbound channel_id');
-      expect(drop).toHaveBeenCalledTimes(2);
+      await expect(call(args)).rejects.toThrow('channel_id');
+      expect(drop).toHaveBeenCalledTimes(1);
       expect(resolve).not.toHaveBeenCalled();
     });
   });
@@ -320,7 +339,7 @@ describe('explicit Inbox completion with channel_send', () => {
     await fixture(async (run, call) => {
       const send = vi.spyOn(run.channels, 'send');
       await expect(call({ body: 'Answer', resolve_inbox_ids: [] })).rejects.toThrow(
-        'resolve_inbox_ids',
+        'explicitly referenced reply source',
       );
       expect(send).not.toHaveBeenCalled();
     });
@@ -328,19 +347,27 @@ describe('explicit Inbox completion with channel_send', () => {
   it('rejects yielding without a drop or observed handle before any side effect', async () => {
     await fixture(async (run, call) => {
       const send = vi.spyOn(run.channels, 'send');
+      run.channels.dropDraft = () => {
+        throw new Error('unexpected drop');
+      };
       const resolve = vi.spyOn(run.triage!, 'resolve');
       for (const args of [
-        { body: 'Answer', yield_to_message_ids: ['peer'], observation_id: 'seen' },
-        { body: '', drop: true, draft_id: 'draft', yield_to_message_ids: ['peer'] },
+        {
+          action: 'inspect',
+          channel_id: 'group',
+          yield_to_message_ids: ['peer'],
+          observation_id: 'seen',
+        },
+        { body: '', action: 'drop', draft_id: 'draft', yield_to_message_ids: ['peer'] },
         {
           body: '',
-          drop: true,
+          action: 'drop',
           draft_id: 'draft',
           observation_id: 'seen',
           yield_to_message_ids: [],
         },
       ])
-        await expect(call(args)).rejects.toThrow('yield_to_message_ids');
+        await expect(call({ channel_id: 'group', ...args })).rejects.toThrow(/yield|inspection/);
       expect(send).not.toHaveBeenCalled();
       expect(resolve).not.toHaveBeenCalled();
     });
@@ -1907,6 +1934,7 @@ describe('DSH Bot Agent adapter', () => {
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
     expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
+      'channel_action',
       'bot_send_message',
       'memory_switch_branch',
       'memory_continue_from_commit',
@@ -1951,7 +1979,6 @@ describe('DSH Bot Agent adapter', () => {
       'bot_schedule_update',
       'bot_schedule_delete',
       'group_leave',
-      'channel_action',
     ]);
     expect(
       host.scopes
@@ -2438,14 +2465,14 @@ describe('DSH Bot Agent adapter', () => {
           type: 'tool-call-delta',
           index: callIndexes.get(callId),
           id: callId,
-          name: 'channel_send',
+          name: 'bot_send_message',
           argumentsDelta,
         },
       } as AssistantStreamFrame);
     };
 
     const first = run(false);
-    stream('allowed', '{"body":"a');
+    stream('allowed', '{"channel_id":"dm-test","body":"a');
     stream('allowed', 'b');
     stream('allowed', 'c"}');
     stream('denied-1', '{"body":"private","channel_id":"outside"}');
@@ -2457,7 +2484,7 @@ describe('DSH Bot Agent adapter', () => {
     const second = run(true);
     frameIndex = 0;
     callIndexes.clear();
-    stream('next', '{"body":"next"}');
+    stream('next', '{"channel_id":"dm-test","body":"next"}');
     await second;
     expect(probes).toEqual(['dm-test', 'outside', 'dm-test']);
     expect(drafts.at(-1)).toBe('next');
@@ -2765,7 +2792,7 @@ describe('Bot Schedule Tools', () => {
             return found;
           };
           denial = scope?.guards.map((guard) => guard({ name: 'schedule_create' })).find(Boolean);
-          allowed = scope?.guards.map((guard) => guard({ name: 'channel_send' })).find(Boolean);
+          allowed = scope?.guards.map((guard) => guard({ name: 'bot_send_message' })).find(Boolean);
           calls.push(tool('bot_schedule_list').execute({}, {} as ToolRunContext));
           calls.push(
             tool('bot_schedule_create').execute(

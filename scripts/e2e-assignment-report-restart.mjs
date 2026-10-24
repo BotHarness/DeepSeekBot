@@ -65,7 +65,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Report restart QA ' + stamp,
       persona:
-        'Follow Human instructions exactly. Create only one requested Assignment. Never use Shell, modify files, create subagents or send additional Assignment Requests. After creation channel_send only RESTART_CREATED then end. Only when Human later sends RESTART_HARVEST, inspect the Inbox context and channel_send RESTART_REVIEWED then end. Do not send progress summaries automatically.',
+        'Follow Human instructions exactly. Create only one requested Assignment. Never use Shell, modify files, create subagents or send additional Assignment Requests. After creation bot_send_message only RESTART_CREATED then end. Only when Human later sends RESTART_HARVEST, inspect the Inbox context and bot_send_message RESTART_REVIEWED then end. Do not send progress summaries automatically.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -88,7 +88,7 @@ if (phase === 'prepare') {
     body:
       'Create exactly one Assignment with grant_id ' +
       grant.id +
-      ' and purpose: Report restart acceptance. Assignment must call report_to_orchestrator state progress summary RESTART_PROGRESS_ONE, then state progress summary RESTART_PROGRESS_TWO, then end this Turn with no completed Report. No Shell, files, subagents or further reports. After creation channel_send only RESTART_CREATED and end. Do not send Assignment Requests or wait tools.',
+      ' and purpose: Report restart acceptance. Assignment must call report_to_orchestrator state progress summary RESTART_PROGRESS_ONE, then state progress summary RESTART_PROGRESS_TWO, then end this Turn with no completed Report. No Shell, files, subagents or further reports. After creation bot_send_message only RESTART_CREATED and end. Do not send Assignment Requests or wait tools.',
   });
   scene.sessionId = (
     await waitFor(async () => (await assignments())[0], 'owned Assignment')
@@ -173,7 +173,7 @@ if (phase === 'harvest') {
   assert.equal(scene.lastPhase, 'after-restart', 'verify pending restart before sending Human DM');
   await rpc('channelSend', {
     channelId: scene.dm,
-    body: 'RESTART_HARVEST: review the two pending progress Reports already in your Inbox context; channel_send only RESTART_REVIEWED then end. Do not create, resume or stop Assignments; no Shell or files.',
+    body: 'RESTART_HARVEST: review the two pending progress Reports already in your Inbox context; bot_send_message only RESTART_REVIEWED then end. Do not create, resume or stop Assignments; no Shell or files.',
   });
 }
 if (phase === 'harvest' || phase === 'verify') {
