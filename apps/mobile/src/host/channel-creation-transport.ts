@@ -1,4 +1,10 @@
-import { createHostClient, deviceRefusal, MethodRefused, type HostClient } from './client';
+import {
+  createHostClient,
+  deviceRefusal,
+  MethodRefused,
+  type HostClient,
+  type RemoteSource,
+} from './client';
 import type { SavedHost } from './hosts';
 import type { HostCarrier } from './carrier';
 import { ChannelCreationNotAccepted, type ChannelCreationPort } from './channel-creation';
@@ -50,11 +56,40 @@ export function channelCreationTransport(
     }
     throw new Error('unreachable');
   };
+  const avatarSource = (client: HostClient, host: SavedHost, path: string): RemoteSource => {
+    const source = client.resource(path);
+    if (!source.read) return source;
+    const route = client.getSnapshot().connection.route;
+    return {
+      ...source,
+      async read(signal) {
+        const paired = () =>
+          hosts().some(
+            (entry) =>
+              entry.hostId === host.hostId &&
+              entry.deviceId === host.deviceId &&
+              entry.credential === host.credential,
+          );
+        if (!paired()) throw new Error('target-unpaired');
+        const imageClient = createHostClient({ ...host, routes: [route], carrier });
+        try {
+          const read = imageClient.resource(path).read;
+          if (!read) throw new Error('resource-unavailable');
+          const result = await read(signal);
+          if (!paired()) throw new Error('target-unpaired');
+          return result;
+        } finally {
+          imageClient.stop();
+        }
+      },
+    };
+  };
   return {
     deviceId: (id) => hosts().find((host) => host.hostId === id)?.deviceId,
     async candidates(hostId) {
-      const deviceId = hosts().find((host) => host.hostId === hostId)?.deviceId;
-      if (!deviceId) throw new Error('target-unpaired');
+      const host = hosts().find((host) => host.hostId === hostId);
+      if (!host) throw new Error('target-unpaired');
+      const deviceId = host.deviceId;
       return request(hostId, deviceId, async (client) => {
         const result = await client.call<unknown>('list');
         if (
@@ -80,7 +115,22 @@ export function channelCreationTransport(
             ('tob' in bot && bot.tob !== undefined)
           )
             return [];
-          return [{ slug: bot.slug, displayName: bot.displayName }];
+          return [
+            {
+              slug: bot.slug,
+              displayName: bot.displayName,
+              ...('appearance' in bot ? { appearance: bot.appearance } : {}),
+              ...('avatarSeed' in bot && bot.avatarSeed === 2
+                ? { avatarSeed: bot.avatarSeed }
+                : {}),
+              ...('avatar' in bot &&
+              typeof bot.avatar === 'string' &&
+              bot.avatar.startsWith('/') &&
+              !bot.avatar.startsWith('//')
+                ? { avatarSource: avatarSource(client, host, bot.avatar) }
+                : {}),
+            },
+          ];
         });
       });
     },

@@ -4,6 +4,7 @@ import { createChannelCreation } from '../src/host/channel-creation';
 import { ChannelCreationNotAccepted } from '../src/host/channel-creation';
 import type { HostCarrier } from '../src/host/carrier';
 import type { SavedHost } from '../src/host/hosts';
+import { seededAvatarFor } from '../../../packages/core/src/bots/avatar-appearance';
 
 const hosts: SavedHost[] = ['A', 'B'].map((hostId) => ({
   hostId,
@@ -120,4 +121,45 @@ it('keeps an ambiguous first-route mutation locked even when another route refus
   }
   expect(error).toBeInstanceOf(Error);
   expect(error).not.toBeInstanceOf(ChannelCreationNotAccepted);
+});
+
+it('retains the chosen Host artwork, seed and authenticated custom avatar source', async () => {
+  const appearance = { revision: 'a'.repeat(64), recipe: seededAvatarFor('Ada', 2) };
+  const request = vi.fn<HostCarrier['request']>(async () =>
+    answer({
+      bots: [
+        { slug: 'ada', displayName: 'Ada', appearance, avatarSeed: 2 },
+        { slug: 'bo', displayName: 'Bo', avatar: '/avatars/bo.png' },
+      ],
+    }),
+  );
+  const port = channelCreationTransport(() => hosts, { request, openSocket: vi.fn() });
+  expect(await port.candidates('B')).toEqual([
+    { slug: 'ada', displayName: 'Ada', appearance, avatarSeed: 2 },
+    {
+      slug: 'bo',
+      displayName: 'Bo',
+      avatarSource: {
+        uri: 'https://b.ts.net/botharness-device/avatars/bo.png',
+        headers: { authorization: 'Device credential-B' },
+      },
+    },
+  ]);
+});
+
+it('keeps fallback avatars for malformed optional metadata without attaching credentials to external URLs', async () => {
+  const request = vi.fn<HostCarrier['request']>(async () =>
+    answer({
+      bots: [
+        { slug: 'ada', displayName: 'Ada', avatarSeed: 42, avatar: '//other.example/a.png' },
+        { slug: 'bo', displayName: 'Bo', avatar: 'https://other.example/b.png' },
+      ],
+    }),
+  );
+  const port = channelCreationTransport(() => hosts, { request, openSocket: vi.fn() });
+  expect(await port.candidates('B')).toEqual([
+    { slug: 'ada', displayName: 'Ada' },
+    { slug: 'bo', displayName: 'Bo' },
+  ]);
+  expect(request).toHaveBeenCalledTimes(1);
 });

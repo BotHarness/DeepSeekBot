@@ -18,7 +18,8 @@ import { useDesignTheme } from '../design/theme';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { BotPickerSheet } from '../chat/bot-picker-sheet';
 import { CreationConfirm } from '../primitives/creation-confirm';
-import { space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
+import { BotPortrait } from '../bot-avatar';
 import { creationError } from './bot-creation-copy';
 import { useStrings } from '../strings';
 
@@ -231,6 +232,7 @@ export function CreateChannelScreen() {
             key={picker.hostId}
             title={t.channelCreation.chooseBots}
             candidates={state.candidates}
+            renderLeading={(bot) => <BotPortrait bot={bot} size={theme.touch} corner={radius.sm} />}
             selected={picker.selected}
             busy={state.loading}
             canConfirm={!state.loading && !state.error}

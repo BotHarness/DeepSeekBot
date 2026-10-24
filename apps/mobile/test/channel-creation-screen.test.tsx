@@ -2,8 +2,8 @@
 import { act, createElement, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { BotPickerSheetProps, BotPickerCandidate } from '../src/ui/chat/bot-picker-sheet';
-import { createChannelCreation } from '../src/host/channel-creation';
+import type { BotPickerSheetProps } from '../src/ui/chat/bot-picker-sheet';
+import { createChannelCreation, type ChannelCandidate } from '../src/host/channel-creation';
 
 const fixture = vi.hoisted(() => ({
   back: vi.fn(),
@@ -19,7 +19,11 @@ const controller = createChannelCreation({
   port: {
     deviceId: () => 'phone',
     candidates: async (hostId) => [
-      { slug: 'ada', displayName: `${hostId} Ada` },
+      {
+        slug: 'ada',
+        displayName: `${hostId} Ada`,
+        avatarSource: { uri: `https://${hostId.toLowerCase()}.ts.net/avatar/ada`, headers: {} },
+      },
       { slug: 'bo', displayName: `${hostId} Bo` },
       ...Array.from({ length: 22 }, (_, index) => ({
         slug: `scroll-${index}`,
@@ -164,8 +168,12 @@ vi.mock('../src/ui/primitives/creation-confirm', () => ({
     disabled: boolean;
   }) => createElement('button', { onClick: onPress, disabled }, label),
 }));
+vi.mock('../src/ui/bot-avatar', () => ({
+  BotPortrait: ({ bot }: { bot: ChannelCandidate }) =>
+    createElement('img', { alt: '', 'data-bot': bot.slug, src: bot.avatarSource?.uri }),
+}));
 vi.mock('../src/ui/chat/bot-picker-sheet', () => ({
-  BotPickerSheet: (props: BotPickerSheetProps<BotPickerCandidate>) =>
+  BotPickerSheet: (props: BotPickerSheetProps<ChannelCandidate>) =>
     createElement(
       'div',
       { role: 'dialog' },
@@ -180,6 +188,7 @@ vi.mock('../src/ui/chat/bot-picker-sheet', () => ({
             'aria-checked': props.selected.has(bot.slug),
             onClick: () => props.onToggle(bot.slug),
           },
+          props.renderLeading?.(bot),
           bot.displayName,
         ),
       ),
@@ -224,6 +233,9 @@ it('selects Bots in a transactional drawer and submits or retries through the ch
   expect(element.textContent).not.toContain('A Ada');
   expect(element.textContent).not.toContain('A Scroll 21');
   await act(async () => button(t.channelCreation.chooseBots).click());
+  expect(element.querySelector('img[data-bot="ada"]')?.getAttribute('src')).toBe(
+    'https://a.ts.net/avatar/ada',
+  );
   await act(async () => button('A Ada').click());
   expect(controller.getSnapshot().record.members).toEqual([]);
   expect(element.querySelector('[aria-label="A Ada"]')?.getAttribute('aria-checked')).toBe('true');
@@ -253,6 +265,9 @@ it('selects Bots in a transactional drawer and submits or retries through the ch
   expect(element.querySelector('[aria-label="A Ada"]')).toBeNull();
   await act(async () => button(t.channelCreation.chooseBots).click());
   expect(element.querySelector('[aria-label="B Ada"]')?.getAttribute('aria-checked')).toBe('false');
+  expect(element.querySelector('img[data-bot="ada"]')?.getAttribute('src')).toBe(
+    'https://b.ts.net/avatar/ada',
+  );
   expect(input.value).toBe('Design team');
   expect(creations).toEqual([]);
   await act(async () => button('B Ada').click());
