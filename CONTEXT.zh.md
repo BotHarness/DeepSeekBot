@@ -213,7 +213,7 @@ Web Human 或当前获授权的外部审核人显式保存且可撤销的规则�
 _避免使用_：Workspace Grant、Provider Service Grant、sandbox preset、推断的命令相似性
 
 **Approval Template**：
-Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，必须由 Human 通过审批卡确认（ADR-0207）。
+Profile 级、由 Human 用 Markdown 写成的审批规范，说明哪些工具审批可以允许、拒绝或交给 Human。每个 PersonaBot 选用一份或不选；选用、取消或修改正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的 Tool Approval Rule（ADR-0249）。
 _避免使用_：approval mode、auto mode、Tool Approval Rule
 
 **Approval Reviewer**：
@@ -289,7 +289,7 @@ PersonaBot 级的开启项（默认关闭）：开启后，该 PersonaBot 的 Or
 _避免使用_：permission、grant、feature flag、developer mode
 
 **Computer Authorization**：
-PersonaBot 在 Computer 上首次行动前、由 Human 按会话给予的一次授权；profile 级「自动允许」可跳过询问。Access 决定工具是否存在，Authorization 决定它们能否运行。
+Access 使工具可用后，运行 Computer 工具所需的授权。Human 可以批准当前 Session，或为当前工具与目标保存可撤销的 Tool Approval Rule，供后续 Session 复用。持久规则逐次核验，不产生整会话授权；撤销规则或更换目标后恢复询问。profile 级「自动允许」可跳过询问。
 _避免使用_：takeover、consent dialog、per-action approval
 
 **Computer Audit**：
@@ -311,7 +311,7 @@ PersonaBot 级的开启项（默认关闭）：开启后，该 PersonaBot 的 Or
 _避免使用_：permission、grant、feature flag、extension toggle
 
 **Browser Authorization**：
-PersonaBot 在 Bot Browser 上首次行动前、由 Human 按会话给予的一次授权；profile 级「自动允许」可跳过询问。Access 决定工具是否存在，Authorization 决定它们能否运行。
+Access 使工具可用后，运行 Bot Browser 工具所需的授权。Human 可以批准当前 Session，或为当前工具、Browser Profile 与目标保存可撤销的 Tool Approval Rule，供后续 Session 复用。持久规则逐次核验，不产生整会话授权；撤销规则或更换目标后恢复询问。profile 级「自动允许」可跳过询问。
 _避免使用_：Browser Access、consent dialog、per-action approval
 
 **Browser Pause**：

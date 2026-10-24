@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis';
 import { credentialRef } from '@deepseek-ai/dsh-credentials';
 import LocalCredentialProvider from '@deepseek-ai/dsh-credentials-local';
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
+import { scopeTarget } from '@deepseek-ai/dsh-scope';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -13,13 +14,17 @@ import {
   mountOperationalDatabase,
   name,
   type BotHarnessCore,
-  type PersonaBotRegistry,
 } from '../src/index.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createSessionOwnership } from '../src/sessions/ownership.js';
 import { createTempRoot, remember } from './helpers.js';
 import { createFakeRosterDomain } from './roster-fixture.js';
+import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
+import { DeviceCallApprovals } from '../src/workspaces/device-approval.js';
+import type { Agent } from '@deepseek-ai/dsh-agent';
+import type { ToolExecution } from '@deepseek-ai/dsh-tools';
+import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 interface Stubs {
   tools: { register: ReturnType<typeof vi.fn>; guard: ReturnType<typeof vi.fn> };
@@ -66,6 +71,102 @@ function createStubContext(): { ctx: Context; stubs: Stubs } {
 }
 
 describe('plugin entry', () => {
+  it.each([
+    ['browser', 'browser_open', 'browser_observe', 'botharnessBrowserTools'],
+    ['computer', 'computer_click', 'computer_type_text', 'botharnessComputerTools'],
+  ])(
+    'keeps %s standing rules tool-specific and revocable through the actual interceptor',
+    async (_device, toolName, siblingName, serviceName) => {
+      const { ctx } = createStubContext();
+      const calls = new DeviceCallApprovals();
+      let sessionAuthorized = false;
+      const markAuthorized = vi.fn(() => {
+        sessionAuthorized = true;
+        return true;
+      });
+      ctx.provide(serviceName, {
+        ownsTool: (name: string) => name === toolName || name === siblingName,
+        needsAuthorization: () => !sessionAuthorized,
+        authorizationScope: () => 'live-target',
+        approvalScope: () => 'durable-target',
+        markAuthorized,
+        authorizeCall: (token: symbol, authorized: () => boolean) =>
+          calls.authorize(token, authorized),
+      });
+      ctx.provide('approval', {
+        request: (request: Parameters<ApprovalService['request']>[0]) =>
+          ctx.waterfall('approval/request', request, async () => 'unavailable' as const),
+      } as never);
+      const tracked = vi.spyOn(ChannelToolApproval.prototype, 'track');
+      try {
+        apply(ctx, { enabled: true });
+        const core = ctx.get('botharness') as unknown as BotHarnessCore;
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        core.ownership.claim({
+          sessionId: 'device-session',
+          botSlug: 'ada',
+          rootRole: 'orchestrator',
+          at: new Date().toISOString(),
+        });
+        const agent = {
+          id: 'device-session',
+          session: { id: 'device-session', header: { cwd: core.registry.memoryDirFor('ada') } },
+        } as Agent;
+        const run = async (name: string, callId: string) => {
+          const execution = {
+            name,
+            callId,
+            agent,
+            arguments: {},
+            signal: new AbortController().signal,
+            token: Symbol(callId),
+          } as ToolExecution;
+          const carrier = scopeTarget(ctx.tools, agent);
+          const decision = await ctx.waterfall(
+            carrier,
+            'tools/pre-execute',
+            execution,
+            async () => ({
+              kind: 'allow' as const,
+            }),
+          );
+          if (decision.kind === 'allow') {
+            expect(calls.allowed(execution.token)).toBe(true);
+            ctx.emit(carrier, 'tools/result', execution, {
+              isError: false,
+              value: null,
+              content: [],
+            });
+            expect(calls.allowed(execution.token)).toBe(false);
+          }
+          return decision;
+        };
+        const first = run(toolName, 'first');
+        await vi.waitFor(() => expect(tracked).toHaveBeenCalled());
+        const owner = tracked.mock.contexts.at(-1);
+        if (!(owner instanceof ChannelToolApproval)) throw new Error('Missing approval owner');
+        await vi.waitFor(() => expect(owner.requests('ada')).toHaveLength(1));
+        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'allowed-always-tool');
+        expect(await first).toEqual({ kind: 'allow' });
+        expect(markAuthorized).not.toHaveBeenCalled();
+        expect(await run(toolName, 'repeat')).toEqual({ kind: 'allow' });
+        const sibling = run(siblingName, 'sibling');
+        await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
+        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        expect(await sibling).toMatchObject({ kind: 'deny' });
+        const rule = core.toolRules.list('ada').find((rule) => rule.toolName === toolName)!;
+        core.toolRules.revoke('ada', rule.id);
+        const revoked = run(toolName, 'revoked');
+        await vi.waitFor(() => expect(owner?.requests('ada')).toHaveLength(1));
+        await owner.decide('ada', owner.requests('ada')[0]!.messageId, 'rejected');
+        expect(await revoked).toMatchObject({ kind: 'deny' });
+        expect(markAuthorized).not.toHaveBeenCalled();
+      } finally {
+        tracked.mockRestore();
+      }
+    },
+  );
+
   it('waits for the native credential Provider before starting a restored runtime Consumer', async () => {
     const { ctx } = createStubContext();
     ctx.provide('agentDefaultModel', {} as never);

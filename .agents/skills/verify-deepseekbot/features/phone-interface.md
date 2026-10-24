@@ -4,6 +4,8 @@
 
 - `settings-row-alignment`: Language and Appearance show their platform-native symbols, title and current value using the same row padding, type and icon slot as adjacent Interface actions. The entire iOS row opens a native menu with an inline checked Picker; Android keeps its native anchored single-choice menu. Check both rows beside App icon at default/intermediate/maximum system text in light and dark, including single accessibility targets and dismissal without a change.
 
+- `native-option-symbols`: iOS menu choices use native SwiftUI Labels: device for Follow system, globe for both language names, sun for Light and moon for Dark. The system owns the single selection check and menu layout. Open both menus in light/dark at all three native text sizes; select each choice, reopen and dismiss without a change.
+
 - `language-choice`: Follow system, 简体中文 and English update mounted settings, navigation and chat labels immediately; language names remain recognizable after switching.
 - `appearance-choice`: Follow system, Light and Dark update app colors, status bar, native menus, sheets and keyboard appearance together. Background preview overrides remain scoped.
 - `phone-persistence`: both preferences survive a cold launch and apply across paired Computers and Cloud workspaces on this phone; a failed save displays a retry hint.

@@ -17,10 +17,13 @@ const botSlug = 'ada';
 const sessionId = 'botharness-assignment-test';
 const channelId = 'dm-ada';
 
-function fixture(attention?: {
-  changed(slug: string, count: number): void;
-  warn(message: string): void;
-}) {
+function fixture(
+  attention?: {
+    changed(slug: string, count: number): void;
+    warn(message: string): void;
+  },
+  ownedSessionId = sessionId,
+) {
   const messages: ChannelMessage[] = [];
   const channel = { id: channelId, type: 'dm', botSlug } as ChannelRecord;
   const channels = {
@@ -33,10 +36,12 @@ function fixture(attention?: {
   } as unknown as ChannelStore;
   const ownership = {
     resolve: vi.fn((id: string) =>
-      id === sessionId ? { sessionId, botSlug, rootRole: 'assignment' as const } : undefined,
+      id === ownedSessionId
+        ? { sessionId: ownedSessionId, botSlug, rootRole: 'assignment' as const }
+        : undefined,
     ),
   } as unknown as SessionOwnership;
-  const agent = { session: { id: sessionId, header: { cwd: '/tmp/project' } } } as Agent;
+  const agent = { session: { id: ownedSessionId, header: { cwd: '/tmp/project' } } } as Agent;
   const broker = new ChannelToolApproval(channels, ownership, undefined, undefined, attention);
   const execution = (signal?: AbortSignal, callId = 'call-1'): ToolExecution =>
     ({
@@ -51,6 +56,114 @@ function fixture(attention?: {
 }
 
 describe('Channel tool approval', () => {
+  it.each([
+    ['browser_open', 'browser'],
+    ['computer_click', 'computer'],
+    ['deepseekbot release-install', undefined],
+    ['deepseekbot release-restart', undefined],
+    ['deepseekbot bot-delete-confirm', undefined],
+    ['deepseekbot bot-delete-retry', undefined],
+    ['pwsh', undefined],
+  ] as const)('saves, restores and revokes explicit Always allow for %s', async (name, device) => {
+    const state = fixture();
+    const home = createTempRoot('bh-explicit-approval-');
+    const database = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    const rules = createToolApprovalRuleStore(
+      attachOperationalModule(database, 'tool-approval-rules'),
+    );
+    const broker = new ChannelToolApproval(state.channels, state.ownership, rules);
+    let target = 'target-a';
+    const execution = (callId: string): ToolExecution => ({
+      ...state.execution(undefined, callId),
+      name,
+      arguments:
+        name === 'pwsh'
+          ? { command: 'deepseekbot grant-write-set ada --grant project --enabled' }
+          : { action: callId },
+    });
+    const track = (owner: ChannelToolApproval, callId: string) =>
+      owner.track(
+        execution(callId),
+        'operation',
+        false,
+        device,
+        undefined,
+        device
+          ? { authorizationScope: () => target }
+          : { requireExplicitApproval: name !== 'pwsh' },
+      );
+    const ask = (owner: ChannelToolApproval, callId: string) =>
+      owner.ask({ agent: state.agent, toolName: name, callId });
+    let restored: ChannelToolApproval | undefined;
+    try {
+      const legacy = rules.createPending({
+        botSlug,
+        role: 'assignment',
+        scopeKey: JSON.stringify(['assignment', '/tmp/project']),
+        kind: 'tool',
+        toolName: name,
+        input: '',
+      });
+      rules.activate(botSlug, legacy.id);
+      track(broker, 'first');
+      const first = ask(broker, 'first');
+      await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+      expect(state.messages[0]!.toolApprovalRequest?.allowAlways).toBe(true);
+      expect(await broker.decide(botSlug, state.messages[0]!.id, 'allowed-always-tool')).toBe(true);
+      expect(await first).toBe('allowed-once');
+      const saved = rules.list(botSlug).find((rule) => rule.id !== legacy.id)!;
+      broker.close();
+      restored = new ChannelToolApproval(state.channels, state.ownership, rules);
+      track(restored, 'changed-input');
+      expect(await ask(restored, 'changed-input')).toBe('allowed-once');
+      expect(state.messages).toHaveLength(2);
+      if (device) {
+        const owner = state.ownership.resolve(sessionId)!;
+        vi.spyOn(state.ownership, 'resolve').mockImplementation((id) => ({
+          ...owner,
+          sessionId: id,
+        }));
+        const nextAgent = fixture(undefined, 'another-session').agent;
+        restored.track(
+          { ...execution('another-session-call'), agent: nextAgent },
+          'operation',
+          false,
+          device,
+          undefined,
+          { authorizationScope: () => target },
+        );
+        expect(
+          await restored.ask({ agent: nextAgent, toolName: name, callId: 'another-session-call' }),
+        ).toBe('allowed-once');
+        expect(state.messages).toHaveLength(2);
+      }
+      rules.revoke(botSlug, saved.id);
+      expect(restored.validAfterDecision(state.agent, 'changed-input')).toBe(false);
+      track(restored, 'revoked');
+      const revoked = ask(restored, 'revoked');
+      await vi.waitFor(() => expect(state.messages).toHaveLength(3));
+      await restored.decide(botSlug, state.messages[2]!.id, 'allowed-always-tool');
+      expect(await revoked).toBe('allowed-once');
+      if (device) {
+        target = 'target-b';
+        expect(restored.validAfterDecision(state.agent, 'revoked')).toBe(false);
+        track(restored, 'new-target');
+        const changed = ask(restored, 'new-target');
+        await vi.waitFor(() => expect(state.messages).toHaveLength(5));
+        await restored.decide(botSlug, state.messages[4]!.id, 'rejected');
+        expect(await changed).toBe('rejected');
+      }
+    } finally {
+      broker.close();
+      restored?.close();
+      database.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   it('persists Always allow for the selected tool and asks again after revoke or for another tool', async () => {
     const state = fixture();
     const home = createTempRoot('bh-tool-decision-');

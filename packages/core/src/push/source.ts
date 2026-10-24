@@ -48,8 +48,6 @@ function inputPreview(input: string): string {
   return value === undefined ? '' : typeof value === 'string' ? value : JSON.stringify(value);
 }
 
-const ONCE_ONLY_TOOLS = new Set(['secret_cli']);
-
 function approvalOf(
   item: HumanAttentionItem,
   approval: PushApprovalLookup | undefined,
@@ -63,10 +61,7 @@ function approvalOf(
   const preview = clip(shown.trim() === '' ? request.toolName : `${request.toolName} · ${shown}`);
   return {
     ...(preview === undefined ? {} : { preview }),
-    categoryId:
-      request.allowAlways === true && !ONCE_ONLY_TOOLS.has(request.toolName)
-        ? 'tool-approval'
-        : 'tool-approval-once',
+    categoryId: request.allowAlways === true ? 'tool-approval' : 'tool-approval-once',
   };
 }
 

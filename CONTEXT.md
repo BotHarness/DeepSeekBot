@@ -214,7 +214,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use always needs a Human approval card (ADR-0207).
+A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use needs a Human decision or an explicitly saved Tool Approval Rule in the dedicated management scope (ADR-0249).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:
@@ -292,7 +292,7 @@ The per-PersonaBot opt-in, off by default, that makes the Computer tools and the
 _Avoid_: permission, grant, feature flag, developer mode
 
 **Computer Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Computer; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Computer tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool and the current target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: takeover, consent dialog, per-action approval
 
 **Computer Audit**:
@@ -314,7 +314,7 @@ The per-PersonaBot opt-in, off by default, that makes the Bot Browser tools and 
 _Avoid_: permission, grant, feature flag, extension toggle
 
 **Browser Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Bot Browser; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Bot Browser tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool, Browser Profile and target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: Browser Access, consent dialog, per-action approval
 
 **Browser Pause**:

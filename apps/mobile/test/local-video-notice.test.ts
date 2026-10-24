@@ -81,7 +81,15 @@ describe.each(['en-US', 'zh-CN'])('Computer recovery notices in %s', (locale) =>
         attempt: 1,
         reason: 'offline',
       }),
-    ).toBe(t.computerVideoConnectionIssue(t.connectionNetworkHelp));
+    ).toBe(t.computerVideoConnectionIssue(t.connectionConnectHelp));
+    expect(
+      notice({
+        status: 'unreachable',
+        route: 'https://studio.tailnet.ts.net',
+        attempt: 1,
+        reason: 'offline',
+      }),
+    ).toBe(t.computerVideoConnectionIssue(t.connectionTailscaleHelp));
   });
 
   it('preserves uncertain input, pairing and missing-build recovery ahead of generic network advice', async () => {

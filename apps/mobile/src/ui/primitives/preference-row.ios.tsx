@@ -1,4 +1,4 @@
-import { Host, Menu, Picker, RNHostView, Text } from '@expo/ui/swift-ui';
+import { Host, Label, Menu, Picker, RNHostView } from '@expo/ui/swift-ui';
 import {
   accessibilityElement,
   accessibilityLabel,
@@ -9,7 +9,7 @@ import {
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
-import { RowIcon } from './row-icon';
+import { RowIcon, rowSymbol } from './row-icon';
 import { SettingsRow } from './settings-row';
 import type { PreferenceRowProps } from './preference-row';
 
@@ -57,9 +57,12 @@ export function PreferenceRow<T extends string>({
           modifiers={[pickerStyle('inline')]}
         >
           {options.map((option) => (
-            <Text key={option.value} modifiers={[tag(option.value)]}>
-              {option.label}
-            </Text>
+            <Label
+              key={option.value}
+              title={option.label}
+              systemImage={rowSymbol(option.icon).ios}
+              modifiers={[tag(option.value)]}
+            />
           ))}
         </Picker>
       </Menu>

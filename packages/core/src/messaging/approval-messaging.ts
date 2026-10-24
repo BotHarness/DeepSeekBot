@@ -272,7 +272,9 @@ export function createApprovalMessaging(options: {
             owner?.ruleScope(value.botSlug, value.requestMessageId!)
           ? {
               rules:
-                notice?.toolName !== 'secret_cli' && ruleAllowed(value, 'all-opaque')
+                notice?.toolName !== 'secret_cli' &&
+                owner?.ruleScope(value.botSlug, value.requestMessageId!)?.allOpaque !== false &&
+                ruleAllowed(value, 'all-opaque')
                   ? (['exact', 'all-opaque'] as ['exact', 'all-opaque'])
                   : (['exact'] as ['exact']),
             }
@@ -807,7 +809,9 @@ export function createApprovalMessaging(options: {
             : 'exact';
         if (
           !ruleAllowed(value, kind) ||
-          (kind === 'all-opaque' && canonical(value)?.toolName === 'secret_cli')
+          (kind === 'all-opaque' &&
+            (canonical(value)?.toolName === 'secret_cli' ||
+              owner?.ruleScope(value.botSlug, value.requestMessageId!)?.allOpaque === false))
         )
           return { accepted: true, status: 'refused' };
         if (event.action === 'preview-exact' || event.action === 'preview-all-opaque') {

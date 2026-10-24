@@ -10,7 +10,7 @@ export type PreferenceRowProps<T extends string> = {
   on?: LayerName;
   testID: string;
   value: T;
-  options: readonly { value: T; label: string }[];
+  options: readonly { value: T; label: string; icon: RowIconName }[];
   onChange(value: T): void;
 };
 
