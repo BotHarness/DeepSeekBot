@@ -67,6 +67,28 @@ interface PairingOffer {
   reachable: boolean;
 }
 
+type PairingView =
+  | { state: 'closed' | 'loading' | 'failed' | 'changed' }
+  | { state: 'ready'; offer: PairingOffer }
+  | { state: 'paired'; device: PairedDevice };
+
+function routeKey(urls: string[]): string {
+  return [
+    ...new Set(
+      urls.filter((url) => {
+        try {
+          const name = new URL(url).hostname;
+          return name !== 'localhost' && name !== '[::1]' && !name.startsWith('127.');
+        } catch {
+          return false;
+        }
+      }),
+    ),
+  ]
+    .sort()
+    .join('\n');
+}
+
 const styles = stylex.create({
   pairing: {
     display: 'flex',
@@ -118,9 +140,20 @@ function onTailnet(): boolean {
 
 export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactElement {
   const [snapshot, setSnapshot] = useState<DevicesSnapshot>();
-  const [offer, setOffer] = useState<PairingOffer>();
-  const [pairing, setPairing] = useState(false);
-  const [paired, setPaired] = useState<PairedDevice>();
+  const [pairView, setPairView] = useState<PairingView>({ state: 'closed' });
+  const pairViewRef = useRef<PairingView>({ state: 'closed' });
+  const offerRequest = useRef(0);
+  const offerAbort = useRef<AbortController>();
+  const [readState, setReadState] = useState<'loading' | 'fresh' | 'stale'>('loading');
+  const [checkedAt, setCheckedAt] = useState<number>();
+  const reading = useRef(false);
+  const latestSnapshot = useRef<DevicesSnapshot>();
+  const updatePairing = (value: PairingView): void => {
+    pairViewRef.current = value;
+    setPairView(value);
+  };
+  const pairing = pairView.state !== 'closed';
+  const offer = pairView.state === 'ready' ? pairView.offer : undefined;
   const [now, setNow] = useState(Date.now());
   const fresh = (device: PairedDevice): boolean =>
     device.revokedAt === undefined && now - Date.parse(device.pairedAt) < NEW_DEVICE_MS;
@@ -132,25 +165,58 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const known = useRef<Set<string>>(new Set());
 
   const load = async (signal?: AbortSignal): Promise<DevicesSnapshot | undefined> => {
-    const value = await json<DevicesSnapshot>(await fetch(PATH, signal ? { signal } : {}));
-    if (!mounted.current || signal?.aborted) return undefined;
-    setSnapshot(value);
-    return value;
+    if (reading.current) return undefined;
+    reading.current = true;
+    try {
+      const deadline = AbortSignal.timeout(12_000);
+      const value = await json<DevicesSnapshot>(
+        await fetch(PATH, {
+          signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+        }),
+      );
+      if (!mounted.current || signal?.aborted) return undefined;
+      latestSnapshot.current = value;
+      setSnapshot(value);
+      setReadState('fresh');
+      setCheckedAt(Date.now());
+      setNow(Date.now());
+      const view = pairViewRef.current;
+      if (view.state === 'ready') {
+        const paired = value.devices.find(
+          (device) => !device.revokedAt && !known.current.has(device.id),
+        );
+        if (paired !== undefined) updatePairing({ state: 'paired', device: paired });
+        else if (routeKey(view.offer.routes) !== availableRouteKey(value))
+          updatePairing({ state: 'changed' });
+      }
+      return value;
+    } catch {
+      if (mounted.current && !signal?.aborted) setReadState('stale');
+      return undefined;
+    } finally {
+      reading.current = false;
+    }
   };
+
+  const availableRouteKey = (value: DevicesSnapshot): string =>
+    routeKey([
+      ...value.routes.routes.filter((route) => route.ready).map((route) => route.url),
+      ...(onTailnet() ? [location.origin] : []),
+    ]);
 
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     const controller = new AbortController();
-    load(controller.signal).catch(() => {
-      if (!controller.signal.aborted) setError(true);
-    });
-    const timer = setInterval(
-      () => void load(controller.signal).catch(() => undefined),
-      ROUTE_POLL_MS,
-    );
+    void load(controller.signal);
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      void load(controller.signal);
+    }, ROUTE_POLL_MS);
     return () => {
       mounted.current = false;
       controller.abort();
+      offerAbort.current?.abort();
+      offerRequest.current += 1;
       clearInterval(timer);
     };
   }, []);
@@ -158,23 +224,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const watch = useMountedResource<HTMLDivElement>(() => {
     const timer = setInterval(() => {
       setNow(Date.now());
-      load()
-        .then((value) => {
-          const fresh = value?.devices.find(
-            (device) => device.revokedAt === undefined && !known.current.has(device.id),
-          );
-          if (fresh !== undefined) {
-            setPaired(fresh);
-            setOffer(undefined);
-          }
-        })
-        .catch(() => undefined);
     }, LIST_POLL_MS);
-    return () => clearInterval(timer);
-  }, []);
-
-  const connectWatch = useMountedResource<HTMLDivElement>(() => {
-    const timer = setInterval(() => void load().catch(() => undefined), LIST_POLL_MS);
     return () => clearInterval(timer);
   }, []);
 
@@ -199,32 +249,42 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   };
 
   const createOffer = async (): Promise<void> => {
+    const request = ++offerRequest.current;
+    offerAbort.current?.abort();
+    const controller = new AbortController();
+    offerAbort.current = controller;
+    updatePairing({ state: 'loading' });
     setBusy('offer');
     setError(false);
     setCopied(false);
-    setPaired(undefined);
+    known.current = new Set(latestSnapshot.current?.devices.map((device) => device.id));
     try {
       const value = await json<PairingOffer>(
         await fetch(`${PATH}/offer`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ origin: location.origin }),
+          signal: controller.signal,
         }),
       );
-      known.current = new Set(snapshot?.devices.map((device) => device.id));
-      if (mounted.current) {
-        setOffer(value);
+      if (mounted.current && request === offerRequest.current) {
+        const current = latestSnapshot.current;
+        updatePairing(
+          current && routeKey(value.routes) !== availableRouteKey(current)
+            ? { state: 'changed' }
+            : { state: 'ready', offer: value },
+        );
         setNow(Date.now());
       }
     } catch {
-      if (mounted.current) setError(true);
+      if (mounted.current && request === offerRequest.current && !controller.signal.aborted)
+        updatePairing({ state: 'failed' });
     } finally {
-      if (mounted.current) setBusy(undefined);
+      if (mounted.current && request === offerRequest.current) setBusy(undefined);
     }
   };
 
   const open = (): void => {
-    setPairing(true);
     void createOffer();
   };
 
@@ -240,7 +300,6 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
         }),
       );
       await load();
-      setOffer(undefined);
     } catch {
       if (mounted.current) setError(true);
     } finally {
@@ -249,9 +308,10 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   };
 
   const close = (): void => {
-    setPairing(false);
-    setOffer(undefined);
-    setPaired(undefined);
+    offerRequest.current += 1;
+    offerAbort.current?.abort();
+    updatePairing({ state: 'closed' });
+    setBusy((current) => (current === 'offer' ? undefined : current));
   };
 
   const account = async (action: 'sign-in' | 'sign-out'): Promise<void> => {
@@ -302,8 +362,10 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   };
 
   const routes = snapshot?.routes;
-  const ready = routes !== undefined && (hasPhoneRoute(routes) || onTailnet());
+  const freshSnapshot = readState === 'fresh';
+  const ready = freshSnapshot && routes !== undefined && (hasPhoneRoute(routes) || onTailnet());
   const tailscaleReady =
+    freshSnapshot &&
     routes !== undefined &&
     (onTailnet() || routes.routes.some((route) => route.kind === 'tailscale' && route.ready));
   const lanReady = routes?.routes.some((route) => route.kind === 'lan' && route.ready) === true;
@@ -329,9 +391,6 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
   const devices = snapshot?.devices ?? [];
   const connect = snapshot?.connect;
   const signIn = connect?.account;
-  const waiting =
-    signIn?.state === 'signing-in' ||
-    (signIn?.state === 'signed-in' && connect?.state !== 'connected');
 
   const verification = (
     <>
@@ -351,7 +410,7 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
               <Button
                 size="sm"
                 variant="primary"
-                disabled={busy !== undefined}
+                disabled={!freshSnapshot || busy !== undefined}
                 onClick={() => {
                   setBusy(item.receipt);
                   setError(false);
@@ -382,25 +441,40 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
 
   return (
     <div ref={mount} data-paired-devices="">
+      {readState === 'stale' ? (
+        <Callout tone="warning" data={{ 'data-device-status': 'stale' }}>
+          {t('devices.connection.stale')}
+          {checkedAt === undefined
+            ? null
+            : ` ${t('devices.connection.checked', {
+                when: formatRelativeTime(checkedAt, now, t),
+              })}`}
+          <Button variant="outline" size="sm" onClick={() => void load()}>
+            {t('devices.connection.retry')}
+          </Button>
+        </Callout>
+      ) : null}
       <SettingsSection title={t('devices.connection.title')}>
         {snapshot?.lan ? (
           <SettingsRow
             title={t('devices.lan.title')}
             description={t(
-              snapshot.lan.state === 'error'
-                ? 'devices.lan.failed'
-                : snapshot.lan.state === 'listening'
-                  ? lanReady
-                    ? 'devices.lan.enabled'
-                    : 'devices.lan.noAddress'
-                  : 'devices.lan.notice',
+              !freshSnapshot
+                ? 'devices.connection.unchecked'
+                : snapshot.lan.state === 'error'
+                  ? 'devices.lan.failed'
+                  : snapshot.lan.state === 'listening'
+                    ? lanReady
+                      ? 'devices.lan.enabled'
+                      : 'devices.lan.noAddress'
+                    : 'devices.lan.notice',
             )}
             data={{ 'data-device-lan': snapshot.lan.state }}
             control={
               <Button
                 variant="outline"
                 size="sm"
-                disabled={busy !== undefined}
+                disabled={!freshSnapshot || busy !== undefined}
                 onClick={() =>
                   void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
                 }
@@ -416,20 +490,35 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
         ) : null}
         <SettingsRow
           title={t('devices.tailscale.title')}
-          description={t(tailscaleReady ? 'devices.tailscale.ready' : 'devices.tailscale.notice')}
-          data={{ 'data-device-tailscale': tailscaleReady ? 'ready' : 'unprepared' }}
+          description={t(
+            !freshSnapshot
+              ? 'devices.connection.unchecked'
+              : tailscaleReady
+                ? 'devices.tailscale.ready'
+                : routes?.tailscale === 'stopped'
+                  ? 'devices.tailscale.stopped'
+                  : 'devices.tailscale.notice',
+          )}
+          data={{
+            'data-device-tailscale': !freshSnapshot
+              ? 'unknown'
+              : tailscaleReady
+                ? 'ready'
+                : 'unprepared',
+          }}
           control={
             <Button
               variant="outline"
               size="sm"
               aria-expanded={showTailscale}
+              disabled={!freshSnapshot}
               onClick={() => setShowTailscale(!showTailscale)}
             >
               {t(showTailscale ? 'devices.tailscale.hide' : 'devices.tailscale.setup')}
             </Button>
           }
         >
-          {showTailscale && routes ? (
+          {showTailscale && routes && freshSnapshot ? (
             <div>
               <PhoneRouteSteps
                 t={t}
@@ -457,12 +546,20 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
           }
         >
           {!ready ? (
-            <Note>{t(snapshot ? 'devices.connection.prepare' : 'devices.list.loading')}</Note>
+            <Note>
+              {t(
+                !snapshot && readState === 'loading'
+                  ? 'devices.list.loading'
+                  : freshSnapshot
+                    ? 'devices.connection.prepare'
+                    : 'devices.connection.unchecked',
+              )}
+            </Note>
           ) : null}
         </SettingsRow>
       </SettingsSection>
       {signIn === undefined ? null : (
-        <div ref={waiting ? connectWatch : undefined} data-connect="">
+        <div data-connect="">
           <SettingsSection title={t('devices.connect.title')}>
             <SettingsRow
               title={t('devices.connect.account')}
@@ -543,27 +640,35 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
               <SettingsRow
                 title={t('devices.connect.tunnel')}
                 description={connect.hostname}
-                data={{ 'data-connect-tunnel': connect.state }}
+                data={{ 'data-connect-tunnel': freshSnapshot ? connect.state : 'unknown' }}
                 control={
                   <Note
                     tone={
-                      connect.state === 'connected'
-                        ? 'success'
-                        : connect.state === 'error'
-                          ? 'warning'
-                          : 'muted'
+                      !freshSnapshot
+                        ? 'muted'
+                        : connect.state === 'connected'
+                          ? 'success'
+                          : connect.state === 'error'
+                            ? 'warning'
+                            : 'muted'
                     }
                   >
                     {t(
-                      connect.state === 'connected'
-                        ? 'devices.connect.connected'
-                        : connect.state === 'error'
-                          ? 'devices.connect.reconnecting'
-                          : 'devices.connect.starting',
+                      !freshSnapshot
+                        ? 'devices.connection.unchecked'
+                        : connect.state === 'connected'
+                          ? 'devices.connect.connected'
+                          : connect.state === 'error'
+                            ? 'devices.connect.reconnecting'
+                            : 'devices.connect.starting',
                     )}
                   </Note>
                 }
-              />
+              >
+                {freshSnapshot && connect.state === 'error' ? (
+                  <Note tone="warning">{t('devices.connect.recovery')}</Note>
+                ) : null}
+              </SettingsRow>
             ) : null}
           </SettingsSection>
         </div>
@@ -571,7 +676,9 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
       <SettingsSection title={t('devices.list.title')}>
         {devices.length === 0 ? (
           <Note>
-            {snapshot === undefined ? t('devices.list.loading') : t('devices.list.empty')}
+            {snapshot === undefined
+              ? t(readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading')
+              : t('devices.list.empty')}
           </Note>
         ) : (
           devices.map((device) => (
@@ -627,15 +734,51 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
         >
           <div ref={watch} {...stylex.props(styles.pairing)}>
             {verification}
-            {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-            {paired !== undefined ? (
-              <Note tone="success">{t('devices.pair.done', { name: paired.name })}</Note>
+            {pairView.state === 'paired' ? (
+              <Note tone="success">{t('devices.pair.done', { name: pairView.device.name })}</Note>
+            ) : pairView.state === 'failed' || pairView.state === 'changed' ? (
+              <>
+                <Note tone="warning">
+                  {t(
+                    !freshSnapshot
+                      ? 'devices.connection.stale'
+                      : pairView.state === 'changed'
+                        ? 'devices.pair.routeChanged'
+                        : 'devices.error',
+                  )}
+                </Note>
+                {freshSnapshot && !ready ? <Note>{t('devices.connection.prepare')}</Note> : null}
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={freshSnapshot && !ready}
+                  onClick={() => void (freshSnapshot ? createOffer() : load())}
+                >
+                  {t(
+                    freshSnapshot && pairView.state === 'changed'
+                      ? 'devices.pair.renew'
+                      : 'devices.connection.retry',
+                  )}
+                </Button>
+              </>
+            ) : !freshSnapshot ? (
+              <>
+                <Note tone="warning">{t('devices.connection.stale')}</Note>
+                <Button variant="outline" size="sm" onClick={() => void load()}>
+                  {t('devices.connection.retry')}
+                </Button>
+              </>
             ) : offer === undefined ? (
               <Note>{t('devices.list.loading')}</Note>
             ) : expired ? (
               <>
                 <Note>{t('devices.pair.expired')}</Note>
-                <Button variant="primary" size="sm" onClick={() => void createOffer()}>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  disabled={!ready}
+                  onClick={() => void createOffer()}
+                >
                   {t('devices.pair.renew')}
                 </Button>
               </>

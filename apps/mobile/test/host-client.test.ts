@@ -100,6 +100,7 @@ describe('Host client', () => {
     expect(target.getSnapshot().roster?.sorting).toEqual(sorting);
     host.failing.delete('settings/describe');
     sorting = { sortMode: 'updated', sortModes: { pinned: 'manual', work: 'updated' } };
+    await until(target, (state) => state.connection.status === 'connected');
     await target.refresh();
     expect(target.getSnapshot().roster?.sorting).toEqual(sorting);
   });

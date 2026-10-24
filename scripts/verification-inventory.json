@@ -2278,6 +2278,14 @@
       "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
       "task": 2713,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-phone-recovery.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA.",
+      "task": 2731,
+      "sha256": "70e000a0d26b20f7658f88cad4cc3e33f01fb62afa201569ee8ca874c561171b"
     }
   ],
   "native": [
