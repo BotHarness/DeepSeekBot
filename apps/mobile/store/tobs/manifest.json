@@ -88,7 +88,7 @@
       "file": "zh/01.png",
       "originalPoster": "01-bot-team.png",
       "originalSha256": "60cdf5af942b6275a975f41e35e5a43410aa575a03befe305211bc34e6457572",
-      "sha256": "968dbe0c784a6864fa180743a778a11849e91182abe8c5d2b41d3dd7918b7dd6",
+      "sha256": "280e71b5f6c5df732d63f8be7ceea1b0336d96b1d3ca8c6f4a790884b393c6e3",
       "nativeCaptureSource": "8418bad80a499213427606b23dcbc8e9ff2974ad",
       "nativeCaptureBatch": 86,
       "generatedArtwork": false,
@@ -107,14 +107,16 @@
         "drawnHeight": 1868.53125,
         "scaleX": 0.6515151515151515,
         "scaleY": 0.6515101987447699,
-        "uiRedrawn": false
+        "uiRedrawn": false,
+        "headlineFontPx": 120,
+        "headlineLines": 2
       }
     },
     {
       "file": "zh/02.png",
       "originalPoster": "02-group-collaboration.png",
       "originalSha256": "405a38412c19ed84f3fa015f12d14f626723795a1a5d2d3a90c96de323a97460",
-      "sha256": "8f7f4b892fe71bb97eb69499c91c9fcc186e0ff51a02f8ab2d1a597023d106f5",
+      "sha256": "147ede0f96ab4c469b147cd2737e375b5775f47c17daf996a5772bf4d63fa033",
       "nativeCaptureSource": "8418bad80a499213427606b23dcbc8e9ff2974ad",
       "nativeCaptureBatch": 86,
       "generatedArtwork": false,
@@ -133,14 +135,16 @@
         "drawnHeight": 1868.53125,
         "scaleX": 0.6515151515151515,
         "scaleY": 0.6515101987447699,
-        "uiRedrawn": false
+        "uiRedrawn": false,
+        "headlineFontPx": 120,
+        "headlineLines": 2
       }
     },
     {
       "file": "zh/03.png",
       "originalPoster": "03-marketplace.png",
       "originalSha256": "1ab3232a3fc8d7ef64ea17015618f8aa2b104a19a2c54bc7287ee6c296e686d1",
-      "sha256": "5760accf7d8cf48a2bbd1cb9142934a8c8a57cdec903189550b7a8c0c1f593b7",
+      "sha256": "1964fc502f723a50a89e9f93612f6df689b9813485da323041bee5ec5b1c6f5e",
       "nativeCaptureSource": "8418bad80a499213427606b23dcbc8e9ff2974ad",
       "nativeCaptureBatch": 86,
       "generatedArtwork": false,
@@ -159,14 +163,16 @@
         "drawnHeight": 1868.53125,
         "scaleX": 0.6515151515151515,
         "scaleY": 0.6515101987447699,
-        "uiRedrawn": false
+        "uiRedrawn": false,
+        "headlineFontPx": 120,
+        "headlineLines": 2
       }
     },
     {
       "file": "zh/04.png",
       "originalPoster": "04-bot-identity.png",
       "originalSha256": "9206d574c2be46fcf0d5c7b2e3db755e8229b5742fc26ccc87322d9831d0e5aa",
-      "sha256": "21544695b33f048debf3e815a85af6867882ffe87b740211f99c255317a5a4f7",
+      "sha256": "12f6e747ca62dc4391d22f68869265446a0a586a8a44c6432dd92111b6f4da26",
       "nativeCaptureSource": "8418bad80a499213427606b23dcbc8e9ff2974ad",
       "nativeCaptureBatch": 86,
       "generatedArtwork": false,
@@ -185,14 +191,16 @@
         "drawnHeight": 1868.53125,
         "scaleX": 0.6515151515151515,
         "scaleY": 0.6515101987447699,
-        "uiRedrawn": false
+        "uiRedrawn": false,
+        "headlineFontPx": 120,
+        "headlineLines": 2
       }
     },
     {
       "file": "zh/05.png",
       "originalPoster": "05-activity.png",
       "originalSha256": "457f8fa51c700d9533d545eb9ce7fd75e18077bf8e01be653f6cc8fbffe9c38f",
-      "sha256": "b380467c1458e000ed0ee11b3c633abb109d2de8f9b0ecaef317d8c0902b604a",
+      "sha256": "3a737fc89ce726b1eefb3bb11f066901b4aecbcc46b24ae52d2c59b81f03ca56",
       "nativeCaptureSource": "8418bad80a499213427606b23dcbc8e9ff2974ad",
       "nativeCaptureBatch": 86,
       "generatedArtwork": false,
@@ -211,7 +219,9 @@
         "drawnHeight": 1868.53125,
         "scaleX": 0.6515151515151515,
         "scaleY": 0.6515101987447699,
-        "uiRedrawn": false
+        "uiRedrawn": false,
+        "headlineFontPx": 120,
+        "headlineLines": 2
       }
     }
   ]
