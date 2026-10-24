@@ -245,8 +245,6 @@ it('never retries an input after encrypted delivery loses its acknowledgement', 
   }
 });
 
-// Tailnet signaling already uses the admitted HTTPS device gateway. These checks
-// qualify the carrier boundary only; native ICE and presented frames need device QA.
 it.each(['https://studio.tailnet.ts.net', 'https://100.64.0.10'])(
   'keeps video commands on the authenticated HTTPS tailnet route %s',
   async (route) => {
