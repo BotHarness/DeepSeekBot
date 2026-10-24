@@ -137,12 +137,12 @@ it.each([
   {
     locale: 'zh-CN',
     route: 'https://studio.deepseekbot.dev',
-    detail: 'DeepSeekBot Connect 已登录且连接正常',
+    detail: '托布 Connect 已登录且连接正常',
   },
   {
     locale: 'en-US',
     route: 'https://studio.deepseekbot.dev',
-    detail: 'DeepSeekBot Connect is signed in and connected',
+    detail: 'Tobs Connect is signed in and connected',
   },
 ])('offers route-specific recovery for $route in $locale', async ({ locale, route, detail }) => {
   const { view, retry, pairAgain } = await render(
