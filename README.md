@@ -14,6 +14,8 @@
 [![MIT](https://img.shields.io/badge/license-MIT-71964a?style=flat-square)](LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/built_for-DeepSeek_Harness-b8702f?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 
+<a href="https://www.opensourcealternatives.to/"><img src="https://www.opensourcealternatives.to/badge-osa.svg" width="270" height="20" alt="As seen on Open Source Alternatives" /></a>
+
 **DeepSeekBot（DSB）：开源的 GrokBot 平替。一组有各自身份、人格和记忆的 bots，一起做事。**
 
 [官网](https://deepseekbot.app) · [宣传片](#video) · [安装](#install) · [能力](#features) · [版本亮点](#releases) · [与 DS Bot 的区别](#deepseek-bot-projects) · [社区](#community) · [文档](https://deepseekbot.app/docs/overview/)
