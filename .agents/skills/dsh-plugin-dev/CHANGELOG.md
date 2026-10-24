@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Corrected downstream verifier runtime reporting and removed leftover artifact/desktop-QA release-label gates; Go patches follow the installed adapter version ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
 - Removed downstream development-launch rc allowlists; documented native Host admission and protocol-based optional zoom checks ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)). DSH Context and Skill version remain unchanged.
 
 - Updated the [local development guide](../dsh-dev/SKILL.md) for the rc.3 development pin and preserved separate Desktop zoom and Provider qualification; DSH/Cordis Context and Skill behavior are unchanged ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).

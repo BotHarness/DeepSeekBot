@@ -8,7 +8,11 @@ import {
   parseProductComposition,
 } from './packaged-profile.mjs';
 import { assertDshVersion } from './dsh-compatibility.mjs';
-import { withQualifiedImProvider, verifyQualifiedImProvider } from './dev-im-provider.mjs';
+import {
+  qualifiedImProvider,
+  withQualifiedImProvider,
+  verifyQualifiedImProvider,
+} from './dev-im-provider.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -29,7 +33,7 @@ import {
   axModelPatch,
   axRuntimeWorkspace,
   withoutAxRuntimePatch,
-  installedGoAdapterSource,
+  installedGoAdapter,
 } from './dev-model.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -41,6 +45,26 @@ export function dshCommand(worktree) {
   }
   assertDshVersion(installedDshVersion(worktree));
   return [process.execPath, cli];
+}
+
+export function describeRuntime(options) {
+  const runtime = options.runtime ?? options.worktree;
+  return {
+    runtime,
+    dshVersion: installedDshVersion(runtime),
+    ...(options.imProvider
+      ? { imProvider: { source: qualifiedImProvider.source, upstreamReleased: false } }
+      : {}),
+    ...(options.productArtifacts
+      ? {
+          productArtifacts: {
+            version: verifiedProductArtifacts(options.productArtifacts).productVersion,
+            dsh: installedDshVersion(runtime),
+            upstreamReleased: false,
+          },
+        }
+      : {}),
+  };
 }
 
 function installedDshVersion(worktree) {
@@ -288,13 +312,14 @@ async function main() {
     const [command, args] = pnpmCommand(['install']);
     run(command, args, { cwd: options.runtime });
     if (options.axModel) {
+      const adapter = installedGoAdapter(options.runtime);
       writeFileSync(
         runtimeWorkspace,
         axRuntimeWorkspace(
           readFileSync(runtimeWorkspace, 'utf8'),
           options.runtime,
-          version,
-          installedGoAdapterSource(options.runtime),
+          adapter.version,
+          adapter.source,
         ),
       );
       run(command, args, { cwd: options.runtime });
@@ -315,6 +340,7 @@ async function main() {
   const profileCredential = profileDeepSeekCredential(options.home) !== undefined;
   if (!options.axModel && secret === undefined && !profileCredential)
     console.error(devSecretInstructions());
+  const runtimeDescription = describeRuntime(options);
   const { child, logPath } = launch(options);
   const url = await waitForToken(logPath);
   const health = await verifyPluginLayer(url, options);
@@ -336,7 +362,7 @@ async function main() {
       (profileCredential
         ? 'DSH profile credentials (verify with a real model call)'
         : 'missing (model calls will fail)'),
-    dshVersion: installedDshVersion(options.runtime ?? options.worktree),
+    ...runtimeDescription,
     health,
     client: {
       state: 'unobserved',
@@ -349,18 +375,6 @@ async function main() {
             provider: options.axModel.provider,
             model: options.axModel.model,
             usability: 'verify with a real DM reply',
-          },
-        }
-      : {}),
-    ...(options.imProvider
-      ? { imProvider: { source: qualifiedImProvider.source, upstreamReleased: false } }
-      : {}),
-    ...(options.productArtifacts
-      ? {
-          productArtifacts: {
-            version: verifiedProductArtifacts(options.productArtifacts).productVersion,
-            dsh: installedDshVersion(options.runtime ?? options.worktree),
-            upstreamReleased: false,
           },
         }
       : {}),

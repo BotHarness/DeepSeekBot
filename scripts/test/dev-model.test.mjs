@@ -20,6 +20,7 @@ import {
   axModelPatch,
   axRuntimeWorkspace,
   goSessionPatch,
+  installedGoAdapter,
   DEFAULT_GO_MODEL,
   GO_RUNTIME_PATCH,
   GO_SESSION_PATCH,
@@ -67,6 +68,29 @@ describe('AX native OpenCode Go reuse', () => {
       '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.1': GO_RUNTIME_PATCH,
     });
     expect(readFileSync(join(runtime, GO_RUNTIME_PATCH))).toEqual(readFileSync(GO_SESSION_PATCH));
+  });
+  it('reads an independently versioned native adapter rather than assuming the CLI version', () => {
+    const { root } = fixture();
+    const packages = join(root, 'node_modules/@deepseek-ai');
+    for (const [name, version, entry] of [
+      ['dsh', '0.2.1-rc.99', 'lib/bin.js'],
+      ['dsh-base', '0.2.1-rc.99', 'lib/index.js'],
+      ['dsh-llm-pi-ai', '0.2.0-rc.2', 'lib/index.js'],
+    ]) {
+      const directory = join(packages, name);
+      mkdirSync(join(directory, 'lib'), { recursive: true });
+      writeFileSync(
+        join(directory, 'package.json'),
+        JSON.stringify({ name: '@deepseek-ai/' + name, version, main: entry }),
+      );
+      writeFileSync(join(directory, entry), 'native source');
+    }
+    const adapter = installedGoAdapter(root);
+    expect(adapter).toEqual({ version: '0.2.0-rc.2', source: 'native source' });
+    const workspace = parse(axRuntimeWorkspace('packages: [.]\n', root, adapter.version));
+    expect(Object.keys(workspace.patchedDependencies)).toEqual([
+      '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2',
+    ]);
   });
   it('relocates the reviewed patch to matching code rather than a version-specific line', () => {
     const patch = readFileSync(GO_SESSION_PATCH, 'utf8');

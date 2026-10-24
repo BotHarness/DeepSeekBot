@@ -57,12 +57,18 @@ export function goSessionPatch(adapterSource) {
   return template.replace(/^@@ -\d+,7 \+\d+,10 @@$/m, `@@ -${line},7 +${line},10 @@`);
 }
 
-export function installedGoAdapterSource(runtime) {
+export function installedGoAdapter(runtime) {
   const cli = createRequire(
     realpathSync(join(runtime, 'node_modules/@deepseek-ai/dsh/lib/bin.js')),
   );
   const base = createRequire(cli.resolve('@deepseek-ai/dsh-base'));
-  return readFileSync(base.resolve('@deepseek-ai/dsh-llm-pi-ai'), 'utf8');
+  const manifest = JSON.parse(
+    readFileSync(base.resolve('@deepseek-ai/dsh-llm-pi-ai/package.json'), 'utf8'),
+  );
+  return {
+    version: manifest.version,
+    source: readFileSync(base.resolve('@deepseek-ai/dsh-llm-pi-ai'), 'utf8'),
+  };
 }
 
 export function axRuntimeWorkspace(source, runtime, version = GO_SESSION_DSH, adapterSource) {

@@ -2,8 +2,9 @@ import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { dshCommand } from '../dev-instance.mjs';
+import { dshCommand, describeRuntime } from '../dev-instance.mjs';
 import { assertDshVersion } from '../dsh-compatibility.mjs';
+import { qualifiedImProvider } from '../dev-im-provider.mjs';
 
 describe('development CLI admission', () => {
   it.each([
@@ -27,6 +28,11 @@ describe('development CLI admission', () => {
         JSON.stringify({ devDependencies: { '@deepseek-ai/dsh': '0.2.1-rc.3' } }),
       );
       expect(dshCommand(root)).toEqual([process.execPath, join(cli, 'lib/bin.js')]);
+      expect(describeRuntime({ worktree: root, imProvider: true })).toEqual({
+        runtime: root,
+        dshVersion: version,
+        imProvider: { source: qualifiedImProvider.source, upstreamReleased: false },
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
