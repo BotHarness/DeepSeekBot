@@ -1,16 +1,34 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
-import { InterfaceSettings } from '../src/ui/interface-settings';
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ name }: { name: { ios: string } }) =>
+    createElement('i', { 'data-symbol': name.ios }),
+}));
+import {
+  AppearanceSetting,
+  InterfaceSaveNotice,
+  LanguageSetting,
+} from '../src/ui/interface-settings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import { useStrings } from '../src/ui/strings';
 import { DesignThemeProvider, useDesignTheme } from '../src/ui/design/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+function InterfaceSettings() {
+  return (
+    <>
+      <LanguageSetting />
+      <AppearanceSetting />
+      <InterfaceSaveNotice />
+    </>
+  );
+}
 
 it('updates mounted settings and theme immediately and preserves unrelated state', async () => {
   let saved: unknown;
@@ -54,6 +72,8 @@ it('updates mounted settings and theme immediately and preserves unrelated state
       ),
     );
     const field = host.querySelector('input')!;
+    expect(host.querySelector('[data-symbol="globe"]')).not.toBeNull();
+    expect(host.querySelector('[data-symbol="circle.lefthalf.filled"]')).not.toBeNull();
     const history = host.querySelector<HTMLElement>('[data-testid="chat-history"]')!;
     field.setSelectionRange(3, 6);
     history.scrollTop = 180;
