@@ -2500,6 +2500,33 @@ describe('Workspace folder authorization action', () => {
 });
 
 describe('Workspace native action bridge', () => {
+  it('propagates Host folder refusal codes without falling back to a different picker', async () => {
+    const call = vi.fn<BridgeCall>(async () => ({
+      ok: false,
+      error: { code: 'folder-browse/denied', message: 'Access denied', details: {} },
+    }));
+    await expect(createActions(call, createStore()).listHostFolders('D:\\')).rejects.toMatchObject({
+      code: 'folder-browse/denied',
+    });
+    expect(call).toHaveBeenCalledOnce();
+  });
+
+  it('rejects malformed drive entries from the Host', async () => {
+    const call = vi.fn<BridgeCall>(async () => ({
+      ok: true,
+      value: {
+        path: 'C:\\',
+        home: 'C:\\Users\\ada',
+        crumbs: [],
+        entries: [],
+        truncated: false,
+        roots: [{ name: 'D:\\' }],
+      },
+    }));
+    await expect(createActions(call, createStore()).listHostFolders()).rejects.toThrow(
+      'Invalid Host folder entry',
+    );
+  });
   it('resolves the owner before discovery/open and makes no Grant or Session mutations', async () => {
     const call = vi.fn<BridgeCall>(async (method, payload) => {
       expect(method).toBe('workspaceFileTarget');

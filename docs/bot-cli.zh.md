@@ -848,7 +848,7 @@ deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
 ```
 
-`folder-browse` 列出 Host 上某个文件夹的子文件夹，与电脑使用系统文件夹选择器时手机上的文件夹选择相同。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 
