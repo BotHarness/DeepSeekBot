@@ -30,3 +30,13 @@ Follow-up automated validation: 112 compatibility/launcher/theme tests passed, 8
 The follow-up scan fixed six categories: verifier SDK equality/wrong-runtime reporting; artifact build-label equality; assuming Go adapter and CLI versions match; a missing optional IM import that could fail after Host startup; native QA release-label gates (including Windows stop/status); and stale current development/VRM docs. Historical released-package qualification remains historical.
 
 The verifier now forwards `--dsh-version` and records the runtime path. A real `verify-app` launch/doctor on 0.2.0-rc.2 with an rc.3 workspace reported the actual version, matching launch record and authenticated API as healthy. The owned Host exited, no child processes remained and its port was released before Profile removal. Focused omission tests passed (123 tests initially; 107 in the final rerun including the optional IM summary assertion). Optional source IM transport and native Desktop interaction were not exercised by these checks.
+
+## Edge-case follow-up
+
+The Home-wide launcher lease prevents concurrent preparation and changes beneath a live Host. Dead launchers can release their recorded preparation lock; unknown cleanup keeps a blocking record. Failed verification waits for the Host and individually identified descendants, including descendants remaining in the detached Host's process group after early Host exit. Profiles and logs are retained. Windows legacy processes with unknown Home ownership fail closed; Windows native execution remains unqualified here.
+
+Go adapter source containing the exact reviewed native Session-header repair skips patch installation. Unknown or ambiguous shapes still fail.
+
+The prior CI test shard and npm prepare both failed the same `memory-restore-report` provenance fixture. Copying scripts into a disposable repository omitted `node_modules`; the verifier's new compatibility import requires `semver`, so Node exited before creating evidence. The fixture now links its dependencies, ignores that link for provenance, and asserts subprocess diagnostics before reading evidence. This is a fixture dependency failure, not a Memory runtime failure.
+
+Focused regression: 103 tests across launcher, model patch, Memory provenance and verifier. Includes real child/grandchild termination and port rebinding, parent early exit, live/concurrent Home refusal, dead-launcher recovery, native-repaired Go source, termination-error refusal and unresolved-cleanup retention. Lint and formatting pass. No real model/native Desktop claims are added by these lifecycle tests.

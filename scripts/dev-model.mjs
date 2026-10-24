@@ -1,6 +1,5 @@
 import {
   existsSync,
-  copyFileSync,
   lstatSync,
   mkdirSync,
   readFileSync,
@@ -48,6 +47,20 @@ export function goSessionPatch(adapterSource) {
     .filter((line) => line.startsWith(' ') || line.startsWith('-'))
     .map((line) => line.slice(1))
     .join('\n');
+  const repaired = lines
+    .slice(hunk + 1)
+    .filter((line) => line.startsWith(' ') || line.startsWith('+'))
+    .map((line) => line.slice(1))
+    .join('\n');
+  const repairedOffset = adapterSource.indexOf(repaired);
+  if (repairedOffset >= 0) {
+    if (
+      adapterSource.indexOf(repaired, repairedOffset + 1) < 0 &&
+      !adapterSource.includes(original)
+    )
+      return null;
+    throw new Error('AX Go adapter request shape is ambiguous');
+  }
   const offset = adapterSource.indexOf(original);
   if (offset < 0 || adapterSource.indexOf(original, offset + 1) >= 0)
     throw new Error(
@@ -73,10 +86,14 @@ export function installedGoAdapter(runtime) {
 
 export function axRuntimeWorkspace(source, runtime, version = GO_SESSION_DSH, adapterSource) {
   const document = parseDocument(withoutAxRuntimePatch(source));
+  const patch =
+    adapterSource === undefined
+      ? readFileSync(GO_SESSION_PATCH, 'utf8')
+      : goSessionPatch(adapterSource);
+  if (patch === null) return String(document);
   const stagedPatch = join(runtime, GO_RUNTIME_PATCH);
   mkdirSync(dirname(stagedPatch), { recursive: true });
-  if (adapterSource === undefined) copyFileSync(GO_SESSION_PATCH, stagedPatch);
-  else writeFileSync(stagedPatch, goSessionPatch(adapterSource));
+  writeFileSync(stagedPatch, patch);
   document.setIn(
     ['patchedDependencies', `@deepseek-ai/dsh-llm-pi-ai@${version}`],
     GO_RUNTIME_PATCH,

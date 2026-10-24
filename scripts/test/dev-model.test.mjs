@@ -105,6 +105,20 @@ describe('AX native OpenCode Go reuse', () => {
     expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
     expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
   });
+  it('skips an exact native repair without adding a redundant patch', () => {
+    const { root } = fixture();
+    const lines = readFileSync(GO_SESSION_PATCH, 'utf8').split('\n');
+    const repaired = lines
+      .slice(lines.findIndex((line) => line.startsWith('@@ ')) + 1)
+      .filter((line) => line.startsWith(' ') || line.startsWith('+'))
+      .map((line) => line.slice(1))
+      .join('\n');
+    expect(goSessionPatch(repaired)).toBeNull();
+    const workspace = parse(axRuntimeWorkspace('packages: [.]\n', root, '0.2.1-rc.99', repaired));
+    expect(workspace.patchedDependencies).toBeUndefined();
+    expect(existsSync(join(root, GO_RUNTIME_PATCH))).toBe(false);
+    expect(() => goSessionPatch(repaired + '\n' + repaired)).toThrow('request shape');
+  });
   it('requires explicit setup, then shares a protected key with successive launches', () => {
     const { path } = fixture();
     expect(

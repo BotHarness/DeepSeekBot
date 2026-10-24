@@ -1,3 +1,4 @@
+import { acquireHome, verifyStartedHost } from './dev-instance-lifecycle.mjs';
 import { developmentProfileManifest } from './dev-profile.mjs';
 import {
   packagedProfileManifest,
@@ -14,7 +15,7 @@ import {
   verifyQualifiedImProvider,
 } from './dev-im-provider.mjs';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, closeSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -237,14 +238,17 @@ function launch(options) {
     ],
     { env, cwd: runtime, detached: true, stdio: ['ignore', logFd, logFd] },
   );
+  child.ownedProcessGroup = process.platform !== 'win32';
+  closeSync(logFd);
   child.unref();
   return { child, logPath };
 }
 
-async function waitForToken(logPath, timeoutMs = 120_000) {
+async function waitForToken(logPath, checkRunning, timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;
   const pattern = /http:\/\/127\.0\.0\.1:\d+\/\?token=[A-Za-z0-9._-]+/u;
   while (Date.now() < deadline) {
+    checkRunning();
     if (existsSync(logPath)) {
       const match = pattern.exec(readFileSync(logPath, 'utf8'));
       if (match !== null) return match[0];
@@ -256,14 +260,11 @@ async function waitForToken(logPath, timeoutMs = 120_000) {
 
 async function verifyPluginLayer(url, options) {
   const [base, token] = url.split('/?token=');
-  const jar = join(
-    tmpdir(),
-    `dsh-${basename(options.home).replace(/[^a-zA-Z0-9-]/gu, '-')}.cookies`,
-  );
-  await fetch(`${base}/?token=${token}`, { redirect: 'manual' });
-  const login = await fetch(`${base}/?token=${token}`, { redirect: 'manual' });
+  const login = await fetch(`${base}/?token=${token}`, {
+    redirect: 'manual',
+    signal: AbortSignal.timeout(10_000),
+  });
   const setCookie = login.headers.get('set-cookie');
-  if (setCookie !== null) writeFileSync(jar, setCookie);
   const probe = await fetch(`${base}/api/botharness/list`, {
     signal: AbortSignal.timeout(10_000),
     method: 'POST',
@@ -289,113 +290,124 @@ async function verifyPluginLayer(url, options) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const secret = resolveDevSecret();
-  options.axModel = resolveAxModel();
-  mkdirSync(options.home, { recursive: true });
-  if (options.productArtifacts || options.axModel || options.dshVersion) {
-    if (options.productArtifacts) verifiedProductArtifacts(options.productArtifacts);
-    const version = options.dshVersion ?? installedDshVersion(options.worktree);
-    assertDshVersion(version);
-    options.runtime = join(options.home, options.productArtifacts ? 'packaged-cli' : 'ax-cli');
-    mkdirSync(options.runtime, { recursive: true });
-    const runtimeWorkspace = join(options.runtime, 'pnpm-workspace.yaml');
-    if (!existsSync(runtimeWorkspace))
+  const lease = acquireHome(options.home);
+  try {
+    const secret = resolveDevSecret();
+    options.axModel = resolveAxModel();
+    mkdirSync(options.home, { recursive: true });
+    if (options.productArtifacts || options.axModel || options.dshVersion) {
+      if (options.productArtifacts) verifiedProductArtifacts(options.productArtifacts);
+      const version = options.dshVersion ?? installedDshVersion(options.worktree);
+      assertDshVersion(version);
+      options.runtime = join(options.home, options.productArtifacts ? 'packaged-cli' : 'ax-cli');
+      mkdirSync(options.runtime, { recursive: true });
+      const runtimeWorkspace = join(options.runtime, 'pnpm-workspace.yaml');
+      if (!existsSync(runtimeWorkspace))
+        writeFileSync(
+          runtimeWorkspace,
+          "packages: [.]\nallowBuilds:\n  '@deepseek-ai/dsh-subprocess-local': true\n  '@google/genai': false\n  koffi: true\n  node-pty: true\n  protobufjs: false\n",
+        );
       writeFileSync(
         runtimeWorkspace,
-        "packages: [.]\nallowBuilds:\n  '@deepseek-ai/dsh-subprocess-local': true\n  '@google/genai': false\n  koffi: true\n  node-pty: true\n  protobufjs: false\n",
+        withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
       );
-    writeFileSync(runtimeWorkspace, withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')));
-    writeFileSync(
-      join(options.runtime, 'package.json'),
-      `${JSON.stringify({ name: 'botharness-isolated-cli-qa', private: true, devDependencies: { '@deepseek-ai/dsh': version } }, null, 2)}\n`,
-    );
-    const [command, args] = pnpmCommand(['install']);
-    run(command, args, { cwd: options.runtime });
-    if (options.axModel) {
-      const adapter = installedGoAdapter(options.runtime);
       writeFileSync(
-        runtimeWorkspace,
-        axRuntimeWorkspace(
-          readFileSync(runtimeWorkspace, 'utf8'),
-          options.runtime,
-          adapter.version,
-          adapter.source,
-        ),
+        join(options.runtime, 'package.json'),
+        `${JSON.stringify({ name: 'botharness-isolated-cli-qa', private: true, devDependencies: { '@deepseek-ai/dsh': version } }, null, 2)}\n`,
       );
+      const [command, args] = pnpmCommand(['install']);
       run(command, args, { cwd: options.runtime });
+      if (options.axModel) {
+        const adapter = installedGoAdapter(options.runtime);
+        writeFileSync(
+          runtimeWorkspace,
+          axRuntimeWorkspace(
+            readFileSync(runtimeWorkspace, 'utf8'),
+            options.runtime,
+            adapter.version,
+            adapter.source,
+          ),
+        );
+        run(command, args, { cwd: options.runtime });
+      }
     }
-  }
-  const profileDir = ensureProfile(options);
-  if (options.axModel) {
-    const runtime = options.runtime ?? options.worktree;
-    await assertInstalledGoModel(runtime, options.axModel.model);
-    const [command, cli] = dshCommand(runtime);
-    const dump = run(command, [cli, '--profile', options.profile, '--dump-config'], {
-      env: { ...process.env, DSH_HOME: options.home },
-      cwd: runtime,
+    const profileDir = ensureProfile(options);
+    if (options.axModel) {
+      const runtime = options.runtime ?? options.worktree;
+      await assertInstalledGoModel(runtime, options.axModel.model);
+      const [command, cli] = dshCommand(runtime);
+      const dump = run(command, [cli, '--profile', options.profile, '--dump-config'], {
+        env: { ...process.env, DSH_HOME: options.home },
+        cwd: runtime,
+      });
+      options.modelPatch = join(profileDir, 'botharness-ax-model.patch.yml');
+      writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
+    }
+    const profileCredential = profileDeepSeekCredential(options.home) !== undefined;
+    if (!options.axModel && secret === undefined && !profileCredential)
+      console.error(devSecretInstructions());
+    const runtimeDescription = describeRuntime(options);
+    const { child, logPath } = launch(options);
+    const { url, health } = await verifyStartedHost(child, async (checkRunning) => {
+      lease.started(child, logPath);
+      const url = await waitForToken(logPath, checkRunning);
+      const health = await verifyPluginLayer(url, options);
+      if (!health.ok)
+        throw new Error(
+          `BotHarness API is unavailable (HTTP ${health.status}, ${health.error ?? 'unknown'}); see ${logPath}`,
+        );
+      checkRunning();
+      return { url, health };
     });
-    options.modelPatch = join(profileDir, 'botharness-ax-model.patch.yml');
-    writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
+    const summary = {
+      pid: child.pid,
+      url,
+      log: logPath,
+      home: options.home,
+      worktree: options.worktree,
+      secret:
+        options.axModel?.source ??
+        secret?.source ??
+        (profileCredential
+          ? 'DSH profile credentials (verify with a real model call)'
+          : 'missing (model calls will fail)'),
+      ...runtimeDescription,
+      health,
+      client: {
+        state: 'unobserved',
+        diagnostics: options.clientDiagnostics ? '/api/botharness/client-diagnostics' : 'disabled',
+        verification: 'Read real browser console and DOM; API health is not UI readiness',
+      },
+      ...(options.axModel
+        ? {
+            model: {
+              provider: options.axModel.provider,
+              model: options.axModel.model,
+              usability: 'verify with a real DM reply',
+            },
+          }
+        : {}),
+      stop: `kill ${child.pid}`,
+    };
+    if (options.json) {
+      console.log(JSON.stringify(summary, null, 2));
+    } else {
+      console.log(`dev Host API ready: ${url}`);
+      console.log(`  DSH_HOME : ${summary.home}`);
+      console.log(`  worktree : ${summary.worktree}`);
+      console.log(`  secret   : ${summary.secret}`);
+      if (summary.model)
+        console.log(
+          `  model    : ${summary.model.provider}/${summary.model.model} (${summary.model.usability})`,
+        );
+      console.log(`  plugin   : ${health.ok ? 'ready' : `unhealthy (HTTP ${health.status})`}`);
+      console.log(`  log      : ${summary.log}`);
+      console.log(`  stop     : ${summary.stop}`);
+    }
+    process.exitCode = 0;
+  } finally {
+    lease.release();
   }
-  const profileCredential = profileDeepSeekCredential(options.home) !== undefined;
-  if (!options.axModel && secret === undefined && !profileCredential)
-    console.error(devSecretInstructions());
-  const runtimeDescription = describeRuntime(options);
-  const { child, logPath } = launch(options);
-  const url = await waitForToken(logPath);
-  const health = await verifyPluginLayer(url, options);
-  if (!health.ok) {
-    child.kill();
-    throw new Error(
-      `BotHarness API is unavailable (HTTP ${health.status}, ${health.error ?? 'unknown'}); see ${logPath}`,
-    );
-  }
-  const summary = {
-    pid: child.pid,
-    url,
-    log: logPath,
-    home: options.home,
-    worktree: options.worktree,
-    secret:
-      options.axModel?.source ??
-      secret?.source ??
-      (profileCredential
-        ? 'DSH profile credentials (verify with a real model call)'
-        : 'missing (model calls will fail)'),
-    ...runtimeDescription,
-    health,
-    client: {
-      state: 'unobserved',
-      diagnostics: options.clientDiagnostics ? '/api/botharness/client-diagnostics' : 'disabled',
-      verification: 'Read real browser console and DOM; API health is not UI readiness',
-    },
-    ...(options.axModel
-      ? {
-          model: {
-            provider: options.axModel.provider,
-            model: options.axModel.model,
-            usability: 'verify with a real DM reply',
-          },
-        }
-      : {}),
-    stop: `kill ${child.pid}`,
-  };
-  if (options.json) {
-    console.log(JSON.stringify(summary, null, 2));
-  } else {
-    console.log(`dev Host API ready: ${url}`);
-    console.log(`  DSH_HOME : ${summary.home}`);
-    console.log(`  worktree : ${summary.worktree}`);
-    console.log(`  secret   : ${summary.secret}`);
-    if (summary.model)
-      console.log(
-        `  model    : ${summary.model.provider}/${summary.model.model} (${summary.model.usability})`,
-      );
-    console.log(`  plugin   : ${health.ok ? 'ready' : `unhealthy (HTTP ${health.status})`}`);
-    console.log(`  log      : ${summary.log}`);
-    console.log(`  stop     : ${summary.stop}`);
-  }
-  process.exitCode = 0;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

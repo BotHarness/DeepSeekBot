@@ -41,6 +41,9 @@ outlives the launcher: record its ownership, then verify process exit and port r
 removing its Profile or worktree. Keep a running environment only under the documented handoff
 or shared QA lease.
 
+
+The launcher holds a Home-wide preparation lock and records the running Host before verification. A live owner prevents dependency/Profile changes, even on another port or Profile. After a launcher exits, its recorded lock can be recovered; a lock without ownership evidence is preserved for manual inspection. On Windows, an unrecorded legacy DSH process whose Home cannot be determined blocks preparation until it is stopped. Startup verification failures terminate the owned Host and observed descendants, wait for exit, and preserve the Profile/log; an incomplete shutdown retains ownership for recovery. Go adapters containing the exact reviewed native fix skip the local patch; unknown or ambiguous request shapes remain refusals.
+
 ## DSH 0.2.1 migration contracts
 
 Source inspection of `dsh-subagent/lib/types/types.d.ts` and `lib/index.js` in `0.2.1-rc.2`:
