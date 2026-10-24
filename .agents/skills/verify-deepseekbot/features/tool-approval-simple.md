@@ -36,7 +36,7 @@ For a baseline capture, provide `--capture-report <private-json> --expect-legacy
 - DSH `never` rejects before answerers. Top-level Full Access now keeps `ask`; delegated Subagents retain their native policy. Do not bypass never to manufacture a pass.
 - The current shell has a Preview Notice and a workspace rail. Dismiss the actual Continue dialog before navigating; do not wait for a Settings button hidden under the account menu.
 - Preserve a failed run and observe before retrying. A model that refuses to call the requested tool is a failed model-path attempt, not a successful approval test.
-- Native mobile UI, IM new-rule creation, every Shell Provider, and the full recovery matrix are not qualified by this Web slice. Mobile reads the new history value while retaining its legacy decision behavior until its own qualified slice.
+- Native mobile UI, IM new-rule creation, every Shell Provider, and the full recovery matrix are not qualified by this Web slice. Mobile cards and notification actions submit `allowed-always-tool`; native device rendering and delivery acceptance remain tracked in issue #2742.
 
 ## Single-click copy acceptance
 
