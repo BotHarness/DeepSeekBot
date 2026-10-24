@@ -1,0 +1,131 @@
+name: npm scoped Tobs 1.5.0 recovery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: npm-prerelease-publication
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      plan_sha256: ${{ steps.plan.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Require verification of this exact main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          state=$(gh run list -R "$GITHUB_REPOSITORY" --workflow verify.yml --commit "$GITHUB_SHA" --event push --json conclusion --jq 'any(.[]; .conclusion == "success")')
+          [ "$state" = true ] || { echo 'Exact main commit must pass verify.yml first'; exit 1; }
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 40106777067
+          name: npm-release-1.5.0
+          path: ${{ runner.temp }}/original
+      - name: Prepare the scoped wrapper without rebuilding published packages
+        id: plan
+        run: |
+          node scripts/npm-scoped-tobs-recovery.mjs "$RUNNER_TEMP/original" "$RUNNER_TEMP/recovery"
+          node -e 'const fs=require("fs"),c=require("crypto"),p=process.env.RUNNER_TEMP+"/recovery/release-plan.json",b=fs.readFileSync(p),sha=c.createHash("sha256").update(b).digest("hex");fs.appendFileSync(process.env.GITHUB_OUTPUT,"sha256="+sha+"\n");fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,"Recovery plan SHA-256: `"+sha+"`\n\n```json\n"+b+"\n```\n")'
+      - name: Verify prepared package bytes
+        run: node scripts/npm-prerelease.mjs verify --artifacts "$RUNNER_TEMP/recovery" --version 1.5.0 --source-sha "$GITHUB_SHA" --plan-sha256 '${{ steps.plan.outputs.sha256 }}'
+      - name: Qualify fresh and upgraded Profiles on every supported DSH release
+        run: node scripts/e2e-fresh-profile-install.mjs "$RUNNER_TEMP/recovery" "$RUNNER_TEMP/fresh-profile"
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoped-fresh-profile-1.5.0
+          path: ${{ runner.temp }}/fresh-profile/report.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scoped-tobs-1.5.0
+          path: |
+            ${{ runner.temp }}/recovery/*.tgz
+            ${{ runner.temp }}/recovery/artifacts.json
+            ${{ runner.temp }}/recovery/release-plan.json
+          if-no-files-found: error
+
+  qualify-commands:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: scoped-tobs-1.5.0
+          path: .release-artifacts
+      - run: node scripts/e2e-tobs-commands.mjs .release-artifacts .release-artifacts/commands.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoped-commands-${{ matrix.os }}-1.5.0
+          path: .release-artifacts/commands.json
+
+  publish:
+    needs: [prepare, qualify-commands]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: npm-release
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: scoped-tobs-1.5.0
+          path: .release-artifacts
+      - name: Require every original published package to remain unchanged
+        run: node --input-type=module -e 'import {readFileSync} from "node:fs";import {verifyPublishedBase} from "./scripts/npm-scoped-tobs-recovery.mjs";await verifyPublishedBase(JSON.parse(readFileSync(".release-artifacts/artifacts.json","utf8")))'
+      - name: Verify the exact recovery bytes without publication credentials
+        run: node scripts/npm-prerelease.mjs verify --artifacts .release-artifacts --version 1.5.0 --source-sha "$GITHUB_SHA" --plan-sha256 '${{ needs.prepare.outputs.plan_sha256 }}'
+      - name: Publish the scoped entry and read back integrity
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: node scripts/npm-prerelease.mjs publish --artifacts .release-artifacts --version 1.5.0 --source-sha "$GITHUB_SHA" --plan-sha256 '${{ needs.prepare.outputs.plan_sha256 }}' --confirm 'publish 1.5.0 to latest'
