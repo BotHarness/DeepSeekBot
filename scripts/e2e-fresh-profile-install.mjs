@@ -210,7 +210,9 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   }
   const workspace = join(profile, 'pnpm-workspace.yaml');
-  const overrides = Object.entries(freshProfileOverrides(artifacts, productName))
+  const overrides = Object.entries(
+    freshProfileOverrides(artifacts, upgradeFrom ? 'tobs' : productName),
+  )
     .map(([name, spec]) => `  '${name}': '${spec}'\n`)
     .join('');
   writeFileSync(
@@ -309,17 +311,29 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
         return JSON.parse(result.stdout);
       };
       assert.ok(JSON.stringify(cli('tobs', ['show', slug])).includes(slug));
+      const update = (name, description) => {
+        const observed = cli(name, ['show', slug]);
+        assert.ok(observed.profileFingerprint);
+        return cli(name, [
+          'update',
+          slug,
+          '--description',
+          description,
+          '--expected-profile',
+          observed.profileFingerprint,
+        ]);
+      };
       if (productName === 'deepseekbot') {
         assert.deepEqual(cli('tobs', ['list']), cli('deepseekbot', ['list']));
-        cli('tobs', ['update', slug, '--description', 'Updated through Tobs']);
+        update('tobs', 'Updated through Tobs');
         assert.match(JSON.stringify(cli('deepseekbot', ['show', slug])), /Updated through Tobs/u);
-        cli('deepseekbot', ['update', slug, '--description', 'Updated through legacy']);
+        update('deepseekbot', 'Updated through legacy');
         assert.match(JSON.stringify(cli('tobs', ['show', slug])), /Updated through legacy/u);
         const refused = cli('tobs', ['list'], 1, 'invalid-qualification-token');
         assert.equal(refused.error.code, 'host-unauthorized');
         assert.deepEqual(refused, cli('deepseekbot', ['list'], 1, 'invalid-qualification-token'));
       } else {
-        cli('tobs', ['update', slug, '--description', 'Updated after Bundle replacement']);
+        update('tobs', 'Updated after Bundle replacement');
         assert.match(
           JSON.stringify(cli('tobs', ['show', slug])),
           /Updated after Bundle replacement/u,

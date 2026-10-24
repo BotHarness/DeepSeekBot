@@ -1414,7 +1414,7 @@
       "behaviors": ["product.fresh-install"],
       "reason": "Exact artifacts through both Bundles; published 1.4.1 upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check.",
       "task": 1980,
-      "sha256": "942ddd416956551bb43ea80cad07d48cef6681c2aea5f6c27b357c094f806198"
+      "sha256": "2e070bb64952dcd7f2b82a94850c54eb7f34e52d11a07f6a93cc6299f69c46d1"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",

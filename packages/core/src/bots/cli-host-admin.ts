@@ -169,7 +169,7 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   if ((command === 'release-install' || command === 'release-restart') && values.confirm !== true)
     usage(
       command === 'release-install'
-        ? 'release-install replaces the installed DeepSeekBot. Pass --confirm to install.'
+        ? 'release-install replaces the installed Tobs. Pass --confirm to install.'
         : 'release-restart stops every running Bot turn on this Host. Pass --confirm to restart.',
     );
   if ((command === 'plugin-install' || command === 'plugin-restart') && values.confirm !== true)
