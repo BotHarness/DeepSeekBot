@@ -116,7 +116,7 @@ const click = async (label) => {
 };
 const dismiss = async () => {
   for (let n = 0; n < 4; n++) {
-    for (const label of ['Continue', 'Configure later', 'Skip tutorial']) {
+    for (const label of ['Continue', 'Configure later', 'Skip tutorial', 'Skip']) {
       const button = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
       if (button && (await button.isVisible())) await button.click();
     }
