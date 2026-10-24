@@ -45,6 +45,8 @@ jobs:
           node-version-file: .node-version
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install the locked browser required by layout tests
+        run: pnpm rebuild puppeteer
       - run: pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
       - name: Read the reviewed Provider pin
         id: provider
