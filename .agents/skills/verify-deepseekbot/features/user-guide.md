@@ -28,6 +28,7 @@ With the task browser's local CDP endpoint and exact page target ID, run `deepse
 
 - S1 is pending Human acceptance. S2–S4 remain gated; the Human explicitly pulled the Quick Switcher/FAQ search behavior forward as feedback. This does not qualify the rest of S4.
 - Workspace reload must preserve saved outer and nested geometry exactly. Dockview serializes visible sizes excluding theme gaps; the layout owner adds those gaps back only when restoring saved geometry. A normal-refresh control reproduced drift before this correction; do not weaken equality assertions.
+- The existing Dockview 8.4.1 patch also preserves fractional allocations when the container size is unchanged. A captured post-drag layout reproduced first-reload rounding; the regression covers restore, guide release and genuine proportional resizing. Keep exact equality assertions for this case.
 - Driver.js 1.4.0 has a pinned lifecycle patch: overlay/popover capture handlers belong to their own elements, and destruction removes the global Tab handler. Run `packages/client/test/driver-lifecycle.test.ts` plus repeated real start/cancel checks when upgrading it; retained detached popovers were traced to document listeners before this patch.
 - Use the observed accessible language; a navigation idle timeout is not a settings failure.
 - Preserve the first failed observation before a retry. Native Desktop results must be recorded separately from Web.

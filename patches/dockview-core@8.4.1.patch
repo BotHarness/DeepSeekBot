@@ -1,5 +1,5 @@
 diff --git a/dist/package/main.cjs.js b/dist/package/main.cjs.js
-index 01bdfc366b8491d38d0723484293a7eff8605090..26dba337b5b121420b577ad75e522df93d3ea1dd 100644
+index 01bdfc366b8491d38d0723484293a7eff8605090..512f0968c548c5328367381940c6a2f28910c57a 100644
 --- a/dist/package/main.cjs.js
 +++ b/dist/package/main.cjs.js
 @@ -502,6 +502,15 @@ function addStyles(document, styleSheetList, options = {}) {
@@ -35,6 +35,15 @@ index 01bdfc366b8491d38d0723484293a7eff8605090..26dba337b5b121420b577ad75e522df9
  					this.resize(sashIndex, delta, sizes, void 0, void 0, minDelta, maxDelta, snapBefore, snapAfter);
  					this.distributeEmptySpace();
  					this.layoutViews();
+@@ -1578,7 +1588,7 @@ var Splitview = class {
+ 		const previousSize = Math.max(this.size, this._contentSize);
+ 		this.size = size;
+ 		this.orthogonalSize = orthogonalSize;
+-		if (this.proportions) {
++		if (this.proportions && size !== previousSize) {
+ 			let total = 0;
+ 			for (let i = 0; i < this.viewItems.length; i++) {
+ 				const item = this.viewItems[i];
 @@ -14675,10 +14685,11 @@ var OverlayRenderContainer = class extends CompositeDisposable {
  				const clip = entry.clip;
  				const box = this.positionCache.getPosition(referenceContainer.element);
@@ -67,7 +76,7 @@ index 01bdfc366b8491d38d0723484293a7eff8605090..26dba337b5b121420b577ad75e522df9
  				} else focusContainer.style.clipPath = "";
  				toggleClass(focusContainer, "dv-render-overlay-float", panel.group.api.location.type === "floating");
 diff --git a/dist/package/main.esm.mjs b/dist/package/main.esm.mjs
-index af57917dbd5e99fb8879b0e937f66e20a90a19f9..bb4fc137868b75b254cecebd394d60a94429fd57 100644
+index af57917dbd5e99fb8879b0e937f66e20a90a19f9..bddaafe666b68fd4495c0c8afafa529b5fe164a0 100644
 --- a/dist/package/main.esm.mjs
 +++ b/dist/package/main.esm.mjs
 @@ -500,6 +500,15 @@ function addStyles(document, styleSheetList, options = {}) {
@@ -103,6 +112,15 @@ index af57917dbd5e99fb8879b0e937f66e20a90a19f9..bb4fc137868b75b254cecebd394d60a9
  					this.resize(sashIndex, delta, sizes, void 0, void 0, minDelta, maxDelta, snapBefore, snapAfter);
  					this.distributeEmptySpace();
  					this.layoutViews();
+@@ -1576,7 +1586,7 @@ var Splitview = class {
+ 		const previousSize = Math.max(this.size, this._contentSize);
+ 		this.size = size;
+ 		this.orthogonalSize = orthogonalSize;
+-		if (this.proportions) {
++		if (this.proportions && size !== previousSize) {
+ 			let total = 0;
+ 			for (let i = 0; i < this.viewItems.length; i++) {
+ 				const item = this.viewItems[i];
 @@ -14673,10 +14683,11 @@ var OverlayRenderContainer = class extends CompositeDisposable {
  				const clip = entry.clip;
  				const box = this.positionCache.getPosition(referenceContainer.element);

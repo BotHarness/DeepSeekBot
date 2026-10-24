@@ -263,14 +263,26 @@ try {
   await click('Ask Tob');
   await pause(1200);
   await capture('draft-prefilled');
-  const draft = await page.$eval(editor, (e) => e.value ?? e.textContent);
+  const draft = await page.$eval(editor, (e) => e.value ?? e.innerText);
   assert(draft.includes('Tob'));
   await click('Ask Tob');
   await pause(1000);
-  assert.equal(await page.$eval(editor, (e) => e.value ?? e.textContent), draft);
+  assert.equal(await page.$eval(editor, (e) => e.value ?? e.innerText), draft);
   await click('Insert question');
   await pause(600);
-  assert.equal(await page.$eval(editor, (e) => e.value ?? e.textContent), draft + '\n\n' + draft);
+  assert.equal(await page.$eval(editor, (e) => e.value ?? e.innerText), draft + '\n\n' + draft);
+  const persistedDrafts = await page.evaluate(() =>
+    Object.keys(localStorage)
+      .filter(
+        (key) =>
+          key.startsWith('botharness.composer.v1:') &&
+          decodeURIComponent(key).includes('"dm-bot-061cae3a7431434c94aec044783d7f9f"]'),
+      )
+      .map((key) => JSON.parse(localStorage.getItem(key)).draft),
+  );
+  assert.equal(persistedDrafts.length, 1);
+  assert.equal(persistedDrafts[0].text, draft + '\n\n' + draft);
+  writeFileSync(resolve(out, 'draft-canonical.json'), JSON.stringify(persistedDrafts[0], null, 2));
   await capture('draft-appended');
   const searchNavigation = async (query) => {
     await page.keyboard.down('Alt');

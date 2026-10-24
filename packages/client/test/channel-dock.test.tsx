@@ -1580,3 +1580,182 @@ it('keeps saved outer and nested geometry stable across workspace remounts', asy
     expect(grid()).toEqual(before);
   }
 });
+
+it('preserves fractional geometry captured after a real panel drag', async () => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1432);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(892);
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const saved = {
+    version: 8,
+    layout: {
+      grid: {
+        root: {
+          type: 'branch',
+          data: [
+            {
+              type: 'leaf',
+              data: {
+                views: ['bh:workspace-rail'],
+                activeView: 'bh:workspace-rail',
+                id: '3',
+                locked: 'no-drop-target',
+                hideHeader: true,
+              },
+              size: 53.333333333333336,
+            },
+            {
+              type: 'leaf',
+              data: { views: ['bh:channels'], activeView: 'bh:channels', id: '2' },
+              size: 213.33333333333334,
+            },
+            {
+              type: 'branch',
+              data: [
+                {
+                  type: 'branch',
+                  data: [
+                    {
+                      type: 'leaf',
+                      data: { views: ['bh:home'], activeView: 'bh:home', id: '4' },
+                      size: 576,
+                    },
+                    {
+                      type: 'leaf',
+                      data: { views: ['user-guide'], activeView: 'user-guide', id: '1' },
+                      size: 577.3333333333333,
+                    },
+                  ],
+                  size: 291.66666666666663,
+                },
+                {
+                  type: 'leaf',
+                  data: { views: ['activity-center'], activeView: 'activity-center', id: '10' },
+                  size: 294.3333333333333,
+                },
+                {
+                  type: 'leaf',
+                  data: { views: ['bh:channel-body'], activeView: 'bh:channel-body', id: '13' },
+                  size: 298.00000000000006,
+                },
+              ],
+              size: 1157.3333333333333,
+            },
+          ],
+          size: 892,
+        },
+        width: 1432,
+        height: 892,
+        orientation: 'HORIZONTAL',
+      },
+      panels: {
+        'bh:workspace-rail': {
+          id: 'bh:workspace-rail',
+          contentComponent: 'bh:workspace-rail',
+          tabComponent: 'props.defaultTabComponent',
+          title: 'bh:workspace-rail',
+        },
+        'bh:channels': {
+          id: 'bh:channels',
+          contentComponent: 'channel-entry',
+          tabComponent: 'props.defaultTabComponent',
+          params: { entryId: 'bh:channels' },
+          title: 'Channels',
+        },
+        'bh:home': {
+          id: 'bh:home',
+          contentComponent: 'channel-entry',
+          tabComponent: 'props.defaultTabComponent',
+          params: { entryId: 'bh:home' },
+          title: 'Home',
+        },
+        'user-guide': {
+          id: 'user-guide',
+          contentComponent: 'channel-entry',
+          tabComponent: 'props.defaultTabComponent',
+          params: { entryId: 'user-guide' },
+          title: 'User guide',
+        },
+        'activity-center': {
+          id: 'activity-center',
+          contentComponent: 'channel-entry',
+          tabComponent: 'props.defaultTabComponent',
+          params: { entryId: 'activity-center' },
+          title: 'Activity Center',
+        },
+        'bh:channel-body': {
+          id: 'bh:channel-body',
+          contentComponent: 'channel-body',
+          tabComponent: 'props.defaultTabComponent',
+          params: { entryId: 'bh:channel-body' },
+          title: 'Messages',
+        },
+      },
+    },
+    instances: [],
+    parked: {},
+    gap: 4,
+    order: ['bh:home'],
+    hiddenControls: [],
+    members: { open: false, ratio: 0.3 },
+    botPanelSeeds: {},
+    botWorkspaces: {},
+    sessionSeed: { open: true, direction: 'right', ratio: 0.3, hiddenControl: false },
+    channelWorkspaces: {},
+    channelSplits: {},
+  };
+  storage.setItem(CHANNEL_DOCK_STORAGE_KEY, JSON.stringify(saved));
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    ['bh:channels', 'Channels'],
+    ['bh:home', 'Home'],
+    ['user-guide', 'User guide'],
+    ['activity-center', 'Activity Center'],
+    [CHANNEL_BODY_PANEL, 'Messages'],
+  ])
+    registry.register({
+      id: id!,
+      title: title!,
+      scope: 'global',
+      component: () => createElement('input'),
+    });
+  let dock: import('dockview-react').DockviewApi | undefined;
+  act(() =>
+    root.render(
+      createElement(
+        WorkspaceContext.Provider,
+        {
+          value: {
+            rail: (api) => {
+              dock = api;
+              return createElement('nav');
+            },
+          },
+        },
+        createElement(ChannelDock, {
+          body: createElement('input'),
+          panels: registry.panels(),
+          registry,
+          entryProps,
+          shows: () => true,
+          t: zhTranslate,
+          storage,
+        }),
+      ),
+    ),
+  );
+  await settle();
+  expect(dock!.toJSON().grid).toEqual(saved.layout.grid);
+  let release!: () => void;
+  act(() => {
+    release = registry.beginGuide(() => {});
+    registry.close('bh:home');
+  });
+  await settle();
+  act(() => release());
+  await settle();
+  expect(dock!.toJSON().grid).toEqual(saved.layout.grid);
+  const guideWidth = dock!.getPanel('user-guide')!.api.width;
+  act(() => dock!.layout(1718, 1070));
+  await settle();
+  expect(dock!.getPanel('user-guide')!.api.width).toBeGreaterThan(guideWidth);
+});
