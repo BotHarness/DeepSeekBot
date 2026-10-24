@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { verifiedProductArtifacts } from './packaged-profile.mjs';
 
 const artifacts = verifiedProductArtifacts(resolve(process.argv[2]));
@@ -82,10 +82,23 @@ for (const key of Object.keys(env)) {
 }
 writeFileSync(env.npm_config_userconfig, '');
 async function run(command, args, expected = 0) {
-  const child = spawn(command, args, {
+  const windows = process.platform === 'win32';
+  const shim = windows && command !== 'npm';
+  if (shim) assert.ok(args.every((arg) => /^[a-z-]+$/u.test(arg)));
+  const executable = windows
+    ? shim
+      ? (process.env.ComSpec ?? 'cmd.exe')
+      : process.execPath
+    : command;
+  const parameters = windows
+    ? shim
+      ? ['/d', '/s', '/c', `""%TOBS_QA_COMMAND%" ${args.join(' ')}"`]
+      : [join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js'), ...args]
+    : args;
+  const child = spawn(executable, parameters, {
     cwd: temporary,
-    env,
-    shell: process.platform === 'win32',
+    env: shim ? { ...env, TOBS_QA_COMMAND: command } : env,
+    windowsVerbatimArguments: shim,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   const stdout = [];
@@ -109,7 +122,7 @@ async function run(command, args, expected = 0) {
 const bin = (name) => join(prefix, process.platform === 'win32' ? `${name}.cmd` : `bin/${name}`);
 async function help(name) {
   const { stdout: output } = await run(bin(name), ['--help']);
-  assert.match(output, /deepseekbot/u);
+  assert.match(output, /tobs: manage your Bots/u);
   return output;
 }
 try {

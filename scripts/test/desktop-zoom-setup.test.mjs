@@ -19,17 +19,20 @@ const roots = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
-function fixture(profile = 'qa') {
+function fixture(profile = 'qa', entry = 'deepseekbot') {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'zoom-setup-')));
   roots.push(home);
   const directory = join(home, 'profiles', profile);
-  const root = join(directory, 'node_modules/deepseekbot');
+  const root = join(
+    directory,
+    entry === 'tobs' ? 'node_modules/tobs/node_modules/deepseekbot' : 'node_modules/deepseekbot',
+  );
   mkdirSync(join(root, 'desktop-theme/lib'), { recursive: true });
   const path = join(directory, 'package.json');
   const manifest = {
     private: true,
-    dependencies: { deepseekbot: 'file:product.tgz' },
-    dsh: { profile: { bundles: ['deepseekbot'] } },
+    dependencies: { [entry]: 'file:product.tgz' },
+    dsh: { profile: { bundles: [entry] } },
   };
   writeFileSync(path, JSON.stringify(manifest));
   writeFileSync(join(directory, 'cordis.patch.yml'), 'native preference unchanged');
@@ -53,8 +56,9 @@ function fixture(profile = 'qa') {
     const adding = args.includes('add');
     const doc = JSON.parse(readFileSync(path));
     if (adding)
-      doc.dependencies['@deepseek-ai/dsh-client-ui-theme'] =
-        'link:node_modules/deepseekbot/desktop-theme';
+      doc.dependencies['@deepseek-ai/dsh-client-ui-theme'] = args
+        .find((arg) => arg.startsWith('@deepseek-ai/dsh-client-ui-theme@'))
+        .slice('@deepseek-ai/dsh-client-ui-theme@'.length);
     else delete doc.dependencies['@deepseek-ai/dsh-client-ui-theme'];
     if (adding) {
       mkdirSync(join(directory, 'node_modules/@deepseek-ai'), { recursive: true });
@@ -69,6 +73,13 @@ function fixture(profile = 'qa') {
   });
   return { home, profile, platform: 'darwin', dsh: '/owned/dsh', run, path, directory };
 }
+it('enables and removes desktop compatibility for a Tobs-only Profile with a nested implementation', () => {
+  const f = fixture('qa', 'tobs');
+  expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(true);
+  expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(false);
+  expect(configureDesktopZoom({ ...f, action: 'disable' }).changed).toBe(true);
+  expect(JSON.parse(readFileSync(f.path)).dsh.profile.bundles).toEqual(['tobs']);
+});
 it('uses the native package manager to enable and remove only its own Profile alias', () => {
   const f = fixture();
   expect(configureDesktopZoom({ ...f, action: 'enable' })).toMatchObject({

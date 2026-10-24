@@ -2293,7 +2293,7 @@
       "behaviors": ["product.command-compatibility"],
       "reason": "Installs verified local release archives through a loopback registry; checks global coexistence, independent removal, exit codes and npm exec on Windows and Linux; no live Host check.",
       "task": 2722,
-      "sha256": "1b9dafd3ce839797fbfb098cf311427158cb9d1809e38e618fa293ca2b07dbdd"
+      "sha256": "1fd404dd24bfda3e89850347e1286cb247b08fc1de6444e160d805849582e5b0"
     }
   ],
   "native": [

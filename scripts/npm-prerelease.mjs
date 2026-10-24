@@ -279,7 +279,7 @@ export function verifyPackedCli(
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
-    if (!output.includes('deepseekbot')) throw new Error('Packed CLI did not return its help');
+    if (!output.includes('tobs:')) throw new Error('Packed CLI did not return its help');
     const aliasOutput = execFileSync(
       process.execPath,
       [join(modules, 'tobs/src/tobs.mjs'), '--help'],
