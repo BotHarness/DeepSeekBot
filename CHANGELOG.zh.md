@@ -36,7 +36,7 @@
 - 远程 Bot 会话可通过支持的配对设备路由打开 Browser 和 Computer 查看器；暂停 Bot 后才能接管，画面断线恢复后须重新接管。关闭时交还控制，移除 Host 时最多等待五秒清理，再撤销配对（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
 - **远程聊天与本机聊天显示一致**：网页端打开远程 Host 上的聊天时，图片、文件、工具审批卡、提问卡和私密输入卡都用与本机相同的渲染器显示。图片和文件通过本浏览器的配对从该 Host 加载，批准、回答或提交都在该 Host 上执行（[#2500](https://github.com/BotHarness/DeepSeekBot/issues/2500)）。
 - 手机聊天行支持滑动显示置顶、添加到分区和静音，也可通过无障碍菜单操作。在会话所属的远程 Host 选择或新建分区；添加失败后重试会复用已创建的分区，切换 Host 后拒绝旧操作。iOS 保留左边缘抽屉手势和聊天预览（[#2519](https://github.com/BotHarness/DeepSeekBot/issues/2519)）。
-- 新增首片 Windows 到 Android 的 Local Computer 视频路径，复用已配对加密 LAN 通道，明确接管，释放控制或重启后 Bot 仍保持暂停；视频路径没有图片回退。画面停滞时仍可释放与重新连接，Connect 继续拒绝，等待后续切片。真机与 Human 验收仍待完成；接管后降级需要保留暂停的协调恢复（[英文指南](docs/local-computer-video.md)，[中文指南](docs/local-computer-video.zh.md)，[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
+- 新增首片 Windows 到 Android 的 Local Computer 视频路径，复用已配对加密 LAN 通道，明确接管，释放控制或重启后 Bot 仍保持暂停；视频路径没有图片回退。画面停滞时仍可释放与重新连接，Connect 继续拒绝，等待后续切片。真机与 Human 验收仍待完成；接管后降级时，恢复过程必须协调并保留暂停状态（[英文指南](docs/local-computer-video.md)，[中文指南](docs/local-computer-video.zh.md)，[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
 - 手机聊天页展示远程 Host 的分区和顺序，置顶分区可折叠，使用与其他分区相同的完整聊天行，展示消息摘要、未读及状态。搜索临时平铺列表；取消置顶后恢复原分区位置。整理模式与拖动操作留待后续切片（[#2571](https://github.com/BotHarness/DeepSeekBot/issues/2571)）。
 - 设备页和 CLI 新增默认关闭的加密局域网手机配对，手机经电脑批准后访问，撤销立即生效（[#2599](https://github.com/BotHarness/DeepSeekBot/issues/2599)）。
 - 新增电脑端 SSH 隧道命令，可在浏览器操作已运行的 Linux Host，并保留 Host 密钥校验、设备批准与吊销（[#2607](https://github.com/BotHarness/DeepSeekBot/issues/2607)）。
@@ -138,7 +138,7 @@
 - 修复 iOS 听写按钮点按或长按无法启动语音识别的问题，录音手势改为在原生开始事件后激活（[#2591](https://github.com/BotHarness/DeepSeekBot/issues/2591)）。
 - iOS 听写入口改用原生开始/停止按钮，居中显示麦克风图标，替换不可靠的长按拖动手势（[#2594](https://github.com/BotHarness/DeepSeekBot/issues/2594)）。
 - 修复 Android 聊天气泡中的 Markdown 列表缩成窄列的问题，覆盖长回复和嵌套列表（[#2596](https://github.com/BotHarness/BotHarness/issues/2596)）。
-- 修复 Android Release lint 拒绝加密局域网网络策略的问题，显式将原有四项例外限制为精确域名（[#2599](https://github.com/BotHarness/DeepSeekBot/issues/2599)）。
+- 修复 Android Release lint 拒绝加密局域网策略的问题，显式将原有四项例外限制为精确域名（[#2599](https://github.com/BotHarness/DeepSeekBot/issues/2599)）。
 - 退出登录和删除账号均需二次确认，并说明各自影响。确认后移除此手机中已记录归属该账号的连接，保留手动和未记录归属的旧配对；清理或删除未完成时保留恢复状态，远端结果未知时可再次确认仅清理此手机（[#2603](https://github.com/BotHarness/DeepSeekBot/issues/2603)）。
 - iOS 聊天听写不再因短暂停顿自动结束，可继续说话后手动点击停止（[#2608](https://github.com/BotHarness/DeepSeekBot/issues/2608)）。
 - 电脑断连时保留发送按钮并禁用，保留草稿，恢复连接后即可继续发送（[#2610](https://github.com/BotHarness/DeepSeekBot/issues/2610)）。
@@ -165,8 +165,8 @@
 
 - GitHub README 采用 DeepSeekBot 的像素小镇设计，附版本亮点和最近 30 天的仓库状态；README 和安装指南安装 `deepseekbot@1.4.1`（[#2373](https://github.com/BotHarness/DeepSeekBot/issues/2373)、[#2371](https://github.com/BotHarness/DeepSeekBot/pull/2371)）。
 - 新增面向测试者的**配对手机**教程（Tailscale 与扫码配对），并补充 Tobs Connect relay 的部署流程（[#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643)、[#2410](https://github.com/BotHarness/DeepSeekBot/issues/2410)）。
-- 补充首次私信可见性、回复滚动及工作状态行回归的区分方法，提供非 Connect 路由的原生验收流程，并明确源码测试的验证边界（[#2521](https://github.com/BotHarness/DeepSeekBot/issues/2521)、[English](../docs/agents/mobile-first-reply.md)、[中文](../docs/agents/mobile-first-reply.zh.md)）。
-- 明确 Web、桌面和原生手机端共同遵循的 [UI 设计规范](../docs/agents/ui-design.md)：优先用布局、图标和交互表达，说明简短并按需展示，同时保留无障碍支持与知情安全决策所需信息（[#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)）。
+- 补充首次私信可见性、回复滚动及工作状态行回归的区分方法，提供非 Connect 路由的原生验收流程，并明确源码测试的验证边界（[#2521](https://github.com/BotHarness/DeepSeekBot/issues/2521)、[English](docs/agents/mobile-first-reply.md)、[中文](docs/agents/mobile-first-reply.zh.md)）。
+- 明确 Web、桌面和原生手机端共同遵循的 [UI 设计规范](docs/agents/ui-design.md)：优先用布局、图标和交互表达，说明简短并按需展示，同时保留无障碍支持与知情安全决策所需信息（[#2542](https://github.com/BotHarness/DeepSeekBot/issues/2542)）。
 - 记录 Local Computer 视频设计：无图片回退、自配 TURN、Human 排他控制和持久 Bot 暂停；运行代码迁移与真机验收尚未完成（[ADR-0245](docs/adr/0245-local-computer-video-separates-media-control-and-pause.md)，[#2555](https://github.com/BotHarness/DeepSeekBot/issues/2555)）。
 
 ### Security
