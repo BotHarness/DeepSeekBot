@@ -7,12 +7,8 @@ import {
   verifyProductComposition,
   parseProductComposition,
 } from './packaged-profile.mjs';
-import { productDsh } from './product-artifacts.mjs';
-import {
-  qualifiedImProvider,
-  withQualifiedImProvider,
-  verifyQualifiedImProvider,
-} from './dev-im-provider.mjs';
+import { assertDshVersion } from './dsh-compatibility.mjs';
+import { withQualifiedImProvider, verifyQualifiedImProvider } from './dev-im-provider.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -32,22 +28,18 @@ import {
   assertInstalledGoModel,
   axModelPatch,
   axRuntimeWorkspace,
-  goSessionQualified,
+  withoutAxRuntimePatch,
+  installedGoAdapterSource,
 } from './dev-model.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-function dshCommand(worktree) {
+export function dshCommand(worktree) {
   const installedRoot = join(worktree, 'node_modules', '@deepseek-ai', 'dsh');
   const cli = join(installedRoot, 'lib', 'bin.js');
   if (!existsSync(cli)) {
     throw new Error(`local DSH CLI is missing in ${worktree}; run pnpm install there`);
   }
-  const expected = JSON.parse(readFileSync(join(worktree, 'package.json'), 'utf8'))
-    .devDependencies?.['@deepseek-ai/dsh'];
-  const actual = installedDshVersion(worktree);
-  if (actual !== expected) {
-    throw new Error(`local DSH CLI mismatch: expected ${expected}, found ${actual}`);
-  }
+  assertDshVersion(installedDshVersion(worktree));
   return [process.execPath, cli];
 }
 
@@ -66,6 +58,7 @@ function parseArgs(argv) {
     build: false,
     imProvider: false,
     productArtifacts: null,
+    dshVersion: null,
     json: false,
     trustedHosts: [],
     clientDiagnostics: process.env['BOTHARNESS_CLIENT_DIAGNOSTICS'] !== '0',
@@ -74,6 +67,10 @@ function parseArgs(argv) {
     const flag = argv[index];
     const next = argv[index + 1];
     switch (flag) {
+      case '--dsh-version':
+        options.dshVersion = assertDshVersion(next);
+        index += 1;
+        break;
       case '--home':
         options.home = resolve(next ?? '');
         index += 1;
@@ -142,23 +139,6 @@ function ensureProfile(options) {
   const env = { ...process.env, DSH_HOME: options.home };
   const runtime = options.runtime ?? options.worktree;
   const [command, cli] = dshCommand(runtime);
-  const profileCliManifest = join(
-    options.home,
-    'profiles',
-    'node_modules',
-    '@deepseek-ai',
-    'dsh',
-    'package.json',
-  );
-  if (existsSync(profileCliManifest)) {
-    const profileVersion = JSON.parse(readFileSync(profileCliManifest, 'utf8')).version;
-    const localVersion = installedDshVersion(runtime);
-    if (profileVersion !== localVersion) {
-      throw new Error(
-        `Profile was created with DSH ${profileVersion}, but this worktree uses ${localVersion}; choose a fresh --home`,
-      );
-    }
-  }
   if (!existsSync(manifestPath)) {
     run(
       command,
@@ -167,8 +147,6 @@ function ensureProfile(options) {
     );
   }
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  if (options.productArtifacts && installedDshVersion(runtime) !== productDsh)
-    throw new Error(`Qualified product artifacts require DSH ${productDsh}`);
   const base = options.productArtifacts
     ? packagedProfileManifest(manifest, options.productArtifacts)
     : developmentProfileManifest(manifest, options.worktree);
@@ -179,8 +157,6 @@ function ensureProfile(options) {
     if (migrated.length > 0 && !options.json)
       console.log(`Migrated into the deepseekbot umbrella: ${migrated.join(', ')}`);
   }
-  if (options.imProvider && installedDshVersion(options.worktree) !== qualifiedImProvider.dsh)
-    throw new Error(`Qualified IM provider requires DSH ${qualifiedImProvider.dsh}`);
   const composed = options.imProvider ? withQualifiedImProvider(base) : base;
   if (options.productArtifacts) {
     const workspace = join(profileDir, 'pnpm-workspace.yaml');
@@ -292,16 +268,10 @@ async function main() {
   const secret = resolveDevSecret();
   options.axModel = resolveAxModel();
   mkdirSync(options.home, { recursive: true });
-  if (options.productArtifacts || options.axModel) {
-    const version = options.productArtifacts
-      ? verifiedProductArtifacts(options.productArtifacts).dsh
-      : JSON.parse(readFileSync(join(options.worktree, 'package.json'), 'utf8')).devDependencies[
-          '@deepseek-ai/dsh'
-        ];
-    if (options.axModel && !goSessionQualified(version, options.productArtifacts !== null))
-      throw new Error(
-        'AX Go session qualification requires DSH 0.2.1-rc.3, or 0.2.0-rc.1 with product artifacts',
-      );
+  if (options.productArtifacts || options.axModel || options.dshVersion) {
+    if (options.productArtifacts) verifiedProductArtifacts(options.productArtifacts);
+    const version = options.dshVersion ?? installedDshVersion(options.worktree);
+    assertDshVersion(version);
     options.runtime = join(options.home, options.productArtifacts ? 'packaged-cli' : 'ax-cli');
     mkdirSync(options.runtime, { recursive: true });
     const runtimeWorkspace = join(options.runtime, 'pnpm-workspace.yaml');
@@ -310,17 +280,25 @@ async function main() {
         runtimeWorkspace,
         "packages: [.]\nallowBuilds:\n  '@deepseek-ai/dsh-subprocess-local': true\n  '@google/genai': false\n  koffi: true\n  node-pty: true\n  protobufjs: false\n",
       );
-    if (options.axModel)
-      writeFileSync(
-        runtimeWorkspace,
-        axRuntimeWorkspace(readFileSync(runtimeWorkspace, 'utf8'), options.runtime, version),
-      );
+    writeFileSync(runtimeWorkspace, withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')));
     writeFileSync(
       join(options.runtime, 'package.json'),
       `${JSON.stringify({ name: 'botharness-isolated-cli-qa', private: true, devDependencies: { '@deepseek-ai/dsh': version } }, null, 2)}\n`,
     );
     const [command, args] = pnpmCommand(['install']);
     run(command, args, { cwd: options.runtime });
+    if (options.axModel) {
+      writeFileSync(
+        runtimeWorkspace,
+        axRuntimeWorkspace(
+          readFileSync(runtimeWorkspace, 'utf8'),
+          options.runtime,
+          version,
+          installedGoAdapterSource(options.runtime),
+        ),
+      );
+      run(command, args, { cwd: options.runtime });
+    }
   }
   const profileDir = ensureProfile(options);
   if (options.axModel) {
@@ -358,6 +336,7 @@ async function main() {
       (profileCredential
         ? 'DSH profile credentials (verify with a real model call)'
         : 'missing (model calls will fail)'),
+    dshVersion: installedDshVersion(options.runtime ?? options.worktree),
     health,
     client: {
       state: 'unobserved',
@@ -405,7 +384,9 @@ async function main() {
   process.exitCode = 0;
 }
 
-main().catch((error) => {
-  console.error(String(error instanceof Error ? error.message : error));
-  process.exitCode = 1;
-});
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(String(error instanceof Error ? error.message : error));
+    process.exitCode = 1;
+  });
+}

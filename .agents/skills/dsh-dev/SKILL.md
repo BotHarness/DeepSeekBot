@@ -23,7 +23,7 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
-Use the worktree's local `@deepseek-ai/dsh@0.2.1-rc.3`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
+The reproducible build baseline is `@deepseek-ai/dsh@0.2.1-rc.3`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
 corepack pnpm build
@@ -451,3 +451,7 @@ rc.2 and still refuses rc.3. The ordinary rc.3 Host supplies its own native them
 widen the zoom lease or installer guard based on matching source hashes alone; native
 Desktop qualification remains separate. Keep Provider build provenance unchanged.
 The rc.3 file-tool and Go Session patches retain the reviewed rc.2 implementation.
+
+### Forward-compatible launch admission (#2713)
+
+Build pins and historical qualification versions are evidence, not runtime allowlists. `--dsh-version <version>` selects an isolated CLI without editing workspace dependencies; otherwise use the installed CLI. Native Host metadata owns the API floor (`>=0.2.0-0`, prereleases included), and Host-provided DSH modules have no npm peer ranges that exclude future prerelease tuples. The Go runtime first installs the selected native adapter, locates the unique matching request shape, and stages the reviewed patch at its actual line number; changed or ambiguous code is refused with a concrete diagnostic. This avoids pnpm patch failures caused only by line-number drift between rc versions; catalog and authenticated API checks still fail on real incompatibility. The optional zoom adapter checks its protocol, platform and transformed bytes rather than a Desktop version label. Stop a task-owned Host before switching its Profile runtime; never mutate another task’s Profile. Forward admission is not proof of future runtime behavior.

@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 移除下游开发启动的 rc 白名单，记录原生 Host 准入与可选缩放的协议检查（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）；DSH Context 与 Skill 版本不变。
+
 - 更新[本地开发指南](../dsh-dev/SKILL.md)，使用 rc.3 开发版本，并保留桌面缩放与 Provider 的独立验证范围；DSH/Cordis Context 和 Skill 行为不变（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
 
 - 新增下游 [Windows 到 Android 的 Local Computer 视频验证路径](../verify-deepseekbot/features/local-computer-video.md)，分别记录源码、本机呈现与 Human 验收；运行验证尚待完成，DSH/Cordis Context 保持不变（[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。

@@ -11,6 +11,7 @@ import {
   verifyProductComposition,
 } from './packaged-profile.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
+import { assertDshVersion } from './dsh-compatibility.mjs';
 
 export function installSourceProfile({ home, profile, artifacts, dsh = 'dsh' }) {
   home = resolve(home);
@@ -20,7 +21,7 @@ export function installSourceProfile({ home, profile, artifacts, dsh = 'dsh' }) 
     ['web', 'desktop', 'headless', 'sdk', 'sdk-minimal', 'acp'].includes(profile)
   )
     throw new Error('Choose a new custom Profile name');
-  const expected = verifiedProductArtifacts(artifacts);
+  verifiedProductArtifacts(artifacts);
   const directory = join(home, 'profiles', profile);
   if (existsSync(directory))
     throw new Error(
@@ -41,8 +42,7 @@ export function installSourceProfile({ home, profile, artifacts, dsh = 'dsh' }) 
     }
     return result.stdout;
   }
-  if (run(dsh, ['--version']).trim() !== expected.dsh)
-    throw new Error(`Install DSH ${expected.dsh} before preparing this Profile`);
+  const dshVersion = assertDshVersion(run(dsh, ['--version']).trim());
   const [pnpm, pnpmVersionArgs] = pnpmCommand(['--version']);
   if (run(pnpm, pnpmVersionArgs).trim() !== '12.4.2')
     throw new Error('Use pnpm 12.4.2 for this qualified installer');
@@ -60,7 +60,7 @@ export function installSourceProfile({ home, profile, artifacts, dsh = 'dsh' }) 
   verifyProductComposition(
     parseProductComposition(run(dsh, ['--profile', profile, '--dump-config'])),
   );
-  return { installed, profile, componentsVerified: true };
+  return { installed, profile, dshVersion, componentsVerified: true };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -130,3 +130,7 @@ is 0.2.1-rc.2. Unknown/missing releases retain the font-key scope and expose no 
 This runtime guard does not remove an already installed Profile package override or qualify
 that copied theme on another Host. Disable the override before switching outside the verified
 Desktop/Host/Client tuple; re-enable only after qualifying the new combination.
+
+## 2026-10-24 admission correction (#2713)
+
+The exact Desktop release checks above are superseded. Optional setup and the Client lease now check adapter protocol 1, platform, ownership and generated file integrity; the runtime release string is diagnostic information only. The theme converter still rejects unknown source bytes/import shapes because its transformation targets specific code, but identical code in a differently labelled release is admissible. Native interaction qualification remains separate from installation admission. This follows [ADR-0087’s current admission policy](0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md).

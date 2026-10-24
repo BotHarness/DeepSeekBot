@@ -4,6 +4,7 @@ import { createServer } from 'node:net';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { assertDshVersion } from './dsh-compatibility.mjs';
 import { prepareZipImportProof } from './e2e-zip-import-proof.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,8 +12,6 @@ const helper = join(root, 'scripts', 'dev-instance.mjs');
 const withDm = process.argv.includes('--with-dm');
 const home = mkdtempSync(join(tmpdir(), 'bh-e2e-web-'));
 const workspacePath = join(home, 'workspace');
-const expectedVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  .devDependencies['@deepseek-ai/dsh'];
 const env = {
   ...process.env,
   PATH: [join(root, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter),
@@ -22,9 +21,7 @@ function dshVersion() {
   const result = spawnSync('dsh', ['--version'], { cwd: root, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error('Installed DSH CLI is unavailable');
   const version = result.stdout.trim();
-  if (version !== expectedVersion) {
-    throw new Error(`Expected DSH ${expectedVersion}, found ${version}`);
-  }
+  assertDshVersion(version);
   return version;
 }
 

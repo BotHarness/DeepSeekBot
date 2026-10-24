@@ -14,15 +14,13 @@ import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
 export const productDsh = '0.2.1-rc.3';
-export const productDshRange = '>=0.2.0-rc.2 <0.3.0-0';
-export const productDshPeerRange = `${productDshRange} || >=0.2.1-0 <0.3.0-0`;
+export { productDshRange } from './dsh-compatibility.mjs';
 export const providerDshRange = '>=0.2.0-0';
-export const providerDshPeerRange = `${providerDshRange} || >=0.2.1-0`;
 export const productDshVersions = Object.freeze(['0.2.0-rc.2', '0.2.1-rc.2', productDsh]);
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.21',
+  version: '4.32.0-botharness.22',
   sourceManifestSha256: '3331e8f771a91abf396eb4e7ed5c0acc4c3b504cdccc7d715e37062708384cc2',
   sourceLockSha256: '3476c34c7d4515000d2617beaf2568b2a794b60de9b350cd8eafb7a2bf21adef',
   upstream: Object.freeze({
@@ -155,12 +153,9 @@ export function providerManifest(original) {
     ],
     engines: { node: '>=22', dsh: providerDshRange },
     peerDependencies: Object.fromEntries(
-      Object.entries(manifest.peerDependencies ?? {}).map(([name, range]) => [
-        name,
-        name === '@deepseek-ai/dsh' || name.startsWith('@deepseek-ai/dsh-')
-          ? providerDshPeerRange
-          : range,
-      ]),
+      Object.entries(manifest.peerDependencies ?? {}).filter(
+        ([name]) => name !== '@deepseek-ai/dsh' && !name.startsWith('@deepseek-ai/dsh-'),
+      ),
     ),
     dsh: {
       ...manifest.dsh,

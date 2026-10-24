@@ -28,7 +28,7 @@ hashes without downloading. These packages are Apache-2.0 and ship cloudflared's
 
 Computer and Browser are published and default-bundled inside `deepseekbot` (ADR-0160).
 Keep the qualified Provider source pinned; merged upstream PRs do not qualify an
-upstream replacement. DSH development targets `0.2.1-rc.3`; the fresh-Profile release matrix retains `0.2.0-rc.2` and `0.2.1-rc.2` and adds rc.3 (range `>=0.2.0-rc.2 <0.3.0-0`). A source upgrade is not qualification of a published package. Desktop zoom retains its separately pinned rc.2 theme and refuses rc.3 pending native qualification.
+upstream replacement. DSH development targets `0.2.1-rc.3`; the fresh-Profile release matrix retains `0.2.0-rc.2` and `0.2.1-rc.2` and adds rc.3 (range `>=0.2.0-0`). A source upgrade is not qualification of a published package. Desktop zoom retains a reproducible theme build input but checks protocol and content integrity instead of the runtime release label; native interaction qualification remains separate.
 
 The source packages stay private/0.0.0. The existing product packer creates public
 release manifests and precompiled entries in a separate staging directory. It

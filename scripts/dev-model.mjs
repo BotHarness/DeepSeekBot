@@ -26,19 +26,51 @@ export const GO_SESSION_PATCH = resolve(
 export const GO_RUNTIME_PATCH = 'patches/dsh-llm-pi-ai-0.2.1-rc.3.patch';
 
 export const GO_SESSION_DSH = '0.2.1-rc.3';
-export const GO_SESSION_PACKAGED_DSH = '0.2.0-rc.1';
 
-export function goSessionQualified(version, packaged) {
-  return version === GO_SESSION_DSH || (packaged && version === GO_SESSION_PACKAGED_DSH);
-}
-
-export function axRuntimeWorkspace(source, runtime, version = GO_SESSION_DSH) {
+export function withoutAxRuntimePatch(source) {
   const document = parseDocument(source);
   if (document.errors.length || !isMap(document.contents))
     throw new Error('Invalid AX runtime workspace');
+  const patches = document.get('patchedDependencies');
+  if (isMap(patches)) {
+    for (const key of Object.keys(patches.toJSON()))
+      if (key.startsWith('@deepseek-ai/dsh-llm-pi-ai@')) patches.delete(key);
+  }
+  return String(document);
+}
+
+export function goSessionPatch(adapterSource) {
+  const template = readFileSync(GO_SESSION_PATCH, 'utf8');
+  const lines = template.split('\n');
+  const hunk = lines.findIndex((line) => line.startsWith('@@ '));
+  const original = lines
+    .slice(hunk + 1)
+    .filter((line) => line.startsWith(' ') || line.startsWith('-'))
+    .map((line) => line.slice(1))
+    .join('\n');
+  const offset = adapterSource.indexOf(original);
+  if (offset < 0 || adapterSource.indexOf(original, offset + 1) >= 0)
+    throw new Error(
+      'AX Go adapter request shape is unsupported; cannot safely apply the Session header patch',
+    );
+  const line = adapterSource.slice(0, offset).split('\n').length;
+  return template.replace(/^@@ -\d+,7 \+\d+,10 @@$/m, `@@ -${line},7 +${line},10 @@`);
+}
+
+export function installedGoAdapterSource(runtime) {
+  const cli = createRequire(
+    realpathSync(join(runtime, 'node_modules/@deepseek-ai/dsh/lib/bin.js')),
+  );
+  const base = createRequire(cli.resolve('@deepseek-ai/dsh-base'));
+  return readFileSync(base.resolve('@deepseek-ai/dsh-llm-pi-ai'), 'utf8');
+}
+
+export function axRuntimeWorkspace(source, runtime, version = GO_SESSION_DSH, adapterSource) {
+  const document = parseDocument(withoutAxRuntimePatch(source));
   const stagedPatch = join(runtime, GO_RUNTIME_PATCH);
   mkdirSync(dirname(stagedPatch), { recursive: true });
-  copyFileSync(GO_SESSION_PATCH, stagedPatch);
+  if (adapterSource === undefined) copyFileSync(GO_SESSION_PATCH, stagedPatch);
+  else writeFileSync(stagedPatch, goSessionPatch(adapterSource));
   document.setIn(
     ['patchedDependencies', `@deepseek-ai/dsh-llm-pi-ai@${version}`],
     GO_RUNTIME_PATCH,

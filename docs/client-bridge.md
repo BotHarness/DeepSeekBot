@@ -127,6 +127,10 @@ corepack pnpm dev:client
 - 机器级测试密钥由启动器按进程环境、`~/.config/botharness/dev.env`、Keychain 顺序读取；现有 Profile 凭据也可被 DSH 使用。运行 `node scripts/dev-secret.mjs check` 只显示来源。若要让后续隔离 Profile 共用已有密钥，可运行 `node scripts/dev-secret.mjs adopt-profile --home <已有 DSH_HOME>`；此操作只写受保护的本机密钥文件。模型可用性仍以真实 DM 回复为准。
 - 自动回归：`node scripts/e2e-personabot-create.mjs` 创建自己的隔离 Profile，经认证 API 建立原生 Workspace、PersonaBot、DM 与 Git Memory，重启后核对同一身份和 Git HEAD，不发模型请求。
 
+### DSH version selection
+
+构建依赖固定为 rc.3 仅用于复现；启动器不要求安装版本与此固定值相等。`--dsh-version 0.2.0-rc.2`、`--dsh-version 0.2.1-rc.2` 或后续已发布的 rc 使用隔离 CLI，不修改工作区依赖。安装准入为 `>=0.2.0-0`（含预发布），没有后续版本上限或 rc 白名单；以真实补丁应用、模型目录与认证 API 检查报告具体不兼容。切换已有测试 Profile 的版本前须停止其所属 Host；不修改他人运行环境。原生 DSH 负责 Profile 解析，准入通过不等于所有未来版本已验证。
+
 ### Qualified optional IM provider
 
 For real packaged-product qualification, use `--product-artifacts` instead of

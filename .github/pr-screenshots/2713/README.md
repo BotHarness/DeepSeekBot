@@ -16,3 +16,11 @@ This is compatibility evidence, not a before/after UI redesign or native Desktop
 - A separate docs build overlapped the suite's internal Astro build in the same output directory and failed on a missing prerender chunk. The failed reproducible output was removed only after both builds exited. Once space recovered, the docs release-surface test (including its Astro build) passed serially in 36 seconds. The original full-suite result remains recorded above.
 
 Native Desktop, device QA, source IM Provider requalification, published-package fresh-Profile installation and Human QA remain open. No merge, release, global CLI replacement or migration of an existing Human/shared Profile occurred.
+
+## Forward admission follow-up
+
+The subsequent Human-requested change removes exact runtime-label gates from development launch, source-profile installation and optional zoom setup/lease. Build pins and historical qualification versions remain evidence. DSH engines now admit `>=0.2.0-0`, including later prereleases; Host-provided native modules omit npm peers that would exclude unknown prerelease tuples. Theme source hashes and adapter protocol checks remain.
+
+Real isolated launches of 0.2.0-rc.2, 0.2.1-rc.2 and 0.2.1-rc.3 passed authenticated plugin API checks using the same stopped task-owned Profile. Each Host exited and each port was released before the next version. The initial older-version install exposed patch line-number sensitivity; runtime patch generation now requires a unique matching request shape and uses its actual line location. These checks prove API startup and version transitions, not a new model reply or native zoom interaction. The earlier screenshot predates this follow-up; it is retained as the initial rc.3 model-reply evidence.
+
+Follow-up automated validation: 112 compatibility/launcher/theme tests passed, 84 packaging/provider tests passed, and four source-installer admission cases passed. Build, root typecheck and lint passed (existing lint warnings). The IM Provider candidate is `.22` for changed install metadata; the published `.21` archive and registry integrity record are unchanged.

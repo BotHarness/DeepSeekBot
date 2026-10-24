@@ -19,7 +19,7 @@ import {
   axModelEnvironment,
   axModelPatch,
   axRuntimeWorkspace,
-  goSessionQualified,
+  goSessionPatch,
   DEFAULT_GO_MODEL,
   GO_RUNTIME_PATCH,
   GO_SESSION_PATCH,
@@ -43,12 +43,13 @@ describe('AX native OpenCode Go reuse', () => {
     const runtime = join(root, 'isolated CLI with spaces');
     const workspace = parse(
       axRuntimeWorkspace(
-        'packages: [.]\nallowBuilds: {koffi: true}\npatchedDependencies: {other: other.patch}\n',
+        'packages: [.]\nallowBuilds: {koffi: true}\npatchedDependencies: {other: other.patch, \"@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2\": old.patch}\n',
         runtime,
       ),
     );
     expect(workspace.allowBuilds).toEqual({ koffi: true });
     expect(workspace.patchedDependencies.other).toBe('other.patch');
+    expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2']).toBeUndefined();
     expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.3']).toBe(
       GO_RUNTIME_PATCH,
     );
@@ -58,7 +59,7 @@ describe('AX native OpenCode Go reuse', () => {
     axRuntimeWorkspace('packages: [.]\n', runtime);
     expect(readFileSync(staged)).toEqual(readFileSync(GO_SESSION_PATCH));
   });
-  it('keys the staged Go patch by the installed DSH and accepts rc.1 only for product artifacts', () => {
+  it('keys the staged Go patch by the selected runtime rather than a qualification allowlist', () => {
     const { root } = fixture();
     const runtime = join(root, 'packaged CLI');
     const workspace = parse(axRuntimeWorkspace('packages: [.]\n', runtime, '0.2.0-rc.1'));
@@ -66,11 +67,19 @@ describe('AX native OpenCode Go reuse', () => {
       '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.1': GO_RUNTIME_PATCH,
     });
     expect(readFileSync(join(runtime, GO_RUNTIME_PATCH))).toEqual(readFileSync(GO_SESSION_PATCH));
-    expect(goSessionQualified('0.2.1-rc.3', false)).toBe(true);
-    expect(goSessionQualified('0.2.1-rc.3', true)).toBe(true);
-    expect(goSessionQualified('0.2.0-rc.1', true)).toBe(true);
-    expect(goSessionQualified('0.2.0-rc.1', false)).toBe(false);
-    expect(goSessionQualified('0.2.1', true)).toBe(false);
+  });
+  it('relocates the reviewed patch to matching code rather than a version-specific line', () => {
+    const patch = readFileSync(GO_SESSION_PATCH, 'utf8');
+    const lines = patch.split('\n');
+    const start = lines.findIndex((line) => line.startsWith('@@ '));
+    const original = lines
+      .slice(start + 1)
+      .filter((line) => line.startsWith(' ') || line.startsWith('-'))
+      .map((line) => line.slice(1))
+      .join('\n');
+    expect(goSessionPatch('prefix\n' + original)).toContain('@@ -2,7 +2,10 @@');
+    expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
+    expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
   });
   it('requires explicit setup, then shares a protected key with successive launches', () => {
     const { path } = fixture();

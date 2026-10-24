@@ -56,7 +56,7 @@ describe('product-owned desktop theme payload', () => {
       });
       if (mutation === 'manifest') {
         const manifest = JSON.parse(readFileSync(join(changed, 'package.json'), 'utf8'));
-        manifest.version = '0.2.1-rc.3';
+        manifest.name = 'unexpected-theme';
         writeFileSync(join(changed, 'package.json'), JSON.stringify(manifest));
       }
       if (mutation === 'host' || mutation === 'both')

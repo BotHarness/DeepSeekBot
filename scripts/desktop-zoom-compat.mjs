@@ -28,10 +28,10 @@ export function adaptZoomTheme(client) {
 
         const installFontKeys = () => installFontSizeShortcuts(ctx, delta => this.adjustFontSizes(delta));
         let fontKeys = installFontKeys();
-        if (location.protocol === 'dsh-app:' && location.hostname === 'app' && ['darwin', 'win32'].includes(document.documentElement.dataset.platform) && window.__DSH_BOOT__?.release?.version === '0.2.1-rc.2') {
+        if (location.protocol === 'dsh-app:' && location.hostname === 'app' && ['darwin', 'win32'].includes(document.documentElement.dataset.platform)) {
           let alive = true, held = false;
           const compatibility = {
-            version: 1, desktopVersion: '0.2.1-rc.2',
+            version: 1, desktopVersion: window.__DSH_BOOT__?.release?.version,
             platform: document.documentElement.dataset.platform === 'win32' ? 'windows' : 'macos',
             async acquire() {
               if (!alive || held) throw Error('zoom-compatibility-unavailable');
@@ -62,7 +62,7 @@ function transformZoomTheme(source, { packaged = false, schemaModule } = {}) {
   const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
   const supported =
     manifest.name === '@deepseek-ai/dsh-client-ui-theme' &&
-    manifest.version === ZOOM_THEME_VERSION &&
+    typeof manifest.version === 'string' &&
     manifest.license === 'MIT';
   if (!packaged && !supported) throw Error('zoom-theme-version-unsupported');
   const client = readFileSync(join(source, 'lib/client.js'), 'utf8');
