@@ -305,6 +305,26 @@ export function clearChannelDock(storage: ChannelDockStorage | undefined = brows
 
 type GridNode = SerializedGridObject<{ views: string[]; activeView?: string; id: string }>;
 
+export function restoreDockGaps(layout: SerializedDockview, gap: number): SerializedDockview {
+  if (gap <= 0) return layout;
+  const visit = (node: GridNode): GridNode => {
+    if (node.type === 'leaf') return node;
+    const children = node.data as GridNode[];
+    const visible = children.filter((child) => child.visible !== false).length;
+    const offset = (gap * Math.max(0, visible - 1)) / Math.max(1, visible);
+    return {
+      ...node,
+      data: children.map((child) => ({
+        ...visit(child),
+        ...(child.visible !== false && child.size !== undefined
+          ? { size: child.size + offset }
+          : {}),
+      })),
+    };
+  };
+  return { ...layout, grid: { ...layout.grid, root: visit(layout.grid.root) } };
+}
+
 function firstPanel(node: GridNode): string | undefined {
   if (node.type === 'leaf') return (node.data as { views: string[] }).views[0];
   for (const child of node.data as GridNode[]) {

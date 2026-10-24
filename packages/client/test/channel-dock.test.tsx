@@ -140,6 +140,7 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('desktop Bot mode dock', () => {
@@ -1489,4 +1490,81 @@ it('reveals a newer normal layout on an external Client update without overwriti
   expect(invalidate).toHaveBeenCalledOnce();
   expect(registry.isOpen('example:help')).toBe(false);
   expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBe(JSON.stringify(newer));
+});
+
+it('keeps saved outer and nested geometry stable across workspace remounts', async () => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1500);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(900);
+  const { WorkspaceContext, WORKSPACE_CHANNELS, WORKSPACE_HOME } =
+    await import('../src/client/workspace-context.js');
+  let dock: import('dockview-react').DockviewApi | undefined;
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    [CHANNEL_BODY_PANEL, 'Messages'],
+    [WORKSPACE_CHANNELS, 'Channels'],
+    [WORKSPACE_HOME, 'Home'],
+    ['computer', 'Computer'],
+  ])
+    registry.register({
+      id: id!,
+      title: title!,
+      scope: 'global',
+      component: () => createElement('input', { 'data-content': id, defaultValue: title }),
+    });
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      {
+        value: {
+          rail: (api) => {
+            dock = api;
+            return createElement('nav');
+          },
+        },
+      },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        panels: registry.panels(),
+        registry,
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  act(() => {
+    dock!.layout(1500, 900);
+    registry.open(CHANNEL_BODY_PANEL);
+    dock!.getPanel(CHANNEL_BODY_PANEL)!.api.moveTo({ position: 'right' });
+    registry.open('computer');
+  });
+  await settle();
+  act(() => {
+    dock!.getPanel('computer')!.api.moveTo({
+      group: dock!.getPanel(CHANNEL_BODY_PANEL)!.group,
+      position: 'bottom',
+    });
+    dock!.getPanel(WORKSPACE_CHANNELS)!.group.api.setSize({ width: 265 });
+    dock!.getPanel(WORKSPACE_HOME)!.group.api.setSize({ width: 550 });
+    dock!.getPanel('computer')!.group.api.setSize({ height: 330 });
+  });
+  await settle();
+  const grid = () =>
+    JSON.parse(
+      JSON.stringify(dock!.toJSON().grid, (_key, value) =>
+        typeof value === 'number' ? Math.round(value * 1e6) / 1e6 : value,
+      ),
+    );
+  const before = grid();
+  for (let index = 0; index < 3; index++) {
+    act(() => root.unmount());
+    root = createRoot(host);
+    act(() => root.render(view()));
+    await settle();
+    act(() => dock!.layout(1500, 900));
+    await settle();
+    expect(grid()).toEqual(before);
+  }
 });

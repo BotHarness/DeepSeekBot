@@ -27,6 +27,7 @@ With the task browser's local CDP endpoint and exact page target ID, run `deepse
 ## Gotchas
 
 - S1 is pending Human acceptance. S2–S4 remain gated; the Human explicitly pulled the Quick Switcher/FAQ search behavior forward as feedback. This does not qualify the rest of S4.
+- Workspace reload must preserve saved outer and nested geometry exactly. Dockview serializes visible sizes excluding theme gaps; the layout owner adds those gaps back only when restoring saved geometry. A normal-refresh control reproduced drift before this correction; do not weaken equality assertions.
 - Use the observed accessible language; a navigation idle timeout is not a settings failure.
 - Preserve the first failed observation before a retry. Native Desktop results must be recorded separately from Web.
 - Never navigate another session's native window or use a model response as proof of layout/draft behavior.

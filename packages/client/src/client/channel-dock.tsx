@@ -64,6 +64,7 @@ import {
   DEFAULT_DOCK_PANELS,
   pruneChannelDock,
   dockPanelGap,
+  restoreDockGaps,
   readChannelDock,
   restoreDockVisibility,
   resolveDefaultPosition,
@@ -1141,7 +1142,7 @@ export function ChannelDock({
       if (workspace && pruned.layout === undefined) restored = true;
       if (pruned.layout !== undefined) {
         try {
-          ready.fromJSON(pruned.layout);
+          ready.fromJSON(restoreDockGaps(pruned.layout, workspace ? gapRef.current : 0));
           restored =
             !!workspace ||
             ready.getPanel(CHANNEL_BODY_PANEL) !== undefined ||
