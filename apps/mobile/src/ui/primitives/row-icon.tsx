@@ -6,6 +6,9 @@ import { SystemSymbol } from './system-symbol';
 const ROW_ICONS = {
   language: { ios: 'globe', android: 'translate' },
   appearance: { ios: 'circle.lefthalf.filled', android: 'contrast' },
+  system: { ios: 'iphone', android: 'smartphone' },
+  light: { ios: 'sun.max', android: 'light_mode' },
+  dark: { ios: 'moon', android: 'dark_mode' },
   model: { ios: 'cpu', android: 'memory' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
   notifications: { ios: 'bell', android: 'notifications' },

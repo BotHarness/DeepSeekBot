@@ -1,6 +1,12 @@
 import { createElement, type ReactNode } from 'react';
 
-type Modifier = { onClick?: () => void; description?: string; id?: string; selected?: boolean };
+type Modifier = {
+  onClick?: () => void;
+  description?: string;
+  id?: string;
+  selected?: boolean;
+  fill?: string;
+};
 const pass = ({ children }: { children?: ReactNode }) => children ?? null;
 
 export const components = {
@@ -21,6 +27,7 @@ export const components = {
         'aria-checked': modifiers?.find((modifier) => modifier.selected !== undefined)?.selected,
         'data-menu-item': onClick ? '' : undefined,
         'data-testid': modifiers?.find((modifier) => modifier.id)?.id,
+        'data-fill': modifiers?.find((modifier) => modifier.fill)?.fill,
         'aria-label': modifiers?.find((modifier) => modifier.description)?.description,
       },
       children,
@@ -38,7 +45,7 @@ export const components = {
 
 export const modifiers = {
   Shapes: { RoundedCorner: () => ({}), Circle: {} },
-  background: () => ({}),
+  background: (fill: string) => ({ fill }),
   clickable: (onClick: () => void) => ({ onClick }),
   clip: () => ({}),
   defaultMinSize: () => ({}),
