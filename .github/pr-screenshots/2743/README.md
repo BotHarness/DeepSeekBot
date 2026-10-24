@@ -1,0 +1,11 @@
+# Android merged-main recheck
+
+Actual physical Android API36 captures from owner-cut batch windows-tobs-2743, frozen merged main d578ce0505242577bc8b5285c7661e77454da1ab. Fresh Expo58.0.19 CNG arm64 bundled Release; same development package/signer, install-in-place. Installed/pulled-back APK SHA256 f0d41386af813ef4ce48175167ec6f1d02de42cb67acc4f5577afcea6b9cadc3; embedded JS f97450dc35a62e087c0631e628943c7c4f4375ec3ee64cf1ae45b1bfb489f827; native fingerprint27e27129fb2ea0c0402bfb979ac2064cbc83ba72.
+
+Default/Chibi x English/Chinese 4/4 PASS: actual launcher cold start, retained connection, Tobs Dev/托布 Dev labels, real SEND text and SEND_MULTIPLE two-PDF target/preview/draft/Host commits, legacy development VIEW pairing entry, About/connect copy. Eight own inert messages were sent only to a task-owned zero-Bot group; each PDF599 bytes and Host download hashes match. The Chibi alias failure reported for the earlier2737 batch does not reproduce after merged2743. System chooser artwork remains the application's default artwork; launcher artwork follows Chibi.
+
+These eight screenshots were re-inspected before publication and contain only app/target crops and inert QA content. Status bars, notifications, computer/device names, routes, identifiers, credentials and unrelated content excluded. Original40 inspected crops/32 native XML, private authority/build/install/cleanup receipts remain local. No raw XML or private paths published.
+
+Original25Bot/27Channel/6Device identities and pairing keys/timestamps retained, including24scrollBots/DMs. Production APK unchanged; own test group and four inert phone files removed. Original default icon, appSystem/System, OSzhCN/nightyes/font1 and empty app locale restored; final connectedHome12rows. Host Job qualified closed, own PIDs absent, ports closed, exact lease released. Installed development build remains at frozen main.
+
+UNTESTED: iOS; store app installation/upgrade; camera/new pairing; model; FCM; full font/theme/accessibility matrices. Store Tobs/托布 generated-resource PASS belongs to original2737 run and is separate from store-upgrade acceptance.
