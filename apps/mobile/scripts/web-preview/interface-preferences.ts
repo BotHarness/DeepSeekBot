@@ -1,7 +1,7 @@
 import { getLocales } from 'expo-localization';
 import { useSyncExternalStore } from 'react';
 
-import { interfacePreferences } from './interface-preferences';
+import { interfacePreferences } from '../../src/ui/interface-preferences';
 
 const key = 'deepseekbot.interface.v1';
 const refreshLocales = () =>
