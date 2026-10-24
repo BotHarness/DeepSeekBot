@@ -1,3 +1,4 @@
+// Retained qualification logs keep their original tool names; this reader does not register tools.
 import assert from 'node:assert/strict';
 
 export function compactNative(snapshot) {
@@ -143,7 +144,7 @@ export function checkNativeWait({
   const unrelated = orchestrator.events.find(
     (e) =>
       e.type === 'tool/call' &&
-      e.data.name === 'bot_send_message' &&
+      ['bot_send_message', 'channel_send'].includes(e.data.name) &&
       JSON.parse(e.data.arguments).body === 'UNRELATED_REPLY_1036',
   );
   assert.ok(unrelated, 'actual model-originated unrelated bot_send_message');

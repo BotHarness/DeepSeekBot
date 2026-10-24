@@ -1,3 +1,4 @@
+// Retained qualification logs keep their original tool names; this reader does not register tools.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 
@@ -158,7 +159,7 @@ export function checkTimedQuestion(proof) {
     const send = after.events.find(
       (event) =>
         event.type === 'tool/call' &&
-        event.data.name === 'bot_send_message' &&
+        ['bot_send_message', 'channel_send'].includes(event.data.name) &&
         JSON.parse(event.data.arguments).body === body,
     );
     assert.ok(send, 'actual native bot_send_message: ' + body);
@@ -260,7 +261,7 @@ export function checkTimedQuestion(proof) {
     after.events.some(
       (event) =>
         event.type === 'tool/call' &&
-        !['bot_send_message', 'ask_user_question'].includes(event.data.name),
+        !['bot_send_message', 'channel_send', 'ask_user_question'].includes(event.data.name),
     ),
     false,
     'only the declared synthetic tools executed',
