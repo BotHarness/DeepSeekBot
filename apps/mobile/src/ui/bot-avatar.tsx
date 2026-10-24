@@ -15,7 +15,8 @@ import Svg, { Rect } from 'react-native-svg';
 
 import { avatarSvg } from '../../../../packages/core/src/bots/avatar-appearance';
 import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary-color';
-import type { RosterBot } from '../host/client';
+import type { RemoteSource, RosterBot } from '../host/client';
+import { ResourceImage } from './primitives/resource-image';
 import { stateRing } from './design/tokens';
 import { useMounted } from './mounted';
 import { stateColor, useTheme } from './theme';
@@ -101,16 +102,6 @@ export function BotAvatar({
   corner?: number;
 }) {
   const theme = useTheme();
-  const svg = useMemo(() => {
-    if (bot.avatarUrl !== undefined) return undefined;
-    const recipe = resolvedAvatarRecipe({
-      slug: bot.slug,
-      displayName: bot.displayName,
-      appearance: bot.appearance,
-      avatarSeed: bot.avatarSeed,
-    });
-    return recipe === undefined ? undefined : avatarSvg(recipe);
-  }, [bot.avatarUrl, bot.slug, bot.displayName, bot.appearance, bot.avatarSeed]);
   const frame = ring ? stateRing.inset * 2 : 0;
   const box = size + frame;
   const outerCorner = corner === undefined ? box / 2 : corner + frame / 2;
@@ -133,29 +124,65 @@ export function BotAvatar({
           running={running}
         />
       ) : null}
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: corner ?? size / 2,
-          overflow: 'hidden',
-          backgroundColor: theme.border,
-        }}
-      >
-        {bot.avatarUrl !== undefined ? (
-          <Image
-            source={{ uri: bot.avatarUrl, headers: bot.avatarHeaders }}
-            style={{ width: size, height: size }}
-          />
-        ) : svg !== undefined ? (
-          <CachedImage
-            source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
-            cachePolicy="memory"
-            contentFit="contain"
-            style={{ width: size, height: size }}
-          />
-        ) : null}
-      </View>
+      <BotPortrait bot={bot} size={size} {...(corner === undefined ? {} : { corner })} />
+    </View>
+  );
+}
+
+export function BotPortrait({
+  bot,
+  size,
+  corner,
+}: {
+  bot: Pick<
+    RosterBot,
+    'slug' | 'displayName' | 'avatarUrl' | 'avatarHeaders' | 'appearance' | 'avatarSeed'
+  > & {
+    avatarSource?: RemoteSource;
+  };
+  size: number;
+  corner?: number;
+}) {
+  const theme = useTheme();
+  const svg = useMemo(() => {
+    if (bot.avatarSource !== undefined || bot.avatarUrl !== undefined) return undefined;
+    const recipe = resolvedAvatarRecipe({
+      slug: bot.slug,
+      displayName: bot.displayName,
+      appearance: bot.appearance,
+      avatarSeed: bot.avatarSeed,
+    });
+    return recipe === undefined ? undefined : avatarSvg(recipe);
+  }, [bot.avatarSource, bot.avatarUrl, bot.slug, bot.displayName, bot.appearance, bot.avatarSeed]);
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        borderRadius: corner ?? size / 2,
+        overflow: 'hidden',
+        backgroundColor: theme.border,
+      }}
+    >
+      {bot.avatarSource !== undefined ? (
+        <ResourceImage
+          source={bot.avatarSource}
+          contentFit="cover"
+          style={{ width: size, height: size }}
+        />
+      ) : bot.avatarUrl !== undefined ? (
+        <Image
+          source={{ uri: bot.avatarUrl, headers: bot.avatarHeaders }}
+          style={{ width: size, height: size }}
+        />
+      ) : svg !== undefined ? (
+        <CachedImage
+          source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
+          cachePolicy="memory"
+          contentFit="contain"
+          style={{ width: size, height: size }}
+        />
+      ) : null}
     </View>
   );
 }

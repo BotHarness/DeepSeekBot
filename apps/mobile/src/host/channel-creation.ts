@@ -1,6 +1,10 @@
-export interface ChannelCandidate {
-  slug: string;
-  displayName: string;
+import type { RemoteSource, RosterBot } from './client';
+
+export interface ChannelCandidate extends Pick<
+  RosterBot,
+  'slug' | 'displayName' | 'appearance' | 'avatarSeed'
+> {
+  avatarSource?: RemoteSource;
 }
 export type ChannelCreationRecord = {
   hostId: string;
