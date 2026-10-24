@@ -12,7 +12,13 @@ const withIosBrand = require('./with-ios-brand');
 afterEach(() => vi.unstubAllEnvs());
 
 it.each([
-  ['store', 'Tobs', '托布 Tobs', 'app.deepseekbot.mobile', ['deepseekbot', 'app.deepseekbot.mobile']],
+  [
+    'store',
+    'Tobs',
+    '托布 Tobs',
+    'app.deepseekbot.mobile',
+    ['deepseekbot', 'app.deepseekbot.mobile'],
+  ],
   [
     'development',
     'Tobs Dev',
