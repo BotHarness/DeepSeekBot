@@ -110,9 +110,9 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 - **纯净门禁**：跨插件只允许 `import type`，不得值导入；跨包协作走 Cordis 服务或 slot。
 - **构建**：共享 preset（`clientBundle()`）未发布，等价构建已在根 `tsdown.config.ts`（`clientBundleOptions`）实现：banner/footer 生成 closure factory，`pnpm build` 产出 `lib/client.js` + `lib/client.js.map`。契约由 `packages/client/test/client-bundle.test.ts` 覆盖（自注册、只外置 shell 基线、插件注册）。剩余风险转移到 M3.5：把该 Loader entry 装进真实 profile 并加载。
 
-## 7. 本地开发环路（DSH 0.2.0 RC2）
+## 7. 本地开发环路
 
-日常 UI 迭代可使用隔离 Web Profile，或在原生 Windows checkout 的官方 Desktop 上使用本地链接 Client；官方 Desktop 的安装、文件夹选择和重启行为仍需原生验收。每个工作树使用独立的 DSH_HOME 与端口，启动器固定调用该工作树安装的 DSH CLI，并在版本不符时失败，避免误用系统级旧版 CLI。
+日常 UI 迭代可使用隔离 Web Profile，或在原生 Windows checkout 的官方 Desktop 上使用本地链接 Client；官方 Desktop 的安装、文件夹选择和重启行为仍需原生验收。每个工作树使用独立的 DSH_HOME 与端口，启动器使用工作树已安装的 CLI，或通过 `--dsh-version` 选择独立运行时；不要求它与 SDK 固定版本一致。
 
 ```bash
 corepack pnpm install --frozen-lockfile
@@ -127,6 +127,10 @@ corepack pnpm dev:client
 - 机器级测试密钥由启动器按进程环境、`~/.config/botharness/dev.env`、Keychain 顺序读取；现有 Profile 凭据也可被 DSH 使用。运行 `node scripts/dev-secret.mjs check` 只显示来源。若要让后续隔离 Profile 共用已有密钥，可运行 `node scripts/dev-secret.mjs adopt-profile --home <已有 DSH_HOME>`；此操作只写受保护的本机密钥文件。模型可用性仍以真实 DM 回复为准。
 - 自动回归：`node scripts/e2e-personabot-create.mjs` 创建自己的隔离 Profile，经认证 API 建立原生 Workspace、PersonaBot、DM 与 Git Memory，重启后核对同一身份和 Git HEAD，不发模型请求。
 
+### DSH version selection
+
+构建依赖固定为 rc.3 仅用于复现；启动器不要求安装版本与此固定值相等。`--dsh-version 0.2.0-rc.2`、`--dsh-version 0.2.1-rc.2` 或后续已发布的 rc 使用隔离 CLI，不修改工作区依赖。安装准入为 `>=0.2.0-0`（含预发布），没有后续版本上限或 rc 白名单；以真实补丁应用、模型目录与认证 API 检查报告具体不兼容。切换已有测试 Profile 的版本前须停止其所属 Host；不修改他人运行环境。原生 DSH 负责 Profile 解析，准入通过不等于所有未来版本已验证。
+
 ### Qualified optional IM provider
 
 For real packaged-product qualification, use `--product-artifacts` instead of
@@ -140,7 +144,7 @@ resolver cannot substitute workspace-linked Core/Client for the tarballs.
 node scripts/dev-instance.mjs --home /tmp/bh-im-qa --port 31968 --im-provider --json
 ```
 
-仅对已停止的隔离 Profile 执行；重启同一 Profile 时仍传入 `--im-provider`，以重复校验。启动器使用 Git 完整提交 `dc9af0181e451b554dd3e3ceeb594d18f8b21df6` 与 DSH `0.2.0-rc.1`，校验 Bundle、入口及运行时代码 digest 后才启动 Host；不依赖另一份 provider 本地源码。安装摘要明确标注 `upstreamReleased: false`。此完整 fork 保留附件、回显与独立回复身份契约；群／话题上下文读取绑定当前独占 Consumer 生命周期，释放或替换后拒绝返回正在读取的结果；上游 PR 是否合并不阻挡此固定提交使用（[#789](https://github.com/BotHarness/BotHarness/issues/789)）。默认启动不安装它，原 npm `4.32.0` 仍不满足账号校验和条件发送契约。此入口不会发布包，也不是生产启用许可（[ADR-0104](adr/0104-isolated-im-profiles-pin-a-qualified-temporary-provider-fork.md)）。
+仅对已停止的隔离 Profile 执行；重启同一 Profile 时仍传入 `--im-provider`，以重复校验。当前 Provider 来源记录为 Git 完整提交 `beaed4a6dabb583654d28fb09298716267039b4a`，开发资格记录为 DSH `0.2.1-rc.2`，这些来源记录不限制实际启动的 DSH 版本；校验 Bundle、入口及运行时代码 digest 后才启动 Host；不依赖另一份 provider 本地源码。安装摘要明确标注 `upstreamReleased: false`。此完整 fork 保留附件、回显与独立回复身份契约；群／话题上下文读取绑定当前独占 Consumer 生命周期，释放或替换后拒绝返回正在读取的结果；上游 PR 是否合并不阻挡此固定提交使用（[#789](https://github.com/BotHarness/BotHarness/issues/789)）。默认启动不安装它，原 npm `4.32.0` 仍不满足账号校验和条件发送契约。此入口不会发布包，也不是生产启用许可（[ADR-0104](adr/0104-isolated-im-profiles-pin-a-qualified-temporary-provider-fork.md)）。
 
 在 dsh-im 原设置中配置测试应用，并保存、测试仅含测试者与 Bot 的目标群；凭据交由 DSH credentials service，不复制到 BotHarness。打开 PersonaBot Profile → IM connection，选择已认证账号与已测试目标，显式授权后发送一条唯一测试文本。预期 Recent sends 显示 Platform accepted，并在目标群核对同一文本；这不代表送达或已读。停止本次启动摘要中的确切 PID，再以相同参数启动：绑定与发送历史应保留，不自动重发。
 

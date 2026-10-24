@@ -9,6 +9,18 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 补充 Profile 路径及参数检查、macOS/Linux 独立后台准备进程追踪，并明确 Windows 与环境继承的验证边界 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- 补充安装与 Host 进程归属持久化、清理期间重复扫描及 Windows 独立 Home 并行的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- 补充整个 Home 的运行归属、启动失败清理及 Go 原生已修复时跳过补丁的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- 修正下游验证器的实际运行时诊断，移除产物及桌面 QA 残留版本门槛；Go 补丁使用实际适配器版本（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
+
+- 移除下游开发启动的 rc 白名单，记录原生 Host 准入与可选缩放的协议检查（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）；DSH Context 与 Skill 版本不变。
+
+- 更新[本地开发指南](../dsh-dev/SKILL.md)，使用 rc.3 开发版本，并保留桌面缩放与 Provider 的独立验证范围；DSH/Cordis Context 和 Skill 行为不变（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
+
 - 新增下游 [Windows 到 Android 的 Local Computer 视频验证路径](../verify-deepseekbot/features/local-computer-video.md)，分别记录源码、本机呈现与 Human 验收；运行验证尚待完成，DSH/Cordis Context 保持不变（[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录原生提问回答器的优先顺序，并以 DSH `0.2.1-rc.2` 核验；DSH／Cordis Context 与 Skill 行为保持不变（[#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)）。
 

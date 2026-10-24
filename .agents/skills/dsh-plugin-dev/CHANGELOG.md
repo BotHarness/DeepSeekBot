@@ -10,6 +10,18 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented Profile path/argument refusal and macOS/Linux detached preparation descendant tracking, with explicit Windows and environment-inheritance limits ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Documented persisted preparation/Host process ownership, repeated shutdown scans and independent Windows Homes ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Documented Home-wide runtime ownership, failed-start cleanup and skipping an already-native Go fix ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Corrected downstream verifier runtime reporting and removed leftover artifact/desktop-QA release-label gates; Go patches follow the installed adapter version ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
+- Removed downstream development-launch rc allowlists; documented native Host admission and protocol-based optional zoom checks ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)). DSH Context and Skill version remain unchanged.
+
+- Updated the [local development guide](../dsh-dev/SKILL.md) for the rc.3 development pin and preserved separate Desktop zoom and Provider qualification; DSH/Cordis Context and Skill behavior are unchanged ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
 - Added the downstream [Windows-to-Android Local Computer video journey](../verify-deepseekbot/features/local-computer-video.md), with separate source, native presentation and Human gates; runtime qualification remains pending and DSH/Cordis Context is unchanged ([#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)).
 - Documented native question answerer precedence in the [local development guide](../dsh-dev/SKILL.md), verified on DSH `0.2.1-rc.2`; DSH/Cordis Context and Skill behavior are unchanged ([#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)).
 

@@ -1,9 +1,11 @@
+import { processIsRunning } from './dev-instance-lifecycle.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { assertDshVersion } from './dsh-compatibility.mjs';
 import { prepareZipImportProof } from './e2e-zip-import-proof.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,8 +13,6 @@ const helper = join(root, 'scripts', 'dev-instance.mjs');
 const withDm = process.argv.includes('--with-dm');
 const home = mkdtempSync(join(tmpdir(), 'bh-e2e-web-'));
 const workspacePath = join(home, 'workspace');
-const expectedVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  .devDependencies['@deepseek-ai/dsh'];
 const env = {
   ...process.env,
   PATH: [join(root, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter),
@@ -22,9 +22,7 @@ function dshVersion() {
   const result = spawnSync('dsh', ['--version'], { cwd: root, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error('Installed DSH CLI is unavailable');
   const version = result.stdout.trim();
-  if (version !== expectedVersion) {
-    throw new Error(`Expected DSH ${expectedVersion}, found ${version}`);
-  }
+  assertDshVersion(version);
   return version;
 }
 
@@ -198,13 +196,13 @@ async function verifyOneCreation(port, baseline, receipt, input) {
     throw new Error('Creation retry did not preserve exactly one new Bot and its DM');
 }
 
-async function waitForStop(port) {
+async function waitForStop(port, hostPid) {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     try {
       await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(500) });
     } catch {
-      return;
+      if (!processIsRunning(hostPid)) return;
     }
     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   }
@@ -377,7 +375,7 @@ try {
   });
 
   stop(pid);
-  await waitForStop(port);
+  await waitForStop(port, pid);
   pid = undefined;
   const restarted = launch(port, false);
   pid = restarted.pid;
@@ -402,7 +400,7 @@ try {
 
   const zipImported = await zipProof.finishAfterUploadRestart(restarted);
   stop(pid);
-  await waitForStop(port);
+  await waitForStop(port, pid);
   pid = undefined;
   const zipRestarted = launch(port, false);
   pid = zipRestarted.pid;
@@ -457,4 +455,5 @@ try {
   );
 } finally {
   stop(pid);
+  if (pid !== undefined) await waitForStop(port, pid);
 }

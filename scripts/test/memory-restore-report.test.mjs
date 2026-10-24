@@ -1,3 +1,4 @@
+import { symlinkSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -296,7 +297,7 @@ describe('Memory runner provenance prerequisites', () => {
     const git = (...args) =>
       execFileSync('git', args, { cwd: directory, encoding: 'utf8', stdio: 'pipe' }).trim();
     git('init', '--quiet');
-    writeFileSync(join(directory, '.git/info/exclude'), 'scripts/\n.humanlayer/\n');
+    writeFileSync(join(directory, '.git/info/exclude'), 'scripts/\n.humanlayer/\nnode_modules\n');
     git(
       '-c',
       'user.name=AX regression',
@@ -312,12 +313,19 @@ describe('Memory runner provenance prerequisites', () => {
     );
     const head = git('rev-parse', 'HEAD');
     cpSync(new URL('../', import.meta.url), join(directory, 'scripts'), { recursive: true });
+    symlinkSync(
+      new URL('../../node_modules', import.meta.url),
+      join(directory, 'node_modules'),
+      'junction',
+    );
     const result = spawnSync(
       process.execPath,
       ['scripts/e2e-memory-restore.mjs', '--name', 'missing-base'],
       { cwd: directory, encoding: 'utf8', timeout: 10000 },
     );
-    expect(result.status).toBe(1);
+    expect(result.error, result.stderr).toBeUndefined();
+    expect(result.stderr).not.toContain('ERR_MODULE_NOT_FOUND');
+    expect(result.status, result.stderr).toBe(1);
     const attempts = join(directory, '.humanlayer/verify/missing-base/memory-restore');
     const names = readdirSync(attempts);
     expect(names).toHaveLength(1);
