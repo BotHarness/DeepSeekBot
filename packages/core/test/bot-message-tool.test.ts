@@ -43,6 +43,7 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
     let conclusions = 0;
     try {
       const source = await f.send('Finish the check', async (run) => {
+        expect(run.message).toContain(`Source Event ID: ${run.triage!.current()[0]}`);
         const tool = createBotMessageTool(() => run);
         const context = {
           callId: ToolCallId('final'),

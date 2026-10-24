@@ -1709,7 +1709,7 @@ class BotRuntimeImplementation implements BotRuntime {
         input.messageId,
         claim.sourceEventId,
         'human-dm',
-        this.#inboundChannelMessage(channel.id, input.messageId, body),
+        this.#inboundChannelMessage(channel.id, input.messageId, body, claim.sourceEventId),
       );
     return {
       admitted: true,
@@ -1982,7 +1982,7 @@ class BotRuntimeImplementation implements BotRuntime {
             messageId,
             row.source_event_id,
             'bot-dm',
-            this.#inboundChannelMessage(channelId, messageId, source.body),
+            this.#inboundChannelMessage(channelId, messageId, source.body, row.source_event_id),
           )
         )
           continue;
@@ -2701,7 +2701,12 @@ class BotRuntimeImplementation implements BotRuntime {
       orchestrator = started;
       const sections = [
         ...claimed.items.map((item) =>
-          this.#inboundChannelMessage(item.channelId, item.messageId, item.body),
+          this.#inboundChannelMessage(
+            item.channelId,
+            item.messageId,
+            item.body,
+            item.sourceEventId,
+          ),
         ),
         ...claimed.digests.map((digest) =>
           this.#digestSection(digest.channelId, digest.rows, digest.omittedCount),
@@ -2861,7 +2866,12 @@ class BotRuntimeImplementation implements BotRuntime {
               itemRows.reduce(
                 (size, row) =>
                   size +
-                  this.#inboundChannelMessage(row.channel_id, row.message_id, row.body).length,
+                  this.#inboundChannelMessage(
+                    row.channel_id,
+                    row.message_id,
+                    row.body,
+                    row.source_event_id,
+                  ).length,
                 200,
               ),
           ),
@@ -3210,7 +3220,12 @@ class BotRuntimeImplementation implements BotRuntime {
     return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${sessionMentionText(body, message?.mentions ?? [])}\nDecide whether a reply would be useful. You may finish without replying; if you speak in this Group Channel, use channel_send.`;
   }
 
-  #inboundChannelMessage(channelId: string, messageId: string, body: string): string {
+  #inboundChannelMessage(
+    channelId: string,
+    messageId: string,
+    body: string,
+    sourceEventId: string,
+  ): string {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
     if (messageId.startsWith('group-invite-') && message === undefined)
@@ -3242,7 +3257,9 @@ class BotRuntimeImplementation implements BotRuntime {
     if (channel?.type !== 'dm' || channel.botSlug === undefined || message?.author.kind !== 'human')
       return text;
     const selected = [...new Set((message.mentions ?? []).map((mention) => mention.botSlug))];
-    const parts = [`[Human DM]\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`];
+    const parts = [
+      `[Human DM]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${text}`,
+    ];
     if (message.assignmentReply !== undefined)
       parts.push(
         `[Human response to Assignment Session ${message.assignmentReply.sessionId}, report Source Event ${message.assignmentReply.sourceEventId}]\nUse assignment inspection and send_assignment_request to relay this response to the addressed Assignment. This DM is Human input; it does not itself resume the Assignment or clear its open ask.`,
@@ -4188,7 +4205,7 @@ class BotRuntimeImplementation implements BotRuntime {
           session,
           claim.sourceEventId,
           channelId,
-          this.#inboundChannelMessage(channelId, messageId, body),
+          this.#inboundChannelMessage(channelId, messageId, body, claim.sourceEventId),
           collected.units,
           this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
           undefined,
@@ -6324,10 +6341,19 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
           ...this.#perf(sessionId, body),
         };
-        const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {
-          sessionId,
-          sourceEventId: input.replySourceEventId ?? sourceEventId,
-        });
+        const origin = { sessionId, sourceEventId: input.replySourceEventId ?? sourceEventId };
+        if (input.deliveryKey === undefined) {
+          const appended = await this.#channels.appendMessage(channel.id, message, origin);
+          if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
+          if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
+          return appended;
+        }
+        const result = await this.#channels.appendMessageOnce(
+          channel.id,
+          message,
+          undefined,
+          origin,
+        );
         if (result.status === 'missing') throw new Error(`Channel disappeared: ${channel.id}`);
         if (result.status === 'conflict')
           throw new Error('Human DM delivery key has different content');
