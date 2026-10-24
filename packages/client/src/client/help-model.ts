@@ -98,6 +98,14 @@ export function modelHelp(
                 if (selectedBot()?.slug !== slug) throw new Error('help_target_unavailable');
                 signal.throwIfAborted();
                 const release = panels.beginGuide(() => help.cancel('context-changed'));
+                let disposed = false;
+                const dispose = () => {
+                  if (disposed) return;
+                  disposed = true;
+                  signal.removeEventListener('abort', dispose);
+                  release();
+                };
+                signal.addEventListener('abort', dispose, { once: true });
                 try {
                   panels.open(CHANNEL_BODY_PANEL);
                   const initial = await actions.modelPlanState(slug);
@@ -107,7 +115,7 @@ export function modelHelp(
                     document.querySelector(`[data-help-model-${kind}="${CSS.escape(slug)}"]`) ??
                     undefined;
                   return {
-                    dispose: release,
+                    dispose,
                     steps: [
                       {
                         title: { en: 'Open the model picker', zh: '打开模型选择器' },
@@ -131,7 +139,7 @@ export function modelHelp(
                     ],
                   };
                 } catch (error) {
-                  release();
+                  dispose();
                   throw error;
                 }
               },

@@ -25,4 +25,4 @@ Agents use `deepseekbot help-client` against an explicitly selected local debug 
 
 Ordinary resize followed by persistent snapshot writeback would pollute preferences during the tour and overwrite newer changes. A separate tutorial settings store would duplicate business authority. Both are rejected.
 
-S1 supplies model help and independent Plugin text help. Real Plugin tutorials, broad Panel coverage, workspace lessons, Quick Switcher integration and shared onboarding lessons remain later gated stages. Web, native Desktop and Human acceptance are separate evidence claims.
+S1 supplies model help and independent Plugin text help. Human feedback pulled broad text FAQs, panel location hints and Quick Switcher FAQ navigation into S1. Real Plugin tutorials, complete Panel operation lessons, workspace lessons and shared onboarding lessons remain later gated stages. Web, native Desktop and Human acceptance are separate evidence claims.

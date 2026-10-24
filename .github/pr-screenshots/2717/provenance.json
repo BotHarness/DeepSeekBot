@@ -1,0 +1,15 @@
+{
+  "issue": 2717,
+  "baseSource": "f5baef152",
+  "candidateSource": "f95c2f453 + pending-preparation cancellation fix",
+  "platform": "desktop Web, Chromium",
+  "viewport": "1440x900",
+  "locale": "en-US",
+  "theme": "light",
+  "conditions": "Synthetic Tob, Home, onboarding dismissed; after opens User guide and model FAQ. No profile copying.",
+  "inspection": "Reviewed full images: no tokens, private paths, or personal conversations. No redaction.",
+  "files": {
+    "b.png": "3cfe0abb77684284448dd127986d6af7f52b6cc705227d5a3fd381a40c5ce72b",
+    "a.png": "0ff4cce8d04c6fa0158547fdc45be1d2fde322008c63831d9c134656387279b3"
+  }
+}
