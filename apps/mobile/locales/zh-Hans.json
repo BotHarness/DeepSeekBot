@@ -1,9 +1,9 @@
 {
   "ios": {
-    "NSLocalNetworkUsageDescription": "DeepSeekBot 通过加密连接访问当前网络上的电脑。",
-    "NSCameraUsageDescription": "DeepSeekBot 使用相机扫描电脑上显示的配对二维码，并拍摄你要发给 Bot 的照片。",
-    "NSMicrophoneUsageDescription": "DeepSeekBot 使用麦克风把你说的话转成消息，你可以先编辑再发给 Bot。",
-    "NSPhotoLibraryUsageDescription": "DeepSeekBot 打开你的照片，让你把它们发给 Bot。",
-    "NSSpeechRecognitionUsageDescription": "DeepSeekBot 把你说的话转成文字，方便你发给 Bot。发送前你可以查看并编辑这些文字。"
+    "NSLocalNetworkUsageDescription": "托布通过加密连接访问当前网络上的电脑。",
+    "NSCameraUsageDescription": "托布使用相机扫描电脑上显示的配对二维码，并拍摄你要发给 Bot 的照片。",
+    "NSMicrophoneUsageDescription": "托布使用麦克风把你说的话转成消息，你可以先编辑再发给 Bot。",
+    "NSPhotoLibraryUsageDescription": "托布打开你的照片，让你把它们发给 Bot。",
+    "NSSpeechRecognitionUsageDescription": "托布把你说的话转成文字，方便你发给 Bot。发送前你可以查看并编辑这些文字。"
   }
 }

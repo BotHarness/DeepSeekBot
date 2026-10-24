@@ -2,6 +2,7 @@ const { execFileSync } = require('node:child_process');
 const { existsSync } = require('node:fs');
 const path = require('node:path');
 const withSharingPlugin = require('expo-sharing/app.plugin').default;
+const withIosBrand = require('./with-ios-brand');
 const withAndroidBrand = require('./with-android-brand');
 
 const mainCheckout = () => {
@@ -50,38 +51,37 @@ module.exports = ({ config }) => {
   const store = process.env.DEEPSEEKBOT_APP_VARIANT === 'store';
   const firebase = googleServicesFile();
   const bundleIdentifier = store ? 'app.deepseekbot.mobile' : config.ios.bundleIdentifier;
-  return withAndroidBrand(
-    withSharing({
-      ...config,
-      plugins: [
-        ...config.plugins,
-        './modules/local-computer-video/app.plugin.js',
-        ['expo-dev-client', { addGeneratedScheme: !store }],
-      ],
-      owner: 'deepseekbots-team',
-      updates: { ...config.updates, enabled: false },
-      extra: { ...config.extra, eas: { projectId: '40cf3888-5864-4238-9cfb-82e285d568f6' } },
-      ios: {
-        ...config.ios,
-        bundleIdentifier,
-        infoPlist: {
-          ...config.ios.infoPlist,
-          NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
-          ITSAppUsesNonExemptEncryption: false,
-          NSUserActivityTypes: ['INSendMessageIntent'],
-        },
-        entitlements: {
-          ...config.ios.entitlements,
-          'com.apple.security.application-groups': [`group.${bundleIdentifier}`],
-          'com.apple.developer.usernotifications.communication': true,
-        },
+  const resolved = withSharing({
+    ...config,
+    plugins: [
+      ...config.plugins,
+      './modules/local-computer-video/app.plugin.js',
+      ['expo-dev-client', { addGeneratedScheme: !store }],
+    ],
+    owner: 'deepseekbots-team',
+    updates: { ...config.updates, enabled: false },
+    extra: { ...config.extra, eas: { projectId: '40cf3888-5864-4238-9cfb-82e285d568f6' } },
+    ios: {
+      ...config.ios,
+      bundleIdentifier,
+      infoPlist: {
+        ...config.ios.infoPlist,
+        NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
+        ITSAppUsesNonExemptEncryption: false,
+        NSUserActivityTypes: ['INSendMessageIntent'],
       },
-      android: {
-        ...config.android,
-        ...(store ? { package: 'app.deepseekbot.mobile' } : {}),
-        ...(firebase ? { googleServicesFile: firebase } : {}),
+      entitlements: {
+        ...config.ios.entitlements,
+        'com.apple.security.application-groups': [`group.${bundleIdentifier}`],
+        'com.apple.developer.usernotifications.communication': true,
       },
-      ...(store ? { name: 'DeepSeekBot', scheme: ['deepseekbot', 'app.deepseekbot.mobile'] } : {}),
-    }),
-  );
+    },
+    android: {
+      ...config.android,
+      ...(store ? { package: 'app.deepseekbot.mobile' } : {}),
+      ...(firebase ? { googleServicesFile: firebase } : {}),
+    },
+    ...(store ? { name: 'DeepSeekBot', scheme: ['deepseekbot', 'app.deepseekbot.mobile'] } : {}),
+  });
+  return withAndroidBrand(withIosBrand(resolved));
 };

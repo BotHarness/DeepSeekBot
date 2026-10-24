@@ -1,3 +1,4 @@
+import { productName } from './product-name';
 import type { DeviceRefusal } from '../host/client';
 import { useSyncExternalStore } from 'react';
 import { interfacePreferences } from './interface-preferences';
@@ -148,8 +149,7 @@ const en = {
       'name-required': 'Enter a name for your Bot.',
       'target-unpaired':
         'The original computer pairing is unavailable. Your saved creation has been kept.',
-      'host-update-required':
-        'Update DeepSeekBot on this computer to create Bots safely from your phone.',
+      'host-update-required': `Update ${productName.en} on this computer to create Bots safely from your phone.`,
       'invalid-receipt':
         'The computer did not confirm this creation. Check again to recover the same Bot.',
       unreachable:
@@ -166,8 +166,7 @@ const en = {
       'creation-needs-repair':
         'The computer needs to repair this creation. Your original Bot has been kept.',
     },
-    refused:
-      'The computer could not finish creation. Check DeepSeekBot on that computer, then try again.',
+    refused: `The computer could not finish creation. Check ${productName.en} on that computer, then try again.`,
   },
   createHere: 'Create or join',
   chooseCreationTarget: 'Choose where to create',
@@ -541,19 +540,16 @@ const en = {
     footnote: (name: string) => `Shows what ${name} did elsewhere.`,
     botDm: 'Bot-to-Bot DM · read-only',
   },
-  roster: 'DeepSeekBot',
+  roster: productName.en,
   bots: 'Bots',
   channels: 'Channels',
   noBots: 'No Bots on this computer yet.',
   connecting: 'Connecting to your computer…',
   reconnecting: 'Reconnecting…',
   unreachable: 'Cannot reach your computer',
-  connectionNetworkHelp:
-    'Check this phone’s network, keep your computer awake with DeepSeekBot open, then retry.',
-  connectionTailscaleHelp:
-    'Check that Tailscale is connected on both devices to the same network. Keep DeepSeekBot open on your computer. If it still fails, check Tailscale in Settings → Devices on the computer, then retry.',
-  connectionConnectHelp:
-    'Check this phone’s internet connection. On your computer, keep DeepSeekBot open and check that DeepSeekBot Connect is signed in and connected in Settings → Devices, then retry.',
+  connectionNetworkHelp: `Check this phone’s network, keep your computer awake with ${productName.en} open, then retry.`,
+  connectionTailscaleHelp: `Check that Tailscale is connected on both devices to the same network. Keep ${productName.en} open on your computer. If it still fails, check Tailscale in Settings → Devices on the computer, then retry.`,
+  connectionConnectHelp: `Check this phone’s internet connection. On your computer, keep ${productName.en} open and check that ${productName.en} Connect is signed in and connected in Settings → Devices, then retry.`,
   refused: 'Your computer refused this app',
   deviceRefusal: {
     'device-revoked': 'This phone was removed from the paired devices on your computer.',
@@ -604,10 +600,9 @@ const en = {
   } satisfies Record<AggregatedState, string>,
   statisticsTitle: 'Anonymous phone statistics',
   statisticsNoticeTitle: 'About anonymous statistics',
-  statisticsNoticeSummary:
-    'DeepSeekBot sends anonymous statistics to improve connections, first chats and Bot creation and imports. Turn them off anytime at the bottom of Settings.',
+  statisticsNoticeSummary: `${productName.en} sends anonymous statistics to improve connections, first chats and Bot creation and imports. Turn them off anytime at the bottom of Settings.`,
   statisticsPrivacy: 'Privacy',
-  statisticsPrivacyUrl: 'https://deepseekbot.botharness.ai/en/privacy',
+  statisticsPrivacyUrl: 'https://tobs.app/en/privacy/',
   statisticsSource: 'View source',
   statisticsOpenSettings: 'Open Settings',
   statisticsGotIt: 'Got it',
@@ -619,8 +614,7 @@ const en = {
   statisticsStorageError:
     'Could not save this choice. Statistics are paused on this launch. Please try again.',
   pairTitle: 'Pair with your computer',
-  pairHint:
-    'On your computer, open DeepSeekBot Settings → Devices → Pair a phone, then scan the code it shows.',
+  pairHint: `On your computer, open ${productName.en} Settings → Devices → Pair a phone, then scan the code it shows.`,
   allowCamera: 'Allow the camera to scan',
   pairImage: {
     choose: 'Choose QR image',
@@ -633,12 +627,12 @@ const en = {
   pairGuide: {
     title: 'Before you pair',
     steps: [
-      'On your computer, install DeepSeek Harness (DSH) and the DeepSeekBot plugin.',
-      'On the same Wi-Fi, enable local access in the computer’s Settings → Devices. For remote access, use a DeepSeekBot account or Tailscale.',
-      'Pair: pick the computer under your DeepSeekBot account, or show the pairing code on the computer and scan it here.',
+      `On your computer, install DeepSeek Harness (DSH) and the ${productName.en} plugin.`,
+      `On the same Wi-Fi, enable local access in the computer’s Settings → Devices. For remote access, use a ${productName.en} account or Tailscale.`,
+      `Pair: pick the computer under your ${productName.en} account, or show the pairing code on the computer and scan it here.`,
     ],
     open: 'Open the setup guide',
-    url: 'https://deepseekbot.app/en/docs/mobile-pairing/',
+    url: 'https://tobs.app/en/docs/mobile-pairing/',
     linkError: 'Could not open the guide. Please try again.',
   },
   pasteLink: 'Or paste the pairing link',
@@ -651,7 +645,7 @@ const en = {
     notice: 'Test account only. No real account, network or stored connections are used.',
   },
   pairAccount: {
-    title: 'DeepSeekBot account',
+    title: `${productName.en} account`,
     computers: 'Computers',
     progress: (current: number, total: number) => `${current} of ${total}`,
     online: 'Online',
@@ -672,25 +666,22 @@ const en = {
     signOutMessage:
       'Remove this account’s saved computer connections from this phone. Your account and computer data remain. Manual connections and older connections without account information stay.',
     deleteAccount: 'Delete account',
-    deleteTitle: 'Delete your DeepSeekBot account?',
+    deleteTitle: `Delete your ${productName.en} account?`,
     deleteMessage:
       'Permanently delete your account and all its Connect links. All devices lose access through those links. This phone removes connections saved through this account; manual and older unassigned entries stay. Files, Bots and chats on your computers remain. This cannot be undone.',
     deleteConfirm: 'Delete account',
-    empty:
-      'No computer is linked to this account yet. On your computer, open Settings → Devices → DeepSeekBot Connect and sign in.',
+    empty: `No computer is linked to this account yet. On your computer, open Settings → Devices → ${productName.en} Connect and sign in.`,
     offline: 'Offline',
     pair: 'Pair',
-    drawerTitle: 'On your DeepSeekBot account',
+    drawerTitle: `On your ${productName.en} account`,
     pairWith: (name: string) => `Pair with ${name}`,
     refresh: 'Refresh',
   },
   pairChoice: {
-    intro:
-      'Your computer needs DeepSeek Harness (DSH) with the DeepSeekBot plugin. Choose how this phone connects to it.',
-    account: 'Sign in with a DeepSeekBot account',
+    intro: `Your computer needs DeepSeek Harness (DSH) with the ${productName.en} plugin. Choose how this phone connects to it.`,
+    account: `Sign in with a ${productName.en} account`,
     accountDetail: 'Pair the computers on your account. No Tailscale needed.',
-    accountComputer:
-      'On your computer, open DeepSeekBot Settings → Devices → DeepSeekBot Connect and sign in to the same account.',
+    accountComputer: `On your computer, open ${productName.en} Settings → Devices → ${productName.en} Connect and sign in to the same account.`,
     lan: 'Use the same Wi-Fi',
     lanDetail: 'Scan your computer’s code. No account needed.',
     lanHint:
@@ -700,7 +691,7 @@ const en = {
     tailscaleHint:
       'Install Tailscale on this phone and on the computer, and sign in to the same Tailscale account.',
     emptyTitle: 'No computer paired yet',
-    emptyBody: 'Pair this phone with a computer running DeepSeekBot to chat with your Bots.',
+    emptyBody: `Pair this phone with a computer running ${productName.en} to chat with your Bots.`,
     emptyAction: 'Pair a computer',
   },
   pairRefused: {
@@ -713,7 +704,7 @@ const en = {
     'channel-authentication-failed':
       'Could not verify this computer. Check its fingerprint and pair again.',
 
-    'link-invalid': 'This is not a DeepSeekBot pairing code.',
+    'link-invalid': `This is not a ${productName.en} pairing code.`,
     'link-expired': 'This code has expired. Show a new code on your computer.',
     'no-route':
       'Enable local access on your computer, or set up Tailscale or Connect, then get a new code.',
@@ -726,9 +717,8 @@ const en = {
     'sign-in-cancelled': 'Sign-in was cancelled.',
     'sign-in-failed': 'Could not sign in. Try again.',
     'sign-in-required': 'Your sign-in has expired. Sign in again.',
-    'account-not-allowed': 'This account cannot use DeepSeekBot Connect yet.',
-    'host-offline':
-      'This computer is not online. Open DeepSeekBot on it, check that it is still signed in, then try again.',
+    'account-not-allowed': `This account cannot use ${productName.en} Connect yet.`,
+    'host-offline': `This computer is not online. Open ${productName.en} on it, check that it is still signed in, then try again.`,
     'account-changed': 'The signed-in account changed. Open the account page again.',
     'account-identity-required': 'Sign out and sign in again before adding this computer.',
     'account-action-pending': 'An account action is unfinished. Retry the same action to continue.',
@@ -736,10 +726,10 @@ const en = {
       'Account cleanup is unfinished. Retry the same action. Some changes may already be complete.',
     'account-deletion-uncertain':
       'Account deletion could not be confirmed. Some links may already be removed. Retry Delete account; if sign-in has expired, contact support.',
-    'relay-unavailable': 'Cannot reach the DeepSeekBot service. Try again in a moment.',
+    'relay-unavailable': `Cannot reach the ${productName.en} service. Try again in a moment.`,
   } satisfies Record<PairingFailure, string>,
   pairRefusedLink: {
-    'link-invalid': 'This is not a DeepSeekBot pairing link. Check it and paste it again.',
+    'link-invalid': `This is not a ${productName.en} pairing link. Check it and paste it again.`,
     'link-expired': 'This pairing link has expired. Copy a new link on your computer.',
     'offer-invalid': 'This pairing link was already used. Copy a new link on your computer.',
     'offer-expired': 'This pairing link has expired. Copy a new link on your computer.',
@@ -882,8 +872,7 @@ const en = {
   dictationListening: 'Listening…',
   dictationHoldHint: '‹ Slide left to cancel',
   dictateHint: 'Tap to dictate, or hold to talk.',
-  dictationDenied:
-    'DeepSeekBot cannot use the microphone or speech recognition. Allow both in the phone settings to dictate.',
+  dictationDenied: `${productName.en} cannot use the microphone or speech recognition. Allow both in the phone settings to dictate.`,
   dictationUnavailable: 'Speech recognition is not available on this phone right now.',
   dictationFailed: 'Dictation stopped before it finished. Tap the mic to try again.',
   attachFailed: 'That could not be opened. Check the app’s access in Settings.',
@@ -1144,7 +1133,7 @@ const en = {
     'These alert types apply to every Host paired with this phone. Private input stays hidden.',
   notificationsOn: (host: string) => `Notifications from ${host} are on.`,
   notificationsOff: 'Notifications are off for this phone.',
-  notificationsDenied: 'Notifications are turned off for DeepSeekBot in the phone settings.',
+  notificationsDenied: `Notifications are turned off for ${productName.en} in the phone settings.`,
   notificationsUnavailable: 'This build of the app cannot receive notifications.',
   notificationsHostFailed: (host: string) => `${host} could not be told about this phone yet.`,
   notificationsChecking: 'Checking notifications…',
@@ -1441,8 +1430,7 @@ const en = {
   browseEmpty: 'No subfolders here.',
   browseTruncated: 'Too many folders; only some are shown.',
   browseUnavailable: 'Your computer cannot list its folders here.',
-  browseUnavailableTypePath:
-    'Your computer cannot list its folders here. Update DeepSeekBot on it, pick a registered folder or type the folder path.',
+  browseUnavailableTypePath: `Your computer cannot list its folders here. Update ${productName.en} on it, pick a registered folder or type the folder path.`,
   browseLocations: 'Other places',
   browseHome: 'Home',
   folderPath: 'Folder path on your computer',
@@ -1492,8 +1480,7 @@ const en = {
   computerVideoConnectionIssue: (check: string) => `Cannot reach your computer. ${check}`,
   computerVideoInputUnknown:
     'The last action may have happened. Check the screen before trying again.',
-  computerVideoUnavailable:
-    'Video is unavailable; open DeepSeekBot on your computer, start Computer and reconnect. Bots stay paused if you took control.',
+  computerVideoUnavailable: `Video is unavailable; open ${productName.en} on your computer, start Computer and reconnect. Bots stay paused if you took control.`,
   computerVideoWaiting:
     'Waiting for live video; keep your computer awake and Computer running, then reconnect if video does not return.',
   computerEnvironment: 'Computer',
@@ -1562,10 +1549,10 @@ const en = {
   computerKeyEscape: 'Escape',
   appIcon: 'App icon',
   appIconHint: 'Pick the icon on your home screen',
-  appIconDefaultHint: 'The DeepSeekBot portrait the app ships with',
-  appIconDeepSeekBot: 'DeepSeekBot',
-  appIconDeepSeekBotSimple: 'DeepSeekBot Chibi',
-  appIconDeepSeekBotSimpleHint: 'The simple DeepSeekBot portrait',
+  appIconDefaultHint: `The ${productName.en} portrait the app ships with`,
+  appIconDeepSeekBot: productName.en,
+  appIconDeepSeekBotSimple: `${productName.en} Chibi`,
+  appIconDeepSeekBotSimpleHint: `The simple ${productName.en} portrait`,
   appIconFooter: 'Changes right away, with matching dark and tinted versions.',
   appIconUnsupported: 'This phone cannot change the app icon.',
   appIconFailed: 'Could not change the app icon:',
@@ -1737,7 +1724,7 @@ const zh: typeof en = {
       'storage-write': '无法在手机上保存此次创建。请释放一些空间后重试。',
       'name-required': '请输入 Bot 名称。',
       'target-unpaired': '原电脑配对不可用，已保留此次创建。',
-      'host-update-required': '请更新此电脑上的 DeepSeekBot，以便从手机安全创建 Bot。',
+      'host-update-required': `请更新此电脑上的 ${productName.zh}，以便从手机安全创建 Bot。`,
       'invalid-receipt': '电脑尚未确认此次创建。请再次检查，恢复同一个 Bot。',
       unreachable: '无法连接此电脑，已保存此次创建。连接后请再次检查。',
       'device-revoked': '此手机已被电脑移除，已保留此次创建。',
@@ -1747,7 +1734,7 @@ const zh: typeof en = {
       'creation-identity-unavailable': '原 Bot 已归档或删除，此次操作不会重新创建它。',
       'creation-needs-repair': '电脑需要修复此次创建，已保留原 Bot。',
     },
-    refused: '电脑无法完成创建。请检查电脑上的 DeepSeekBot 后重试。',
+    refused: `电脑无法完成创建。请检查电脑上的 ${productName.zh} 后重试。`,
   },
   createHere: '创建或加入',
   chooseCreationTarget: '选择创建位置',
@@ -2083,18 +2070,16 @@ const zh: typeof en = {
     footnote: (name: string) => `显示 ${name} 在别处的动作。`,
     botDm: 'Bot 之间的私聊 · 仅供查看',
   },
-  roster: 'DeepSeekBot',
+  roster: productName.zh,
   bots: 'Bot',
   channels: '频道',
   noBots: '这台电脑上还没有 Bot。',
   connecting: '正在连接你的电脑…',
   reconnecting: '正在重新连接…',
   unreachable: '无法连接到你的电脑',
-  connectionNetworkHelp: '请检查手机网络，并确认电脑未休眠且 DeepSeekBot 正在运行，然后重试。',
-  connectionTailscaleHelp:
-    '请确认手机和电脑的 Tailscale 已连接到同一网络，并保持电脑上的 DeepSeekBot 运行。仍连不上时，在电脑「设置 → 设备」检查 Tailscale，再点重试。',
-  connectionConnectHelp:
-    '请检查手机网络。在电脑上保持 DeepSeekBot 运行，并在「设置 → 设备」确认 DeepSeekBot Connect 已登录且连接正常，再点重试。',
+  connectionNetworkHelp: `请检查手机网络，并确认电脑未休眠且 ${productName.zh} 正在运行，然后重试。`,
+  connectionTailscaleHelp: `请确认手机和电脑的 Tailscale 已连接到同一网络，并保持电脑上的 ${productName.zh} 运行。仍连不上时，在电脑「设置 → 设备」检查 Tailscale，再点重试。`,
+  connectionConnectHelp: `请检查手机网络。在电脑上保持 ${productName.zh} 运行，并在「设置 → 设备」确认 ${productName.zh} Connect 已登录且连接正常，再点重试。`,
   refused: '你的电脑拒绝了这个应用',
   deviceRefusal: {
     'device-revoked': '电脑已将这台手机从配对设备中移除。',
@@ -2145,10 +2130,9 @@ const zh: typeof en = {
   },
   statisticsTitle: '手机匿名使用统计',
   statisticsNoticeTitle: '关于匿名使用统计',
-  statisticsNoticeSummary:
-    'DeepSeekBot 默认发送匿名统计，用于改善连接、首次聊天及 Bot 创建和导入。可随时在设置页底部关闭。',
+  statisticsNoticeSummary: `${productName.zh} 默认发送匿名统计，用于改善连接、首次聊天及 Bot 创建和导入。可随时在设置页底部关闭。`,
   statisticsPrivacy: '隐私说明',
-  statisticsPrivacyUrl: 'https://deepseekbot.botharness.ai/privacy',
+  statisticsPrivacyUrl: 'https://tobs.app/privacy/',
   statisticsSource: '查看源码',
   statisticsOpenSettings: '打开设置',
   statisticsGotIt: '知道了',
@@ -2159,7 +2143,7 @@ const zh: typeof en = {
     '用于改善配对、连接、首次聊天及 Bot 创建和导入。PostHog 只收到随机标识、应用版本、粗粒度设备信息和操作结果，不含聊天、文件、链接、密钥或电脑身份。关闭后会清除标识和未发送的事件。电脑端统计另有开关。',
   statisticsStorageError: '无法保存此选择，本次运行已暂停统计，请重试。',
   pairTitle: '与电脑配对',
-  pairHint: '在电脑上打开 DeepSeekBot 设置 → 设备 → 配对手机，然后扫描二维码。',
+  pairHint: `在电脑上打开 ${productName.zh} 设置 → 设备 → 配对手机，然后扫描二维码。`,
   allowCamera: '允许使用相机扫码',
   pairImage: {
     choose: '从相册选择二维码',
@@ -2171,12 +2155,12 @@ const zh: typeof en = {
   pairGuide: {
     title: '配对前的准备',
     steps: [
-      '在电脑上安装 DSH（DeepSeek Harness）和 DeepSeekBot 插件。',
-      '使用同一 Wi-Fi 时，在电脑的设置 → 设备中开启局域网连接。远程连接可选 DeepSeekBot 账号或 Tailscale。',
-      '配对：在 DeepSeekBot 账号里选择这台电脑，或者在电脑上显示配对二维码，然后在这里扫码。',
+      `在电脑上安装 DSH（DeepSeek Harness）和 ${productName.zh} 插件。`,
+      `使用同一 Wi-Fi 时，在电脑的设置 → 设备中开启局域网连接。远程连接可选 ${productName.zh} 账号或 Tailscale。`,
+      `配对：在 ${productName.zh} 账号里选择这台电脑，或者在电脑上显示配对二维码，然后在这里扫码。`,
     ],
     open: '查看安装与配对教程',
-    url: 'https://deepseekbot.app/docs/mobile-pairing/',
+    url: 'https://tobs.app/docs/mobile-pairing/',
     linkError: '无法打开教程，请重试。',
   },
   pasteLink: '或粘贴配对链接',
@@ -2197,7 +2181,7 @@ const zh: typeof en = {
     addSelected: (count: number) => `添加 ${count} 台电脑`,
     choose: '选择电脑',
     cancelled: '已取消',
-    title: 'DeepSeekBot 账号',
+    title: `${productName.zh} 账号`,
     hint: '直接和登录同一账号的电脑配对，不用扫码，也不用 Tailscale。',
     signIn: '登录',
     signedIn: (email: string) => `已登录 ${email}`,
@@ -2210,23 +2194,22 @@ const zh: typeof en = {
     signOutMessage:
       '移除此手机中归属该账号的电脑连接。账号和电脑数据会保留。手动连接和未记录账号信息的旧连接仍保留。',
     deleteAccount: '删除账号',
-    deleteTitle: '删除 DeepSeekBot 账号？',
+    deleteTitle: `删除 ${productName.zh} 账号？`,
     deleteMessage:
       '永久删除账号及其全部 Connect 关联，所有设备将无法再通过这些关联访问电脑。此手机会移除归属该账号的连接；手动和未记录归属的旧记录会保留。电脑上的文件、Bot 和聊天不会删除。此操作无法撤销。',
     deleteConfirm: '删除账号',
-    empty: '这个账号还没有关联电脑。请在电脑上打开设置 → 设备 → DeepSeekBot Connect，登录账号。',
+    empty: `这个账号还没有关联电脑。请在电脑上打开设置 → 设备 → ${productName.zh} Connect，登录账号。`,
     offline: '离线',
     pair: '配对',
-    drawerTitle: 'DeepSeekBot 账号里的电脑',
+    drawerTitle: `${productName.zh} 账号里的电脑`,
     pairWith: (name: string) => `与 ${name} 配对`,
     refresh: '刷新',
   },
   pairChoice: {
-    intro:
-      '电脑上需要装好 DSH（DeepSeek Harness）和 DeepSeekBot 插件。选择这台手机连接电脑的方式：',
-    account: '登录 DeepSeekBot 账号',
+    intro: `电脑上需要装好 DSH（DeepSeek Harness）和 ${productName.zh} 插件。选择这台手机连接电脑的方式：`,
+    account: `登录 ${productName.zh} 账号`,
     accountDetail: '直接配对账号下的电脑，不用 Tailscale。',
-    accountComputer: '在电脑上打开 DeepSeekBot 设置 → 设备 → DeepSeekBot Connect，登录同一个账号。',
+    accountComputer: `在电脑上打开 ${productName.zh} 设置 → 设备 → ${productName.zh} Connect，登录同一个账号。`,
     lan: '使用同一 Wi-Fi',
     lanDetail: '扫描电脑上的二维码，不需要账号。',
     lanHint:
@@ -2235,7 +2218,7 @@ const zh: typeof en = {
     tailscaleDetail: '扫描配对二维码，或粘贴配对链接。',
     tailscaleHint: '在手机和电脑上都安装 Tailscale，并登录同一个 Tailscale 账号。',
     emptyTitle: '还没有配对电脑',
-    emptyBody: '把这台手机和运行 DeepSeekBot 的电脑配对，就能和你的 Bot 聊天。',
+    emptyBody: `把这台手机和运行 ${productName.zh} 的电脑配对，就能和你的 Bot 聊天。`,
     emptyAction: '配对电脑',
   },
   pairRefused: {
@@ -2247,7 +2230,7 @@ const zh: typeof en = {
     'host-key-confirmation-required': '请先核对电脑上的指纹，再继续配对。',
     'channel-authentication-failed': '无法验证这台电脑，请核对指纹后重新配对。',
 
-    'link-invalid': '这不是 DeepSeekBot 的配对二维码。',
+    'link-invalid': `这不是 ${productName.zh} 的配对二维码。`,
     'link-expired': '二维码已失效，请在电脑上换一个。',
     'no-route': '请在电脑上开启局域网连接，或设置 Tailscale、Connect，然后获取新二维码。',
     'offer-invalid': '这个二维码已经用过了，请在电脑上换一个。',
@@ -2259,18 +2242,18 @@ const zh: typeof en = {
     'sign-in-cancelled': '已取消登录。',
     'sign-in-failed': '登录失败，请重试。',
     'sign-in-required': '登录已过期，请重新登录。',
-    'account-not-allowed': '这个账号暂时不能使用 DeepSeekBot Connect。',
-    'host-offline': '这台电脑不在线。请在电脑上打开 DeepSeekBot，确认仍然登录后重试。',
+    'account-not-allowed': `这个账号暂时不能使用 ${productName.zh} Connect。`,
+    'host-offline': `这台电脑不在线。请在电脑上打开 ${productName.zh}，确认仍然登录后重试。`,
     'account-changed': '登录账号已变化，请重新打开账号页面。',
     'account-identity-required': '请先退出并重新登录，再添加这台电脑。',
     'account-action-pending': '账号操作尚未完成，请重试同一操作以继续。',
     'account-cleanup-failed': '账号清理尚未完成，请重试同一操作。部分更改可能已完成。',
     'account-deletion-uncertain':
       '无法确认账号删除是否完成，部分关联可能已移除。请重试删除账号；若登录已失效，请联系支持。',
-    'relay-unavailable': '暂时连不上 DeepSeekBot 服务，请稍后再试。',
+    'relay-unavailable': `暂时连不上 ${productName.zh} 服务，请稍后再试。`,
   },
   pairRefusedLink: {
-    'link-invalid': '这不是 DeepSeekBot 的配对链接，请检查后重新粘贴。',
+    'link-invalid': `这不是 ${productName.zh} 的配对链接，请检查后重新粘贴。`,
     'link-expired': '这个配对链接已过期，请在电脑上复制新的链接。',
     'offer-invalid': '这个配对链接已经用过了，请在电脑上复制新的链接。',
     'offer-expired': '这个配对链接已过期，请在电脑上复制新的链接。',
@@ -2293,7 +2276,7 @@ const zh: typeof en = {
   activityCategory: '显示',
   activityReset: '全部重置',
   activitySearch: '搜索活动',
-  activityUpdateHost: '请更新这台电脑上的 DeepSeekBot，以使用活动搜索和排序。',
+  activityUpdateHost: `请更新这台电脑上的 ${productName.zh}，以使用活动搜索和排序。`,
   activitySort: '活动排序',
   activitySortDefault: '默认顺序',
   activitySortNewest: '最新优先',
@@ -2411,7 +2394,7 @@ const zh: typeof en = {
   dictationListening: '正在听…',
   dictationHoldHint: '‹ 左滑取消',
   dictateHint: '点按语音输入，或按住说话。',
-  dictationDenied: 'DeepSeekBot 无法使用麦克风或语音识别。请在手机设置里允许这两项后再语音输入。',
+  dictationDenied: `${productName.zh} 无法使用麦克风或语音识别。请在手机设置里允许这两项后再语音输入。`,
   dictationUnavailable: '这台手机现在无法使用语音识别。',
   dictationFailed: '语音输入中途停止了。点麦克风重试。',
   attachFailed: '打不开，请在系统设置里检查 App 的权限。',
@@ -2659,7 +2642,7 @@ const zh: typeof en = {
   notificationsHint: '通知类型适用于此手机配对的所有远程。私密输入不会显示。',
   notificationsOn: (host: string) => `已开启来自 ${host} 的通知。`,
   notificationsOff: '这台手机的通知已关闭。',
-  notificationsDenied: '手机设置里关闭了 DeepSeekBot 的通知。',
+  notificationsDenied: `手机设置里关闭了 ${productName.zh} 的通知。`,
   notificationsUnavailable: '这个版本的应用无法接收通知。',
   notificationsHostFailed: (host: string) => `还没能把这台手机告诉 ${host}。`,
   notificationsChecking: '正在检查通知…',
@@ -2951,8 +2934,7 @@ const zh: typeof en = {
   browseEmpty: '这个文件夹没有子文件夹。',
   browseTruncated: '文件夹过多，仅显示一部分。',
   browseUnavailable: '电脑无法在这里列出文件夹。',
-  browseUnavailableTypePath:
-    '这台电脑无法在这里列出文件夹。请更新电脑上的 DeepSeekBot，或选择已登记的文件夹、输入文件夹路径。',
+  browseUnavailableTypePath: `这台电脑无法在这里列出文件夹。请更新电脑上的 ${productName.zh}，或选择已登记的文件夹、输入文件夹路径。`,
   browseLocations: '其他位置',
   browseHome: '主目录',
   folderPath: '电脑上的文件夹路径',
@@ -2998,8 +2980,7 @@ const zh: typeof en = {
     '当前连接暂不支持视频。可把手机连到电脑所在的 Wi-Fi，并在电脑的「设置 → 设备」中开启局域网连接。',
   computerVideoConnectionIssue: (check: string) => `无法连接电脑。${check}`,
   computerVideoInputUnknown: '上一次操作可能已执行。重试前请先查看画面。',
-  computerVideoUnavailable:
-    '视频不可用，请在电脑上打开 DeepSeekBot 并启动 Computer，再重新连接。若你已接管，Bot 会继续暂停。',
+  computerVideoUnavailable: `视频不可用，请在电脑上打开 ${productName.zh} 并启动 Computer，再重新连接。若你已接管，Bot 会继续暂停。`,
   computerVideoWaiting:
     '正在等待实时视频，请确认电脑未休眠且 Computer 正在运行，画面未恢复时可重新连接。',
   computerEnvironment: '电脑',
@@ -3063,10 +3044,10 @@ const zh: typeof en = {
   computerKeyEscape: 'Esc',
   appIcon: 'App 图标',
   appIconHint: '选择主屏幕上的图标',
-  appIconDefaultHint: 'App 自带的 DeepSeekBot 头像',
-  appIconDeepSeekBot: 'DeepSeekBot',
-  appIconDeepSeekBotSimple: 'DeepSeekBot Q 版',
-  appIconDeepSeekBotSimpleHint: 'DeepSeekBot 简笔头像',
+  appIconDefaultHint: `App 自带的 ${productName.zh} 头像`,
+  appIconDeepSeekBot: productName.zh,
+  appIconDeepSeekBotSimple: `${productName.zh} Q 版`,
+  appIconDeepSeekBotSimpleHint: `${productName.zh} 简笔头像`,
   appIconFooter: '立即生效，深色和着色主屏幕会使用对应版本。',
   appIconUnsupported: '这台手机不能更换 App 图标。',
   appIconFailed: '无法更换 App 图标：',
