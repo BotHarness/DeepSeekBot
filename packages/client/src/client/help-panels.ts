@@ -1,3 +1,4 @@
+import { panelLayoutGuide } from './help-panel-layout.js';
 import { panelLocationGuide } from './help-panel-location.js';
 import type { ClientHelpService, HelpQuestion } from '../help-api.js';
 import type { DockPanelHost } from './dock-panels.js';
@@ -147,10 +148,18 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
             id: `botharness:panel-help:${panel.id}`,
             panelId: panel.id,
             title: { en: panel.title, zh: panel.title },
-            overview: { en: '', zh: '' },
+            overview: recipe
+              ? { en: recipe[2], zh: recipe[3] }
+              : {
+                  en: 'This panel has no authored help yet. The questions below explain common panel controls.',
+                  zh: '此面板暂未提供专属帮助。以下问题介绍通用面板操作。',
+                },
             questions: questions.map((question) => ({
               ...question,
-              guide: panelLocationGuide(panels, panel, () => help.cancel('context-changed')),
+              guide:
+                question.id.endsWith(':layout') && panel.scope === 'global'
+                  ? panelLayoutGuide(panels, panel, () => help.cancel('context-changed'))
+                  : panelLocationGuide(panels, panel, () => help.cancel('context-changed')),
             })),
           };
         }),
