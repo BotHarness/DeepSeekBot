@@ -6,6 +6,7 @@ Physical Android API 36, arm64-v8a, portrait 1220 × 2712 device pixels. These a
 - Embedded JavaScript SHA-256: `3658b9c7c3f864a62d86a5215f85117fa60a9e668fd932413359236977e5a355`; differs from the prior installed build.
 - Expo 58.0.19; strict Android post-CNG native fingerprint `da00bd93b5007e490109db5731ae9f4903a85dc6`.
 - `s-*`: Settings rows; `l-*`: actual Compose language menus; `a-*`: actual Compose appearance menus. `10`, `13`, `20` mean OS font_scale 1.0, 1.3, 2.0; `l`/`d` mean selected light/dark. The device's system font-size resource lists 2.0 as its maximum.
+- `sys-no` / `sys-yes`: both preferences selected Follow system; OS night mode changed while the app was backgrounded, then the app was foregrounded. The Settings surface follows light/dark. OS locale was not changed.
 - `chat-b`, `chat-zh`, `chat-en`: before/after returning from Settings to a synthetic, Bot-free QA channel with a three-line unsent draft. Settings were opened through the public app route with the chat retained in the native stack. Original chat, draft and message-anchor rectangles were compared separately from cold-launch preference persistence. Numeric native caret retention is unverified.
 
 Raw screenshots/XML stay private. Published crops exclude system notification/status/navigation bars, device/computer identifiers, connection details and private conversations. An obstructed intermediate-font capture was discarded and retaken. Images have been visually inspected.
