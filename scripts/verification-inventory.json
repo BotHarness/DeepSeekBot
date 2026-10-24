@@ -797,6 +797,14 @@
       "source": "packages/core/src/devices/ssh-tunnel.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/ssh-host.md",
       "task": 2607
+    },
+    {
+      "id": "product.command-compatibility",
+      "label": "Install and uninstall Tobs and legacy CLI independently with matching behavior",
+      "source": "scripts/e2e-tobs-commands.mjs",
+      "guide": null,
+      "task": 2722,
+      "gap": "Package command qualification only; Host persistence and native mobile identity require separate journeys."
     }
   ],
   "scripts": [
@@ -1404,9 +1412,9 @@
       "path": "scripts/e2e-fresh-profile-install.mjs",
       "category": "historical-regression",
       "behaviors": ["product.fresh-install"],
-      "reason": "Exact prepared artifacts and fresh Profile; installs/restarts real Host, rejects native preflight plugin disablement, creates Bot/DM; no Client check.",
+      "reason": "Exact prepared artifacts through both deepseekbot and tobs Bundles on both supported DSH versions; installs/restarts real Host, rejects native preflight plugin disablement, creates Bot/DM; no Client check.",
       "task": 1980,
-      "sha256": "15d101840fae11397b69a8b516ac992bfcd3221dde767ffdf1040e234a6cc16b"
+      "sha256": "20b2f69bd179f4c3b8e9b56c21a447413150ed06d6ef6f342a731f3b9d5e0613"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",
@@ -2278,6 +2286,14 @@
       "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
       "task": 2713,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-tobs-commands.mjs",
+      "category": "historical-regression",
+      "behaviors": ["product.command-compatibility"],
+      "reason": "Installs verified local release archives through a loopback registry; checks global coexistence, independent removal, exit codes and npm exec on Windows and Linux; no live Host check.",
+      "task": 2722,
+      "sha256": "1fd404dd24bfda3e89850347e1286cb247b08fc1de6444e160d805849582e5b0"
     }
   ],
   "native": [

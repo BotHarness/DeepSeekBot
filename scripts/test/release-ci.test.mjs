@@ -64,9 +64,11 @@ describe('release verification protection', () => {
   });
   it('allows publishing after reused verification but blocks unsuccessful preparation', () => {
     for (const result of ['success', 'failure', 'cancelled', 'skipped']) {
-      expect(expression(release.jobs.publish.if, { needs: { prepare: { result } } })).toBe(
-        result === 'success',
-      );
+      expect(
+        expression(release.jobs.publish.if, {
+          needs: { prepare: { result }, 'qualify-commands': { result: 'success' } },
+        }),
+      ).toBe(result === 'success');
     }
     expect(
       expression(release.jobs.publish.if, {
@@ -81,7 +83,16 @@ describe('release verification protection', () => {
         step.run?.includes('scripts/e2e-fresh-profile-install.mjs'),
       ),
     ).toBe(true);
-    expect(release.jobs.publish.needs).toBe('prepare');
+    expect(release.jobs.publish.needs).toEqual(['prepare', 'qualify-commands']);
+    expect(release.jobs['qualify-commands'].strategy.matrix.os).toEqual([
+      'ubuntu-latest',
+      'windows-latest',
+    ]);
+    expect(
+      expression(release.jobs.publish.if, {
+        needs: { prepare: { result: 'success' }, 'qualify-commands': { result: 'failure' } },
+      }),
+    ).toBe(false);
     expect(release.jobs.publish.environment).toBe('npm-release');
     expect(
       release.jobs.publish.steps.some((step) => step.run?.includes('--plan-sha256 "$PLAN_SHA"')),

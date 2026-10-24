@@ -996,6 +996,12 @@ importers:
         specifier: ^4.95.0
         version: 4.132.0(@types/node@22.20.3)
 
+  packages/tobs:
+    dependencies:
+      deepseekbot:
+        specifier: link:../deepseekbot
+        version: link:../deepseekbot
+
   packages/todo:
     devDependencies:
       '@deepseek-ai/cordis':

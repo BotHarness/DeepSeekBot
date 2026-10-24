@@ -8,10 +8,10 @@ import { verifiedProductArtifacts } from './packaged-profile.mjs';
 
 const usage = 'Use node scripts/e2e-fresh-profile-install.mjs <artifacts> <fresh-output>';
 
-export function freshProfileOverrides(artifacts) {
+export function freshProfileOverrides(artifacts, productName = 'deepseekbot') {
   return Object.fromEntries(
     artifacts.artifacts
-      .filter((artifact) => artifact.name !== 'deepseekbot')
+      .filter((artifact) => artifact.name !== productName)
       .map((artifact) => [artifact.name, `file:${join(artifacts.directory, artifact.filename)}`]),
   );
 }
@@ -102,7 +102,7 @@ async function boot({ dsh, runtime, env, port, log }) {
   return { rpc, stop };
 }
 
-async function qualify(artifacts, version, root, port) {
+async function qualify(artifacts, version, root, port, productName) {
   const runtime = join(root, 'runtime');
   const home = join(root, 'dsh-home');
   const userHome = join(root, 'user-home');
@@ -122,14 +122,14 @@ async function qualify(artifacts, version, root, port) {
   assert.equal(step.status, 0, 'The web Profile template did not initialize');
   const profile = join(home, 'profiles/qa');
   const workspace = join(profile, 'pnpm-workspace.yaml');
-  const overrides = Object.entries(freshProfileOverrides(artifacts))
+  const overrides = Object.entries(freshProfileOverrides(artifacts, productName))
     .map(([name, spec]) => `  '${name}': '${spec}'\n`)
     .join('');
   writeFileSync(
     workspace,
     `${existsSync(workspace) ? readFileSync(workspace, 'utf8') : ''}\noverrides:\n${overrides}`,
   );
-  const product = artifacts.artifacts.find((artifact) => artifact.name === 'deepseekbot');
+  const product = artifacts.artifacts.find((artifact) => artifact.name === productName);
   step = run(
     dsh,
     ['plugin', '--profile', 'qa', 'add', join(artifacts.directory, product.filename)],
@@ -148,7 +148,7 @@ async function qualify(artifacts, version, root, port) {
   assert.equal(step.status, 0, 'The product did not install into a fresh Profile');
   const manifestPath = join(profile, 'package.json');
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  manifest.dsh.profile.bundles = [...new Set([...manifest.dsh.profile.bundles, 'deepseekbot'])];
+  manifest.dsh.profile.bundles = [...new Set([...manifest.dsh.profile.bundles, productName])];
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   const first = await boot({ dsh, runtime, env, port, log: join(root, 'boot-1.private.log') });
   let slug;
@@ -179,11 +179,19 @@ async function main() {
     platform: process.platform,
     scope:
       'Fresh Profile, no pre-approved builds: one install step, Host boot, Bot and DM creation, restart persistence. Browser, model and IM delivery are separate gates.',
-    rows: productDshVersions.map((dsh) => ({ dsh, state: 'pending' })),
+    rows: productDshVersions.flatMap((dsh) =>
+      ['deepseekbot', 'tobs'].map((productName) => ({ dsh, productName, state: 'pending' })),
+    ),
   };
   const results = await Promise.allSettled(
     report.rows.map((row, index) =>
-      qualify(artifacts, row.dsh, join(output, `dsh-${row.dsh}`), 32980 + index).then(
+      qualify(
+        artifacts,
+        row.dsh,
+        join(output, `${row.productName}-dsh-${row.dsh}`),
+        32980 + index,
+        row.productName,
+      ).then(
         () => {
           row.state = 'passed';
         },
@@ -197,7 +205,9 @@ async function main() {
   );
   writeFileSync(join(output, 'report.json'), `${JSON.stringify(report, null, 2)}\n`);
   for (const row of report.rows)
-    console.log(`DSH ${row.dsh}: ${row.state}${row.error ? ` (${row.error})` : ''}`);
+    console.log(
+      `${row.productName} / DSH ${row.dsh}: ${row.state}${row.error ? ` (${row.error})` : ''}`,
+    );
   if (results.some((result) => result.status === 'rejected')) process.exitCode = 1;
 }
 
