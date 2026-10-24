@@ -55,7 +55,7 @@ export function parseProductComposition(source) {
 }
 
 const PRODUCT_PACKAGES = new Set([
-  'tobs',
+  '@botharness/tobs',
   'deepseekbot',
   '@botharness/browser',
   '@botharness/computer',
@@ -156,13 +156,13 @@ export function packagedProfileManifest(manifest, directory) {
   const retained = bundles.filter((bundle) => !ownedStandaloneBundles.has(bundle));
   const artifacts = verifiedProductArtifacts(directory);
   const product = artifacts.artifacts.find((artifact) => artifact.name === 'deepseekbot');
-  const tobs = artifacts.artifacts.find((artifact) => artifact.name === 'tobs');
+  const tobs = artifacts.artifacts.find((artifact) => artifact.name === '@botharness/tobs');
   return {
     ...manifest,
     dependencies: {
       ...manifest.dependencies,
       deepseekbot: `file:${join(artifacts.directory, product.filename)}`,
-      tobs: `file:${join(artifacts.directory, tobs.filename)}`,
+      '@botharness/tobs': `file:${join(artifacts.directory, tobs.filename)}`,
     },
     dsh: {
       ...manifest.dsh,
@@ -194,8 +194,8 @@ export function verifyPackagedProfile(profileDirectory, directory) {
     const manifestPath =
       artifact.name === 'deepseekbot'
         ? productManifestPath
-        : artifact.name === 'tobs'
-          ? profileRequire.resolve('tobs/package.json')
+        : artifact.name === '@botharness/tobs'
+          ? profileRequire.resolve('@botharness/tobs/package.json')
           : dependencyRequire.resolve(`${artifact.name}/package.json`);
     installedPaths.set(artifact.name, dirname(manifestPath));
     const installed = JSON.parse(readFileSync(manifestPath, 'utf8'));

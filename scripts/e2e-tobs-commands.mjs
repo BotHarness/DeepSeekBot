@@ -127,7 +127,7 @@ async function help(name) {
 }
 try {
   const version = artifacts.productVersion;
-  await run('npm', ['install', '-g', `tobs@${version}`]);
+  await run('npm', ['install', '-g', `@botharness/tobs@${version}`]);
   const baseline = await help('tobs');
   report.checks.push('new global Tobs installation');
   await run('npm', ['install', '-g', 'deepseekbot@1.4.1', '--registry=https://registry.npmjs.org']);
@@ -147,16 +147,19 @@ try {
   assert.equal(await help('tobs'), baseline);
   report.checks.push('uninstall legacy preserves Tobs');
   await run('npm', ['install', '-g', `deepseekbot@${version}`]);
-  await run('npm', ['uninstall', '-g', 'tobs']);
+  await run('npm', ['uninstall', '-g', '@botharness/tobs']);
   assert.equal(await help('deepseekbot'), baseline);
   report.checks.push('uninstall Tobs preserves legacy');
-  for (const name of ['deepseekbot', 'tobs']) {
+  for (const [name, command] of [
+    ['deepseekbot', 'deepseekbot'],
+    ['@botharness/tobs', 'tobs'],
+  ]) {
     const { stdout: output } = await run('npm', [
       'exec',
       '--yes',
       `--package=${name}@${version}`,
       '--',
-      name,
+      command,
       '--help',
     ]);
     assert.ok(output.endsWith(baseline));
