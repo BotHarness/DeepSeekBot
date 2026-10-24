@@ -24,10 +24,10 @@ Numeric geometry and bounded request counts are in `measurements.json`. The open
 
 ## Automated checks
 
-- Final CI-selected related tests: 215 passed, 2 skipped (17 files).
+- Final CI-selected related tests: 311 passed, 2 skipped (20 files).
 - Focused timeline, UI and lifecycle tests: 80 passed, 1 skipped; updated working-row test group: 10 passed.
 - Build, typecheck, lint, format check, changelog, CLI parity and feature-map checks passed.
-- An initial full-suite run completed with 9,593 passed, 28 skipped and two failures. One was the old working-row expectation that history scrolling has no return button; it was updated for the requested behavior and passed the final related run. The other is an unchanged VRM `outdoors.test.ts` daylight assertion (actual 0.987364679 versus expected 1 ±0.005), reproduced independently using files exported from the exact main base. Full suite is therefore not reported green.
+- An initial full-suite run completed with 9,593 passed, 28 skipped and two failures. One was the old working-row expectation that history scrolling has no return button; it was updated for the requested behavior and passed the final 311-test related run. The other is an unchanged VRM `outdoors.test.ts` daylight assertion (actual 0.987364679 versus expected 1 ±0.005), reproduced independently using files exported from the exact main base. Full suite is therefore not reported green.
 
 ## Preserved failed attempts
 
@@ -36,3 +36,5 @@ Private task evidence retains tutorial-overlay navigation failures, a geometry a
 ## Review
 
 Existing pill-button composition and native DSH tokens are retained. The existing 80px latest threshold remains the scroll authority. The zero-height anchor follows the composer in layout, retaining the existing activity inset. A separate HTML explainer is omitted because the runtime change is one display condition and one layout anchor; the PR outline and real captures show the full behavior. Human visual acceptance remains for review; no merge or deployment is included.
+
+The task-owned Host and browser were stopped after verification; the Host process exited and its loopback port was released. Source and private failure evidence are retained.
