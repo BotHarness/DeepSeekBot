@@ -27,7 +27,7 @@ import { DayBars } from './primitives/day-bars';
 import { dayLabel } from '../host/usage-days';
 import { ChevronRightIcon } from './shell/icons';
 import { tokenAmount, UsageBars, useLoaded, type Loaded } from './shell/usage-card';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 import { LoadingIndicator } from './primitives/loading-indicator';
 
 const AVATAR = 28;
@@ -97,6 +97,7 @@ function UsageSummary({
   onPeriod(period: UsagePeriod): void;
   extended: boolean;
 }) {
+  const t = useStrings();
   const usage = forPeriod(state, period).value;
   const week = usage === undefined ? undefined : usageWeek(usage);
   const [picked, setPicked] = useState<number>();
@@ -195,6 +196,7 @@ function UsageRow({
   roster: readonly RosterBot[];
   onOpenBot(slug: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'more')
     return (
@@ -302,6 +304,7 @@ export function UsageView({
   roster: readonly RosterBot[];
   onOpenBot(slug: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [period, setPeriod] = useState<UsagePeriod>('week');
   const [extendedSource, setExtendedSource] = useState<UsageSources>();

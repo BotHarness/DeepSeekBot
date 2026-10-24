@@ -164,19 +164,33 @@ describe('plugin entry', () => {
       expect(body.batch.map((event) => event.event)).toEqual(['plugin_started', 'daily_usage']);
       expect(body.batch[0]!.distinct_id).toBe(installId);
       expect(Object.keys(body.batch[0]!.properties).sort()).toEqual([
+        '$geoip_disable',
         '$process_person_profile',
         'arch',
+        'cpu_count_bucket',
         'dsh_version',
+        'node_version',
         'os',
+        'os_release_major',
         'plugin_version',
         'source',
+        'total_mem_gb_bucket',
       ]);
       expect(Object.keys(body.batch[1]!.properties).sort()).toEqual([
+        '$geoip_disable',
         '$process_person_profile',
+        'arch',
+        'cpu_count_bucket',
+        'dsh_version',
         'messages',
+        'node_version',
+        'os',
+        'os_release_major',
         'persona_bots',
+        'plugin_version',
         'sessions',
         'source',
+        'total_mem_gb_bucket',
         'window_hours',
       ]);
       expect(JSON.stringify(body)).not.toContain(home);
@@ -498,6 +512,14 @@ describe('plugin entry', () => {
       'activitySnapshot',
       'get',
       'create',
+      'createLookup',
+      'zipUploadBegin',
+      'zipUploadChunk',
+      'zipUploadPreview',
+      'zipImportLookup',
+      'zipImport',
+      'botImportPreview',
+      'botImportLookup',
       'createFromGit',
       'update',
       'dataResetPreview',

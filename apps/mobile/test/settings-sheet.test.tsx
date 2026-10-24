@@ -53,7 +53,6 @@ async function render(element: ReactElement): Promise<HTMLElement> {
 function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
   return {
     onUsage: vi.fn(),
-    onOpenFullClient: vi.fn(),
     onComputers: vi.fn(),
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
@@ -96,7 +95,6 @@ describe('Settings sheet', () => {
       [t.notifications, 'onNotifications'],
       [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
-      [t.openFullClient, 'onOpenFullClient'],
     ];
     for (const [label, action] of rows) {
       await act(async () => button(view, label)!.click());

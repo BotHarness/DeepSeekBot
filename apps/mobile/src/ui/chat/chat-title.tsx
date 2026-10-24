@@ -5,7 +5,7 @@ import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 
@@ -20,6 +20,7 @@ export function ChatTitle({
   fallback: string;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const status = bot === undefined ? undefined : bot.paused ? t.paused : t.state[bot.state];
   const name = bot?.displayName ?? fallback;

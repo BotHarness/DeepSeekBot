@@ -58,7 +58,9 @@ function fakeConnect(bindPort = 41001) {
   };
 }
 
-function fakeServices(options: { pending?: number; allowed?: boolean } = {}) {
+function fakeServices(
+  options: { pending?: number; allowed?: boolean; deleted?: { workos: boolean } } = {},
+) {
   let pending = options.pending ?? 1;
   let refreshCount = 0;
   const calls: { method: string; path: string; auth?: string; body?: unknown }[] = [];
@@ -96,7 +98,7 @@ function fakeServices(options: { pending?: number; allowed?: boolean } = {}) {
           user: { id: 'user_alice', email: 'alice@example.com' },
         });
       }
-      if (form?.['refresh_token'] === 'revoked')
+      if (form?.['refresh_token'] === 'revoked' || options.deleted?.workos)
         return Response.json({ error: 'invalid_grant' }, { status: 400 });
       refreshCount += 1;
       return Response.json({
@@ -112,8 +114,12 @@ function fakeServices(options: { pending?: number; allowed?: boolean } = {}) {
         tokenEndpoint: 'https://api.workos.com/user_management/authenticate',
         zone: 'deepseekbot.dev',
       });
+    if (options.deleted !== undefined)
+      return Response.json({ error: { code: 'unauthorized' } }, { status: 401 });
     if (options.allowed === false)
       return Response.json({ error: { code: 'account-not-allowed' } }, { status: 403 });
+    if (url.pathname === '/v1/hosts' && method === 'GET')
+      return Response.json({ hosts: [...hosts].map((id) => ({ id })) });
     if (url.pathname === '/v1/hosts' && method === 'POST') {
       hosts.add('hstudioaaaaa');
       return Response.json({ host: { id: 'hstudioaaaaa' } }, { status: 201 });
@@ -143,7 +149,7 @@ async function settle(account: { status(): { state: string } }) {
     await new Promise((done) => setImmediate(done));
 }
 
-function setup(services = fakeServices(), port = 41001) {
+function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
   const account = createConnectAccount({
@@ -154,7 +160,7 @@ function setup(services = fakeServices(), port = 41001) {
     hostName: () => 'Studio',
     freePort: async () => 41001,
     sleep: async () => {},
-    watchMs: 60_000,
+    watchMs,
   });
   return { account, credentials, tunnel, services };
 }
@@ -304,6 +310,7 @@ describe('Connect account lifecycle', () => {
     });
     await account.start();
     expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
+    expect(credentials.records.size).toBe(0);
     await account.close();
 
     const hostile = vi.fn(async () =>
@@ -321,6 +328,47 @@ describe('Connect account lifecycle', () => {
     });
     expect(await other.signIn()).toEqual({ ok: false, code: 'relay-unavailable' });
     expect(hostile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Connect account deletion', () => {
+  async function until(done: () => boolean) {
+    for (let index = 0; index < 200 && !done(); index += 1)
+      await new Promise((wait) => setTimeout(wait, 5));
+  }
+
+  for (const workos of [true, false])
+    it(`stops the tunnel and drops the session once the relay answers 401 (refresh ${workos ? 'refused' : 'still works'})`, async () => {
+      const options: { pending: number; deleted?: { workos: boolean } } = { pending: 0 };
+      const services = fakeServices(options);
+      const { account, credentials, tunnel } = setup(services, 41001, 10);
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'signed-in' });
+      await until(() =>
+        services.calls.some((call) => call.method === 'GET' && call.path === `${RELAY}/v1/hosts`),
+      );
+      expect(account.status()).toMatchObject({ state: 'signed-in' });
+
+      services.hosts.clear();
+      options.deleted = { workos };
+      await until(() => account.status().state !== 'signed-in');
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
+      expect(tunnel.connect.status()).toEqual({ state: 'off' });
+      expect(credentials.records.size).toBe(0);
+      await account.close();
+    });
+
+  it('keeps a live account signed in and relinks a Host the relay forgot', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account, tunnel } = setup(services, 41001, 10);
+    await account.signIn();
+    await settle(account);
+    services.hosts.clear();
+    await until(() => tunnel.enabled.length > 1);
+    expect(tunnel.enabled).toHaveLength(2);
+    expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+    await account.close();
   });
 });
 
@@ -351,7 +399,13 @@ describe('connect sign-in CLI', () => {
       ),
     ).toEqual({ connect: { state: 'connected', account: { state: 'signed-in', email: 'a@b.c' } } });
     expect(http.mock.calls[0]).toEqual(['/api/botharness/devices/connect', { action: 'sign-in' }]);
-    expect(stderr).toHaveBeenCalledWith('Open https://auth.test/d and confirm code ABCD\n');
+    expect(stderr).toHaveBeenCalledWith(
+      'Open https://auth.test/d and confirm code ABCD\n' +
+        'To use a different account, open the link in a private window.\n',
+    );
+    expect(stderr).toHaveBeenLastCalledWith(
+      'Signed in as a@b.c. Not you? Run deepseekbot connect-sign-out.\n',
+    );
     await expect(
       runConnectCommand('connect-status', [], { wait: true }, {}, async () => ({ http })),
     ).rejects.toMatchObject({ code: 'usage' });

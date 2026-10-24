@@ -51,6 +51,11 @@ module.exports = ({ config }) => {
   const bundleIdentifier = store ? 'app.deepseekbot.mobile' : config.ios.bundleIdentifier;
   return withSharing({
     ...config,
+    plugins: [
+      ...config.plugins,
+      './modules/local-computer-video/app.plugin.js',
+      ['expo-dev-client', { addGeneratedScheme: !store }],
+    ],
     owner: 'deepseekbots-team',
     updates: { ...config.updates, enabled: false },
     extra: { ...config.extra, eas: { projectId: '40cf3888-5864-4238-9cfb-82e285d568f6' } },
@@ -59,6 +64,7 @@ module.exports = ({ config }) => {
       bundleIdentifier,
       infoPlist: {
         ...config.ios.infoPlist,
+        NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
         ITSAppUsesNonExemptEncryption: false,
         NSUserActivityTypes: ['INSendMessageIntent'],
       },

@@ -3,7 +3,7 @@ import type { Inbox } from '../../host/inbox';
 import { t } from '../strings';
 import type { Conversation } from './conversations';
 
-export type ConversationActionKey = 'pin' | 'unpin' | 'read' | 'mute' | 'unmute';
+export type ConversationActionKey = 'pin' | 'unpin' | 'section' | 'read' | 'mute' | 'unmute';
 
 export type ConversationAction = { key: ConversationActionKey; label: string };
 
@@ -23,8 +23,9 @@ export function conversationActions(
 ): ConversationAction[] {
   if (conversationChannelId(conversation) === undefined) return [];
   const keys: ConversationActionKey[] = [
-    state.hostMuted ? 'unmute' : 'mute',
     state.pinned ? 'unpin' : 'pin',
+    'section',
+    state.hostMuted ? 'unmute' : 'mute',
   ];
   if (conversation.unread > 0 && latestMessageId(conversation) !== undefined) keys.push('read');
   return keys.map((key) => ({ key, label: t.rowActions[key] }));
@@ -38,6 +39,7 @@ export async function runConversationAction(
 ): Promise<void> {
   const channelId = conversationChannelId(conversation);
   if (channelId === undefined) return;
+  if (key === 'section') return;
   if (key === 'read') {
     const messageId = latestMessageId(conversation);
     if (messageId === undefined) return;

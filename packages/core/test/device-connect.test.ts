@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   admitsGatewayPath,
   createDeviceConnect,
+  createGatewayOrigin,
   validTunnelToken,
   type SpawnTunnel,
   type TunnelProcess,
@@ -112,6 +113,40 @@ function setup(spawnImpl?: SpawnTunnel) {
 }
 
 describe('hosted Connect route', () => {
+  it('refuses Local video HTTP and upgrades before reaching the Host, including normalized paths', async () => {
+    let effects = 0;
+    const upstream = createServer((_request, response) => {
+      effects += 1;
+      response.end('unexpected');
+    });
+    upstream.on('upgrade', (_request, socket) => {
+      effects += 1;
+      socket.destroy();
+    });
+    servers.push(upstream);
+    await new Promise<void>((done) => upstream.listen(0, '127.0.0.1', done));
+    const origin = createGatewayOrigin(() => (upstream.address() as AddressInfo).port);
+    servers.push(origin);
+    await new Promise<void>((done) => origin.listen(0, '127.0.0.1', done));
+    const base = `http://127.0.0.1:${(origin.address() as AddressInfo).port}`;
+    for (const path of [
+      '/botharness-device/api/computer/video',
+      '/botharness-device/web/api/computer/video',
+      '/botharness-device/api/computer/%76ideo?command=input',
+      '/botharness-device/web/api/computer/%76ideo',
+      '/botharness-device/api/computer/unused/../video',
+      '/botharness-device//api/computer/video/',
+      '/botharness-device%2fweb%2fapi%2fcomputer%2fvideo',
+    ]) {
+      expect(await get(base, path)).toMatchObject({
+        status: 404,
+        body: expect.stringContaining('not-found'),
+      });
+      expect(await upgrade(base, path)).toContain('404 Not Found');
+    }
+    expect(effects).toBe(0);
+  });
+
   it('admits only device gateway paths', () => {
     expect(admitsGatewayPath('/botharness-device/pair')).toBe(true);
     expect(admitsGatewayPath('/botharness-device/api/remote.mux?x=1')).toBe(true);
@@ -203,15 +238,17 @@ describe('device Connect tunnel', () => {
     });
 
     const origin = connect.status().origin ?? '';
-    expect(await get(origin, '/botharness-device/pair')).toEqual({
+    expect((await get(origin, '/botharness-device/pair')).status).toBe(404);
+    expect(await get(origin, '/botharness-device/channel')).toEqual({
       status: 200,
-      body: 'dsh /botharness-device/pair',
+      body: 'dsh /botharness-device/channel',
     });
     expect((await get(origin, '/api/botharness/devices')).status).toBe(404);
     expect((await get(origin, '/')).status).toBe(404);
-    expect(await upgrade(origin, '/botharness-device/api/remote.mux')).toContain(
-      'x-path: /botharness-device/api/remote.mux',
+    expect(await upgrade(origin, '/botharness-device/channel')).toContain(
+      'x-path: /botharness-device/channel',
     );
+    expect(await upgrade(origin, '/botharness-device/api/remote.mux')).toContain('404 Not Found');
     expect(await upgrade(origin, '/api/remote.mux')).toContain('404 Not Found');
 
     const stored = [...credentials.records.values()][0] as {
@@ -254,7 +291,7 @@ describe('device Connect tunnel', () => {
     const opened = new Promise<void>((done) => socket.once('data', () => done()));
     const closed = new Promise<void>((done) => socket.once('close', () => done()));
     socket.write(
-      'GET /botharness-device/api/remote.mux HTTP/1.1\r\nhost: studio.deepseekbot.dev\r\nconnection: upgrade\r\nupgrade: websocket\r\n\r\n',
+      'GET /botharness-device/channel HTTP/1.1\r\nhost: studio.deepseekbot.dev\r\nconnection: upgrade\r\nupgrade: websocket\r\n\r\n',
     );
     await opened;
     expect(await connect.disable()).toEqual({ ok: true, status: { state: 'off' } });

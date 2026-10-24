@@ -5,13 +5,14 @@ import { View } from 'react-native';
 import { botSettings } from '../../host/bot-settings';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { SheetPage } from '../primitives/sheet-page';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { ModelSheet } from './model-sheet';
 import { WorkspaceSheet } from './workspace-sheet';
 import { SheetNote } from './sheet';
 
 export function BotSettingsScreen({ kind }: { kind: 'model' | 'workspace' }) {
+  const t = useStrings();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const { client } = useHostSession();

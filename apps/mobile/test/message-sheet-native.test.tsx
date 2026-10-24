@@ -129,8 +129,9 @@ vi.mock('@expo/ui/swift-ui', () => {
     VStack: box('div'),
   };
 });
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
-  Shapes: { Circle: {} },
+vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
+  ...(await import('./compose-menu-shim')).modifiers,
+  Shapes: { Circle: {}, RoundedCorner: () => ({}) },
   background: () => ({}),
   clickable: (onClick: () => void) => ({ onClick }),
   clip: () => ({}),
@@ -143,7 +144,8 @@ vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
     description: contentDescription,
   }),
 }));
-vi.mock('@expo/ui/jetpack-compose', () => {
+vi.mock('@expo/ui/jetpack-compose', async () => {
+  const nativeMenu = (await import('./compose-menu-shim')).components;
   const pass = ({ children }: { children?: ReactNode }) => children ?? null;
   const box =
     (tag: string) =>
@@ -154,6 +156,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
   ListItem.LeadingContent = pass;
   ListItem.HeadlineContent = pass;
   return {
+    ...nativeMenu,
     Column: box('div'),
     Box: ({ children, modifiers }: { children: ReactNode; modifiers: Modifier[] }) => {
       const toggle = modifiers.find((modifier) => modifier.toggled !== undefined);
@@ -174,7 +177,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     ModalBottomSheet: ({ children }: { children: ReactNode }) =>
       createElement('div', { role: 'dialog' }, children),
     RNHostView: pass,
-    Row: box('div'),
+    Row: nativeMenu.Row,
     Text: ({ children }: { children: ReactNode }) => createElement('span', null, children),
   };
 });
@@ -352,7 +355,7 @@ describe('Android message sheet', () => {
       ['content_copy', t.copy],
       ['share', t.shareText],
     ]);
-    expect(host?.querySelectorAll('hr')).toHaveLength(1);
+    expect(host?.querySelectorAll('li i[data-symbol]')).toHaveLength(2);
     expect(byLabel(t.react('👍'))?.getAttribute('data-min')).toBe('true');
     act(() => byLabel(t.react('👍'))?.click());
     expect(handlers.onReact).toHaveBeenCalledWith(bot, '👍', true);

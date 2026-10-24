@@ -4,12 +4,99 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.interface-preferences",
+      "label": "Phone-local language and appearance choices preserve the active chat and draft",
+      "source": "apps/mobile/src/ui/interface-preferences.ts",
+      "task": 2702,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-interface.md"
+    },
+    {
+      "id": "phone.zip-bot-import",
+      "label": "Retain a selected Zip, upload bounded chunks and recover the original imported Bot and DM",
+      "source": "apps/mobile/src/host/native-zip-import-file.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2637,
+      "gap": "Host/CLI restart proof and deterministic file/transport tests do not establish native picker, foreground, keyboard or device-disconnect behavior."
+    },
+    {
+      "id": "phone.marketplace-bot-import",
+      "label": "Browse the public native Marketplace before selecting a Host and import its reviewed source",
+      "source": "apps/mobile/app/marketplace.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2636,
+      "gap": "Public catalogue API proof does not establish native rendering, keyboard behavior or successful import; Android/iOS require the shared device journey."
+    },
+    {
+      "id": "phone.blank-bot-creation",
+      "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2629,
+      "gap": "Native Android/iOS interaction remains separate from the passing PR2632 Host/CLI path; source tests do not establish native acceptance."
+    },
+    {
+      "id": "phone.git-bot-import",
+      "label": "Import a pinned Git source on a chosen paired Host and recover the same Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2635,
+      "gap": "Record the Git import Host/CLI path and Android/iOS interaction at their exact candidate; inherited blank-creation evidence does not qualify import."
+    },
+    {
+      "id": "phone.local-computer-video",
+      "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
+      "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/local-computer-video.md",
+      "task": 2558,
+      "gap": "Windows helper capture, Android native rendering, physical LAN interaction and Human qualification remain unverified; source checks do not establish runtime acceptance."
+    },
+    {
+      "id": "phone.pinned-list",
+      "label": "Browse Remote Host sections and full Pinned conversation rows, collapse and search without changing arrangement",
+      "source": "apps/mobile/app/(tabs)/(home)/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-list.md",
+      "task": 2571,
+      "gap": "Centralized test center owns native iOS/Android width/text/appearance, interaction and screenshot qualification; Human visual feedback gates Organize/drag siblings."
+    },
+    {
+      "id": "phone.chat-row-actions",
+      "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
+      "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-chat-row-actions.md",
+      "task": 2519,
+      "gap": "Native iPhone and Android gestures, menus, keyboard, screen readers and light/dark large-text qualification await the shared-device queues."
+    },
+    {
+      "id": "marketplace.browse",
+      "label": "Browse flat Bot cards with banners, topic filters and remembered sorting",
+      "source": "packages/client/src/client/market-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 2568,
+      "gap": "Web Panel light/dark and reload verified; production Worker deployment and native Desktop qualification remain separate."
+    },
+    {
+      "id": "phone.drawer-views",
+      "label": "Choose All or one Host from the phone drawer with Android Host accent",
+      "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
+      "task": 2518,
+      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/remote-hosts.md",
       "task": 2500,
       "gap": "Two isolated local Hosts qualify the browser path; DSH Desktop, physical tailnet machines and remote image/card rendering remain unqualified."
+    },
+    {
+      "id": "connect.encrypted-channel",
+      "label": "Pair exact device keys and carry Connect messages, resources and private input through Noise XK",
+      "source": "packages/core/src/devices/encrypted-gateway.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
+      "task": 2542,
+      "gap": "Real Cloudflare network, iOS/Android and Human acceptance remain separate gates; browser/Node local-origin capture is not native proof."
     },
     {
       "id": "desktop.approval.three-actions",
@@ -688,9 +775,39 @@
       "guide": ".agents/skills/verify-deepseekbot/features/private-input-origin.md",
       "task": 2290,
       "gap": "Controlled Provider; real external delivery and GitHub authentication are not qualified."
+    },
+    {
+      "id": "phone.composer",
+      "label": "Native message composer layout, editing and attachment actions",
+      "source": "apps/mobile/src/ui/chat/composer.tsx",
+      "task": 2566,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.haptic-feedback",
+      "label": "Immediate press feedback, semantic haptics and device-local feedback preference",
+      "source": "apps/mobile/src/ui/haptics.ts",
+      "task": 2624,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-haptic-feedback.md",
+      "gap": "Source tests do not qualify native interaction or Human tactile acceptance; both platforms require queued native and physical-device checks."
+    },
+    {
+      "id": "host.ssh-tunnel",
+      "label": "Computer SSH tunnel to a pinned Linux Host",
+      "source": "packages/core/src/devices/ssh-tunnel.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/ssh-host.md",
+      "task": 2607
     }
   ],
   "scripts": [
+    {
+      "path": "scripts/e2e-zip-import-proof.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.zip-bot-import"],
+      "reason": "Imported helper of e2e-personabot-create.mjs, not a standalone launcher: same archive after upload restart and duplicate chunk, CLI preview/import/status, discarded accepted reply and same Bot/DM after import restart.",
+      "task": 2637,
+      "sha256": "8a2b6e3604d177e402376191a3a259f490964c572d5324573b484b6be8858ca4"
+    },
     {
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
@@ -1591,9 +1708,9 @@
       "path": "scripts/e2e-mobile-routines-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.routines"],
-      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Native gestures and scheduler/model execution are separate.",
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. Native gestures and scheduler/model execution are separate.",
       "task": 2028,
-      "sha256": "48702c190e4584f5265e7fe8832940b344d8d7b3d58c0c0dfd9607b8e3cf96f0"
+      "sha256": "3903a64308e151ccce70afbef53bcc90fa528117b7d081f2093d82b586acbb39"
     },
     {
       "path": "scripts/e2e-mobile-android-interactions.mjs",
@@ -1615,9 +1732,9 @@
       "path": "scripts/e2e-mobile-sim.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing", "phone.notifications"],
-      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence.",
+      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence. Dev-only pairing launches use deepseekbot-dev; coexistence and store routing require the separate native variant checklist (#2322).",
       "task": 2020,
-      "sha256": "f78a7b9e9c52d6a813cb1dfccc15c99f85d2f6dda4b6d97e2715828eb53964f6"
+      "sha256": "7d93f96202df240bc8e022b49cad8bf61ead88eafe935c163ff7f4ae4d1bcc9c"
     },
     {
       "path": "scripts/e2e-mobile-usage-web.mjs",
@@ -1702,10 +1819,15 @@
     {
       "path": "scripts/e2e-personabot-create.mjs",
       "category": "mapped",
-      "behaviors": ["desktop.personabot.create"],
-      "reason": "Own pinned isolated Host; public create/read/Memory snapshot and restart persistence. Optional DM commits Human message only, not Bot response.",
-      "task": 1972,
-      "sha256": "d8fe67038816e8be69a698a4d5fe5e18d3a759a8061bf9e3fc8a3a75d85529eb"
+      "behaviors": [
+        "desktop.personabot.create",
+        "phone.blank-bot-creation",
+        "phone.git-bot-import",
+        "phone.zip-bot-import"
+      ],
+      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response. Restart now waits for both HTTP shutdown and actual process exit; Linux zombie state is treated as exited (#2713).",
+      "task": 2713,
+      "sha256": "d4a34ec8a567c8bf1fb3c9be0d8adb1f2c6e98bcec266c8cbf5082f4b85f4e05"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
@@ -2055,10 +2177,10 @@
     },
     {
       "path": "scripts/e2e-desktop-zoom-launch.mjs",
-      "sha256": "7aa97d564aa93d76372e952e2d0a747a4cd9d310f54a49fb655e56642c319a9a",
+      "sha256": "01b194480a51560a5d896b47fdcdd805de9d9f6e9092eac4d1ab8600ee72ab33",
       "category": "mapped",
-      "reason": "Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate.",
-      "task": 2268,
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate.",
+      "task": 2713,
       "behaviors": ["desktop.window-zoom"]
     },
     {
@@ -2151,10 +2273,10 @@
     },
     {
       "path": "scripts/e2e-desktop-zoom-windows.mjs",
-      "sha256": "cf08b5af77f660a47d033a5a7812acaf3d825c8512c073b6cb5b942ca126f1f8",
+      "sha256": "ce7697d6a8dc0a516c9a3f92144fa2164f789ba8e1263e545a558737e51d287b",
       "category": "mapped",
-      "reason": "Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
-      "task": 2270,
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
+      "task": 2713,
       "behaviors": ["desktop.window-zoom"]
     }
   ],

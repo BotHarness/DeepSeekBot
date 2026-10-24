@@ -1,9 +1,15 @@
+import { readComputerAvailability } from './computer-availability';
+import { encryptedCarrier, encodeBase64, ConnectRefused } from './encrypted-carrier';
+import type { HostEncryption } from './hosts';
 import type { ConnectionTelemetry } from '../telemetry/connection';
 import { ActivitySmoother } from '../../../../packages/client/src/client/activity-smoothing';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
+import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
-import { socketOrigin } from './route';
+import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
+import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
   type ActivityLiveFrame,
@@ -92,14 +98,17 @@ export interface RosterView {
   channels: RosterChannel[];
   activityChannels?: ChannelListItem[];
   arrangement?: RosterArrangement;
+  sorting?: RosterSorting;
 }
 
 export interface HostSnapshot {
+  computerAvailable?: boolean;
   connection: ConnectionState;
   roster?: RosterView;
 }
 
 export interface RemoteSource {
+  read?: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; mime: string }>;
   uri: string;
   headers: Record<string, string>;
 }
@@ -121,6 +130,7 @@ export interface HostClient {
   upload(name: string, data: Blob): Promise<AttachmentRef>;
   api(path: string, init?: HostApiInit): Promise<HostApiAnswer>;
   resource(path: string): RemoteSource;
+  secretInputAllowed?(): boolean;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
@@ -137,6 +147,8 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  hostId?: string;
+  encryption?: HostEncryption;
   telemetry?: ConnectionTelemetry;
   routes: string[];
   credential: string;
@@ -259,21 +271,31 @@ export function arrangementOf(value: unknown): RosterArrangement | undefined {
 }
 
 export function createHostClient(options: HostClientOptions): HostClient {
+  const carrier = encryptedCarrier({
+    raw: options.carrier,
+    hostId: options.hostId ?? '',
+    credential: options.credential,
+    ...(options.encryption === undefined ? {} : { encryption: options.encryption }),
+  });
   const routes = options.routes;
   const authorization = { authorization: `Device ${options.credential}` };
   let route = routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
+  const avatars = new Map<string, string>();
+  const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
   let snapshot: HostSnapshot = { connection: { status: 'stopped', route } };
   let bots: PersonaBotSummary[] | undefined;
+  let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
   const smoother = new ActivitySmoother<WireBotActivity>();
   let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
+  let sorting: RosterSorting | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -290,6 +312,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const publish = (connection?: ConnectionState): void => {
     snapshot = {
       connection: connection ?? snapshot.connection,
+      ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
     };
     if (connection !== undefined)
@@ -334,16 +357,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return {
             slug: bot.slug,
             displayName: bot.displayName,
-            ...(bot.avatar === undefined
-              ? {}
-              : { avatarUrl: absolute(bot.avatar), avatarHeaders: authorization }),
+            ...(bot.avatar === undefined ? {} : avatar(bot.avatar)),
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
-            computerAccess: bot.computerAccess === true,
-            browserAccess: bot.browserAccess === true,
+            computerAccess:
+              bot.computerAccess === true &&
+              (!isEncryptedRoute(route, options.encryption) || isLanRoute(route)),
+            browserAccess:
+              bot.browserAccess === true && !isEncryptedRoute(route, options.encryption),
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
@@ -355,11 +379,67 @@ export function createHostClient(options: HostClientOptions): HostClient {
       channels: groups,
       activityChannels: [...channels.values()].filter((channel) => channel.deletedAt === undefined),
       ...(arrangement === undefined ? {} : { arrangement }),
+      ...(sorting === undefined ? {} : { sorting }),
     };
   };
 
   const absolute = (path: string): string =>
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
+
+  const resource = (path: string): RemoteSource => {
+    if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
+      return { uri: absolute(path), headers: authorization };
+    const origin = route;
+    return {
+      uri: `connect-resource:${options.hostId ?? ''}:${path}`,
+      headers: {},
+      read: async (signal) => {
+        if (!path.startsWith('/') || path.startsWith('//'))
+          throw new Error('resource-path-invalid');
+        const response = await carrier.request(`${origin}${DEVICE_PREFIX}${path}`, {
+          method: 'GET',
+          signal,
+        });
+        if (response.status !== 200 || !response.bytes) throw new Error('resource-unavailable');
+        return {
+          bytes: await response.bytes(),
+          mime: response.contentType ?? 'application/octet-stream',
+        };
+      },
+    };
+  };
+  const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
+    if (!checkRoute(route).ok) return {};
+    if (!isEncryptedRoute(route, options.encryption))
+      return { avatarUrl: absolute(path), avatarHeaders: authorization };
+    const key = route + path;
+    const cached = avatars.get(key);
+    if (cached) return { avatarUrl: cached, avatarHeaders: {} };
+    if (running && avatars.size < 64 && avatarLoading.size < 8 && !avatarLoading.has(key)) {
+      avatarLoading.add(key);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      void resource(path).read!(controller.signal)
+        .then(
+          ({ bytes, mime }) => {
+            if (
+              running &&
+              bytes.length <= 512 * 1024 &&
+              /^image\/(?:png|jpeg|webp|gif)$/u.test(mime.split(';')[0]!)
+            ) {
+              avatars.set(key, `data:${mime};base64,${encodeBase64(bytes)}`);
+              publish();
+            }
+          },
+          () => {},
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          avatarLoading.delete(key);
+        });
+    }
+    return {};
+  };
 
   const reloadInBackground = (): void => {
     reload().catch(() => {});
@@ -374,6 +454,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       return await work(controller.signal);
     } catch (error) {
+      if (error instanceof ConnectRefused) {
+        if (error.code in REFUSALS) throw new CredentialRefused(error.code as DeviceRefusal);
+        throw new MethodRefused(
+          error.code,
+          'Encrypted connection refused. Check the Host fingerprint and pair again.',
+        );
+      }
       if (
         error instanceof CredentialRefused ||
         error instanceof Unreachable ||
@@ -397,13 +484,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
   ): Promise<T> =>
     withDeadline(async (signal) => {
       const name = method.includes('/') ? method : `botharness/${method}`;
+      const refusal =
+        isEncryptedRoute(via, options.encryption) && options.encryption === undefined
+          ? secretRouteRefusal(name)
+          : undefined;
+      if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
       const request: ClientRequest = {
         type: 'client-request',
         rpcId: id(),
         method: name,
         payload: { args },
       };
-      const response = await options.carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
+      const response = await carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
         method: 'POST',
         body: JSON.stringify(request),
         headers: authorization,
@@ -433,7 +525,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const upload = (name: string, data: Blob): Promise<AttachmentRef> =>
     withDeadline(async (signal) => {
-      const response = await options.carrier.request(
+      const response = await carrier.request(
         `${route}${DEVICE_PREFIX}/api/botharness/attachment/upload?${new URLSearchParams({ name })}`,
         {
           method: 'POST',
@@ -462,6 +554,24 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
     withDeadline(async (signal) => {
+      if (isConnectRoute(route) && path === LOCAL_VIDEO_PATH)
+        return {
+          status: 403,
+          body: {
+            ok: false,
+            code: 'connect-carrier-required',
+            error: 'Local Computer video requires the paired LAN route.',
+          },
+        };
+      if (
+        isEncryptedRoute(route, options.encryption) &&
+        /^\/api\/(?:browser|computer)\//u.test(path) &&
+        !(isLanRoute(route) && path === LOCAL_VIDEO_PATH)
+      )
+        throw new MethodRefused(
+          'connect-viewer-unavailable',
+          'Use the Host or Tailscale for Browser and Computer viewers.',
+        );
       const outer = init.signal;
       if (outer?.aborted === true) throw new Unreachable('The request was cancelled.');
       const controller = new AbortController();
@@ -469,7 +579,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       signal.addEventListener('abort', cancel);
       outer?.addEventListener('abort', cancel);
       try {
-        const response = await options.carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
           method: init.body === undefined ? 'GET' : 'POST',
           ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
           headers: authorization,
@@ -501,18 +611,39 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
+  const discoverComputer = async (): Promise<void> => {
+    const currentRoute = route;
+    const currentGeneration = generation;
+    if (isEncryptedRoute(route, options.encryption) && !isLanRoute(route)) {
+      computerAvailable = false;
+      return;
+    }
+    try {
+      const available = await readComputerAvailability(api, isLanRoute(route));
+      if (currentRoute === route && currentGeneration === generation && available !== undefined) {
+        computerAvailable = available;
+        publish();
+      }
+    } catch (error) {
+      if (currentRoute === route && currentGeneration === generation) refusedBy(error);
+    }
+  };
+
   const reloadOnce = async (): Promise<void> => {
-    const [list, channelList, rosterArrangement] = await Promise.all([
+    void discoverComputer();
+    const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       call<{ channels: ChannelListItem[] }>('channels'),
       call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
         if (error instanceof MethodRefused) return undefined;
         throw error;
       }),
+      call<unknown>('settings/describe').then(rosterSortingOf),
     ]);
     bots = list.bots;
     channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
     arrangement = rosterArrangement;
+    sorting = rosterSorting;
     publish();
   };
 
@@ -583,7 +714,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
         route = candidate;
         return;
       } catch (error) {
-        if (error instanceof CredentialRefused) throw error;
+        if (
+          isConnectRoute(candidate) ||
+          error instanceof ConnectRefused ||
+          error instanceof CredentialRefused ||
+          error instanceof MethodRefused
+        )
+          throw error;
         failure = error;
       }
     }
@@ -658,7 +795,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       const frame: MuxClientFrame = { type: 'open', streamId, endpoint, payload: { args: {} } };
       socket?.send(JSON.stringify(frame));
     };
-    socket = options.carrier.openSocket(
+    socket = carrier.openSocket(
       socketOrigin(route) + DEVICE_PREFIX + REMOTE_STREAM_MUX_PATH,
       {
         open: () => {
@@ -794,6 +931,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       wake?.();
       socket?.close();
       socket = undefined;
+      carrier.close?.();
+      avatars.clear();
+      avatarLoading.clear();
       publish({ status: 'stopped', route });
       options.telemetry?.dispose();
     },
@@ -833,7 +973,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
       }
     },
     upload,
-    resource: (path) => ({ uri: absolute(path), headers: authorization }),
+    resource,
+    secretInputAllowed: () =>
+      checkRoute(route).ok &&
+      (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);

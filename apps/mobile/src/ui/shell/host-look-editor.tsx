@@ -30,7 +30,7 @@ import { Segmented } from '../primitives/segmented';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { HostGlyph } from './host-tile';
 import { CheckIcon } from './icons';
 
@@ -44,6 +44,7 @@ type IconSet = HostIcon['kind'];
 const SHEET_GROUP: LayerName = 'raised';
 
 function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const ink = hostColorInk(theme.scheme, theme.color, look.color);
   const tab = (label: string, selected: boolean, leading?: ReactNode) => (
@@ -189,6 +190,7 @@ export function HostLookEditor({
   look: HostLook;
   actions: HostLookActions;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [set, setSet] = useState<IconSet>(look.icon.kind);
   const [nameDraft, setNameDraft] = useState(look.name ?? '');

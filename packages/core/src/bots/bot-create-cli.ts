@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parseArgs } from 'node:util';
+import { ZIP_UPLOAD_COMMANDS, ZIP_UPLOAD_OPTIONS, runZipUploadCli } from './cli-zip-upload.js';
 import { isMap, isScalar, parseDocument } from 'yaml';
 import { parseCredentialsDocument } from '@deepseek-ai/dsh-credentials-local';
 
@@ -77,6 +78,7 @@ import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { CliLiveError, LIVE_COMMANDS, LIVE_OPTIONS, runLiveCli } from './cli-live.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
+import { runSshCli, SSH_COMMANDS, SSH_OPTIONS } from './cli-ssh.js';
 import { PROFILE_ONLINE_COMMANDS } from './cli-profile.js';
 import {
   isScheduleCommand,
@@ -123,6 +125,8 @@ export interface BotCreateFailure {
 export const BOT_CREATE_HELP = `deepseekbot: create PersonaBots without clicking
 
 Usage:
+  deepseekbot ssh-tunnel <alias> --pairing-file <private-file> --out <new-private-file>
+    --local-port <port> --remote-port <port> [--ssh-config <absolute-file>]
   deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                     [--core-memory <text> | --core-memory-stdin]
                     [--description <text>] [--role <tag> ...] [--avatar-file <image>]
@@ -131,7 +135,13 @@ Usage:
   deepseekbot create --name <name> --from-git <url | owner/repo> [...]
   deepseekbot create [--name <name>] --from-zip <file> [...]
   deepseekbot create [--name <name>] --from-dir <directory> [...]
+  deepseekbot bot-import-preview --from-git <url | owner/repo> --host <url>
+  deepseekbot create-status --name <name> --operation-key <stable-key> [same blank or pinned Git input] --host <url>
   deepseekbot list [--home <dsh-home>]
+  deepseekbot bot-zip-upload --from-zip <file> --upload-key <key> --host <url>
+  deepseekbot bot-zip-preview --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --host <url>
+  deepseekbot bot-zip-import --upload-key <key> --archive-sha256 <hash> --archive-size <bytes> --operation-key <key> --name <name> --host <url>
+  deepseekbot bot-zip-import-status --archive-sha256 <hash> --operation-key <key> --name <name> --host <url>
   deepseekbot show <id> [--home <dsh-home>]
   deepseekbot model-presets [--home <dsh-home>]
   deepseekbot model-preset-create --name <preset> --orchestrator-provider <p> --orchestrator-model <m>
@@ -494,11 +504,13 @@ const CREATE_OPTIONS = {
   preset: { type: 'string' },
   'preset-revision': { type: 'string' },
   'operation-key': { type: 'string' },
+  ...ZIP_UPLOAD_OPTIONS,
   'expected-profile': { type: 'string' },
   'erase-memory': { type: 'boolean' },
   'from-zip': { type: 'string' },
   'from-dir': { type: 'string' },
   'from-git': { type: 'string' },
+  'expected-commit': { type: 'string' },
   'memory-location': { type: 'string' },
   home: { type: 'string' },
   'orchestrator-provider': { type: 'string' },
@@ -537,6 +549,7 @@ const CREATE_OPTIONS = {
   cron: { type: 'string' },
   timezone: { type: 'string' },
   ...LIVE_OPTIONS,
+  ...SSH_OPTIONS,
   compact: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;
@@ -598,7 +611,7 @@ function mintSlug(): string {
   return `bot-${randomUUID().replaceAll('-', '')}`;
 }
 
-function expandGitHubRef(value: string): string | undefined {
+export function expandGitHubRef(value: string): string | undefined {
   const raw = value.trim();
   if (raw.length === 0) return undefined;
   const shorthand = raw.replace(/^github\.com\//iu, '').replace(/\.git$/iu, '');
@@ -2483,6 +2496,11 @@ function runSecretUnset(
 }
 
 const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
+  ...ZIP_UPLOAD_COMMANDS.map((command) => ({
+    command,
+    description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
+  })),
+  ...SSH_COMMANDS,
   ...LIVE_COMMANDS,
   ...DIAGNOSTIC_COMMANDS,
   ...LIFECYCLE_COMMANDS,
@@ -2590,13 +2608,19 @@ export async function runBotCreateCli(
       out.stdout(BOT_CREATE_HELP.trimEnd());
       return 0;
     }
+    if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
+    if (ZIP_UPLOAD_COMMANDS.some((entry) => entry === command)) {
+      if (!online) throw usageError('Zip transfer commands require --host.');
+      out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
+      return 0;
+    }
     if (
       values['operation-key'] !== undefined &&
-      (!online || !['create', 'group-create', 'group-invite'].includes(command))
+      (!online || !['create', 'create-status', 'group-create', 'group-invite'].includes(command))
     )
       throw usageError(
-        '--operation-key is supported only for online Bot creation, group creation or group invitation.',
+        '--operation-key is supported only for online Bot creation or status, group creation or group invitation.',
       );
     if (
       values['expected-channel'] !== undefined &&
@@ -2612,13 +2636,20 @@ export async function runBotCreateCli(
     )
       throw usageError('--expected-channel is supported only for reviewed group changes.');
     if (
+      values['expected-commit'] !== undefined &&
+      (!online || !['create', 'create-status'].includes(command))
+    )
+      throw usageError('--expected-commit is supported only for online Git creation or status.');
+    if (
       DIAGNOSTIC_COMMANDS.some((entry) => entry.command === command) ||
       LIFECYCLE_COMMANDS.some((entry) => entry.command === command) ||
       (online && ONLINE_MANAGEMENT_COMMANDS.some((entry) => entry === command))
     ) {
-      if (command === 'create' && rest.length > 0)
-        throw usageError('create takes no positional arguments.');
-      const input = command === 'create' ? await validatedCreate(values, readStdin) : undefined;
+      if (['create', 'create-status'].includes(command) && rest.length > 0)
+        throw usageError(`${command} takes no positional arguments.`);
+      const input = ['create', 'create-status'].includes(command)
+        ? await validatedCreate(values, readStdin)
+        : undefined;
       let bundle;
       if (input?.source.kind === 'zip') {
         const contents = readZipBundle(input.source.path);

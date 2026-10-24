@@ -33,8 +33,9 @@ const subscribe = (listener: () => void): (() => void) => {
   };
 };
 
-export function useTobDefaultIcon(slug: string): BotModeIcon | undefined {
-  const read = () => (source?.bot(slug)?.tob?.defaultAvatar ? source.icon() : undefined);
+export function useTobDefaultIcon(slug: string | undefined): BotModeIcon | undefined {
+  const read = () =>
+    slug !== undefined && source?.bot(slug)?.tob?.defaultAvatar ? source.icon() : undefined;
   return useSyncExternalStore(subscribe, read, read);
 }
 
@@ -46,9 +47,9 @@ export function useTobName(slug: string | undefined, fallback: string): string {
   return useSyncExternalStore(subscribe, read, read);
 }
 
-export function useTobBot(slug: string): BotSummary | undefined {
+export function useTobBot(slug: string | undefined): BotSummary | undefined {
   const read = () => {
-    const bot = source?.bot(slug);
+    const bot = slug === undefined ? undefined : source?.bot(slug);
     return bot?.tob ? bot : undefined;
   };
   return useSyncExternalStore(subscribe, read, read);

@@ -19,7 +19,8 @@ import {
   axModelEnvironment,
   axModelPatch,
   axRuntimeWorkspace,
-  goSessionQualified,
+  goSessionPatch,
+  installedGoAdapter,
   DEFAULT_GO_MODEL,
   GO_RUNTIME_PATCH,
   GO_SESSION_PATCH,
@@ -43,13 +44,14 @@ describe('AX native OpenCode Go reuse', () => {
     const runtime = join(root, 'isolated CLI with spaces');
     const workspace = parse(
       axRuntimeWorkspace(
-        'packages: [.]\nallowBuilds: {koffi: true}\npatchedDependencies: {other: other.patch}\n',
+        'packages: [.]\nallowBuilds: {koffi: true}\npatchedDependencies: {other: other.patch, \"@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2\": old.patch}\n',
         runtime,
       ),
     );
     expect(workspace.allowBuilds).toEqual({ koffi: true });
     expect(workspace.patchedDependencies.other).toBe('other.patch');
-    expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2']).toBe(
+    expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2']).toBeUndefined();
+    expect(workspace.patchedDependencies['@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.3']).toBe(
       GO_RUNTIME_PATCH,
     );
     const staged = join(runtime, GO_RUNTIME_PATCH);
@@ -58,7 +60,7 @@ describe('AX native OpenCode Go reuse', () => {
     axRuntimeWorkspace('packages: [.]\n', runtime);
     expect(readFileSync(staged)).toEqual(readFileSync(GO_SESSION_PATCH));
   });
-  it('keys the staged Go patch by the installed DSH and accepts rc.1 only for product artifacts', () => {
+  it('keys the staged Go patch by the selected runtime rather than a qualification allowlist', () => {
     const { root } = fixture();
     const runtime = join(root, 'packaged CLI');
     const workspace = parse(axRuntimeWorkspace('packages: [.]\n', runtime, '0.2.0-rc.1'));
@@ -66,11 +68,56 @@ describe('AX native OpenCode Go reuse', () => {
       '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.1': GO_RUNTIME_PATCH,
     });
     expect(readFileSync(join(runtime, GO_RUNTIME_PATCH))).toEqual(readFileSync(GO_SESSION_PATCH));
-    expect(goSessionQualified('0.2.1-rc.2', false)).toBe(true);
-    expect(goSessionQualified('0.2.1-rc.2', true)).toBe(true);
-    expect(goSessionQualified('0.2.0-rc.1', true)).toBe(true);
-    expect(goSessionQualified('0.2.0-rc.1', false)).toBe(false);
-    expect(goSessionQualified('0.2.1', true)).toBe(false);
+  });
+  it('reads an independently versioned native adapter rather than assuming the CLI version', () => {
+    const { root } = fixture();
+    const packages = join(root, 'node_modules/@deepseek-ai');
+    for (const [name, version, entry] of [
+      ['dsh', '0.2.1-rc.99', 'lib/bin.js'],
+      ['dsh-base', '0.2.1-rc.99', 'lib/index.js'],
+      ['dsh-llm-pi-ai', '0.2.0-rc.2', 'lib/index.js'],
+    ]) {
+      const directory = join(packages, name);
+      mkdirSync(join(directory, 'lib'), { recursive: true });
+      writeFileSync(
+        join(directory, 'package.json'),
+        JSON.stringify({ name: '@deepseek-ai/' + name, version, main: entry }),
+      );
+      writeFileSync(join(directory, entry), 'native source');
+    }
+    const adapter = installedGoAdapter(root);
+    expect(adapter).toEqual({ version: '0.2.0-rc.2', source: 'native source' });
+    const workspace = parse(axRuntimeWorkspace('packages: [.]\n', root, adapter.version));
+    expect(Object.keys(workspace.patchedDependencies)).toEqual([
+      '@deepseek-ai/dsh-llm-pi-ai@0.2.0-rc.2',
+    ]);
+  });
+  it('relocates the reviewed patch to matching code rather than a version-specific line', () => {
+    const patch = readFileSync(GO_SESSION_PATCH, 'utf8');
+    const lines = patch.split('\n');
+    const start = lines.findIndex((line) => line.startsWith('@@ '));
+    const original = lines
+      .slice(start + 1)
+      .filter((line) => line.startsWith(' ') || line.startsWith('-'))
+      .map((line) => line.slice(1))
+      .join('\n');
+    expect(goSessionPatch('prefix\n' + original)).toContain('@@ -2,7 +2,10 @@');
+    expect(() => goSessionPatch('changed upstream')).toThrow('request shape');
+    expect(() => goSessionPatch(original + '\n' + original)).toThrow('request shape');
+  });
+  it('skips an exact native repair without adding a redundant patch', () => {
+    const { root } = fixture();
+    const lines = readFileSync(GO_SESSION_PATCH, 'utf8').split('\n');
+    const repaired = lines
+      .slice(lines.findIndex((line) => line.startsWith('@@ ')) + 1)
+      .filter((line) => line.startsWith(' ') || line.startsWith('+'))
+      .map((line) => line.slice(1))
+      .join('\n');
+    expect(goSessionPatch(repaired)).toBeNull();
+    const workspace = parse(axRuntimeWorkspace('packages: [.]\n', root, '0.2.1-rc.99', repaired));
+    expect(workspace.patchedDependencies).toBeUndefined();
+    expect(existsSync(join(root, GO_RUNTIME_PATCH))).toBe(false);
+    expect(() => goSessionPatch(repaired + '\n' + repaired)).toThrow('request shape');
   });
   it('requires explicit setup, then shares a protected key with successive launches', () => {
     const { path } = fixture();

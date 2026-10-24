@@ -5,10 +5,18 @@ import { androidSettings } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import type { ToggleProps } from './toggle';
 
-export function Toggle({ label, value, disabled = false, on = 'sheet', onChange }: ToggleProps) {
+export function Toggle({
+  testID,
+  label,
+  value,
+  disabled = false,
+  on = 'sheet',
+  onChange,
+}: ToggleProps) {
   const theme = useDesignTheme();
   return (
     <View
+      testID={testID}
       accessible
       accessibilityRole="switch"
       accessibilityLabel={label}

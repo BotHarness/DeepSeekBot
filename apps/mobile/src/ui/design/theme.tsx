@@ -1,8 +1,9 @@
-import { createContext, useContext, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { Platform, useColorScheme, useWindowDimensions } from 'react-native';
 
 import { resolveTheme, type Appearance, type ColorScheme, type DesignTheme } from './resolve-theme';
 import { glass, PRESS_TINT, type PlatformOS } from './tokens';
+import { interfacePreferences } from '../interface-preferences';
 
 export {
   headerBand,
@@ -48,15 +49,24 @@ export function AccentProvider({
 
 export function useDesignTheme(): DesignTheme {
   const appearance = useContext(AppearanceContext);
+  const preferences = useSyncExternalStore(
+    interfacePreferences.subscribe,
+    interfacePreferences.getSnapshot,
+    interfacePreferences.getSnapshot,
+  );
+  const effective = useMemo(
+    () => ({ scheme: preferences.appearance, ...appearance }),
+    [preferences.appearance, appearance],
+  );
   const system: ColorScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const { fontScale } = useWindowDimensions();
   return useMemo(
     () => ({
-      ...resolveTheme(system, appearance, platformOS()),
+      ...resolveTheme(system, effective, platformOS()),
       fontScale,
       largeText: fontScale > 1.3,
     }),
-    [system, appearance, fontScale],
+    [system, effective, fontScale],
   );
 }
 

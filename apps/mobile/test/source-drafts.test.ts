@@ -43,3 +43,46 @@ describe('unsent source drafts', () => {
     expect(drafts.get('channel')).toBe('New input');
   });
 });
+
+it('keeps required draft removal retryable after a disk write or read failure', async () => {
+  const own = hostDraftKey('a', 'channel', 'one');
+  const other = hostDraftKey('b', 'channel', 'two');
+  let disk: Record<string, string> = { [own]: 'private draft', [other]: 'keep' };
+  let failed = true;
+  const drafts = createSourceDrafts({
+    read: async () => ({ ...disk }),
+    write: (next, required) => {
+      if (required && failed) throw new Error('disk full');
+      disk = { ...next };
+    },
+  });
+  await drafts.ready;
+  await expect(drafts.removePersistedWhere((key) => key === own)).rejects.toThrow('disk full');
+  expect(drafts.get(own)).toBe('private draft');
+  expect(disk[own]).toBe('private draft');
+  failed = false;
+  await drafts.removePersistedWhere((key) => key === own);
+  expect(disk).toEqual({ [other]: 'keep' });
+  expect(drafts.get(own)).toBe('');
+});
+
+it('does not discard persisted drafts when initial hydration failed', async () => {
+  let unavailable = true;
+  let disk: Record<string, string> = { own: 'private', other: 'keep' };
+  const drafts = createSourceDrafts({
+    read: async () => {
+      if (unavailable) throw new Error('read unavailable');
+      return { ...disk };
+    },
+    write: (next) => {
+      disk = { ...next };
+    },
+  });
+  await drafts.ready;
+  await expect(drafts.removePersistedWhere((key) => key === 'own')).rejects.toThrow(
+    'read unavailable',
+  );
+  unavailable = false;
+  await drafts.removePersistedWhere((key) => key === 'own');
+  expect(disk).toEqual({ other: 'keep' });
+});

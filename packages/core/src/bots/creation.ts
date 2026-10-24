@@ -1,3 +1,5 @@
+import type { ZipEntry } from './zip-archive.js';
+import type { HttpsFallback } from '../memory/clone.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -17,10 +19,52 @@ export interface BotCreationResult {
   record: PersonaBotRecord;
   channelId: string;
   receipt?: BotCreationReceipt;
+  httpsFallback?: HttpsFallback;
 }
+export interface BotImportInput {
+  displayName: string;
+  description?: string;
+  roles?: string[];
+  source:
+    | { kind: 'git'; gitUrl: string; commit: string }
+    | { kind: 'archive'; sha256: string; files: readonly ZipEntry[]; history?: Buffer };
+}
+export type BotImportReference = Omit<BotImportInput, 'source'> & {
+  source: { kind: 'git'; gitUrl: string; commit: string } | { kind: 'archive'; sha256: string };
+};
+function importFingerprint(input: BotImportReference): string {
+  const source = input.source;
+  return fingerprint({
+    kind: 'bot-import-v1',
+    displayName: input.displayName,
+    ...(input.description === undefined ? {} : { description: input.description }),
+    ...(input.roles === undefined ? {} : { roles: input.roles }),
+    source:
+      source.kind === 'git'
+        ? source
+        : {
+            kind: source.kind,
+            sha256: source.sha256,
+          },
+  });
+}
+function matchImport(row: CreationRow, input: BotImportReference): void {
+  if (row.payload_hash !== importFingerprint(input))
+    throw new BotCreationError(
+      'creation-key-conflict',
+      'This operation key belongs to a different creation/import request.',
+    );
+}
+
 export interface BotCreationService {
   create(input: BotCreationInput, operationKey?: string): BotCreationResult;
   lookup(operationKey: string, input: BotCreationInput): BotCreationReceipt | undefined;
+  lookupImport(operationKey: string, input: BotImportReference): BotCreationReceipt | undefined;
+  importBot(
+    input: BotImportInput,
+    operationKey: string,
+    authorize?: () => void,
+  ): Promise<BotCreationResult>;
 }
 export class BotCreationError extends Error {
   constructor(
@@ -47,7 +91,7 @@ function checkedKey(key: string): void {
       'The operation key must be 8–128 letters, digits, dots, colons, underscores or hyphens.',
     );
 }
-function fingerprint(input: BotCreationInput): string {
+function fingerprint(input: object): string {
   const canonical = Object.fromEntries(
     Object.entries(input)
       .filter(([, value]) => value !== undefined)
@@ -59,6 +103,7 @@ export function createBotCreation(options: {
   database: OperationalDatabaseModulePort;
   registry: PersonaBotRegistry;
   channels: ChannelStore;
+  log?: (message: string) => void;
 }): BotCreationService {
   const { database, registry, channels } = options;
   const read = (key: string) =>
@@ -97,7 +142,149 @@ export function createBotCreation(options: {
       ...(complete ? { channelId } : {}),
     };
   };
+  const pending = new Map<string, Promise<BotCreationResult>>();
+  const lookupImport = (operationKey: string, input: BotImportReference) => {
+    checkedKey(operationKey);
+    const row = read(operationKey);
+    if (!row) return undefined;
+    matchImport(row, input);
+    return receipt(row);
+  };
+  const importBot = async (
+    input: BotImportInput,
+    operationKey: string,
+    authorize?: () => void,
+  ): Promise<BotCreationResult> => {
+    checkedKey(operationKey);
+    const identity = importFingerprint(input);
+    const existing = pending.get(operationKey);
+    if (existing) {
+      const row = read(operationKey);
+      if (row) matchImport(row, input);
+      await existing;
+      authorize?.();
+      return importBot(input, operationKey, authorize);
+    }
+    const execute = async (): Promise<BotCreationResult> => {
+      authorize?.();
+      database.transaction((db) =>
+        db
+          .prepare(
+            'INSERT OR IGNORE INTO bot_creation_operations (operation_key,payload_hash,bot_slug,status) VALUES (?,?,?,?)',
+          )
+          .run(operationKey, identity, 'bot-' + randomUUID().replaceAll('-', ''), 'reserved'),
+      );
+      const row = read(operationKey)!;
+      matchImport(row, input);
+      receipt(row);
+      let record = registry.get(row.bot_slug);
+      let httpsFallback: HttpsFallback | undefined;
+      if (!record) {
+        if (existsSync(registry.defaultMemoryDirFor(row.bot_slug)))
+          throw new BotCreationError(
+            'creation-memory-conflict',
+            'Reserved import Memory needs repair before retry.',
+          );
+        const metadata = {
+          slug: row.bot_slug,
+          displayName: input.displayName,
+          ...(input.description === undefined ? {} : { description: input.description }),
+          ...(input.roles === undefined ? {} : { roles: input.roles }),
+        };
+        const result =
+          input.source.kind === 'git'
+            ? await registry.createFromGit(
+                { ...metadata, gitUrl: input.source.gitUrl, expectedCommit: input.source.commit },
+                authorize,
+              )
+            : await registry.createFromFiles(
+                {
+                  ...metadata,
+                  files: input.source.files,
+                  ...(input.source.history === undefined ? {} : { history: input.source.history }),
+                },
+                authorize,
+              );
+        if (!result.ok)
+          throw new BotCreationError(result.reason, 'The selected source could not be imported.');
+        record = result.record;
+        httpsFallback = result.httpsFallback;
+      }
+      authorize?.();
+      const channel = channels.getOrCreateDm(record.slug, record.displayName);
+      if (!channel)
+        throw new BotCreationError(
+          'creation-dm-unavailable',
+          'Import identity exists; reconcile its receipt before retry.',
+        );
+      database.transaction((db) =>
+        db
+          .prepare("UPDATE bot_creation_operations SET status = 'created' WHERE operation_key = ?")
+          .run(operationKey),
+      );
+      return {
+        record,
+        channelId: channel.id,
+        receipt: { operationKey, botSlug: record.slug, status: 'created', channelId: channel.id },
+        ...(httpsFallback === undefined ? {} : { httpsFallback }),
+      };
+    };
+    const operation = execute();
+    pending.set(operationKey, operation);
+    try {
+      return await operation;
+    } finally {
+      if (pending.get(operationKey) === operation) pending.delete(operationKey);
+    }
+  };
   return {
+    lookupImport,
+    async importBot(input, operationKey, authorize) {
+      const startedAt = performance.now();
+      const log = (phase: 'started' | 'complete' | 'refused', reason?: string) => {
+        try {
+          options.log?.(
+            'bot-import initiator=import-request phase=' +
+              phase +
+              ' source=' +
+              input.source.kind +
+              ' durationMs=' +
+              (phase === 'started' ? 0 : Math.round(performance.now() - startedAt)) +
+              (reason === undefined ? '' : ' reason=' + reason),
+          );
+        } catch {}
+      };
+      log('started');
+      try {
+        const result = await importBot(input, operationKey, authorize);
+        log('complete');
+        return result;
+      } catch (error) {
+        const reason =
+          error instanceof BotCreationError &&
+          [
+            'invalid-operation-key',
+            'creation-key-conflict',
+            'creation-memory-conflict',
+            'creation-identity-unavailable',
+            'creation-dm-unavailable',
+            'git-source-changed',
+            'git-not-found',
+            'invalid-git-url',
+            'git-clone-failed',
+            'git-clone-timeout',
+            'invalid-zip',
+            'memory-unavailable',
+            'duplicate',
+            'invalid-slug',
+            'invalid-input',
+          ].includes(error.code)
+            ? error.code
+            : 'import-failed';
+        log('refused', reason);
+        throw error;
+      }
+    },
     lookup(operationKey, input) {
       checkedKey(operationKey);
       const row = read(operationKey);

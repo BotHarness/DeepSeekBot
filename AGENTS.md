@@ -21,7 +21,7 @@ pnpm build
 
 Toolchain: pnpm 12.4.2 · Node ≥22 (`.node-version` = v24.21.0) · TypeScript 7 · oxlint · oxfmt · vitest · tsdown.
 In WSL, use the fnm node and `corepack pnpm` — Windows pnpm cannot create symlinks on WSL paths.
-Local DSH development uses the worktree's pinned `0.2.1-rc.2` CLI through `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n> [--worktree <path>] [--build]`; the launcher links the local Bundle, verifies the authenticated `/api`, and rejects a mismatched CLI. Run `pnpm dev:client` for automatic Client builds; append `?botharness-dev-reload=1` in the Web tab for a full-page refresh when the RC publishes a rebuilt Client event. Host changes use `pnpm build`, stop the launcher's exact PID, then restart the same isolated Profile. Details: `docs/client-bridge.md` §7. Agents boot an isolated, verified instance with the helper; it injects a shared machine-local `DEEPSEEK_API_KEY` when available (env > `~/.config/botharness/dev.env` > Keychain `botharness-deepseek`) and prints the local login URL. DSH may also use that profile's `$DSH_HOME/.credentials.yaml`; `node scripts/dev-secret.mjs check` reports only the shared injection source. Verify model usability with a real DM reply before declaring a key missing. Secrets stay machine-local and never enter the repo.
+Local DSH development uses the worktree's pinned `0.2.1-rc.3` CLI through `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n> [--worktree <path>] [--build]`; the launcher links the local Bundle, verifies the authenticated `/api`, and accepts DSH 0.2.0 and later prereleases independently of the build pin; use `--dsh-version <version>` to test another release. Run `pnpm dev:client` for automatic Client builds; append `?botharness-dev-reload=1` in the Web tab for a full-page refresh when the RC publishes a rebuilt Client event. Host changes use `pnpm build`, stop the launcher's exact PID, then restart the same isolated Profile. Details: `docs/client-bridge.md` §7. Agents boot an isolated, verified instance with the helper; it injects a shared machine-local `DEEPSEEK_API_KEY` when available (env > `~/.config/botharness/dev.env` > Keychain `botharness-deepseek`) and prints the local login URL. DSH may also use that profile's `$DSH_HOME/.credentials.yaml`; `node scripts/dev-secret.mjs check` reports only the shared injection source. Verify model usability with a real DM reply before declaring a key missing. Secrets stay machine-local and never enter the repo.
 For all future AX-launched isolated profiles to use the same DeepSeek key without re-entry, run `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` once. This copies only the DeepSeek reference into a private machine-local file (0600); it never copies the full profile credential store or commits a secret. See `docs/client-bridge.md` §7. Direct `dsh web` launches outside the AX helper still need an inherited environment key or their own profile credential.
 
 AX default model setup and credential reuse: follow `docs/agents/ax-model.md` for the machine-local `opencode-go` opt-in, local hidden-input setup, per-launch credential override and real DM verification. `dev-instance.mjs` applies the selected native model only to its own launched Host.
@@ -46,6 +46,10 @@ AX default model setup and credential reuse: follow `docs/agents/ax-model.md` fo
 Agent-facing debugging is a first-class concern. A plugin that owns long-running or external resources (containers, adapters, schedulers, external commands) records structured, bounded developer logs for its lifecycle transitions — initiator, phase, duration, external command summary, refusal reason — on a log surface that both Humans and agents can read, instead of ad-hoc `console` output. Messages stay stable and machine-parseable, never contain secrets, and remain process evidence rather than a second durable authority. The long-term tracing plan lives in [#160](https://github.com/BotHarness/BotHarness/issues/160); `CLAUDE.md` inherits this section because it delegates to `AGENTS.md`.
 
 WSL egress fallback: if a task-local DSH Host cannot reach a provider while Windows can, follow [the AX restricted-relay runbook](docs/agents/ax-wsl-network.md) for standing authorization, isolation, live-model proof, and lifecycle.
+
+### Verification resource cleanup (AX)
+
+Before launching a task-owned Host, watcher, preview, browser driver or tunnel, and before finishing or handing off that task, follow [verification resource cleanup](docs/agents/ax-resource-cleanup.md). Record ownership at launch; finish by verifying owned processes have exited and ports are released, or record an explicit retained-environment handoff. Preserve source changes and evidence, stop processes before removing their Profile/worktree, and retain shared E2E/QA resources under their queue owner's control.
 
 ### CLI parity (AX)
 
@@ -78,6 +82,10 @@ The dev VPS lives on the Human's Tailscale tailnet. Per-machine values (SSH host
 ### Shared device QA (AX)
 
 Native checks for `apps/mobile` share devices and QA Hosts among coding agents. Before booting an emulator/Simulator, building the app, starting a Host or touching a phone, follow [shared device QA](docs/agents/device-qa.md): choose the Mac/iOS or Windows/Android queue, submit to its owner-cut batch, use the dedicated QA Host, and report redacted results. Windows emulator and USB-phone checks use the shared `android-qa.ps1` lease and scrcpy capture workflow.
+
+### QA evidence (AX)
+
+Before capturing development screenshots or recordings, handing off macOS/iOS or Windows/Android QA, or retaining release images, follow [local QA evidence and release archives](docs/agents/qa-evidence.md). Keep an indexed task folder in the machine's main checkout and preserve accepted evidence by release and SHA; platform queues still own devices and capture tooling.
 
 ### Machine-local secrets (AX)
 
@@ -138,6 +146,8 @@ For PRs that change architecture or data flow across modules, read [the optional
 Single-context layout: root `CONTEXT.md` + `docs/adr/` (extended lazily by the domain skills). Root `CONTEXT.md` is the sole authority for BotHarness product terms such as PersonaBot, Channel, Source Event, Bot Inbox, Orchestrator Session, and Assignment Session; product runtime relationships live under `docs/architecture/`. See `docs/agents/domain.md`.
 
 ### UI guidelines
+
+Every new or changed Web, desktop or mobile interface follows [UI design](docs/agents/ui-design.md) ([中文](docs/agents/ui-design.zh.md)): communicate through layout, icons and interaction; keep descriptive prose secondary. Apply its review gate alongside the platform-specific rules.
 
 Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
 

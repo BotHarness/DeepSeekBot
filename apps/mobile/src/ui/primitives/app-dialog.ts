@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { ActionSheetIOS, Alert, Keyboard, Platform } from 'react-native';
 
 import { appDialogs, type DialogAction } from './dialog-state';
@@ -30,6 +31,34 @@ export function showAppDialog(
   );
 }
 
+export function confirmAppDialog(
+  title: string,
+  message: string,
+  confirm: string,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let dialogId: number | undefined;
+    let unsubscribe = () => {};
+    const finish = (accepted: boolean) => {
+      if (settled) return;
+      settled = true;
+      unsubscribe();
+      resolve(accepted);
+    };
+    if (Platform.OS === 'android')
+      unsubscribe = appDialogs.subscribe(() => {
+        const current = appDialogs.getSnapshot();
+        if (!current || (dialogId !== undefined && current.id !== dialogId)) finish(false);
+        else dialogId = current.id;
+      });
+    showAppDialog(title, message, [
+      { text: t.cancel, style: 'cancel', onPress: () => finish(false) },
+      { text: confirm, onPress: () => finish(true) },
+    ]);
+  });
+}
+
 export function confirmDestructive(
   title: string,
   message: string | undefined,
@@ -42,7 +71,11 @@ export function confirmDestructive(
   ]);
 }
 
-export function showActionMenu(title: string, actions: readonly DialogAction[]): void {
+export function showActionMenu(
+  title: string,
+  actions: readonly (DialogAction & { icon: NonNullable<DialogAction['icon']> })[],
+  avatar?: ReactElement,
+): void {
   const ordered = [
     ...actions.filter((action) => action.style !== 'destructive'),
     ...actions.filter((action) => action.style === 'destructive'),
@@ -60,6 +93,17 @@ export function showActionMenu(title: string, actions: readonly DialogAction[]):
         const onPress = ordered[index]?.onPress;
         if (onPress) void Promise.resolve(onPress()).catch(() => undefined);
       },
+    );
+    return;
+  }
+  if (Platform.OS === 'android') {
+    Keyboard.dismiss();
+    appDialogs.open(
+      title,
+      undefined,
+      [{ text: t.cancel, style: 'cancel' }, ...ordered],
+      'menu',
+      avatar,
     );
     return;
   }

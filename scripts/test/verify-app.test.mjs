@@ -1,10 +1,22 @@
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { collectObservation, parseVerifyArgs, verifyPaths } from '../verify-app.mjs';
+import {
+  collectObservation,
+  parseVerifyArgs,
+  verifyPaths,
+  inspectInstanceRuntime,
+} from '../verify-app.mjs';
 
 describe('verify-app arguments', () => {
+  it('forwards explicit runtime selection independently of the build pin', () => {
+    expect(parseVerifyArgs(['launch', '--dsh-version', '0.2.1-rc.99']).dshVersion).toBe(
+      '0.2.1-rc.99',
+    );
+    expect(() => parseVerifyArgs(['launch', '--dsh-version', 'latest'])).toThrow('API floor');
+  });
   it('keeps shot actions in the order given', () => {
     const options = parseVerifyArgs([
       'shot',
@@ -131,4 +143,31 @@ describe('named Host observation', () => {
       client: { state: 'unobserved' },
     });
   });
+});
+
+describe('actual launched runtime diagnostics', () => {
+  it.each(['0.2.0-rc.2', '0.2.1-rc.99'])(
+    'checks selected %s rather than the workspace SDK',
+    (version) => {
+      const root = mkdtempSync(join(tmpdir(), 'verify-runtime-'));
+      try {
+        const path = join(root, 'node_modules/@deepseek-ai/dsh');
+        mkdirSync(path, { recursive: true });
+        writeFileSync(join(path, 'package.json'), JSON.stringify({ version }));
+        const instance = { runtime: root, worktree: '/different-sdk', dshVersion: version };
+        expect(inspectInstanceRuntime(instance)).toEqual({
+          dshVersion: version,
+          dshVersionSupported: true,
+          dshVersionMatches: true,
+        });
+        writeFileSync(join(path, 'package.json'), JSON.stringify({ version: '0.2.2-rc.1' }));
+        expect(inspectInstanceRuntime(instance).dshVersionMatches).toBe(false);
+        expect(inspectInstanceRuntime({ worktree: root }).dshVersionError).toContain(
+          'not recorded',
+        );
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
 });

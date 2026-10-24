@@ -1,12 +1,34 @@
 import { changesApprovalPolicy } from './approval-templates.js';
 import type { Session } from '@deepseek-ai/dsh-session';
-import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
-import type { ApprovalService } from '@deepseek-ai/dsh-user-approval';
+import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
+import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
 type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
+
+export function alignOrchestratorSubagentPermission(
+  core: Pick<BotHarnessCore, 'ownership'>,
+  session: Session,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): void {
+  let owner = core.ownership.resolve(session.id);
+  if (owner?.provenance !== 'subagent' || policy === undefined || approval === undefined) return;
+  const seen = new Set<string>();
+  while (owner.parentSessionId !== undefined) {
+    if (seen.has(owner.sessionId)) return;
+    seen.add(owner.sessionId);
+    const parent = core.ownership.resolve(owner.parentSessionId);
+    if (parent === undefined || parent.botSlug !== owner.botSlug) return;
+    owner = parent;
+  }
+  if (owner.rootRole !== 'orchestrator') return;
+  if (policy.resolve({ session }).mode !== 'workspace-write')
+    setSandboxMode(session, 'workspace-write');
+  if (approval.overrideOf(session) !== 'never') setApprovalPolicy(session, 'never');
+}
 
 export function orchestratorPermission(
   core: AccessCore,

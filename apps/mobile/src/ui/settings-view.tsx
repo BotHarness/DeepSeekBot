@@ -12,11 +12,11 @@ import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { errorText, Notice } from './request-parts';
 import { UsageCard } from './shell/usage-card';
-import { t } from './strings';
+import { AppearanceSetting, InterfaceSaveNotice, LanguageSetting } from './interface-settings';
+import { useStrings, t } from './strings';
 
 export interface SettingsActions {
   onUsage(): void;
-  onOpenFullClient(): void;
   onComputers(): void;
   onAppIcon(): void;
   onNotifications(): void;
@@ -26,14 +26,14 @@ export interface SettingsActions {
   onCopyVersion(text: string): void;
 }
 
-const STATUS: Record<ConnectionState['status'], string> = {
+const statusLabels = (): Record<ConnectionState['status'], string> => ({
   connected: t.connected,
   connecting: t.connecting,
   reconnecting: t.reconnecting,
   refused: t.refused,
   unreachable: t.unreachable,
   stopped: '',
-};
+});
 
 export function SettingsView({
   hostName,
@@ -45,6 +45,7 @@ export function SettingsView({
   messageDisplay,
   activityCount,
   chatBackground,
+  hapticFeedback,
 }: {
   hostName: string | undefined;
   connection: ConnectionState;
@@ -55,11 +56,15 @@ export function SettingsView({
   messageDisplay?: ReactNode;
   activityCount?: ReactNode;
   chatBackground?: ReactNode;
+  hapticFeedback?: ReactNode;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [unpairError, setUnpairError] = useState<string>();
   const [versionCopied, setVersionCopied] = useState(false);
-  const status = [STATUS[connection.status], connection.route].filter((part) => part !== '');
+  const status = [statusLabels()[connection.status], connection.route].filter(
+    (part) => part !== '',
+  );
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
       <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
@@ -108,13 +113,6 @@ export function SettingsView({
           />
           <SettingsRow
             on={SHEET_GROUP}
-            title={t.openFullClient}
-            leading={<RowIcon name="browser" color={theme.color.accent} />}
-            tone="accent"
-            onPress={actions.onOpenFullClient}
-          />
-          <SettingsRow
-            on={SHEET_GROUP}
             title={t.unpair}
             leading={<RowIcon name="unpair" color={theme.color.danger} />}
             tone="danger"
@@ -134,7 +132,9 @@ export function SettingsView({
         {unpairError === undefined ? null : (
           <Notice tone="danger">{`${t.unpairFailed} ${unpairError}`}</Notice>
         )}
-        <SettingsSection title={t.interface} on={SHEET_GROUP}>
+        <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
+          <LanguageSetting on={SHEET_GROUP} />
+          <AppearanceSetting on={SHEET_GROUP} />
           <SettingsRow
             on={SHEET_GROUP}
             title={t.appIcon}
@@ -145,7 +145,9 @@ export function SettingsView({
           />
           {activityCount}
           {chatBackground}
+          {hapticFeedback}
         </SettingsSection>
+        <InterfaceSaveNotice />
         {messageDisplay}
         <SettingsSection title={t.about} on={SHEET_GROUP}>
           <SettingsRow

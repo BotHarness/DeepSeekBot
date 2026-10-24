@@ -4,6 +4,16 @@
 
 ## 语言
 
+### 产品命名
+
+**Tobs / 托布**：
+原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置总管 Bot「Tob」区分。
+_避免使用_：拖布、Tob（指代产品时）
+
+**BotHarness**：
+Tobs 背后的框架；应用采用 Tobs 品牌后，框架仍名为 BotHarness。
+_避免使用_：Tobs（指代框架时）
+
 ### 产品发布
 
 **Product Release Version**：
@@ -255,7 +265,7 @@ _避免使用_：driver、backend、sandbox、tool provider
 _避免使用_：driver、backend、computer provider
 
 **Takeover**：
-Human 在一台 Computer 上的接管会话：暂停所有在该 Computer 上行动的 PersonaBot，并在其持续期间关闭面向模型的截图。它由某个 Bot Screen 发起，但始终作用于整台 Computer。
+Human 对一台 Computer 的排他控制：由某个 Bot Screen 发起，但始终作用于整台 Computer，暂停所有在其上行动的 PersonaBot 的动作与面向模型的截图。观看不授予控制权；释放控制权后 Bot 仍保持暂停，直到 Human 明确恢复。
 _避免使用_：handoff、screen sharing、per-bot takeover
 
 **Computer Export**：
@@ -425,7 +435,7 @@ _避免使用_：collection、bundle、pack、team
 _避免使用_：database dump、live clone、publish
 
 **Import**：
-从分享的 Memory Git 仓库（Git URL 或 Bot Marketplace 安装）创建新的 PersonaBot；始终产生副本，导入的 operational authority 会保持 disabled，直到被显式 rebind 或 reauthorize。
+从分享的 Memory Git 仓库（Git URL 或 Bot Marketplace 安装）或 Bot Zip 创建新的 PersonaBot；始终产生副本，导入的 operational authority 会保持 disabled，直到被显式 rebind 或 reauthorize。
 _避免使用_：install、clone、pull、restore
 
 **Publish**：
@@ -491,8 +501,12 @@ _避免使用_：deleted Channel、archived Channel、muted Channel、Content Pu
 _避免使用_：Hidden Channel、Content Purge、provider conversation deletion
 
 **Channel section**：
-用户创建、可折叠的 Channel 分组，显示在频道列表面板中。它只是本地 display arrangement，不属于 Soul。
+用户创建、可折叠的 Channel 分组，显示在频道列表面板中。归属与顺序属于对应 Host 的 display arrangement，不属于 Soul。
 _避免使用_：folder、category、group
+
+**Pinned section (置顶分区)**：
+内置的展示分区，呈现某个 Host 已置顶的 Channel，与用户创建的 Channel section 归属独立。置顶保留 Channel 的原分区归属，但只在置顶分区展示；取消置顶后恢复普通位置。
+_避免使用_：Channel 副本、用户创建的分区、设备本地置顶存储
 
 **Section order (区块顺序)**：
 频道列表面板中 Channel section 的相对顺序：默认按创建顺序，之后可由用户排列。未分组 Channel 可以占据 section 之间的顶层位置，但不会因此成为 section。

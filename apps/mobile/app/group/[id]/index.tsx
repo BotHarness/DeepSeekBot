@@ -10,9 +10,10 @@ import { GroupInfoSheet } from '../../../src/ui/chat/group-info';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function GroupInfoScreen() {
+  const t = useStrings();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useDesignTheme();

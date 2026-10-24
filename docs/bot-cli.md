@@ -6,6 +6,26 @@ Bot summaries from `list` also include `lastActivityAt` (epoch milliseconds) whe
 
 ## Usage
 
+### Recoverable Zip transfer and import
+
+Use the same authenticated Host as the phone. `bot-zip-upload --from-zip <file> --upload-key <stable-key> --host <url>` returns `sha256`, `sizeBytes`, `offset`, `chunkBytes` and `expiresAt`. It uses `zipUploadBegin` and `zipUploadChunk`, resuming acknowledged chunks with the same key and exact file. Raw chunks are 256 KiB so their base64 envelopes fit the encrypted device transport's 4 MiB request limit.
+
+Before creating a Bot, run `bot-zip-preview --upload-key <key> --archive-sha256 <sha256> --archive-size <bytes> --host <url>`. It validates the full archive through `zipUploadPreview` and returns its descriptor, file count, expanded bytes and history flag. Confirm the name, optional `--description` and repeated `--role` values, then run `bot-zip-import` with those source flags plus `--operation-key <stable-operation-key> --name <name>`. This uses `zipImport` and the existing import owner, creating one Bot and its DM without model execution or grants.
+
+If the import response is lost, use `bot-zip-import-status --archive-sha256 <sha256> --operation-key <key> --name <name>` with exactly the same optional metadata. `zipImportLookup` needs no file or upload session. A completed receipt survives Host restart and upload expiry; repeating `bot-zip-import` returns that same Bot and DM. A different digest or metadata with the same operation key is refused. An incomplete expired upload may be transferred again explicitly; keep the original import key.
+
+Staging is outside canonical Bot storage. Limits match desktop archives: 100 MiB compressed and expanded, and 20,000 entries. The Host reserves at most eight concurrent uploads and 400 MiB total, allowing several large transfers while bounding disk use; sessions expire after 24 hours and are reclaimed when a transfer begins. An upload key binds its digest and size while staged. Identical chunk retries are accepted; changed chunks, unexpected offsets and a mismatched final digest are refused. There is no background-transfer guarantee. Credentials use the existing private token file or environment input and never appear in output. These commands do not expand Tob's CLI authority.
+
+`deepseekbot browser-notification-clients` lists online Client targets. `deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` reads that browser's local choice and revision. To write, add `--expected-revision <revision> --patch-stdin` and pipe `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`. These commands use the serving Host's usual online authentication and existing Client control relay; the Host persists no browser choice or Remote Host credential. Writes refuse stale revisions and unknown Hosts. Enabling requires permission already granted in the browser (`notification-permission-required` otherwise); CLI never opens the OS permission prompt. Closing the page ends both its control target and alerts. Enabling a previously inactive kind first refreshes the shared Inbox through every notification page, keeping the old choice until that complete baseline is ready. The successful write is the enable boundary: earlier items stay silent and later group/DM replies can alert. A failed page returns `notification-baseline-unavailable`; a ten-second UI baseline deadline returns `notification-baseline-timeout`. CLI writes also carry the existing appearance relay deadline (currently eight seconds) and its cancellation signal to the same owner. The owner checks both immediately before persistence; a relay timeout or unmount cannot be followed by a late write, and an expired notification command sends no late acknowledgement. Switching Host, closing settings, removing the pairing, losing permission or releasing the page cancels pending activation (`notification-activation-cancelled`); it cannot persist later. Retry explicitly after a refusal. Normal shared Host Feed observation continues while the page remains subscribed.
+
+`deepseekbot phone-notifications --metro-port <port> --target-id <exact-id> --device-name <exact-name>` reads the existing phone preference owner in an assigned Expo development client. Add `--preferences-stdin` with exactly the four boolean kinds to persist through that same owner and copy to every paired Host. It requires the shared-device batch/lease, a running loopback Metro inspector, an exact unique target, the development app ID, `__DEV__`, and the uniquely initialized owner. It never writes storage directly, creates another owner, enables OS permission, or treats Host copies as the phone choice. One JSON result distinguishes `saved` from `syncStatus` (`complete`/`pending`), `syncing`, and `failedHostIds`. A disconnected/timed-out write has an unknown outcome: read again before repeating it. Missing/ambiguous targets, release clients, unready owners and transport failures return coded errors; write outcomes are distinguished below. **This development-only AX path is unavailable in release clients; it is not release CLI parity or completed native QA.** Native real runs remain in the external combined acceptance batch.
+
+The phone command explicitly settles JavaScript Promises through the inspector; it does not rely on Hermes honoring CDP `awaitPromise`. A single 20-second deadline covers starting the operation, polling and consuming its result after connection. Each request has a unique temporary result slot, removed when consumed or cancelled, with a 20-second runtime expiry if the debugger disconnects. Late completion cannot recreate a removed slot. Runtime expiry needs the app's JavaScript event loop to run; a suspended app clears it when timers resume. Only a validated phone-owner result is success; Promise internals or malformed replies return `inspector-result-required`. The transport cannot undo an owner write already started, so a timeout remains an unknown write outcome, not proof that nothing changed. Read back before retrying. The command itself distinguishes these outcomes: if a write may have been dispatched but its result is unavailable, it keeps the underlying error code and explicitly reports an unknown write outcome with instructions to read without `--preferences-stdin`. Read failures and definite pre-write refusals do not use that warning.
+
+`deepseekbot inbox --notifications [--limit 1..100] [--cursor <cursor>]` uses the Host's existing `humanAttention` query with notification discovery enabled. Follow every returned cursor to obtain Host-decided actions, unread group mentions/replies and ordinary unread DM replies. This is independent of Activity's mentions-first page; filters cannot be combined with this mode. `notificationVersion: 1` is required, with a coded refusal on older Hosts. It opens no additional feed connection and does not change attention or unread state.
+
+`deepseekbot device-notifications --device-file <private-pairing.json>` reads the admitted device's send-preference copy from a live Host. Add `--preferences-stdin` and pipe `{"approval":true,"question":true,"private-input":true,"reply":false}` to replace its four kinds, even before a push token is registered. The private file has the saved pairing shape (`hostId`, `hostName`, `routes`, `deviceId`, `credential`); never put its credential in arguments or publish the file. Output is one JSON document without credentials; revoked pairings return `device-revoked`. This edits that Host's delivery copy only; the phone's persisted preference is authoritative and overwrites it on the next sync. Browser notification choices remain local to that browser and do not change Host attention.
+
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--core-memory <text> | --core-memory-stdin]
@@ -55,6 +75,18 @@ For a blank bot, `--core-memory <text>` or `--core-memory-stdin` writes the root
 `--home` points at the target `DSH_HOME`; a fresh directory works with zero clicks. Without it, `DSH_HOME` from the environment is used. Stop the Host before offline database commands: the profile writer lease is exclusive (`lease-unavailable`). Secret file commands can run online; live commands below use authenticated Host RPC.
 
 ## Live Host commands
+
+### Remote Host settings
+
+The browser's Remote Host icon menu → **Host settings** uses the same Host owners as these online commands. Select the source Host with `--host <origin>` and its private `--token-file <file>` (or the existing environment variables); never point a remote-setting command at the serving Host by default. `model-catalog`, `home-model-set`, `model-presets`, `model-preset-create` and `model-preset-update` cover models; `overview-usage` and `overview-memory` cover usage and Memory activity; `storage-usage` and both storage cleanup preview/confirm pairs cover storage. Destructive confirmations still require `--confirmation-stdin --confirm`, using the preview from that same Host. An unavailable or refusing Host never falls back to a local profile. These commands do not read browser pairing secrets or change device-local Host looks. Appearance and Notifications are separate sections in the same dialog and remain available while the Remote Host is offline.
+
+`appearance-clients` lists the open browser Clients. `host-look --client-id <id> --host-id <id>` reads that browser's name, icon, colour and content revision. Add `--patch-stdin --expected-revision <revision>` to write a JSON patch such as `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`. An empty name restores the Host's original display name; `color: null` clears the colour. Names are trimmed and limited to 40 characters, matching the phone's shared HostLook rules. Use a paired Remote Host ID or the serving Host's ID; no remote credential is accepted or returned.
+
+This command uses the existing authenticated `appearance-control` relay to reach the same Client-local `HostLooks` owner as the UI. It does not rename the operating-system hostname or sync choices to another device. The browser must be open; select it explicitly. All cooperating same-origin tabs use the exclusive Web Lock `botharness.hostLooks.v1`. Inside that lock the owner rereads storage, compares the selected Host's content revision and merges only that Host; UI edits transform the current field values inside the same lock. A stale revision returns `host-look-revision-stale`. Browsers without usable Web Locks return `host-look-lock-unavailable`; there is no unsafe read/modify/write fallback.
+
+`host-look-storage-read-failed` keeps the last known display state and blocks reads and writes instead of reporting defaults as loaded. Repair browser storage access, then use `host-look --client-id <id> --host-id <id> --refresh` (or Refresh appearance in settings) to recover explicitly. Refresh never writes. A read failure inside a write transaction also prevents persistence. `host-look-storage-failed` means the browser rejected the write; it does not publish an unsaved look. After resolving the storage problem, refresh before sending a new write.
+
+The CLI sets an absolute expiry before stdin and connection setup. The Host caps it at eight seconds from relay admission. The Client rechecks wall time after hydration, after acquiring the lock and immediately before `localStorage.setItem`; an overdue command cannot begin a write even if a timeout callback has not run. Client release and Host removal are also rechecked before writing. This is not a remote cancellation acknowledgement: killing the CLI or disconnecting HTTP before expiry can leave a delivered command running until that deadline. A lost write reply or relay timeout returns `host-look-outcome-unknown` where the CLI can still report it; read the same Client/Host before retrying. A write completed before expiry may have succeeded even when its reply was lost. `browser-notifications` continues to own the Notifications section, including permission, activation baseline and cancellation.
 
 Set `DEEPSEEKBOT_HOST` to the running Host's loopback origin, or a tailnet HTTPS origin. A tailnet origin (for example `tailscale serve` in front of a loopback Host) works only when the Host was started with `--trusted-host <machine>.<tailnet>.ts.net`; otherwise login succeeds but DSH's `/api` Host fence refuses every request and the CLI returns `host-untrusted`. Supply its current launch token through `DEEPSEEKBOT_HOST_TOKEN` or `--token-file <private-file>`, never a token argument. `--host <origin>` overrides the environment. Login happens per invocation, cookies remain in memory, and restarting the Host requires its new token. Live commands never open the profile database. See [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md).
 
@@ -367,6 +399,32 @@ deepseekbot grants <bot-id>
 
 `computer-frame` saves the current picture of the Computer desktop (Local or Container) to an absolute path and reports its size, `mimeType` (`image/jpeg`, or `image/png` when the Host cannot encode JPEG), `seq` and target. It is the same frame a paired phone polls from `GET /api/computer/frame?after=<seq>`, which waits for the screen to change and answers 204 when it stays the same. `computer-input --args-stdin` sends one Human action to that desktop: `{"kind":"click","x":10,"y":20}` (optional `"button":"right"`, `"count":2`), `{"kind":"scroll","direction":"down","amount":3}`, `{"kind":"type","text":"hi"}` or `{"kind":"key","key":"return","modifiers":["meta"]}`. Coordinates are pixels of the last frame. Both refuse with `not-running` while the Computer is stopped. Input needs `computer-takeover --enabled` first, or it is refused with `not-paused`. `computer-frame` answers `no-frame` when the Computer has not produced a picture yet. `computer-takeover --enabled` returns once any Bot Computer call already in progress has finished (at most 10 seconds), and a result that finishes after the pause starts is withheld from the Bot. While paused, every Bot Computer tool call is refused, screenshots included, so the Bot cannot move focus or see the screen while you type a password. The pause lasts while the phone keeps polling frames or sending input and lapses 30 seconds after the last one; `computer-takeover --disabled` hands the desktop back at once.
 
+### Local Computer video
+
+Windows and macOS Local Computer use the [native phone video path](local-computer-video.md). The preceding `computer-frame`, `computer-takeover` and `computer-input` descriptions apply to legacy targets; these commands return `update-required` on the migrated Windows/macOS targets. Bot/diagnostic screenshots remain separate capabilities and obey the global Bot pause.
+
+```bash
+deepseekbot computer-video status
+deepseekbot computer-video open --out /private/absolute/offer.json
+deepseekbot computer-video signal --args-stdin
+deepseekbot computer-video heartbeat --args-stdin
+deepseekbot computer-video takeover --args-stdin
+deepseekbot computer-video input --args-stdin
+deepseekbot computer-video release --args-stdin
+deepseekbot computer-video resume --args-stdin
+deepseekbot computer-video close --args-stdin
+```
+
+All operations use `POST /api/computer/video` and emit one JSON document. `status` reports global `paused`, `viewerCount`, `controlHeld`, media health and runtime; `controller`, binding and grant belong only to the admitted caller. The phone uses its paired device identity; the authenticated local CLI is the Host owner and cannot impersonate the phone by supplying a device ID. Opening a second viewer returns `viewer-limit`.
+
+On the phone, the exact command path travels inside the encrypted LAN channel and dispatches with the Noise-admitted device identity. Connect refuses video before owner execution; envelope route labels cannot override the server listener. Host-owner CLI success does not qualify phone pairing or LAN/native playback. The phone's single Hand back action uses `resume`; it and Reconnect remain available during confirmed stall independently of input eligibility. Low-level `release` keeps pause; reconnect starts observation only. See [recovery and downgrade](local-computer-video.md#recovery-and-downgrade) before reverting a version that has persisted pause.
+
+`open` does not pause Bots. It returns the server-issued `binding` (`computerId`, `runtimeId`, `viewerId`, `attemptId`) and saves its gathered offer to a new private `--out` file; stdout excludes SDP. Supply later command JSON through stdin. `signal` takes `binding` and `answer: {"type":"answer","sdp":"…"}`. `heartbeat` takes `binding` and `playback: {"presentedFrames":42,"presenting":true}` from actual receiver rendering. A fabricated heartbeat is not a playback test. `takeover` takes `binding`; forced takeover additionally needs `force:true` and the CLI's `--confirm`, though T1 refuses a second viewer before this step.
+
+`input` takes `binding`, the granted `generation`, a strictly increasing `sequence`, and `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}` or `input: {"kind":"scroll","direction":"right","amount":2,"x":10,"y":20}`. Scroll directions are `up`, `down`, `left`, `right`, with amount 1–50. Use actual full-display pixel coordinates. Input executes once; `input-result-unknown` means do not retry it. `release` takes `binding` and optionally `generation`, and keeps the durable pause. `close` takes `binding` and closes media while preserving pause. `resume` requires the current `runtimeId`; it works without a viewer/helper after restart, invalidates control and drains Human input before reopening Bot use. Another active controller produces `control-conflict`. Stale runtime/attempt/grant calls are refused.
+
+Inspect `computer-diagnostics` and `computer-logs` for bounded lifecycle evidence. Common refusals include `not-running`, `helper-missing`, `helper-start-failed`, `viewer-limit`, `media-not-live`, `control-required`, `control-disconnected`, `stale-attempt`, `stale-grant`, `pause-write-failed`, `drain-timeout`, `queue-full` and `connect-carrier-required`. Do not print signaling files, credentials or input contents in evidence. A successful CLI signal is not rendered-video or physical-device acceptance.
+
 ### Human Inbox, assignments, Sessions and approval rules
 
 ```bash
@@ -591,6 +649,14 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
 
+### Encrypted LAN phone access
+
+For model-free device-side qualification, `device-pair --link-file <trusted-private-link> --out <new-private-pairing.json> --confirm` runs the same encrypted enrollment as the phone. While waiting, the pairing process writes one `device-key-confirmation-required` JSON status to stderr containing only its public-key fingerprint. In another CLI process, compare all digits with `devices.pendingKeys[].fingerprint`, then approve the matching exact public key with `device-approve-key`; never approve merely by device name or list position. The final stdout contains only Host/device IDs and the output path; keys and credentials go only to the new private file. `device-probe --device-file <private-pairing.json>` then reads the real Host Feed through the mobile connection owner and reports only route kind and roster counts. It sends no DM and requires no model. Never pass a pairing link or device credential as a command argument.
+
+`deepseekbot device-lan enable --confirm` opens the restricted encrypted entry. `device-lan disable` closes LAN sockets and removes the opt-in; it does not revoke devices or disable Connect. Both return one JSON status (`off` or `listening`, with the port). `devices` includes `lan` status and eligible routes. Refusals include `confirm-required`, `lan-action-invalid`, `lan-listen-failed` and `lan-storage-unavailable`. LAN starts disabled; its enabled port survives ordinary Host restart.
+
+Use `device-offer --out <new-private-file>` and `device-approve-key <receipt> <public-key> --confirm` through the existing pairing owner. The installed app scans the trusted computer code and waits for exact phone-key approval. Public keys are safe arguments; links and credentials stay in protected files. See [the LAN contract](architecture/lan-phone-v1.md) for native build and network requirements.
+
 ### Phone route (Tailscale)
 
 Bot settings → Devices → Pair a phone shows a three-step guide while a phone cannot reach this Host: install Tailscale, start and sign in, then publish the Host on the tailnet. The last step can run `tailscale serve --bg <port>` for you after a confirmation, or you copy the command and run it yourself. The same two operations from the CLI:
@@ -601,6 +667,21 @@ deepseekbot phone-route-publish --confirm
 ```
 
 `phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve --https=443 off`; `tailscale serve reset` would also remove every other Serve entry on the computer.
+
+### Paired devices
+
+Bot settings → Devices lists paired phones, shows a pairing QR code and revokes a device. The same Devices owner from the CLI:
+
+```bash
+deepseekbot devices
+deepseekbot device-offer --out /absolute/new-private-file
+deepseekbot device-lan enable --confirm
+deepseekbot device-lan disable
+deepseekbot device-offer-status <receipt>
+deepseekbot device-revoke <device-id> --confirm
+```
+
+`devices` returns `{host, devices, routes}`: this Host's pairing identity, every paired device with `id`, `name`, `pairedAt`, `lastSeenAt` and `revokedAt` once revoked, and the phone routes as `phone-route` reports them. Device credentials are never listed. `device-offer` opens a one-time offer for 10 minutes and writes its `deepseekbot://pair?…` link only to `--out`, a new file created with mode 0600 (an existing file is refused with `output-exists` before any offer opens); stdout carries `{receipt, expiresAt, routes, reachable, link: {path}}`. Open the link on the phone, or pair from the QR code in Devices instead; `device-offer` refuses without `--out` (`out-required`). The receipt names the offer without being able to redeem it. `device-offer-status` returns `state`: `pending` with `expiresAt`, `redeemed` with the new `deviceId`, `expired`, `refused` (a redemption with the wrong verifier used it up), `superseded` (more than 16 offers were open) or `unknown`; offers live in Host memory, so every receipt is `unknown` after a Host restart. `device-revoke` returns `{revoked, closedStreams, device: {id, name}}`; the device's next request is refused with `device-revoked` and its open streams close at once. Refusals: `confirm-required`, `device-unknown`, `device-already-revoked`, `receipt-required` and `usage`.
 
 ### Models, usage and activity
 
@@ -632,6 +713,8 @@ The online Human CLI accepts `home-model-set --orchestrator-effort` and `--expec
 `overview-usage` (`--period today|week|month|quarter`; `month` is the last 28 days and `quarter` the last 84, default `today`) and `overview-memory` return the Overview page's per-Bot rows; pass `nextCursor` back as `--after` for more. In `overview-usage`, each bucket is the sum of what providers reported and is `null` only when nothing in it was reported; `partial: true` on the totals, a day or a Bot means some usage in it went unreported, so its `totalTokens` is a lower bound. `activity-overview` shows what every Bot is doing and `channel-activity-today` today's messages per Channel. The `bot-*` readers address a Bot by id and read the Profile panels through its DM: `bot-usage` needs a non-future `--start`/`--end` range shorter than 182 days, `bot-session-usage` groups usage by Session and Assignment, and `bot-activity-history` returns the activity calendar (`--weeks` 1–104). `group-activity` takes a group Channel id. In `bot-activity-history`, a model row’s `totalTokens` retains the reported lower bound with `partial: true` when other calls are unreported; fully unreported usage stays `null`. The strict `bot-usage` query retains its existing unknown-total semantics.
 
 ### Marketplace, releases, usage statistics, Git and pairing review
+
+Marketplace browsing in the Client defaults to most stars and remembers the chosen sort in this browser. `--sort stars` orders by stars, last update, creation time, then repository ID (all descending); pagination preserves this order. The CLI does not read browser preferences.
 
 These commands call the same Host methods as the Marketplace page, the update card, the usage statistics notice, the Git prompt and the IM pairing panel:
 
@@ -779,7 +862,7 @@ deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
 ```
 
-`folder-browse` lists the subfolders of one Host folder, the same way the phone folder picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
+`folder-browse` lists the subfolders of one Host folder, the same way the desktop Workspace Grant browser does, and the phone picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 
@@ -854,7 +937,15 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 The Host reserves one identity in its durable creation receipt before creating the Memory Repository and DM. After a lost response, repeat the **same operation key and same payload**: an existing completed receipt returns that Bot and DM, while a partially completed operation reconciles the reserved identity. A completed scoped retry performs a checked read instead of another creation approval. A changed payload refuses with `creation-key-conflict`; an archived or deleted identity refuses with `creation-identity-unavailable` and is never recreated by replay. `creation-memory-conflict` means the reserved folder exists without its Registry identity: preserve it for repair rather than deleting it or trying a new key. Receipt-backed creation is not a filesystem/database transaction and does not promise automatic repair of that interrupted state.
 
-The authenticated Human online `create` also accepts `--operation-key`. It is limited to blank creation with managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior, including import behavior. Scoped Tob does not gain Git/Zip/directory import, Marketplace search or edits to another Bot's existing Memory from this slice.
+The authenticated Human online `create` also accepts `--operation-key` for blank creation or an inspected Git source in managed Memory, without `--preset` or a custom Memory location; apply a model plan or move Memory separately. Calls without a key keep their existing behavior. Scoped Tob does not gain Git/Zip/directory import, Marketplace search or permission to modify another Bot’s Memory.
+
+The Human online `create-status` command performs a read-only receipt lookup on the original Host. Pass the same name, persona, Bio, tags and other blank-create inputs with the original key; changed input is refused. It returns `{receipt:null}` before an operation exists, or `{receipt:{operationKey,botSlug,status,channelId?}}`. A `reserved` receipt can be resumed using `create` with that exact input and key; `created` identifies the existing Bot and DM. Never change Host or mint a new key to recover an uncertain result. Mobile checks this lookup before its first create, so a Host without recovery support cannot silently create an unrecoverable Bot.
+
+```bash
+deepseekbot create-status --host <original-host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+deepseekbot create --host <original-host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+# After a lost reply, repeat create-status with the exact same arguments.
+```
 
 Scoped `show` returns `{bot, profileFingerprint}`. Before every `update`, `pause`, `resume`, `bot-avatar-set`, `bot-banner-set`, `bot-appearance-set` or `bot-primary-color-set`, read the target and pass that fingerprint using `--expected-profile`. Presentation commands retain their existing file/recipe/clear/color options. The fingerprint covers the complete Registry record, so a concurrent change to any recorded profile field invalidates the reviewed snapshot. The Host rechecks it after approval and before applying the existing owner operation, then returns the canonical profile and new fingerprint. Re-read after `stale-setting`; do not silently overwrite. Profile metadata updates are limited to name, description and tags, not Workspace Grants, credentials or model configuration. Human online `update` also requires `--expected-profile` from `show` and uses the same Host owner; a stale fingerprint is not silently refreshed. Use `--description ''` to clear the bio and `--role ''` to clear all tags.
 
@@ -1146,7 +1237,10 @@ the tunnel stops, so a tunnel the relay reclaimed after the Host was offline com
 `<host-id>.deepseekbot.dev`. `connect-status` adds `connect.account` with `state` (`signed-out`,
 `signing-in`, `signed-in`, `error`), `email`, `hostId` and `issue` (`relay-unavailable`,
 `sign-in-denied`, `sign-in-expired`, `session-expired`, `account-not-allowed`, `host-limit`,
-`credential-unavailable`). `connect-sign-out` unlinks the Host at the relay, stops the tunnel and
+`credential-unavailable`). While signed in, the Host re-checks the account with the relay every
+minute; once the relay or WorkOS refuses the session (for example after `DELETE /v1/account`), it
+stops the tunnel, deletes the stored session and reports `error` with `session-expired`.
+`connect-sign-out` unlinks the Host at the relay, stops the tunnel and
 deletes the session. Any signed-in account can link Hosts.
 
 ## Device-local DeepSeekBot appearance
@@ -1220,3 +1314,46 @@ Clear removes all functional Panel overrides only in the explicit mode, includin
 `tool-approval-decide ... --outcome allowed-always-tool` matches the Web card's Always allow: it approves the current call and persists the current tool in this Bot/role/authorization scope. Later different inputs match; another tool or changed scope does not. `tool-approval-rules` returns kind `tool`; `tool-approval-rule-revoke --confirm` restores prompting. Existing exact/broad/Secret rules are not reinterpreted. Permission/policy changes, Browser/Computer authorization and Tob install/restart/deletion can be remembered through the same command. They use separate scopes so old ordinary/all-opaque rules gain no authority; device target changes and revocation restore prompting. Secret CLI keeps its program/account/variable-name restriction, and MCP service remembering keeps its independent access checks.
 
 Full Access now retains native `ask` so recognized permission changes can reach the Human, while ordinary requests in its explicitly selected scope are automatically answered without routine cards. The selected mode/scope and existing Assignment permissions are not widened. A native `never` policy still means deterministic rejection; it is not bypassed. Directory grants still use `grant-request-approve --confirm`.
+
+Connect uses a Noise XK encrypted channel. `deepseekbot connect-status` includes `connect.encryption` with `protocol`, `required`, `state`, `publicKey` and the Host fingerprint. State is `negotiating`, `encrypted` or `disconnected`; enabling a tunnel alone does not imply an encrypted session. `devices` also lists `pendingKeys`. Compare the full new-device fingerprint with the device display, then approve that exact key with `deepseekbot device-approve-key <receipt> <public-key> --confirm`. Missing confirmation or an invalid key refuses. These status commands expose no pairing offer, private key or bearer.
+
+The phone's native private form and browser remote chat reach the existing credential owner through the same channel. Legacy Connect pairings require a new fingerprint ceremony; failures never retry plaintext. The full phone WebView remains removed, and Connect Browser/Computer viewers are unavailable pending separate qualification. CLI channel state is not native acceptance or proof of a real Cloudflare path.
+
+## SSH tunnel from a computer
+
+Run `ssh-tunnel` on the computer where you use the browser. The Linux Host must already be running and reachable through an SSH alias whose host key and key/agent login you have verified in your normal terminal. This command uses batch authentication and refuses password prompts or unknown/changed SSH host keys. It does not install or start the remote Host. Use an up-to-date local Host browser client with **Add remote**; older clients reject the version 2 tunnel link.
+
+1. On the remote Linux Host, use its existing Owner-authenticated CLI to run `device-offer --out /absolute/private/offer.txt`. Preserve the returned receipt. Transfer the file securely to the initiating computer; do not paste the pairing link into command arguments or logs.
+2. Keep this foreground command running on the computer, using a free stable local port and the remote Host's existing loopback port:
+
+   ```text
+   deepseekbot ssh-tunnel my-linux --remote-port 39105 --local-port 32451 --pairing-file /absolute/private/offer.txt --out /absolute/private/browser-offer.txt
+   ```
+
+   Windows accepts absolute drive paths. Optional `--ssh-config <absolute-file>` chooses an existing config; the default uses system OpenSSH configuration. Input files must be private regular files (0600 on Linux/macOS); output is a new exclusive file. A startup failure can leave an empty output file; choose a new output path on retry.
+
+3. The single JSON stdout document reports readiness only after a Noise handshake authenticates the Host key. Paste the protected output file's link into **Add remote** in your local Host's browser. Compare the Host fingerprint through your trusted remote terminal and approve that exact browser key with `device-approve-key <receipt> <public-key> --confirm` on the remote Host. The tunnel command does neither approval nor enrollment.
+4. Open a remote conversation and use the existing Host controls. Stop the tunnel with Ctrl+C; this leaves the remote Host running and the browser pairing intact. Restart with the same local port and a new output path to reconnect. An expired input offer may still identify the Host for an already paired browser, but cannot enroll a new browser; create a fresh offer for enrollment.
+
+The tunnel listens only on `127.0.0.1`. SSH links require encrypted loopback requests and streams after pairing, so a changed listener cannot receive device credentials in plaintext. Use the remote Host's existing `device-revoke <device-id> --confirm` to revoke access; closing the tunnel is not revocation. Do not downgrade the browser client after creating an SSH pairing.
+
+Read structured lifecycle events on stderr to distinguish `ssh-missing`, `ssh-host-key-refused`, `ssh-authentication-refused`, `ssh-local-port-unavailable`, `ssh-host-unready` and `ssh-host-identity-mismatch`. Remote process errors never cause automatic bootstrap or a plaintext fallback. No raw SSH output or pairing link is printed. See [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md) for ownership and qualification boundaries.
+`ssh-tunnel` exposes only the encrypted Device Gateway on its public loopback port. It is not a general HTTP proxy: opening that port directly in a browser returns 403. Use Add remote in your local Host browser. Ambient local browser cookies are discarded by the carrier and never reach the remote Host.
+
+### Pinned Git import and recovery
+
+Inspect the selected source on the target Host before confirming a new import. The response contains a normalized Git URL and its current HEAD commit. Keep that URL and commit with the chosen name, Bio, tags and operation key; sending or recovering the operation must not inspect a newer commit automatically.
+
+```bash
+deepseekbot bot-import-preview --host <host> --from-git owner/repository
+deepseekbot create-status --host <host> --name Helper --from-git <inspected-url> --expected-commit <commit> --operation-key import-helper-001
+deepseekbot create --host <host> --name Helper --from-git <inspected-url> --expected-commit <commit> --operation-key import-helper-001
+```
+
+The lookup is read-only and accepts the same optional `--description` and repeated `--role` flags as creation. A lost reply or Host restart retains the same Bot, managed Memory and DM. `git-source-changed` refuses a repository whose cloned HEAD differs from the inspected commit before publishing a Bot; the reserved key stays bound to the original input. Review the changed source before explicitly starting a different operation. Reusing a key with a different source or metadata returns `creation-key-conflict`; archived or deleted identities return `creation-identity-unavailable`. No automatic model call or credential copying occurs.
+
+### Mac Local Computer video (#2653)
+
+The existing `computer-start --target local`, `computer-video status`, observation/signaling, takeover, input and resume commands use the same Computer owner on macOS. No additional CLI identity or transport is introduced. Explicit start installs the pinned Mac capture runtime; observation never downloads it. `screen-recording-required` asks for macOS Screen Recording permission and a restart. Mac click coordinates stay in video pixels at the command boundary; the owner validates Retina geometry and leaves the logical-point conversion to the pinned driver. Resume remains available when video is unavailable. Physical iPhone interaction is a separate native check.
+
+When `status` advertises `continuousScroll:true`, iOS and `computer-video input --args-stdin` can send `input:{"kind":"scroll-motion","x":100,"y":100,"vx":0,"vy":-200}` with the same binding/grant/sequence. Coordinates remain full-display pixels; velocity is signed logical pixels/second, bounded to ±200 on each axis. Refresh while held (the iOS client uses 80ms), and send both velocities as zero on release. The macOS owner expires motion after 250ms without refresh and stops it on control invalidation; native frames recheck authority, discard stale packets and never queue behind an unacknowledged frame. This path uses the system native bridge and requires the Host's existing Accessibility authorization; it never requests permission automatically. Older Hosts and Android retain discrete scrolling.

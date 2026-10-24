@@ -2627,7 +2627,7 @@ export async function previewStorageCleanup(
 
 export async function confirmStorageCleanup(
   call: BridgeCall,
-  preview: StorageCleanupPreview,
+  preview: Pick<StorageCleanupPreview, 'scope' | 'token'>,
 ): Promise<StorageCleanupResult> {
   const result = asRecord(
     await unwrap(call, 'storageCleanupConfirm', {
@@ -3616,6 +3616,42 @@ export async function decideToolApproval(
   if (response?.['accepted'] !== true) throw new Error('Tool approval was not accepted');
 }
 
+export async function loadPrivateInputStatus(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<import('../../../core/src/credentials/contracts.js').PrivateInputStatus> {
+  const result = await call('privateInputStatus', { channelId, messageId });
+  if (!result.ok) throw new Error('Private input status is unavailable');
+  const status = (result.value as { status?: unknown }).status;
+  if (!['pending', 'configured', 'cancelled', 'expired'].includes(String(status)))
+    throw new Error('Private input status is invalid');
+  return status as import('../../../core/src/credentials/contracts.js').PrivateInputStatus;
+}
+
+export async function submitPrivateInput(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  values: Record<string, string>,
+): Promise<void> {
+  const result = await call('privateInputSubmit', { channelId, messageId, values });
+  if (!result.ok)
+    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+  if ((result.value as { accepted?: unknown }).accepted !== true)
+    throw new Error('Private input was not accepted');
+}
+
+export async function cancelPrivateInput(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  const result = await call('privateInputCancel', { channelId, messageId });
+  if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
+    throw new Error('Private input cancellation was not accepted');
+}
+
 export async function loadUserQuestionStatus(
   call: BridgeCall,
   channelId: string,
@@ -3698,6 +3734,43 @@ function parseWorkspaceGrant(value: unknown): WorkspaceGrantView | undefined {
     orchestratorWrite: row['orchestratorWrite'] === true,
     writeRevision: typeof row['writeRevision'] === 'number' ? row['writeRevision'] : 0,
     ...(typeof row['revokedAt'] === 'string' ? { revokedAt: row['revokedAt'] } : {}),
+  };
+}
+
+export async function loadHostFolders(
+  call: BridgeCall,
+  path?: string,
+  signal?: AbortSignal,
+): Promise<import('../../../core/src/workspaces/folder-browse.js').FolderListing> {
+  const value = asRecord(
+    await unwrap(call, 'folderBrowse', path === undefined ? {} : { path }, signal),
+  );
+  const folders = (items: unknown): { name: string; path: string; hidden: boolean }[] => {
+    if (!Array.isArray(items)) throw new Error('Invalid Host folder list');
+    return items.map((item) => {
+      const row = asRecord(item);
+      if (
+        typeof row?.['name'] !== 'string' ||
+        typeof row['path'] !== 'string' ||
+        typeof row['hidden'] !== 'boolean'
+      )
+        throw new Error('Invalid Host folder entry');
+      return { name: row['name'], path: row['path'], hidden: row['hidden'] };
+    });
+  };
+  if (
+    typeof value?.['path'] !== 'string' ||
+    typeof value['home'] !== 'string' ||
+    typeof value['truncated'] !== 'boolean'
+  )
+    throw new Error('Invalid Host folder listing');
+  return {
+    path: value['path'],
+    home: value['home'],
+    truncated: value['truncated'],
+    crumbs: folders(value['crumbs']),
+    entries: folders(value['entries']),
+    roots: folders(value['roots']),
   };
 }
 
@@ -3889,7 +3962,7 @@ export async function loadBotAttention(
   return parseBotAttentionPage(await unwrap(call, 'botAttention', { slug, limit, cursor, state }));
 }
 
-function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
+export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
   const row = asRecord(value);
   const raw = row?.['items'];
   if (!Array.isArray(raw)) throw new Error('invalid Human attention page');

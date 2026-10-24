@@ -1,4 +1,5 @@
 import type { ComponentPropsWithRef } from 'react';
+import { Platform } from 'react-native';
 
 import { useDesignTheme, type DesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
@@ -9,8 +10,15 @@ type FieldProps = ComponentPropsWithRef<typeof TextInput> & {
 };
 
 export function fieldStyle(theme: DesignTheme, { multiline = false, invalid = false } = {}) {
+  const lines = multiline ? 2 : 1;
+  const minHeight = Math.max(
+    theme.touch * lines,
+    Platform.OS === 'ios'
+      ? theme.type.body.line * theme.fontScale * lines + space.x3 * 2 + edge.hairline * 2
+      : 0,
+  );
   return {
-    minHeight: multiline ? theme.touch * 2 : theme.touch,
+    minHeight,
     paddingHorizontal: space.x4,
     paddingVertical: space.x3,
     borderRadius: radius.md,

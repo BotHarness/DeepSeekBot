@@ -6,7 +6,16 @@ import { MoreIcon } from '../shell/icons';
 
 export type MenuAction = {
   label: string;
-  icon: 'settings' | 'computer' | 'close' | 'person' | 'remove';
+  icon:
+    | 'settings'
+    | 'computer'
+    | 'close'
+    | 'person'
+    | 'remove'
+    | 'pin'
+    | 'mute'
+    | 'check'
+    | 'folder';
   run(): void;
   destructive?: boolean;
 };
@@ -21,6 +30,7 @@ export function ActionMenuButton({ label, onOpen }: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   return (
     <Pressable
+      testID="action-menu-trigger"
       onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={label}

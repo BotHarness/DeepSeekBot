@@ -110,6 +110,7 @@ _截图来自隔离的本地 DSH，对话是虚构的天文台展览示例。_
 
 | 版本                                                                                                              | 新内容                                                                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[1.5.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.5.0)**（2026-10-22）                          | **DeepSeekBot Connect**：手机不装 Tailscale、登录账号一点就能配对；**存储空间**可清理旧媒体和旧消息；Bot 市场变成面板；插件在 Bot 设置里一键更新；长对话里的 Bot 模式重新流畅；VRM 伴侣可单独安装。                                                         |
 | **[1.4.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.4.1)**（2026-10-20）                          | 第一次进入 Bot 模式时，托布五步带你上手；Bot 模式有自己的**主题、半透明面板和壁纸库**；`/compact` 和空闲压缩让长对话保持轻快；快速搜索直达任意设置项；记忆里能预览图片和 Markdown；手机端 Beta 加了通知开关。                                               |
 | **[1.4.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.4.0)**（2026-10-19）                          | 首页迎来管家**托布**，用聊天就能管理 Bot、模型和群；桌面端换成可自由拖放的**面板工作区**，每个频道记住自己的布局；审批可交给审核模型；可以配对手机；命令行覆盖了几乎所有界面操作。支持 DSH 0.2.0-rc.2 到 0.2.x。                                            |
 | **[1.3.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.1)**（2026-10-14）                          | 从插件页安装 `deepseekbot` 重新只要一步，不再要求批准构建；需要 DSH 0.2.0-rc.2。`deepseekbot` 命令行可以配置 Host、操作 Bot 的浏览器和 Computer、管理 IM 应用；浏览器面板实时刷新。                                                                         |
@@ -163,7 +164,7 @@ pnpm install && pnpm build
 node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 ```
 
-更多见[本地实例指南](docs/client-bridge.md#7-本地开发环路dsh-020-rc1) · [贡献指南](CONTRIBUTING.zh.md) · [架构](docs/architecture/botharness-architecture.md) · [架构决策](docs/adr/) · [Agent 开发规范](AGENTS.md) · [Release Ledger](CHANGELOG.zh.md) · [DSH 官方文档](https://deepseek-harness.github.io/deepseek-harness/)。
+更多见[本地实例指南](docs/client-bridge.md#7-本地开发环路dsh-020-rc2) · [贡献指南](CONTRIBUTING.zh.md) · [架构](docs/architecture/botharness-architecture.md) · [架构决策](docs/adr/) · [Agent 开发规范](AGENTS.md) · [Release Ledger](CHANGELOG.zh.md) · [DSH 官方文档](https://deepseek-harness.github.io/deepseek-harness/)。
 
 真实 IM 测试可用[共享 QA 应用向导](docs/agents/im-test-apps.md)配置 Lark、Slack、Discord 的独立 QA1／QA2／QA3；例如运行 `node scripts/dev-im-test-apps.mjs setup discord`，隐藏输入 Token，并在每次启动接收端前确认当前独占窗口。
 

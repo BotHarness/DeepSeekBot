@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { expect, it, vi } from 'vitest';
+import type {
+  FlatListProps,
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+} from 'react-native';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 
@@ -16,21 +22,29 @@ const state = vi.hoisted(() => ({
 }));
 
 const counts = vi.hoisted(() => ({ renderItem: 0, rows: new Map<string, number>() }));
+const native = vi.hoisted(() => ({
+  list: undefined as FlatListProps<unknown> | undefined,
+  scrollToOffset: vi.fn(),
+}));
 
 const stream = vi.hoisted(() => {
   const timelineListeners = new Set<() => void>();
   const bubbleListeners = new Map<string, Set<() => void>>();
   const bubbles = new Map<string, string>();
-  const history = (id: string, body: string, author: 'bot' | 'human') => ({
+  const history = (
+    id: string,
+    body: string,
+    author: 'bot' | 'human',
+  ): ConversationTimelineSnapshot['messages'][number] => ({
     id,
     at: '2026-10-19T08:00:00Z',
     author,
-    bot: author === 'bot' ? 'ada' : undefined,
+    ...(author === 'bot' ? { bot: 'ada' } : {}),
     body,
     attachments: [],
     delivery: 'committed',
   });
-  const timeline = {
+  let timeline: ConversationTimelineSnapshot = {
     status: 'live',
     messages: [history('m1', 'question', 'human'), history('m2', 'earlier answer', 'bot')],
     drafts: [{ draftId: 'd1', botSlug: 'ada' }],
@@ -39,9 +53,22 @@ const stream = vi.hoisted(() => {
     fromCache: false,
   };
   return {
-    conversation: { loadOlder: () => Promise.resolve() },
+    history,
+    publish(next: Partial<ConversationTimelineSnapshot>) {
+      timeline = { ...timeline, ...next };
+      for (const listener of timelineListeners) listener();
+    },
+    reset() {
+      bubbles.clear();
+      timeline = {
+        ...timeline,
+        messages: [history('m1', 'question', 'human'), history('m2', 'earlier answer', 'bot')],
+        drafts: [{ draftId: 'd1', botSlug: 'ada' }],
+      };
+    },
+    conversation: { loadOlder: () => Promise.resolve(), send: vi.fn() },
     playback: {
-      getTimelineSnapshot: () => timeline as unknown as ConversationTimelineSnapshot,
+      getTimelineSnapshot: () => timeline,
       subscribe(listener: () => void) {
         timelineListeners.add(listener);
         return () => timelineListeners.delete(listener);
@@ -68,7 +95,10 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
   useRecentChat: () => () => {},
 }));
-vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
+vi.mock('../src/host/native-source-drafts', async () => {
+  const { useState } = await import('react');
+  return { useSourceDraft: () => useState('') };
+});
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
   Stack: {
@@ -93,15 +123,40 @@ vi.mock('react-native', async () => {
 });
 vi.mock('react-native-reanimated', async () => {
   const shim = await import('./reanimated-shim');
-  const FlatList = (props: Parameters<typeof shim.default.FlatList>[0]) =>
-    shim.default.FlatList({
+  const { useLayoutEffect, useMemo } = await import('react');
+  const FlatList = (
+    props: Parameters<typeof shim.default.FlatList>[0] &
+      FlatListProps<unknown> & {
+        ref: (node: unknown) => void;
+      },
+  ) => {
+    native.list = props;
+    useLayoutEffect(() => {
+      props.ref({ scrollToOffset: native.scrollToOffset });
+      return () => props.ref(null);
+    }, [props.ref]);
+    return shim.default.FlatList({
       ...props,
       renderItem: (info) => {
         counts.renderItem += 1;
         return props.renderItem(info);
       },
     });
-  return { ...shim, default: { ...shim.default, FlatList } };
+  };
+  return {
+    ...shim,
+    useAnimatedRef: () =>
+      useMemo(() => {
+        const ref = Object.assign(
+          (node: unknown) => {
+            ref.current = node;
+          },
+          { current: null as unknown },
+        );
+        return ref;
+      }, []),
+    default: { ...shim.default, FlatList },
+  };
 });
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('../src/host/host-session', async () => {
@@ -185,7 +240,18 @@ vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
 vi.mock('../src/ui/chat/chat-title', () => ({ ChatTitle: () => null }));
-vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
+vi.mock('../src/ui/chat/composer', () => ({
+  Composer: ({ onChange, onSend }: { onChange(value: string): void; onSend(): void }) => (
+    <>
+      <button type="button" onClick={() => onChange('What is six times seven?')}>
+        Write question
+      </button>
+      <button type="button" onClick={onSend}>
+        Send question
+      </button>
+    </>
+  ),
+}));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
 vi.mock('../src/ui/chat/pull-to-compose-hint', () => ({ PullToComposeHint: () => null }));
@@ -222,11 +288,39 @@ vi.mock('../src/ui/chat/working-status', () => ({
     bots.length ? <span data-testid="pending">pending</span> : null,
 }));
 vi.mock('../src/ui/chat/time-separator', () => ({ TimeSeparator: () => null }));
-vi.mock('../src/ui/open-full-client', () => ({ OpenFullClientButton: () => null }));
 
 import { ConversationScreen } from '../src/ui/chat/conversation-screen';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+let frames = new Map<number, FrameRequestCallback>();
+let nextFrame = 0;
+beforeEach(() => {
+  frames = new Map();
+  nextFrame = 0;
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => frames.delete(id));
+  native.list = undefined;
+  native.scrollToOffset.mockClear();
+  stream.conversation.send.mockClear();
+  stream.reset();
+  state.host.roster.bots = [];
+  counts.rows.clear();
+  counts.renderItem = 0;
+});
+afterEach(() => vi.unstubAllGlobals());
+
+const flushFrames = () =>
+  act(() => {
+    for (let round = 0; round < 64 && frames.size; round += 1) {
+      const pending = [...frames.values()];
+      frames.clear();
+      for (const callback of pending) callback(round * 16);
+    }
+  });
 
 it('re-renders only the streaming row when a draft token arrives', async () => {
   const container = document.createElement('div');
@@ -256,4 +350,145 @@ it('re-renders only the streaming row when a draft token arrives', async () => {
   ).toEqual(['m1', 'm2', 'draft:d1']);
   await act(async () => root.unmount());
   container.remove();
+});
+
+it('keeps a first DM visible through send, working, streaming and commit, then respects history browsing', () => {
+  const bot: RosterBot = {
+    slug: 'ada',
+    displayName: 'Ada',
+    state: 'idle',
+    description: '',
+    roles: [],
+    computerAccess: false,
+    browserAccess: false,
+    paused: false,
+  };
+  state.host.roster.bots = [bot];
+  stream.publish({ messages: [], drafts: [] });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const render = () =>
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+  const visible = () => expect(native.list?.style).toMatchObject({ opacity: 1 });
+  const rows = () =>
+    [...container.querySelectorAll('[data-testid="chat-list"] [data-testid]')].map((node) =>
+      node.getAttribute('data-testid'),
+    );
+  const scrollEvent = (offset: number, content: number): NativeSyntheticEvent<NativeScrollEvent> =>
+    ({
+      nativeEvent: {
+        contentOffset: { x: 0, y: offset },
+        contentSize: { width: 390, height: content },
+        layoutMeasurement: { width: 390, height: 800 },
+        velocity: { x: 0, y: 0 },
+        contentInset: { top: 80, bottom: 0, left: 0, right: 0 },
+        zoomScale: 1,
+      },
+    }) as NativeSyntheticEvent<NativeScrollEvent>;
+  try {
+    render();
+    act(() => {
+      native.list?.onLayout?.({ nativeEvent: { layout: { height: 800 } } } as LayoutChangeEvent);
+      native.list?.onContentSizeChange?.(390, 720);
+    });
+    flushFrames();
+    visible();
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: -80, animated: false });
+    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+
+    const press = (label: string) =>
+      act(() => {
+        const button = [...container.querySelectorAll('button')].find(
+          (node) => node.textContent === label,
+        );
+        expect(button).toBeDefined();
+        button!.click();
+      });
+    press('Write question');
+    press('Send question');
+    expect(stream.conversation.send).toHaveBeenCalledOnce();
+    expect(stream.conversation.send.mock.calls[0]?.[0]).toBe('What is six times seven?');
+    const human = stream.history('first-human', 'What is six times seven?', 'human');
+    act(() => stream.publish({ messages: [human] }));
+    visible();
+    expect(rows()).toEqual(['first-human']);
+
+    state.host.roster.bots = [{ ...bot, state: 'thinking' }];
+    render();
+    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
+    visible();
+    act(() => stream.publish({ drafts: [{ draftId: 'first', botSlug: 'ada' }] }));
+    act(() => stream.append('draft:first', '42'));
+    expect(rows()).toEqual(['first-human', 'draft:first']);
+    expect(container.querySelector('[data-testid="draft:first"]')?.textContent).toBe('42');
+    visible();
+    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+
+    const reply = stream.history('first-reply', '42', 'bot');
+    act(() => stream.publish({ messages: [human, reply], drafts: [] }));
+    visible();
+    expect(rows()).toEqual(['first-human', 'first-reply']);
+    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    state.host.roster.bots = [bot];
+    render();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
+    visible();
+
+    act(() => native.list?.onContentSizeChange?.(390, 1100));
+    flushFrames();
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 300, animated: false });
+    native.scrollToOffset.mockClear();
+    act(() => {
+      native.list?.onScrollBeginDrag?.(scrollEvent(300, 1100));
+      native.list?.onScroll?.(scrollEvent(100, 1100));
+      native.list?.onScrollEndDrag?.(scrollEvent(100, 1100));
+    });
+    expect(native.list?.maintainVisibleContentPosition).toEqual({ minIndexForVisible: 0 });
+    act(() =>
+      stream.publish({ messages: [human, reply, stream.history('later', 'Later reply', 'bot')] }),
+    );
+    act(() => native.list?.onContentSizeChange?.(390, 1400));
+    flushFrames();
+    expect(native.scrollToOffset).not.toHaveBeenCalled();
+    visible();
+
+    act(() => {
+      native.list?.onScrollBeginDrag?.(scrollEvent(100, 1400));
+      native.list?.onScrollEndDrag?.(scrollEvent(600, 1400));
+    });
+    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    act(() => native.list?.onContentSizeChange?.(390, 1500));
+    flushFrames();
+    expect(native.scrollToOffset).toHaveBeenLastCalledWith({ offset: 700, animated: false });
+  } finally {
+    act(() => root.unmount());
+    container.remove();
+  }
+});
+
+it('keeps a known-empty DM visible when the first message arrives from another client without a size change', () => {
+  stream.publish({ messages: [], drafts: [] });
+  const container = document.createElement('div');
+  const root = createRoot(container);
+  try {
+    act(() =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />),
+    );
+    act(() => {
+      native.list?.onLayout?.({ nativeEvent: { layout: { height: 800 } } } as LayoutChangeEvent);
+      native.list?.onContentSizeChange?.(390, 720);
+    });
+    flushFrames();
+    act(() => stream.publish({ messages: [stream.history('remote-human', 'Hello', 'human')] }));
+    expect(native.list?.style).toMatchObject({ opacity: 1 });
+    expect(container.querySelector('[data-testid="remote-human"]')?.textContent).toBe('Hello');
+    expect(native.list?.maintainVisibleContentPosition).toBeUndefined();
+    expect(stream.conversation.send).not.toHaveBeenCalled();
+  } finally {
+    act(() => root.unmount());
+  }
 });

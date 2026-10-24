@@ -89,6 +89,14 @@ feedback separately; agent screenshot inspection is not Human QA.
 
 ## Gotchas
 
+- Windows cross-drive check: in **Add folder**, click **Open D:\\** in **Drives and home**,
+  then click through to a dedicated test folder without typing. Authorize only after
+  its contents load and verify the Grant resolves to that exact folder. The optional
+  **Workspace folder path** field also navigates with **Go** or Enter. A missing path
+  must show an error and keep authorization disabled; choosing an existing drive
+  must restore it. The desktop browser and `deepseekbot folder-browse` use the same
+  application-defined Host folder service, including its Windows drive list.
+
 - [#1841](https://github.com/BotHarness/DeepSeekBot/issues/1841) remains open: broad Grants
   may expose the operational database. Never grant the Host data directory or its ancestors.
   This narrow fixture does not resolve or qualify that boundary.

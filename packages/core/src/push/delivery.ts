@@ -301,10 +301,32 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           | undefined,
     );
 
+  const preferenceCopy = (deviceId: string): string | undefined =>
+    database.read(
+      (db) =>
+        (
+          db
+            .prepare(
+              'SELECT preferences_json FROM device_notification_preferences WHERE device_id = ?',
+            )
+            .get(deviceId) as { preferences_json: string } | undefined
+        )?.preferences_json,
+    );
+
+  const settings = (deviceId: string): PushSettings => {
+    const current = row(deviceId);
+    const copy = preferenceCopy(deviceId);
+    return {
+      ...settingsOf(current),
+      preferences: preferencesOf(copy ?? current?.preferences_json),
+    };
+  };
+
   const drop = (deviceId: string): boolean =>
     database.transaction(
       (db) => {
         db.prepare('DELETE FROM push_sent WHERE device_id = ?').run(deviceId);
+        db.prepare('DELETE FROM device_notification_preferences WHERE device_id = ?').run(deviceId);
         return Number(
           db.prepare('DELETE FROM push_devices WHERE device_id = ?').run(deviceId).changes,
         );
@@ -322,7 +344,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       ['push'],
     );
     record({ phase: 'preferences', deviceId: current.device_id });
-    return settingsOf({ ...current, preferences_json: JSON.stringify(next) });
+    return {
+      ...settingsOf({ ...current, preferences_json: JSON.stringify(next) }),
+      preferences: preferencesOf(preferenceCopy(current.device_id) ?? JSON.stringify(next)),
+    };
   };
 
   const dropToken = (deviceId: string, code: 'device-revoked' | 'device-not-registered'): void => {
@@ -385,7 +410,9 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         dropToken(device.device_id, 'device-revoked');
         continue;
       }
-      const preferences = preferencesOf(device.preferences_json);
+      const preferences = preferencesOf(
+        preferenceCopy(device.device_id) ?? device.preferences_json,
+      );
       const enabled = enabledOf(device.preferences_json);
       const quiet = new Set(quietOf(device.preferences_json));
       const registeredAt = Date.parse(device.registered_at);
@@ -523,22 +550,29 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     },
 
     settings(deviceId) {
-      return settingsOf(row(deviceId));
+      return settings(deviceId);
     },
 
     setPreferences(deviceId, input, enabled) {
       const current = row(deviceId);
-      if (current === undefined) return settingsOf(undefined);
-      const next = preferencesOf(current.preferences_json);
+      const next = settings(deviceId).preferences;
       const patch = typeof input === 'object' && input !== null ? input : {};
       for (const kind of PUSH_KINDS) {
         const value = (patch as Record<string, unknown>)[kind];
         if (typeof value === 'boolean') next[kind] = value;
       }
-      return save(current, {
-        ...next,
-        enabled: typeof enabled === 'boolean' ? enabled : enabledOf(current.preferences_json),
-      });
+      database.transaction(
+        (db) =>
+          db
+            .prepare(
+              'INSERT INTO device_notification_preferences (device_id, preferences_json) VALUES (?, ?) ON CONFLICT (device_id) DO UPDATE SET preferences_json = excluded.preferences_json',
+            )
+            .run(deviceId, JSON.stringify(next)),
+        ['push'],
+      );
+      if (current !== undefined && typeof enabled === 'boolean') save(current, { enabled });
+      else record({ phase: 'preferences', deviceId });
+      return settings(deviceId);
     },
 
     setQuiet(deviceId, input) {

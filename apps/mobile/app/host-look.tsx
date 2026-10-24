@@ -7,10 +7,11 @@ import { useDesignTheme } from '../src/ui/design/theme';
 import { space } from '../src/ui/design/tokens';
 import { Notice } from '../src/ui/request-parts';
 import { HostLookEditor } from '../src/ui/shell/host-look-editor';
-import { t } from '../src/ui/strings';
+import { useStrings } from '../src/ui/strings';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 
 export default function HostLookScreen() {
+  const t = useStrings();
   const router = useRouter();
   const params = useLocalSearchParams<{ hostId?: string }>();
   const theme = useDesignTheme();

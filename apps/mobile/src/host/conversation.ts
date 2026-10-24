@@ -112,6 +112,8 @@ export function shownInChat(message: ConversationMessage): boolean {
     return false;
   if (message.welcome === true) return false;
   return (
+    message.source?.message.contentPurge !== undefined ||
+    message.source?.message.sessionFailure !== undefined ||
     message.activity !== undefined ||
     message.body.trim() !== '' ||
     message.attachments.length > 0 ||
@@ -121,6 +123,7 @@ export function shownInChat(message: ConversationMessage): boolean {
 }
 
 export interface ConversationMessage {
+  source?: JournalEntry;
   id: string;
   revision?: number;
   at: string;
@@ -217,6 +220,7 @@ export interface Conversation {
   send(body: string, files?: OutgoingFile[], tags?: MessageTags): string;
   retry(messageId: string): void;
   react(messageId: string, emoji: string, active: boolean): Promise<void>;
+  wireMessage?(messageId: string): ChannelWireMessage | undefined;
 }
 
 export interface ConversationOptions {
@@ -418,6 +422,7 @@ function present(
   const activity = activityOf(message);
   return {
     id: message.id,
+    source: entry,
     revision: entry.revision,
     at: message.at,
     author: kind === 'human' ? 'human' : kind === 'bot' ? 'bot' : 'system',
@@ -808,6 +813,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     },
     getSnapshot: () => snapshot,
     getTimelineSnapshot: () => timelineSnapshot,
+    wireMessage: (messageId) => window.find((entry) => entry.message.id === messageId)?.message,
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

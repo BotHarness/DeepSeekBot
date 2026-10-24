@@ -7,7 +7,7 @@ import { edge, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, FileIcon, FolderIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 const ICON = 20;
@@ -56,6 +56,7 @@ export function MemoryEntryRow({
   last: boolean;
   onOpen(entry: MemoryEntry): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const detail = entry.kind === 'folder' ? t.memoryItems(entry.count) : undefined;
   return (
@@ -104,6 +105,7 @@ export function Status({
   state: Exclude<Loaded<unknown>, { status: 'ready' }>;
   onRetry(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (state.status === 'loading')
     return (
@@ -137,6 +139,7 @@ export function MemoryFolderView({
   load: () => Promise<string[]>;
   onOpen(entry: MemoryEntry): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { state, read, mount } = useLoad<string[], FlatList<MemoryEntry>>(load);
   const entries = state.status === 'ready' ? memoryEntries(state.value, folder) : [];

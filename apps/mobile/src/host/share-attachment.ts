@@ -19,12 +19,19 @@ export async function shareAttachment(attachment: MessageAttachment): Promise<vo
   if (!attachment.local) {
     const folder = new Directory(Paths.cache, 'attachments', folderName(attachment.key));
     folder.create({ intermediates: true, idempotent: true });
-    const file = await File.downloadFileAsync(
-      source.uri,
-      new File(folder, fileName(attachment.name)),
-      { headers: source.headers, idempotent: true },
-    );
-    uri = file.uri;
+    if (source.read) {
+      const { bytes } = await source.read(new AbortController().signal);
+      const file = new File(folder, fileName(attachment.name));
+      await file.write(bytes);
+      uri = file.uri;
+    } else {
+      const file = await File.downloadFileAsync(
+        source.uri,
+        new File(folder, fileName(attachment.name)),
+        { headers: source.headers, idempotent: true },
+      );
+      uri = file.uri;
+    }
   }
   await Sharing.shareAsync(uri, {
     dialogTitle: attachment.name,

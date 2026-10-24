@@ -1,3 +1,5 @@
+import type { AccountOwner } from './account-owner';
+import { removeAccountConnections } from './account-connections';
 import { sourceDrafts } from './native-source-drafts';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -19,6 +21,7 @@ import { avatarInputs } from './notification-avatars';
 import { revokePairing } from './pairing';
 import { createHostPush } from './push';
 import { createPushSession, type PushStatus } from './push-session';
+import { notificationPreferences } from './native-notification-preferences';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
@@ -50,6 +53,8 @@ export const pushSession = createPushSession({
     'remove-device': t.removeDevice,
   }),
   hostPush,
+  beforeRegister: () => notificationPreferences.retry(),
+  prepareRegistration: (host) => notificationPreferences.prepare(host),
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
 });
@@ -63,8 +68,10 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
+  notificationPreferences.setForeground(AppState.currentState === 'active');
   const previous = state.saved;
   stored = next;
+  void notificationPreferences.sync(next.hosts).catch(() => undefined);
   const saved = currentHost(next) ?? null;
   if (
     previous !== undefined &&
@@ -83,6 +90,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     saved === null
       ? undefined
       : createHostClient({
+          ...saved,
           routes: saved.routes,
           credential: saved.credential,
           carrier: nativeCarrier(),
@@ -100,7 +108,10 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   offConnection = client?.subscribe(() => {
     const snapshot = client.getSnapshot();
     const now = snapshot.connection.status === 'connected';
-    if (now && !connected) void pushSession.retryFailed();
+    if (now && !connected) {
+      void pushSession.retryFailed();
+      void notificationPreferences.retry().catch(() => undefined);
+    }
     connected = now;
     const inputs = snapshot.roster === undefined ? undefined : avatarInputs(snapshot.roster);
     if (
@@ -125,22 +136,35 @@ async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): 
   adopt(next, trigger);
 }
 
-void loadSavedHosts().then(
-  (hosts) => {
-    adopt(hosts);
-    void pushSession.sync(hosts.hosts);
-  },
-  () => adopt({ hosts: [] }),
-);
+let hostsLoaded = false;
+const restoreHosts = (hosts: SavedHosts) => {
+  adopt(hosts);
+  hostsLoaded = true;
+  void pushSession.sync(hosts.hosts);
+};
+const hostsReady = loadSavedHosts().then(restoreHosts, () => adopt({ hosts: [] }));
 
 AppState.addEventListener('change', (next) => {
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
+  notificationPreferences.setForeground(next === 'active');
   if (next !== 'active') return;
+  void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
   void pushSession.retryFailed();
   state.client?.retryNow('resume');
   if (state.client?.getSnapshot().connection.status === 'connected') void state.inbox?.refresh();
 });
+
+let mutation: Promise<unknown> = Promise.resolve();
+function serialize<T>(work: () => Promise<T>): Promise<T> {
+  const next = mutation.then(async () => {
+    await hostsReady;
+    if (!hostsLoaded) restoreHosts(await loadSavedHosts());
+    return work();
+  });
+  mutation = next.catch(() => undefined);
+  return next;
+}
 
 export const hostSession = {
   subscribe(listener: () => void): () => void {
@@ -149,46 +173,77 @@ export const hostSession = {
   },
   getState: (): HostSessionState => state,
   async pair(host: SavedHost): Promise<void> {
-    await commit(withHost(stored, host), 'pair');
-    void pushSession.enable(stored.hosts);
+    return serialize(async () => {
+      await commit(withHost(stored, host), 'pair');
+      void pushSession.enable(stored.hosts);
+    });
   },
   async switchTo(hostId: string): Promise<boolean> {
-    if (stored.current === hostId) return true;
-    const next = selectHost(stored, hostId);
-    if (next === undefined) return false;
-    await commit(next);
-    return true;
+    return serialize(async () => {
+      if (stored.current === hostId) return true;
+      const next = selectHost(stored, hostId);
+      if (next === undefined) return false;
+      await commit(next);
+      return true;
+    });
+  },
+  async removeAccount(owner: AccountOwner): Promise<void> {
+    return serialize(async () => {
+      await sourceDrafts.ready;
+      await removeAccountConnections({
+        owner,
+        state: stored,
+        persist: saveHosts,
+        adopt,
+        clearLocal: async (host) => {
+          await sourceDrafts.removePersistedWhere((key) => {
+            try {
+              const parts = JSON.parse(key);
+              return parts[0] === 'computer' && parts[1] === host.hostId;
+            } catch {
+              return false;
+            }
+          });
+          clearHostConversationCache(host.hostId);
+          await forgetRecentChats(host.hostId);
+          await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
+          await pushSession.forget(host).catch(() => undefined);
+        },
+      });
+    });
   },
   async unpair(
     hostId?: string,
   ): Promise<{ current: boolean; revoked: Promise<boolean> } | undefined> {
-    const host =
-      hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
-    if (host === null || host === undefined) return undefined;
-    const current = host.hostId === state.saved?.hostId;
-    await sourceDrafts.ready;
-    sourceDrafts.removeWhere((key) => {
+    return serialize(async () => {
+      const host =
+        hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
+      if (host === null || host === undefined) return undefined;
+      const current = host.hostId === state.saved?.hostId;
+      await sourceDrafts.ready;
+      sourceDrafts.removeWhere((key) => {
+        try {
+          const parts = JSON.parse(key);
+          return parts[0] === 'computer' && parts[1] === host.hostId;
+        } catch {
+          return false;
+        }
+      });
+      await commit(withoutHost(stored, host.hostId));
       try {
-        const parts = JSON.parse(key);
-        return parts[0] === 'computer' && parts[1] === host.hostId;
-      } catch {
-        return false;
-      }
+        clearHostConversationCache(host.hostId);
+      } catch {}
+      void forgetRecentChats(host.hostId).catch(() => undefined);
+      void conversationFilter.ready.then(() => {
+        if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
+          conversationFilter.set('all');
+      });
+      const revoked = pushSession
+        .forget(host)
+        .then(() => revokePairing({ host, carrier: nativeCarrier() }))
+        .then((result) => result === 'revoked');
+      return { current, revoked };
     });
-    await commit(withoutHost(stored, host.hostId));
-    try {
-      clearHostConversationCache(host.hostId);
-    } catch {}
-    void forgetRecentChats(host.hostId);
-    void conversationFilter.ready.then(() => {
-      if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
-        conversationFilter.set('all');
-    });
-    const revoked = pushSession
-      .forget(host)
-      .then(() => revokePairing({ host, carrier: nativeCarrier() }))
-      .then((result) => result === 'revoked');
-    return { current, revoked };
   },
 };
 

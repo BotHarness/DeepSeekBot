@@ -3,6 +3,9 @@ import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
@@ -41,12 +44,20 @@ async function render(): Promise<HTMLElement> {
   return host;
 }
 
-it('offers account sign-in and Tailscale as separate ways to pair', async () => {
+it('offers LAN, account sign-in and Tailscale through the existing pairing flow', async () => {
   const view = await render();
   expect(view.textContent).toContain(t.pairChoice.account);
   expect(view.textContent).toContain(t.pairChoice.tailscale);
   expect(view.textContent).not.toContain(t.cloud.title);
-  expect(view.textContent).not.toContain(t.pasteLink);
+  expect(view.querySelector('input')).toBeNull();
+  expect(view.textContent).toContain(t.pairChoice.lan);
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="pair-choice-lan"]')!.click(),
+  );
+  expect(router.push).toHaveBeenLastCalledWith({
+    pathname: '/pair/tailscale',
+    params: { mode: 'lan' },
+  });
 
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="pair-choice-account"]')!.click(),

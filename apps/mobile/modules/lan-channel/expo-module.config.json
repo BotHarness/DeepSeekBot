@@ -1,0 +1,5 @@
+{
+  "platforms": ["android", "apple"],
+  "apple": { "modules": ["LanChannelModule"] },
+  "android": { "modules": ["expo.modules.lanchannel.LanChannelModule"] }
+}

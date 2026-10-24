@@ -8,7 +8,7 @@ import { useLiquidGlass } from '../primitives/drawer-material';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { PhotoIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ComposerFieldMaterial } from './composer-chrome';
 
 type ClipboardState = { image: boolean; generation: number };
@@ -93,6 +93,7 @@ export function ClipboardImageOffer({
   onPaste(data: string): void;
   onUnreadable(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const corner = glass ? radius.xl : radius.lg;

@@ -12,7 +12,7 @@ import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { confirmDestructive } from '../primitives/app-dialog';
 function AgentScroll(props: ScrollViewProps) {
   const theme = useDesignTheme();
@@ -53,6 +53,7 @@ function Agents({
   channelId: string;
   channelName?: string;
 }) {
+  const t = useStrings();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme(),
     insets = useSafeAreaInsets();

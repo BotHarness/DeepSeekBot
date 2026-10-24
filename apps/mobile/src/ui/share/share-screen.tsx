@@ -17,7 +17,7 @@ import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { FileIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { deliverShare, incomingShare } from './incoming-share';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
@@ -28,6 +28,7 @@ function draftKey(hostId: string, row: Conversation): string {
 }
 
 export default function ShareScreen() {
+  const t = useStrings();
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();

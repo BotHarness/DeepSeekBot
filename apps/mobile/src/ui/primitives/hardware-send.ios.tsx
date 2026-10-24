@@ -2,7 +2,7 @@ import { requireNativeView, requireOptionalNativeModule } from 'expo';
 import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewProps, type ViewStyle } from 'react-native';
 
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 type NativeProps = ViewProps & { enabled: boolean; title: string; onSend(): void };
 
@@ -21,6 +21,7 @@ export function HardwareSend({
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
+  const t = useStrings();
   if (NativeSend === undefined) return <View style={style}>{children}</View>;
   return (
     <NativeSend enabled={enabled} title={t.send} onSend={() => onSend()} style={style}>

@@ -19,7 +19,7 @@ export type DesktopInput =
     }
   | {
       kind: 'scroll';
-      direction: 'up' | 'down';
+      direction: 'up' | 'down' | 'left' | 'right';
       amount: number;
       x?: number;
       y?: number;
@@ -88,7 +88,13 @@ export function parseDesktopInput(body: Record<string, unknown>): DesktopInput |
     case 'scroll': {
       const direction = body['direction'];
       const amount = finite(body['amount']) ?? 3;
-      if (direction !== 'up' && direction !== 'down') return undefined;
+      if (
+        direction !== 'up' &&
+        direction !== 'down' &&
+        direction !== 'left' &&
+        direction !== 'right'
+      )
+        return undefined;
       return {
         kind: 'scroll',
         direction,

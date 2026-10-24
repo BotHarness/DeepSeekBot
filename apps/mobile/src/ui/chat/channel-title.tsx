@@ -4,7 +4,7 @@ import type { RosterChannel } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 import { GroupMark } from './group-mark';
@@ -20,6 +20,7 @@ export function ChannelTitle({
   fallback: string;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const name = channel?.name ?? fallback;
   const members = channel === undefined ? undefined : t.members(channel.memberCount);

@@ -42,6 +42,8 @@ export function createPushSession(options: {
   platform: 'ios' | 'android';
   locale: 'en' | 'zh';
   tokenTimeoutMs?: number;
+  beforeRegister?: () => Promise<void>;
+  prepareRegistration?: (host: SavedHost) => Promise<void>;
 }): PushSession {
   const { notifications, hostPush } = options;
   const listeners = new Set<() => void>();
@@ -56,6 +58,12 @@ export function createPushSession(options: {
   };
 
   const registerAll = async (hosts: readonly SavedHost[]): Promise<void> => {
+    try {
+      await options.beforeRegister?.();
+    } catch {
+      publish({ status: 'unavailable', reason: 'notification-preferences-unavailable' });
+      return;
+    }
     let token: string;
     try {
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -77,13 +85,16 @@ export function createPushSession(options: {
     }
     const results = await Promise.all(
       hosts.map((host) =>
-        hostPush
-          .register(host, {
-            token,
-            platform: options.platform,
-            locale: options.locale,
-            ...(options.platform === 'android' ? { render: 'app' as const } : {}),
-          })
+        Promise.resolve()
+          .then(() => options.prepareRegistration?.(host))
+          .then(() =>
+            hostPush.register(host, {
+              token,
+              platform: options.platform,
+              locale: options.locale,
+              ...(options.platform === 'android' ? { render: 'app' as const } : {}),
+            }),
+          )
           .then(
             () => undefined,
             () => host.hostId,

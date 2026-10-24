@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { space } from '../design/tokens';
 import { Text } from './text';
 import { TextField } from './text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function ConnectionNameField({
   value,
@@ -15,6 +15,7 @@ export function ConnectionNameField({
   maxLength: number;
   disabled?: boolean;
 }) {
+  const t = useStrings();
   return (
     <View style={{ gap: space.x2 }}>
       <Text variant="meta" tone="muted">

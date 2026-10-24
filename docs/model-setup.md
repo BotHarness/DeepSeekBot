@@ -1,6 +1,6 @@
 # Configure API providers and Bot models
 
-Continue from [Install DeepSeekBot](/docs/installation). These controls were checked with DSH **0.2.0-rc.1** and the public **deepseekbot** package. Configure the API provider first, then choose models for each Bot. Multiple Bots can use one provider. Screenshots show the Chinese UI; the captions identify the corresponding controls.
+Continue from [Install DeepSeekBot](/docs/installation). This guide applies to the public **deepseekbot** package on DSH **0.2.1-rc.2** (screenshots were captured on DSH **0.2.0-rc.1**). Configure the API provider first, then choose models for each Bot. Multiple Bots can use one provider. Screenshots show the Chinese UI; the captions identify the corresponding controls.
 
 ## 1. Configure a provider in DSH
 

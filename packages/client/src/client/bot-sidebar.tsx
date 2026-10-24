@@ -1,3 +1,5 @@
+import { UnreadCount } from './unread-count.js';
+export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
 import { ALL_HOSTS, remoteHosts } from './remote-hosts.js';
 import { useChannelDockActive } from './channel-dock.js';
@@ -124,11 +126,18 @@ import {
   channelSettingsItem,
   dmActionKindOf,
   dmActionsItem,
+  dmMemoryDisplayOf,
+  useDmMemoryDisplay,
   useHiddenDmActions,
 } from './channel-options.js';
 import { channelSettings, isChannelSettingsSection } from './channel-settings-state.js';
 import type { ChannelSidebarRegistry } from './channel-sidebar.js';
-import { toggleHiddenDmAction, type DmActionKind } from './dm-actions.js';
+import {
+  setDmMemoryDisplay,
+  toggleHiddenDmAction,
+  type DmActionKind,
+  type DmMemoryDisplay,
+} from './dm-actions.js';
 import { GitUnavailableNotice, gitReady } from './git-unavailable-notice.js';
 import { MarketplaceModal } from './marketplace.js';
 import {
@@ -512,32 +521,6 @@ function ChannelMessageTime({
     <time className="bh-channel-message-time" dateTime={at} title={date.toLocaleString()}>
       {formatChannelListTime(date.getTime(), now, t)}
     </time>
-  );
-}
-
-export function unreadCountLabel(count: number): string {
-  return count > 99 ? '99+' : String(count);
-}
-
-function UnreadCount({
-  count,
-  muted = false,
-  corner = false,
-  t,
-}: {
-  count: number;
-  muted?: boolean;
-  corner?: boolean;
-  t: BotHarnessTranslate;
-}): ReactElement | null {
-  if (count <= 0) return null;
-  return (
-    <span
-      className={`bh-unread-count${corner ? ' bh-unread-corner' : ''}${muted ? ' bh-unread-count-muted' : ''}`}
-      aria-label={t('roster.unreadCount', { count })}
-    >
-      {unreadCountLabel(count)}
-    </span>
   );
 }
 
@@ -1127,6 +1110,7 @@ export function BotSidebar({
           (candidate) => candidate.id === channelMenu.channelId && candidate.type === 'dm',
         )?.botSlug,
   );
+  const menuMemoryDisplay = useDmMemoryDisplay(menuBotSlug);
   const openChannelSettings = async (channel: ChannelSummary): Promise<void> => {
     if (store.getSnapshot().conversation.channel?.id !== channel.id)
       await (channel.botSlug === undefined
@@ -3148,6 +3132,8 @@ export function BotSidebar({
             if (botSlug === undefined) return undefined;
             return {
               hidden: menuHiddenDmActions,
+              memoryDisplay: menuMemoryDisplay,
+              setMemoryDisplay: (value: DmMemoryDisplay) => setDmMemoryDisplay(botSlug, value),
               toggle: (kind: DmActionKind) => toggleHiddenDmAction(botSlug, kind),
             };
           })()}
@@ -3548,7 +3534,14 @@ export function ChannelMoveMenu({
   settingsAction?: { attention: boolean; run(): void } | undefined;
   profileAction?: (() => void) | undefined;
   nicknameAction?: (() => void) | undefined;
-  dmActions?: { hidden: readonly DmActionKind[]; toggle(kind: DmActionKind): void } | undefined;
+  dmActions?:
+    | {
+        hidden: readonly DmActionKind[];
+        toggle(kind: DmActionKind): void;
+        memoryDisplay: DmMemoryDisplay;
+        setMemoryDisplay(value: DmMemoryDisplay): void;
+      }
+    | undefined;
   modelAction?:
     | {
         groups: readonly BotModelGroup[];
@@ -3667,7 +3660,9 @@ export function ChannelMoveMenu({
       icon: <IconEditOutlineRegular size={16} />,
     },
     ...(nicknameAction === undefined ? [] : [channelNicknameItem(t)]),
-    ...(dmActions === undefined ? [] : [dmActionsItem(t, dmActions.hidden)]),
+    ...(dmActions === undefined
+      ? []
+      : [dmActionsItem(t, dmActions.hidden, dmActions.memoryDisplay)]),
     { type: 'separator', id: 'hide-separator' },
     {
       id: 'hide',
@@ -3704,6 +3699,11 @@ export function ChannelMoveMenu({
           }
           if (id === 'mute' || id === 'unmute') {
             muteAction?.run();
+            return;
+          }
+          const display = dmMemoryDisplayOf(id);
+          if (display !== undefined) {
+            if (!dmActions?.hidden.includes('memory')) dmActions?.setMemoryDisplay(display);
             return;
           }
           const dmKind = dmActionKindOf(id);

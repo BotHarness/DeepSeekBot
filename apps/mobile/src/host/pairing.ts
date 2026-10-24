@@ -1,3 +1,14 @@
+import { noiseFingerprint, noisePublicKey } from '../../../../packages/core/src/devices/noise/xk';
+import {
+  ConnectRefused,
+  encryptedCarrier,
+  keyBytes,
+  keyHex,
+  openNoiseSocket,
+  secureRandom,
+} from './encrypted-carrier';
+import { isConnectRoute, isEncryptedRoute, isLanRoute } from './route';
+import type { HostEncryption } from './hosts';
 import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
@@ -6,6 +17,8 @@ import type { SavedHost } from './hosts';
 export const DEVICE_PREFIX = '/botharness-device';
 
 export interface PairingPayload {
+  enrollment?: { body: string; signature: string };
+  encryption?: { protocol: 'connect-noise-xk-v1'; publicKey: string; loopback?: 'encrypted' };
   host: { id: string; name: string };
   offer: string;
   routes: string[];
@@ -14,6 +27,12 @@ export interface PairingPayload {
 }
 
 export type PairingRefusal =
+  | 'lan-build-required'
+  | 'lan-unreachable'
+  | 'already-paired'
+  | 'host-key-required'
+  | 'host-key-confirmation-required'
+  | 'channel-authentication-failed'
   | 'link-invalid'
   | 'link-expired'
   | 'no-route'
@@ -57,7 +76,7 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
   }
   const host = record(value['host']);
   if (
-    value['v'] !== 1 ||
+    (value['v'] !== 1 && value['v'] !== 2) ||
     typeof host['id'] !== 'string' ||
     typeof host['name'] !== 'string' ||
     typeof value['offer'] !== 'string' ||
@@ -65,6 +84,19 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
     !Array.isArray(value['routes'])
   )
     return { ok: false, code: 'link-invalid' };
+  if (value['v'] === 2) {
+    const encryption = record(value['encryption']);
+    if (
+      encryption['loopback'] !== 'encrypted' ||
+      encryption['protocol'] !== 'connect-noise-xk-v1' ||
+      typeof encryption['publicKey'] !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(encryption['publicKey']) ||
+      value['routes'].length !== 1 ||
+      typeof value['routes'][0] !== 'string' ||
+      !/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/u.test(value['routes'][0])
+    )
+      return { ok: false, code: 'link-invalid' };
+  }
   if (Date.parse(value['expiresAt']) <= now) return { ok: false, code: 'link-expired' };
   const routes = value['routes'].flatMap((route) => {
     const checked = typeof route === 'string' ? checkRoute(route) : undefined;
@@ -78,6 +110,19 @@ export function parsePairingLink(text: string, now = Date.now()): ParsedLink {
       offer: value['offer'],
       routes,
       expiresAt: value['expiresAt'],
+      ...(record(value['encryption'])['protocol'] === 'connect-noise-xk-v1' &&
+      typeof record(value['encryption'])['publicKey'] === 'string' &&
+      /^[0-9a-f]{64}$/u.test(String(record(value['encryption'])['publicKey']))
+        ? {
+            encryption: {
+              protocol: 'connect-noise-xk-v1' as const,
+              ...(record(value['encryption'])['loopback'] === 'encrypted'
+                ? { loopback: 'encrypted' as const }
+                : {}),
+              publicKey: String(record(value['encryption'])['publicKey']),
+            },
+          }
+        : {}),
     },
   };
 }
@@ -89,9 +134,18 @@ export async function redeemPairing(options: {
   deviceName: string;
   carrier: HostCarrier;
   timeoutMs?: number;
+  onPending?: (deviceFingerprint: string) => void;
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
+  signal?: AbortSignal;
 }): Promise<Redemption> {
   const { payload } = options;
+  if (payload.routes.length === 0 || payload.routes.some((route) => !checkRoute(route).ok))
+    return { ok: false, code: 'no-route' };
+  if (payload.enrollment && payload.routes.some((route) => !isConnectRoute(route)))
+    return { ok: false, code: 'no-route' };
+  if (payload.encryption !== undefined) return redeemEncrypted(options);
   for (const route of payload.routes) {
+    if (isEncryptedRoute(route)) return { ok: false, code: 'host-key-required' };
     let status: number;
     let body: Record<string, unknown>;
     const controller = new AbortController();
@@ -145,30 +199,50 @@ export async function revokePairing(options: {
   carrier: HostCarrier;
   timeoutMs?: number;
 }): Promise<'revoked' | 'unreachable'> {
-  for (const route of options.host.routes) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
-    try {
-      const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/unpair`, {
-        method: 'POST',
-        headers: { authorization: `Device ${options.host.credential}` },
-        body: '{}',
-        signal: controller.signal,
-      });
-      const body = record(JSON.parse(await response.text()));
-      if (response.status === 200 && body['revoked'] === true) return 'revoked';
-      if (
-        response.status === 401 &&
-        (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
-      )
-        return 'revoked';
-    } catch {
-      continue;
-    } finally {
-      clearTimeout(timer);
+  const carrier = encryptedCarrier({ raw: options.carrier, ...options.host });
+  try {
+    for (const route of options.host.routes) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+      try {
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}/unpair`, {
+          method: 'POST',
+          headers: { authorization: `Device ${options.host.credential}` },
+          body: '{}',
+          signal: controller.signal,
+        });
+        const body = record(JSON.parse(await response.text()));
+        if (response.status === 200 && body['revoked'] === true) return 'revoked';
+        if (
+          response.status === 401 &&
+          (body['code'] === 'device-revoked' || body['code'] === 'device-unknown')
+        )
+          return 'revoked';
+        if (isConnectRoute(route)) return 'unreachable';
+      } catch (error) {
+        if (isConnectRoute(route)) {
+          if (error instanceof ConnectRefused && error.code === 'device-revoked') return 'revoked';
+          try {
+            await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/list`, {
+              method: 'POST',
+              body: '{}',
+              signal: AbortSignal.timeout(options.timeoutMs ?? 8000),
+            });
+          } catch (probe) {
+            if (probe instanceof ConnectRefused && probe.code === 'device-revoked')
+              return 'revoked';
+          }
+          return 'unreachable';
+        }
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return 'unreachable';
+  } finally {
+    carrier.close?.();
   }
-  return 'unreachable';
 }
 
 export async function removeDevice(options: {
@@ -177,24 +251,33 @@ export async function removeDevice(options: {
   carrier: HostCarrier;
   timeoutMs?: number;
 }): Promise<'removed' | 'unreachable'> {
-  for (const route of options.host.routes) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
-    try {
-      const response = await options.carrier.request(`${route}${DEVICE_PREFIX}/devices/remove`, {
-        method: 'POST',
-        headers: { authorization: `Device ${options.host.credential}` },
-        body: JSON.stringify({ deviceId: options.deviceId }),
-        signal: controller.signal,
-      });
-      if (response.status === 200 || response.status === 404) return 'removed';
-    } catch {
-      continue;
-    } finally {
-      clearTimeout(timer);
+  if (options.deviceId === options.host.deviceId)
+    return (await revokePairing(options)) === 'revoked' ? 'removed' : 'unreachable';
+  const carrier = encryptedCarrier({ raw: options.carrier, ...options.host });
+  try {
+    for (const route of options.host.routes) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 8000);
+      try {
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}/devices/remove`, {
+          method: 'POST',
+          headers: { authorization: `Device ${options.host.credential}` },
+          body: JSON.stringify({ deviceId: options.deviceId }),
+          signal: controller.signal,
+        });
+        if (response.status === 200 || response.status === 404) return 'removed';
+        if (isConnectRoute(route)) return 'unreachable';
+      } catch {
+        if (isConnectRoute(route)) return 'unreachable';
+        continue;
+      } finally {
+        clearTimeout(timer);
+      }
     }
+    return 'unreachable';
+  } finally {
+    carrier.close?.();
   }
-  return 'unreachable';
 }
 
 export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
@@ -205,6 +288,8 @@ export async function pairHost(options: {
   deviceName: string;
   carrier: HostCarrier;
   save(host: SavedHost): Promise<void>;
+  onPending?: (deviceFingerprint: string) => void;
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
   telemetry: Pick<import('../telemetry/mobile-telemetry').MobileTelemetry, 'pairing'>;
   signal?: AbortSignal;
 }): Promise<{ ok: true } | { ok: false; code: PairingFailure }> {
@@ -227,6 +312,13 @@ export async function pairHost(options: {
       payload: parsed.payload,
       deviceName: options.deviceName,
       carrier: options.carrier,
+      ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
+      ...(options.method === 'qr'
+        ? { confirmFingerprint: async () => true }
+        : options.confirmFingerprint === undefined
+          ? {}
+          : { confirmFingerprint: options.confirmFingerprint }),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
     if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!redeemed.ok) {
@@ -241,10 +333,155 @@ export async function pairHost(options: {
     }
     observation.finish('success');
     return { ok: true };
-  } catch {
-    observation.finish('failed', 'unknown');
-    return { ok: false, code: 'unknown' };
+  } catch (error) {
+    const code =
+      error instanceof Error && error.message === 'lan-build-required'
+        ? 'lan-build-required'
+        : 'unknown';
+    observation.finish('failed', code);
+    return { ok: false, code };
   } finally {
     options.signal?.removeEventListener('abort', cancelled);
   }
+}
+
+async function redeemEncrypted(options: {
+  payload: PairingPayload;
+  deviceName: string;
+  carrier: HostCarrier;
+  signal?: AbortSignal;
+  onPending?: (deviceFingerprint: string) => void;
+  confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
+}): Promise<Redemption> {
+  const { payload } = options;
+  const advertised = payload.encryption!;
+  if (
+    !(await options.confirmFingerprint?.(
+      noiseFingerprint(keyBytes(advertised.publicKey)),
+      payload.host.name,
+    ))
+  )
+    return { ok: false, code: 'host-key-confirmation-required' };
+  if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
+  const encryption: HostEncryption = {
+    ...(advertised.loopback === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
+    protocol: advertised.protocol,
+    hostKey: advertised.publicKey,
+    deviceKey: keyHex(secureRandom(options.carrier)),
+  };
+  const lan = payload.routes.filter(isLanRoute);
+  const remote = payload.routes.filter((route) => !isLanRoute(route));
+  const preferred = remote.find(isConnectRoute) ?? remote[0];
+  const routes = [
+    ...lan,
+    ...(preferred ? [preferred] : []),
+    ...remote.filter((route) => route !== preferred),
+  ];
+  let result: Redemption = { ok: false, code: 'no-route' };
+  for (const route of routes) {
+    if (options.signal?.aborted) return { ok: false, code: 'unreachable' };
+    result = await redeemEncryptedRoute(options, encryption, route);
+    if (result.ok || result.code !== 'lan-unreachable') return result;
+  }
+  return result;
+}
+
+function redeemEncryptedRoute(
+  options: Parameters<typeof redeemEncrypted>[0],
+  encryption: HostEncryption,
+  route: string,
+): Promise<Redemption> {
+  const { payload } = options;
+  return new Promise<Redemption>((resolve) => {
+    let authenticated = false;
+    let done = false,
+      poll: ReturnType<typeof setTimeout> | undefined;
+    const finish = (result: Redemption) => {
+      if (done) return;
+      done = true;
+      clearTimeout(deadline);
+      clearTimeout(poll);
+      options.signal?.removeEventListener('abort', abort);
+      socket.close();
+      resolve(result);
+    };
+    const abort = () => finish({ ok: false, code: 'unreachable' });
+    const socket = openNoiseSocket({
+      origin: route,
+      hostId: payload.host.id,
+      encryption,
+      raw: options.carrier,
+      timeoutMs: isLanRoute(route) ? 2000 : 10_000,
+      closed: (reason) =>
+        finish({
+          ok: false,
+          code:
+            isLanRoute(route) &&
+            !authenticated &&
+            [
+              'lan-unreachable',
+              'channel-timeout',
+              'channel-send-failed',
+              'channel-disconnected',
+            ].includes(reason)
+              ? 'lan-unreachable'
+              : 'channel-authentication-failed',
+        }),
+      message: (value) => {
+        if (value['type'] === 'pair-pending') {
+          options.onPending?.(noiseFingerprint(noisePublicKey(keyBytes(encryption.deviceKey))));
+          poll = setTimeout(submit, 2000);
+          return;
+        }
+        if (
+          value['type'] === 'paired' &&
+          typeof value['credential'] === 'string' &&
+          typeof value['deviceId'] === 'string' &&
+          record(value['host'])['id'] === payload.host.id
+        )
+          finish({
+            ok: true,
+            host: {
+              hostId: payload.host.id,
+              hostName: payload.host.name,
+              routes: [route, ...payload.routes.filter((other) => other !== route)],
+              deviceId: value['deviceId'],
+              credential: value['credential'],
+              encryption,
+            },
+          });
+        else
+          finish({
+            ok: false,
+            code: value['code'] === 'offer-expired' ? 'offer-expired' : 'offer-invalid',
+          });
+      },
+    });
+    const submit = () => {
+      if (done) return;
+      try {
+        socket.send({
+          type: 'pair',
+          offer: payload.offer,
+          name: options.deviceName,
+          verifier: payload.verifier,
+          enrollment: payload.enrollment,
+        });
+      } catch {
+        finish({ ok: false, code: 'channel-authentication-failed' });
+      }
+    };
+    const deadline = setTimeout(
+      abort,
+      Math.max(1, Math.min(600_000, Date.parse(payload.expiresAt) - Date.now())),
+    );
+    options.signal?.addEventListener('abort', abort, { once: true });
+    void socket.ready.then(
+      () => {
+        authenticated = true;
+        submit();
+      },
+      () => finish({ ok: false, code: 'channel-authentication-failed' }),
+    );
+  });
 }

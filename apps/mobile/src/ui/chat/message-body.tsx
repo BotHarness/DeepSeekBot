@@ -10,7 +10,7 @@ import { useDesignTheme } from '../design/theme';
 import { renderMarkdownInline } from '../markdown-inline';
 import { MarkdownView } from '../markdown-view';
 import { InlineText, Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { MessageIdentities } from './message-identities';
 import {
   leadingMessageMentions,
@@ -20,6 +20,7 @@ import {
 } from './message-mentions';
 
 function Mention({ mention, background }: { mention: WireMention; background: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { bots, openBot } = useContext(MessageIdentities);
   const { label, bot } = mentionIdentity(mention, bots);

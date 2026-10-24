@@ -11,6 +11,9 @@ import {
   TOB_CHANNEL_CAPABILITIES,
 } from './tob/cli-channel-operations.js';
 import { createBotCreation, type BotCreationService } from './bots/creation.js';
+import { createBotImports } from './bots/imports.js';
+import { createBotZipImport, type BotZipImportService } from './bots/zip-import.js';
+import { createBotZipUploads } from './bots/zip-upload.js';
 import {
   createTobBotCreationOperations,
   TOB_BOT_CREATE_CAPABILITIES,
@@ -103,7 +106,7 @@ import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
-import { mountDevicePairing, type DeviceWebUpgrade } from './devices/mount.js';
+import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import {
@@ -118,7 +121,6 @@ import { createPluginUpdateService } from './release/plugins.js';
 import {
   createTelemetryService,
   installedDshVersion,
-  pluginStartedProperties,
   telemetryDecision,
   type TelemetryCapture,
 } from './telemetry/service.js';
@@ -183,6 +185,7 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
+  alignOrchestratorSubagentPermission,
   deviceToolAuthorization,
   grantExecutionDenial,
   grantToolExecutionDenial,
@@ -215,7 +218,7 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
-import { ChannelUserQuestions } from './channels/user-questions.js';
+import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
@@ -358,12 +361,12 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
-  deviceWebUpgrade?: DeviceWebUpgrade;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
   tob: TobService;
   creations: BotCreationService;
+  zipImports: BotZipImportService;
   channelManagement: ChannelManagementService;
   partLibrary: PartLibrary;
   operationalDatabase: OperationalDatabaseOwner;
@@ -506,6 +509,7 @@ export function createCore(
           options.warn?.('bot-name-publication-failed');
         }
       },
+      onAvatarChanged: () => live?.publishRosterCommitted(),
       cloneMemory: (destination, url) => cloneMemoryRepository({ destination, url }),
       ...(options.capture === undefined ? {} : { capture: options.capture }),
       syncDescriptor: (memoryDir, record, sync) => {
@@ -837,6 +841,13 @@ export function createCore(
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
+    ...(options.warn === undefined ? {} : { log: options.warn }),
+  });
+  const zipImports = createBotZipImport({
+    uploads: createBotZipUploads({ rootDir: join(dshHome, 'botharness', 'zip-uploads') }),
+    imports: createBotImports(creations),
+    registry,
+    log: (event) => options.warn?.(JSON.stringify(event)),
   });
   const channelManagement = createChannelManagement({
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
@@ -984,6 +995,7 @@ export function createCore(
     onboarding,
     tob,
     creations,
+    zipImports,
     channelManagement,
     partLibrary,
     rootDir,
@@ -1048,6 +1060,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const telemetry = createTelemetryService({
     decision: telemetryChoice,
     dataDir: telemetryDir,
+    pluginVersion: release.version(),
+    dshVersion: installedDshVersion(),
     log: (message) => ctx.logger.info(message),
   });
   const telemetryState = telemetry.status();
@@ -1057,15 +1071,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `telemetry phase=disabled reason=${telemetryState.lockedBy ?? 'preference'}`,
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
-  telemetry.capture(
-    'plugin_started',
-    pluginStartedProperties({
-      pluginVersion: release.version(),
-      dshVersion: installedDshVersion(),
-      os: process.platform,
-      arch: process.arch,
-    }),
-  );
+  telemetry.capture('plugin_started');
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
@@ -1357,7 +1363,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: attachment sweep',
   );
-  const deviceWebUpgrade = mountDevicePairing(ctx, {
+  mountDevicePairing(ctx, {
     database: core.operationalDatabase,
     dshHome,
     packageAnchors: releaseAnchors,
@@ -1409,7 +1415,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => core.schedules.close(), 'botharness: bot schedules');
   ctx.effect(() => () => core.live.close(), 'botharness: Channel live hub');
   ctx.effect(() => () => core.companions.close(), 'botharness: Window Companion feed');
-  if (deviceWebUpgrade !== undefined) core.deviceWebUpgrade = deviceWebUpgrade;
   ctx.provide('botharness', core);
   if (config.privateInputExecution === true)
     ctx.logger.warn(
@@ -1546,6 +1551,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'reject' };
       }
       alignOrchestratorPermission(agent);
+      alignOrchestratorSubagentPermission(
+        core,
+        agent.session,
+        ctx.get('sandboxPolicy'),
+        ctx.get('approval'),
+      );
       return permissionDenial(agent.session) === undefined ? next() : { kind: 'reject' };
     },
     { global: true },
@@ -1734,11 +1745,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     () => core.companions.attachQuestions(userQuestions),
     'botharness: companion question observation',
   );
-  ctx.on(
-    'user-questions/request',
-    async (request, next) => (await userQuestions.ask(request)) ?? next(),
-    { global: true },
-  );
+  registerChannelUserQuestions(ctx, userQuestions);
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
   ctx.effect(() => () => toolApproval.close(), 'botharness: Channel tool approvals');
@@ -2243,6 +2250,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     onboarding: core.onboarding,
     tob: core.tob,
     creations: core.creations,
+    zipImports: core.zipImports,
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
     onboardingNews: (slug) =>

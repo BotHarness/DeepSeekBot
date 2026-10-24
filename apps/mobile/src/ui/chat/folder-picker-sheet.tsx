@@ -15,7 +15,7 @@ import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { TextField } from '../primitives/text-field';
 import { ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   Sheet,
   SheetActions,
@@ -51,6 +51,7 @@ export function FolderPickerSheet({
   onConfirm(folder: WorkspaceOption): Promise<void>;
   onClose(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [listing, setListing] = useState<Loadable<HostFolderListing>>({ status: 'loading' });
   const [options, setOptions] = useState<WorkspaceOption[]>([]);

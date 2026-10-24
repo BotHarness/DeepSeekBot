@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -8,7 +8,7 @@ import { edge, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
 import { headerIslands } from './header-kind';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { edgeFadeStops } from './edge-fade';
 
 const ICON = 22;
@@ -24,24 +24,30 @@ export function useChatHeaderHeight(): number {
 
 export function HeaderCircleButton({
   label,
+  testID,
   onPress,
   children,
   selected = false,
   plain = false,
+  disabled = false,
 }: {
   label: string;
+  testID?: string;
   onPress(): void;
   children: ReactNode;
   selected?: boolean;
   plain?: boolean;
+  disabled?: boolean;
 }) {
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => ({
         width: theme.touch,
@@ -49,6 +55,7 @@ export function HeaderCircleButton({
         borderRadius: radius.round,
         alignItems: 'center',
         justifyContent: 'center',
+        opacity: disabled ? 0.4 : 1,
         ...(plain
           ? { backgroundColor: pressed ? theme.layer.raised.pressed : undefined }
           : headerGlassFill(theme, glass, pressed)),
@@ -69,7 +76,11 @@ export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boo
   return {
     borderWidth: edge.hairline,
     borderColor: theme.layer.raised.edge,
-    backgroundColor: pressed ? theme.layer.raised.pressed : frosted(theme.layer.raised.fill),
+    backgroundColor: pressed
+      ? theme.layer.raised.pressed
+      : Platform.OS === 'ios'
+        ? theme.layer.raised.fill
+        : frosted(theme.layer.raised.fill),
   };
 }
 
@@ -79,6 +90,7 @@ export function titleChipFill(theme: DesignTheme, pressed: boolean) {
 }
 
 export function HeaderBackButton({ onPress, plain }: { onPress(): void; plain?: boolean }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <HeaderCircleButton label={t.back} onPress={onPress} plain={plain === true}>

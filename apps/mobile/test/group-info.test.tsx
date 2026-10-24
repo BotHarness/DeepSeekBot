@@ -27,12 +27,21 @@ vi.mock('../src/ui/chat/sheet', () => {
       visible,
       label,
       children,
+      onClose,
     }: {
       visible: boolean;
       label: string;
       children: ReactNode;
+      onClose(): void;
     }) =>
-      visible ? createElement('div', { role: 'dialog', 'aria-label': label }, children) : null,
+      visible
+        ? createElement(
+            'div',
+            { role: 'dialog', 'aria-label': label },
+            createElement('button', { 'aria-label': 'dismiss-sheet', onClick: onClose }),
+            children,
+          )
+        : null,
     SheetActions: pass,
     SheetNote: pass,
     SheetCallout: ({ children }: { children: ReactNode }) =>
@@ -169,6 +178,31 @@ describe('Group info', () => {
     await act(async () => button(dialog, 'Fay')!.click());
     expect(props.actions.invite).toHaveBeenCalledWith('fay');
   });
+
+  for (const settles of ['success', 'failure'] as const) {
+    it(`does not dismiss a replacement sheet after an old invitation ${settles}`, async () => {
+      let resolve!: () => void;
+      let reject!: (failure: Error) => void;
+      const pending = new Promise<void>((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
+      const props = sheet({ actions: actions({ invite: vi.fn(() => pending) }) });
+      const view = await render(<GroupInfoSheet {...props} />);
+      await act(async () => button(view, t.groupInvite)!.click());
+      const invite = view.querySelector(`[role="dialog"][aria-label="${t.groupInvite}"]`)!;
+      await act(async () => button(invite, 'Fay')!.click());
+      await act(async () => button(invite, 'dismiss-sheet')!.click());
+      await act(async () => button(view, `${t.groupRename}, Launch`)!.click());
+      expect(view.querySelector(`textarea[aria-label="${t.groupName}"]`)).not.toBeNull();
+      await act(async () => {
+        if (settles === 'success') resolve();
+        else reject(new Error('old invitation failed'));
+      });
+      expect(view.querySelector(`textarea[aria-label="${t.groupName}"]`)).not.toBeNull();
+      expect(view.textContent).not.toContain('old invitation failed');
+    });
+  }
 
   it('removes a member only after the confirmation', async () => {
     const props = sheet();

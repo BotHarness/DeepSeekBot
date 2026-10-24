@@ -49,7 +49,7 @@ describe('campaign link redirect', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('location')).toBe(
-      'https://deepseekbot.botharness.ai/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
+      'https://tobs.app/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
     );
 
     const [event] = captured;
@@ -87,7 +87,7 @@ describe('campaign link redirect', () => {
     stubPostHog();
     const { request } = await seeded();
     expect((await request('/bili-video')).headers.get('location')).toBe(
-      'https://deepseekbot.botharness.ai/?utm_campaign=ph-launch&utm_source=bilibili&utm_medium=video&utm_content=bili-video',
+      'https://tobs.app/?utm_campaign=ph-launch&utm_source=bilibili&utm_medium=video&utm_content=bili-video',
     );
   });
 
@@ -115,16 +115,12 @@ describe('campaign link redirect', () => {
     for (const path of ['/nope', '/health', '/Not_Valid']) {
       const response = await request(path);
       expect(response.status).toBe(302);
-      expect(response.headers.get('location')).toBe('https://deepseekbot.botharness.ai/');
+      expect(response.headers.get('location')).toBe('https://tobs.app/');
     }
     await request('/v1/links/ph-x-post/archive', { method: 'POST', token });
-    expect((await request('/ph-x-post')).headers.get('location')).toBe(
-      'https://deepseekbot.botharness.ai/',
-    );
+    expect((await request('/ph-x-post')).headers.get('location')).toBe('https://tobs.app/');
     await request('/v1/campaigns/ph-launch/archive', { method: 'POST', token });
-    expect((await request('/bili-video')).headers.get('location')).toBe(
-      'https://deepseekbot.botharness.ai/',
-    );
+    expect((await request('/bili-video')).headers.get('location')).toBe('https://tobs.app/');
     expect(captured).toHaveLength(0);
     expect(sqlite.prepare('SELECT SUM(clicks) AS total FROM links').get()).toEqual({ total: 0 });
   });
@@ -185,6 +181,30 @@ describe('campaign link redirect', () => {
   it('redirects the bare domain to the product site', async () => {
     const { request } = createHarness();
     const response = await request('/');
-    expect(response.headers.get('location')).toBe('https://deepseekbot.botharness.ai/');
+    expect(response.headers.get('location')).toBe('https://tobs.app/');
+  });
+});
+
+describe('Tobs migration compatibility', () => {
+  it('shares short codes, authentication and clicks across new and legacy hosts', async () => {
+    stubPostHog();
+    const { request, token } = await seeded();
+    for (const origin of [
+      'https://go.tobs.app',
+      'https://go.botharness.ai',
+      'https://go.deepseekbot.app',
+    ]) {
+      const response = await request('/ph-x-post', { origin });
+      expect(response.status).toBe(302);
+      expect(response.headers.get('location')).toBe(
+        'https://tobs.app/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
+      );
+      expect((await request('/v1/links', { origin })).status).toBe(401);
+      expect((await request('/v1/links', { origin, token })).status).toBe(200);
+      expect((await request('/admin', { origin })).status).not.toBe(200);
+    }
+    expect(captured).toHaveLength(3);
+    const links = await (await request('/v1/links', { token })).json();
+    expect(JSON.stringify(links)).toContain('https://go.tobs.app/ph-x-post');
   });
 });

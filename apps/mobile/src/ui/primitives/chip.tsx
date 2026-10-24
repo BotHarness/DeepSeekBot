@@ -2,24 +2,28 @@ import { Pressable } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from './text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function Chip({
   label,
+  testID,
   count,
   selected,
   onPress,
 }: {
   label: string;
+  testID?: string;
   count?: number;
   selected: boolean;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const height = theme.type.body.line + space.x3 * 2;
   const slop = Math.max(0, (theme.touch - height) / 2);
   return (
     <Pressable
+      testID={testID}
       accessibilityRole="button"
       accessibilityState={{ selected }}
       accessibilityLabel={count === undefined ? label : t.filterChip(label, count)}

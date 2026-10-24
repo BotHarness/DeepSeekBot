@@ -69,6 +69,8 @@ it('hides the Connect section when the Host has no account support', async () =>
   snapshot = devices();
   await render();
   expect(host.querySelector('[data-connect]')).toBeNull();
+  expect(host.querySelector('[data-pair-route-steps]')).toBeNull();
+  await act(async () => button(zhTranslate('devices.tailscale.setup'))?.click());
   expect(host.querySelector('[data-pair-route-steps]')).not.toBeNull();
 });
 
@@ -92,6 +94,9 @@ it('signs in, shows the code to confirm, then the connected address', async () =
   await render();
   expect(button('登录')).toBeUndefined();
   expect(host.querySelector('[data-connect-code]')?.textContent).toContain('KQXP-7HMD');
+  expect(host.querySelector('[data-connect-switch]')?.textContent).toBe(
+    `${zhTranslate('devices.connect.switchAccount')} https://auth.example/device?code=KQXP-7HMD`,
+  );
   const open = vi.spyOn(window, 'open').mockReturnValue(null);
   await act(async () => button('打开登录页')?.click());
   expect(open).toHaveBeenCalledWith(
@@ -106,7 +111,8 @@ it('signs in, shows the code to confirm, then the connected address', async () =
     account: { state: 'signed-in', email: 'vain@example.com' },
   });
   await render();
-  expect(host.textContent).toContain('vain@example.com');
+  expect(host.querySelector('[data-connect-email]')?.textContent).toBe('vain@example.com');
+  expect(host.querySelector('[data-connect-account]')?.textContent).toContain('不是你？');
   expect(host.querySelector('[data-connect-tunnel]')?.textContent).toContain(
     'hk7q2mstudio3.deepseekbot.dev',
   );

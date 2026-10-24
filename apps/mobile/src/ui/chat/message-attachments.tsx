@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Image } from 'expo-image';
+import { ResourceImage as Image } from '../primitives/resource-image';
 import { Pressable, View } from 'react-native';
 
 import type { MessageAttachment } from '../../host/conversation';
@@ -8,7 +8,7 @@ import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 export function fileSize(bytes: number): string {
@@ -30,6 +30,7 @@ function AttachmentImage({
   height: number;
   onOpen(attachment: MessageAttachment): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
@@ -84,6 +85,7 @@ function AttachmentFile({
   human: boolean;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [busy, setBusy] = useState(false);
   const ink = human ? 'onAccent' : 'fg';

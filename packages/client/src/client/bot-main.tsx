@@ -142,6 +142,7 @@ import { AutoApprovalLine, AutoApprovalPauseLine } from './approval-template-ent
 import { BotChannelPostLine, elsewhereAction } from './bot-channel-post-line.js';
 import {
   hiddenDmActionsSnapshot,
+  dmMemoryDisplaySnapshot,
   subscribeHiddenDmActions,
   visibleDmMessages,
 } from './dm-actions.js';
@@ -1319,6 +1320,11 @@ function ConversationView({
     subscribeHiddenDmActions,
     () => hiddenDmActionsSnapshot(dmBotSlug),
     () => hiddenDmActionsSnapshot(dmBotSlug),
+  );
+  const memoryDisplay = useSyncExternalStore(
+    subscribeHiddenDmActions,
+    () => dmMemoryDisplaySnapshot(dmBotSlug),
+    () => dmMemoryDisplaySnapshot(dmBotSlug),
   );
   const messages = conversation.messages;
   const displayMessages: ChannelMessage[] = [
@@ -2796,6 +2802,11 @@ function ConversationView({
                       <MemoryCommitLine
                         messageId={first.id}
                         commit={first.memoryCommit}
+                        compact={
+                          dmBotSlug !== undefined &&
+                          first.noticeOrigin !== undefined &&
+                          memoryDisplay === 'compact'
+                        }
                         bots={state.bots}
                         action={
                           first.noticeOrigin === undefined
@@ -3280,7 +3291,7 @@ function ConversationView({
     state.selection === undefined ? (
       <Welcome state={state} t={t} />
     ) : state.selection.kind === 'inbox' ? (
-      <ActivityCenterView actions={actions} t={t} />
+      <ActivityCenterView actions={actions} t={t} registry={dockPanels} />
     ) : (
       conversationPane
     );
@@ -3517,7 +3528,7 @@ function BotMainContent({
   const workspace = useContext(WorkspaceContext);
   if (!workspace && state.selection === undefined) return <Welcome state={state} t={t} />;
   if (!workspace && state.selection?.kind === 'inbox')
-    return <ActivityCenterView actions={actions} t={t} />;
+    return <ActivityCenterView actions={actions} t={t} registry={dockPanels} />;
   const scopeKey =
     state.selection === undefined
       ? 'welcome'

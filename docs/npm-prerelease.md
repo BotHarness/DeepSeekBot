@@ -9,13 +9,15 @@ deploy the website.
 
 A release publishes these precompiled packages in this order:
 
-1. `@botharness/im-provider` — independent Provider version (for example `4.32.0-botharness.5`);
+1. `@botharness/im-provider` — independent Provider version (for example `4.32.0-botharness.21`);
 2. `@botharness/core@<version>`;
 3. `@botharness/ui@<version>`;
-4. `@botharness/cloudflared-<platform>-<arch>@<version>` — one optional package per platform
+4. `@botharness/browser@<version>`;
+5. `@botharness/computer@<version>`;
+6. `@botharness/cloudflared-<platform>-<arch>@<version>` — one optional package per platform
    (`darwin-arm64`, `darwin-x64`, `linux-arm64`, `linux-x64`, `win32-x64`) carrying the pinned
    `cloudflared` for Connect (ADR-0241), in the esbuild pattern;
-5. `deepseekbot@<version>` — one product Bundle with exact dependencies, listing the
+7. `deepseekbot@<version>` — one product Bundle with exact dependencies, listing the
    `cloudflared` packages as exact `optionalDependencies` so npm installs only the matching one.
 
 `prepare` downloads the `cloudflared` release pinned in `packages/core/src/devices/cloudflared.json`
@@ -24,9 +26,9 @@ whose SHA-256 differs, and places the binary at `bin/cloudflared` in each packag
 never committed. `node scripts/cloudflared-packages.mjs list` prints the packages, assets and
 hashes without downloading. These packages are Apache-2.0 and ship cloudflared's `LICENSE`.
 
-Computer and Browser are optional separate Bundles and are not published by this
-product workflow. Keep the qualified Provider source pinned; merged upstream
-PRs do not qualify an upstream replacement. DSH support remains `0.2.0-rc.1`.
+Computer and Browser are published and default-bundled inside `deepseekbot` (ADR-0160).
+Keep the qualified Provider source pinned; merged upstream PRs do not qualify an
+upstream replacement. DSH development targets `0.2.1-rc.3`; the fresh-Profile release matrix retains `0.2.0-rc.2` and `0.2.1-rc.2` and adds rc.3 (range `>=0.2.0-0`). A source upgrade is not qualification of a published package. Desktop zoom retains a reproducible theme build input but checks protocol and content integrity instead of the runtime release label; native interaction qualification remains separate.
 
 The source packages stay private/0.0.0. The existing product packer creates public
 release manifests and precompiled entries in a separate staging directory. It
@@ -35,7 +37,7 @@ account, credential, Binding or Service Grant is shipped in a package.
 
 ## Releasing a version
 
-`deepseekbot@1.0.1` is the current stable release. A release is triggered by pushing a
+`deepseekbot@1.4.1` is the current stable release (tracked in `scripts/install-release.json`). A release is triggered by pushing a
 SemVer tag on main; nothing publishes from a branch, a PR or a manual dispatch.
 
 1. Archive `Unreleased` in the bilingual Release Ledger under the new version
