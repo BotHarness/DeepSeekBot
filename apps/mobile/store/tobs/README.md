@@ -6,15 +6,15 @@ These are **generated marketing compositions**, not native screenshots or proof 
 
 ## Order
 
-| Slot | English | Simplified Chinese |
-| --- | --- | --- |
-| 01 | Chats | Chats |
-| 02 | Group collaboration | Group collaboration |
-| 03 | Marketplace | Marketplace |
-| 04 | Direct message, dark | Bot profile |
-| 05 | Marketplace, dark | Activity |
-| 06 | Marketplace detail, dark | — |
-| 07 | Native Create menu | — |
+| Slot | English                  | Simplified Chinese  |
+| ---- | ------------------------ | ------------------- |
+| 01   | Chats                    | Chats               |
+| 02   | Group collaboration      | Group collaboration |
+| 03   | Marketplace              | Marketplace         |
+| 04   | Direct message, dark     | Bot profile         |
+| 05   | Marketplace, dark        | Activity            |
+| 06   | Marketplace detail, dark | —                   |
+| 07   | Native Create menu       | —                   |
 
 ## Prompt direction
 
