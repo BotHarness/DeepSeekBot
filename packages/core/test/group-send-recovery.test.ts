@@ -78,7 +78,12 @@ async function fixture(
           at: new Date().toISOString(),
         });
       },
-      tool: async (args, bot) => JSON.parse(JSON.stringify(await call('channel_send', args, bot))),
+      tool: async (args, bot) =>
+        JSON.parse(
+          JSON.stringify(
+            await call(args.action ? 'channel_action' : 'bot_send_message', args, bot),
+          ),
+        ),
       read: async (args = {}) =>
         JSON.parse(JSON.stringify(await call('channel_read', args))).observationIds[group.id],
     });
@@ -124,7 +129,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       );
       const args = {
         body: 'Meet at 11:00',
-        review_action: 'recover',
+        recover: true,
         draft_id: held.draftId,
         observation_id: await f.read(),
       };
@@ -134,7 +139,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       });
       const inspection = await f.tool({
         body: '',
-        review_action: 'inspect',
+        action: 'inspect',
         draft_id: held.draftId,
       });
       expect(inspection).toMatchObject({
@@ -208,7 +213,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       await f.human('correction', 'Meet at 11:00 instead');
       const refused = await f.tool({
         body: 'Meet at 10:00',
-        review_action: 'recover',
+        recover: true,
         draft_id: held.draftId,
         observation_id: observation,
         freshness_override: {
@@ -227,7 +232,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       expect(
         await f.tool({
           body: 'Meet at 11:00',
-          review_action: 'recover',
+          recover: true,
           draft_id: held.draftId,
           observation_id: await f.read(),
           freshness_override: { draftVersion: refused.draftVersion, reason: 'Corrected notice.' },
@@ -250,7 +255,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
     });
   });
 
-  it('refuses an incomplete recovery override observation and inspection with mutation arguments', async () => {
+  it('refuses incomplete recovery observations and keeps inspection side-effect-free', async () => {
     await fixture(async (f) => {
       await f.human('request', 'Meet at 10:00');
       let held = await f.tool({ body: 'Meet at 10:00' });
@@ -265,13 +270,13 @@ describe('explicit Group draft recovery and commit receipts', () => {
       }
       await f.restart();
       const freshness_override = { draftVersion: held.draftVersion, reason: 'Still requested.' };
-      await expect(
-        f.tool({ body: '', review_action: 'inspect', draft_id: held.draftId, freshness_override }),
-      ).rejects.toThrow('draft inspection cannot');
+      expect(
+        await f.tool({ action: 'inspect', draft_id: held.draftId, freshness_override }),
+      ).toMatchObject({ status: 'inspected' });
       expect(
         await f.tool({
           body: 'Meet at 10:00',
-          review_action: 'recover',
+          recover: true,
           draft_id: held.draftId,
           observation_id: await f.read({ limit: 1 }),
           freshness_override,
@@ -316,7 +321,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
         await f.restart();
         const args = {
           body: 'Meet at 10:00',
-          review_action: 'recover',
+          recover: true,
           draft_id: held.draftId,
           observation_id: fault === 'revoke' ? 'unavailable' : await f.read(),
           freshness_override: { draftVersion: held.draftVersion, reason: 'Still requested.' },
@@ -346,7 +351,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       expect(
         await f.tool({
           body: 'Meet at 10:00',
-          review_action: 'recover',
+          recover: true,
           draft_id: held.draftId,
           observation_id: partial,
         }),
@@ -396,7 +401,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       expect(
         await f.tool({
           body: 'Meet at 10:00',
-          review_action: 'recover',
+          recover: true,
           draft_id: held.draftId,
           observation_id: observation,
         }),
@@ -430,12 +435,12 @@ describe('explicit Group draft recovery and commit receipts', () => {
         await f.human('request', 'Do not send after cancellation');
         const held = await f.tool({ body: 'Cancelled notice' });
         if (action === 'stop') await f.current().runtime.stopBot!('ada');
-        else await f.tool({ body: '', drop: true, draft_id: held.draftId });
+        else await f.tool({ body: '', action: 'drop', draft_id: held.draftId });
         await f.restart();
         expect(
           await f.tool({
             body: 'Cancelled notice',
-            review_action: 'recover',
+            recover: true,
             draft_id: held.draftId,
             observation_id: await f.read(),
           }),
@@ -460,7 +465,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       expect(
         await f.tool({
           body: 'Meet at 10:00',
-          review_action: 'recover',
+          recover: true,
           draft_id: held.draftId,
           observation_id: observation,
         }),
@@ -482,7 +487,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       expect(
         await f.tool({
           body: '',
-          review_action: 'inspect',
+          action: 'inspect',
           channel_id: other.id,
           draft_id: held.draftId,
         }),
@@ -510,7 +515,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       await f.human('correction', 'Actually 11:00');
       const inspection = await f.tool({
         body: '',
-        review_action: 'inspect',
+        action: 'inspect',
         draft_id: held.draftId,
       });
       expect(inspection).toMatchObject({
@@ -530,7 +535,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
           body: 'Meet at 11:00',
           draft_id: held.draftId,
           observation_id: oldObservation,
-          review_action: 'recover',
+          recover: true,
         }),
       ).toMatchObject({
         status: 'refused',
@@ -540,7 +545,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
         body: 'Meet at 11:00',
         draft_id: held.draftId,
         observation_id: await f.read(),
-        review_action: 'recover',
+        recover: true,
       });
       expect(result.status).toBe('committed');
       const replies = f
@@ -567,7 +572,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
         (database) => database.prepare('SELECT COUNT(*) AS n FROM inbox_admissions').get()!.n,
       );
       await f.restart();
-      const receipt = await f.tool({ body: '', review_action: 'inspect', draft_id: held.draftId });
+      const receipt = await f.tool({ body: '', action: 'inspect', draft_id: held.draftId });
       expect(receipt).toMatchObject({
         status: 'inspected',
         drafts: [{ state: 'committed', requiresRecovery: false }],
@@ -602,7 +607,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       await f.human('request', 'A single notice');
       const result = await f.tool({ body: 'A single notice', observation_id: await f.read() });
       expect(result.status).toBe('committed');
-      const inspected = await f.tool({ body: '', review_action: 'inspect' });
+      const inspected = await f.tool({ body: '', action: 'inspect' });
       expect(inspected.drafts).toHaveLength(1);
       expect(inspected.drafts[0]!.messageId).toBe(result.messageId);
       expect(
@@ -621,7 +626,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
     await fixture(async (f) => {
       await f.human('request', 'Private notice');
       const committed = await f.tool({ body: 'Private notice', observation_id: await f.read() });
-      const receipt = await f.tool({ body: '', review_action: 'inspect' });
+      const receipt = await f.tool({ body: '', action: 'inspect' });
       const draftId = receipt.drafts[0]!.draftId;
       const db = attachOperationalModule(f.current().operationalDatabase, 'receipt-purge-test');
       const source = db.read(
@@ -651,7 +656,7 @@ describe('explicit Group draft recovery and commit receipts', () => {
       await f.human('request', 'Private request');
       const held = await f.tool({ body: 'Private draft' });
       expect(
-        await f.tool({ body: '', review_action: 'inspect', draft_id: held.draftId }, 'bob'),
+        await f.tool({ body: '', action: 'inspect', draft_id: held.draftId }, 'bob'),
       ).toMatchObject({ status: 'refused', reason: 'draft-unavailable' });
       const db = attachOperationalModule(f.current().operationalDatabase, 'expiry-test');
       db.transaction((database) =>
@@ -661,21 +666,21 @@ describe('explicit Group draft recovery and commit receipts', () => {
           )
           .run(held.draftId),
       );
-      expect(
-        await f.tool({ body: '', review_action: 'inspect', draft_id: held.draftId }),
-      ).toMatchObject({ drafts: [{ state: 'expired' }] });
+      expect(await f.tool({ body: '', action: 'inspect', draft_id: held.draftId })).toMatchObject({
+        drafts: [{ state: 'expired' }],
+      });
       expect(
         await f.tool({
           body: 'Private draft',
           draft_id: held.draftId,
-          review_action: 'recover',
+          recover: true,
           observation_id: await f.read(),
         }),
       ).toMatchObject({ status: 'expired' });
       f.current().channels.removeGroupMember(f.channelId, 'ada');
-      await expect(
-        f.tool({ body: '', review_action: 'inspect', draft_id: held.draftId }),
-      ).rejects.toThrow(/not a member/);
+      await expect(f.tool({ body: '', action: 'inspect', draft_id: held.draftId })).rejects.toThrow(
+        /not a member/,
+      );
       expect(
         f
           .current()

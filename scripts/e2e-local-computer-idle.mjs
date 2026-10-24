@@ -83,7 +83,7 @@ function phase(events, prefix, names) {
   const reply = events.findLast(
     (e) =>
       e.type === 'tool/call' &&
-      e.data.name === 'channel_send' &&
+      e.data.name === 'bot_send_message' &&
       JSON.parse(e.data.arguments).body.startsWith(prefix),
   );
   assert.ok(reply, `Wait for ${prefix}`);
@@ -110,7 +110,7 @@ function button(message) {
 }
 const send = (body) => rpc('botharness', 'channelSend', { channelId: state.channelId, body });
 const restrictions =
-  'No tools except the requested Computer call(s) and channel_send. Never read files, use Browser/Shell, observe other apps or desktop, guess or retry, or fall back to pixel/foreground input.';
+  'No tools except the requested Computer call(s) and bot_send_message. Never read files, use Browser/Shell, observe other apps or desktop, guess or retry, or fall back to pixel/foreground input.';
 if (mode === '--before') {
   const pid = Number(process.env.BH_QA_FIXTURE_PID);
   assert.ok(Number.isSafeInteger(pid) && pid > 0);
@@ -124,7 +124,7 @@ if (mode === '--before') {
   const reply = events.findLast(
     (e) =>
       e.type === 'tool/call' &&
-      e.data.name === 'channel_send' &&
+      e.data.name === 'bot_send_message' &&
       JSON.parse(e.data.arguments).body.startsWith('IDLE_BEFORE_QA:'),
   );
   assert.ok(reply);
@@ -133,8 +133,8 @@ if (mode === '--before') {
     events,
     'IDLE_BEFORE_QA:',
     calls.length === 3
-      ? ['computer_list_windows', 'computer_get_window_state', 'channel_send']
-      : ['computer_get_window_state', 'channel_send'],
+      ? ['computer_list_windows', 'computer_get_window_state', 'bot_send_message']
+      : ['computer_get_window_state', 'bot_send_message'],
   );
   const index = calls.length - 2;
   const observation = before.results[index];
@@ -186,14 +186,17 @@ if (mode === '--before') {
     );
   } else if (mode === '--fresh-token') {
     const { events } = await nativeEvents();
-    const stale = phase(events, 'IDLE_STALE_TOKEN_QA:', ['computer_click', 'channel_send']);
+    const stale = phase(events, 'IDLE_STALE_TOKEN_QA:', ['computer_click', 'bot_send_message']);
     assert.equal(stale.results[0].data.message.isError, true);
     assert.ok(text(stale.results[0].data.message).includes('stale_element_token'));
     assert.equal(readFileSync(counterPath, 'utf8'), '0');
     writeFileSync(baselinePath, JSON.stringify({ ...baseline, counterBeforeFresh: 0 }), {
       mode: 0o600,
     });
-    const after = phase(events, 'IDLE_AFTER_QA:', ['computer_get_window_state', 'channel_send']);
+    const after = phase(events, 'IDLE_AFTER_QA:', [
+      'computer_get_window_state',
+      'bot_send_message',
+    ]);
     const token = button(after.results[0].data.message)?.element_token;
     assert.ok(token && token !== baseline.token);
     await send(
@@ -202,7 +205,7 @@ if (mode === '--before') {
   } else if (mode === '--cleanup') {
     await rpc('botharness', 'computerAccessSet', { slug: state.slug, enabled: false });
     await send(
-      'Local idle QA has ended; Computer Access is off. No Computer, Shell, Browser or file calls. Reply via channel_send: IDLE_ACCESS_OFF_QA: Computer Access is off.',
+      'Local idle QA has ended; Computer Access is off. No Computer, Shell, Browser or file calls. Reply via bot_send_message: IDLE_ACCESS_OFF_QA: Computer Access is off.',
     );
   } else {
     const output = process.env.BH_E2E_REPORT_DIR;
@@ -212,15 +215,18 @@ if (mode === '--before') {
       (e) => e.type === 'tool/result' && e.data.message.toolCallId === baseline.callId,
     );
     assert.ok(observation);
-    const expired = phase(events, 'IDLE_EXPIRED_TOKEN_QA:', ['computer_click', 'channel_send']);
-    const after = phase(events, 'IDLE_AFTER_QA:', ['computer_get_window_state', 'channel_send']);
-    const stale = phase(events, 'IDLE_STALE_TOKEN_QA:', ['computer_click', 'channel_send']);
+    const expired = phase(events, 'IDLE_EXPIRED_TOKEN_QA:', ['computer_click', 'bot_send_message']);
+    const after = phase(events, 'IDLE_AFTER_QA:', [
+      'computer_get_window_state',
+      'bot_send_message',
+    ]);
+    const stale = phase(events, 'IDLE_STALE_TOKEN_QA:', ['computer_click', 'bot_send_message']);
     const fresh = phase(events, 'IDLE_FRESH_TOKEN_QA:', [
       'computer_click',
       'computer_get_window_state',
-      'channel_send',
+      'bot_send_message',
     ]);
-    const off = phase(events, 'IDLE_ACCESS_OFF_QA:', ['channel_send']);
+    const off = phase(events, 'IDLE_ACCESS_OFF_QA:', ['bot_send_message']);
     assert.ok(expired.calls[0].time - baseline.time >= 330000);
     assert.ok(
       baseline.turn < expired.reply.data.turn &&

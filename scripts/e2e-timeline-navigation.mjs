@@ -132,7 +132,7 @@ try {
   const send = async (body) => {
     const run = await rpc('botToolRun', {
       slug: dm.botSlug,
-      tool: 'channel_send',
+      tool: 'bot_send_message',
       args: { channel_id: dm.id, body },
     });
     assert.ok(run.result.messageId, JSON.stringify(run));
@@ -357,7 +357,7 @@ try {
     for (let index = 0; index < 150; index++) {
       const run = await rpc('botToolRun', {
         slug: paged.botSlug,
-        tool: 'channel_send',
+        tool: 'bot_send_message',
         args: { channel_id: paged.id, body: `Unread jump item ${index + 1}` },
       });
       pagedIds.push(run.result.messageId);

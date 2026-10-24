@@ -198,28 +198,27 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`channel_send` 可选传入 `resolve_inbox_ids`，显式指定 1–200 个已观察的 Source Event 或 Message ID，仅在发送提交或成功 drop 后标记 done。不传时保留 Inbox 责任；held/refused 不结清。省略结清参数时，`inboxResolution.outcome` 为 `not-requested`，提示在本轮结束前显式结清已完成事项。drop 省略 `channel_id` 时使用入站 Channel。单独检查 `inboxResolution`：结清失败时用 `inbox_resolve` 修复，不要重发已提交的消息。CLI `bot-tool <bot> channel_send --args-stdin` 使用相同参数。
+`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。
 
-若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`channel_send` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
+若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`bot_send_message` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
 
 `group-send-review <channel> --accept` 在本地 Group 启用发送复核；`--off` 关闭，无标志时读取状态。
 该设置不修改唤醒策略。直接调用 `bot-tool <bot> channel_read --args-stdin`，从 `observationIds`
-取得目标群的观察凭据，作为 `observation_id` 传给 `channel_send`。`held` 表示尚未发送：读取变化后，
-携带 `draft_id`、新观察凭据和改写（或保持原文）的 `body` 复核，最多两次。`drop: true` 配合 `draft_id`
-和空 `body` 放弃草稿，不会解决 Inbox 事项。`expired`、`refused`、`requires-review` 停止自动发送。
+取得目标群的观察凭据，作为 `observation_id` 传给 `bot_send_message`。`held` 表示尚未发送：读取变化后，
+携带 `draft_id`、新观察凭据和改写（或保持原文）的 `body` 复核，最多两次。`channel_action` 的 `action: "drop"` 配合明确的 `channel_id` 和 `draft_id` 放弃草稿，不会解决 Inbox 事项。`expired`、`refused`、`requires-review` 停止自动发送。
 凭据不能跨 Bot owner 或 Group 使用。
 
-发送中断后，通过同一条直接 Tool 命令传入
-`{"channel_id":"...","body":"","review_action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
+发送中断后，通过 `bot-tool <bot> channel_action --args-stdin` 传入
+`{"channel_id":"...","action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
 待处理记录优先，并返回 `hasMore`；指定 `draft_id` 可查更早的准确记录。检查不发送消息、不结清 Inbox。
-Host 重启后，先读取当前群聊，再用 `review_action:"recover"`、`draft_id`、新 `observation_id`
+Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、新 `observation_id`
 和修正后的 `body` 恢复。旧观察无效，过期时间及已消耗的复核预算不重置。
 已提交回执给出原 `messageId`，可读取规范消息核实；同 `draft_id`、同正文重放只返回原消息 ID，
 不新增消息或 Admission。正文变化返回 `draft-commit-content-changed`。成员、owner、来源和附件仍须
 通过当前授权检查；直接 runner 可能在 Tool 执行前拒绝已撤权的群。
 
-主动让话使用同一条 `bot-tool <bot> channel_send --args-stdin`，传入
-`{"channel_id":"...","body":"","drop":true,"draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`。
+主动让话使用 `bot-tool <bot> channel_action --args-stdin`，传入
+`{"channel_id":"...","action":"drop","draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`。
 先读同伴完整答复；`review.peerMessageIds` 标出已完整返回的同伴消息。成功返回
 `dropped`、`reason: explicit-peer-yield` 和 `yieldedToMessageIds`，依据保留在草稿审计与
 `bot-trace` 中。未观察、已变更、已清除、自己的消息、Human 消息或仅预览的引用返回
@@ -230,7 +229,7 @@ Host 重启后，先读取当前群聊，再用 `review_action:"recover"`、`dra
 
 `channel <group-channel>` 返回 `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}`，拒绝非群频道。稳定创建／邀请参数及重试语义见 [Tob 建群与邀请](#tob-建群与邀请)，Human 在线命令也可使用。
 
-与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_send` 的 `react_to` 和 `reaction` 回应，只回应时 `body` 留空；`bot-tool <bot> channel_send --args-stdin` 可以不经过模型执行它。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
+与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
 
 `group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
@@ -537,7 +536,7 @@ Bot 用来发言、读取 Inbox、管理 Channel 和计划的 Harness 工具，�
 ```bash
 deepseekbot bot-tools
 deepseekbot bot-tool <bot-id> channel_list
-printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-tool <bot-id> channel_send --args-stdin
+printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
@@ -1086,7 +1085,7 @@ deepseekbot release-restart --confirm
 ### 恢复已耗尽复核额度的群聊草稿
 
 Host 重启后先检查草稿、重新读取群聊，再通过同一个
-`bot-tool ... channel_send --args-stdin` 命令同时传入 `review_action: "recover"`、
+`bot-tool ... bot_send_message --args-stdin` 命令同时传入 `recover: true`、
 `freshness_override`（当前 `draftVersion` 与理由）、新 `observation_id`、原 `draft_id`
 和修正后的正文。恢复不会重置两次复核额度或已消耗的显式继续机会；提交前又有未读变化
 仍会拒绝。成功的显式继续也保留提交回执，重启后以相同意图重试只返回原消息 ID。

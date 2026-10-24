@@ -46,9 +46,13 @@ resolution and turn conclusion. No `final_reply_json` field is added.
 External file replies currently accept one imported file and empty text; unsupported combinations
 are refused before sending. Reaction, draft-inspection/drop and source-sharing actions remain
 separate. The model catalog exposes only `bot_send_message` for text/attachment delivery and
-`channel_action` for reactions and draft inspection/drop. Legacy send names remain callable
-only through the direct CLI compatibility path. Durable cross-call retry and stored cleanup
+`channel_action` for reactions and draft inspection/drop. Legacy send registrations and direct CLI aliases are removed. `channel_action` calls the
+existing Channel owner directly, without delegating to an old sending Tool. Durable cross-call retry and stored cleanup
 intentions still require the next slice.
+
+Approval explanations follow the same model-chosen policy. The Host does not reject a first
+approval request merely because no preliminary message was sent. The existing approval owner,
+Human decisions and originating Channel routing remain authoritative.
 
 ## Consequences
 

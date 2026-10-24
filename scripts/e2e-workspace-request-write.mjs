@@ -145,7 +145,7 @@ try {
     report.botId = created.bot?.id;
     if (!report.botId) throw new Error('Bot creation outcome unknown; do not retry creation');
     const marker = 'ax2080-' + Date.now();
-    await send('Reply with exactly ' + marker + '-ready using channel_send.');
+    await send('Reply with exactly ' + marker + '-ready using bot_send_message.');
     await until(
       async () =>
         (await messages()).some(
@@ -169,7 +169,7 @@ try {
   const assignmentFile = resolve(fixture, 'assignment.txt');
   if (!resume)
     await send(
-      `QA task ${marker}: I want two files in ${fixture}. First call request_workspace_grant explaining that you need this folder to write both files, then end this turn and wait for the Human folder card approval. After approval, use the native write tool yourself to write ${mainFile} with exactly ${marker}-orchestrator. Then use create_assignment with the approved Grant for one Assignment to write ${assignmentFile} with exactly ${marker}-assignment using native write, report completed, and wait for its report. Reply with ${marker}-done through channel_send only after both succeed. Do not use Shell, another folder, or more approval cards after the directory is writable.`,
+      `QA task ${marker}: I want two files in ${fixture}. First call request_workspace_grant explaining that you need this folder to write both files, then end this turn and wait for the Human folder card approval. After approval, use the native write tool yourself to write ${mainFile} with exactly ${marker}-orchestrator. Then use create_assignment with the approved Grant for one Assignment to write ${assignmentFile} with exactly ${marker}-assignment using native write, report completed, and wait for its report. Reply with ${marker}-done through bot_send_message only after both succeed. Do not use Shell, another folder, or more approval cards after the directory is writable.`,
     );
   const request = await until(
     async () =>

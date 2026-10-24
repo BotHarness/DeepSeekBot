@@ -56,7 +56,7 @@ async function mentionAda(core: Core, groupId: string): Promise<void> {
   await core.runtime.whenIdle();
 }
 
-describe('Bot Self-Records for bot_dm_send', () => {
+describe('Bot Self-Records for bot_send_message', () => {
   it('places a Group-caused notice in that Group and records it for the sender only', async () => {
     const runs: string[] = [];
     let groupId = '';

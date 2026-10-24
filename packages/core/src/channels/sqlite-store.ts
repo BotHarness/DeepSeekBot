@@ -1680,7 +1680,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         status +
         '. ' +
         (input.accept
-          ? 'You may now use channel_read and channel_send there.'
+          ? 'You may now use channel_read and bot_send_message there.'
           : 'You are not a member of that Group.');
       database.transaction(
         (db) => {

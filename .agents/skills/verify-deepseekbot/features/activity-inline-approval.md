@@ -111,7 +111,7 @@ page. A resolved request renders an approved notice rather than retaining its pe
 
 Run `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-activity-load.mjs`
 on a fresh isolated Host. It creates 24 silent Groups and drives the public `botToolRun`
-`channel_send` path (no model tokens or fabricated Client events) after a trusted Human Source
+`bot_send_message` path (no model tokens or fabricated Client events) after a trusted Human Source
 Event in each Group. Three rounds each send 240 messages in waves of 24, with a 100ms minimum
 wave period. The actual achieved rate is reported, not assumed. Compare sequential runs on
 main and the candidate on the same machine; use `BH_LOAD_BASELINE=1` for the main run.
@@ -123,7 +123,7 @@ or long-duration memory-leak qualification. Preserve failed runs and their DOM e
 
 ## Channel mute message filtering (#2231, first slice)
 
-Seed Group messages and Human mentions through a real Bot turn using `channel_send` with `channel_id` and `mention_human_ids`. The direct no-model send can seed a Human DM, but a Group send requires trusted Source Event causation and must not be fabricated. In the Channel list, right-click that Channel and choose Mute. Verify both Activity page and Dock remove its Related to you and Other unread entries, while pending explicit Human requests remain. Unmute and verify eligibility returns without advancing the Channel read position. Repeat via `channel-mute` in the CLI while Activity stays open, and verify the existing Roster subscription updates the list and global status without a page reload. Capture before/after with the same data, theme and viewport; inspect console and source IDs, `channel-unread`, Inbox categories and read position. The Channel's grey local unread count remains real. The following indicator journey separately qualifies its display preference.
+Seed Group messages and Human mentions through a real Bot turn using `bot_send_message` with `channel_id` and `mention_human_ids`. The direct no-model send can seed a Human DM, but a Group send requires trusted Source Event causation and must not be fabricated. In the Channel list, right-click that Channel and choose Mute. Verify both Activity page and Dock remove its Related to you and Other unread entries, while pending explicit Human requests remain. Unmute and verify eligibility returns without advancing the Channel read position. Repeat via `channel-mute` in the CLI while Activity stays open, and verify the existing Roster subscription updates the list and global status without a page reload. Capture before/after with the same data, theme and viewport; inspect console and source IDs, `channel-unread`, Inbox categories and read position. The Channel's grey local unread count remains real. The following indicator journey separately qualifies its display preference.
 
 
 ## Independent control-rail indicator (#2231, second slice)

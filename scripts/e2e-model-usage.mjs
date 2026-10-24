@@ -44,7 +44,7 @@ const preset = (
 await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
 await rpc('channelSend', {
   channelId,
-  body: 'Call channel_send in this DM with exactly USAGE_ROUTE_CONFIRMED. Do not do anything else.',
+  body: 'Call bot_send_message in this DM with exactly USAGE_ROUTE_CONFIRMED. Do not do anything else.',
 });
 let activity;
 let confirmed = false;

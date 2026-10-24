@@ -68,7 +68,7 @@ async function prepare() {
       await rpc('create', {
         displayName: label + ' QA ' + stamp,
         persona:
-          'Follow Human instructions exactly. When asked, send precisely the requested two messages using channel_send to the specified joined Group in order. Do not delegate, run commands, use other tools or add Group messages. Finish with a brief acknowledgement in the originating DM.',
+          'Follow Human instructions exactly. When asked, send precisely the requested two messages using bot_send_message to the specified joined Group in order. Do not delegate, run commands, use other tools or add Group messages. Finish with a brief acknowledgement in the originating DM.',
       })
     ).bot;
     await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -207,7 +207,7 @@ async function pair(bot, labels) {
       body:
         'Send these two exact messages to joined Group ' +
         scene.group.id +
-        ' using channel_send separately in order. First: ' +
+        ' using bot_send_message separately in order. First: ' +
         JSON.stringify(bodies[0]) +
         '. Second: ' +
         JSON.stringify(bodies[1]) +
@@ -296,7 +296,7 @@ try {
     assert.ok(owner);
     const snapshot = await nativeSnapshot(owner.sessionId);
     const calls = snapshot.records.filter(
-      (r) => r.event.type === 'tool/call' && r.event.data.name === 'channel_send',
+      (r) => r.event.type === 'tool/call' && r.event.data.name === 'bot_send_message',
     );
     for (const call of calls) {
       const args = JSON.parse(call.event.data.arguments);
@@ -311,7 +311,7 @@ try {
       assert.equal(
         result?.event.data.message.isError,
         false,
-        'actual native channel_send succeeds',
+        'actual native bot_send_message succeeds',
       );
       proof.native.push({
         botSlug: bot.slug,

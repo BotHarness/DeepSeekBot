@@ -51,7 +51,7 @@ if (!scenes.length) {
     save('scenes', scenes);
     await rpc('channelSend', {
       channelId: channel.id,
-      body: `Run exactly this native bash command: ${command}. Use the existing default working directory. First attempt normal sandbox. If denied, request the native sanctioned one-shot wider sandbox approval for exactly the same command, then wait for Human. Do not work around a refusal or change standing permissions. No other commands. After actual success channel_send APPROVE_DONE_${surface.toUpperCase()}.`,
+      body: `Run exactly this native bash command: ${command}. Use the existing default working directory. First attempt normal sandbox. If denied, request the native sanctioned one-shot wider sandbox approval for exactly the same command, then wait for Human. Do not work around a refusal or change standing permissions. No other commands. After actual success bot_send_message APPROVE_DONE_${surface.toUpperCase()}.`,
     });
   }
 }

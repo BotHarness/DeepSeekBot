@@ -226,7 +226,7 @@ export function auditRun(run) {
     ]),
   );
   const sends = tools
-    .filter((call) => call.name === 'channel_send')
+    .filter((call) => call.name === 'bot_send_message')
     .map((call) => {
       try {
         return { ...call, parsed: JSON.parse(call.result) };

@@ -1,9 +1,7 @@
 import { createChannelActionTool } from './channel-action-tool.js';
 import { createBotMessageTool } from './bot-message-tool.js';
-import { GroupReplySourceRevoked, SendReviewRequired } from '../channels/send-review.js';
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
-import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { mkdirSync } from 'node:fs';
 
@@ -38,12 +36,7 @@ import {
   type PersonaBotModelPlan,
 } from '../models/presets.js';
 import { MemoryAcceptError } from '../memory/accepted.js';
-import {
-  withInlineMentions,
-  mentionPeople,
-  withMentionNames,
-  withoutMentionMarkup,
-} from '../messaging/mention-text.js';
+import { withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import {
   BOT_SCHEDULE_ENABLED_LIMIT,
@@ -201,7 +194,7 @@ Decide when communication helps the Human. Answer quick tasks directly. For long
 Only a successful send result proves delivery. Resolve only explicitly completed Inbox items after delivery; bot_send_message can resolve its referenced source using resolve_inbox_ids. Inspect inboxResolution separately: if cleanup failed, retain the receipt and repair with inbox_resolve, never resend the delivered message. end_turn defaults to false; request it when nothing else needs doing in this turn. It concludes only after sending and requested cleanup succeed. Asking a question may end the turn without resolving unfinished work. Ending a turn never means the whole task is complete. After successful delivery, do not repeat the same answer as final text. Keep destination, membership, approval and attachment checks; do not retry uncertain sends blindly.
 
 Use three complementary sources across Sessions: Channels hold what was said with people and other Bots; your Bot Inbox is your diary of what you did and why, including handled Bot Self-Records, read with inbox_history; your Memory Repository holds distilled long-term memory and its Git history. inbox_history searches only your own admissions, with literal Chinese or English phrases of at least three Unicode characters, kind, Channel, cause and time filters. It returns bounded previews, not full messages, and never observes or changes pending attention. Use channel_read deliberately for full accessible Channel content; unlike history previews, those reads join the current turn. Search pages preserve the first page’s relevance order; keep filters unchanged when using nextCursor, and restart a search after its 10-minute cursor expires or the Host restarts.
-You own the Human conversation and the memory: use the delivery contract above when an answer is called for. A Group mention draws your attention but does not require a public acknowledgment. An FYI about coworkers or the company can be useful context even when no reply or action is requested; finish such a turn without a Channel reply and resolve it as done. Do not equate "no reply", "no action needed", or "another colleague owns this" with ignored. inbox_ignore dismisses one specific Channel message by message id, even one this turn has not reached yet; it is the same as inbox_resolve with outcome ignored. Messages returned by channel_read join this turn and count as seen when it succeeds; messages omitted by that read remain pending. Do not report a returned message as still pending after a successful turn. Reading a message never automatically writes long-term memory. The checked-out Git working tree is the current Memory, including staged, unstaged, and untracked files. Git commits and branches are history and organization, not a separate approval gate. Native read/glob can inspect current files immediately; use Git commands only when the Human asks for Git history or a repository operation. Use DSH's native read, write, edit, glob, and grep tools for files. You may read your Memory Repository and active Workspace Grants, and write your Memory Repository or Grants where orchestratorWrite is true. Use absolute paths in a Grant; for your native Shell (bash, or pwsh on Windows) set workdir to that writable Grant's workspacePath. Unless the Human names a destination, never put scratch or generated files directly in the root of a Grant or in the Human's home directory; edit existing project files in place and add requested project files where the project expects them. Edit existing project files in place and create requested project files where the project expects them; put new scratch, logs, bundles and other generated artifacts under <workspacePath>/.botharness/<short-task-slug>/ (create it if missing), or the system temp directory for throwaway data; create a new top-level folder for these artifacts only when the Human names it. Keep Memory for distilled knowledge, not scratch. Tools that installed plugins add, such as another Shell, are yours to use as their own tool guidance describes. Shell and plugin tools run under this Session's DSH sandbox mode with no extra BotHarness approval. When a tool asks DSH for permission, such as a Shell call with sandbox_permissions, the approval card appears in the Channel the task came from. Ask like a colleague would. A call that needs approval puts a raw tool card in front of the Human, so before the first one in a task a Human asked for, send one short message using the delivery contract in the Channel the request came from: a sentence or two on what you are about to do and what you need from them. The Host may return such a call to you once if you skip this. Send it once per task, not before every card. Write the reason of request_workspace_grant and the text of ask_user_question the same way, as you would say it to a colleague. If the answer is no or the ask expires, say so in that Channel and offer a next step. Ask only for what you cannot find out or decide yourself; when a missing detail is simple, ask it in plain words in the Channel instead of a card. Explain why you need the call and wait for the decision. Reading an Assignment report never writes memory for you — you decide what to persist.
+You own the Human conversation and the memory: use the delivery contract above when an answer is called for. A Group mention draws your attention but does not require a public acknowledgment. An FYI about coworkers or the company can be useful context even when no reply or action is requested; finish such a turn without a Channel reply and resolve it as done. Do not equate "no reply", "no action needed", or "another colleague owns this" with ignored. inbox_ignore dismisses one specific Channel message by message id, even one this turn has not reached yet; it is the same as inbox_resolve with outcome ignored. Messages returned by channel_read join this turn and count as seen when it succeeds; messages omitted by that read remain pending. Do not report a returned message as still pending after a successful turn. Reading a message never automatically writes long-term memory. The checked-out Git working tree is the current Memory, including staged, unstaged, and untracked files. Git commits and branches are history and organization, not a separate approval gate. Native read/glob can inspect current files immediately; use Git commands only when the Human asks for Git history or a repository operation. Use DSH's native read, write, edit, glob, and grep tools for files. You may read your Memory Repository and active Workspace Grants, and write your Memory Repository or Grants where orchestratorWrite is true. Use absolute paths in a Grant; for your native Shell (bash, or pwsh on Windows) set workdir to that writable Grant's workspacePath. Unless the Human names a destination, never put scratch or generated files directly in the root of a Grant or in the Human's home directory; edit existing project files in place and add requested project files where the project expects them. Edit existing project files in place and create requested project files where the project expects them; put new scratch, logs, bundles and other generated artifacts under <workspacePath>/.botharness/<short-task-slug>/ (create it if missing), or the system temp directory for throwaway data; create a new top-level folder for these artifacts only when the Human names it. Keep Memory for distilled knowledge, not scratch. Tools that installed plugins add, such as another Shell, are yours to use as their own tool guidance describes. Shell and plugin tools run under this Session's DSH sandbox mode with no extra BotHarness approval. When a tool asks DSH for permission, such as a Shell call with sandbox_permissions, the approval card appears in the Channel the task came from. Ask like a colleague would. When an approval card needs context the Human does not already have, explain the action and why approval is needed using bot_send_message in the originating conversation. Decide whether that explanation is useful; an approval card does not require a separate acknowledgment or repeated notice. Write the reason of request_workspace_grant and the text of ask_user_question the same way, as you would say it to a colleague. If the answer is no or the ask expires, say so in that Channel and offer a next step. Ask only for what you cannot find out or decide yourself; when a missing detail is simple, ask it in plain words in the Channel instead of a card. Explain why you need the call and wait for the decision. Reading an Assignment report never writes memory for you — you decide what to persist.
 Call list_workspace_grants to find a Human-authorized DSH Workspace Grant, then pass its grant_id to create_assignment. If no active Grant fits the Human's requested work, call request_workspace_grant with a concise reason, then end your turn; its card appears in the current inbound Channel, a Group or your Human DM. The Human chooses and authorizes a folder on that card; their action returns to this same Orchestrator Session, where you list Grants again and create the Assignment. create_assignment starts one Assignment immediately and returns its Session id; it does not wait. When you need its next report before continuing, use wait_for_assignment with its Session id; do not poll inspect_assignment repeatedly. A timeout leaves the Assignment running. Delegate bounded independent work that benefits from its own Session or parallel execution, and always pass a short continuity key naming that direction; reuse a key only for the same direction, so an idle keyed Assignment continues with your new instruction instead of a second Session being created. Two independent directions may run at the same time. Before creating one, search list_assignments with query for an Assignment already serving the same goal or deliverable, whoever asked, and continue that one instead. When an Assignment's line of work is finished and no longer useful, archive it with archive_assignment so your default list stays small; nothing is archived automatically, and unarchive_assignment restores it. A simple question, a memory update, or a Channel reply stays with you and must not be delegated. When the Human asks to change Memory branches without naming an exact branch, use DSH's native ask_user_question to ask which branch they mean. Offer relevant existing branches, accept a custom answer, and wait for the Human's answer in this Channel before switching. An explicit exact branch name needs no question. When the Human explicitly requests switching to an existing Memory branch, call memory_switch_branch with its exact name, then use the native file tools to read the new branch content and report the result in the Channel. When the Human explicitly asks to continue from a historical Memory commit, call memory_continue_from_commit with the exact commit SHA and requested new branch name; then read from the switched working tree in the same Session. A newly fetched, merged, or checked-out commit is available immediately through the current working tree; no separate acceptance step is needed. If a Memory branch switch is blocked, do not claim success. Your Soul (SOUL.md: who you are, your character, voice and standing instructions) and your Core Memory (MEMORY.md: the memory you always carry, so every new Session starts knowing what you remember) are sections of this system prompt, frozen for this Session's life; if either file on disk differs, yours still applies — the file version reaches new Sessions and the next compaction. Each has a character limit; a truncation note on a section means that file should be consolidated. Use list_assignments and inspect_assignment to identify relevant active work, then send_assignment_request in next-step mode to ask the affected Assignment to pause at a safe point, preserve its own workspace work, and report; Assignments must never edit Memory. Report the target branch and conflict in the Channel. After sending the request, use bot_send_message if the target branch, Assignment id, or coordination progress is useful to the Human. After the report, inspect the Memory Git state, preserve unfinished Memory with a named native Git stash including untracked files when safe, and retry memory_switch_branch. If coordination cannot make the switch safe, report the target and the blocked reason. Do not reset, force-checkout, or discard changes solely to resolve a blocked switch without explicit Human instruction.
 When the Human explicitly asks to stop an Assignment, inspect it and call stop_assignment with its Session id; wait for the tool to confirm stopped before reporting that fact in the Channel. Do not use a follow-up instruction as a substitute for stopping.
 Assignment reports and questions arrive in the [Bot Inbox] block of your next turn. An item marked WAITING needs your answer: reply with send_assignment_request and its answer_to value, and the Assignment resumes after native Inbox acceptance. A followup result with acceptance=pending only schedules delivery: it is not proof the answer was accepted or the task completed. Do not claim successful delivery from that pending result. A preacceptance failure keeps the ask available; an uncertain acceptance requires inspecting or repairing the native Session, never blind replay. You delegated the Assignment, so you accept its result: when it reports completed, check the result against what you asked for; if it falls short, send it back with send_assignment_request saying what is missing and keep the item open, and resolve the item only once the result meets the ask. Report the outcome to a Human only when the original request asked for a report or the Human is waiting on it. Progress items need no reply, but like every report they stay open until you resolve them; use list_assignments and inspect_assignment when you need current facts, and never poll for reports. An oversized report gives a DSH Spill locator and retrieval hint. If your workspace cannot read the locator, inspect_assignment with report_offset=0 reads the accepted report through DSH Session Query in bounded pages; continue from nextOffset when needed. include_recent_events reads a separate bounded Session tail and reports its cost. Keep Assignment purposes concise and self-contained.
@@ -690,15 +683,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
       const disposeSelection = installModelSelection(agentCtx, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
-      const legacySends = new Set([
-        'channel_send',
-        'bridge_reply',
-        'bridge_reply_file',
-        'bridge_post',
-        'bot_dm_send',
-      ]);
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
-        if (legacySends.has(tool.name)) return () => undefined;
         if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
         const dispose = agentCtx.tools.register(tool);
         if (borrowed) borrowedDisposers.push(dispose);
@@ -706,7 +691,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       };
       const bridgeTools: Array<Parameters<typeof agentCtx.tools.register>[0]> = [];
       const registerBridgeTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
-        if (!legacySends.has(tool.name)) bridgeTools.push(tool);
+        bridgeTools.push(tool);
       };
       const disposePresentation = agentCtx.tools.presentAs('native');
       if (borrowed) borrowedDisposers.push(disposePresentation);
@@ -823,13 +808,19 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   #orchestratorTools(
     run: OrchestratorAgentRun,
     agentCtx: Pick<Context, 'get'>,
-    registerModelTool: (tool: ToolDefinition) => unknown,
+    registerTool: (tool: ToolDefinition) => unknown,
     registerBridgeTool: (tool: ToolDefinition) => unknown,
   ): void {
-    const registerTool = (tool: ToolDefinition) => {
-      registerModelTool(tool);
-      if (tool.name === 'channel_send') registerModelTool(createChannelActionTool(tool));
-    };
+    registerTool(
+      createChannelActionTool(
+        () => {
+          const active = this.#runs.get(run.sessionId);
+          if (active?.role !== 'orchestrator') throw new Error('Orchestrator run is unavailable');
+          return active.run;
+        },
+        (channelId) => this.#drafts.discard(run.sessionId, channelId),
+      ),
+    );
     registerTool(
       createBotMessageTool(
         () => {
@@ -1629,71 +1620,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       }),
     );
-    registerBridgeTool(
-      defineTool({
-        name: 'bridge_post',
-        description:
-          'Explicitly post one requested external-only report using either grant_id from bridge_targets OR binding_id plus conversation_id from bridge_reachable_groups. Only your own current app identity, permission and hourly post limit may authorize it. Persists canonical Outbox content and checked platform correspondence, with no local Channel/DM mirror. Same request_id and content are idempotent; unknown outcome must not be retried with a new id. Explain post-rate-limited and retain the result when refused.',
-        parameters: {
-          grant_id: {
-            type: 'string',
-            description:
-              'Exact existing authorized grant_id; omit when using binding_id and conversation_id.',
-          },
-          binding_id: {
-            type: 'string',
-            description: 'Exact owned app binding id from bridge_reachable_groups.',
-          },
-          conversation_id: {
-            type: 'string',
-            description: 'Native group id from that app page; supply together with binding_id.',
-          },
-          request_id: {
-            type: 'string',
-            required: true,
-            description:
-              'Stable unique 8–128 character letters/digits/underscore/hyphen key for this report; preserve across retries.',
-          },
-          text: {
-            type: 'string',
-            required: true,
-            description: 'Plain text report, at most 4000 characters.',
-          },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator' || !active.run.externalMessaging)
-            throw new Error('bridge_post: unavailable');
-          if (args.binding_id !== undefined || args.conversation_id !== undefined) {
-            if (!args.binding_id || !args.conversation_id || args.grant_id !== undefined)
-              throw new Error('bridge_post: choose exactly one target');
-            if (!active.run.externalMessaging.postConversation)
-              throw new Error('bridge_post: unavailable');
-            return JSON.stringify(
-              await active.run.externalMessaging.postConversation(
-                args.binding_id,
-                args.conversation_id,
-                args.request_id,
-                withoutMentionMarkup(args.text),
-              ),
-            );
-          }
-          if (!args.grant_id || !active.run.externalMessaging.post)
-            throw new Error('bridge_post: unavailable');
-          return JSON.stringify(
-            await active.run.externalMessaging.post(
-              args.grant_id,
-              args.request_id,
-              withoutMentionMarkup(args.text),
-            ),
-          );
-        },
-      }),
-    );
+
     registerBridgeTool(
       defineTool({
         name: 'bridge_outbox',
@@ -2027,80 +1954,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       }),
     );
-    registerBridgeTool(
-      defineTool({
-        name: 'bridge_reply_file',
-        description:
-          'Explicitly reply with one newly imported result file to the Host-stored original external conversation (DM, group or topic) under your current authorized identity. First select the result with channel_attachment_import in this run. Shares the one durable reply intent per source with bridge_reply; never retry an unknown outcome.',
-        parameters: {
-          source_event_id: {
-            type: 'string',
-            required: true,
-            description: 'Canonical source_event_id from your Bot Inbox.',
-          },
-          file_id: {
-            type: 'string',
-            required: true,
-            description: 'Result fileId returned by channel_attachment_import in this run.',
-          },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator' || !active.run.externalMessaging)
-            throw new Error('bridge_reply_file: unavailable');
-          return JSON.stringify(
-            await active.run.externalMessaging.replyFile(args.source_event_id, args.file_id),
-          );
-        },
-      }),
-    );
-    registerBridgeTool(
-      defineTool({
-        name: 'bridge_reply',
-        description:
-          'Explicitly reply to one external source through your own live authorized identity and the Host-stored original group/topic. One durable reply intent per responding Bot and source. A failed QQ reply-window-expired retains its result in Outbox: use bridge_targets to find a canPost grant for your own app and the exact original group, then explicitly bridge_post with a distinct stable request_id if the task calls for result delivery. Otherwise retain the result locally. Never convert an unknown reply outcome into a proactive post or retry it. Does not write a local Channel message.',
-        parameters: {
-          source_event_id: {
-            type: 'string',
-            required: true,
-            description:
-              'Canonical source_event_id read from your Bot Inbox or a shared Channel you currently belong to.',
-          },
-          text: {
-            type: 'string',
-            required: true,
-            description:
-              'Plain text reply, at most 4000 characters. To @ the sender or someone the source mentioned, write <@ID> anywhere in the text with their id from the source people list (Lark, Slack and Discord); any other id is sent as plain text.',
-          },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator' || !active.run.externalMessaging)
-            throw new Error('bridge_reply: unavailable');
-          const messaging = active.run.externalMessaging;
-          const source = /<@!?[A-Za-z0-9_-]+>/u.test(args.text)
-            ? messaging.read(args.source_event_id)
-            : undefined;
-          const text =
-            source === undefined
-              ? withoutMentionMarkup(args.text)
-              : withInlineMentions(
-                  source.platform,
-                  args.text,
-                  mentionPeople(source.event.actor, source.event.mentions),
-                );
-          return JSON.stringify(await messaging.reply(args.source_event_id, text));
-        },
-      }),
-    );
+
     registerTool(
       defineTool({
         name: 'channel_read',
@@ -3455,368 +3309,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
               ? { ...result, outcome: 'changed' }
               : { ...result, outcome: 'unchanged', reason: 'not-member' },
           );
-        },
-      }),
-    );
-    registerTool(
-      defineTool({
-        name: 'bot_dm_send',
-        description:
-          'Send one private message to another active PersonaBot. The recipient receives it in a two-Bot DM and may reply there.',
-        parameters: {
-          bot_id: {
-            type: 'string',
-            required: true,
-            description: 'Stable PersonaBot ID from list_bot_contacts.',
-          },
-          body: {
-            type: 'string',
-            required: true,
-            description: 'The message to send to that Bot.',
-          },
-          reply_to: { type: 'string', description: 'Optional message ID in the same Bot DM.' },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args, exec) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator')
-            throw new Error('bot_dm_send: Orchestrator run is unavailable');
-          const sent = await active.run.channels.sendToBot({
-            botSlug: args.bot_id,
-            body: args.body,
-            ...(args.reply_to === undefined ? {} : { replyTo: args.reply_to }),
-            ...(exec.callId === undefined ? {} : { deliveryKey: String(exec.callId) }),
-          });
-          return `Sent Bot DM ${sent.message.id} in Channel ${sent.channelId}.`;
-        },
-      }),
-    );
-    registerTool(
-      defineTool({
-        name: 'channel_send',
-        description:
-          'Deliver your actual reply to the Human or joined Channel. Assistant final text is private Session output and is NOT delivered: when a reply is needed, use this Tool for the actual answer, including a requested acknowledgment, greeting, clarification or image answer. A Group mention or fully answered request does not itself require a reply. A request for "no tools" still needs this reply transport, but no unnecessary work Tools. Omit channel_id for the inbound Channel. In an opted-in Group a held result is NOT sent. Read review.content when present: it contains newly observed messages. If review.complete is true, use review.observationId as observation_id with draft_id to revise, keep the same body for unrelated changes, or drop a cancelled/redundant reply; no extra channel_read is needed. If committed peer answers fully cover the request and you have no useful addition, remain silent: with no held draft, only inbox_resolve completed work; with an existing held draft, use body empty, drop:true, draft_id, observation_id and yield_to_message_ids. Never create a draft merely to drop it. Preserve independent evidence and new direct questions. If context is incomplete or absent, use channel_read for missing content first. After at most two rechecks, requires-review with budget.exhausted stops automatic retries. Do not create another draft to reset the budget. If waiting for information, drop the draft without resolving work and use inbox_snooze with a bounded time and note; read fresh context when that responsibility returns. If no reply is needed, drop silently. Only when the answer remains necessary after reading all required context, use freshness_override with the returned draftVersion, a short reason and observation_id; this is one explicit attempt beyond the automatic review budget, never permission to skip unread messages. If override-context-changed-defer is returned, nothing was sent and that attempt is spent: read the returned context, drop without resolving unfinished work, then use the returned suggestedSnoozeUntil as inbox_snooze until_time for freshness-only contention, with a note to read fresh context and finish the original request. This is a short continuation, not a reason to invent a minutes-long delay. A Human not-before time or unmet condition takes precedence. If unrelated messages wake you early, resolve those FYIs and leave the original responsibility at its existing return time; do not poll or move that time. Read the latest facts when resuming. Batch observed completed FYI IDs with the drop; keep the original unfinished request out of resolve_inbox_ids. An exhausted drop without observed peer-yield evidence protects the original request in keepOpenInboxIds and reports keptOpen completion IDs. Snooze that unfinished work; only if cancelled or otherwise complete, explicitly inbox_resolve it separately. A successful resolution already confirms its IDs; do not repeat list/read/resolve calls solely to confirm that same cleanup. Do not retry the override or replace the dropped draft in this turn. Never override a Human request to wait or cancel. Keep internal decisions out of the reply. Only a successful result with {channelId,messageId} proves a committed message; never resend blindly after an uncertain outcome. Forward trusted references from channel_read (including complete message_id/content_cursor reads), or use channel_attachment_import for a selected authorized local result. In a Group, mention a joined Bot colleague with mention_bot_ids or by writing @ and its exact display name in body; either way the Host shows its @ badge and wakes it, even when it wakes only on mentions. To hand work over or report a result to a colleague, mention it. Use mention_human_ids from channel_list humanMembers to explicitly address a Human; plain @ names do not create personal mentions. To add or remove your emoji reaction on one message, as lightweight acknowledgment instead of a reply, set react_to and reaction with an empty body. A reaction does not wake anyone and is not a reply: still put an answer in body when the Human needs one.',
-        parameters: {
-          review_action: {
-            type: 'string',
-            enum: ['inspect', 'recover'],
-            description:
-              'Group draft recovery only. inspect with empty body lists your pending drafts and recent commit receipts; optionally select draft_id. It never sends or resolves work. After Host restart, read current Channel facts and use recover with draft_id, fresh observation_id and the revised body. Recovery preserves expiry and retry limits. After an uncertain commit, inspect and read its canonical message; resubmitting the same draft_id and unchanged content returns the original message ID. Never create a new send merely because its response was lost.',
-          },
-          resolve_inbox_ids: {
-            type: 'array',
-            items: { type: 'string' },
-            description:
-              'Explicitly mark these 1–200 observed Source Event or Message IDs done ONLY after this send commits or this draft is dropped. Include the original request and handled FYI/correction IDs when complete. Saves a separate inbox_resolve call. Held/refused sends never resolve them. An exhausted drop without peer-yield evidence keeps its original request open even if selected; inspect keptOpen and snooze unfinished work, or separately inbox_resolve if genuinely cancelled or complete. Check inboxResolution; a resolution failure does not undo delivery or justify resending.',
-          },
-          observation_id: {
-            type: 'string',
-            description:
-              'Host observationId/observationIds from channel_read, or review.observationId in a held result whose content you read. Never guess. Required after a held send.',
-          },
-          draft_id: {
-            type: 'string',
-            description:
-              'The held draftId to revise or drop. At most two rechecks; unchanged body is valid. Reuse this ID rather than creating a new budget.',
-          },
-          freshness_override: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {
-              draftVersion: { type: 'integer', required: true },
-              reason: { type: 'string', required: true },
-            },
-            description:
-              'Only after budget.exhausted: one explicit continuation attempt for this draft_id and its returned draftVersion. Read all required context and pass observation_id; explain why the answer is still necessary. The Host still atomically checks current content: a newly arrived or edited message refuses the attempt and requires drop/defer, not another override. It never bypasses ownership, permissions, stop, expiry or purge. Do not combine with drop or reactions; do not use when Human requested waiting or cancellation.',
-          },
-          drop: {
-            type: 'boolean',
-            description:
-              'Drop draft_id without sending. channel_id defaults to the inbound Channel. Keep unresolved Inbox work open unless explicitly selected in resolve_inbox_ids.',
-          },
-          yield_to_message_ids: {
-            type: 'array',
-            items: { type: 'string' },
-            description:
-              'Only when dropping an existing held draft with draft_id and drop:true: 1–20 committed peer Message IDs whose observed answers fully cover your pending reply. Read their full content first; pass observation_id from that read or held review. Records deliberate yielding without an agreement message. Not for previews, your own messages, unfinished work, independent evidence or a new direct question. Inbox completion remains explicit.',
-          },
-          body: {
-            type: 'string',
-            required: true,
-            description:
-              'The actual Human-facing answer to deliver, not a plan to send later or an internal explanation of yielding/task ownership. May be empty when dropping a draft, attachments are present or when only reacting.',
-          },
-          attachments: {
-            type: 'array',
-            description:
-              'At most 10 trusted references: copy fileId, name, mime, size unchanged; never guess them. New sends require fileId; if an old read has hash, refresh its owning message with channel_read first. Size is a safe nonnegative integer byte count (0–9007199254740991).',
-            items: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                hash: { type: 'string' },
-                fileId: { type: 'string' },
-                name: { type: 'string', required: true },
-                mime: { type: 'string', required: true },
-                size: { type: 'integer', required: true },
-              },
-            },
-          },
-          channel_id: {
-            type: 'string',
-            description:
-              'Channel id; defaults to the inbound Channel. Required, or use reply_to, once a turn carries messages from several Channels.',
-          },
-          reply_to: {
-            type: 'string',
-            description:
-              'Optional message id to reply to in that same Channel. Without channel_id, a message id from this turn selects its own Channel.',
-          },
-          mention_bot_ids: {
-            type: 'array',
-            description:
-              'At most 20 stable IDs of other active PersonaBots currently joined to the target Group. Needed when two members share a display name.',
-            items: { type: 'string' },
-          },
-          react_to: {
-            type: 'string',
-            description: 'Message ID to react to, from this turn or channel_read.',
-          },
-          reaction: {
-            type: 'string',
-            description:
-              'One emoji for react_to, such as 👍, ✅ or 👀, also when removing. Text and shortcodes are refused.',
-          },
-          remove_reaction: {
-            type: 'boolean',
-            description: 'true takes your reaction on react_to back instead of adding it.',
-          },
-          mention_human_ids: {
-            type: 'array',
-            description:
-              'Stable Human IDs from channel_list humanMembers in this Group; do not repeat their names in body.',
-            items: { type: 'string' },
-          },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        execute: async (args, exec) => {
-          const active = this.#runs.get(run.sessionId);
-          if (active?.role !== 'orchestrator') {
-            throw new Error('channel_send: Orchestrator run is unavailable');
-          }
-          if (args.review_action === 'inspect') {
-            if (
-              args.body !== '' ||
-              args.drop ||
-              args.attachments !== undefined ||
-              args.react_to !== undefined ||
-              args.reaction !== undefined ||
-              args.resolve_inbox_ids !== undefined ||
-              args.yield_to_message_ids !== undefined ||
-              args.mention_bot_ids !== undefined ||
-              args.mention_human_ids !== undefined ||
-              args.reply_to !== undefined ||
-              args.freshness_override !== undefined
-            )
-              throw new Error(
-                'channel_send: draft inspection cannot send, react, drop or resolve work',
-              );
-            const channelId = args.channel_id ?? active.run.inboundChannelId;
-            if (!channelId || !active.run.channels.inspectDrafts)
-              throw new Error('channel_send: draft inspection requires a Group Channel');
-            return JSON.stringify(
-              active.run.channels.inspectDrafts({
-                channelId,
-                ...(args.draft_id === undefined ? {} : { draftId: args.draft_id }),
-              }),
-            );
-          }
-          if (
-            args.review_action === 'recover' &&
-            (!args.draft_id || !args.observation_id || args.drop || args.react_to !== undefined)
-          )
-            throw new Error(
-              'channel_send: recovery requires draft_id, fresh observation_id and a send',
-            );
-          if (
-            args.freshness_override !== undefined &&
-            (!args.draft_id ||
-              !args.observation_id ||
-              args.drop === true ||
-              args.react_to !== undefined ||
-              !Number.isSafeInteger(args.freshness_override.draftVersion) ||
-              args.freshness_override.draftVersion < 1 ||
-              !args.freshness_override.reason.trim() ||
-              args.freshness_override.reason.length > 500)
-          )
-            throw new Error(
-              'channel_send: freshness_override requires draft_id, observation_id, a draftVersion and a reason; no drop or reaction',
-            );
-          if (
-            args.yield_to_message_ids !== undefined &&
-            (args.drop !== true ||
-              !args.observation_id ||
-              args.react_to !== undefined ||
-              args.yield_to_message_ids.length < 1 ||
-              args.yield_to_message_ids.length > 20 ||
-              args.yield_to_message_ids.some((id) => !id.trim()))
-          )
-            throw new Error(
-              'channel_send: yield_to_message_ids requires drop, observation_id and 1–20 peer Message IDs',
-            );
-          if (
-            args.resolve_inbox_ids !== undefined &&
-            (!Array.isArray(args.resolve_inbox_ids) ||
-              args.resolve_inbox_ids.length < 1 ||
-              args.resolve_inbox_ids.length > 200 ||
-              args.resolve_inbox_ids.some((id) => typeof id !== 'string' || !id.trim()) ||
-              active.run.triage === undefined ||
-              args.react_to !== undefined)
-          )
-            throw new Error(
-              'channel_send: resolve_inbox_ids requires 1–200 IDs, an Inbox, and a send or drop (not a reaction)',
-            );
-          const resolveCompleted = (keepOpenIds: string[] = []) => {
-            const continuation = keepOpenIds.length
-              ? {
-                  reason: 'exhausted-drop-keeps-original-work-open',
-                  instruction:
-                    'The original request is unfinished. Use inbox_snooze for its keepOpenInboxIds at suggestedSnoozeUntil unless a Human wait condition requires later. Batch-resolve already-read FYIs as done now; do not snooze them or re-read solely to confirm cleanup. End this turn after that cleanup and snooze. When woken, read fresh context, finish the original request and resolve it with the successful send. Resolve without sending only for cancellation or independently completed work.',
-                }
-              : {};
-            if (args.resolve_inbox_ids === undefined)
-              return active.run.triage === undefined
-                ? {}
-                : {
-                    inboxResolution: {
-                      outcome: 'not-requested',
-                      instruction:
-                        'This send/drop did not resolve Inbox work. Explicitly inbox_resolve completed items before ending this turn; leave unfinished items open.',
-                      ...continuation,
-                    },
-                  };
-            const ids = args.resolve_inbox_ids.filter((id) => !keepOpenIds.includes(id));
-            const keptOpen = args.resolve_inbox_ids.filter((id) => keepOpenIds.includes(id));
-            const preservation = {
-              ...continuation,
-              ...(keptOpen.length ? { keptOpen } : {}),
-            };
-            if (ids.length === 0)
-              return { inboxResolution: { outcome: 'kept-open', ...preservation } };
-            try {
-              return {
-                inboxResolution: {
-                  ...active.run.triage!.resolve({ ids, outcome: 'done' }),
-                  ...preservation,
-                },
-              };
-            } catch {
-              return {
-                inboxResolution: {
-                  ...preservation,
-                  outcome: 'failed',
-                  reason: 'inbox-resolution-failed',
-                  retry: 'inbox_resolve',
-                },
-              };
-            }
-          };
-          if (
-            args.attachments !== undefined &&
-            (args.attachments.length > 10 || !args.attachments.every(isChannelAttachmentRef))
-          )
-            throw new Error('channel_send: requires at most 10 trusted attachment references');
-          if (args.mention_bot_ids !== undefined && args.mention_bot_ids.length > 20)
-            throw new Error('channel_send: requires at most 20 mention Bot IDs');
-          if (args.react_to !== undefined && args.reaction === undefined)
-            throw new Error('channel_send: react_to needs reaction, the emoji to add or take back');
-          if (args.drop === true) {
-            const dropChannelId = args.channel_id ?? active.run.inboundChannelId;
-            if (!args.draft_id || !dropChannelId || !active.run.channels.dropDraft)
-              throw new Error(
-                'channel_send: drop requires draft_id and an explicit or inbound channel_id',
-              );
-            const outcome = active.run.channels.dropDraft({
-              channelId: dropChannelId,
-              draftId: args.draft_id,
-              ...(args.observation_id === undefined ? {} : { observationId: args.observation_id }),
-              ...(args.yield_to_message_ids === undefined
-                ? {}
-                : { yieldToMessageIds: args.yield_to_message_ids }),
-            });
-            this.#drafts.discard(run.sessionId, dropChannelId);
-            return JSON.stringify({
-              ...outcome,
-              ...(outcome.status === 'dropped' ? resolveCompleted(outcome.keepOpenInboxIds) : {}),
-            });
-          }
-          const reacted =
-            args.react_to === undefined || args.reaction === undefined
-              ? undefined
-              : active.run.channels.react?.({
-                  messageId: args.react_to,
-                  emoji: args.reaction,
-                  active: args.remove_reaction !== true,
-                  ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
-                });
-          if (args.react_to !== undefined && reacted === undefined)
-            throw new Error('channel_send: reactions are unavailable');
-          if (reacted !== undefined && args.body.trim() === '' && args.attachments === undefined)
-            return JSON.stringify(reacted);
-          let message;
-          try {
-            message = await active.run.channels.send({
-              ...(args.observation_id === undefined ? {} : { observationId: args.observation_id }),
-              ...(args.draft_id === undefined ? {} : { draftId: args.draft_id }),
-              ...(args.freshness_override === undefined
-                ? {}
-                : { freshnessOverride: args.freshness_override }),
-              ...(args.review_action === 'recover' ? { recover: true } : {}),
-              body: args.body,
-              ...(exec.callId === undefined ? {} : { deliveryKey: String(exec.callId) }),
-              ...(args.attachments === undefined ? {} : { attachments: args.attachments }),
-              ...(args.channel_id === undefined ? {} : { channelId: args.channel_id }),
-              ...(args.reply_to === undefined ? {} : { replyTo: args.reply_to }),
-              ...(args.mention_bot_ids === undefined
-                ? {}
-                : { mentionBotIds: args.mention_bot_ids }),
-              ...(args.mention_human_ids === undefined
-                ? {}
-                : { mentionHumanIds: args.mention_human_ids }),
-            });
-          } catch (error) {
-            if (error instanceof GroupReplySourceRevoked) {
-              const failedChannelId = args.channel_id ?? run.inboundChannelId;
-              if (failedChannelId !== undefined)
-                this.#drafts.discard(run.sessionId, failedChannelId);
-              return JSON.stringify({
-                status: 'refused',
-                reason: error.code,
-                channelId: error.channelId,
-                instruction:
-                  'Stop this task. Do not send its draft or an explanation in another Channel. Explicitly resolve only work that is finished.',
-              });
-            }
-            if (!(error instanceof SendReviewRequired)) throw error;
-            this.#drafts.discard(run.sessionId, error.outcome.channelId);
-            return JSON.stringify(error.outcome);
-          }
-          const draftChannelId = args.channel_id ?? run.inboundChannelId;
-          if (draftChannelId !== undefined)
-            this.#drafts.settle(run.sessionId, draftChannelId, message.body);
-          return JSON.stringify({
-            channelId: args.channel_id ?? active.run.inboundChannelId,
-            messageId: message.id,
-            status: 'committed',
-            ...resolveCompleted(),
-            ...(reacted === undefined ? {} : { reactions: reacted.reactions }),
-          });
         },
       }),
     );

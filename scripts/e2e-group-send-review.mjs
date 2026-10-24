@@ -13,7 +13,7 @@ export const PROTOCOL = {
   revisionOf: '2053-pilot-v3',
   priorCandidate: '7fe6308c15c6c4c86e4428ce07971d1beeebfe2b',
   interventionChange:
-    'Missing explicit completion is reported as not-requested; drop uses the inbound Channel default. Prior source fence, freshness checks and budgets unchanged',
+    'Missing explicit completion is reported as not-requested; drop requires an explicit Channel. Prior source fence, freshness checks and budgets unchanged',
   oracle:
     'whole-history-v2: no unsolicited cross-Channel outputs; cancellation/revocation should be silent; retain legacyGroupGoal separately',
   concurrentPairs: 2,
@@ -109,7 +109,7 @@ export function providerUsage(home, slugs) {
         const data = event.data;
         const permitted = [
           'channel_read',
-          'channel_send',
+          'bot_send_message',
           'inbox_resolve',
           'inbox_read',
           'inbox_list',

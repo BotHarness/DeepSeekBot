@@ -697,7 +697,6 @@ export interface BotRuntime {
   captureTobCliAuthority?(sessionId: string): TobCliAuthority;
   canRequestPrivateInput?(sessionId: string, sourceEventId?: string): boolean;
   askChannel?(sessionId: string): string | undefined;
-  askNotice?(sessionId: string, toolName: string): string | undefined;
   bindPrivateInputOrigin?(
     sessionId: string,
     sourceEventId?: string,
@@ -1341,8 +1340,6 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptedEventIds: Set<string>;
       inboundChannelId: string | undefined;
       steeredChannelIds: Set<string>;
-      spokenChannelIds: Set<string>;
-      askNoticed: boolean;
     }
   >();
   readonly #activeMemoryEvents = new Map<
@@ -1649,9 +1646,9 @@ class BotRuntimeImplementation implements BotRuntime {
   #react(botSlug: string, channel: ChannelRecord, input: BotReactionInput): BotReactionResult {
     const bot = this.#registry.get(botSlug);
     if (this.#closed || bot === undefined || bot.paused === true)
-      throw new Error('channel_send: Bot is unavailable');
+      throw new Error('channel_action: Bot is unavailable');
     if (this.#channels.setBotReaction === undefined)
-      throw new Error('channel_send: reactions are unavailable');
+      throw new Error('channel_action: reactions are unavailable');
     const reactions = this.#channels.setBotReaction(
       channel.id,
       botSlug,
@@ -1661,7 +1658,7 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (reactions === undefined)
       throw new Error(
-        `channel_send: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
+        `channel_action: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
       );
     return { channelId: channel.id, messageId: input.messageId, reactions };
   }
@@ -3436,23 +3433,6 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
-  askNotice(sessionId: string, toolName: string): string | undefined {
-    const owner = this.#ownership.resolve(sessionId);
-    if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
-    const turn = this.#turnSources.get(owner.botSlug);
-    if (turn?.sessionId !== sessionId || turn.inboundChannelId === undefined || turn.askNoticed)
-      return undefined;
-    const channelId = this.askChannel(sessionId) ?? dmChannelId(owner.botSlug);
-    if (turn.spokenChannelIds.has(channelId)) return undefined;
-    const channel = this.#channels.get(channelId);
-    if (channel === undefined) return undefined;
-    turn.askNoticed = true;
-    const where =
-      channel.type === 'group' ? `Group ${JSON.stringify(channel.name)}` : 'your Human DM';
-    const sendTool = 'bot_send_message';
-    return `Not shown to the Human yet. First tell them what is going on, as a colleague would: send one short ${sendTool} to ${where} (channel_id ${JSON.stringify(channelId)}) saying in a sentence or two what you are about to do and what you need from them. Then call ${toolName} again with the same arguments and the request will be shown. This is asked once per turn.`;
-  }
-
   canRequestPrivateInput(sessionId: string, selected?: string): boolean {
     const owner = this.#ownership.resolve(sessionId);
     if (
@@ -4302,8 +4282,6 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptedEventIds: new Set(turnSources),
       inboundChannelId: channelId,
       steeredChannelIds: new Set(),
-      spokenChannelIds: new Set(),
-      askNoticed: false,
     });
     const typingSources = [sourceEventId, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {
@@ -6244,7 +6222,7 @@ class BotRuntimeImplementation implements BotRuntime {
               })
               .join(
                 '; ',
-              )}. Call channel_send again with channel_id for the Channel this reply belongs to, or with reply_to set to the message ID you are answering.`,
+              )}. Call bot_send_message with the trusted source_event_id you are answering, or an explicit channel_id for a proactive message.`,
           );
         const channel = resolve(input.channelId);
         const exhaustedDraftId = exhaustedDrops.get(channel.id);
@@ -6282,7 +6260,6 @@ class BotRuntimeImplementation implements BotRuntime {
             attachments: input.attachments,
             deliveryKey: input.deliveryKey,
           });
-          if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
           return sent.message;
         }
         if (channel.type === 'group') {
@@ -6359,7 +6336,6 @@ class BotRuntimeImplementation implements BotRuntime {
               review: { ...review, observationId },
             });
           });
-          if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
           return sent;
         }
         const body = input.body;
@@ -6383,7 +6359,6 @@ class BotRuntimeImplementation implements BotRuntime {
         if (input.deliveryKey === undefined) {
           const appended = await this.#channels.appendMessage(channel.id, message, origin);
           if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
-          if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
           return appended;
         }
         const result = await this.#channels.appendMessageOnce(
@@ -6395,7 +6370,6 @@ class BotRuntimeImplementation implements BotRuntime {
         if (result.status === 'missing') throw new Error(`Channel disappeared: ${channel.id}`);
         if (result.status === 'conflict')
           throw new Error('Human DM delivery key has different content');
-        if (steered?.sessionId === sessionId) steered.spokenChannelIds.add(channel.id);
         return result.message;
       },
     };

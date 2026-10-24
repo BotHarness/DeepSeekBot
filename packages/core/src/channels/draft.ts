@@ -150,16 +150,8 @@ export class ChannelDraftTracker {
     attempt.nextIndex += 1;
     attempt.assembler.push(frame.chunk);
     for (const block of attempt.assembler.blocks()) {
-      if (block.type !== 'tool-call' || !['channel_send', 'bot_send_message'].includes(block.name))
-        continue;
-      this.#acceptCall(
-        run,
-        attempt,
-        frame.attemptId,
-        block.id,
-        block.arguments,
-        block.name === 'bot_send_message',
-      );
+      if (block.type !== 'tool-call' || block.name !== 'bot_send_message') continue;
+      this.#acceptCall(run, attempt, frame.attemptId, block.id, block.arguments);
     }
   }
 
@@ -225,7 +217,6 @@ export class ChannelDraftTracker {
     attemptId: string,
     callId: string,
     args: string,
-    explicit = false,
   ): void {
     const draftId = attemptId + ':' + callId;
     let call = attempt.calls.get(draftId);
@@ -236,11 +227,7 @@ export class ChannelDraftTracker {
     const body = partialBody(args);
     if (body === undefined || body.length === 0) return;
     const source = stringField(args, 'source_event_id');
-    const channelId = explicit
-      ? source?.complete
-        ? run.replyChannel?.(source.value)
-        : explicitChannelId(args)
-      : (explicitChannelId(args) ?? run.channelId);
+    const channelId = source?.complete ? run.replyChannel?.(source.value) : explicitChannelId(args);
     if (channelId === undefined) {
       this.#abandonCall(call, 'retargeted');
       return;

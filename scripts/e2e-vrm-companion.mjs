@@ -231,10 +231,10 @@ try {
       assert(composer);
       await composer.type(
         phase === 'work'
-          ? 'VRM 工作状态验证：请先用你可用的 shell 工具执行只等待 4 秒的命令（Windows 使用 Start-Sleep -Seconds 4），然后通过 channel_send 回复「角色动作验证完成，可以验收了」。请实际调用工具，不要只描述。'
+          ? 'VRM 工作状态验证：请先用你可用的 shell 工具执行只等待 4 秒的命令（Windows 使用 Start-Sleep -Seconds 4），然后通过 bot_send_message 回复「角色动作验证完成，可以验收了」。请实际调用工具，不要只描述。'
           : 'VRM 验证 ' +
               Date.now() +
-              '：请用 channel_send 回复我一段约 80 字的中文小故事，关于一个机器人在花园工作。',
+              '：请用 bot_send_message 回复我一段约 80 字的中文小故事，关于一个机器人在花园工作。',
       );
       await composer.press('Enter');
       const facts = [];
