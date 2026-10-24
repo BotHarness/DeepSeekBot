@@ -1,4 +1,3 @@
-// Retained qualification logs keep their original tool names; this reader does not register tools.
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 
