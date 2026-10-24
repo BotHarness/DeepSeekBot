@@ -37,6 +37,7 @@ html[data-platform="darwin"]:not([data-fullscreen]):has(style[data-bh-appearance
 :root:has(style[data-bh-appearance="light"]) .bh-dock[data-workspace-dock] .dv-tabs-and-actions-container { border-bottom-color:${color.surface}; }
 .bh-workspace-rail > button, .bh-workspace-rail > span > button, .bh-workspace-move { display:flex; align-items:center; justify-content:center; flex-shrink:0; width:${size.row}; height:${size.row}; padding:0; border:0; border-radius:${radius.md}; corner-shape:round; color:${color.fg}; background:transparent; cursor:pointer; }
 .bh-workspace-rail button:hover { background:${color.hover}; }
+.bh-workspace-rail .bh-workspace-guide[aria-pressed="true"] { background:${color.accentTint}; color:${color.accent}; }
 .bh-workspace-rail button:focus-visible { outline:${border.focus} solid ${color.accent}; outline-offset:calc(-1 * ${space.x1}); }
 .bh-workspace-grip { opacity:0; transition:opacity 120ms; }
 .bh-workspace-rail:hover .bh-workspace-grip, .bh-workspace-rail:focus-within .bh-workspace-grip { opacity:1; }

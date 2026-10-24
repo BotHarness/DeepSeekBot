@@ -138,7 +138,13 @@ try {
   if (process.env.BH_GUIDE_CDP) {
     assert(content.result.topics.some((t) => t.id === 'vrm:companion-help'));
   }
-  await page.locator('.bh-workspace-rail button[aria-label="User guide"]').click();
+  if (
+    await page.$eval(
+      '.bh-workspace-rail button[aria-label="User guide"]',
+      (button) => button.getAttribute('aria-pressed') !== 'true',
+    )
+  )
+    await page.locator('.bh-workspace-rail button[aria-label="User guide"]').click();
   assert.equal(
     await page.$eval(
       '.bh-guide-topics button[aria-pressed="true"]',
@@ -220,7 +226,13 @@ try {
   }
   await page.keyboard.press('Escape');
   await pause(300);
-  await page.locator('.bh-workspace-rail button[aria-label="User guide"]').click();
+  if (
+    await page.$eval(
+      '.bh-workspace-rail button[aria-label="User guide"]',
+      (button) => button.getAttribute('aria-pressed') !== 'true',
+    )
+  )
+    await page.locator('.bh-workspace-rail button[aria-label="User guide"]').click();
   const editor = 'textarea[placeholder="Message Tob"],[role=textbox][aria-label="Message Tob"]';
   await page.locator(editor).click();
   await cdp.send('Input.dispatchKeyEvent', {

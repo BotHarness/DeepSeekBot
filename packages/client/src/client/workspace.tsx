@@ -241,6 +241,10 @@ function WorkspaceRail({
     options.shortcuts.catalog.getSnapshot,
   );
   const panels = useSyncExternalStore(options.dockPanels!.subscribe, options.dockPanels!.panels);
+  const openPanels = useSyncExternalStore(
+    options.dockPanels!.subscribe,
+    options.dockPanels!.openPanels,
+  );
   const botOnlyHidden = resolveChannelSidebarContext(state)?.botSlug
     ? []
     : [
@@ -412,7 +416,9 @@ function WorkspaceRail({
         <button
           type="button"
           aria-label={t('guide.title')}
-          onClick={() => options.dockPanels?.open(USER_GUIDE_PANEL)}
+          aria-pressed={openPanels.includes(USER_GUIDE_PANEL)}
+          className="bh-workspace-guide"
+          onClick={() => options.dockPanels?.toggle(USER_GUIDE_PANEL)}
         >
           <ChannelSidebarIcon name="info" />
         </button>
