@@ -244,3 +244,61 @@ it('never retries an input after encrypted delivery loses its acknowledgement', 
     host.stop();
   }
 });
+
+it.each(['https://studio.tailnet.ts.net', 'https://100.64.0.10'])(
+  'keeps video commands on the authenticated HTTPS tailnet route %s',
+  async (route) => {
+    const raw = {
+      request: vi.fn(async () => ({
+        status: 409,
+        text: async () => JSON.stringify({ ok: false, code: 'media-not-live' }),
+      })),
+      openSocket: vi.fn(),
+    };
+    const host = createHostClient({
+      hostId: 'host',
+      credential: 'synthetic-tailnet-credential',
+      routes: [route, origin],
+      carrier: raw,
+    });
+    try {
+      expect(await host.api(LOCAL_VIDEO_PATH, { body: { kind: 'status' } })).toMatchObject({
+        status: 409,
+        body: { ok: false, code: 'media-not-live' },
+      });
+      expect(raw.request).toHaveBeenCalledExactlyOnceWith(route + path, {
+        method: 'POST',
+        body: JSON.stringify({ kind: 'status' }),
+        headers: expect.objectContaining({ authorization: 'Device synthetic-tailnet-credential' }),
+        signal: expect.any(AbortSignal),
+      });
+      expect(raw.openSocket).not.toHaveBeenCalled();
+    } finally {
+      host.stop();
+    }
+  },
+);
+
+it('does not replay uncertain tailnet input on the LAN fallback', async () => {
+  const raw = {
+    request: vi.fn(async () => {
+      throw new Error('ack-lost');
+    }),
+    openSocket: vi.fn(),
+  };
+  const host = createHostClient({
+    hostId: 'host',
+    credential: 'synthetic',
+    routes: ['https://studio.tailnet.ts.net', origin],
+    carrier: raw,
+  });
+  try {
+    await expect(
+      host.api(LOCAL_VIDEO_PATH, { body: { kind: 'input', sequence: 1 } }),
+    ).rejects.toThrow('The Host could not be reached.');
+    expect(raw.request).toHaveBeenCalledOnce();
+    expect(raw.openSocket).not.toHaveBeenCalled();
+  } finally {
+    host.stop();
+  }
+});
