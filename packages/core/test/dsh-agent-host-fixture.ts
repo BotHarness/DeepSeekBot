@@ -263,6 +263,7 @@ export class FakeAgentHost implements DshAgentHost {
         await channelSend?.execute(
           { channel_id: this.hooks.messageChannel ?? 'dm-test', body: '发布状态已经核对完成。' },
           {
+            callId: randomUUID(),
             signal: new AbortController().signal,
           } as ToolRunContext,
         );
