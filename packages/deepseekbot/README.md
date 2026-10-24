@@ -1,17 +1,17 @@
 <div align="center">
   <a href="https://tobs.app/en/">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/hero-en-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/hero-en-day.svg" width="960" alt="Tobs — a crew of your own" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/hero-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/hero-en-day.svg" width="960" alt="Tobs — a crew of your own" />
 </picture>
   </a>
 
 # Tobs
 
-[中文](README.md) ｜ **English**
+[中文](https://github.com/BotHarness/DeepSeekBot/blob/main/README.md) ｜ **English**
 
 [![npm](https://img.shields.io/npm/v/@botharness/tobs?style=flat-square&color=3d5afe&label=npm)](https://www.npmjs.com/package/@botharness/tobs)
-[![MIT](https://img.shields.io/badge/license-MIT-71964a?style=flat-square)](LICENSE)
+[![MIT](https://img.shields.io/badge/license-MIT-71964a?style=flat-square)](https://github.com/BotHarness/DeepSeekBot/blob/main/LICENSE)
 [![DeepSeek Harness](https://img.shields.io/badge/built_for-DeepSeek_Harness-b8702f?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 
 **Tobs: the open-source Grok Bot alternative. A crew of bots, each with its own identity, persona and memory, working together.**
@@ -27,7 +27,7 @@
 Tobs in three minutes: a crew of bots with their own identity, persona and memory, working together in a small town. Click the poster to play.
 
 <p align="center">
-  <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-en.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v2/en/promo-video-v16.jpg" width="800" alt="Tobs promo video (3 minutes): click to play" /></a>
+  <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-en.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v2/en/promo-video-v16.jpg" width="800" alt="Tobs promo video (3 minutes): click to play" /></a>
 </p>
 
 Tobs is BotHarness’s MIT-licensed, open-source Grok Bot alternative, running as a plugin in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness). Create Bots for research, writing or coding and work with them like colleagues: chat one to one, bring them into a group, hand them tasks. They remember you, do things on schedule, and answer you under their own identity in Slack, Discord, Lark / Feishu, QQ and WeChat.
@@ -37,8 +37,8 @@ Bots use the model providers and quota you set up in DSH, and the machine runnin
 <a id="install"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/install-en-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/install-en-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/install-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/install-en-day.svg" width="960" alt="" />
 </picture>
 
 ## Install
@@ -52,8 +52,8 @@ For command-line install, version notes and troubleshooting, see the [installati
 <a id="features"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/features-en-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/features-en-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/features-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/features-en-day.svg" width="960" alt="" />
 </picture>
 
 ## What you can do with it
@@ -73,7 +73,7 @@ For command-line install, version notes and troubleshooting, see the [installati
 
 ### Pixel avatars
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel-avatars-crew.gif" width="660" alt="Six pixel PersonaBot avatars" />
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel-avatars-crew.gif" width="660" alt="Six pixel PersonaBot avatars" />
 
 Every Bot gets a pixel avatar made from its name, and while it works the avatar morphs into the tool it is using. Want to make one? Type a name in the [Avatar Studio](https://tobs.app/en/avatar) on our website and download it in high resolution.
 
@@ -83,16 +83,16 @@ Every Bot gets a pixel avatar made from its name, and while it works the avatar 
 
 <table>
   <tr>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/hero-dark.jpg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/hero.jpg" alt="Bot mode: the control rail and channel list on the left, a DM with Mira in the middle, and Mira's memory evolution with a merged branch on the right" /></picture></a><br /><b>Bot DMs and memory evolution</b>: Mira finds the visitor numbers in her memory; every commit and branch of that memory is on the right.</td>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/group.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/group.jpg" alt="Observatory Studio Group: Mira, Theo and Nova reply under their own identities, with the member list on the right" /></a><br /><b>Group chats</b>: @ three Bots and each replies; Nova reads the first two before answering.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/hero-dark.jpg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/hero.jpg" alt="Bot mode: the control rail and channel list on the left, a DM with Mira in the middle, and Mira's memory evolution with a merged branch on the right" /></picture></a><br /><b>Bot DMs and memory evolution</b>: Mira finds the visitor numbers in her memory; every commit and branch of that memory is on the right.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/group.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/group.jpg" alt="Observatory Studio Group: Mira, Theo and Nova reply under their own identities, with the member list on the right" /></a><br /><b>Group chats</b>: @ three Bots and each replies; Nova reads the first two before answering.</td>
   </tr>
   <tr>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/schedules.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/schedules.jpg" alt="Kai creates a weekly schedule after a request to draft a post every Monday at 9; the Schedules panel is on the right" /></a><br /><b>Schedules</b>: one sentence and the Bot sets up the task.</td>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/marketplace.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/marketplace.jpg" alt="Bot Marketplace: filter by topic and search; each Bot card shows a pixel banner, avatar, role, stars and an Install button" /></a><br /><b>Bot Marketplace</b>: find Bots by topic or keyword and install one as a new colleague (sample data).</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/schedules.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/schedules.jpg" alt="Kai creates a weekly schedule after a request to draft a post every Monday at 9; the Schedules panel is on the right" /></a><br /><b>Schedules</b>: one sentence and the Bot sets up the task.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/marketplace.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/marketplace.jpg" alt="Bot Marketplace: filter by topic and search; each Bot card shows a pixel banner, avatar, role, stars and an Install button" /></a><br /><b>Bot Marketplace</b>: find Bots by topic or keyword and install one as a new colleague (sample data).</td>
   </tr>
   <tr>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/home.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/home.jpg" alt="Home and a DM with Tob side by side: token usage and Bot activity on the left, Tob reporting on every Bot on the right" /></a><br /><b>Home and Tob</b>: put panels side by side; ask Tob and it reports on all your Bots.</td>
-    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/appearance.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/appearance.jpg" alt="Appearance in Bot settings: theme, colors, wallpaper library and panel materials, over a workspace with a wallpaper" /></a><br /><b>Appearance</b>: themes, colors, a wallpaper library and see-through panels, saved on this device only.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/home.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/home.jpg" alt="Home and a DM with Tob side by side: token usage and Bot activity on the left, Tob reporting on every Bot on the right" /></a><br /><b>Home and Tob</b>: put panels side by side; ask Tob and it reports on all your Bots.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/appearance.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/v3/en/appearance.jpg" alt="Appearance in Bot settings: theme, colors, wallpaper library and panel materials, over a workspace with a wallpaper" /></a><br /><b>Appearance</b>: themes, colors, a wallpaper library and see-through panels, saved on this device only.</td>
   </tr>
 </table>
 
@@ -173,8 +173,8 @@ For real IM tests, the [shared QA App wizard](docs/agents/im-test-apps.md) confi
 <a id="community"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/community-en-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/community-en-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/community-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/community-en-day.svg" width="960" alt="" />
 </picture>
 
 ## Community
@@ -183,17 +183,17 @@ Questions, ideas and the Bots you build are all welcome.
 
 | Come say hello                                                                                                                                                                                                                                                                                                                                                                                                                                                | Build something together                                                                                                                                                                                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-discord-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-discord-day.svg" width="160" alt="discord" /></picture>](https://discord.gg/aEB2Ayhu7B)                                                                               | [Join the Tobs server](https://discord.gg/aEB2Ayhu7B) to ask questions and share your crew.                                                                                                                                                                                        |
-| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-qq-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-qq-day.svg" width="160" alt="qq" /></picture>                                                                                                                               | Search for group **1125565676** in QQ.                                                                                                                                                                                                                                             |
-| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-discuss-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-discuss-day.svg" width="160" alt="discuss" /></picture>](https://github.com/BotHarness/DeepSeekBot/discussions)                                                       | [Questions, ideas and things you have made](https://github.com/BotHarness/DeepSeekBot/discussions) · [Welcome thread](https://github.com/BotHarness/DeepSeekBot/discussions/1397).                                                                                                 |
-| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-contribute-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/badge-contribute-day.svg" width="160" alt="contribute" /></picture>](CONTRIBUTING.md)                                                                                    | [Contribution guide](CONTRIBUTING.md) · [First contribution](https://github.com/BotHarness/DeepSeekBot/discussions/1398). Docs, tests and answers all help; use [Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose) for confirmed bugs and implementation tasks. |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discord-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discord-day.svg" width="160" alt="discord" /></picture>](https://discord.gg/aEB2Ayhu7B)                                                                               | [Join the Tobs server](https://discord.gg/aEB2Ayhu7B) to ask questions and share your crew.                                                                                                                                                                                        |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-qq-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-qq-day.svg" width="160" alt="qq" /></picture>                                                                                                                               | Search for group **1125565676** in QQ.                                                                                                                                                                                                                                             |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discuss-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-discuss-day.svg" width="160" alt="discuss" /></picture>](https://github.com/BotHarness/DeepSeekBot/discussions)                                                       | [Questions, ideas and things you have made](https://github.com/BotHarness/DeepSeekBot/discussions) · [Welcome thread](https://github.com/BotHarness/DeepSeekBot/discussions/1397).                                                                                                 |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-contribute-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/badge-contribute-day.svg" width="160" alt="contribute" /></picture>](CONTRIBUTING.md)                                                                                    | [Contribution guide](CONTRIBUTING.md) · [First contribution](https://github.com/BotHarness/DeepSeekBot/discussions/1398). Docs, tests and answers all help; use [Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose) for confirmed bugs and implementation tasks. |
 | <a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="Tobs - Open-source Grok Bot alternative built on DeepSeek Harness &#124; Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a> | We are on Product Hunt. Take a look and share Tobs with a friend.                                                                                                                                                                                                                  |
 
 <a id="repository-status"></a>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/status-en-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/status-en-day.svg" width="960" alt="" />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/status-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/status-en-day.svg" width="960" alt="" />
 </picture>
 
 ## Repository status
@@ -209,8 +209,8 @@ Questions, ideas and the Bots you build are all welcome.
 
 <a href="https://github.com/BotHarness/DeepSeekBot">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/star-en-night.svg" />
-  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel/star-en-day.svg" width="960" alt="Star Tobs. Come back and build with us." />
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/star-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/36f704e77367/docs/assets/readme/pixel/star-en-day.svg" width="960" alt="Star Tobs. Come back and build with us." />
 </picture>
 </a>
 
@@ -226,7 +226,7 @@ Questions, ideas and the Bots you build are all welcome.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). Third-party works distributed inside the Client Bundle are listed in [THIRD_PARTY_NOTICES.md](packages/client/THIRD_PARTY_NOTICES.md).
+MIT — see [LICENSE](https://github.com/BotHarness/DeepSeekBot/blob/main/LICENSE). Third-party works distributed inside the Client Bundle are listed in [THIRD_PARTY_NOTICES.md](packages/client/THIRD_PARTY_NOTICES.md).
 
 ## Star History
 
