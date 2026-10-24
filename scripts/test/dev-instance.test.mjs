@@ -5,7 +5,12 @@ import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
 import { once, EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
-import { acquireHome, matchesHomeProcess, verifyStartedHost } from '../dev-instance-lifecycle.mjs';
+import {
+  acquireHome,
+  matchesHomeProcess,
+  verifyStartedHost,
+  processIsRunning,
+} from '../dev-instance-lifecycle.mjs';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -193,7 +198,7 @@ describe('development Home ownership and startup failure', () => {
             throw new Error('probe failed');
           }),
         ).rejects.toThrow('probe failed');
-        expect(() => process.kill(descendant.pid, 0)).toThrow();
+        expect(processIsRunning(descendant.pid)).toBe(false);
         const server = createServer();
         try {
           await new Promise((done, reject) => {

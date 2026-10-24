@@ -4,7 +4,12 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { acquireHome, matchesHomeProcess, verifyStartedHost } from '../dev-instance-lifecycle.mjs';
+import {
+  acquireHome,
+  matchesHomeProcess,
+  verifyStartedHost,
+  processIsRunning,
+} from '../dev-instance-lifecycle.mjs';
 import { pnpmCommand } from '../dev-package-manager.mjs';
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
@@ -21,7 +26,8 @@ function members(pid) {
     .split('\n')
     .map((line) => line.trim().split(/\s+/u).map(Number))
     .filter(([id, group]) => group === pid && id !== pid)
-    .map(([id]) => id);
+    .map(([id]) => id)
+    .filter(processIsRunning);
 }
 async function stop(child) {
   if (child.exitCode === null && child.signalCode === null) {
@@ -49,6 +55,32 @@ function fixtureHost(respawn = false) {
 }
 
 describe('Home resource ownership across handoff and interruption', () => {
+  it.skipIf(process.platform !== 'linux')(
+    'distinguishes a Linux zombie from an active process',
+    async () => {
+      const parent = spawn(
+        'python3',
+        [
+          '-u',
+          '-c',
+          'import os,time; pid=os.fork(); (os._exit(0) if pid==0 else print(pid,flush=True)); time.sleep(30)',
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'] },
+      );
+      try {
+        const [chunk] = await once(parent.stdout, 'data');
+        const pid = Number(String(chunk).trim());
+        await until(() => !processIsRunning(pid));
+        expect(processIsRunning(parent.pid)).toBe(true);
+        expect(readFileSync(`/proc/${pid}/stat`, 'utf8')).toMatch(/\) Z /u);
+      } finally {
+        if (parent.exitCode === null && parent.signalCode === null) {
+          parent.kill();
+          await once(parent, 'exit');
+        }
+      }
+    },
+  );
   it.each(['ax-cli', 'packaged-cli'])(
     'admits another Windows Home for %s while protecting its own',
     (runtime) => {
@@ -194,8 +226,8 @@ describe('Home resource ownership across handoff and interruption', () => {
         writeFileSync(join(home, 'install-release'), 'done');
         await until(() => {
           try {
-            process.kill(resources[0].pid, 0);
-            return false;
+            if (processIsRunning(resources[0].pid)) return false;
+            return members(resources[0].pid).length === 0;
           } catch {
             return members(resources[0].pid).length === 0;
           }
@@ -221,8 +253,8 @@ describe('Home resource ownership across handoff and interruption', () => {
           }
           await until(() => {
             try {
-              process.kill(resource.pid, 0);
-              return false;
+              if (processIsRunning(resource.pid)) return false;
+              return members(resource.pid).length === 0;
             } catch {
               return members(resource.pid).length === 0;
             }

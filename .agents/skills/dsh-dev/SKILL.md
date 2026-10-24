@@ -47,6 +47,8 @@ The launcher holds a Home-wide preparation lock and records the running Host bef
 
 Preparation commands now wait for an IPC start signal after their independent process-group ownership has been persisted. This covers installs, builds and configuration exports. Reusing a Home checks recorded groups even after the launcher or successfully handed-off Host exits. Failure cleanup stops the parent and repeatedly rescans descendants until release or a bounded refusal. Windows permits CLI paths explicitly belonging to another managed Home; ambiguous legacy CLI ownership remains a refusal.
 
+Restart only after both the Host process and its HTTP listener have stopped. A closed port alone does not prove shutdown. On Linux, an exited zombie may still answer a PID existence probe; lifecycle checks use its process state and still check live descendants.
+
 ## DSH 0.2.1 migration contracts
 
 Source inspection of `dsh-subagent/lib/types/types.d.ts` and `lib/index.js` in `0.2.1-rc.2`:

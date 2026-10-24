@@ -1,3 +1,4 @@
+import { processIsRunning } from './dev-instance-lifecycle.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -195,13 +196,13 @@ async function verifyOneCreation(port, baseline, receipt, input) {
     throw new Error('Creation retry did not preserve exactly one new Bot and its DM');
 }
 
-async function waitForStop(port) {
+async function waitForStop(port, hostPid) {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     try {
       await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(500) });
     } catch {
-      return;
+      if (!processIsRunning(hostPid)) return;
     }
     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   }
@@ -374,7 +375,7 @@ try {
   });
 
   stop(pid);
-  await waitForStop(port);
+  await waitForStop(port, pid);
   pid = undefined;
   const restarted = launch(port, false);
   pid = restarted.pid;
@@ -399,7 +400,7 @@ try {
 
   const zipImported = await zipProof.finishAfterUploadRestart(restarted);
   stop(pid);
-  await waitForStop(port);
+  await waitForStop(port, pid);
   pid = undefined;
   const zipRestarted = launch(port, false);
   pid = zipRestarted.pid;
@@ -454,4 +455,5 @@ try {
   );
 } finally {
   stop(pid);
+  if (pid !== undefined) await waitForStop(port, pid);
 }

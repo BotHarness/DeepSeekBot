@@ -3,13 +3,17 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-function alive(pid) {
+export function processIsRunning(pid) {
   if (!Number.isInteger(pid) || pid <= 0) throw new Error('Invalid development Home owner');
   try {
     process.kill(pid, 0);
+    if (process.platform === 'linux') {
+      const stat = readFileSync(`/proc/${pid}/stat`, 'utf8');
+      if (stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z')) return false;
+    }
     return true;
   } catch (error) {
-    if (error.code === 'ESRCH') return false;
+    if (error.code === 'ESRCH' || error.code === 'ENOENT') return false;
     throw error;
   }
 }
@@ -68,7 +72,8 @@ export function matchesHomeProcess(entries, home, windows = false) {
 
 function resourceLive(resource) {
   return (
-    alive(resource.pid) || descendants(resource.pid, resource.ownedProcessGroup === true).length > 0
+    processIsRunning(resource.pid) ||
+    descendants(resource.pid, resource.ownedProcessGroup === true).length > 0
   );
 }
 
@@ -92,7 +97,10 @@ export function acquireHome(home) {
     }
     try {
       const lockOwner = join(gate, 'owner.json');
-      if (!existsSync(lockOwner) || alive(JSON.parse(readFileSync(lockOwner, 'utf8')).pid))
+      if (
+        !existsSync(lockOwner) ||
+        processIsRunning(JSON.parse(readFileSync(lockOwner, 'utf8')).pid)
+      )
         throw new Error(
           'Development Home launch is already in progress; preserve its lock until its owner has exited',
         );
@@ -111,7 +119,7 @@ export function acquireHome(home) {
       );
     if (
       recorded &&
-      ([recorded.pid, ...(recorded.children ?? [])].some(alive) ||
+      ([recorded.pid, ...(recorded.children ?? [])].some(processIsRunning) ||
         (recorded.resources ?? []).some(resourceLive))
     )
       throw new Error(
@@ -237,7 +245,7 @@ function descendants(pid, ownedProcessGroup) {
       if (owned.has(parent) || (ownedProcessGroup && group === pid)) owned.add(child);
   } while (size !== owned.size);
   owned.delete(pid);
-  return [...owned].reverse();
+  return [...owned].reverse().filter(processIsRunning);
 }
 
 export async function verifyStartedHost(child, verify, timeoutMs = 15_000) {
@@ -271,7 +279,7 @@ export async function verifyStartedHost(child, verify, timeoutMs = 15_000) {
       if (child.pid)
         for (const pid of descendants(child.pid, child.ownedProcessGroup === true))
           observed.add(pid);
-      child.cleanupPids = [...observed].filter(alive);
+      child.cleanupPids = [...observed].filter(processIsRunning);
       for (const pid of child.cleanupPids) signal(pid);
       if (stopped() && child.cleanupPids.length === 0) {
         released = true;

@@ -1825,9 +1825,9 @@
         "phone.git-bot-import",
         "phone.zip-bot-import"
       ],
-      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response.",
+      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response. Restart now waits for both HTTP shutdown and actual process exit; Linux zombie state is treated as exited (#2713).",
       "task": 2713,
-      "sha256": "00ac9826597095660a4ce300e47431baeabeb9d0331e1e1c9c0ea09014d43c1f"
+      "sha256": "d4a34ec8a567c8bf1fb3c9be0d8adb1f2c6e98bcec266c8cbf5082f4b85f4e05"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
