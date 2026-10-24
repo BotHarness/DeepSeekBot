@@ -1,0 +1,50 @@
+{
+  "requestedHead": "f2e8b681e015cea567cfb020c6fcf7c8c2da0005",
+  "main": "888d5077771f22169ddfbd70beaec6445c10e889",
+  "testedBatch": "a246f3986d7cc274f18b9c0d6f95a4da79242c9e",
+  "lane": "physical Android API 36",
+  "abi": "arm64-v8a",
+  "build": "fresh CNG, bundled Release",
+  "apkSha256": "d51820cc6fc0ec14f7ff5f19e4393dd278aeffa011ce8b74605713e9b25a66c5",
+  "embeddedJavaScriptSha256": "b7cefdd78d684a4d44d6665f5d446c44f2bcc0c4994fc346bcf3b2be9bf933ff",
+  "sameDevelopmentPackageAndSigner": true,
+  "installedApkReadbackMatched": true,
+  "status": {
+    "alternateShareAndLegacyView": "fail",
+    "storeUpgrade": "untested",
+    "defaultLegacyPairEntry": "pass",
+    "iOS": "untested",
+    "inPlaceUpgrade": "pass",
+    "existingConnection": "pass",
+    "defaultShareEnZh": "pass",
+    "storeGeneratedLabels": "pass",
+    "defaultLauncherEnZh": "pass",
+    "alternateLauncherEnZhAndColdStart": "pass",
+    "oldApkAlternateModeAB": "untested"
+  },
+  "data": {
+    "pairedDevices": 6,
+    "originalIdsPreserved": true,
+    "channels": 27,
+    "bots": 25,
+    "formalAppApkUnchanged": true
+  },
+  "screenshotScope": "native crops inspected; no notification bars, machine names, addresses, identifiers, personal conversations or credentials",
+  "images": [
+    "ai-en.png",
+    "ai-zh.png",
+    "al-en.png",
+    "al-zh.png",
+    "alt-en.png",
+    "alt-zh.png",
+    "as-en.png",
+    "as-zh.png",
+    "bi-en.png",
+    "bi-zh.png",
+    "bl-en.png",
+    "bl-zh.png",
+    "bs-zh.png",
+    "pair.png",
+    "qa.png"
+  ]
+}
