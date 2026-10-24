@@ -61,7 +61,7 @@ function fixture(productVersion = '0.1.0-alpha.1') {
       mkdirSync(join(dir, 'package/cli'));
       writeFileSync(
         join(dir, 'package/cli/index.mjs'),
-        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("deepseekbot packed help"); };',
+        'export const runBotCreateCli = () => { if (process.env.PATH !== "" || process.env.DEEPSEEKBOT_HOST_TOKEN || process.env.DEEPSEEKBOT_AGENT_TOKEN || process.env.NODE_PATH) throw new Error("ambient dependency"); console.log("tobs: packed help"); };',
       );
     }
     if (name === 'deepseekbot' || name === 'tobs') {

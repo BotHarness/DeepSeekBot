@@ -1,11 +1,13 @@
 import { createHash } from 'node:crypto';
 import {
   mkdirSync,
+  cpSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
   symlinkSync,
   rmSync,
+  renameSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,10 +25,7 @@ function fixture(profile = 'qa', entry = 'deepseekbot') {
   const home = realpathSync(mkdtempSync(join(tmpdir(), 'zoom-setup-')));
   roots.push(home);
   const directory = join(home, 'profiles', profile);
-  const root = join(
-    directory,
-    entry === 'tobs' ? 'node_modules/tobs/node_modules/deepseekbot' : 'node_modules/deepseekbot',
-  );
+  const root = join(directory, 'node_modules', entry);
   mkdirSync(join(root, 'desktop-theme/lib'), { recursive: true });
   const path = join(directory, 'package.json');
   const manifest = {
@@ -38,7 +37,7 @@ function fixture(profile = 'qa', entry = 'deepseekbot') {
   writeFileSync(join(directory, 'cordis.patch.yml'), 'native preference unchanged');
   writeFileSync(
     join(root, 'package.json'),
-    JSON.stringify({ name: 'deepseekbot', dsh: { bundle: { patch: 'cordis.im.patch.yml' } } }),
+    JSON.stringify({ name: entry, dsh: { bundle: { patch: 'cordis.im.patch.yml' } } }),
   );
   writeFileSync(join(root, 'cordis.im.patch.yml'), '[]');
   writeFileSync(join(root, 'desktop-theme/lib/client.js'), 'qualified');
@@ -73,12 +72,36 @@ function fixture(profile = 'qa', entry = 'deepseekbot') {
   });
   return { home, profile, platform: 'darwin', dsh: '/owned/dsh', run, path, directory };
 }
-it('enables and removes desktop compatibility for a Tobs-only Profile with a nested implementation', () => {
+it('enables and removes desktop compatibility at the stable Tobs Bundle path', () => {
   const f = fixture('qa', 'tobs');
   expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(true);
+  expect(JSON.parse(readFileSync(f.path)).dependencies['@deepseek-ai/dsh-client-ui-theme']).toBe(
+    'link:node_modules/tobs/desktop-theme',
+  );
   expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(false);
   expect(configureDesktopZoom({ ...f, action: 'disable' }).changed).toBe(true);
   expect(JSON.parse(readFileSync(f.path)).dsh.profile.bundles).toEqual(['tobs']);
+});
+it('keeps the owned Tobs theme link stable across a pnpm store version change', () => {
+  const f = fixture('qa', 'tobs');
+  const entry = join(f.directory, 'node_modules/tobs');
+  const first = join(f.directory, 'node_modules/.pnpm/tobs@1.5.0/node_modules/tobs');
+  const second = join(f.directory, 'node_modules/.pnpm/tobs@1.5.1/node_modules/tobs');
+  mkdirSync(join(first, '..'), { recursive: true });
+  renameSync(entry, first);
+  symlinkSync(first, entry, 'junction');
+  expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(true);
+  const priorLink = JSON.parse(readFileSync(f.path)).dependencies[
+    '@deepseek-ai/dsh-client-ui-theme'
+  ];
+  cpSync(first, second, { recursive: true });
+  rmSync(entry);
+  symlinkSync(second, entry, 'junction');
+  expect(configureDesktopZoom({ ...f, action: 'enable' }).changed).toBe(false);
+  expect(JSON.parse(readFileSync(f.path)).dependencies['@deepseek-ai/dsh-client-ui-theme']).toBe(
+    priorLink,
+  );
+  expect(configureDesktopZoom({ ...f, action: 'disable' }).changed).toBe(true);
 });
 it('uses the native package manager to enable and remove only its own Profile alias', () => {
   const f = fixture();

@@ -10,8 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
-import { createRequire } from 'node:module';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   desktopZoomPath,
@@ -76,14 +75,9 @@ function configureProfileZoom({
   const manifestPath = join(directory, 'package.json');
   const before = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const bundles = before.dsh?.profile?.bundles ?? [];
-  const product =
-    !bundles.includes('deepseekbot') && bundles.includes('tobs')
-      ? dirname(
-          createRequire(join(directory, 'node_modules/tobs/package.json')).resolve(
-            'deepseekbot/package.json',
-          ),
-        )
-      : join(directory, 'node_modules/deepseekbot');
+  const entry =
+    !bundles.includes('deepseekbot') && bundles.includes('tobs') ? 'tobs' : 'deepseekbot';
+  const product = join(directory, 'node_modules', entry);
   const target = join(product, 'desktop-theme');
   const ownedLink = `link:${relative(directory, target).replaceAll('\\', '/')}`;
   const current = before.dependencies?.[theme];
@@ -159,10 +153,7 @@ function configureProfileZoom({
     const version = desktopVersion ?? String(run(dsh, ['--version'], options)).trim();
     if (version !== supported) refuse('desktop-zoom-setup-version-unsupported');
     const manifest = JSON.parse(readFileSync(join(product, 'package.json'), 'utf8'));
-    if (
-      manifest.name !== 'deepseekbot' ||
-      !bundles.some((name) => ['deepseekbot', 'tobs'].includes(name))
-    )
+    if (manifest.name !== entry || !bundles.some((name) => ['deepseekbot', 'tobs'].includes(name)))
       refuse('desktop-zoom-setup-product-not-enabled');
     const root = join(product, 'desktop-theme');
     const provenance = JSON.parse(readFileSync(join(root, 'botharness-zoom-compat.json'), 'utf8'));

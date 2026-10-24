@@ -325,7 +325,7 @@ export function packProduct({
   copyAvailable(join(repoRoot, 'packages/tobs'), tobs, ['src', 'README.md']);
   const launcher = join(tobs, 'src/tobs.mjs');
   writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
-  copyAvailable(source, tobs, ['cordis.im.patch.yml']);
+  copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme']);
   cpSync(join(repoRoot, 'LICENSE'), join(tobs, 'LICENSE'));
   packageDirectories.push(tobs);
   const pack = (directory, { preserveModes = false } = {}) => {
@@ -367,7 +367,7 @@ export function tobsManifest(product) {
     name: 'tobs',
     version: product.version,
     type: 'module',
-    description: 'Tobs — Team of bots. Compatible entry point for DeepSeekBot.',
+    description: 'Tobs — Team of bots with persistent memory, delegation and messaging.',
     license: 'MIT',
     homepage: product.homepage,
     repository: { ...product.repository, directory: 'packages/tobs' },
@@ -375,7 +375,7 @@ export function tobsManifest(product) {
     keywords: product.keywords,
     publishConfig: { access: 'public' },
     bin: { tobs: './src/tobs.mjs' },
-    files: ['src', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
+    files: ['src', 'desktop-theme', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
     dependencies: { ...product.dependencies, deepseekbot: product.version },
     peerDependencies: product.peerDependencies,
     engines: product.engines,
