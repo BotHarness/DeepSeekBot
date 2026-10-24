@@ -289,7 +289,10 @@ describe('timeline working rows in the Channel body', () => {
     layout(chat, 1040);
     await setBots([bot('mira', 'Mira', 'working'), nova], group);
     expect(chat.scrollTop).toBe(100);
-    expect(container.querySelector('.bh-timeline-new')?.textContent).toBe('返回最新消息');
+    expect(container.querySelector('.bh-timeline-new')?.getAttribute('aria-label')).toBe(
+      '返回最新消息',
+    );
+    expect(container.querySelector('.bh-timeline-new')?.textContent).toBe('');
   });
 
   it('keeps latest content clear of companions without moving history or waiting for transitions', async () => {
@@ -400,6 +403,9 @@ describe('timeline working rows in the Channel body', () => {
         revision: store.getSnapshot().conversation.revision + 1,
       }),
     );
-    expect(container.querySelector('.bh-timeline-new')?.textContent).toBe('1 条新消息 · 跳到最新');
+    expect(container.querySelector('.bh-timeline-new-count')?.textContent).toBe('1');
+    expect(container.querySelector('.bh-timeline-new')?.getAttribute('aria-description')).toBe(
+      '1 条新消息 · 跳到最新',
+    );
   });
 });

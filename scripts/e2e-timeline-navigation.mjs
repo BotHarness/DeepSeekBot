@@ -230,6 +230,44 @@ try {
     assert.equal(history.button, undefined, 'baseline reproduces missing ordinary history button');
   else {
     assert.ok(history.button, 'ordinary history has return button');
+    assert.equal(history.text, '', 'ordinary return is icon only');
+    assert.ok(await page.$('.bh-timeline-new svg'), 'return icon is rendered');
+    const paint = () =>
+      page.$eval('.bh-timeline-new', (button) => {
+        const style = getComputedStyle(button);
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext('2d');
+        context.fillStyle = style.backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+        return {
+          background: style.backgroundColor,
+          color: style.color,
+          opacity: style.opacity,
+          alpha: context.getImageData(0, 0, 1, 1).data[3],
+        };
+      });
+    const idle = await paint();
+    assert.equal(idle.alpha, 255, 'idle surface is opaque');
+    assert.equal(idle.opacity, '1');
+    await page.hover('.bh-timeline-new');
+    const hover = await paint();
+    assert.equal(hover.alpha, 255, 'hover surface is opaque');
+    assert.notEqual(hover.background, idle.background, 'hover changes background');
+    assert.notEqual(hover.color, idle.color, 'hover changes icon colour');
+    await capture('hover');
+    await page.mouse.down();
+    const pressed = await paint();
+    assert.equal(pressed.alpha, 255, 'pressed surface is opaque');
+    assert.notEqual(pressed.background, hover.background, 'press has distinct background');
+    await capture('pressed');
+    await page.mouse.move(history.viewport.left + 30, history.viewport.top + 30);
+    await page.mouse.up();
+    writeFileSync(
+      resolve(out, 'button-paint.json'),
+      JSON.stringify({ idle, hover, pressed }, null, 2),
+    );
+
     assert.ok(history.button.bottom <= history.composer.top, 'button above composer');
     assert.ok(
       Math.abs(history.button.right - history.composer.right) <= 16,
@@ -243,8 +281,13 @@ try {
   await send('New live message one');
   await send('New live message two');
   const lastLiveId = await send('New live message three');
-  await page.waitForFunction(() =>
-    document.querySelector('.bh-timeline-new')?.textContent.includes('3 new messages'),
+  await page.waitForFunction(
+    (baseline) =>
+      baseline
+        ? document.querySelector('.bh-timeline-new')?.textContent.includes('3 new messages')
+        : document.querySelector('.bh-timeline-new-count')?.textContent === '3',
+    {},
+    baseline,
   );
   const live = await capture('live');
   assert.ok(live.distance > 80, 'live messages do not steal history scroll');

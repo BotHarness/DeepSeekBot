@@ -2309,7 +2309,7 @@
       "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
       "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup.",
       "task": 2748,
-      "sha256": "8f05212a80836e83e84e1f9967275e7a57c18e597c6df3b3ed6d0b10a78dbcd6"
+      "sha256": "317066140087a8b63c58de7f4f9936c90dc8dd42bb1182401d5db77af55ff248"
     }
   ],
   "native": [

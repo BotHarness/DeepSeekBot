@@ -1560,14 +1560,18 @@ describe('return to latest messages', () => {
         viewport.dispatchEvent(new Event('scroll'));
       });
       expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
-      expect(button()?.textContent).toBe(zhTranslate('messages.latest'));
+      expect(button()?.textContent).toBe('');
+      expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
       await act(async () => {
         store.setConversation({
           messages: [message('first'), message('second'), message('third')],
           revision: 3,
         });
       });
-      expect(button()?.textContent).toBe(zhTranslate('messages.unseen', { count: 2 }));
+      expect(button()?.textContent).toBe('2');
+      expect(button()?.getAttribute('aria-description')).toBe(
+        zhTranslate('messages.unseen', { count: 2 }),
+      );
       await act(async () => button()!.click());
       expect(viewport.scrollTop).toBe(2000);
       expect(button()).toBeNull();

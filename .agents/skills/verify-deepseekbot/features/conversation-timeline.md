@@ -6,7 +6,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 
 - `memory-display` keeps the per-Bot elsewhere-memory visibility switch and adds Compact / Detailed in the existing action menu and Channel settings. Compact retains the Bot and origin, omits commit metadata and opens the same full diff on click. The preference is local to this browser; unset values stay Detailed.
 - `new-messages` opens the Channel at the Human's read anchor and draws a `New messages` divider after it when someone else wrote since.
-- `return-latest` shows a return button above the composer at its right edge whenever the timeline is away from the latest messages; new live messages add a count. It hides at the bottom and follows multiline composer height.
+- `return-latest` shows an opaque icon-only return button above the composer at its right edge whenever the timeline is away from the latest messages; new live messages add a numeric badge. Hover and press change colour without transparency. It hides at the bottom and follows multiline composer height.
 - `bidirectional-pages` opens a bounded window around the read anchor, then loads cursor pages at the top/bottom while preserving the reading anchor. Holding an edge must not start an unbounded loading loop.
 - `keep-place` puts a Channel back at the message you were reading when you switch away and back within the same page.
 - `fold` folds a settled message taller than 480px to 300px behind `Show all`.

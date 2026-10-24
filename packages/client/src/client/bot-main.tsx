@@ -41,6 +41,7 @@ import {
 
 import {
   IconCheckOutlineRegular,
+  IconChevronDownOutlineRegular,
   IconChecklistOutlineRegular,
   IconCopyOutlineRegular,
   IconGoalOutlineRegular,
@@ -3059,13 +3060,19 @@ function ConversationView({
                 type="button"
                 className="bh-timeline-new"
                 aria-label={t('messages.latest')}
+                aria-description={
+                  unseen > 0
+                    ? t(unseen === 1 ? 'messages.unseenOne' : 'messages.unseen', { count: unseen })
+                    : undefined
+                }
                 onClick={jumpToLatest}
               >
-                {unseen > 0
-                  ? t(unseen === 1 ? 'messages.unseenOne' : 'messages.unseen', {
-                      count: unseen,
-                    })
-                  : t('messages.latest')}
+                <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                {unseen > 0 ? (
+                  <span className="bh-timeline-new-count" aria-hidden="true">
+                    {unseen > 99 ? '99+' : unseen}
+                  </span>
+                ) : null}
               </button>
             </div>
           ) : null}
