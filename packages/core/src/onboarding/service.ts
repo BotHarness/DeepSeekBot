@@ -107,7 +107,7 @@ export function createBotOnboarding(options: {
       const id = state.default_bot_slug;
       let bot = registry.get(id);
       if (bot === undefined && registry.getHistorical(id) === undefined) {
-        const created = registry.create({ slug: id, displayName: 'DeepSeek Bot', workspaces: [] });
+        const created = registry.create({ slug: id, displayName: 'Bot', workspaces: [] });
         if (!created.ok) throw new Error(created.reason);
         bot = created.record;
       }

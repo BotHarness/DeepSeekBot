@@ -420,7 +420,7 @@ describe('release notes views', () => {
         .find((button) => button.textContent === '去官网查看')
         ?.click();
       expect(open).toHaveBeenCalledWith(
-        'https://deepseekbot.botharness.ai/changelog/',
+        'https://tobs.app/changelog/',
         '_blank',
         'noopener,noreferrer',
       );
