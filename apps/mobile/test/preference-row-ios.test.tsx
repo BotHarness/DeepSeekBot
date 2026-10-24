@@ -50,8 +50,18 @@ vi.mock('@expo/ui/swift-ui', () => {
         {children}
       </select>
     ),
-    Text: ({ children, modifiers }: { children: ReactNode; modifiers: { value: string }[] }) => (
-      <option value={modifiers[0]!.value}>{children}</option>
+    Label: ({
+      title,
+      systemImage,
+      modifiers,
+    }: {
+      title: string;
+      systemImage: string;
+      modifiers: { value: string }[];
+    }) => (
+      <option value={modifiers[0]!.value} data-symbol={systemImage}>
+        {title}
+      </option>
     ),
   };
 });
@@ -74,7 +84,7 @@ it.each(['light', 'dark'] as const)(
   async (scheme) => {
     const changed = vi.fn();
     function Screen() {
-      const [value, setValue] = useState<'system' | 'dark'>('system');
+      const [value, setValue] = useState<'system' | 'light' | 'dark'>('system');
       return (
         <DesignThemeProvider appearance={{ scheme }}>
           <PreferenceRow
@@ -84,6 +94,7 @@ it.each(['light', 'dark'] as const)(
             value={value}
             options={[
               { value: 'system', label: 'Follow system', icon: 'system' },
+              { value: 'light', label: 'Light', icon: 'light' },
               { value: 'dark', label: 'Dark', icon: 'dark' },
             ]}
             onChange={(next) => {
@@ -105,6 +116,17 @@ it.each(['light', 'dark'] as const)(
       expect(trigger.getAttribute('aria-label')).toBe('Appearance, Follow system');
       expect(label.querySelector('button')!.disabled).toBe(true);
       const picker = host.querySelector('select')!;
+      expect(
+        [...picker.options].map((option) => [
+          option.value,
+          option.textContent,
+          option.dataset.symbol,
+        ]),
+      ).toEqual([
+        ['system', 'Follow system', 'iphone'],
+        ['light', 'Light', 'sun.max'],
+        ['dark', 'Dark', 'moon'],
+      ]);
       await act(async () => {
         picker.value = 'dark';
         picker.dispatchEvent(new Event('change', { bubbles: true }));
@@ -113,6 +135,69 @@ it.each(['light', 'dark'] as const)(
       expect(host.querySelector('[data-testid="settings-appearance"]')).toBe(trigger);
       expect(trigger.getAttribute('aria-label')).toBe('Appearance, Dark');
       expect(label.textContent).toBe('AppearanceDark');
+    } finally {
+      await act(async () => root.unmount());
+    }
+  },
+);
+
+it.each(['light', 'dark'] as const)(
+  'keeps language tags, native symbols and the selected language in %s appearance',
+  async (scheme) => {
+    const changed = vi.fn();
+    function Screen() {
+      const [value, setValue] = useState<'system' | 'zh' | 'en'>('system');
+      return (
+        <DesignThemeProvider appearance={{ scheme }}>
+          <PreferenceRow
+            title="Language"
+            icon="language"
+            testID="settings-language"
+            value={value}
+            options={[
+              { value: 'system', label: 'Follow system', icon: 'system' },
+              { value: 'zh', label: '简体中文', icon: 'language' },
+              { value: 'en', label: 'English', icon: 'language' },
+            ]}
+            onChange={(next) => {
+              changed(next);
+              setValue(next);
+            }}
+          />
+        </DesignThemeProvider>
+      );
+    }
+    const host = document.createElement('div');
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(<Screen />));
+      const trigger = host.querySelector('[data-testid="settings-language"]')!;
+      const picker = host.querySelector('select')!;
+      expect(
+        [...picker.options].map((option) => [
+          option.value,
+          option.textContent,
+          option.dataset.symbol,
+        ]),
+      ).toEqual([
+        ['system', 'Follow system', 'iphone'],
+        ['zh', '简体中文', 'globe'],
+        ['en', 'English', 'globe'],
+      ]);
+      for (const [value, label] of [
+        ['zh', '简体中文'],
+        ['en', 'English'],
+        ['system', 'Follow system'],
+      ]) {
+        await act(async () => {
+          picker.value = value!;
+          picker.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+        expect(changed).toHaveBeenLastCalledWith(value);
+        expect(picker.value).toBe(value);
+        expect(host.querySelector('[data-testid="settings-language"]')).toBe(trigger);
+        expect(trigger.getAttribute('aria-label')).toBe(`Language, ${label}`);
+      }
     } finally {
       await act(async () => root.unmount());
     }
