@@ -6,7 +6,7 @@ const chinese = require('./locales/zh-Hans.json');
 module.exports = (config) => {
   const store = process.env.DEEPSEEKBOT_APP_VARIANT === 'store';
   const englishName = store ? 'Tobs' : 'Tobs Dev';
-  const chineseName = store ? '托布' : '托布 Dev';
+  const chineseName = store ? '托布 Tobs' : '托布 Tobs Dev';
   config.locales = {
     ...config.locales,
     'zh-Hans': { ios: { ...chinese.ios, CFBundleDisplayName: chineseName } },

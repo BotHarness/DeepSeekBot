@@ -8,7 +8,7 @@ afterEach(() => interfacePreferences.setLanguage('system'));
 
 it.each([
   ['en', 'Tobs'],
-  ['zh', '托布'],
+  ['zh', '托布 Tobs'],
 ] as const)(
   'uses the iOS brand after switching to %s without renaming compatibility keys',
   (language, name) => {
