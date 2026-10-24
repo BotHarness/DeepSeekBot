@@ -172,6 +172,7 @@ patchedDependencies:
   '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2': c02d991e1c83a16bccce25bd47847fe9e5c97117ff3d0b6b04ef9f8edb273c9d
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.2': 4b2e510cb0df4904b95b99936edd4cdaec5b19438561254906b3abf0d2c3b204
   dockview-core@8.4.1: 6d5f9165424be95472edbb4e667b16cf9abd150f139d3524cc1ca9a6b7863b86
+  driver.js@1.4.0: 8a40a49dab438a95149a79e5ebdd5efd8726a32b83c223c99bdead8fb0aea404
   expo-quick-actions@6.0.2: 2d9cefa269045271145e1989e004232aac3c206249494311d39f49c13293dddb
 
 importers:
@@ -610,7 +611,7 @@ importers:
         version: 8.4.1(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       driver.js:
         specifier: 1.4.0
-        version: 1.4.0
+        version: 1.4.0(patch_hash=8a40a49dab438a95149a79e5ebdd5efd8726a32b83c223c99bdead8fb0aea404)
       html-to-image:
         specifier: 1.11.13
         version: 1.11.13
@@ -22406,7 +22407,7 @@ snapshots:
 
   dotenv@17.4.2: {}
 
-  driver.js@1.4.0: {}
+  driver.js@1.4.0(patch_hash=8a40a49dab438a95149a79e5ebdd5efd8726a32b83c223c99bdead8fb0aea404): {}
 
   dset@3.1.4: {}
 

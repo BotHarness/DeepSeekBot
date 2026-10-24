@@ -411,3 +411,4 @@ patchedDependencies:
   '@deepseek-ai/dsh-llm-pi-ai@0.2.1-rc.2': patches/@deepseek-ai__dsh-llm-pi-ai@0.2.1-rc.2.patch
   dockview-core@8.4.1: patches/dockview-core@8.4.1.patch
   expo-quick-actions@6.0.2: patches/expo-quick-actions@6.0.2.patch
+  driver.js@1.4.0: patches/driver.js@1.4.0.patch
