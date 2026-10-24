@@ -446,10 +446,10 @@ The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis wate
 ### DSH 0.2.1-rc.3 upgrade
 
 The development CLI and SDK pin is rc.3. Preserve the independently pinned rc.2
-`dsh-client-ui-theme` build input: its copied Desktop zoom adapter is qualified only for
-rc.2 and still refuses rc.3. The ordinary rc.3 Host supplies its own native theme. Do not
-widen the zoom lease or installer guard based on matching source hashes alone; native
-Desktop qualification remains separate. Keep Provider build provenance unchanged.
+`dsh-client-ui-theme` build input for reproducibility. The copied Desktop zoom adapter
+now checks protocol and content integrity instead of rejecting another rc label. Ordinary
+Hosts supply their own native theme unless the optional override is explicitly installed.
+Native Desktop qualification remains separate. Keep Provider build provenance unchanged.
 The rc.3 file-tool and Go Session patches retain the reviewed rc.2 implementation.
 
 ### Forward-compatible launch admission (#2713)
