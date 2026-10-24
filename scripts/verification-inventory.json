@@ -2302,6 +2302,14 @@
       "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA.",
       "task": 2731,
       "sha256": "70e000a0d26b20f7658f88cad4cc3e33f01fb62afa201569ee8ca874c561171b"
+    },
+    {
+      "path": "scripts/e2e-timeline-navigation.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
+      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup.",
+      "task": 2748,
+      "sha256": "8f05212a80836e83e84e1f9967275e7a57c18e597c6df3b3ed6d0b10a78dbcd6"
     }
   ],
   "native": [

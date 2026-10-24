@@ -3027,15 +3027,6 @@ function ConversationView({
               </div>
             ) : null}
           </div>
-          {activeMemoryView === undefined && (unseen > 0 || conversation.timeline.hasNewer) ? (
-            <button type="button" className="bh-timeline-new" onClick={jumpToLatest}>
-              {conversation.timeline.hasNewer
-                ? t('messages.latest')
-                : t(unseen === 1 ? 'messages.unseenOne' : 'messages.unseen', {
-                    count: unseen,
-                  })}
-            </button>
-          ) : null}
           {activeMemoryView === undefined && restoreBlocked ? (
             <div className="bh-note" role="alert">
               {t('message.restoreBlocked')}
@@ -3059,6 +3050,24 @@ function ConversationView({
                 } else void exportSelectionImage(selectedIds);
               }}
             />
+          ) : null}
+          {activeMemoryView === undefined &&
+          selectedIds === undefined &&
+          (!atLatest || unseen > 0 || conversation.timeline.hasNewer) ? (
+            <div className="bh-timeline-jump-anchor">
+              <button
+                type="button"
+                className="bh-timeline-new"
+                aria-label={t('messages.latest')}
+                onClick={jumpToLatest}
+              >
+                {unseen > 0
+                  ? t(unseen === 1 ? 'messages.unseenOne' : 'messages.unseen', {
+                      count: unseen,
+                    })
+                  : t('messages.latest')}
+              </button>
+            </div>
           ) : null}
           {readOnlyDm && selectedIds === undefined ? (
             <div className="bh-bot-dm-readonly">

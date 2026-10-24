@@ -3764,12 +3764,18 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
     display: none;
   }
 }
+.bh-timeline-jump-anchor {
+  position: relative;
+  flex: none;
+  height: 0;
+  z-index: 2;
+}
 .bh-timeline-new {
   position: absolute;
   z-index: 2;
-  bottom: calc(82px + var(--bh-activity-overlay-inset, 0px));
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: calc(${space.x3} + var(--bh-activity-overlay-inset, 0px));
+  right: ${space.x4};
+  max-width: calc(100% - ${space.x4} * 2);
   border: ${border.hairline} solid ${color.border};
   border-radius: 999px;
   padding: ${space.x2} ${space.x4};
@@ -3778,6 +3784,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   box-shadow: 0 4px 16px color-mix(in srgb, var(--dsw-alias-label-primary) 12%, transparent);
   cursor: pointer;
 }
+.bh-timeline-new:hover { background: ${color.hover}; }
+.bh-timeline-new:focus-visible { outline: ${border.focus} solid ${color.accent}; }
 
 .bh-inline-mention {
   border-radius: ${radius.xs};
