@@ -1,3 +1,4 @@
+export type * from './help-api.js';
 import type { ComponentType } from 'react';
 
 export interface DockPanelChannel {
@@ -73,6 +74,7 @@ export interface BotPresentation {
   bots(): readonly { id: string; name: string }[];
 }
 export interface PanelServices {
+  clientHelp: import('./help-api.js').ClientHelpService;
   botPresentation: BotPresentation;
   dockPanels: DockPanelRegistry;
 }

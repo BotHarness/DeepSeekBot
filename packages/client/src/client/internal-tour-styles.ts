@@ -7,6 +7,8 @@ const DRIVER_CSS = `
 export const INTERNAL_TOUR_CSS =
   DRIVER_CSS +
   `
+.driver-active .bh-help-owned-popup, .driver-active .bh-help-owned-popup * { pointer-events: auto; }
+.driver-active .bh-help-owned-popup { z-index: 1000000001 !important; }
 .driver-popover.bh-internal-tour {
  max-width: min(300px, calc(100vw - 32px));
  font: inherit;

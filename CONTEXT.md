@@ -845,6 +845,10 @@ The following Panel categories name the agreed authoring target from the [Panel 
 A Panel with a purpose independent of the active Channel and without a required binding to one PersonaBot or Channel, such as the Profile-wide Task Kanban.
 _Avoid_: global Channel, all-Bot permission
 
+**User guide panel**:
+The agreed Global Panel for learning Panel concepts, finding answers to common questions and choosing optional guided walkthroughs. It brings together help from built-in features and installed Plugins without owning the settings or operations it explains.
+_Avoid_: setup wizard, Channel subpanel, settings panel
+
 **Bot-bound Panel**:
 A Panel whose subject is one PersonaBot, such as a Bot's 3D companion. Within Messages it follows the PersonaBot DM and is absent from Group Channels; an explicitly bound Global-workspace instance retains its selected Bot independently of Channel selection.
 _Avoid_: fixed Panel, fixed-position Panel, Bot-only Channel subpanel

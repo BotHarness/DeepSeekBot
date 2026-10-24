@@ -1,3 +1,4 @@
+import { USER_GUIDE_PANEL } from './user-guide.js';
 import { Menu } from './appearance-primitives.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
@@ -252,6 +253,7 @@ function WorkspaceRail({
       ...panels
         .filter(
           (panel) =>
+            panel.id !== USER_GUIDE_PANEL &&
             panel.id !== 'members' &&
             panel.id !== 'bot-inbox' &&
             !CHANNEL_WORKSPACE_PANELS.includes(panel.id) &&
@@ -311,6 +313,7 @@ function WorkspaceRail({
               order={order}
               onOrderChange={setOrder}
               hiddenIds={[
+                USER_GUIDE_PANEL,
                 'members',
                 'bot-inbox',
                 ...CHANNEL_WORKSPACE_PANELS,
@@ -405,6 +408,15 @@ function WorkspaceRail({
           settingsTarget,
         )}
 
+      <Tooltip label={t('guide.title')} side="right">
+        <button
+          type="button"
+          aria-label={t('guide.title')}
+          onClick={() => options.dockPanels?.open(USER_GUIDE_PANEL)}
+        >
+          <ChannelSidebarIcon name="info" />
+        </button>
+      </Tooltip>
       <Tooltip label={t('panel.settings')} side="right">
         <button aria-label={t('panel.settings')} onClick={() => options.openBotSettings()}>
           <ChannelSidebarIcon name="settings" />

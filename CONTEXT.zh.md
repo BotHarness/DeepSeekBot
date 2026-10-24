@@ -842,6 +842,10 @@ _避免使用_：Dock panel、widget、view、pane、sidebar、DSH main panel
 全局面板。具有独立于当前 Channel 的用途，不要求绑定某个 PersonaBot 或 Channel，例如当前 Profile 内共享的 Task Kanban。
 _避免使用_：全局频道、所有 Bot 的访问权限
 
+**User guide panel**：
+使用指南面板。已确认设计中的全局面板，用于认识面板概念、查找常见问题的答案，以及选择可选的操作引导；汇总内置功能与已安装插件提供的帮助，不拥有所介绍设置或操作的管理权。
+_避免使用_：初始化向导、频道子面板、设置面板
+
 **Bot-bound Panel**：
 绑定 Bot 的面板。以一个 PersonaBot 为对象，例如 Bot 的 3D 陪伴角色。在消息面板内跟随 PersonaBot 私聊，在群聊内不显示；显式绑定的全局工作区实例保留所选 Bot，不随当前频道选择变化。
 _避免使用_：固定面板、固定位置面板、Bot 专属频道子面板

@@ -797,6 +797,13 @@
       "source": "packages/core/src/devices/ssh-tunnel.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/ssh-host.md",
       "task": 2607
+    },
+    {
+      "id": "desktop.user-guide",
+      "label": "Model FAQ, real guide, temporary layout and draft-only Tob handoff",
+      "source": "packages/client/src/client/user-guide.tsx",
+      "task": 2717,
+      "guide": ".agents/skills/verify-deepseekbot/features/user-guide.md"
     }
   ],
   "scripts": [
@@ -2278,6 +2285,14 @@
       "reason": "Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
       "task": 2270,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-user-guide.mjs",
+      "sha256": "29998d9ede11f908694e10dcf130e2f97b5b70df94f40194d1aab5998da1bf45",
+      "category": "mapped",
+      "reason": "Task-owned real Client model-guide journey; S1 qualification remains pending.",
+      "task": 2717,
+      "behaviors": ["desktop.user-guide"]
     }
   ],
   "native": [

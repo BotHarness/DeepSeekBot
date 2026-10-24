@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { en } from '../src/client/locale.js';
 import {
+  startHelpTour,
   resolveTourSteps,
   startInternalTour,
   type InternalTourOptions,
@@ -297,4 +298,73 @@ it('continues step numbering when one walkthrough spans two tours', async () => 
   );
   await vi.advanceTimersByTimeAsync(50);
   expect(document.querySelector('.driver-popover-progress-text')?.textContent).toBe('3 / 4');
+});
+
+it('resolves operation targets lazily and refuses mask or Next before semantic completion', async () => {
+  const first = document.createElement('button');
+  document.body.append(first);
+  let committed = false;
+  const end = vi.fn();
+  const progress = vi.fn();
+  const controller = new AbortController();
+  stop = startHelpTour(
+    [
+      {
+        title: { en: 'Change' },
+        description: { en: '<script>not markup</script>' },
+        resolve: () => first,
+        complete: () => committed,
+      },
+    ],
+    controller.signal,
+    (value) => value.en,
+    { close: 'Exit', previous: 'Previous', next: 'Next', done: 'Done' },
+    progress,
+    end,
+  );
+  await vi.advanceTimersByTimeAsync(100);
+  const next = document.querySelector<HTMLButtonElement>('.driver-popover-next-btn')!;
+  expect(next.disabled).toBe(true);
+  document
+    .querySelector('.driver-overlay')
+    ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  next.click();
+  expect(end).not.toHaveBeenCalled();
+  expect(document.querySelector('.driver-popover script')).toBeNull();
+  committed = true;
+  await vi.advanceTimersByTimeAsync(100);
+  next.click();
+  expect(end).toHaveBeenCalledWith('completed');
+  controller.abort();
+  expect(document.querySelector('.driver-popover')).toBeNull();
+});
+
+it('releases only semantic popup ownership on abort and ends when its target disappears', async () => {
+  const dialog = document.createElement('div');
+  const input = document.createElement('input');
+  input.setAttribute('aria-controls', 'model-options');
+  dialog.append(input);
+  const popup = document.createElement('div');
+  popup.id = 'model-options';
+  const unrelated = document.createElement('div');
+  unrelated.id = 'other-options';
+  document.body.append(dialog, popup, unrelated);
+  const controller = new AbortController();
+  const end = vi.fn();
+  stop = startHelpTour(
+    [{ title: { en: 'Pick' }, description: { en: 'Choose' }, resolve: () => dialog }],
+    controller.signal,
+    (v) => v.en,
+    { close: 'Exit', previous: 'Previous', next: 'Next', done: 'Done' },
+    () => {},
+    end,
+  );
+  await vi.advanceTimersByTimeAsync(200);
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(true);
+  expect(unrelated.classList.contains('bh-help-owned-popup')).toBe(false);
+  dialog.remove();
+  await vi.advanceTimersByTimeAsync(100);
+  expect(end).toHaveBeenCalledWith('target-unavailable');
+  controller.abort();
+  expect(popup.classList.contains('bh-help-owned-popup')).toBe(false);
 });

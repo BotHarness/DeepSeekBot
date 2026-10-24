@@ -3,6 +3,28 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'guide.language': 'zh',
+  'guide.title': '使用指南',
+  'guide.search': '搜索问题',
+  'guide.topics': '选择主题或面板',
+  'guide.common': '常见问题',
+  'guide.empty': '此选项暂无帮助内容。',
+  'guide.back': '返回问题列表',
+  'guide.target': '选择目标',
+  'guide.start': '带我操作',
+  'guide.ask': '问托布',
+  'guide.insert': '插入问题',
+  'guide.exit': '退出教程',
+  'guide.failed': '无法继续，请检查所选 Bot 后重试。',
+  'guide.draft': '问题已准备好，由你决定何时发送。已有草稿会保留。',
+  'guide.completed': '教程已完成，已保存的修改会保留。',
+  'guide.interrupted': '当前界面已变化，教程已结束。',
+  'guide.next': '下一步',
+  'guide.previous': '上一步',
+  'guide.done': '完成',
+  'guide.question':
+    '请帮我查看并更换名为“{name}”的 Bot 的对话模型。如果有多个同名 Bot，请先向我确认目标再修改。',
+
   'remoteViewer.browser': '浏览器',
   'remoteViewer.computer': '电脑',
   'remoteViewer.live': '实时',
@@ -4233,6 +4255,28 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'guide.language': 'en',
+  'guide.title': 'User guide',
+  'guide.search': 'Search questions',
+  'guide.topics': 'Choose a topic or panel',
+  'guide.common': 'Common questions',
+  'guide.empty': 'No help is available for this selection yet.',
+  'guide.back': 'All questions',
+  'guide.target': 'Choose a target',
+  'guide.start': 'Guide me',
+  'guide.ask': 'Ask Tob',
+  'guide.insert': 'Insert question',
+  'guide.exit': 'Exit guide',
+  'guide.failed': 'Could not continue. Check the selected Bot and try again.',
+  'guide.draft': 'Your question is ready. Send it when you choose. Existing drafts are kept.',
+  'guide.completed': 'Guide complete. Your saved changes are kept.',
+  'guide.interrupted': 'The guide ended because its context changed.',
+  'guide.next': 'Next',
+  'guide.previous': 'Previous',
+  'guide.done': 'Done',
+  'guide.question':
+    'Please help me review and change the conversation model for the Bot named “{name}”. If several Bots have this name, ask me which one before changing anything.',
+
   'remoteViewer.browser': 'Browser',
   'remoteViewer.computer': 'Computer',
   'remoteViewer.live': 'Live',

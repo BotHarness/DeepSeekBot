@@ -507,6 +507,35 @@ function SceneMenu({
   );
 }
 export function apply(ctx: Context & PanelServices & { locale: LocaleRuntime }): void {
+  ctx.inject(['clientHelp'], (child) => {
+    const helpContext = child as Context & PanelServices;
+    helpContext.effect(() =>
+      helpContext.clientHelp.register({
+        id: 'vrm:help',
+        topics: [
+          {
+            id: 'vrm:companion-help',
+            panelId: 'botharness-vrm',
+            title: { en: 'VRM Companion', zh: 'VRM 陪伴' },
+            overview: {
+              en: 'A character that follows your Bot’s activity.',
+              zh: '跟随 Bot 活动的虚拟角色。',
+            },
+            questions: [
+              {
+                id: 'vrm:open-companion',
+                title: { en: 'Where can I open a character?', zh: '在哪里打开虚拟角色？' },
+                answer: {
+                  en: 'Open a Bot conversation and choose VRM Companion in the Messages header. Pin a character globally to keep it bound to that Bot. Hiding the panel does not stop the Bot.',
+                  zh: '打开 Bot 私聊，在消息标题栏选择 VRM 陪伴。可将角色固定到全局面板，保持绑定该 Bot。隐藏面板不会停止 Bot。',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+  });
   ctx.effect(() => {
     const release = ctx.locale.register(LOCALE_NS, { zh, en });
     i18n.t = ctx.locale.bind(LOCALE_NS);

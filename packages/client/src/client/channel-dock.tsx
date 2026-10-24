@@ -997,6 +997,9 @@ export function ChannelDock({
     ]);
   };
 
+  const guideLease = useRef<{ release(): void; invalidate(): void }>();
+  const guideRestoring = useRef(false);
+  const guideRestoreTimer = useRef<ReturnType<typeof setTimeout>>();
   const save = (target: DockviewApi): void => {
     hideBodyHeader(target);
     if (workspace) {
@@ -1006,6 +1009,7 @@ export function ChannelDock({
     const ids = target.panels.map((panel) => panel.id);
     setOpenIds(ids);
     reportOpen(target);
+    if (guideLease.current || guideRestoring.current) return;
     if (workspace || !readChannelDock(storage)?.layout.panels[WORKSPACE_RAIL]) {
       const persisted = writeChannelDock(
         {
@@ -1259,6 +1263,7 @@ export function ChannelDock({
 
   const registryMount = useMountedResource<HTMLDivElement>(() => {
     if (api === undefined) return;
+    guideLease.current?.invalidate();
     for (const panel of [...api.panels]) {
       if (
         panel.id === CHANNEL_BODY_PANEL ||
@@ -1288,6 +1293,16 @@ export function ChannelDock({
     }
     save(api);
   }, [api, byId]);
+
+  const guideContextMount = useMountedResource<HTMLSpanElement>(() => {
+    guideLease.current?.invalidate();
+    return () => {
+      guideLease.current?.invalidate();
+      guideLease.current?.release();
+      clearTimeout(guideRestoreTimer.current);
+      guideRestoring.current = false;
+    };
+  }, [channel?.id]);
 
   const inboxStateMount = useMountedResource<HTMLSpanElement>(() => {
     if (api) {
@@ -1412,11 +1427,85 @@ export function ChannelDock({
     if (!visibilityLayout.current?.panels[panelId]) delete parked.current[panelId];
   };
 
-  const layout = useRef({ open, close, canOpen });
-  layout.current = { open, close, canOpen };
+  const beginGuide = (onInvalidated: () => void): (() => void) => {
+    if (!api || guideLease.current) throw new Error('help_layout_unavailable');
+    const normal = {
+      layout: api.toJSON(),
+      parked: structuredClone(parked.current),
+      visibility: visibilityLayout.current,
+      gap: gapRef.current,
+      order: orderRef.current,
+      hidden: hiddenControlsRef.current,
+      members: membersRef.current,
+      botSeeds: botSeeds.current,
+      bots: botWorkspacesRef.current,
+      seed: seed.current,
+      channels: channelWorkspacesRef.current,
+      splits: channelSplitsRef.current,
+    };
+    let released = false;
+    let external = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      window.removeEventListener('storage', changed);
+      guideRestoring.current = true;
+      guideLease.current = undefined;
+      try {
+        const latest = external ? readChannelDock(storage) : undefined;
+        const base = latest?.layout ?? normal.layout;
+        const restored = pruneChannelDock(
+          base,
+          (id) => id === WORKSPACE_RAIL || id === CHANNEL_BODY_PANEL || known.current.has(id),
+        );
+        parked.current = { ...(latest?.parked ?? normal.parked) };
+        visibilityLayout.current = latest?.visibilityLayout ?? normal.visibility;
+        gapRef.current = latest?.gap ?? normal.gap;
+        updateGap(gapRef.current);
+        orderRef.current = latest?.order ?? normal.order;
+        updateOrder(orderRef.current);
+        hiddenControlsRef.current = latest?.hiddenControls ?? normal.hidden;
+        updateHiddenControls(hiddenControlsRef.current);
+        membersRef.current = latest?.members ?? normal.members;
+        updateMembers(membersRef.current);
+        botSeeds.current = latest?.botPanelSeeds ?? normal.botSeeds;
+        botWorkspacesRef.current = latest?.botWorkspaces ?? normal.bots;
+        updateBotWorkspaces(botWorkspacesRef.current);
+        seed.current = latest?.sessionSeed ?? normal.seed;
+        channelWorkspacesRef.current = latest?.channelWorkspaces ?? normal.channels;
+        updateChannelWorkspaces(channelWorkspacesRef.current);
+        channelSplitsRef.current = latest?.channelSplits ?? normal.splits;
+        updateChannelSplits(channelSplitsRef.current);
+        api.exitMaximizedGroup();
+        if (restored.layout) api.fromJSON(restored.layout, { reuseExistingPanels: true });
+        save(api);
+      } finally {
+        clearTimeout(guideRestoreTimer.current);
+        guideRestoreTimer.current = setTimeout(() => {
+          guideRestoring.current = false;
+        }, 0);
+      }
+    };
+    const changed = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== 'botharness.bot-mode-layout') return;
+      external = true;
+      onInvalidated();
+      release();
+    };
+    guideLease.current = { release, invalidate: onInvalidated };
+    window.addEventListener('storage', changed);
+    open(CHANNEL_BODY_PANEL);
+    const message = api.getPanel(CHANNEL_BODY_PANEL);
+    if (message && (message.api.width < 600 || message.api.height < 420)) message.api.maximize();
+    return release;
+  };
+
+  const layout = useRef({ open, close, canOpen, beginGuide });
+  layout.current = { open, close, canOpen, beginGuide };
   const layoutMount = useMountedResource<HTMLSpanElement>(() => {
     if (api === undefined || registry === undefined) return;
     return registry.attach({
+      beginGuide: (invalidated) => layout.current.beginGuide(invalidated),
       canOpen: (id) => layout.current.canOpen(id),
       open: (id) => layout.current.open(id),
       close: (id) => layout.current.close(id),
@@ -1431,6 +1520,7 @@ export function ChannelDock({
       onToggle={(id) => (api?.getPanel(id) === undefined ? open(id) : close(id))}
       onReset={() => {
         if (api === undefined) return;
+        guideLease.current?.invalidate();
         clearChannelDock(storage);
         parked.current = {};
         visibilityLayout.current = undefined;
@@ -1445,6 +1535,7 @@ export function ChannelDock({
 
   const reset = () => {
     if (!api) return;
+    guideLease.current?.invalidate();
     parked.current = {};
     visibilityLayout.current = undefined;
     unregistered.current = {};
@@ -1714,6 +1805,7 @@ export function ChannelDock({
           )}
           <span ref={inboxStateMount} hidden />
           <span ref={layoutMount} hidden />
+          <span ref={guideContextMount} hidden />
           <span ref={scrollbarsMount} hidden />
           <span ref={geometryMount} hidden />
           {dropX !== undefined && <span className="bh-workspace-drop" style={{ left: dropX }} />}

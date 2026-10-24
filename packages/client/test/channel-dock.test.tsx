@@ -1419,3 +1419,74 @@ it('refuses a newly registered Bot-bound Panel in a Group before the registry re
   await settle();
   expect(host.querySelector('[data-new-character]')).not.toBeNull();
 });
+
+it('keeps guide visibility changes out of normal storage and restores surviving panels', async () => {
+  const registry = createDockPanelRegistry();
+  registry.registerEntry(entry('sessions'));
+  registry.register({
+    id: 'example:help',
+    title: 'Help',
+    scope: 'global',
+    component: () => createElement('div', null, 'help'),
+  });
+  await render(registry.panels(), 'personabot', {
+    channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada' },
+    registry,
+  });
+  const normal = values.get(CHANNEL_DOCK_STORAGE_KEY);
+  const writes = vi.spyOn(storage, 'setItem');
+  writes.mockClear();
+  let release!: () => void;
+  act(() => {
+    release = registry.beginGuide(() => {});
+    registry.open('example:help');
+    registry.close('sessions');
+  });
+  await settle();
+  expect(registry.isOpen('example:help')).toBe(true);
+  expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBe(normal);
+  act(() => release());
+  await settle();
+  expect(registry.isOpen('example:help')).toBe(false);
+  expect(registry.isOpen('sessions')).toBe(true);
+  expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBe(normal);
+  expect(writes).not.toHaveBeenCalled();
+  writes.mockRestore();
+});
+
+it('reveals a newer normal layout on an external Client update without overwriting it', async () => {
+  const registry = createDockPanelRegistry();
+  registry.registerEntry(entry('sessions'));
+  registry.register({
+    id: 'example:help',
+    title: 'Help',
+    scope: 'global',
+    component: () => createElement('div'),
+  });
+  await render(registry.panels(), 'personabot', {
+    channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada' },
+    registry,
+  });
+  const newer = JSON.parse(values.get(CHANNEL_DOCK_STORAGE_KEY)!);
+  newer.gap = 12;
+  let release!: () => void;
+  const invalidate = vi.fn(() => release());
+  act(() => {
+    release = registry.beginGuide(invalidate);
+    registry.open('example:help');
+  });
+  await settle();
+  values.set(CHANNEL_DOCK_STORAGE_KEY, JSON.stringify(newer));
+  act(() =>
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: CHANNEL_DOCK_STORAGE_KEY,
+        newValue: JSON.stringify(newer),
+      }),
+    ),
+  );
+  await settle();
+  expect(invalidate).toHaveBeenCalledOnce();
+  expect(registry.isOpen('example:help')).toBe(false);
+  expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBe(JSON.stringify(newer));
+});

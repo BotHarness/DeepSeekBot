@@ -240,3 +240,130 @@ export function startInternalTour(
     tour?.destroy();
   };
 }
+
+export function startHelpTour(
+  steps: readonly import('../help-api.js').HelpStep[],
+  signal: AbortSignal,
+  text: (value: import('../help-api.js').HelpText) => string,
+  labels: { close: string; previous: string; next: string; done: string },
+  progress: (step: number) => void,
+  end: (reason: string) => void,
+): () => void {
+  const html = (value: string) =>
+    value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  let index = 0;
+  let target: Element | undefined;
+  let deadline = Date.now() + FIRST_STEP_TIMEOUT_MS;
+  let stopped = false;
+  const previous = document.activeElement;
+  let nextButton: HTMLButtonElement | undefined;
+  const portals = new Set<Element>();
+  const syncPortals = () => {
+    const current = new Set<Element>();
+    for (const control of target?.querySelectorAll('[aria-controls]') ?? []) {
+      for (const id of (control.getAttribute('aria-controls') ?? '').split(/\s+/)) {
+        const popup = document.getElementById(id);
+        if (popup && !target?.contains(popup)) current.add(popup);
+      }
+    }
+    for (const popup of portals)
+      if (!current.has(popup)) {
+        popup.classList.remove('bh-help-owned-popup');
+        portals.delete(popup);
+      }
+    for (const popup of current) {
+      popup.classList.add('bh-help-owned-popup');
+      portals.add(popup);
+    }
+  };
+  const tour = driver({
+    animate: !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    smoothScroll: false,
+    allowKeyboardControl: false,
+    overlayColor: 'var(--dsw-alias-bg-mask-1)',
+    overlayOpacity: 1,
+    popoverClass: 'bh-internal-tour',
+    overlayClickBehavior: () => {},
+    onCloseClick: () => end('closed'),
+    onPopoverRender(popover) {
+      popover.wrapper.setAttribute('role', 'dialog');
+      popover.wrapper.setAttribute('aria-label', text(steps[index]!.title));
+      popover.closeButton.setAttribute('aria-label', labels.close);
+      nextButton = popover.nextButton;
+      nextButton.disabled = steps[index]?.complete?.() === false;
+      popover.closeButton.focus();
+    },
+  });
+  const show = () => {
+    syncPortals();
+    const step = steps[index];
+    if (!step) {
+      end('completed');
+      return;
+    }
+    const resolved = step.resolve();
+    if (!resolved?.isConnected) {
+      if (target || Date.now() > deadline) end('target-unavailable');
+      return;
+    }
+    if (resolved === target) {
+      if (nextButton) nextButton.disabled = step.complete?.() === false;
+      tour.refresh();
+      return;
+    }
+    target = resolved;
+    tour.highlight({
+      element: target,
+      popover: {
+        title: html(text(step.title)),
+        description: html(text(step.description)),
+        showButtons: ['previous', 'next', 'close'],
+        prevBtnText: labels.previous,
+        nextBtnText: index === steps.length - 1 ? labels.done : labels.next,
+        onPrevClick() {
+          if (index === 0) return;
+          index--;
+          target = undefined;
+          deadline = Date.now() + FIRST_STEP_TIMEOUT_MS;
+          progress(index);
+          show();
+        },
+        onNextClick() {
+          if (step.complete?.() === false) return;
+          index++;
+          target = undefined;
+          deadline = Date.now() + FIRST_STEP_TIMEOUT_MS;
+          progress(index);
+          show();
+        },
+      },
+    });
+  };
+  const escape = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    end('closed');
+  };
+  const timer = setInterval(show, 100);
+  const dispose = () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(timer);
+    document.removeEventListener('keydown', escape, true);
+    signal.removeEventListener('abort', dispose);
+    tour.destroy();
+    for (const popup of portals) popup.classList.remove('bh-help-owned-popup');
+    portals.clear();
+    if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
+  };
+  document.addEventListener('keydown', escape, true);
+  signal.addEventListener('abort', dispose, { once: true });
+  if (signal.aborted) dispose();
+  else show();
+  return dispose;
+}

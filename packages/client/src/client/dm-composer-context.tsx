@@ -408,6 +408,7 @@ function DmComposerContextView({
       >
         <ChipButton
           data-composer-chip="model"
+          data-help-model-trigger={bot.slug}
           collapseLabel
           icon={<ChannelSidebarIcon name="cpu" size={14} />}
           label={modelLabel}
@@ -459,7 +460,7 @@ function DmComposerContextView({
           onClose={onClose}
         >
           {panel === 'model' ? (
-            <>
+            <div data-help-model-dialog={bot.slug}>
               <ModelPicker
                 title={t('composerModel.title')}
                 hint={t('composerModel.scope')}
@@ -502,7 +503,7 @@ function DmComposerContextView({
               <Button variant="ghost" onClick={() => onOpen('model-settings')}>
                 {t('composerModel.taskSettings')}
               </Button>
-            </>
+            </div>
           ) : panel === 'model-settings' ? (
             <ModelPresetProfile slug={bot.slug} actions={actions} t={t} />
           ) : (
