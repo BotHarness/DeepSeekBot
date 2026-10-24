@@ -83,8 +83,8 @@ it.each(['light', 'dark'] as const)(
             testID="settings-appearance"
             value={value}
             options={[
-              { value: 'system', label: 'Follow system' },
-              { value: 'dark', label: 'Dark' },
+              { value: 'system', label: 'Follow system', icon: 'system' },
+              { value: 'dark', label: 'Dark', icon: 'dark' },
             ]}
             onChange={(next) => {
               changed(next);

@@ -7,7 +7,6 @@ import { materialMenu } from '../design/tokens';
 import { MaterialMenuGroup } from './material-menu.android';
 import { SettingsRow } from './settings-row';
 import { RowIcon } from './row-icon';
-import { CheckIcon } from '../shell/icons';
 import type { PreferenceRowProps } from './preference-row';
 
 export function PreferenceRow<T extends string>({
@@ -47,8 +46,9 @@ export function PreferenceRow<T extends string>({
                   selected: option.value === value,
                   testID: `${testID}-${option.value}`,
                   icon: (
-                    <CheckIcon
-                      color={option.value === value ? theme.color.accent : 'transparent'}
+                    <RowIcon
+                      name={option.icon}
+                      color={option.value === value ? theme.color.accent : theme.color.fg}
                       size={materialMenu.iconSize}
                     />
                   ),

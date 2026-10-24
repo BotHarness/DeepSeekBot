@@ -70,7 +70,7 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
             modifiers={[
               fillMaxWidth(),
               clip(shape),
-              ...(item.selected ? [background(colors.tertiaryContainer)] : []),
+              ...(item.selected ? [background(theme.layer.sheet.chosen)] : []),
               ...(item.testID ? [testID(item.testID)] : []),
               ...(item.disabled
                 ? []
@@ -95,7 +95,7 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
                 item.disabled
                   ? theme.color.subtle
                   : item.selected
-                    ? colors.onTertiaryContainer
+                    ? theme.color.fg
                     : item.destructive
                       ? theme.color.danger
                       : colors.onSurface
@@ -109,7 +109,7 @@ export function MaterialMenuGroup({ items }: { items: readonly MaterialMenuItem[
               <RNHostView matchContents>
                 <SystemSymbol
                   name={{ ios: 'checkmark', android: 'check' }}
-                  color={colors.onTertiaryContainer}
+                  color={theme.color.accent}
                   size={materialMenu.iconSize}
                 />
               </RNHostView>
