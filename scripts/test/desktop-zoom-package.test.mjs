@@ -16,7 +16,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { preparePackagedDesktopZoomTheme, ZOOM_THEME_HASHES } from '../desktop-zoom-compat.mjs';
+import {
+  prepareDesktopZoomCompatibility,
+  preparePackagedDesktopZoomTheme,
+  ZOOM_THEME_HASHES,
+} from '../desktop-zoom-compat.mjs';
 import { parseProductComposition } from '../packaged-profile.mjs';
 
 const source = realpathSync(
@@ -36,6 +40,54 @@ afterEach(() => {
 });
 
 describe('product-owned desktop theme payload', () => {
+  it.each([
+    ['manifest', 'zoom-theme-version-unsupported', 'zoom-theme-version-unsupported'],
+    ['host', 'zoom-theme-host-unsupported', 'zoom-theme-version-unsupported'],
+    ['client', 'zoom-theme-build-unsupported', 'zoom-theme-build-unsupported'],
+    ['both', 'zoom-theme-build-unsupported', 'zoom-theme-version-unsupported'],
+  ])(
+    'preserves entry-specific refusal precedence for %s mutations',
+    (mutation, localError, packagedError) => {
+      const root = temporary();
+      const changed = join(root, 'changed');
+      cpSync(source, changed, {
+        recursive: true,
+        filter: (path) => !relative(source, path).split(sep).includes('node_modules'),
+      });
+      if (mutation === 'manifest') {
+        const manifest = JSON.parse(readFileSync(join(changed, 'package.json'), 'utf8'));
+        manifest.version = '0.2.1-rc.3';
+        writeFileSync(join(changed, 'package.json'), JSON.stringify(manifest));
+      }
+      if (mutation === 'host' || mutation === 'both')
+        writeFileSync(join(changed, 'lib/index.js'), 'unqualified');
+      if (mutation === 'client' || mutation === 'both')
+        writeFileSync(join(changed, 'lib/client.js'), 'unqualified');
+      for (const [prepare, error, name] of [
+        [prepareDesktopZoomCompatibility, localError, 'local'],
+        [preparePackagedDesktopZoomTheme, packagedError, 'packaged'],
+      ]) {
+        const target = join(root, name);
+        expect(() => prepare({ source: changed, target })).toThrow(error);
+        expect(existsSync(target)).toBe(false);
+      }
+    },
+  );
+
+  it('shares transformed client bytes while retaining local fresh-directory semantics', () => {
+    const root = temporary();
+    const local = join(root, 'local');
+    const packaged = join(root, 'packaged');
+    prepareDesktopZoomCompatibility({ source, target: local });
+    preparePackagedDesktopZoomTheme({ source, target: packaged });
+    expect(readFileSync(join(local, 'lib/client.js'))).toEqual(
+      readFileSync(join(packaged, 'lib/client.js')),
+    );
+    expect(() => prepareDesktopZoomCompatibility({ source, target: local })).toThrow(
+      'zoom-target-must-be-new',
+    );
+  });
+
   it('keeps a complete licensed package and resolves its Host schema relative to a relocated product', async () => {
     const root = temporary();
     const product = join(root, 'product');

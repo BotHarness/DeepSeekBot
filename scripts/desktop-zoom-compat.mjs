@@ -58,55 +58,71 @@ export function adaptZoomTheme(client) {
     .replace(call, adapter)
     .replace(start, 'function installFontSizeShortcuts(ctx, adjust) {\n\t\t\treturn ctx.inject(');
 }
+function transformZoomTheme(source, { packaged = false, schemaModule } = {}) {
+  const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
+  const supported =
+    manifest.name === '@deepseek-ai/dsh-client-ui-theme' &&
+    manifest.version === ZOOM_THEME_VERSION &&
+    manifest.license === 'MIT';
+  if (!packaged && !supported) throw Error('zoom-theme-version-unsupported');
+  const client = readFileSync(join(source, 'lib/client.js'), 'utf8');
+  const host = readFileSync(join(source, 'lib/index.js'), 'utf8');
+  if (packaged && (!supported || hash(host) !== ZOOM_THEME_HASHES.host))
+    throw Error('zoom-theme-version-unsupported');
+  const adapted = adaptZoomTheme(client);
+  if (!packaged && hash(host) !== ZOOM_THEME_HASHES.host)
+    throw Error('zoom-theme-host-unsupported');
+  let schemaSpecifier = '"../../dist/theme-schema.mjs"';
+  if (!packaged) {
+    const schema =
+      schemaModule ??
+      join(
+        dirname(createRequire(join(source, 'package.json')).resolve('@deepseek-ai/schemastery')),
+        'index.mjs',
+      );
+    if (!existsSync(schema) || !existsSync(join(source, 'LICENSE')))
+      throw Error('zoom-theme-dependency-unavailable');
+    schemaSpecifier = JSON.stringify(pathToFileURL(schema).href);
+  }
+  const specifier = '"@deepseek-ai/schemastery"';
+  if (host.split(specifier).length !== 2) throw Error('zoom-theme-host-shape-unsupported');
+  return {
+    manifest,
+    client: adapted,
+    host: host.replace(specifier, schemaSpecifier),
+    provenance: {
+      adapterVersion: 1,
+      sourceVersion: manifest.version,
+      clientBefore: hash(client),
+      clientAfter: hash(adapted),
+      hostBefore: hash(host),
+      sourceModified: false,
+      platforms: ['macos', 'windows'],
+      changes: [
+        'lease-owned font shortcut handoff',
+        packaged ? 'portable product-owned schema module' : 'canonical schema module import',
+      ],
+    },
+  };
+}
 export function prepareDesktopZoomCompatibility({ source, target, schemaModule }) {
   source = realpathSync(source);
   target = resolve(target);
   const path = relative(source, target);
   if (!(path === '..' || path.startsWith(`..${sep}`) || isAbsolute(path)) || existsSync(target))
     throw Error('zoom-target-must-be-new');
-  const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
-  if (
-    manifest.name !== '@deepseek-ai/dsh-client-ui-theme' ||
-    manifest.version !== ZOOM_THEME_VERSION ||
-    manifest.license !== 'MIT'
-  )
-    throw Error('zoom-theme-version-unsupported');
-  const before = readFileSync(join(source, 'lib/client.js'), 'utf8');
-  const host = readFileSync(join(source, 'lib/index.js'), 'utf8');
-  const after = adaptZoomTheme(before);
-  if (hash(host) !== ZOOM_THEME_HASHES.host) throw Error('zoom-theme-host-unsupported');
-  const schema =
-    schemaModule ??
-    join(
-      dirname(createRequire(join(source, 'package.json')).resolve('@deepseek-ai/schemastery')),
-      'index.mjs',
-    );
-  if (!existsSync(schema) || !existsSync(join(source, 'LICENSE')))
-    throw Error('zoom-theme-dependency-unavailable');
-  const specifier = '"@deepseek-ai/schemastery"';
-  if (host.split(specifier).length !== 2) throw Error('zoom-theme-host-shape-unsupported');
+  const theme = transformZoomTheme(source, { schemaModule });
   cpSync(source, target, {
     recursive: true,
     filter: (path) => !relative(source, path).split(/[\\/]/).includes('node_modules'),
   });
-  writeFileSync(join(target, 'lib/client.js'), after);
-
+  writeFileSync(join(target, 'lib/client.js'), theme.client);
+  writeFileSync(join(target, 'lib/index.js'), theme.host);
   writeFileSync(
-    join(target, 'lib/index.js'),
-    host.replace(specifier, JSON.stringify(pathToFileURL(schema).href)),
+    join(target, 'botharness-zoom-compat.json'),
+    JSON.stringify(theme.provenance, null, 2),
   );
-  const provenance = {
-    adapterVersion: 1,
-    sourceVersion: manifest.version,
-    clientBefore: hash(before),
-    clientAfter: hash(after),
-    hostBefore: hash(host),
-    sourceModified: false,
-    platforms: ['macos', 'windows'],
-    changes: ['lease-owned font shortcut handoff', 'canonical schema module import'],
-  };
-  writeFileSync(join(target, 'botharness-zoom-compat.json'), JSON.stringify(provenance, null, 2));
-  return provenance;
+  return theme.provenance;
 }
 export function preparePackagedDesktopZoomTheme({ source, target }) {
   source = realpathSync(source);
@@ -117,19 +133,7 @@ export function preparePackagedDesktopZoomTheme({ source, target }) {
   const outside = (path) => path === '..' || path.startsWith(`..${sep}`) || isAbsolute(path);
   if (!outside(relative(source, target)) || !outside(relative(target, source)))
     throw Error('zoom-target-inside-source');
-  const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
-  const client = readFileSync(join(source, 'lib/client.js'), 'utf8');
-  const host = readFileSync(join(source, 'lib/index.js'), 'utf8');
-  if (
-    manifest.name !== '@deepseek-ai/dsh-client-ui-theme' ||
-    manifest.version !== ZOOM_THEME_VERSION ||
-    manifest.license !== 'MIT' ||
-    hash(host) !== ZOOM_THEME_HASHES.host
-  )
-    throw Error('zoom-theme-version-unsupported');
-  const adapted = adaptZoomTheme(client);
-  const specifier = '"@deepseek-ai/schemastery"';
-  if (host.split(specifier).length !== 2) throw Error('zoom-theme-host-shape-unsupported');
+  const theme = transformZoomTheme(source, { packaged: true });
   mkdirSync(join(target, 'lib'), { recursive: true });
   const save = (path, value) => {
     if (existsSync(path) && readFileSync(path, 'utf8') === value) return;
@@ -148,21 +152,14 @@ export function preparePackagedDesktopZoomTheme({ source, target }) {
       },
     });
   save(join(target, 'LICENSE'), readFileSync(join(source, 'LICENSE'), 'utf8'));
-  save(join(target, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
-  save(join(target, 'lib/client.js'), adapted);
-  save(join(target, 'lib/index.js'), host.replace(specifier, '"../../dist/theme-schema.mjs"'));
-  const provenance = {
-    adapterVersion: 1,
-    sourceVersion: manifest.version,
-    clientBefore: hash(client),
-    clientAfter: hash(adapted),
-    hostBefore: hash(host),
-    sourceModified: false,
-    platforms: ['macos', 'windows'],
-    changes: ['lease-owned font shortcut handoff', 'portable product-owned schema module'],
-  };
-  save(join(target, 'botharness-zoom-compat.json'), JSON.stringify(provenance, null, 2) + '\n');
-  return provenance;
+  save(join(target, 'package.json'), JSON.stringify(theme.manifest, null, 2) + '\n');
+  save(join(target, 'lib/client.js'), theme.client);
+  save(join(target, 'lib/index.js'), theme.host);
+  save(
+    join(target, 'botharness-zoom-compat.json'),
+    JSON.stringify(theme.provenance, null, 2) + '\n',
+  );
+  return theme.provenance;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
