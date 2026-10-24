@@ -1,3 +1,6 @@
+import { createServer as httpServer } from 'node:http';
+import { statSync } from 'node:fs';
+import { cookieFor, rpc } from '../verify-app.mjs';
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
 import { once, EventEmitter } from 'node:events';
@@ -7,7 +10,7 @@ import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { dshCommand, describeRuntime } from '../dev-instance.mjs';
+import { dshCommand, describeRuntime, verifyPluginLayer } from '../dev-instance.mjs';
 import { assertDshVersion } from '../dsh-compatibility.mjs';
 import { qualifiedImProvider } from '../dev-im-provider.mjs';
 
@@ -222,4 +225,62 @@ describe('development Home ownership and startup failure', () => {
       }),
     ).rejects.toThrow('exited before');
   });
+});
+
+describe('launcher authentication handoff', () => {
+  it('persists a private cookie usable by the independent verifier', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'bh-cookie-handoff-'));
+    const jar = join(tmpdir(), `dsh-${home.split(/[\\/]/u).at(-1)}.cookies`);
+    const server = httpServer((request, response) => {
+      if (request.url.startsWith('/?token=')) {
+        response.setHeader('set-cookie', 'dsh-test=session; HttpOnly');
+        response.end();
+      } else {
+        response.setHeader('content-type', 'application/json');
+        response.end(
+          JSON.stringify({
+            result: { ok: request.headers.cookie === 'dsh-test=session', value: { bots: [] } },
+          }),
+        );
+      }
+    });
+    try {
+      await new Promise((done) => server.listen(0, '127.0.0.1', done));
+      const url = `http://127.0.0.1:${server.address().port}/?token=fixture`;
+      expect(await verifyPluginLayer(url, { home })).toMatchObject({ ok: true });
+      expect(cookieFor(home)).toBe('dsh-test=session');
+      if (process.platform !== 'win32') expect(statSync(jar).mode & 0o777).toBe(0o600);
+      await expect(rpc({ url, home }, 'botharness/list')).resolves.toBeDefined();
+    } finally {
+      await new Promise((done) => server.close(done));
+      rmSync(jar, { force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+it('keeps authentication separate for two Homes with the same basename', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'bh-cookie-isolation-'));
+  const basename = root.split(/[\\/]/u).at(-1);
+  const homes = [join(root, 'a', basename), join(root, 'b', basename)];
+  for (const home of homes) mkdirSync(home, { recursive: true });
+  const server = httpServer((request, response) => {
+    if (request.url.startsWith('/?token='))
+      response.setHeader('set-cookie', `dsh-test=${request.url.split('=')[1]}; HttpOnly`);
+    response.setHeader('content-type', 'application/json');
+    response.end(JSON.stringify({ result: { ok: true } }));
+  });
+  try {
+    await new Promise((done) => server.listen(0, '127.0.0.1', done));
+    for (let i = 0; i < homes.length; i++)
+      await verifyPluginLayer(`http://127.0.0.1:${server.address().port}/?token=session${i}`, {
+        home: homes[i],
+      });
+    expect(cookieFor(homes[0])).toBe('dsh-test=session0');
+    expect(cookieFor(homes[1])).toBe('dsh-test=session1');
+  } finally {
+    await new Promise((done) => server.close(done));
+    rmSync(root, { recursive: true, force: true });
+    rmSync(join(tmpdir(), `dsh-${basename}.cookies`), { force: true });
+  }
 });

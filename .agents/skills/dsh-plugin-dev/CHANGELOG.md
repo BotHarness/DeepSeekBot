@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented persisted preparation/Host process ownership, repeated shutdown scans and independent Windows Homes ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
 - Documented Home-wide runtime ownership, failed-start cleanup and skipping an already-native Go fix ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
 
 - Corrected downstream verifier runtime reporting and removed leftover artifact/desktop-QA release-label gates; Go patches follow the installed adapter version ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).

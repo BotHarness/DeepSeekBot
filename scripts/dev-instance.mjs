@@ -14,8 +14,17 @@ import {
   withQualifiedImProvider,
   verifyQualifiedImProvider,
 } from './dev-im-provider.mjs';
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, closeSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import {
+  constants,
+  fchmodSync,
+  existsSync,
+  mkdirSync,
+  closeSync,
+  openSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -147,25 +156,14 @@ function parseArgs(argv) {
   return options;
 }
 
-function run(command, args, options) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options });
-  if (result.error !== undefined) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(
-      `${command} ${args.join(' ')} failed (${result.status}): ${result.stderr?.trim() ?? ''}`,
-    );
-  }
-  return result.stdout ?? '';
-}
-
-function ensureProfile(options) {
+async function ensureProfile(options) {
   const profileDir = join(options.home, 'profiles', options.profile);
   const manifestPath = join(profileDir, 'package.json');
   const env = { ...process.env, DSH_HOME: options.home };
   const runtime = options.runtime ?? options.worktree;
   const [command, cli] = dshCommand(runtime);
   if (!existsSync(manifestPath)) {
-    run(
+    await options.lease.run(
       command,
       [cli, '--profile', options.profile, '--from-default-profile', 'web', '--dump-config'],
       { env },
@@ -190,23 +188,27 @@ function ensureProfile(options) {
   }
   writeFileSync(manifestPath, `${JSON.stringify(composed, null, 2)}\n`);
   const [pnpmExecutable, pnpmArgs] = pnpmCommand(['install']);
-  run(pnpmExecutable, pnpmArgs, { cwd: profileDir });
+  await options.lease.run(pnpmExecutable, pnpmArgs, { cwd: profileDir });
   if (options.productArtifacts) verifyPackagedProfile(profileDir, options.productArtifacts);
   if (options.productArtifacts) {
-    const dump = run(command, [cli, '--profile', options.profile, '--dump-config'], {
-      env,
-      cwd: runtime,
-    });
+    const dump = await options.lease.run(
+      command,
+      [cli, '--profile', options.profile, '--dump-config'],
+      {
+        env,
+        cwd: runtime,
+      },
+    );
     verifyProductComposition(parseProductComposition(dump));
   }
   if (options.imProvider) verifyQualifiedImProvider(profileDir);
   return profileDir;
 }
 
-function launch(options) {
+async function launch(options) {
   if (options.build) {
     const [command, args] = pnpmCommand(['build']);
-    run(command, args, { cwd: options.worktree });
+    await options.lease.run(command, args, { cwd: options.worktree });
   }
   const logPath = join(
     tmpdir(),
@@ -258,13 +260,33 @@ async function waitForToken(logPath, checkRunning, timeoutMs = 120_000) {
   throw new Error(`no token URL after ${timeoutMs}ms; see ${logPath}`);
 }
 
-async function verifyPluginLayer(url, options) {
+export async function verifyPluginLayer(url, options) {
   const [base, token] = url.split('/?token=');
   const login = await fetch(`${base}/?token=${token}`, {
     redirect: 'manual',
     signal: AbortSignal.timeout(10_000),
   });
   const setCookie = login.headers.get('set-cookie');
+  if (setCookie !== null) {
+    const legacyJar = join(
+      tmpdir(),
+      `dsh-${basename(options.home).replace(/[^a-zA-Z0-9-]/gu, '-')}.cookies`,
+    );
+    for (const jar of [join(options.home, '.botharness-auth.cookie'), legacyJar]) {
+      const fd = openSync(
+        jar,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | (constants.O_NOFOLLOW ?? 0),
+        0o600,
+      );
+      try {
+        fchmodSync(fd, 0o600);
+        writeFileSync(fd, setCookie);
+      } finally {
+        closeSync(fd);
+      }
+    }
+  }
+
   const probe = await fetch(`${base}/api/botharness/list`, {
     signal: AbortSignal.timeout(10_000),
     method: 'POST',
@@ -291,6 +313,7 @@ async function verifyPluginLayer(url, options) {
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const lease = acquireHome(options.home);
+  options.lease = lease;
   try {
     const secret = resolveDevSecret();
     options.axModel = resolveAxModel();
@@ -316,7 +339,7 @@ async function main() {
         `${JSON.stringify({ name: 'botharness-isolated-cli-qa', private: true, devDependencies: { '@deepseek-ai/dsh': version } }, null, 2)}\n`,
       );
       const [command, args] = pnpmCommand(['install']);
-      run(command, args, { cwd: options.runtime });
+      await options.lease.run(command, args, { cwd: options.runtime });
       if (options.axModel) {
         const adapter = installedGoAdapter(options.runtime);
         writeFileSync(
@@ -328,18 +351,22 @@ async function main() {
             adapter.source,
           ),
         );
-        run(command, args, { cwd: options.runtime });
+        await options.lease.run(command, args, { cwd: options.runtime });
       }
     }
-    const profileDir = ensureProfile(options);
+    const profileDir = await ensureProfile(options);
     if (options.axModel) {
       const runtime = options.runtime ?? options.worktree;
       await assertInstalledGoModel(runtime, options.axModel.model);
       const [command, cli] = dshCommand(runtime);
-      const dump = run(command, [cli, '--profile', options.profile, '--dump-config'], {
-        env: { ...process.env, DSH_HOME: options.home },
-        cwd: runtime,
-      });
+      const dump = await options.lease.run(
+        command,
+        [cli, '--profile', options.profile, '--dump-config'],
+        {
+          env: { ...process.env, DSH_HOME: options.home },
+          cwd: runtime,
+        },
+      );
       options.modelPatch = join(profileDir, 'botharness-ax-model.patch.yml');
       writeFileSync(options.modelPatch, axModelPatch(dump, options.axModel.model));
     }
@@ -347,7 +374,7 @@ async function main() {
     if (!options.axModel && secret === undefined && !profileCredential)
       console.error(devSecretInstructions());
     const runtimeDescription = describeRuntime(options);
-    const { child, logPath } = launch(options);
+    const { child, logPath } = await launch(options);
     const { url, health } = await verifyStartedHost(child, async (checkRunning) => {
       lease.started(child, logPath);
       const url = await waitForToken(logPath, checkRunning);

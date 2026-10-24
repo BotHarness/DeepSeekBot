@@ -1,6 +1,7 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, win32 } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 function alive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) throw new Error('Invalid development Home owner');
@@ -40,16 +41,39 @@ function existingHost(home) {
 }
 
 export function matchesHomeProcess(entries, home, windows = false) {
-  return entries.some(
-    ([pid, command]) =>
-      pid !== process.pid &&
-      /[\\/]dsh[\\/]lib[\\/]bin\.js/u.test(command) &&
-      (windows ||
-        command.includes(join(home, 'ax-cli')) ||
-        command.includes(join(home, 'packaged-cli')) ||
-        command.includes(`DSH_HOME=${home} `) ||
-        command.endsWith(`DSH_HOME=${home}`)),
+  return entries.some(([pid, command]) => {
+    if (pid === process.pid || !/[\\/]dsh[\\/]lib[\\/]bin\.js/iu.test(command)) return false;
+    if (windows) {
+      const cli =
+        /(?:"([^"\n]+[\\/]dsh[\\/]lib[\\/]bin\.js)"|([^\s"]+[\\/]dsh[\\/]lib[\\/]bin\.js))/iu.exec(
+          command,
+        );
+      const managed =
+        cli &&
+        /^(.*)[\\/](?:ax-cli|packaged-cli)[\\/]node_modules[\\/]@deepseek-ai[\\/]dsh[\\/]lib[\\/]bin\.js$/iu.exec(
+          cli[1] ?? cli[2],
+        );
+      return (
+        !managed || win32.resolve(managed[1]).toLowerCase() === win32.resolve(home).toLowerCase()
+      );
+    }
+    return (
+      command.includes(join(home, 'ax-cli')) ||
+      command.includes(join(home, 'packaged-cli')) ||
+      command.includes(`DSH_HOME=${home} `) ||
+      command.endsWith(`DSH_HOME=${home}`)
+    );
+  });
+}
+
+function resourceLive(resource) {
+  return (
+    alive(resource.pid) || descendants(resource.pid, resource.ownedProcessGroup === true).length > 0
   );
+}
+
+function resourceRecord(child) {
+  return { pid: child.pid, ownedProcessGroup: child.ownedProcessGroup === true };
 }
 
 export function acquireHome(home) {
@@ -85,7 +109,11 @@ export function acquireHome(home) {
       throw new Error(
         'Development Home cleanup is unresolved; verify retained processes and ownership before recovery',
       );
-    if (recorded && [recorded.pid, ...(recorded.children ?? [])].some(alive))
+    if (
+      recorded &&
+      ([recorded.pid, ...(recorded.children ?? [])].some(alive) ||
+        (recorded.resources ?? []).some(resourceLive))
+    )
       throw new Error(
         'Development Home is in use; stop its Host before changing versions or profiles',
       );
@@ -99,34 +127,85 @@ export function acquireHome(home) {
     throw error;
   }
   let host;
-  return {
+  const resources = [];
+  const save = () =>
+    writeFileSync(
+      owner,
+      JSON.stringify({
+        pid: host?.pid ?? process.pid,
+        resources,
+        log: host?.log,
+        cleanupIncomplete: host?.cleanupIncomplete,
+      }),
+      { mode: 0o600 },
+    );
+  const lease = {
     started(child, log) {
       host = child;
-      writeFileSync(owner, JSON.stringify({ pid: child.pid, log }), { mode: 0o600 });
+      host.log = log;
+      if (child.pid) resources.push(resourceRecord(child));
+      save();
+    },
+    async run(command, args, options = {}) {
+      const child = spawn(
+        process.execPath,
+        [fileURLToPath(new URL('./dev-instance-command.mjs', import.meta.url))],
+        { ...options, detached: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] },
+      );
+      child.ownedProcessGroup = process.platform !== 'win32';
+      let stdout = '',
+        stderr = '';
+      const completion = new Promise((resolve, reject) => {
+        child.once('error', reject);
+        child.once('exit', () => {
+          try {
+            if (child.pid && descendants(child.pid, child.ownedProcessGroup).length)
+              reject(new Error('Preparation left running descendants'));
+          } catch (error) {
+            reject(error);
+          }
+        });
+        child.once('close', (status) =>
+          status === 0
+            ? resolve()
+            : reject(new Error(`${command} failed (${status}): ${stderr.trim()}`)),
+        );
+        child.stdout.on('data', (data) => {
+          stdout += data;
+          if (stdout.length > 8 * 1024 * 1024)
+            reject(new Error('Preparation output exceeded limit'));
+        });
+        child.stderr.on('data', (data) => {
+          stderr += data;
+          if (stderr.length > 8 * 1024 * 1024)
+            reject(new Error('Preparation error output exceeded limit'));
+        });
+      });
+      completion.catch(() => {});
+      try {
+        return await verifyStartedHost(child, async () => {
+          if (child.pid) resources.push(resourceRecord(child));
+          save();
+          if (child.pid) child.send({ command, args });
+          await completion;
+          if (descendants(child.pid, child.ownedProcessGroup).length)
+            throw new Error('Preparation left running descendants');
+          return stdout;
+        });
+      } finally {
+        if (child.cleanupIncomplete) {
+          host = child;
+          save();
+        }
+      }
     },
     release() {
-      if (
-        !host ||
-        ((host.exitCode !== null || host.signalCode !== null) &&
-          !host.cleanupIncomplete &&
-          !(host.cleanupPids ?? []).some(alive))
-      )
-        rmSync(owner, { force: true });
-      else if (host.cleanupIncomplete || host.cleanupPids?.length)
-        writeFileSync(
-          owner,
-          JSON.stringify({
-            pid: host.pid,
-            children: host.cleanupPids,
-            cleanupIncomplete: host.cleanupIncomplete,
-          }),
-          {
-            mode: 0o600,
-          },
-        );
+      if (!host?.cleanupIncomplete && !resources.some(resourceLive)) rmSync(owner, { force: true });
+      else save();
       rmSync(gate, { recursive: true });
     },
   };
+  return lease;
 }
 
 function descendants(pid, ownedProcessGroup) {
@@ -174,24 +253,33 @@ export async function verifyStartedHost(child, verify, timeoutMs = 15_000) {
     });
   } catch (error) {
     child.cleanupIncomplete = true;
-    if (child.pid) {
-      child.cleanupPids = descendants(child.pid, child.ownedProcessGroup === true);
-      for (const pid of child.cleanupPids) {
-        try {
-          process.kill(pid, 'SIGTERM');
-        } catch (stopError) {
-          if (stopError.code !== 'ESRCH') throw stopError;
-        }
+    const deadline = Date.now() + timeoutMs;
+    const observed = new Set();
+    const signal = (pid) => {
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch (stopError) {
+        if (stopError.code !== 'ESRCH') throw stopError;
       }
-      const childDeadline = Date.now() + timeoutMs / 2;
-      while (child.cleanupPids.some(alive) && Date.now() < childDeadline)
-        await new Promise((done) => setTimeout(done, 25));
+    };
+    if (child.pid) {
+      for (const pid of descendants(child.pid, child.ownedProcessGroup === true)) observed.add(pid);
       if (!stopped()) child.kill('SIGTERM');
     }
-    const released = () => stopped() && !(child.cleanupPids ?? []).some(alive);
-    const deadline = Date.now() + timeoutMs;
-    while (!released() && Date.now() < deadline) await new Promise((done) => setTimeout(done, 25));
-    if (!released())
+    let released = false;
+    do {
+      if (child.pid)
+        for (const pid of descendants(child.pid, child.ownedProcessGroup === true))
+          observed.add(pid);
+      child.cleanupPids = [...observed].filter(alive);
+      for (const pid of child.cleanupPids) signal(pid);
+      if (stopped() && child.cleanupPids.length === 0) {
+        released = true;
+        break;
+      }
+      await new Promise((done) => setTimeout(done, 25));
+    } while (Date.now() < deadline);
+    if (!released)
       throw new Error(
         `${error.message}; Host ${child.pid} cleanup incomplete; preserve its Home and log`,
       );

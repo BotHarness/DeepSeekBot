@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 补充安装与 Host 进程归属持久化、清理期间重复扫描及 Windows 独立 Home 并行的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
 - 补充整个 Home 的运行归属、启动失败清理及 Go 原生已修复时跳过补丁的说明 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
 
 - 修正下游验证器的实际运行时诊断，移除产物及桌面 QA 残留版本门槛；Go 补丁使用实际适配器版本（[#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)）。
