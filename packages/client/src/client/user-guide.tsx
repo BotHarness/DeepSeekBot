@@ -131,56 +131,58 @@ function UserGuide({ help, t }: { help: ClientHelpService; t: BotHarnessTranslat
                       onChange={setTarget}
                     />
                   )}
-                  <div className="bh-guide-actions">
-                    {answer.guide && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        disabled={
-                          busy ||
-                          availability?.status === 'unavailable' ||
-                          (availability?.status === 'select' && !target)
-                        }
-                        onClick={() => run(() => help.start(answer.id, target || undefined))}
-                      >
-                        {t('guide.start')}
-                      </Button>
-                    )}
-                    {answer.askTob && (
-                      <Button
-                        disabled={
-                          busy || (!!answer.guide && availability?.status === 'unavailable')
-                        }
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          run(async () => {
-                            help.cancel('ask-tob');
-                            setPreserved((await answer.askTob!()) === 'preserved');
-                            setNotice(t('guide.draft'));
-                          })
-                        }
-                      >
-                        {t('guide.ask')}
-                      </Button>
-                    )}
-                    {preserved && answer.insertQuestion && (
-                      <Button
-                        disabled={busy}
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          run(async () => {
-                            await answer.insertQuestion!();
-                            setPreserved(false);
-                            setNotice(t('guide.draft'));
-                          })
-                        }
-                      >
-                        {t('guide.insert')}
-                      </Button>
-                    )}
-                  </div>
+                  {(answer.guide || answer.askTob || (preserved && answer.insertQuestion)) && (
+                    <div className="bh-guide-actions">
+                      {answer.guide && (
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          disabled={
+                            busy ||
+                            availability?.status === 'unavailable' ||
+                            (availability?.status === 'select' && !target)
+                          }
+                          onClick={() => run(() => help.start(answer.id, target || undefined))}
+                        >
+                          {t('guide.start')}
+                        </Button>
+                      )}
+                      {answer.askTob && (
+                        <Button
+                          disabled={
+                            busy || (!!answer.guide && availability?.status === 'unavailable')
+                          }
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            run(async () => {
+                              help.cancel('ask-tob');
+                              setPreserved((await answer.askTob!()) === 'preserved');
+                              setNotice(t('guide.draft'));
+                            })
+                          }
+                        >
+                          {t('guide.ask')}
+                        </Button>
+                      )}
+                      {preserved && answer.insertQuestion && (
+                        <Button
+                          disabled={busy}
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            run(async () => {
+                              await answer.insertQuestion!();
+                              setPreserved(false);
+                              setNotice(t('guide.draft'));
+                            })
+                          }
+                        >
+                          {t('guide.insert')}
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </article>

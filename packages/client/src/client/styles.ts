@@ -34,7 +34,7 @@ export const CSS =
 .bh-guide-question:focus-visible { outline: ${border.focus} solid ${color.accent}; outline-offset: -${space.x1}; }
 .bh-guide-question svg { flex-shrink: 0; color: ${color.muted}; }
 .bh-guide-question[aria-expanded="true"] svg { transform: rotate(180deg); }
-.bh-guide-answer { display: flex; flex-direction: column; gap: ${space.x4}; padding: 0 ${space.x4} ${space.x4}; overflow-wrap: anywhere; }
+.bh-guide-answer { display: flex; flex-direction: column; gap: ${space.x4}; padding: ${space.x4}; overflow-wrap: anywhere; }
 .bh-guide-actions { display: flex; flex-wrap: wrap; gap: ${space.x3}; padding-top: ${space.x2}; }
 .bh-settings-search-input input { color: ${color.fg}; }
 .bh-settings-search-input { width: 100%; box-sizing: border-box; color: ${color.fg}; }
