@@ -1,4 +1,6 @@
+import { panelLayoutGuide } from './help-panel-layout.js';
 import { panelLocationGuide } from './help-panel-location.js';
+import { isMessagesPanel, panelDiscoveryGuide } from './help-panel-discovery.js';
 import type { ClientHelpService, HelpQuestion } from '../help-api.js';
 import type { DockPanelHost } from './dock-panels.js';
 
@@ -84,6 +86,40 @@ const recipes: Readonly<Record<string, readonly [string, string, string, string]
 };
 
 export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost): () => void {
+  const removeBasics = help.register({
+    id: 'botharness:panel-basics',
+    topics: [
+      {
+        id: 'botharness:panel-basics-topic',
+        title: { en: 'Panel basics', zh: '面板基础' },
+        overview: {
+          en: 'Global panels stay available across conversations. Messages contains subpanels for the selected conversation.',
+          zh: '全局面板可跨对话使用，消息子面板则跟随当前选择的对话。',
+        },
+        questions: [
+          {
+            id: 'botharness:panel-context',
+            title: { en: 'Which panels follow my conversation?', zh: '哪些面板会跟随当前对话？' },
+            answer: {
+              en: 'Home, Channels, Activity and Market are global panels. Messages follows the selected conversation; use its header controls for Sessions and other subpanels. Bot memory, Schedules, Browser, Computer and Inbox need a Bot conversation. Members needs a group. A separately pinned Bot panel keeps its chosen Bot when you switch conversations.',
+              zh: '首页、频道、活动和市场是全局面板。消息面板跟随所选对话；会话等子面板可从消息标题栏打开。Bot 记忆、定时任务、浏览器、电脑和收件箱需选择 Bot 私聊，成员需选择群聊。单独固定的 Bot 面板会保留绑定的 Bot，不随对话切换。',
+            },
+          },
+          {
+            id: 'botharness:panel-practice',
+            title: {
+              en: 'Can I practice without changing my layout?',
+              zh: '可以不改变原布局地练习吗？',
+            },
+            answer: {
+              en: 'Choose a panel topic and open its layout question, then select Practice layout. Move, resize, hide and reopen the real panel. Finishing or closing the guide restores your layout; actual settings and message drafts remain. Inbox and Members are detail views inside Messages and use their own header controls instead of independent docking.',
+              zh: '选择一个面板主题，展开布局问题，点击「练习调整布局」，即可操作真实面板，练习移动、调整大小、隐藏和重新打开。完成或退出教程会恢复原来的布局，实际设置和消息草稿会保留。收件箱与成员是消息内的详情视图，使用对应的标题栏按钮，不支持独立停靠。',
+            },
+          },
+        ],
+      },
+    ],
+  });
   let signature = '';
   let updating = false;
   let dispose = () => {};
@@ -113,17 +149,21 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
         id: 'botharness:panel-help',
         topics: entries.map((panel) => {
           const recipe = recipes[panel.id];
+          const nested = isMessagesPanel(panel);
+          const fixed = ['bot-inbox', 'members'].includes(panel.id);
           const questions: HelpQuestion[] = [
             {
               id: `botharness:panel-help:${panel.id}:open`,
               title: { en: `How do I open ${panel.title}?`, zh: `如何打开${panel.title}？` },
               answer: {
-                en:
-                  panel.scope === 'global'
+                en: nested
+                  ? `Select the relevant conversation and open Messages. Use the ${panel.title} button in the Messages header to show this subpanel. Right-click that header if its button is hidden. Bot-only panels need a Bot conversation; Members needs a group.`
+                  : panel.scope === 'global'
                     ? `Open the panel switcher and choose ${panel.title}. This panel is global and can stay open when you switch conversations.`
                     : `Select the relevant conversation, then choose ${panel.title} in the panel switcher. If it is unavailable, check whether you have selected a Bot conversation or a group and whether the plugin is enabled.`,
-                zh:
-                  panel.scope === 'global'
+                zh: nested
+                  ? `选择相关对话并打开消息面板，再点击消息标题栏中的「${panel.title}」按钮。按钮隐藏时，可右键标题栏将它显示出来。Bot 专属面板需先选择 Bot 私聊，成员面板需先选择群聊。`
+                  : panel.scope === 'global'
                     ? `打开面板切换器，选择「${panel.title}」。这是全局面板，切换对话时可以继续查看。`
                     : `先选择相关对话，再从面板切换器选择「${panel.title}」。如果不可用，请检查当前选择的是 Bot 私聊还是群聊，以及对应插件是否启用。`,
               },
@@ -139,18 +179,32 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
             id: `botharness:panel-help:${panel.id}:layout`,
             title: { en: 'How do I rearrange or hide this panel?', zh: '如何调整或隐藏这个面板？' },
             answer: {
-              en: 'Drag the icon at the left of the panel header to dock it beside another panel, or drag a divider to resize it. Use the panel’s close control to hide it, then reopen it from the panel switcher. These ordinary layout changes are saved; a guide’s temporary enlargement is restored when the guide ends.',
-              zh: '拖动面板标题左侧的图标可调整停靠位置，拖动分隔线可调整大小。点击面板的关闭按钮即可隐藏，之后可从面板切换器重新打开。普通布局调整会保存；教程中的临时放大会在教程结束后归位。',
+              en: fixed
+                ? 'This is a detail view inside Messages, not a separately dockable panel. Use its Messages header button to show or hide it. The discovery guide restores the original visibility when it ends.'
+                : `Drag the icon at the left of the panel header beside another panel, or drag a divider to resize it. Use its close control to hide it, then reopen it ${nested ? 'with its button in the Messages header' : 'from the panel switcher'}. Ordinary layout changes are saved; layout practice restores the original geometry and visibility when it ends.`,
+              zh: fixed
+                ? '这是消息面板内的详情视图，不能独立拖动停靠。点击消息标题栏中的对应按钮可显示或隐藏。查找教程结束后会恢复原来的显示状态。'
+                : `拖动面板标题左侧的图标可调整位置，拖动分隔线可调整大小。点击关闭按钮可隐藏，之后可${nested ? '点击消息标题栏中的对应按钮' : '从面板切换器'}重新打开。普通布局调整会保存；布局练习结束后会恢复原来的大小、位置与显示状态。`,
             },
           });
           return {
             id: `botharness:panel-help:${panel.id}`,
             panelId: panel.id,
             title: { en: panel.title, zh: panel.title },
-            overview: { en: '', zh: '' },
+            overview: recipe
+              ? { en: recipe[2], zh: recipe[3] }
+              : {
+                  en: 'This panel has no authored help yet. The questions below explain common panel controls.',
+                  zh: '此面板暂未提供专属帮助。以下问题介绍通用面板操作。',
+                },
             questions: questions.map((question) => ({
               ...question,
-              guide: panelLocationGuide(panels, panel, () => help.cancel('context-changed')),
+              guide:
+                question.id.endsWith(':layout') && !fixed
+                  ? panelLayoutGuide(panels, panel, () => help.cancel('context-changed'))
+                  : nested
+                    ? panelDiscoveryGuide(panels, panel, () => help.cancel('context-changed'))
+                    : panelLocationGuide(panels, panel, () => help.cancel('context-changed')),
             })),
           };
         }),
@@ -166,5 +220,6 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
     offPanels();
     offHelp();
     dispose();
+    removeBasics();
   };
 }

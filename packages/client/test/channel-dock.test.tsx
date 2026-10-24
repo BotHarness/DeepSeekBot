@@ -1017,10 +1017,14 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
   const draft = host.querySelector('[data-message-draft]');
   const session = host.querySelector('[data-body="sessions"]');
   const separator = host.querySelector('[role="separator"][aria-label="会话"]')!;
+  const sessionLayout = registry.layoutState('sessions')!;
+  expect(sessionLayout).toBeDefined();
   act(() =>
     separator.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })),
   );
   await settle();
+  expect(registry.layoutState('sessions')?.placement).toBe(sessionLayout.placement);
+  expect(registry.layoutState('sessions')?.resize).not.toBe(sessionLayout.resize);
   expect(host.querySelector('[data-message-draft]')).toBe(draft);
   expect(host.querySelector('[data-body="sessions"]')).toBe(session);
   expect(readChannelDock(storage)?.channelSplits?.ada).toMatchObject({
@@ -1455,6 +1459,65 @@ it('keeps guide visibility changes out of normal storage and restores surviving 
   writes.mockRestore();
 });
 
+it.each(['files', 'inbox', undefined] as const)(
+  'restores the mutually exclusive %s detail after a nested lesson',
+  async (initial) => {
+    const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+    const registry = createDockPanelRegistry();
+    registry.registerEntry(entry('bot-inbox'));
+    registry.registerEntry(entry('members', 'channel'));
+    function View() {
+      const [detail, setDetail] = useState(initial);
+      return createElement(
+        WorkspaceContext.Provider,
+        { value: { rail: () => createElement('nav') } },
+        createElement('output', { 'data-detail': detail ?? 'none' }),
+        createElement(ChannelDock, {
+          body: createElement('input', { 'data-message-draft': '', defaultValue: 'kept draft' }),
+          panels: registry.panels(),
+          registry,
+          channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada' },
+          entryProps,
+          shows: () => true,
+          t: zhTranslate,
+          storage,
+          inbox: {
+            open: detail === 'inbox',
+            setOpen: (open) => setDetail(open ? 'inbox' : undefined),
+          },
+          files: {
+            open: detail === 'files',
+            setOpen: (open) => setDetail(open ? 'files' : undefined),
+            content: createElement('div', null, 'files'),
+          },
+        }),
+      );
+    }
+    act(() => root.render(createElement(View)));
+    await settle();
+    expect(registry.canOpen?.('bot-inbox')).toBe(true);
+    expect(registry.canOpen?.('members')).toBe(false);
+    const normal = values.get(CHANNEL_DOCK_STORAGE_KEY);
+    const draft = host.querySelector<HTMLInputElement>('[data-message-draft]')!;
+    let release!: () => void;
+    act(() => {
+      release = registry.beginGuide(() => {}, { presentMessages: false });
+      registry.open('bot-inbox');
+    });
+    await settle();
+    expect(host.querySelector('[data-detail]')?.getAttribute('data-detail')).toBe('inbox');
+    expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBe(normal);
+    act(() => release());
+    await settle();
+    expect(host.querySelector('[data-detail]')?.getAttribute('data-detail')).toBe(
+      initial ?? 'none',
+    );
+    expect(host.querySelector('[data-message-draft]')).toBe(draft);
+    expect(draft.value).toBe('kept draft');
+    expect(values.get(CHANNEL_DOCK_STORAGE_KEY)).toBe(normal);
+  },
+);
+
 it('reveals a newer normal layout on an external Client update without overwriting it', async () => {
   const registry = createDockPanelRegistry();
   registry.registerEntry(entry('sessions'));
@@ -1758,4 +1821,101 @@ it('preserves fractional geometry captured after a real panel drag', async () =>
   act(() => dock!.layout(1718, 1070));
   await settle();
   expect(dock!.getPanel('user-guide')!.api.width).toBeGreaterThan(guideWidth);
+});
+
+it('reports owner docking and divider changes without reporting viewport resize as a divider change', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const registry = createDockPanelRegistry();
+  for (const id of [CHANNEL_BODY_PANEL, 'example'])
+    registry.register({ id, title: id, scope: 'global', component: () => createElement('div') });
+  let dock: import('dockview-react').DockviewApi | undefined;
+  act(() =>
+    root.render(
+      createElement(
+        WorkspaceContext.Provider,
+        {
+          value: {
+            rail: (api) => {
+              dock = api;
+              return createElement('nav');
+            },
+          },
+        },
+        createElement(ChannelDock, {
+          body: createElement('div'),
+          panels: registry.panels(),
+          registry,
+          entryProps,
+          shows: () => true,
+          t: zhTranslate,
+          storage,
+        }),
+      ),
+    ),
+  );
+  await settle();
+  act(() => registry.open('example'));
+  await settle();
+  act(() => {
+    dock!.getPanel('example')!.api.moveTo({
+      group: dock!.getPanel(CHANNEL_BODY_PANEL)!.group,
+      position: 'right',
+    });
+    dock!.layout(1200, 800);
+  });
+  await settle();
+  const initial = registry.layoutState('example')!;
+  expect(initial).toBeDefined();
+  act(() => dock!.getPanel('example')!.group.api.setSize({ width: 350 }));
+  await settle();
+  const resized = registry.layoutState('example')!;
+  expect(resized.placement).toBe(initial.placement);
+  expect(resized.resize).not.toBe(initial.resize);
+  act(() => dock!.layout(1700, 1000));
+  await settle();
+  expect(registry.layoutState('example')).toEqual(resized);
+  act(() =>
+    dock!.getPanel('example')!.api.moveTo({
+      group: dock!.getPanel(CHANNEL_BODY_PANEL)!.group,
+      position: 'bottom',
+    }),
+  );
+  await settle();
+  expect(registry.layoutState('example')?.placement).not.toBe(resized.placement);
+});
+
+it('reports an actual nested docking move through the layout owner', async () => {
+  const { WorkspaceContext } = await import('../src/client/workspace-context.js');
+  const registry = createDockPanelRegistry();
+  registry.registerEntry(entry('sessions'));
+  act(() =>
+    root.render(
+      createElement(
+        WorkspaceContext.Provider,
+        { value: { rail: () => createElement('nav') } },
+        createElement(ChannelDock, {
+          body: createElement('div'),
+          panels: registry.panels(),
+          registry,
+          channel: { id: 'dm-ada', type: 'dm', botSlug: 'ada' },
+          entryProps,
+          shows: () => true,
+          t: zhTranslate,
+          storage,
+        }),
+      ),
+    ),
+  );
+  await settle();
+  const initial = registry.layoutState('sessions')!;
+  expect(initial).toBeDefined();
+  act(() =>
+    host
+      .querySelector('[data-dock-header="sessions"]')!
+      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 40, clientY: 30 })),
+  );
+  await settle();
+  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="above"]')!.click());
+  await settle();
+  expect(registry.layoutState('sessions')?.placement).not.toBe(initial.placement);
 });

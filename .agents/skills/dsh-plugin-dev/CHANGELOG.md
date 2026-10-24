@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Synchronized the [Panel Plugin guide](../../../docs/panel-plugin.md) and [User guide verification paths](../verify-deepseekbot/features/user-guide.md) with S2 availability subscriptions, mounted VRM target labels and cleanup, nested Sessions practice, and separate runtime/Human acceptance gates; DSH/Cordis vocabulary, Context and Decision Tree are unchanged ([#2718](https://github.com/BotHarness/DeepSeekBot/issues/2718)).
+
 - Added the downstream [Windows-to-Android Local Computer video journey](../verify-deepseekbot/features/local-computer-video.md), with separate source, native presentation and Human gates; runtime qualification remains pending and DSH/Cordis Context is unchanged ([#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)).
 - Documented native question answerer precedence in the [local development guide](../dsh-dev/SKILL.md), verified on DSH `0.2.1-rc.2`; DSH/Cordis Context and Skill behavior are unchanged ([#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)).
 

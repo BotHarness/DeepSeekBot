@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 同步[面板 Plugin 指南](../../../docs/panel-plugin.md)和[用户指南验证路径](../verify-deepseekbot/features/user-guide.md)，记录 S2 可用性订阅、VRM 挂载目标标签与清理、嵌套会话布局练习，以及独立的运行时／Human 验收边界；DSH/Cordis 术语、Context 与 Decision Tree 保持不变（[#2718](https://github.com/BotHarness/DeepSeekBot/issues/2718)）。
+
 - 新增下游 [Windows 到 Android 的 Local Computer 视频验证路径](../verify-deepseekbot/features/local-computer-video.md)，分别记录源码、本机呈现与 Human 验收；运行验证尚待完成，DSH/Cordis Context 保持不变（[#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)）。
 - 在[本地开发指南](../dsh-dev/SKILL.md)记录原生提问回答器的优先顺序，并以 DSH `0.2.1-rc.2` 核验；DSH／Cordis Context 与 Skill 行为保持不变（[#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)）。
 

@@ -81,7 +81,7 @@ The feature map is [VRM companion](../.agents/skills/verify-deepseekbot/features
 
 ## Client help contributions (S1)
 
-The application-defined `clientHelp` Service is provided by the UI Plugin. Import `ClientHelpService`, `HelpContribution` and `HelpGuide` from `@botharness/ui/panels`. Inject `clientHelp` and return the registration disposer from `ctx.effect`; optional `ctx.inject(['clientHelp'], child => …)` keeps a Plugin compatible with older UI versions. The independently installed VRM Plugin contains a text-only consumer.
+The application-defined `clientHelp` Service is provided by the UI Plugin. Import `ClientHelpService`, `HelpContribution` and `HelpGuide` from `@botharness/ui/panels`. Inject `clientHelp` and return the registration disposer from `ctx.effect`; optional `ctx.inject(['clientHelp'], child => …)` keeps a Plugin compatible with older UI versions. The independently installed VRM Plugin contributes both a text answer and the instance-bound camera tutorial described below.
 
 Register a namespaced contribution, topic and question, each with a unique ID. Titles, overviews and answers provide English plus optional Chinese text; English is the fallback. Questions may provide keywords and an optional guide. Text-only answers have no Guide me action. Contributions live independently of a mounted Panel and disappear on Fiber disposal. Duplicate IDs are refused; disposal is idempotent and an old disposer cannot remove a later registration.
 
@@ -89,8 +89,36 @@ A guide may supply a localized `actionLabel` (for example, “Show location”);
 
 A guide reports ready, explicit target-selection required, or unavailable with a readable reason. Preparation revalidates its target and accepts an AbortSignal; release resources on cancellation and return an idempotent disposer. Steps resolve real feature-owned elements when reached. Operation steps supply a semantic completion predicate; clicks alone do not establish a successful setting change. Built-in model help uses the original model-plan state, not a second settings store. Do not use unrelated shell-private selectors or invoke send methods from help navigation.
 
-This is the S1 contract. An independent Plugin's real interactive tutorial is a separate S2 acceptance gate; this text-only contribution does not qualify that gate.
+`HelpGuide.subscribe?(listener): () => void` optionally notifies the Help index when availability changes. `clientHelp` owns these subscriptions per contribution and releases them on contribution disposal. Notifications refresh availability without unregistering/re-registering the contribution or replacing an active guide. Publish availability changes, not animation-frame updates.
+
+This is the S1 contract. The independent Plugin tutorial below implements the S2 source slice; its real-instance runtime and Human acceptance gates remain separate from unit tests.
 
 The User guide renders questions as inline collapsible rows. It uses the shared shell tokens (16px panel inset, 12px answer inset) and compact native buttons (28px): one primary guide action and secondary draft actions. Light and dark themes use the same hierarchy.
 
 Quick Switcher reads panel definitions from the existing registry and FAQ results from this same Help index. `clientHelp.show(questionId)` validates the question, reveals User guide and publishes `selection()` with a new revision so repeated selection reopens the same answer. It does not start the tutorial. Panel results toggle the current state and revalidate applicability when activated; FAQ results remain readable even when their guide is unavailable.
+
+## Independent real-instance tutorial (S2)
+
+The VRM Plugin's **How do I change the camera?** question (`vrm:change-camera`) is a bilingual example, implemented in `packages/vrm-companion/src/client/help.ts` and wired by `index.tsx`. Only type imports cross the public `@botharness/ui/panels` boundary; it does not import the UI Plugin's layout implementation or create another settings store.
+
+1. Manually open a contextual VRM Companion in a Bot DM or a pinned VRM instance. Wait for its scene to be ready. Help never opens, resizes, maximizes or pins a panel: `beginGuide` is not part of the public Panel contract.
+2. Open User guide → VRM Companion → **How do I change the camera?**. Zero eligible mounted targets produces an unavailable reason; one is ready; several require explicit selection. Each same-Bot pin remains a distinct choice, labelled with its Panel title plus a one-based ordinal, not a raw instance ID. The ordinal matches the current eligible-candidate enumeration; it is not a stable identity or a guaranteed visual position, and identical titles alone cannot establish which physical panel a choice identifies.
+3. Open **Scene** on the selected character. Next depends on that owned control's actual `aria-expanded` state, not a click elsewhere.
+4. Choose **Room view**, or **Desk view** if this instance was already showing Room view. Completion reads and subscribes to this instance's existing `PanelControls`: the camera must reach the requested value with tour off. Another character's camera, opening the menu alone, or clicking Reset view does not complete this camera operation. Camera changes remain after completion or cancellation.
+
+The authoring pattern is a mounted-element directory, not a controls-cache scan. Body and header callback refs register owned elements with the contextual Channel/Bot binding or pinned instance/Bot binding. Each body mount has a fresh target ID. Availability and prepare both validate the exact mount, public registry visibility, instance metadata, connected visible body/header control and scene readiness. A cached `controls.stage` is not proof that a panel is mounted. Step resolution highlights the feature-owned header wrapper; its Scene trigger links to its own menu portal through `aria-controls`. Completion reads that trigger's `aria-expanded` and the selected mount's controls, without shell-private selectors or global portal-menu guessing.
+
+The tutorial watches the public registry and uses one controls listener per mounted target, shared by availability notifications and active-run checks. Availability notifications are deduplicated by the serialized availability result, avoiding frame-rate Help catalog churn. Removal, close, unmount, header removal, or contextual Channel/Bot rebinding invalidates the run through public `clientHelp.cancel`. Preparation rejects stale IDs even when the same Bot/instance remounts. Abort and guide disposal release run checks idempotently; unmount releases the controls listener, while contribution disposal and late prepare remain owned by `clientHelp`. Optional Service injection can register help after the Panel has mounted because mount tracking belongs to the VRM Plugin's own Fiber lifetime.
+
+### Verification boundary
+
+S1 (#2717) has Human acceptance; PR #2732 remains unmerged. On October 24, 2026, real Web light/dark runs passed nested Sessions discovery and layout practice, saved-layout equality, composer/draft retention, the independent VRM camera change, explicit instance selection/removal and Group-only Members discovery. A stale selected-target UI regression was reproduced and fixed. Cross-page Plugin reactivation remains inconsistent: one run restored the topic exactly once without reviving the old guide, but later runs restored it only in the Plugins page, not the original Bot-mode page. Those failures remain open. Native Desktop and supported native zoom are separate gates; S2 still needs explicit Human acceptance, with no S3/S4 acceptance.
+
+For a task-owned, already launched isolated Host, use:
+
+```sh
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json BH_GUIDE_THEME=light node scripts/e2e-panel-guide.mjs
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json BH_GUIDE_THEME=dark node scripts/e2e-panel-guide.mjs
+```
+
+`BH_GUIDE_THEME` defaults to `light`. Optional `BH_GUIDE_VRM=1` enables the camera path with an independently installed, visible, ready VRM target. `BH_GUIDE_VRM_INSTANCES=1` adds explicit selection and selected-instance removal. `BH_GUIDE_PLUGIN=1` exercises disabling/re-enabling the installed Plugin from a separate native Plugins page, including fresh-guide discovery; this branch still has the open reactivation failure above. `BH_GUIDE_GROUP=1` requires the task's synthetic group named `S2 guide group` and checks Members prerequisites. Retain each attempt's evidence; script availability is not a runtime pass. See the [User guide journey](../.agents/skills/verify-deepseekbot/features/user-guide.md). Focused source checks such as `pnpm exec vitest run packages/vrm-companion/test/help.test.ts` and `pnpm exec tsc --noEmit` are **not runtime or Human acceptance evidence**.

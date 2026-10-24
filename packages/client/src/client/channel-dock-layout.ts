@@ -11,7 +11,7 @@ import type {
   SerializedGridObject,
 } from 'dockview-react';
 
-import type { DockPanelPosition, DockPanelInstance } from './dock-panels.js';
+import type { DockPanelPosition, DockPanelInstance, DockPanelLayoutState } from './dock-panels.js';
 
 export const CHANNEL_DOCK_STORAGE_KEY = 'botharness.bot-mode-layout';
 export const CHANNEL_DOCK_LAYOUT_VERSION = 8;
@@ -304,6 +304,66 @@ export function clearChannelDock(storage: ChannelDockStorage | undefined = brows
 }
 
 type GridNode = SerializedGridObject<{ views: string[]; activeView?: string; id: string }>;
+
+export function channelPanelLayoutState(
+  tree: ChannelSplit,
+  panelId: string,
+): DockPanelLayoutState | undefined {
+  const visit = (
+    node: ChannelSplit,
+    placement: string[],
+    ratios: number[],
+  ): DockPanelLayoutState | undefined => {
+    if ('panel' in node)
+      return node.panel === panelId
+        ? { placement: JSON.stringify(placement), resize: JSON.stringify(ratios) }
+        : undefined;
+    return (
+      visit(node.first, [...placement, node.axis + ':first'], [...ratios, node.ratio]) ??
+      visit(node.second, [...placement, node.axis + ':second'], [...ratios, node.ratio])
+    );
+  };
+  return visit(tree, [], []);
+}
+
+export function createDockPanelLayoutTracker() {
+  let previous: SerializedDockview | undefined;
+  let states = new Map<string, DockPanelLayoutState>();
+  let sizes = new Map<string, string>();
+  return (layout: SerializedDockview): ReadonlyMap<string, DockPanelLayoutState> => {
+    const nextStates = new Map<string, DockPanelLayoutState>();
+    const nextSizes = new Map<string, string>();
+    const sameViewport =
+      previous?.grid.width === layout.grid.width && previous?.grid.height === layout.grid.height;
+    const visit = (node: GridNode, path: number[], ratios: number[]) => {
+      if (node.type === 'leaf') {
+        const group = node.data as { views: string[]; id: string };
+        const size = JSON.stringify(ratios);
+        for (const id of group.views) {
+          const placement = JSON.stringify([layout.grid.orientation, path, group.id]);
+          const before = states.get(id);
+          const resized = sameViewport && before?.placement === placement && sizes.get(id) !== size;
+          nextStates.set(id, {
+            placement,
+            resize: String(Number(before?.resize ?? 0) + (resized ? 1 : 0)),
+          });
+          nextSizes.set(id, size);
+        }
+        return;
+      }
+      const children = node.data as GridNode[];
+      const total = children.reduce((sum, child) => sum + (child.size ?? 0), 0);
+      children.forEach((child, index) =>
+        visit(child, [...path, index], [...ratios, total ? (child.size ?? 0) / total : 0]),
+      );
+    };
+    visit(layout.grid.root as GridNode, [], []);
+    previous = layout;
+    states = nextStates;
+    sizes = nextSizes;
+    return states;
+  };
+}
 
 export function restoreDockGaps(layout: SerializedDockview, gap: number): SerializedDockview {
   if (gap <= 0) return layout;

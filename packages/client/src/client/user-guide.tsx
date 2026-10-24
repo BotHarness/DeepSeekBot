@@ -80,6 +80,10 @@ function UserGuide({
     .filter((q) => !activeTopic || topic?.questions.some((item) => item.id === q.id));
   const answer = topics.flatMap((item) => item.questions).find((q) => q.id === selected);
   const availability = answer ? help.availability(answer.id) : undefined;
+  const activeTarget =
+    availability?.status === 'select' && availability.targets.some((item) => item.id === target)
+      ? target
+      : '';
   const run = (action: () => Promise<void>) => {
     setBusy(true);
     setNotice('');
@@ -156,7 +160,7 @@ function UserGuide({
                   {availability?.status === 'select' && (
                     <Select
                       label={t('guide.target')}
-                      value={target}
+                      value={activeTarget}
                       options={[
                         { value: '', label: t('guide.target') },
                         ...availability.targets.map((item) => ({
@@ -176,9 +180,11 @@ function UserGuide({
                           disabled={
                             busy ||
                             availability?.status === 'unavailable' ||
-                            (availability?.status === 'select' && !target)
+                            (availability?.status === 'select' && !activeTarget)
                           }
-                          onClick={() => run(() => help.start(answer.id, target || undefined))}
+                          onClick={() =>
+                            run(() => help.start(answer.id, activeTarget || undefined))
+                          }
                         >
                           {answer.guide.actionLabel
                             ? helpText(answer.guide.actionLabel, t)

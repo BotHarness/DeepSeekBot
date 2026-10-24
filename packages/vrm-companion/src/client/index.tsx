@@ -1,5 +1,13 @@
 import type { Context } from '@deepseek-ai/cordis';
-import { useCallback, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import {
+  useCallback,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import {
   Button,
   IconPauseOutlineRegular,
@@ -15,6 +23,7 @@ import {
 import type {
   BotPresentation,
   BotPresentationView,
+  ClientHelpService,
   DockPanelProps,
   PanelServices,
 } from '@botharness/ui/panels';
@@ -25,6 +34,7 @@ import { loadModel } from './library.js';
 import { defaultModel } from './default-model.js';
 import { clockLabel, solarDay } from './sun.js';
 import { panelControls, type PanelControls } from './controls.js';
+import { createVrmHelp } from './help.js';
 import {
   LOCALE_NS,
   en,
@@ -275,6 +285,7 @@ function HeaderIcon({
   icon: Icon,
   pressed,
   open,
+  controlsId,
   data,
   onClick,
 }: {
@@ -282,6 +293,7 @@ function HeaderIcon({
   icon: IconComponent;
   pressed?: boolean;
   open?: boolean;
+  controlsId?: string | undefined;
   data: string;
   onClick: () => void;
 }) {
@@ -294,6 +306,7 @@ function HeaderIcon({
         aria-pressed={pressed}
         aria-haspopup={open === undefined ? undefined : 'menu'}
         aria-expanded={open}
+        aria-controls={controlsId}
         data-vrm-icon=""
         {...{ [data]: '' }}
         icon={<Icon size={16} />}
@@ -319,6 +332,17 @@ function HeaderMenu({
   onSelect: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const menuClass = `vrm-menu-${menuId.replaceAll(':', '')}`;
+  useLayoutEffect(() => {
+    if (!open) return;
+    const popup = document.getElementsByClassName(menuClass).item(0);
+    if (!popup) return;
+    popup.id = menuId;
+    return () => {
+      if (popup.id === menuId) popup.removeAttribute('id');
+    };
+  }, [open, menuId, menuClass]);
   return (
     <Menu
       open={open}
@@ -327,11 +351,13 @@ function HeaderMenu({
           label={label}
           icon={icon}
           open={open}
+          controlsId={open ? menuId : undefined}
           data={data}
           onClick={() => setOpen(!open)}
         />
       }
       items={items}
+      listClassName={menuClass}
       selectedIds={selectedIds}
       onSelect={(id) => {
         setOpen(false);
@@ -507,34 +533,20 @@ function SceneMenu({
   );
 }
 export function apply(ctx: Context & PanelServices & { locale: LocaleRuntime }): void {
+  let help: ClientHelpService | undefined;
+  const lessons = createVrmHelp(ctx.dockPanels, () => help);
+  ctx.effect(() => () => lessons.dispose());
   ctx.inject(['clientHelp'], (child) => {
     const helpContext = child as Context & PanelServices;
-    helpContext.effect(() =>
-      helpContext.clientHelp.register({
-        id: 'vrm:help',
-        topics: [
-          {
-            id: 'vrm:companion-help',
-            panelId: 'botharness-vrm',
-            title: { en: 'VRM Companion', zh: 'VRM 陪伴' },
-            overview: {
-              en: 'A character that follows your Bot’s activity.',
-              zh: '跟随 Bot 活动的虚拟角色。',
-            },
-            questions: [
-              {
-                id: 'vrm:open-companion',
-                title: { en: 'Where can I open a character?', zh: '在哪里打开虚拟角色？' },
-                answer: {
-                  en: 'Open a Bot conversation and choose VRM Companion in the Messages header. Pin a character globally to keep it bound to that Bot. Hiding the panel does not stop the Bot.',
-                  zh: '打开 Bot 私聊，在消息标题栏选择 VRM 陪伴。可将角色固定到全局面板，保持绑定该 Bot。隐藏面板不会停止 Bot。',
-                },
-              },
-            ],
-          },
-        ],
-      }),
-    );
+    helpContext.effect(() => {
+      const current = helpContext.clientHelp;
+      help = current;
+      const release = current.register(lessons.contribution);
+      return () => {
+        release();
+        if (help === current) help = undefined;
+      };
+    });
   });
   ctx.effect(() => {
     const release = ctx.locale.register(LOCALE_NS, { zh, en });
@@ -559,22 +571,49 @@ export function apply(ctx: Context & PanelServices & { locale: LocaleRuntime }):
     botId ?? (channel?.type === 'dm' ? channel.botSlug : undefined);
   const Panel = (props: DockPanelProps) => {
     const binding = bindingOf(props);
+    const cleanup = useRef<(() => void) | undefined>();
+    const mount = useCallback(
+      (node: HTMLDivElement | null) => {
+        cleanup.current?.();
+        cleanup.current = undefined;
+        if (node && binding)
+          cleanup.current = lessons.mount(
+            props,
+            binding,
+            node,
+            panelControls(panelKey(binding, props.instanceId), binding),
+          );
+      },
+      [binding, props.instanceId, props.channel?.id],
+    );
     return binding ? (
-      <BoundCharacter
-        key={binding}
-        botId={binding}
-        instanceId={props.instanceId}
-        presentation={ctx.botPresentation}
-      />
+      <div data-vrm-panel="" data-vrm-lesson-target="" ref={mount}>
+        <BoundCharacter
+          key={binding}
+          botId={binding}
+          instanceId={props.instanceId}
+          presentation={ctx.botPresentation}
+        />
+      </div>
     ) : null;
   };
   const Header = (props: DockPanelProps) => {
     const binding = bindingOf(props);
     const [view, mount] = useView(ctx.botPresentation, binding ?? '');
+    const cleanup = useRef<(() => void) | undefined>();
+    const header = useCallback(
+      (node: HTMLSpanElement | null) => {
+        cleanup.current?.();
+        cleanup.current = undefined;
+        mount(node);
+        if (node && binding) cleanup.current = lessons.header(props, binding, node);
+      },
+      [mount, binding, props.instanceId, props.channel?.id],
+    );
     if (!binding) return null;
     const controls = panelControls(panelKey(binding, props.instanceId), binding);
     return (
-      <span ref={mount} data-vrm-header="">
+      <span ref={header} data-vrm-header="">
         {view && (
           <SceneMenu
             view={view}

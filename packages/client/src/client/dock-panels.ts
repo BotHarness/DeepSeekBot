@@ -37,10 +37,16 @@ export interface DockPanelRegistration extends DockPanel {
 }
 
 export interface DockPanelLayout {
+  layoutState?(id: string): DockPanelLayoutState | undefined;
   beginGuide?(onInvalidated: () => void, options?: { presentMessages?: boolean }): () => void;
   canOpen?(id: string): boolean;
   open(id: string): void;
   close(id: string): void;
+}
+
+export interface DockPanelLayoutState {
+  readonly placement: string;
+  readonly resize: string;
 }
 
 export interface DockPanelRegistry extends PublicDockPanelRegistry {
@@ -49,6 +55,7 @@ export interface DockPanelRegistry extends PublicDockPanelRegistry {
 }
 
 export interface DockPanelHost extends DockPanelRegistry {
+  layoutState(id: string): DockPanelLayoutState | undefined;
   registerEntry(entry: ChannelSidebarEntry, defaultPosition?: DockPanelPosition): () => void;
   attach(layout: DockPanelLayout): () => void;
   reportOpen(ids: readonly string[]): void;
@@ -151,6 +158,7 @@ export function createDockPanelRegistry(
     onTitleHide: undefined,
   });
   const registry: DockPanelHost = {
+    layoutState: (id) => layout?.layoutState?.(id),
     beginGuide(onInvalidated, options) {
       if (!layout?.beginGuide) throw new Error('help_layout_unavailable');
       return layout.beginGuide(onInvalidated, options);

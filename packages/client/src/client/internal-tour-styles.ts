@@ -7,6 +7,7 @@ const DRIVER_CSS = `
 export const INTERNAL_TOUR_CSS =
   DRIVER_CSS +
   `
+.driver-active [data-workspace-dock].driver-active-element .dv-floating-overlay-host { pointer-events: none; }
 .driver-active .bh-help-owned-popup, .driver-active .bh-help-owned-popup * { pointer-events: auto; }
 .driver-active .bh-help-owned-popup { z-index: 1000000001 !important; }
 .driver-popover.bh-internal-tour {
