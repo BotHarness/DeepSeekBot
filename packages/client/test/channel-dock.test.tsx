@@ -1558,6 +1558,15 @@ it('keeps saved outer and nested geometry stable across workspace remounts', asy
       ),
     );
   const before = grid();
+  let release!: () => void;
+  act(() => {
+    release = registry.beginGuide(() => {});
+    registry.close(WORKSPACE_HOME);
+  });
+  await settle();
+  act(() => release());
+  await settle();
+  expect(grid()).toEqual(before);
   for (let index = 0; index < 3; index++) {
     act(() => root.unmount());
     root = createRoot(host);

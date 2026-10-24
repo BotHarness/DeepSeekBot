@@ -1467,7 +1467,10 @@ export function ChannelDock({
         );
         parked.current = { ...(latest?.parked ?? normal.parked) };
         visibilityLayout.current = latest?.visibilityLayout ?? normal.visibility;
+        const previousGap = gapRef.current;
         gapRef.current = latest?.gap ?? normal.gap;
+        if (workspace && gapRef.current !== previousGap)
+          api.updateOptions({ theme: { ...DOCK_THEME, gap: gapRef.current } });
         updateGap(gapRef.current);
         orderRef.current = latest?.order ?? normal.order;
         updateOrder(orderRef.current);
@@ -1484,7 +1487,10 @@ export function ChannelDock({
         channelSplitsRef.current = latest?.channelSplits ?? normal.splits;
         updateChannelSplits(channelSplitsRef.current);
         api.exitMaximizedGroup();
-        if (restored.layout) api.fromJSON(restored.layout, { reuseExistingPanels: true });
+        if (restored.layout)
+          api.fromJSON(restoreDockGaps(restored.layout, workspace ? gapRef.current : 0), {
+            reuseExistingPanels: true,
+          });
         save(api);
       } finally {
         clearTimeout(guideRestoreTimer.current);
