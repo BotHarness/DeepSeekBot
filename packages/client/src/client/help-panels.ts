@@ -150,7 +150,7 @@ export function installPanelHelp(help: ClientHelpService, panels: DockPanelHost)
             overview: { en: '', zh: '' },
             questions: questions.map((question) => ({
               ...question,
-              guide: panelLocationGuide(panels, panel),
+              guide: panelLocationGuide(panels, panel, () => help.cancel('context-changed')),
             })),
           };
         }),

@@ -1430,7 +1430,10 @@ export function ChannelDock({
     if (!visibilityLayout.current?.panels[panelId]) delete parked.current[panelId];
   };
 
-  const beginGuide = (onInvalidated: () => void): (() => void) => {
+  const beginGuide = (
+    onInvalidated: () => void,
+    options?: { presentMessages?: boolean },
+  ): (() => void) => {
     if (!api || guideLease.current) throw new Error('help_layout_unavailable');
     const normal = {
       layout: api.toJSON(),
@@ -1497,9 +1500,11 @@ export function ChannelDock({
     };
     guideLease.current = { release, invalidate: onInvalidated };
     window.addEventListener('storage', changed);
-    open(CHANNEL_BODY_PANEL);
-    const message = api.getPanel(CHANNEL_BODY_PANEL);
-    if (message && (message.api.width < 600 || message.api.height < 420)) message.api.maximize();
+    if (options?.presentMessages !== false) {
+      open(CHANNEL_BODY_PANEL);
+      const message = api.getPanel(CHANNEL_BODY_PANEL);
+      if (message && (message.api.width < 600 || message.api.height < 420)) message.api.maximize();
+    }
     return release;
   };
 
@@ -1508,7 +1513,7 @@ export function ChannelDock({
   const layoutMount = useMountedResource<HTMLSpanElement>(() => {
     if (api === undefined || registry === undefined) return;
     return registry.attach({
-      beginGuide: (invalidated) => layout.current.beginGuide(invalidated),
+      beginGuide: (invalidated, options) => layout.current.beginGuide(invalidated, options),
       canOpen: (id) => layout.current.canOpen(id),
       open: (id) => layout.current.open(id),
       close: (id) => layout.current.close(id),

@@ -60,3 +60,41 @@ it('locates the corresponding control and respects cancellation and applicabilit
   panels.attach({ open: vi.fn(), close: vi.fn(), canOpen: () => false });
   expect(guide.availability().status).toBe('unavailable');
 });
+
+it('guides through a closed Messages parent before locating its child and releases the layout lease', async () => {
+  const { panels } = setup('<button data-pinned-panel="bh:channel-body"></button>');
+  const child = { ...panel, id: 'memory-files', title: 'Memory files', scope: 'channel' as const };
+  panels.register(child);
+  const release = vi.fn();
+  const lease = vi.fn(() => release);
+  panels.attach({ open: vi.fn(), close: vi.fn(), canOpen: () => true, beginGuide: lease });
+  const guide = panelLocationGuide(panels, child);
+  expect(guide.availability().status).toBe('ready');
+  const prepared = await guide.prepare(child.id, new AbortController().signal);
+  expect(prepared.steps).toHaveLength(2);
+  expect(prepared.steps[0]!.title.en).toBe('Messages → Memory files');
+  expect(prepared.steps[0]!.complete?.()).toBe(false);
+  expect(lease).toHaveBeenCalledWith(expect.any(Function), { presentMessages: false });
+  document.body.insertAdjacentHTML(
+    'beforeend',
+    '<div data-dock-header="bh:channel-body"><button data-help-panel-control="memory-files"></button></div>',
+  );
+  expect(prepared.steps[0]!.complete?.()).toBe(true);
+  expect(prepared.steps[1]!.resolve()?.getAttribute('data-help-panel-control')).toBe(
+    'memory-files',
+  );
+  prepared.dispose();
+  expect(release).toHaveBeenCalledOnce();
+});
+it('skips the parent step when Messages is already visible', async () => {
+  const { panels } = setup(
+    '<div data-dock-header="bh:channel-body"><button data-help-panel-control="sessions"></button></div>',
+  );
+  const child = { ...panel, id: 'sessions', title: 'Sessions', scope: 'channel' as const };
+  panels.register(child);
+  const guide = panelLocationGuide(panels, child);
+  const prepared = await guide.prepare(child.id, new AbortController().signal);
+  expect(prepared.steps).toHaveLength(1);
+  expect(prepared.steps[0]!.description.zh).toContain('消息面板的子面板');
+  expect(prepared.steps[0]!.resolve()?.getAttribute('data-help-panel-control')).toBe('sessions');
+});

@@ -1,16 +1,39 @@
-import type { HelpGuide } from '../help-api.js';
+import { CHANNEL_WORKSPACE_PANELS } from './channel-split-layout.js';
+import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
+import type { HelpGuide, HelpStep } from '../help-api.js';
 import type { DockPanelHost, DockPanelRegistration } from './dock-panels.js';
 
-export function panelLocationGuide(panels: DockPanelHost, panel: DockPanelRegistration): HelpGuide {
-  const visible = (selector: string, attribute?: string): Element | undefined =>
+export function panelLocationGuide(
+  panels: DockPanelHost,
+  panel: DockPanelRegistration,
+  invalidated: () => void = () => {},
+): HelpGuide {
+  const nested =
+    CHANNEL_WORKSPACE_PANELS.includes(panel.id) ||
+    panel.binding === 'current-bot' ||
+    ['bot-inbox', 'members'].includes(panel.id);
+  const visible = (selector: string, attribute?: string, id = panel.id): Element | undefined =>
     typeof document === 'undefined'
       ? undefined
       : [...document.querySelectorAll(selector)].find(
           (element) =>
-            (!attribute || element.getAttribute(attribute) === panel.id) &&
+            (!attribute || element.getAttribute(attribute) === id) &&
             element.getClientRects().length > 0,
         );
+  const parentHeader = () => visible('[data-dock-header]', 'data-dock-header', CHANNEL_BODY_PANEL);
+  const parentControl = () =>
+    visible('[data-pinned-panel]', 'data-pinned-panel', CHANNEL_BODY_PANEL);
+  const nestedTarget = () =>
+    visible('[data-dock-header]', 'data-dock-header') ??
+    visible('[data-help-panel-control]', 'data-help-panel-control') ??
+    parentHeader();
   const locate = () => {
+    if (nested) {
+      const element = nestedTarget();
+      if (element) return { element, kind: 'nested' } as const;
+      const parent = parentControl();
+      return parent ? ({ element: parent, kind: 'parent' } as const) : undefined;
+    }
     const header = visible('[data-dock-header]', 'data-dock-header');
     if (header) return { element: header, kind: 'panel' } as const;
     const control =
@@ -41,6 +64,38 @@ export function panelLocationGuide(panels: DockPanelHost, panel: DockPanelRegist
       signal.throwIfAborted();
       const target = locate();
       if (id !== panel.id || !available() || !target) throw new Error('help_target_unavailable');
+      if (nested) {
+        const needsParent = !parentHeader();
+        const steps: HelpStep[] = [];
+        if (needsParent)
+          steps.push({
+            title: { en: `Messages → ${panel.title}`, zh: `消息 → ${panel.title}` },
+            description: {
+              en: `${panel.title} lives inside Messages. Click the highlighted Messages button, then choose Next. The temporary panel visibility will be restored when this hint ends.`,
+              zh: `「${panel.title}」在消息面板里面。先点击高亮的消息按钮，打开后再点下一步。结束提示后会恢复原来的面板布局。`,
+            },
+            resolve: parentControl,
+            complete: () => !!parentHeader(),
+          });
+        steps.push({
+          title: { en: `Messages → ${panel.title}`, zh: `消息 → ${panel.title}` },
+          description:
+            target.element.getAttribute('data-dock-header') === panel.id
+              ? {
+                  en: `${panel.title} is already open inside Messages. This is the subpanel’s header. Choose Done when you have found it.`,
+                  zh: `「${panel.title}」是消息面板的子面板，现在已经打开。这里是子面板的标题栏，确认位置后点击完成即可。`,
+                }
+              : {
+                  en: `${panel.title} is a subpanel of Messages. Look for its button in the Messages header; click it to show the subpanel. If the control is hidden, right-click that header to show it. Choose Done when finished.${needsParent ? ' The original layout will be restored.' : ''}`,
+                  zh: `「${panel.title}」是消息面板的子面板。在消息标题栏找到它的按钮，点击即可展开。如果按钮被隐藏，可右键消息标题栏将它显示出来。查看后点击完成。${needsParent ? '结束后会恢复原来的布局。' : ''}`,
+                },
+          resolve: nestedTarget,
+        });
+        const release = needsParent
+          ? panels.beginGuide(invalidated, { presentMessages: false })
+          : () => {};
+        return { steps, dispose: release };
+      }
       const description =
         target.kind === 'panel'
           ? {
