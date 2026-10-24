@@ -185,6 +185,7 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
+  alignOrchestratorSubagentPermission,
   deviceToolAuthorization,
   grantExecutionDenial,
   grantToolExecutionDenial,
@@ -1550,6 +1551,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'reject' };
       }
       alignOrchestratorPermission(agent);
+      alignOrchestratorSubagentPermission(
+        core,
+        agent.session,
+        ctx.get('sandboxPolicy'),
+        ctx.get('approval'),
+      );
       return permissionDenial(agent.session) === undefined ? next() : { kind: 'reject' };
     },
     { global: true },
