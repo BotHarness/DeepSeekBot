@@ -132,7 +132,7 @@ describe('asks follow the Channel the task came from', () => {
       expect(await outcome).toBe('allowed-once');
 
       expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toContain(
-        `send one short channel_send to Group "Team" (channel_id "${group.id}")`,
+        `send one short bot_send_message to Group "Team" (channel_id "${group.id}")`,
       );
       expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toBeUndefined();
       const grant = await run.channels.requestGrant('Need the handoff folder');
@@ -210,7 +210,7 @@ describe('the first approval card of a turn waits for a word in the Channel', ()
       const run = await started;
       const first = core.runtime.askNotice?.(run.sessionId, 'bash');
       expect(first).toContain(
-        `send one short channel_send to your Human DM (channel_id "${dm.id}")`,
+        `send one short bot_send_message to your Human DM (channel_id "${dm.id}")`,
       );
       expect(first).toContain('Then call bash again with the same arguments');
       expect(core.runtime.askNotice?.(run.sessionId, 'bash')).toBeUndefined();

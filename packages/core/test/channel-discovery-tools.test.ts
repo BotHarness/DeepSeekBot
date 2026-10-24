@@ -124,7 +124,11 @@ async function withTools(
 
 async function call(tools: readonly ToolDefinition[], name: string, args: unknown) {
   return JSON.parse(
-    String(await tools.find((tool) => tool.name === name)!.execute(args, {} as ToolRunContext)),
+    String(
+      await tools
+        .find((tool) => tool.name === name)!
+        .execute(args, { signal: new AbortController().signal } as ToolRunContext),
+    ),
   );
 }
 
@@ -135,19 +139,17 @@ describe('registered Channel discovery/read contracts', () => {
       expect(listed.channels[0].humanMembers).toEqual([
         { humanId: 'local-human', displayName: 'Human' },
       ]);
-      const send = tools.find((tool) => tool.name === 'channel_send')!;
+      const send = tools.find((tool) => tool.name === 'bot_send_message')!;
       for (const invalid of ['local-human', { humanId: 'local-human' }, null, [12]]) {
         await expect(
-          send.execute(
-            { channel_id: team, body: 'Invalid mention', mention_human_ids: invalid },
-            {} as ToolRunContext,
-          ),
+          send.execute({ channel_id: team, body: 'Invalid mention', mention_human_ids: invalid }, {
+            signal: new AbortController().signal,
+          } as ToolRunContext),
         ).rejects.toThrow('invalid arguments');
       }
-      await send.execute(
-        { channel_id: team, body: 'Ready?', mention_human_ids: ['local-human'] },
-        {} as ToolRunContext,
-      );
+      await send.execute({ channel_id: team, body: 'Ready?', mention_human_ids: ['local-human'] }, {
+        signal: new AbortController().signal,
+      } as ToolRunContext);
       expect(
         core.humanAttention.list({ category: 'replies', channelId: team }).items,
       ).toMatchObject([{ kind: 'channel-mention', summary: '@Human Ready?' }]);

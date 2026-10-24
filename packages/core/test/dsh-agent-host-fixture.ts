@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import type {
   Agent,
@@ -30,6 +31,7 @@ export interface FakeSession {
 
 export interface FakeAgentHostHooks {
   sendMessage?: boolean;
+  messageChannel?: string;
   assignmentTurnEnd?: TurnEndReason;
   onTurn?(session: FakeSession, tools: readonly ToolDefinition[]): Promise<void>;
   onAgentCreated?(agent: unknown): void;
@@ -258,9 +260,12 @@ export class FakeAgentHost implements DshAgentHost {
       );
       const channelSend = scope.tools.find((tool) => tool.name === 'bot_send_message');
       if (this.hooks.sendMessage)
-        await channelSend?.execute({ channel_id: 'dm-test', body: '发布状态已经核对完成。' }, {
-          signal: new AbortController().signal,
-        } as ToolRunContext);
+        await channelSend?.execute(
+          { channel_id: this.hooks.messageChannel ?? 'dm-test', body: '发布状态已经核对完成。' },
+          {
+            signal: new AbortController().signal,
+          } as ToolRunContext,
+        );
       messages.push(
         createAssistantMessage({
           content: [{ type: 'text', text: 'private Orchestrator final' }],
