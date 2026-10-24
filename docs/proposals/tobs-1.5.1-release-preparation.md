@@ -39,6 +39,49 @@ additional merges require a new release identity. Preserve the existing
 Recheck SemVer against the final diff: 1.5.1 is provisional, and newly added
 functionality or breaking behavior may require a different version under policy.
 
+## CLI compatibility and documentation readiness
+
+The scoped-package implementation in #2747 exposes `tobs` and delegates to the
+same-version `deepseekbot` CLI. It does not expose a second global command merely
+because `deepseekbot` is a dependency.
+
+| Global npm installation | Expected commands on PATH                             |
+| ----------------------- | ----------------------------------------------------- |
+| Only `@botharness/tobs` | `tobs`                                                |
+| Only `deepseekbot`      | `deepseekbot`                                         |
+| Both packages           | Both commands; match versions for equivalent behavior |
+
+Installing a Bundle through DSH is separate from installing a global npm CLI;
+the plugin-install instructions must not promise a shell command on PATH.
+
+Before requesting publication approval, prepare reviewed changes for these surfaces:
+
+- New-user installation and command examples use `@botharness/tobs` and `tobs`.
+  Retain a clearly labelled compatibility path for the `deepseekbot` package and
+  command. Never pair a new-package-only global install with unexplained
+  `deepseekbot ...` examples. Do not recommend the rejected unscoped npm package.
+- Update bilingual README and npm README copy, `docs/bot-cli.md` and
+  `docs/bot-cli.zh.md`, installation/upgrade guides, website copy buttons and their
+  command sources. Explain installation requirements and same-version command
+  equivalence once at the CLI reference entry; audit linked runnable examples.
+  Historical release records and code/protocol identifiers retain their names.
+- Make installation synchronization package-aware: the current synchronizer
+  hard-codes `deepseekbot`, so changing only the version cannot select the scoped
+  package. Keep the current published install identity until registry qualification.
+- Update canonical source documents and synchronize generated docs through the
+  repository's existing scripts. Prepare the matching `deepseekbot-site` changes
+  in its own PR; do not edit generated docs or switch the live website early.
+
+Qualify the final tarballs on Windows and Linux with separate clean global-install
+prefixes for each single-package case, then test same-version coexistence, both
+uninstall directions, explicit `npm exec --package=... -- <command>` entry points,
+help, representative subcommands and refusal/exit-code parity. Confirm that copied
+documentation commands select the intended package/version. Existing coexistence
+tests do not alone prove that installing one package exposes both commands.
+
+This checklist adds documentation and verification requirements, not new CLI aliases
+or a claim that the website migration or final-artifact tests have already passed.
+
 ## Required gates, in order
 
 1. **Wait for #2435 to close.** Its
