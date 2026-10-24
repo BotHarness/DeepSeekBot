@@ -1,0 +1,51 @@
+// OpenAI-compatible /chat/completions mock that streams a fixed Markdown reply at a fixed rate,
+// so main and the PR branch are profiled against byte-identical streams.
+//   node mock-llm.mjs <reply.md> <port> [chunkChars=4] [intervalMs=16]
+import { createServer } from 'node:http';
+import { readFileSync, appendFileSync } from 'node:fs';
+
+const [file, port = '18911', chunkChars = '4', intervalMs = '16'] = process.argv.slice(2);
+const reply = readFileSync(file, 'utf8');
+const log = (line) => appendFileSync(`${file}.mock.log`, `${new Date().toISOString()} ${line}\n`);
+
+createServer((req, res) => {
+  let body = '';
+  req.on('data', (d) => (body += d));
+  req.on('end', async () => {
+    log(`${req.method} ${req.url} ${body.length}b`);
+    if (!req.url.endsWith('/chat/completions')) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ data: [{ id: 'deepseek-v4-flash', object: 'model' }] }));
+    }
+    const request = JSON.parse(body || '{}');
+    const last = request.messages?.at(-1) ?? {};
+    const text = (m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content ?? ''));
+    const lastAssistant = request.messages.findLastIndex((m) => m.role === 'assistant');
+    const trailing = request.messages.slice(lastAssistant + 1).filter((m) => m.role === 'user').map(text).join('\n');
+    // Like the real model in run main 1: a one-line preamble, then the reply as a streamed
+    // channel_send tool call (the Host turns the streaming tool arguments into DM drafts).
+    const ask = (request.tools?.length ?? 0) > 0 && last.role !== 'tool' && trailing.includes('Reply directly in this DM') && !trailing.includes('[Triage]');
+    const args = JSON.stringify({ body: reply });
+    const pieces = args.match(new RegExp(`[\\s\\S]{1,${Number(chunkChars)}}`, 'g'));
+    log(`role=${last.role} ask=${ask} ${ask ? pieces.length + ' arg chunks' : ''}`);
+    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+    const id = `mock-${Date.now()}`;
+    const send = (delta, finish = null) =>
+      res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: request.model, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`);
+    send({ role: 'assistant', content: '' });
+    if (ask) {
+      send({ content: "I'll write the guide and deliver it in this DM." });
+      send({ tool_calls: [{ index: 0, id: `call_${Date.now()}`, type: 'function', function: { name: 'channel_send', arguments: '' } }] });
+      for (const piece of pieces) {
+        send({ tool_calls: [{ index: 0, function: { arguments: piece } }] });
+        await new Promise((r) => setTimeout(r, Number(intervalMs)));
+      }
+      send({}, 'tool_calls');
+    } else {
+      send({ content: last.role === 'tool' ? 'Delivered the guide to the DM.' : 'Nothing else to do.' });
+      send({}, 'stop');
+    }
+    res.write(`data: ${JSON.stringify({ id, object: 'chat.completion.chunk', choices: [], usage: { prompt_tokens: 100, completion_tokens: 100, total_tokens: 200 } })}\n\n`);
+    res.end('data: [DONE]\n\n');
+  });
+}).listen(Number(port), '127.0.0.1', () => log(`listening ${port}`));

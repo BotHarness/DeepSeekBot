@@ -110,3 +110,26 @@ EXPO_OFFLINE=1 pnpm --filter @botharness/mobile export
 ## Updating skills
 
 The Expo, Callstack and React Native Testing Library skills are third-party, locked in `skills-lock.json`. Do not edit them in place; update them with `npx skills update <name>` and review the diff.
+
+### Production JavaScript profiling
+
+Use `--no-react` with `rn-profile.mjs` when Metro runs with `--no-dev --minify`.
+Production React has no DevTools commit hook: the report sets `react` to `null`
+and measures JS frame intervals over the full capture, including command startup
+and settling. Do not compare that window with a development report's
+first-to-last-commit window. Keep identical capture/settle settings and report
+active-window analysis separately. The nominal dropped-JS-frame calculation is
+60 Hz; it is not evidence of native UI frame rate or ProMotion qualification.
+
+On iOS, use `xcrun xctrace record --device <assigned-simulator-udid> --template
+"Time Profiler" --attach <app-pid> --time-limit 60s --output <private.trace>` for
+native layout attribution. A Simulator process requires its device identifier.
+Keep native sampling separate from the matched JS runs and preserve warnings.
+Real 120 Hz acceptance still requires a Release build on a ProMotion iPhone,
+including streaming, history scrolling and both together; Simulator CPU samples
+and a 60 Hz physical phone do not establish that result.
+
+When adding a platform-specific file such as `markdown-view.ios.tsx`, restart
+Metro with `--clear` and inspect the bundle source map before profiling. Verify
+that the selected module and its source content match the intended candidate;
+a cold app launch alone can retain Metro's older module-resolution graph.
