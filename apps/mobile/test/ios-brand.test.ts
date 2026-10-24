@@ -74,6 +74,6 @@ it('leaves Android native configuration and existing locale entries under their 
   expect(config.android).toBe(android);
   expect(config.mods.android).toBe(androidMods);
   expect(config.locales.en).toEqual({ android: { app_name: 'Existing Android name' } });
-  expect(androidName).toEqual({ en: 'DeepSeekBot', zh: 'DeepSeekBot' });
+  expect(androidName).toEqual({ en: 'Tobs', zh: '托布' });
   expect(iosName).toEqual({ en: 'Tobs', zh: '托布' });
 });

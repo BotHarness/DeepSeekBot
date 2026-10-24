@@ -1,1 +1,1 @@
-export const productName = { en: 'DeepSeekBot', zh: 'DeepSeekBot' };
+export const productName = { en: 'Tobs', zh: '托布' };
