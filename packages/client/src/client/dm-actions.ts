@@ -79,3 +79,39 @@ export function toggleHiddenDmAction(botSlug: string, kind: DmActionKind): void 
   snapshots.set(botSlug, hidden);
   for (const listener of listeners) listener();
 }
+
+export type DmMemoryDisplay = 'compact' | 'detailed';
+export const DM_MEMORY_DISPLAYS: readonly DmMemoryDisplay[] = ['compact', 'detailed'];
+const MEMORY_DISPLAY_STORAGE_KEY = 'botharness.dm-actions.memory-display.v1';
+const memoryDisplays = new Map<string, DmMemoryDisplay>();
+
+function readMemoryDisplays(): Record<string, DmMemoryDisplay> {
+  try {
+    const parsed: unknown = JSON.parse(storage()?.getItem(MEMORY_DISPLAY_STORAGE_KEY) ?? '{}');
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => value === 'compact' || value === 'detailed'),
+    );
+  } catch {
+    return {};
+  }
+}
+
+export function dmMemoryDisplaySnapshot(botSlug: string | undefined): DmMemoryDisplay {
+  if (botSlug === undefined) return 'detailed';
+  const cached = memoryDisplays.get(botSlug);
+  if (cached !== undefined) return cached;
+  const display = readMemoryDisplays()[botSlug] ?? 'detailed';
+  memoryDisplays.set(botSlug, display);
+  return display;
+}
+
+export function setDmMemoryDisplay(botSlug: string, display: DmMemoryDisplay): void {
+  const all = readMemoryDisplays();
+  all[botSlug] = display;
+  try {
+    storage()?.setItem(MEMORY_DISPLAY_STORAGE_KEY, JSON.stringify(all));
+  } catch {}
+  memoryDisplays.set(botSlug, display);
+  for (const listener of listeners) listener();
+}

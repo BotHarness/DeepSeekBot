@@ -13,7 +13,9 @@
         "storage:packages/client/src/client/dm-actions.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/file-open-preferences.ts:setItem(storageKey)",
         "setting:packages/client/src/client/channel-personal-settings.tsx:{t(`dmTrace.kind.${kind}`)}",
-        "storage:packages/client/src/client/activity-indicator.ts:setItem(ACTIVITY_INDICATOR_KEY)"
+        "storage:packages/client/src/client/activity-indicator.ts:setItem(ACTIVITY_INDICATOR_KEY)",
+        "setting:packages/client/src/client/channel-personal-settings.tsx:{t('dmTrace.memoryDisplay')}",
+        "storage:packages/client/src/client/dm-actions.ts:setItem(MEMORY_DISPLAY_STORAGE_KEY)"
       ],
       "issue": "#2095"
     },

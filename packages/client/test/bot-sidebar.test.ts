@@ -1915,7 +1915,12 @@ describe('bot sidebar rows', () => {
         t: zhTranslate as never,
         settingsAction: { attention: true, run: openSettings },
         nicknameAction: editNickname,
-        dmActions: { hidden: ['memory'], toggle },
+        dmActions: {
+          hidden: ['memory'],
+          toggle,
+          memoryDisplay: 'compact',
+          setMemoryDisplay: vi.fn(),
+        },
         onPick: vi.fn(),
         onClose: vi.fn(),
       }),
@@ -1939,7 +1944,12 @@ describe('bot sidebar rows', () => {
     const dmRow = menu.items.find((item) => item['id'] === 'dm-actions') as
       | { submenu?: readonly { id: string }[] }
       | undefined;
-    expect(dmRow?.submenu?.map((item) => item.id)).toEqual(['dm:posts', 'dm:memory']);
+    expect(dmRow?.submenu?.map((item) => item.id)).toEqual([
+      'dm:posts',
+      'dm:memory',
+      'dm:memory-display:compact',
+      'dm:memory-display:detailed',
+    ]);
     menu.onSelect?.('settings');
     expect(openSettings).toHaveBeenCalledOnce();
     menu.onSelect?.('nickname');

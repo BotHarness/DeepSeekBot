@@ -5923,6 +5923,18 @@ pre.bh-memory-commit-code { padding: ${space.x3} ${space.x5}; white-space: pre-w
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.bh-memory-commit-line[data-memory-display='compact'] > .bh-bot-dm-action-bot {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 40%;
+}
+.bh-memory-commit-line[data-memory-display='compact'] .bh-bot-dm-action-name,
+.bh-memory-commit-line[data-memory-display='compact'] > .bh-memory-commit-action {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bh-memory-commit-line[data-memory-display='compact'] > .bh-memory-commit-action { flex: 0 1 auto; }
 .bh-memory-commit-sha { font-family: var(--dsw-font-family-mono, monospace); font-size: ${text.metaSize}; }
 .bh-memory-commit-files { color: var(--dsw-alias-label-tertiary); }
 .bh-bot-dm-action-bot .bh-persona-avatar { border-radius: 28%; overflow: hidden; }
