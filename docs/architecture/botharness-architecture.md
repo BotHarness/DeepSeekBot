@@ -1,5 +1,7 @@
 # BotHarness 架构与数据流
 
+应用品牌为 Tobs（托布，Team of bots／Thousands of Bots），框架保留 BotHarness。官网域迁至 `tobs.app`；`go.tobs.app` 与旧短链域共享现有 Worker 和 D1，后台经 `ADMIN_ORIGIN` 留在原 Access 保护域。市场与统计服务接纳新官网来源；设备连接域、应用身份及既有安装入口保持兼容。见 [ADR-0248](../adr/0248-tobs-rebrands-the-product-while-preserving-existing-entry-points.md) 与 [迁移方案](../proposals/tobs-brand-migration.md)。
+
 #2080 第一条切片让 Web 请求卡与在线 CLI 共用 application-defined Workspace 请求批准命令。Grant owner 在 Channel owner 的现有提交事务内写入读写权限，规范决议与 Inbox Admission 同时提交；成功读回后再沿原运行时处理原任务。新目录与旧只读升级均需 Human 明确确认，不由 Client 串联多个独立成功动作。Orchestrator 与 Assignment 的原生文件写入都检查当前 Grant 写权限；Assignment 仍只使用其原 Grant 和单 cwd。普通目录设置、移动端交互和完整重启恢复矩阵仍按后续切片交付，不能从本次 Web/CLI 路径推定已完成。见 [ADR-0238](../adr/0238-workspace-request-approval-commits-write-authority-with-the-channel-decision.md)。
 
 #2053 的本地 Group 发送复核试点由 Channel owner 在正式 Source Event / placement 追加的同一事务内比较实际观察依据。

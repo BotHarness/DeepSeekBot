@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 export const API_HOST = 'us.i.posthog.com';
 export const ASSET_HOST = 'us-assets.i.posthog.com';
 const ALLOWED_ORIGIN =
-  /^(https:\/\/deepseekbot\.(?:app|dev|botharness\.ai)|https:\/\/[a-z0-9-]+-deepseekbot-site\.[a-z0-9-]+\.workers\.dev|http:\/\/localhost:\d+)$/;
+  /^(https:\/\/tobs\.app|https:\/\/deepseekbot\.(?:app|dev|botharness\.ai)|https:\/\/[a-z0-9-]+-deepseekbot-site\.[a-z0-9-]+\.workers\.dev|http:\/\/localhost:\d+)$/;
 const DROPPED = [
   'cookie',
   'host',
@@ -26,9 +26,7 @@ app.use(
   }),
 );
 
-app.get('/', (c) =>
-  c.text('BotHarness telemetry ingest. See https://deepseekbot.botharness.ai/privacy/\n'),
-);
+app.get('/', (c) => c.text('BotHarness telemetry ingest. See https://tobs.app/privacy/\n'));
 
 app.all('*', async (c) => {
   const url = new URL(c.req.url);

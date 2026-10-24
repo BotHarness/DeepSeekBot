@@ -101,6 +101,7 @@ describe('public read API contract', () => {
       'https://evil.example',
       'https://deepseekbot.botharness.ai.evil.example',
       'https://deepseekbot.app.evil.example',
+      'https://tobs.app.evil.example',
       'http://deepseekbot.app',
       'null',
     ]) {

@@ -89,9 +89,9 @@ describe('MCP at /mcp', () => {
     expect(link).toEqual({
       isError: false,
       data: expect.objectContaining({
-        shortUrl: 'https://go.botharness.ai/ph-x-post',
+        shortUrl: 'https://go.tobs.app/ph-x-post',
         target:
-          'https://deepseekbot.botharness.ai/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
+          'https://tobs.app/en/docs/overview/?utm_campaign=ph-launch&utm_source=x&utm_medium=post&utm_content=ph-x-post',
         clicks: 0,
       }),
     });
