@@ -4,6 +4,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 
 ## Sub-features
 
+- `memory-display` keeps the per-Bot elsewhere-memory visibility switch and adds Compact / Detailed in the existing action menu and Channel settings. Compact retains the Bot and origin, omits commit metadata and opens the same full diff on click. The preference is local to this browser; unset values stay Detailed.
 - `new-messages` opens the Channel at the Human's read anchor and draws a `New messages` divider after it when someone else wrote since.
 - `keep-place` puts a Channel back at the message you were reading when you switch away and back within the same page.
 - `fold` folds a settled message taller than 480px to 300px behind `Show all`.
@@ -16,6 +17,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 
 ## How to get to it (user POV)
 
+- In a Bot DM with Memory updates from another conversation, open its Channel menu → Show what this Bot did elsewhere → Memory display: Compact / Detailed. The same choice is under Channel settings → Show what this Bot did elsewhere → Memory display. Hide Memory updates to disable the choice; show them again to restore it.
 - Enter Bot mode and open a DM that has messages after your last read position: the divider sits about a quarter down the view.
 - Scroll up, open another conversation in the sidebar, then come back: the same message is at the same height.
 - Send a file with a long name, then narrow the Messages dock panel: the file information and action controls stay inside both Human and Bot bubbles. Open the file menu and download the file.
@@ -28,6 +30,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 
 Preconditions: a model credential, a Bot with a few replies (one long list), three image attachments sent with `botharness/attachment/upload` and `rpc botharness/channelSend`, and `deepseekbot channel-mark-read <dm> --message-id <id>` on an earlier reply.
 
+- **Memory display.** Use a task-owned Bot with an existing Group-caused Memory commit mirrored into its Human DM. Read `botharness/channelMessages` for that DM and keep the notice ID, SHA and origin Channel as canonical evidence. In the real Client, choose Compact from the Channel menu and verify only the icon, Bot, origin and update action remain; choose Detailed to restore the subject, SHA and file summary. In Channel settings choose Compact, close settings, refresh, hide/show Memory updates and switch away/back: the chosen style survives and the setting is disabled while hidden. Click the compact line and verify the diff SHA matches `botharness/memoryGitCommitDiff`; return to Chat. Capture both modes in light/dark, Chinese/English, narrow width and zoom with long Bot/origin names. Original Group notices and local DM commits keep Detailed. No model is required to render existing canonical notices.
 - **Divider.** Open the DM; `[data-unread-divider]` exists right after the marked message, and `rpc botharness/channelReadPosition` returns that message before the visit.
 - **Keep place.** Record `.bh-chat-body` `scrollTop`, open another DM, return; the value matches.
 - **Reactions.** `deepseekbot channel-react <dm> --message-id <id> --emoji 👍` returns `reactions`, and an open page shows `[data-reaction="👍"]` without a reload; `--remove` takes it away and `deepseekbot bot-tool <bot> channel_send --args-stdin` with `{"channel_id","body":"","react_to","reaction"}` reacts as that Bot. In the page, `[data-reaction-picker-trigger]` opens `[data-reaction-picker]`; at 390px wide the long-press menu's `Add reaction` item opens it. A real Bot asked to acknowledge with ✅ calls `channel_send` with `react_to`, which `deepseekbot bot-trace` shows.
@@ -43,3 +46,5 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 - Read positions only move forward. To see the divider again, post a new message so the Bot replies after the anchor.
 - Headless Chromium reports `hover: none`, which hides hover-only times and shows the hover actions permanently. Launch it with `--blink-settings=primaryHoverType=2,availableHoverTypes=2,primaryPointerType=4,availablePointerTypes=4` to capture desktop hover states.
 - `deepseekbot pause` and `resume` have no online adapter; you cannot pause a Bot on a live Host to keep it from answering seeded messages.
+
+- The pinned DSH Menu renders one submenu level. Memory display choices are flat labelled rows inside the existing action submenu; do not encode a third menu level in MenuItem data. Settings uses the existing Select.
