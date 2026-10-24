@@ -12,11 +12,11 @@ const withIosBrand = require('./with-ios-brand');
 afterEach(() => vi.unstubAllEnvs());
 
 it.each([
-  ['store', 'Tobs', '托布', 'app.deepseekbot.mobile', ['deepseekbot', 'app.deepseekbot.mobile']],
+  ['store', 'Tobs', '托布 Tobs', 'app.deepseekbot.mobile', ['deepseekbot', 'app.deepseekbot.mobile']],
   [
     'development',
     'Tobs Dev',
-    '托布 Dev',
+    '托布 Tobs Dev',
     'ai.botharness.deepseekbot.dev',
     ['deepseekbot-dev', 'ai.botharness.deepseekbot.dev'],
   ],
@@ -44,7 +44,7 @@ it.each([
       'NSLocalNetworkUsageDescription',
     ]) {
       expect(native.infoPlist[key]).toContain('Tobs');
-      expect(config.locales['zh-Hans'].ios[key]).toContain('托布');
+      expect(config.locales['zh-Hans'].ios[key]).toContain('托布 Tobs');
     }
     expect(config.locales['zh-Hans'].ios.CFBundleDisplayName).toBe(chinese);
     expect(config.ios.bundleIdentifier).toBe(bundleId);
@@ -75,5 +75,5 @@ it('leaves Android native configuration and existing locale entries under their 
   expect(config.mods.android).toBe(androidMods);
   expect(config.locales.en).toEqual({ android: { app_name: 'Existing Android name' } });
   expect(androidName).toEqual({ en: 'Tobs', zh: '托布' });
-  expect(iosName).toEqual({ en: 'Tobs', zh: '托布' });
+  expect(iosName).toEqual({ en: 'Tobs', zh: '托布 Tobs' });
 });
