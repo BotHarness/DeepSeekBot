@@ -76,6 +76,34 @@ Once paired, the phone shows the Bots and groups on your computer, and the compu
 
 ![The phone after pairing, showing the computer's Bot under All and My Mac](/guides/mobile-pairing/06-phone-paired-en.webp)
 
+## Control your computer over Tailscale
+
+You can open a Bot's **Computer** from another network when the phone is paired through the Host's Tailscale HTTPS address. The phone and computer do not need to share a Wi-Fi network. This uses the existing native desktop viewer; it does not enable desktop video through Connect.
+
+### Before you start
+
+- Keep Tailscale connected on both devices in the same tailnet. Its access rules must allow communication between them. Keep the Host running and the computer awake with an accessible desktop session.
+- Complete the HTTPS pairing above. In the phone's connection settings, check that the selected Host is connected through its `https://<computer>.<tailnet>.ts.net` address (possibly with a configured port), not a Connect or LAN route. If Tailscale Serve already publishes another service, preserve that mapping and use the Host's configured endpoint instead of overwriting it.
+- Use a Host and native phone app that include Local Computer video. The verified macOS/iOS test build is identified below; this guide does not claim that every older stable or store build includes it.
+- Enable Computer Access for the Bot and start **Local Computer** on the Host using **Check permissions**, or `deepseekbot computer-start --target local`. On macOS, allow Screen Recording for the capture helper and Computer driver, and Accessibility for input. Restart Local Computer after granting capture permission.
+
+### Watch, control and hand back
+
+1. On the phone, select the paired Host, open the Bot and choose **Computer**.
+2. Wait for live video. Watching does not pause Bots. If video does not appear, check the connection, awake desktop and capture permissions; use **Reconnect video** after resolving the problem.
+3. Tap **Take control**, then move the pointer with the touchpad. Use only the controls offered by your app version. Takeover pauses Bot access to this Computer across the Profile.
+4. Tap **Hand back** when finished. Confirm the screen returns to the Bot-operable state; merely leaving the page is not equivalent to resuming Bots. Hand back releases control and resumes Bots while allowing you to keep watching.
+
+If the network drops or the phone locks, input must stop. Reconnect returns to watching; explicitly take control again. Never repeat a click or text entry automatically after an uncertain result—inspect the desktop first.
+
+### What has been verified
+
+On 2026-10-25, macOS → iPhone XS Max was verified with the phone on another phone's mobile-data hotspot and **USB disconnected**: moving video, takeover, pointer movement and handback passed. Host and iOS Release app source: `8418bad80a499213427606b23dcbc8e9ff2974ad`. This is exact-build evidence, not a minimum supported version or a new store release. Windows → Android supports the native viewer in source; its **Tailscale cross-network test is pending**. Forced network-loss recovery, the full input matrix and long-duration performance also remain pending. See [qualification record](https://github.com/BotHarness/DeepSeekBot/issues/2562#issuecomment-6388900922).
+
+For your own cross-network check, keep the computer on its original network and put the phone on mobile data or a hotspot backed by another phone's mobile data. Disconnect USB and avoid ADB reverse or other local forwarding; otherwise the picture may bypass Tailscale. A connected HTTPS endpoint proves signaling, not the video route.
+
+The project does not provide a public TURN relay for this path. Tailscale may connect devices directly or use its own relay; WebRTC reporting `direct` does not prove the Tailscale underlay is peer-to-peer. Your network and Tailscale plan still apply. **Connect desktop video is currently unavailable**; this does not disable ordinary Connect chat or pairing, and does not prevent using a separate Tailscale connection.
+
 ## Without Tailscale: DeepSeekBot Connect
 
 DeepSeekBot Connect lets the phone reach the computer through an encrypted tunnel at `https://<id>.deepseekbot.dev` instead of Tailscale. You sign in to the same DeepSeekBot account on both devices, with Google, Apple or a code sent to your email. The tunnel exposes only the phone interface of DSH; your Bots and conversations stay on the computer.
