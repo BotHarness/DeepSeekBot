@@ -78,3 +78,19 @@ For this local slice, the sample is embedded in the Client bundle to avoid inven
 ## Verification
 
 The feature map is [VRM companion](../.agents/skills/verify-deepseekbot/features/vrm-companion.md). Activity and committed output use existing CLI parity: `deepseekbot bot-activity <bot>` and `deepseekbot channel-messages <dm-channel>` against the same live Host. This slice adds no Host RPC, route or Bot tool. It does not claim delivery of the separate layout CLI work in #2096.
+
+## Client help contributions (S1)
+
+The application-defined `clientHelp` Service is provided by the UI Plugin. Import `ClientHelpService`, `HelpContribution` and `HelpGuide` from `@botharness/ui/panels`. Inject `clientHelp` and return the registration disposer from `ctx.effect`; optional `ctx.inject(['clientHelp'], child => …)` keeps a Plugin compatible with older UI versions. The independently installed VRM Plugin contains a text-only consumer.
+
+Register a namespaced contribution, topic and question, each with a unique ID. Titles, overviews and answers provide English plus optional Chinese text; English is the fallback. Questions may provide keywords and an optional guide. Text-only answers have no Guide me action. Contributions live independently of a mounted Panel and disappear on Fiber disposal. Duplicate IDs are refused; disposal is idempotent and an old disposer cannot remove a later registration.
+
+A guide may supply a localized `actionLabel` (for example, “Show location”); otherwise the action reads “Guide me”. Built-in panel FAQs use a single Driver.js location hint: the visible panel header, its visible control, or the panel switcher. For a Messages subpanel, the hint names the parent → child path. If Messages is closed, first highlight its control and gate Next on the real parent becoming visible, then resolve the child control. The layout owner leases temporary visibility without automatically opening or maximizing Messages and restores it on completion/cancellation. An already visible parent skips that step. Other location hints do not open, resize or persist panels.
+
+A guide reports ready, explicit target-selection required, or unavailable with a readable reason. Preparation revalidates its target and accepts an AbortSignal; release resources on cancellation and return an idempotent disposer. Steps resolve real feature-owned elements when reached. Operation steps supply a semantic completion predicate; clicks alone do not establish a successful setting change. Built-in model help uses the original model-plan state, not a second settings store. Do not use unrelated shell-private selectors or invoke send methods from help navigation.
+
+This is the S1 contract. An independent Plugin's real interactive tutorial is a separate S2 acceptance gate; this text-only contribution does not qualify that gate.
+
+The User guide renders questions as inline collapsible rows. It uses the shared shell tokens (16px panel inset, 12px answer inset) and compact native buttons (28px): one primary guide action and secondary draft actions. Light and dark themes use the same hierarchy.
+
+Quick Switcher reads panel definitions from the existing registry and FAQ results from this same Help index. `clientHelp.show(questionId)` validates the question, reveals User guide and publishes `selection()` with a new revision so repeated selection reopens the same answer. It does not start the tutorial. Panel results toggle the current state and revalidate applicability when activated; FAQ results remain readable even when their guide is unavailable.

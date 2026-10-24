@@ -181,3 +181,25 @@ export function appendConversationDraft(scope: string, text: string): void {
   const current = manager.read(scope).draft.text;
   manager.update(scope, { text: current.trim().length === 0 ? text : `${current}\n\n${text}` });
 }
+
+export function suggestConversationDraft(
+  scope: string,
+  text: string,
+  insert = false,
+): 'filled' | 'preserved' {
+  const manager = owner();
+  manager.sync(scope);
+  const snapshot = manager.read(scope);
+  if (snapshot.error || snapshot.versions.length > 1) throw new Error('help_draft_unavailable');
+  const draft = snapshot.draft;
+  const empty =
+    draft.text.length === 0 &&
+    draft.mentions.length === 0 &&
+    draft.channelRefs.length === 0 &&
+    draft.uploads.length === 0 &&
+    draft.reply === undefined;
+  if (!empty && !insert) return 'preserved';
+  manager.update(scope, { text: empty ? text : draft.text + (draft.text ? '\n\n' : '') + text });
+  if (manager.read(scope).error) throw new Error('help_draft_unavailable');
+  return 'filled';
+}

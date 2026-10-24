@@ -1,3 +1,9 @@
+import { createQuickSwitcherNavigation } from './quick-switcher-navigation.js';
+import { installPanelHelp } from './help-panels.js';
+import { createHelpService } from './help-service.js';
+import { startHelpTour } from './internal-tour.js';
+import { createUserGuidePanel, helpText, USER_GUIDE_PANEL } from './user-guide.js';
+import { modelHelp } from './help-model.js';
 import { readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
@@ -471,6 +477,51 @@ export function apply(ctx: ClientContext): void {
     },
   });
   ctx.provide('dockPanels', dockPanels);
+  const clientHelp = createHelpService(
+    (steps, signal, progress, end) =>
+      startHelpTour(
+        steps,
+        signal,
+        (value) => helpText(value, t),
+        {
+          close: t('guide.exit'),
+          previous: t('guide.previous'),
+          next: t('guide.next'),
+          done: t('guide.done'),
+        },
+        progress,
+        end,
+      ),
+    () => dockPanels.open(USER_GUIDE_PANEL),
+  );
+  const quickSwitcherNavigation = createQuickSwitcherNavigation(dockPanels, clientHelp, t);
+  ctx.provide('clientHelp', clientHelp);
+  ctx.effect(() => installPanelHelp(clientHelp, dockPanels));
+  ctx.effect(() => {
+    if (typeof window === 'undefined') return () => {};
+    const key = Symbol.for('botharness.clientHelp');
+    const target = window as unknown as Record<symbol, unknown>;
+    target[key] = clientHelp;
+    return () => {
+      if (target[key] === clientHelp) delete target[key];
+    };
+  });
+  ctx.effect(() => {
+    const off = clientHelp.register(modelHelp(clientHelp, dockPanels, actions, t));
+    return () => {
+      clientHelp.cancel('client-disposed');
+      off();
+    };
+  });
+  ctx.effect(() => {
+    let selected = JSON.stringify(store.getSnapshot().selection);
+    return store.subscribe(() => {
+      const next = JSON.stringify(store.getSnapshot().selection);
+      if (next !== selected && clientHelp.state().phase !== 'idle')
+        clientHelp.cancel('channel-changed');
+      selected = next;
+    });
+  });
   ctx.effect(() =>
     appearance.setTargetSource(() => [
       ...dockPanels.panels().map((panel) => ({ id: panelTargetId(panel.id), label: panel.title })),
@@ -504,6 +555,7 @@ export function apply(ctx: ClientContext): void {
     exitBotMode: () => ctx.layout.selectPanel(null),
     openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
     quickSwitcherSettings,
+    quickSwitcherNavigation,
   };
 
   ctx.effect(() =>
@@ -532,6 +584,7 @@ export function apply(ctx: ClientContext): void {
         ...createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
           channelSidebar.register(entry),
         ),
+        dockPanels.register(createUserGuidePanel(clientHelp, dockPanels, t)),
         dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
@@ -1105,6 +1158,7 @@ export function apply(ctx: ClientContext): void {
           exitBotMode: () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
+          quickSwitcherNavigation,
         }),
       },
       MobileBotPanel,
@@ -1192,6 +1246,7 @@ export function apply(ctx: ClientContext): void {
             toggleSidebar: () => ctx.layout.toggleSidebar(),
             openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
             quickSwitcherSettings,
+            quickSwitcherNavigation,
           }),
         },
         BotModeSidebar,

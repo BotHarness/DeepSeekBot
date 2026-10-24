@@ -1,4 +1,17 @@
-import { Fragment, useId, useMemo, useState, type KeyboardEvent, type ReactElement } from 'react';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import type {
+  QuickSwitcherNavigation,
+  QuickNavigationResult,
+} from './quick-switcher-navigation.js';
+import {
+  Fragment,
+  useId,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   IconSearchOutlineRegular,
@@ -144,12 +157,17 @@ export interface QuickSwitcherSettings {
   open(result: SettingsSearchResult): void;
 }
 
+const subscribeNothing = () => () => {};
+const zeroVersion = () => 0;
+
 type QuickSwitcherItem =
+  | { readonly kind: 'navigation'; readonly result: QuickNavigationResult }
   | { readonly kind: 'channel'; readonly entry: QuickSwitcherEntry }
   | { readonly kind: 'setting'; readonly result: SettingsSearchResult };
 
 export interface QuickSwitcherProps {
   entries: readonly QuickSwitcherEntry[];
+  navigation?: QuickSwitcherNavigation | undefined;
   settings?: QuickSwitcherSettings | undefined;
   bots: ReadonlyMap<string, BotSummary>;
   activityOf: (bot: BotSummary) => PersonaBotActivityState;
@@ -162,6 +180,7 @@ export interface QuickSwitcherProps {
 export function QuickSwitcher({
   entries,
   settings,
+  navigation,
   bots,
   activityOf,
   shortcutBindings,
@@ -169,6 +188,11 @@ export function QuickSwitcher({
   onOpen,
   onClose,
 }: QuickSwitcherProps): ReactElement {
+  useSyncExternalStore(
+    navigation?.subscribe ?? subscribeNothing,
+    navigation?.snapshot ?? zeroVersion,
+    zeroVersion,
+  );
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const listId = useId();
@@ -183,11 +207,16 @@ export function QuickSwitcher({
   const items: QuickSwitcherItem[] = [
     ...results.map((entry) => ({ kind: 'channel' as const, entry })),
     ...settingResults.map((result) => ({ kind: 'setting' as const, result })),
+    ...(navigation?.search(query) ?? []).map((result) => ({ kind: 'navigation' as const, result })),
   ];
   const activeIndex = items.length === 0 ? -1 : Math.min(active, items.length - 1);
   const activeItem = activeIndex < 0 ? undefined : items[activeIndex];
   const openItem = (item: QuickSwitcherItem): void => {
-    if (item.kind === 'channel') onOpen(item.entry);
+    if (item.kind === 'navigation') {
+      if (item.result.disabled) return;
+      onClose();
+      navigation?.activate(item.result);
+    } else if (item.kind === 'channel') onOpen(item.entry);
     else settings?.open(item.result);
   };
   const optionId = (index: number): string => `${listId}-option-${index}`;
@@ -279,6 +308,35 @@ export function QuickSwitcher({
             onClick: () => openItem(item),
             ...stylex.props(styles.row, index === activeIndex && styles.active),
           };
+          if (item.kind === 'navigation') {
+            const { result } = item;
+            const previous = items[index - 1];
+            return (
+              <Fragment key={`${result.kind}:${result.id}`}>
+                {previous?.kind !== 'navigation' || previous.result.kind !== result.kind ? (
+                  <li role="presentation" {...stylex.props(styles.heading, styles.groupHeading)}>
+                    {t(result.kind === 'panel' ? 'quickSwitcher.panels' : 'quickSwitcher.help')}
+                  </li>
+                ) : null}
+                <li
+                  {...rowProps}
+                  aria-disabled={result.disabled}
+                  data-navigation-kind={result.kind}
+                  data-navigation-id={result.id}
+                >
+                  <span {...stylex.props(styles.icon)}>
+                    <ChannelSidebarIcon name={result.icon} />
+                  </span>
+                  <span {...stylex.props(styles.copy)}>
+                    <span {...stylex.props(styles.name)}>{result.title}</span>
+                    <span {...stylex.props(styles.meta)}>
+                      {result.disabled ? t('dock.cardUnavailable') : result.description}
+                    </span>
+                  </span>
+                </li>
+              </Fragment>
+            );
+          }
           if (item.kind === 'setting') {
             const { result } = item;
             return (
