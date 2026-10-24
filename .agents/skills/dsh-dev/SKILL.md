@@ -471,3 +471,13 @@ The rc.3 file-tool and Go Session patches retain the reviewed rc.2 implementatio
 Build pins and historical qualification versions are evidence, not runtime allowlists. `--dsh-version <version>` selects an isolated CLI without editing workspace dependencies; otherwise use the installed CLI. Native Host metadata owns the API floor (`>=0.2.0-0`, prereleases included), and Host-provided DSH modules have no npm peer ranges that exclude future prerelease tuples. The Go runtime first installs the selected native adapter, locates the unique matching request shape, and stages the reviewed patch at its actual line number; changed or ambiguous code is refused with a concrete diagnostic. This avoids pnpm patch failures caused only by line-number drift between rc versions; catalog and authenticated API checks still fail on real incompatibility. The optional zoom adapter checks its protocol, platform and transformed bytes rather than a Desktop version label. Stop a task-owned Host before switching its Profile runtime; never mutate another task’s Profile. Forward admission is not proof of future runtime behavior.
 
 The verification wrapper also accepts `verify-app launch --dsh-version <version>`. Its doctor reads the recorded launched runtime and compares it with the recorded launch version, not the workspace SDK; older instance records without a runtime path must be relaunched before claiming version verification. Packaged artifact `dsh` records build provenance and does not need to equal the current SDK. Stage Go patches using the actual installed adapter package version, which can differ from the CLI version. Optional IM launch metadata is prepared before starting the detached Host.
+
+### Home ownership scan exceeds the default process-output buffer
+
+On a busy macOS development machine, `dev-instance.mjs` can refuse a fresh Home with
+`Cannot verify development Home process ownership` before launching a Host. Inspect the
+`spawnSync` result without printing process environments: `error.code === "ENOBUFS"`
+means the full `ps axeww` output exceeded Node's default buffer, not that the Home is owned
+by another task. Keep the complete scan and its fail-closed error handling; use the same
+bounded 32 MiB buffer as the child-process ownership scan. Do not truncate process rows,
+skip ownership checks, or print raw environments, which can contain credentials.
