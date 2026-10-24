@@ -23,7 +23,7 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
-Use the worktree's local `@deepseek-ai/dsh@0.2.1-rc.2`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
+Use the worktree's local `@deepseek-ai/dsh@0.2.1-rc.3`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
 corepack pnpm build
@@ -442,3 +442,12 @@ The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cro
 ### PersonaBot native question answerer precedence (#2590)
 
 The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis waterfall. A prior native Client answerer can wait without calling `next`, preventing a later application-defined Channel answerer from seeing the request. Register the existing Channel question owner with `prepend: true`, as Channel approvals already do. Retain its exact live-Agent and Session Ownership checks; unowned requests must still call `next`. A real two-Host browser must show the card in both the owning conversation and remote Activity, accept an answer and resume the same native tool call. A pending tool trace alone does not prove a Channel card was created.
+
+### DSH 0.2.1-rc.3 upgrade
+
+The development CLI and SDK pin is rc.3. Preserve the independently pinned rc.2
+`dsh-client-ui-theme` build input: its copied Desktop zoom adapter is qualified only for
+rc.2 and still refuses rc.3. The ordinary rc.3 Host supplies its own native theme. Do not
+widen the zoom lease or installer guard based on matching source hashes alone; native
+Desktop qualification remains separate. Keep Provider build provenance unchanged.
+The rc.3 file-tool and Go Session patches retain the reviewed rc.2 implementation.

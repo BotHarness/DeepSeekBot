@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Updated the [local development guide](../dsh-dev/SKILL.md) for the rc.3 development pin and preserved separate Desktop zoom and Provider qualification; DSH/Cordis Context and Skill behavior are unchanged ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
+
 - Added the downstream [Windows-to-Android Local Computer video journey](../verify-deepseekbot/features/local-computer-video.md), with separate source, native presentation and Human gates; runtime qualification remains pending and DSH/Cordis Context is unchanged ([#2558](https://github.com/BotHarness/DeepSeekBot/issues/2558)).
 - Documented native question answerer precedence in the [local development guide](../dsh-dev/SKILL.md), verified on DSH `0.2.1-rc.2`; DSH/Cordis Context and Skill behavior are unchanged ([#2590](https://github.com/BotHarness/DeepSeekBot/issues/2590)).
 

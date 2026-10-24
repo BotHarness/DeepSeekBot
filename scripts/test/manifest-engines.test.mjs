@@ -52,7 +52,7 @@ describe('DSH engine declaration', () => {
       '@deepseek-ai/dsh'
     ];
     const computerUse = manifest('computer').devDependencies['@deepseek-ai/dsh-computer-use'];
-    expect(productDshVersions).toEqual(['0.2.0-rc.2', pinned]);
+    expect(productDshVersions).toEqual(['0.2.0-rc.2', '0.2.1-rc.2', pinned]);
     expect(computerUse).toBe(pinned);
     expect(manifest('computer').dependencies['@deepseek-ai/dsh-computer-use']).toBeUndefined();
     expect(semver.minVersion(range).version).toBe('0.2.0-rc.2');

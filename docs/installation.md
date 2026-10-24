@@ -1,5 +1,7 @@
 # Install DeepSeekBot
 
+Development of rc.3 support is tracked separately in the [upgrade notes](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/agents/dsh-rc3-upgrade.md); this does not requalify the stable package listed here.
+
 Install the **DeepSeekBot** plugin in DeepSeek Harness (DSH), enable it and create your first PersonaBot. You install one product package; Core, Client and the qualified IM Provider arrive with it.
 
 Install the stable npm package **`deepseekbot@1.4.1`**. Use **DSH `0.2.1-rc.2`**; the same released packages passed installation, Host startup, Bot/DM creation and restart persistence on **0.2.0-rc.2 and 0.2.1-rc.2**. Declared admission is `>=0.2.0-rc.2 <0.3.0-0`, not runtime qualification of every version. The DSH 0.2.0-rc.1 screenshots below are historical UI records; follow the current text. Back up the Profile before upgrading; returning to an older binary may require the pre-upgrade backup.
