@@ -4,6 +4,16 @@
 
 ## 语言
 
+### 产品命名
+
+**Tobs / 托布**：
+原名 DeepSeekBot 的应用产品；英文名为 Tobs，中文名为托布。名称意为 Team of bots，也寓意 Thousands of Bots，与内置总管 Bot「Tob」区分。
+_避免使用_：拖布、Tob（指代产品时）
+
+**BotHarness**：
+Tobs 背后的框架；应用采用 Tobs 品牌后，框架仍名为 BotHarness。
+_避免使用_：Tobs（指代框架时）
+
 ### 产品发布
 
 **Product Release Version**：

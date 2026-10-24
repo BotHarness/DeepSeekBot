@@ -1,4 +1,5 @@
 export const PUBLIC_ORIGINS: readonly string[] = [
+  'https://tobs.app',
   'https://deepseekbot.app',
   'https://deepseekbot.dev',
   'https://deepseekbot.botharness.ai',

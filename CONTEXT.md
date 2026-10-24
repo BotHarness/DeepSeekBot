@@ -4,6 +4,16 @@ A DeepSeek Harness plugin layer that gives LLM agents a persistent product ident
 
 ## Language
 
+### Product naming
+
+**Tobs / 托布**:
+The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Steward Bot.
+_Avoid_: 拖布, Tob (when referring to the product)
+
+**BotHarness**:
+The framework behind Tobs; its name remains BotHarness when the application adopts the Tobs brand.
+_Avoid_: Tobs (when referring to the framework)
+
 ### Product releases
 
 **Product Release Version**:
