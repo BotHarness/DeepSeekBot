@@ -54,6 +54,8 @@ export interface HelpState {
   readonly reason?: string;
 }
 export interface ClientHelpService {
+  show(questionId: string): void;
+  selection(): { readonly questionId: string; readonly revision: number } | undefined;
   register(contribution: HelpContribution): () => void;
   topics(): readonly HelpTopic[];
   search(query: string): readonly HelpQuestion[];

@@ -92,3 +92,5 @@ A guide reports ready, explicit target-selection required, or unavailable with a
 This is the S1 contract. An independent Plugin's real interactive tutorial is a separate S2 acceptance gate; this text-only contribution does not qualify that gate.
 
 The User guide renders questions as inline collapsible rows. It uses the shared shell tokens (16px panel inset, 12px answer inset) and compact native buttons (28px): one primary guide action and secondary draft actions. Light and dark themes use the same hierarchy.
+
+Quick Switcher reads panel definitions from the existing registry and FAQ results from this same Help index. `clientHelp.show(questionId)` validates the question, reveals User guide and publishes `selection()` with a new revision so repeated selection reopens the same answer. It does not start the tutorial. Panel results toggle the current state and revalidate applicability when activated; FAQ results remain readable even when their guide is unavailable.

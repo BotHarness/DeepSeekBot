@@ -3,6 +3,10 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'quickSwitcher.panels': '面板',
+  'quickSwitcher.help': '帮助 / FAQ',
+  'quickSwitcher.panelOn': '面板 · 已打开，选择后关闭',
+  'quickSwitcher.panelOff': '面板 · 已关闭，选择后打开',
   'guide.language': 'zh',
   'guide.title': '使用指南',
   'guide.search': '搜索问题',
@@ -1156,7 +1160,7 @@ export const zh = {
   'hidden.dm': '私聊',
   'hidden.group': '群聊',
   'quickSwitcher.title': '搜索会话和设置',
-  'quickSwitcher.placeholder': '搜索 Bot、群聊、频道或设置，支持拼音',
+  'quickSwitcher.placeholder': '搜索对话、面板、FAQ 或设置，支持拼音',
   'quickSwitcher.recent': '最近',
   'quickSwitcher.results': '会话',
   'quickSwitcher.settings': '设置',
@@ -4255,6 +4259,10 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'quickSwitcher.panels': 'Panels',
+  'quickSwitcher.help': 'Help / FAQ',
+  'quickSwitcher.panelOn': 'Panel · On — select to close',
+  'quickSwitcher.panelOff': 'Panel · Off — select to open',
   'guide.language': 'en',
   'guide.title': 'User guide',
   'guide.search': 'Search questions',
@@ -5465,7 +5473,7 @@ export const en = {
   'hidden.dm': 'Direct message',
   'hidden.group': 'Group chat',
   'quickSwitcher.title': 'Search conversations and settings',
-  'quickSwitcher.placeholder': 'Search Bots, chats, channels and settings',
+  'quickSwitcher.placeholder': 'Search conversations, panels, FAQs and settings',
   'quickSwitcher.recent': 'Recent',
   'quickSwitcher.results': 'Conversations',
   'quickSwitcher.settings': 'Settings',

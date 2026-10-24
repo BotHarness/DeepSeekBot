@@ -26,9 +26,9 @@ export async function runHelpClient(args, output = (text) => process.stdout.writ
       base.pathname !== '/'
     )
       throw new Error('help_client_local_only');
-    if (!['content', 'availability', 'state', 'start', 'cancel'].includes(values.action))
+    if (!['content', 'availability', 'state', 'start', 'cancel', 'show'].includes(values.action))
       throw new Error('help_invalid_action');
-    if (['availability', 'start'].includes(values.action) && !values.question)
+    if (['availability', 'start', 'show'].includes(values.action) && !values.question)
       throw new Error('help_question_required');
     const targets = await (
       await fetch(new URL('/json/list', base), { signal: AbortSignal.timeout(5000) })
@@ -66,6 +66,7 @@ export async function runHelpClient(args, output = (text) => process.stdout.writ
       const help = window[Symbol.for('botharness.clientHelp')];
       if (!help) throw new Error('help_client_unavailable');
       const input = ${JSON.stringify(values)};
+      if (input.action === 'show') { help.show(input.question); return help.selection(); }
       if (input.action === 'state') return help.state();
       if (input.action === 'cancel') { help.cancel('agent-cancelled'); return help.state(); }
       if (input.action === 'availability') return help.availability(input.question);

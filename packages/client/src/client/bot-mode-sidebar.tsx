@@ -1,3 +1,4 @@
+import type { QuickSwitcherNavigation } from './quick-switcher-navigation.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
@@ -42,6 +43,7 @@ export interface BotModeSidebarProps {
   exitBotMode: () => void;
   toggleSidebar: () => void;
   openBotSettings: (sectionId?: string) => void;
+  quickSwitcherNavigation?: QuickSwitcherNavigation | undefined;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   t: BotHarnessTranslate;
 }
@@ -203,6 +205,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           useBotModePrefs={useBotModePrefs}
           channelSidebar={props.channelSidebar}
           shortcutBindings={props.shortcutBindings}
+          quickSwitcherNavigation={props.quickSwitcherNavigation}
           quickSwitcherSettings={props.quickSwitcherSettings}
           setSortMode={props.setSortMode}
           setSectionSortMode={props.setSectionSortMode}

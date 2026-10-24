@@ -1,7 +1,8 @@
+import { createQuickSwitcherNavigation } from './quick-switcher-navigation.js';
 import { installPanelHelp } from './help-panels.js';
 import { createHelpService } from './help-service.js';
 import { startHelpTour } from './internal-tour.js';
-import { createUserGuidePanel, helpText } from './user-guide.js';
+import { createUserGuidePanel, helpText, USER_GUIDE_PANEL } from './user-guide.js';
 import { modelHelp } from './help-model.js';
 import { readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { createBotPresentation } from './bot-presentation.js';
@@ -476,21 +477,24 @@ export function apply(ctx: ClientContext): void {
     },
   });
   ctx.provide('dockPanels', dockPanels);
-  const clientHelp = createHelpService((steps, signal, progress, end) =>
-    startHelpTour(
-      steps,
-      signal,
-      (value) => helpText(value, t),
-      {
-        close: t('guide.exit'),
-        previous: t('guide.previous'),
-        next: t('guide.next'),
-        done: t('guide.done'),
-      },
-      progress,
-      end,
-    ),
+  const clientHelp = createHelpService(
+    (steps, signal, progress, end) =>
+      startHelpTour(
+        steps,
+        signal,
+        (value) => helpText(value, t),
+        {
+          close: t('guide.exit'),
+          previous: t('guide.previous'),
+          next: t('guide.next'),
+          done: t('guide.done'),
+        },
+        progress,
+        end,
+      ),
+    () => dockPanels.open(USER_GUIDE_PANEL),
   );
+  const quickSwitcherNavigation = createQuickSwitcherNavigation(dockPanels, clientHelp, t);
   ctx.provide('clientHelp', clientHelp);
   ctx.effect(() => installPanelHelp(clientHelp, dockPanels));
   ctx.effect(() => {
@@ -551,6 +555,7 @@ export function apply(ctx: ClientContext): void {
     exitBotMode: () => ctx.layout.selectPanel(null),
     openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
     quickSwitcherSettings,
+    quickSwitcherNavigation,
   };
 
   ctx.effect(() =>
@@ -1153,6 +1158,7 @@ export function apply(ctx: ClientContext): void {
           exitBotMode: () => ctx.layout.selectPanel(null),
           openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
           quickSwitcherSettings,
+          quickSwitcherNavigation,
         }),
       },
       MobileBotPanel,
@@ -1240,6 +1246,7 @@ export function apply(ctx: ClientContext): void {
             toggleSidebar: () => ctx.layout.toggleSidebar(),
             openBotSettings: (sectionId?: string) => botSettings.open(sectionId),
             quickSwitcherSettings,
+            quickSwitcherNavigation,
           }),
         },
         BotModeSidebar,

@@ -16,10 +16,13 @@ export function createHelpService(
     progress: (step: number) => void,
     end: (reason: string) => void,
   ) => () => void,
+  reveal: () => void = () => {},
 ): ClientHelpService {
   const registrations = new Map<string, HelpContribution>();
   const listeners = new Set<() => void>();
   let topics: readonly HelpTopic[] = [];
+  let selection: { readonly questionId: string; readonly revision: number } | undefined;
+  let selectionRevision = 0;
   let state: HelpState = { phase: 'idle' };
   let active:
     | { controller: AbortController; release?: () => void; presentation?: () => void }
@@ -34,6 +37,14 @@ export function createHelpService(
     reason: { en: 'This guide is unavailable.', zh: '此教程暂不可用。' },
   };
   const service: ClientHelpService = {
+    selection: () => selection,
+    show(id) {
+      if (!question(id)) throw new Error('help_question_unavailable');
+      service.cancel('reading');
+      selection = Object.freeze({ questionId: id, revision: ++selectionRevision });
+      reveal();
+      publish();
+    },
     register(contribution) {
       if (!/^[a-z0-9.-]+:[a-z0-9._-]+$/i.test(contribution.id)) throw new Error('help_invalid_id');
       const ids = [
@@ -92,6 +103,10 @@ export function createHelpService(
         if (registrations.get(owned.id) !== owned) return;
         if (owned.topics.some((t) => t.questions.some((q) => q.id === state.questionId)))
           service.cancel('plugin-removed');
+        if (
+          owned.topics.some((topic) => topic.questions.some((q) => q.id === selection?.questionId))
+        )
+          selection = undefined;
         registrations.delete(owned.id);
         topics = Object.freeze([...registrations.values()].flatMap((c) => c.topics));
         publish();

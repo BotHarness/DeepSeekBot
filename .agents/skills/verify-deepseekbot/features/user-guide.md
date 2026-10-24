@@ -9,7 +9,8 @@
 - `transient-layout`: the Dock owner excludes tutorial outer/inner state from normal saved preferences; cancellation reveals normal layout and preserves settings/drafts.
 - `tob-draft`: Ask Tob opens its existing DM, prefills an empty draft, preserves occupied/structured drafts, and appends only after Insert question. No automatic send.
 - `plugin-text`: independently install VRM and read its public Help contribution while its Panel is closed; unload removes help.
-- `client-access`: help-client inspects the same live Client service and cancels the selected guide.
+- `quick-search`: Alt+K reads the existing Panel registry and Help index. Panel results display on/off and toggle; FAQ results reveal the matching expanded answer, reset prior filters and never auto-start a tour.
+- `client-access`: help-client inspects the same live Client service opens an exact FAQ with show and cancels the selected guide.
 
 ## How to get to it (user POV)
 
@@ -25,7 +26,7 @@ With the task browser's local CDP endpoint and exact page target ID, run `deepse
 
 ## Gotchas
 
-- S1 is pending Human acceptance. S2–S4 are not implemented by this journey.
+- S1 is pending Human acceptance. S2–S4 remain gated; the Human explicitly pulled the Quick Switcher/FAQ search behavior forward as feedback. This does not qualify the rest of S4.
 - Use the observed accessible language; a navigation idle timeout is not a settings failure.
 - Preserve the first failed observation before a retry. Native Desktop results must be recorded separately from Web.
 - Never navigate another session's native window or use a model response as proof of layout/draft behavior.

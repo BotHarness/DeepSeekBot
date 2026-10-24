@@ -264,6 +264,38 @@ try {
   await pause(600);
   assert.equal(await page.$eval(editor, (e) => e.value ?? e.textContent), draft + '\n\n' + draft);
   await capture('draft-appended');
+  const searchNavigation = async (query) => {
+    await page.keyboard.down('Alt');
+    await page.keyboard.press('KeyK');
+    await page.keyboard.up('Alt');
+    await page.waitForSelector('[role="dialog"] input[role="combobox"]');
+    await page.locator('[role="dialog"] input[role="combobox"]').fill(query);
+  };
+  const activityControl = '.bh-workspace-rail [data-pinned-panel="activity-center"]';
+  const initialActivity = await page.$eval(activityControl, (element) =>
+    element.getAttribute('aria-pressed'),
+  );
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await searchNavigation('Activity Center');
+    await page
+      .locator('[data-navigation-kind="panel"][data-navigation-id="activity-center"]')
+      .click();
+    await page.waitForFunction(
+      (selector, expected) =>
+        document.querySelector(selector)?.getAttribute('aria-pressed') === expected,
+      {},
+      activityControl,
+      attempt === 0 ? (initialActivity === 'true' ? 'false' : 'true') : initialActivity,
+    );
+  }
+  await searchNavigation('How do I change');
+  await page.waitForSelector(
+    '[data-navigation-kind="faq"][data-navigation-id="botharness:change-model"]',
+  );
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('[id="help-question-botharness:change-model"][aria-expanded="true"]');
+  assert.equal((await state()).phase, 'idle');
+  await capture('search-faq');
   assert.equal(errors.length, 0);
   assert.deepEqual(sends, []);
   writeFileSync(

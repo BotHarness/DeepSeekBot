@@ -1,3 +1,4 @@
+import type { QuickSwitcherNavigation } from './quick-switcher-navigation.js';
 import { UnreadCount } from './unread-count.js';
 export { unreadCountLabel } from './unread-count.js';
 import { Menu } from './appearance-primitives.js';
@@ -445,6 +446,7 @@ interface SidebarProps {
   setSectionSortMode: (sectionId: string, mode: BotModeSortMode | undefined) => void;
   channelSidebar?: ChannelSidebarRegistry | undefined;
   shortcutBindings?: ShortcutBindings | undefined;
+  quickSwitcherNavigation?: QuickSwitcherNavigation | undefined;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   t: BotHarnessTranslate;
 }
@@ -996,6 +998,7 @@ export function BotSidebar({
   channelSidebar,
   shortcutBindings = fallbackShortcutBindings,
   quickSwitcherSettings,
+  quickSwitcherNavigation,
   t,
 }: SidebarProps): ReactElement {
   const state = useClientStore(keepClientState, rosterInputs);
@@ -2980,6 +2983,7 @@ export function BotSidebar({
       ) : null}
       {quickSwitcherOpen ? (
         <QuickSwitcher
+          navigation={quickSwitcherNavigation}
           entries={quickSwitcherEntries(state.channels, state.bots, rosterHiddenIds)}
           settings={
             quickSwitcherSettings === undefined

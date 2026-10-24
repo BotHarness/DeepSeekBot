@@ -1,3 +1,4 @@
+import type { QuickSwitcherNavigation } from './quick-switcher-navigation.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store';
@@ -150,6 +151,7 @@ type MobileBotPanelProps = Parameters<typeof BotPanel>[0] & {
   useBotModePrefs: SnapshotSelectorHook<BotModePrefsSnapshot>;
   exitBotMode(): void;
   openBotSettings(): void;
+  quickSwitcherNavigation?: QuickSwitcherNavigation | undefined;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
   setSortMode(mode: BotModeSortMode): void;
   setSectionSortMode(sectionId: string, mode: BotModeSortMode | undefined): void;
@@ -258,6 +260,7 @@ function MobileNavigation(props: MobileBotPanelProps): ReactElement {
             companion={companion}
             useBotModePrefs={useBotModePrefs}
             channelSidebar={props.channelSidebar}
+            quickSwitcherNavigation={props.quickSwitcherNavigation}
             quickSwitcherSettings={props.quickSwitcherSettings}
             setSortMode={props.setSortMode}
             setSectionSortMode={props.setSectionSortMode}

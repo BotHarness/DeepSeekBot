@@ -1,3 +1,4 @@
+import { useMountedResource } from './mounted-resource.js';
 import { store } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 import {
@@ -5,15 +6,15 @@ import {
   Input,
   IconChevronDownOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { ClientHelpService, HelpText } from '../help-api.js';
+import type { ClientHelpService } from '../help-api.js';
 import type { DockPanel, DockPanelHost } from './dock-panels.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const USER_GUIDE_PANEL = 'user-guide';
-export const helpText = (value: HelpText, t: BotHarnessTranslate): string =>
-  t('guide.language') === 'zh' ? (value.zh ?? value.en) : value.en;
+export { helpText } from './help-text.js';
+import { helpText } from './help-text.js';
 
 export function createUserGuidePanel(
   help: ClientHelpService,
@@ -27,20 +28,51 @@ export function createUserGuidePanel(
     scope: 'global',
     order: 900,
     defaultPosition: { zone: 'right' },
-    component: () => <UserGuide help={help} t={t} />,
+    component: () => <GuideSelection help={help} t={t} />,
   };
 }
-function UserGuide({ help, t }: { help: ClientHelpService; t: BotHarnessTranslate }): ReactElement {
+function GuideSelection({
+  help,
+  t,
+}: {
+  help: ClientHelpService;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const requested = useSyncExternalStore(help.subscribe, help.selection);
+  return (
+    <UserGuide
+      key={requested?.revision ?? 0}
+      help={help}
+      t={t}
+      questionId={requested?.questionId}
+    />
+  );
+}
+function UserGuide({
+  help,
+  t,
+  questionId,
+}: {
+  help: ClientHelpService;
+  t: BotHarnessTranslate;
+  questionId?: string | undefined;
+}): ReactElement {
   useSyncExternalStore(store.subscribe, store.getSnapshot);
   const topics = useSyncExternalStore(help.subscribe, help.topics);
   const state = useSyncExternalStore(help.subscribe, help.state);
   const [query, setQuery] = useState('');
   const [topicId, setTopic] = useState('');
-  const [selected, select] = useState<string>();
+  const [selected, select] = useState<string | undefined>(questionId);
   const [notice, setNotice] = useState('');
   const [target, setTarget] = useState('');
   const [preserved, setPreserved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const scrollAnswer = useMountedResource<HTMLElement>(
+    (node) => {
+      node.scrollIntoView?.({ block: 'nearest' });
+    },
+    [selected],
+  );
   const activeTopic = topics.some((item) => item.id === topicId) ? topicId : '';
   const topic = topics.find((item) => item.id === activeTopic);
   const questions = help
@@ -87,7 +119,11 @@ function UserGuide({ help, t }: { help: ClientHelpService; t: BotHarnessTranslat
       <div className="bh-guide-questions">
         {questions.length ? (
           questions.map((q) => (
-            <article className="bh-guide-item" key={q.id}>
+            <article
+              className="bh-guide-item"
+              key={q.id}
+              ref={selected === q.id ? scrollAnswer : undefined}
+            >
               <h3>
                 <button
                   type="button"
@@ -199,7 +235,7 @@ function UserGuide({ help, t }: { help: ClientHelpService; t: BotHarnessTranslat
         </Button>
       )}
       {notice && <p role="status">{notice}</p>}
-      {state.reason && !['closed', 'replaced', 'ask-tob'].includes(state.reason) && (
+      {state.reason && !['closed', 'replaced', 'ask-tob', 'reading'].includes(state.reason) && (
         <p role="status">
           {t(state.reason === 'completed' ? 'guide.completed' : 'guide.interrupted')}
         </p>

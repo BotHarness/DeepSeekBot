@@ -1330,4 +1330,4 @@ macOS 继续使用现有 `computer-start --target local`、`computer-video statu
 
 `deepseekbot help-client --cdp http://127.0.0.1:<port> --target <page-target-id> --action content`
 
-此命令仅连接本机、明确指定且已登录的浏览器或 Desktop 页面，调试端点必须属于当前任务；不会默认选择第一个标签页。`--query <words>` 搜索同一帮助索引；`--action availability --question <id>`、`--action state`、`--action start --question <id> [--guide-target <id>]`、`--action cancel` 调用 UI 使用的同一 Client owner。标准输出为单个 JSON 文档，缺失或不可用目标会被拒绝。命令行不传凭据。调试连接不能代替 Host API 或平台验收；模型状态仍通过现有模型命令向同一个 Host 读回。
+此命令仅连接本机、明确指定且已登录的浏览器或 Desktop 页面，调试端点必须属于当前任务；不会默认选择第一个标签页。`--query <words>` 搜索同一帮助索引；`--action availability --question <id>`、`--action state`、`--action start --question <id> [--guide-target <id>]`、`--action cancel`、`--action show --question <id>`（打开并展开 FAQ，不启动教程）调用 UI 使用的同一 Client owner。标准输出为单个 JSON 文档，缺失或不可用目标会被拒绝。命令行不传凭据。调试连接不能代替 Host API 或平台验收；模型状态仍通过现有模型命令向同一个 Host 读回。

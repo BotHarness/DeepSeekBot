@@ -48,6 +48,11 @@ it('opens the answer inline and supports collapsing the same question', () => {
     expect(host.querySelector('.bh-guide-answer')?.textContent).toContain('Real picker');
     act(() => trigger.click());
     expect(host.querySelector('.bh-guide-answer')).toBeNull();
+    act(() => help.show('test:model'));
+    expect(host.querySelector('.bh-guide-answer')?.textContent).toContain('Real picker');
+    act(() => host.querySelector<HTMLButtonElement>('.bh-guide-question')!.click());
+    act(() => help.show('test:model'));
+    expect(host.querySelector('.bh-guide-answer')?.textContent).toContain('Real picker');
   } finally {
     act(() => root.unmount());
     host.remove();
