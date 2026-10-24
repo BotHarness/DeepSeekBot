@@ -1,6 +1,6 @@
 # Fixed Android streaming replay
 
-This local QA provider sends deterministic content through a real isolated Host's existing `channel_send` tool. It does not replace the Host or inject fake chat events. Use the shared Android batch lease and an isolated QA Profile, never a production provider or a private conversation.
+This local QA provider sends deterministic content through a real isolated Host's existing `bot_send_message` tool. It does not replace the Host or inject fake chat events. Use the shared Android batch lease and an isolated QA Profile, never a production provider or a private conversation.
 
 1. Create a private, gitignored control file containing the designated QA Bot slug. Start the loopback server in a separate terminal:
 

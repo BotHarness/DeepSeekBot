@@ -68,12 +68,12 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 | `botharness/hiddenSet`       | `{ hidden }`                                                                                     | `{ hidden }`                                                                                      | 隐藏 Channel ID 列表；去重；不改 pin、section 或 topOrder                                                                                                                                                                                                                                                          |
 | `botharness/rosterBatch`     | `{ action, channelIds, sectionId? }`                                                             | `RosterSnapshot`                                                                                  | 一次处理 1–100 个不同 Channel；pin/unpin/hide/move；move 可指定分组或未分组；一次完成通知                                                                                                                                                                                                                          |
 
-`ChannelRecord` 含 `id / type ('dm' | 'group') / name / members (PersonaBot IDs) / botSlug? (dm；当前 wire 键) / createdAt / updatedAt`；`ChannelListItem` 在它之上附加可选 `latestMessage`，由现有消息权威读取并投影给折叠 rail，不写回 `channel.json`；`ChannelMessage` 含 `id / at / author ({ kind: 'human' } | { kind: 'bot', slug } | { kind: 'bridged', source }) / body / external? ({ id, thread? })`。当前 Channel 的 Source Event、placement 与 Inbox Admission 已由 `botharness.db` 统一提交；旧 `channel.json`、`messages.ndjson` 与 `read-position.json` 只在首次升级时导入，之后不再作为读写权威。Group Channel 的 Human 可选中多个已入群的 PersonaBot，Host 验证身份与成员关系后独立唤醒，回复仍经显式 `channel_send` 回到群里。`before` 是消息 id 游标：返回比该消息更旧的一页。
+`ChannelRecord` 含 `id / type ('dm' | 'group') / name / members (PersonaBot IDs) / botSlug? (dm；当前 wire 键) / createdAt / updatedAt`；`ChannelListItem` 在它之上附加可选 `latestMessage`，由现有消息权威读取并投影给折叠 rail，不写回 `channel.json`；`ChannelMessage` 含 `id / at / author ({ kind: 'human' } | { kind: 'bot', slug } | { kind: 'bridged', source }) / body / external? ({ id, thread? })`。当前 Channel 的 Source Event、placement 与 Inbox Admission 已由 `botharness.db` 统一提交；旧 `channel.json`、`messages.ndjson` 与 `read-position.json` 只在首次升级时导入，之后不再作为读写权威。Group Channel 的 Human 可选中多个已入群的 PersonaBot，Host 验证身份与成员关系后独立唤醒，回复仍经显式 `bot_send_message` 回到群里。`before` 是消息 id 游标：返回比该消息更旧的一页。
 
 `ChannelMessage.format?: 'markdown' | 'text'` 是可选的内容表示提示；旧记录无需迁移。Client 默认把 Human 消息按原样文本和换行呈现，把 Bot / bridged 消息交给 DSH 公开的 `MarkdownText`；显式 `format` 可覆盖默认值。原生渲染器不允许危险协议、相对链接或原始 HTML 生效，也不传入本地文件扩展词汇。
 
 #143 起，Client 读取历史首选 `channelTimeline`，旧 `channelMessages` 只保留兼容。当前 Host 从 SQLite Channel placement 读取并切片；Client 不解释游标，也不将整段历史无限累计到内存。游标与消息 revision 各司其职：前者定位历史页，后者是 SSE 重连水位。详见 ADR-0061。
-#145 的 `replyTo` 是可选的同 Channel 已提交消息 ID；Human 的 `channelSend` 与 Bot 的 `channel_send.reply_to` 共用 ChannelStore 校验，目标不存在或属于其他 Channel 时返回稳定的 `invalid-input`，不写消息。持久化只保存 `replyTo`；时间线/历史读取用同次扫描的消息索引投影 `replyToPreview: { author, body } | null`，正文摘要最多 140 个 Unicode code points，不逐条额外查询。目标后来不可见时显示不可点击的「原消息不可用」。Client 的回复模式可取消或按 Esc 退出，成功发送后清除；点击引用通过既有 `around` 窗口定位并高亮目标。
+#145 的 `replyTo` 是可选的同 Channel 已提交消息 ID；Human 的 `channelSend` 与 Bot 的 `bot_send_message.source_event_id` 解析出的同会话回复引用 共用 ChannelStore 校验，目标不存在或属于其他 Channel 时返回稳定的 `invalid-input`，不写消息。持久化只保存 `replyTo`；时间线/历史读取用同次扫描的消息索引投影 `replyToPreview: { author, body } | null`，正文摘要最多 140 个 Unicode code points，不逐条额外查询。目标后来不可见时显示不可点击的「原消息不可用」。Client 的回复模式可取消或按 Esc 退出，成功发送后清除；点击引用通过既有 `around` 窗口定位并高亮目标。
 
 `SessionSummary` 含 `id / title / cwd / updatedAt`；标题取会话日志里第一条 `user/message` 的文本（无则空串，客户端回退展示），`updatedAt` 取最后一条事件时间（无事件回退 `createdAt`）。`sessions` 只读 DSH Host 当前在册的会话（`ctx.sessions.list()`），按 cwd 是否位于 BOT 的任一 workspace 内过滤。这是已实现 M3 bridge 的临时兼容启发式，只用于描述当前 wire 行为；新领域逻辑不得把 cwd 当 ownership。#80 会以 durable explicit Session ownership 和 Orchestrator / Assignment role projection 替换它（ADR-0035/0045）。
 
@@ -87,7 +87,7 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 
 - **分页与阅读位置（#143）**：打开 Channel 取最新 50 条；靠近顶部加载更早页，按原有消息的屏幕位置校准视口（同 sender 气泡组跨页重排时也不跳动）。围绕消息 ID 可打开前后窗口；离开末尾时保留连续的历史窗口，只提示有新消息，不把 SSE 尾部跨缺口拼接进去；加载失败保留原窗口并可重试。
 - **Channel 消息（#141）**：`channelTimeline` 页返回 durable `revision`；已选 Channel 建立一个经 DSH 认证的 `GET /api/botharness/stream?channelId=…&after=revision` SSE 流。Host 仅在消息持久提交后发带递增 revision 的 `channel/message`，重连从权威日志回放、缺口则从 Host 修复连续窗口；Human 本地发送立即回显。Assignment 输出和普通 assistant final 不进入 Channel。
-- **Bot 草稿流（#144）**：Host 全局观察 Orchestrator `agent/assistant-stream`，以 DSH `BlockAssembler` 从显式 `channel_send` 参数提取正文。`channel/draft`、`channel/draft-settled`、`channel/draft-abandoned` 带 attempt ID 与进程内单调草稿 revision；草稿 revision 不等于 durable Channel revision，也不是 SSE replay ID。每次连接先发完整草稿 baseline；Client 在断档时丢弃草稿并重读 committed，按 animation frame 合并预览渲染。草稿不落盘、不进入 Inbox；只有提交后的 `channel/message` 可供不可逆消费者使用。
+- **Bot 草稿流（#144）**：Host 全局观察 Orchestrator `agent/assistant-stream`，以 DSH `BlockAssembler` 从显式 `bot_send_message` 参数提取正文。`channel/draft`、`channel/draft-settled`、`channel/draft-abandoned` 带 attempt ID 与进程内单调草稿 revision；草稿 revision 不等于 durable Channel revision，也不是 SSE replay ID。每次连接先发完整草稿 baseline；Client 在断档时丢弃草稿并重读 committed，按 animation frame 合并预览渲染。草稿不落盘、不进入 Inbox；只有提交后的 `channel/message` 可供不可逆消费者使用。
 - **其他读模型**：create/update/pause/resume 后仍主动刷新；现有名册低频轮询与六态 Activity 实时投影不由 Channel SSE 替代。Host 进程内 `states.on(...)` 不能跨浏览器直接使用，上游 Remote 事件白名单也不可由第三方扩展。
 - **路由边界**：SSE 使用 Connection Fetch 注册完整 `/api/botharness/stream` 路径，而不是占用 API gateway 的 `/api` RPC interceptor；普通读写命令继续使用 Typert bridge。详见 ADR-0054。
 - 客户端仍以「读模型可能过期」为前提渲染：加载态、错误态、空态都是一等 UI。
@@ -100,7 +100,7 @@ core 把 PersonaBot 的读模型显式定义为一组 RPC 方法；浏览器只�
 | Typert 严格 codegen      | 暂缓：需构建期生成 + 第一方 assembly；仓库外可复现性未验证                                                                  |
 | Typert SRC markers       | 已采用（#50）：`TypertRemoteService` + `typertRemote` 绑定即可被 gateway 认领，无需 codegen；`/api` 单槽位仍归 gateway 所有 |
 | 直接 `states.on` 推送    | 不成立：转发事件白名单是第一方静态文件，第三方不可扩展                                                                      |
-| Channel SSE              | 已实现（#141）：单向投递已提交消息和进程内 `channel_send` 草稿；快照与命令仍走 Typert RPC，其他状态不借此流广播             |
+| Channel SSE              | 已实现（#141）：单向投递已提交消息和进程内 `bot_send_message` 草稿；快照与命令仍走 Typert RPC，其他状态不借此流广播         |
 
 ## 6. 客户端包与 bundle 约束
 
@@ -152,7 +152,7 @@ node scripts/dev-instance.mjs --home /tmp/bh-im-qa --port 31968 --im-provider --
 
 此 Provider 的入站仍以 Lark `text` 消息为触发；#657 为回复一个文件消息的文本 @ 增加准确父文件元信息、按需下载与原话题新文件回复，见[文件指南](file-open.zh.md#在原话题处理-lark-zip)。客户端使用代码样式、富文本或附件时可能生成 `post` 或其他类型，当前不会收件；验收时使用普通文本并从成员候选选择真实 @。格式化正文的规范化由后续 Provider 切片验证。
 
-开启群文字 @ 收件后，在已授权群的既有话题里 @ 绑定身份，要求只回复一条唯一测试文本。预期 Bot Inbox 显示平台、群、发送人与接收身份；点击来源可读取完整保留正文；Bot 显式调用 `bridge_reply` 后，Recent sends 显示 Platform accepted，需在 Lark 核对原话题中的同一文本。普通无 @ 消息不进入 Inbox；首次回复不自动跟进话题；本地 Human DM 不镜像外部对话。关闭群收件或撤销绑定后旧来源仍可查看，但不能继续外部回复。此切片不自动将外部来源写入 Memory，也不提供远端历史读取。重启保持绑定和来源，不自动重发已接受或未知结果的回复（#12，ADR-0106）。
+开启群文字 @ 收件后，在已授权群的既有话题里 @ 绑定身份，要求只回复一条唯一测试文本。预期 Bot Inbox 显示平台、群、发送人与接收身份；点击来源可读取完整保留正文；Bot 显式调用 `bot_send_message` 后，Recent sends 显示 Platform accepted，需在 Lark 核对原话题中的同一文本。普通无 @ 消息不进入 Inbox；首次回复不自动跟进话题；本地 Human DM 不镜像外部对话。关闭群收件或撤销绑定后旧来源仍可查看，但不能继续外部回复。此切片不自动将外部来源写入 Memory，也不提供远端历史读取。重启保持绑定和来源，不自动重发已接受或未知结果的回复（#12，ADR-0106）。
 
 ### Windows Desktop 检查点
 
@@ -184,9 +184,9 @@ Composer 保留顶部附件预览，并在文件选择／粘贴的光标处插�
 
 ### External-only Lark report QA (#639)
 
-Use the same isolated `--im-provider` Profile with an existing bound identity and explicitly authorized QA group. Ask the owning Bot to list `bridge_targets`, post one unique report with `bridge_post` and a stable request ID, then inspect it with `bridge_outbox`. In PersonaBot Profile → Channel connectors and authorization → Recent sends, click that report for a native Modal with account, target, canonical content and honest outcome. Check the native receipt on Lark; it is not read status. The exact report must have no local Channel placement (the Human instruction that requested it may remain in DM).
+Use the same isolated `--im-provider` Profile with an existing bound identity and explicitly authorized QA group. Ask the owning Bot to list `bridge_targets`, post one unique report with `bot_send_message` and an explicit authorized grant_id, then inspect it with `bridge_outbox`. In PersonaBot Profile → Channel connectors and authorization → Recent sends, click that report for a native Modal with account, target, canonical content and honest outcome. Check the native receipt on Lark; it is not read status. The exact report must have no local Channel placement (the Human instruction that requested it may remain in DM).
 
-Reply to that exact Lark report in its topic, @mentioning the bound Bot. Its eligible Human message enters Bot Inbox with the original report association, visible in source details. Ask the Bot to inspect the source and own report and use `bridge_reply` only in that original topic. A reply does not enable unmentioned following; ordinary group intake uses the group's existing policy. Reuse the same post request key if checking a possibly interrupted operation, and never automatically resend an unknown outcome. Historical sent reports remain readable after identity removal; new sends and replies still need current authorization. Own-echo contract tests do not prove platform echo delivery. No scheduler, Slack or private-DM qualification is part of this slice.
+Reply to that exact Lark report in its topic, @mentioning the bound Bot. Its eligible Human message enters Bot Inbox with the original report association, visible in source details. Ask the Bot to inspect the source and own report and use `bot_send_message` only in that original topic. A reply does not enable unmentioned following; ordinary group intake uses the group's existing policy. Inspect the retained Outbox intent if checking a possibly interrupted operation, and never automatically resend an unknown outcome. Historical sent reports remain readable after identity removal; new sends and replies still need current authorization. Own-echo contract tests do not prove platform echo delivery. No scheduler, Slack or private-DM qualification is part of this slice.
 
 ### 外部附近上下文
 
