@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { NavigationAction } from 'expo-router/react-navigation';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
 import {
   resetWorkspaceRoot,
   removeScopedRoutes,
   selectCloudWorkspace,
+  type CloudWorkspaceRoot,
 } from '../src/ui/shell/workspace-navigation';
 
 const stack = StackRouter({ initialRouteName: '(tabs)' });
@@ -26,6 +28,7 @@ function navigator() {
           stale: false,
           type: 'tab',
           key: 'tabs-state',
+          routeKeySeq: 0,
           index: 1,
           routeNames: ['(home)', '(activity)'],
           routes: [
@@ -39,8 +42,23 @@ function navigator() {
   const navigation = {
     isReady: () => true,
     getRootState: () => state,
-    dispatch(action: Parameters<typeof stack.getStateForAction>[1]) {
-      const result = stack.getStateForAction(state, action, options);
+    dispatch(action: NavigationAction) {
+      let supported: Parameters<typeof stack.getStateForAction>[1];
+      if (action.type === 'RESET') {
+        supported = { type: 'RESET', payload: { ...state, ...action.payload } };
+      } else if (action.type === 'GO_BACK') {
+        supported = { type: 'GO_BACK' };
+      } else if (action.type === 'PUSH') {
+        const payload: Record<string, unknown> = { ...action.payload };
+        const name = payload['name'];
+        const params = payload['params'];
+        if (typeof name !== 'string' || typeof params !== 'object' || !params)
+          throw new Error('Invalid test PUSH action');
+        supported = { type: 'PUSH', payload: { name, params } };
+      } else {
+        throw new Error('Unexpected workspace navigation action');
+      }
+      const result = stack.getStateForAction(state, supported, options);
       if (typeof result === 'object') state = result.state;
     },
   };
@@ -182,7 +200,7 @@ describe('workspace selection through the root navigator', () => {
 
   it('reuses the same Cloud workspace root and retained tabs when selected repeatedly', () => {
     const { navigation, push } = navigator();
-    const params = {
+    const params: CloudWorkspaceRoot = {
       instanceId: 'cloud',
       organizationId: 'org_a',
       accountScope: 'account-a',
