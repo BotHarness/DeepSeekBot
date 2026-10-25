@@ -79,7 +79,6 @@ export function RoutineScreen({ edit = false }: { edit?: boolean }) {
             onEdit={() =>
               router.push({ pathname: '/bot/[slug]/routine-edit/[id]', params: { slug, id: id! } })
             }
-
           />
         </>
       )}

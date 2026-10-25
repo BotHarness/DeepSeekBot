@@ -227,7 +227,6 @@ export function chatList(
     return source.sort((a, b) => position(a) - position(b));
   };
 
-
   const byId = new Map<string, Conversation>();
   for (const row of rows) byId.set(channelIdOf(row) ?? row.key, row);
   const bySlug = new Map(

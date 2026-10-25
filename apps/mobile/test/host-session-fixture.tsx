@@ -59,6 +59,7 @@ vi.mock('../src/host/push-session', () => ({
     forget: async () => undefined,
     retryFailed: async () => undefined,
     reflect() {},
+    reflectAgain() {},
   }),
 }));
 
@@ -76,3 +77,12 @@ function remote(url: string): FakeHost {
   return host;
 }
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => carrier }));
+
+vi.mock('../src/host/native-notification-preferences', () => ({
+  notificationPreferences: {
+    setForeground() {},
+    sync: async () => {},
+    retry: async () => {},
+    prepare: async () => ({}),
+  },
+}));

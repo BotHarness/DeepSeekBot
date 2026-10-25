@@ -37,16 +37,17 @@ vi.mock('../src/ui/shell/home-header', () => ({
   }: {
     actions?: ReactNode;
     search?: ReactNode;
-    children: ReactNode;
+    children: ReactNode | ((height: number) => ReactNode);
   }) => (
     <>
       {search ?? actions}
-      {children}
+      {typeof children === 'function' ? children(0) : children}
     </>
   ),
 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
+  HostDrawerEdge: ({ children }: { children: ReactNode | ((height: number) => ReactNode) }) =>
+    typeof children === 'function' ? children(0) : children,
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
@@ -84,10 +85,10 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 it('All renders both real Host feeds and opens the tapped row on its own Host', async () => {
   vi.stubGlobal('requestIdleCallback', () => 1);
   vi.stubGlobal('cancelIdleCallback', () => undefined);
-  const a = new FakeHost();
-  const b = new FakeHost();
-  remotes.set('a.example', a);
-  remotes.set('b.example', b);
+  const a = new FakeHost('a');
+  const b = new FakeHost('b');
+  remotes.set('a.tailnet.ts.net', a);
+  remotes.set('b.tailnet.ts.net', b);
   for (const [id, remote] of [
     ['a', a],
     ['b', b],
@@ -121,7 +122,7 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
       hosts: ['a', 'b'].map((hostId) => ({
         hostId,
         hostName: hostId,
-        routes: [`https://${hostId}.example`],
+        routes: [`https://${hostId}.tailnet.ts.net`],
         deviceId: 'device-1',
         credential: a.credential,
       })),
@@ -142,7 +143,7 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
       await vi.waitFor(() =>
         expect(hostSession.getState().client?.getSnapshot().connection).toEqual({
           status: 'connected',
-          route: 'https://a.example',
+          route: 'https://a.tailnet.ts.net',
         }),
       );
     });
@@ -240,3 +241,9 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     vi.unstubAllGlobals();
   }
 });
+
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+
+vi.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
+  default: ({ children }: { children: ReactNode }) => children,
+}));

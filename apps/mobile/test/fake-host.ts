@@ -94,7 +94,7 @@ export class FakeChannel {
 }
 
 export class FakeHost {
-  readonly hostId = 'host-1';
+  constructor(readonly hostId = 'host-1') {}
   readonly credential = 'device-1.secret-1';
   offer = 'offer-1';
   revoked = false;

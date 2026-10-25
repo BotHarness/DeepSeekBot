@@ -69,10 +69,12 @@ This avoids a second connection lifecycle and keeps each Host as the message aut
 All projects only online, loaded Host rosters into a source-qualified directory, retaining
 Cloud directory behavior. It flattens Host sections into recent-message order and one
 collapsible Pinned section; individual Host scopes retain their own sections and order.
-Routes, nested screens and full-client destinations carry the originating Host ID; identical
+Routes and nested screens carry the originating Host ID; identical
 local Bot or Channel IDs never authorize a fallback to the management Host. Open offline
 chats retain history and device-local drafts, disable sends and never replay drafts on recovery.
 
-This decision extends the Chats slice above. Activity aggregation follows after first-slice
-native QA and Human feedback. Android/iOS navigation, previews and background delivery still
+This decision extends the Chats slice above. Activity composes each online Host's existing
+Inbox observer and paginated count reader. Source-qualified filters, records and mutations
+retain their Host owner. Counts preserve category preferences; notification routes retain
+the originating Host. Foreground return reconciles every pairing independently. Android/iOS navigation, previews and background delivery still
 require separate runtime qualification; automated screen/transport tests do not establish it.

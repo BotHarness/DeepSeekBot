@@ -391,8 +391,7 @@ const HomeContent = memo(function HomeContent({
                       )}
                       {saved &&
                       refreshFailedHost === saved.hostId &&
-                      (environment.key === 'all' ||
-                        environment.key === computerEnvironmentKey(saved.hostId)) ? (
+                      environment.key === computerEnvironmentKey(saved.hostId) ? (
                         <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
                           <Text tone="muted">{t.hostListUnavailable}</Text>
                           <Button

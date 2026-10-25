@@ -41,7 +41,6 @@ export function ConversationRow({
   look,
   sourceLabel,
   previewHref,
-
 }: {
   row: Conversation;
   now: Date;
@@ -146,7 +145,6 @@ export function ConversationRow({
   ) : (
     <ConversationSwipe actions={availableActions} onAction={act}>
       {content}
-
     </ConversationSwipe>
   );
 }

@@ -46,17 +46,24 @@ export function usePushRouting(): RefCallback<ViewInstance> {
             }
           },
         );
-      if (!(await hostSession.switchTo(target.hostId))) {
+      const source = hostSession.getHost(target.hostId);
+      if (!source) {
         router.navigate('/');
         return;
       }
-      const roster = hostSession.getState().client?.getSnapshot().roster;
+      const roster = source.client.getSnapshot().roster;
       const href = pushHref(
         target,
         (slug) => roster?.bots.find((bot) => bot.slug === slug)?.dmChannelId,
         (channelId) => roster?.channels.some((channel) => channel.id === channelId) ?? false,
       );
-      setTimeout(() => router.push(href), 0);
+      setTimeout(() => {
+        if (hostSession.getHost(target.hostId)?.client !== source.client) return;
+        router.push({
+          ...href,
+          params: { ...('params' in href ? href.params : {}), hostId: target.hostId },
+        });
+      }, 0);
     };
     const offTap = onNotificationTap((data, action) => {
       const target = parsePushData(data);

@@ -24,6 +24,7 @@ import { useStrings } from '../../src/ui/strings';
 import { useTheme } from '../../src/ui/theme';
 
 type Params = {
+  hostId?: string;
   id: string;
   kind: string;
   botSlug: string;
@@ -37,7 +38,7 @@ export default function InboxItemScreen() {
   const theme = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<Params>();
-  const { saved, client, inbox } = useHostSession();
+  const { saved, client, inbox } = useHostSession(params.hostId);
   const snapshot = useHostSnapshot(client);
   const list = useInbox(inbox);
   const botName =
@@ -145,7 +146,8 @@ export default function InboxItemScreen() {
             (channelId) =>
               snapshot.roster?.channels.some((channel) => channel.id === channelId) ?? false,
           );
-          if (href !== undefined) router.push(href);
+          if (href !== undefined)
+            router.push({ ...href, params: { ...href.params, hostId: saved?.hostId } });
         }}
         fallback={fallback}
       />

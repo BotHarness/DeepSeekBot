@@ -84,7 +84,6 @@ export const hostDrawer = createHostDrawer({
   notifications: () => router.push('/notifications'),
 });
 
-
 const progress = makeMutable(0);
 const workspaceDirectory = createWorkspaceDirectory(cloudClient);
 

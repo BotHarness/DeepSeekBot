@@ -9,11 +9,12 @@ import {
 import { shownHostName } from '../design/host-look';
 import { showAppDialog } from '../primitives/app-dialog';
 import { conversationHref, openConversation } from '../shell/open-conversation';
-import { ConversationPeek, conversationPeek } from '../shell/conversation-peek';
-import { t } from '../strings';
+import { conversationPeek } from '../shell/conversation-peek';
+import { useStrings } from '../strings';
 import type { EnvironmentChatRow as Row } from './environment-chat-list';
 export function HostRow({ item }: { item: Extract<Row, { type: 'computer' }> }) {
   const router = useRouter();
+  const t = useStrings();
   const { saved, client, inbox, snapshot } = item.host;
   const look = useHostLook(saved.hostId);
   const row = (
@@ -22,9 +23,8 @@ export function HostRow({ item }: { item: Extract<Row, { type: 'computer' }> }) 
       now={new Date()}
       look={look}
       sourceLabel={shownHostName(look, saved.hostName)}
-      {...(conversationPeek
-        ? {}
-        : { onPress: () => openConversation(router, item.conversation, saved.hostId) })}
+      previewHref={conversationPeek ? conversationHref(item.conversation, saved.hostId) : undefined}
+      onPress={() => openConversation(router, item.conversation, saved.hostId)}
       actions={conversationActions(item.conversation, {
         pinned: item.pinned,
         hostMuted:
@@ -33,17 +33,20 @@ export function HostRow({ item }: { item: Extract<Row, { type: 'computer' }> }) 
           ) === true,
       })}
       onAction={(key) => {
+        if (key === 'section') {
+          const channelId = conversationChannelId(item.conversation);
+          if (channelId)
+            router.push({
+              pathname: '/conversation-section',
+              params: { hostId: saved.hostId, channelId },
+            });
+          return;
+        }
         runConversationAction(client, inbox, item.conversation, key).catch(() =>
           showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
         );
       }}
     />
   );
-  return conversationPeek ? (
-    <ConversationPeek href={conversationHref(item.conversation, saved.hostId)}>
-      {row}
-    </ConversationPeek>
-  ) : (
-    row
-  );
+  return row;
 }

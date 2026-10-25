@@ -195,10 +195,10 @@ vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Rect
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 it('opens B with A selected, sends through its real composer, and retains an offline draft without replay', async () => {
-  const a = new FakeHost();
-  const b = new FakeHost();
-  remotes.set('a.example', a);
-  remotes.set('b.example', b);
+  const a = new FakeHost('a');
+  const b = new FakeHost('b');
+  remotes.set('a.tailnet.ts.net', a);
+  remotes.set('b.tailnet.ts.net', b);
   for (const [id, remote] of [
     ['a', a],
     ['b', b],
@@ -224,7 +224,7 @@ it('opens B with A selected, sends through its real composer, and retains an off
       hosts: ['a', 'b'].map((hostId) => ({
         hostId,
         hostName: hostId,
-        routes: [`https://${hostId}.example`],
+        routes: [`https://${hostId}.tailnet.ts.net`],
         deviceId: 'device-1',
         credential: a.credential,
       })),
@@ -271,15 +271,6 @@ it('opens B with A selected, sends through its real composer, and retains an off
     expect(push).toHaveBeenLastCalledWith({
       pathname: '/bot/[slug]',
       params: { slug: 'same', hostId: 'b' },
-    });
-    await act(async () =>
-      [...view.querySelectorAll<HTMLButtonElement>('button')]
-        .find((node) => node.textContent === t.openFullClient)!
-        .click(),
-    );
-    expect(push).toHaveBeenLastCalledWith({
-      pathname: '/full-client',
-      params: { target: 'dm', slug: 'same', hostId: 'b' },
     });
     await type('Only B via composer');
     await act(async () =>

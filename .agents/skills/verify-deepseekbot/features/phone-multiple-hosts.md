@@ -1,10 +1,10 @@
-# Mobile multiple paired Hosts — Chats (#2782)
+# Mobile multiple paired Hosts — Chats and Activity (#2782)
 
 ## Sub-features
 
 Concurrent paired Host connections, online-only All directory, one collapsible Pinned
 section, single-Host sections, source-bound chat navigation/actions and recovery.
-Activity aggregation is a subsequent slice. This journey requires native qualification;
+Activity aggregation, source-bound approval/question actions and paginated badge counts. This journey requires native qualification;
 a passing component test does not establish native behavior.
 
 ## How to get to it (user POV)
@@ -26,7 +26,7 @@ required to verify routing; a real reply additionally needs a working model.
    message on B; return to All and verify its latest preview and unread state updated.
 3. Open the same-ID conversation on B while A is the management Host. Send a unique
    QA marker and read it back from B with the CLI; verify A has no marker. Repeat for
-   group chat, profile/group settings and the full-client route. Check iOS preview.
+   group chat, profile/group settings and Browser/Computer routes. Check iOS preview.
 4. Disconnect B: All omits its rows without an offline notice. Its drawer shows the
    state. An already open B chat retains history and a typed draft; send is disabled.
    Reconnect B: it reappears, the draft remains, and nothing was sent automatically.
@@ -35,6 +35,14 @@ required to verify routing; a real reply additionally needs a working model.
 6. Exercise unpair/re-pair and foreground return; removed sources cannot receive
    actions. Check search, pull-to-refresh, keyboard dismissal, default/large text,
    TalkBack/VoiceOver and unchanged Cloud rows separately on Android and iOS.
+
+7. Create same-ID approvals, questions and unread Channels on A and B. Activity shows
+   source names and follows the selected filter; resolve B's approval and answer B's
+   question, then read back only B's results. Page each category and change badge
+   preferences. Verify late responses after a scope change cannot alter the new view.
+8. Background the app, generate messages on both Hosts and tap a B notification while
+   A is selected. Verify the destination and all actions stay on B. Return foreground
+   with A offline: B catches up independently; restore A and verify its missed state.
 
 Capture source/integrated SHAs, light/dark screenshots, actual A/B message readback,
 and connection transitions. Redact credentials and unrelated conversations.

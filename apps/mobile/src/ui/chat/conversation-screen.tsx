@@ -251,7 +251,6 @@ const RequestCard = memo(function RequestCard({
         resolved={resolution?.kind === 'private-input'}
         focused={focused}
         group={group}
-
       />
     );
   if (card.kind === 'grant')
@@ -914,7 +913,6 @@ function ChatConversation({
                   { type: 'spacing' as const, spacing: 0 },
                   { type: 'custom' as const, element: titleItem },
                 ],
-
               }
             : {
                 headerTitleAlign: 'left' as const,
