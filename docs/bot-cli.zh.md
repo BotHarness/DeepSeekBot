@@ -1172,11 +1172,11 @@ deepseekbot window-zoom-reset --client-id <id> --expected-revision <revision> --
 Client 重启后投递 ID 会改变，需要重新列出；主窗口偏好独立保存。原生验证范围见
 [S1](https://github.com/BotHarness/DeepSeekBot/issues/2268)。这条路径不需要模型，也没有 Host 偏好副本。
 
-Windows 候选版使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
+Windows 旧版手动链接配置使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
 `--home <隔离-home> --profile desktop --desktop-app "<应用目录>/DeepSeek Harness.exe"`。
 整个 `enable` 或 `disable` 事务期间须关闭所选 Desktop；该可执行文件有运行进程即拒绝事务。
-仅接受 FileVersion `0.2.1-rc.2` 和通过哈希检查、声明 Windows 能力的主题包。
-原生 `ui-theme` 行和字体设置保持原有身份。移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
+准入检查依据协议、平台及包内容完整性，不限制为某个固定 FileVersion。
+原生 `ui-theme` 行和字体设置保持原有身份。历史手动启用的 Profile 应在移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
 Ctrl+0 恢复已保存的默认值，包括 120%；固定原生协议不支持数字小键盘键码。
 原生输入、guest 前台恢复、DPI 和 Human QA 的独立门槛见
 [Windows 资格 #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)。

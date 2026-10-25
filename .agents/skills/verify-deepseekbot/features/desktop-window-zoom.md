@@ -90,7 +90,8 @@ compatibility and platform matrices remain separate S2/S3 gates.
 
 ## Product activation and native Settings identity
 
-Ordinary Bundle install alone does not activate zoom. In the explicit isolated Profile,
+Legacy manual-link qualification only: new Bundles activate zoom without setup. For a Profile
+that was manually enabled before default activation, use an explicit isolated Profile and
 run `deepseekbot-zoom-setup enable --home <home> --profile desktop --desktop-app <app>`
 with the target Desktop fully closed, then reopen it. Keep the root `ui-theme` namespace and one native theme
 module id. Read pre-existing fonts, edit them through native Settings, restart and read back.
@@ -98,8 +99,8 @@ Run `disable` before product removal, restart and verify original theme bytes an
 font preferences. The package command reports configuration only, not runtime acceptance.
 Never replace this check with a standalone Node hook test or rename the settings namespace.
 
-The copied Client exposes its zoom lease only when the actual `__DSH_BOOT__.release.version`
-is 0.2.1-rc.2. Unknown/missing releases retain the font-key scope and expose no zoom capability.
+The copied Client admits its zoom lease through matching platform and adapter protocol checks.
+The release label is diagnostic information, not an exact-version admission gate.
 This runtime guard does not remove an already installed Profile package override or qualify
 that copied theme on another Host. Disable the override before switching outside the verified
 Desktop/Host/Client tuple; re-enable only after qualifying the new combination.
