@@ -17,6 +17,7 @@ const fixture = vi.hoisted(() => ({
   appState: 'active',
   appStateChanged: undefined as undefined | ((value: string) => void),
   replaced: undefined as unknown,
+  screen: vi.fn(),
   back: vi.fn(),
   push: vi.fn(),
 }));
@@ -27,6 +28,9 @@ let canonical: CreationReceipt | null;
 let finish: (() => void) | undefined;
 let failure: boolean;
 let creates: number;
+let previewCommit: string;
+let previewWait: Promise<void>;
+let createError: string | undefined;
 let gate: Promise<void>;
 
 vi.mock('react-native', async () => ({
@@ -46,7 +50,12 @@ vi.mock('react-native', async () => ({
   },
 }));
 vi.mock('expo-router', () => ({
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({ options }: { options: unknown }) => {
+      fixture.screen(options);
+      return null;
+    },
+  },
   router: {
     back: fixture.back,
     push: fixture.push,
@@ -179,6 +188,9 @@ beforeEach(() => {
   canonical = null;
   failure = false;
   creates = 0;
+  previewCommit = 'a'.repeat(40);
+  previewWait = Promise.resolve();
+  createError = undefined;
   gate = new Promise<void>((resolve) => {
     finish = resolve;
   });
@@ -193,10 +205,26 @@ beforeEach(() => {
     port: {
       deviceId: (id) => hosts.find((host) => host.hostId === id)?.deviceId,
       lookup: async () => canonical,
+      preview: async (_target, gitUrl) => {
+        await previewWait;
+        return { kind: 'git', gitUrl, commit: previewCommit };
+      },
+      pickZip: async () => ({
+        fileId: '12345678-1234-1234-1234-123456789abc',
+        fileName: 'Helper.zip',
+        sha256: 'a'.repeat(64),
+        sizeBytes: 30,
+      }),
+      previewZip: async (_target, source, progress) => {
+        progress(15, 30);
+        await previewWait;
+        return { source, displayName: 'Archive helper' };
+      },
       create: async (submitted) => {
         creates += 1;
         operation = submitted;
         await gate;
+        if (createError) throw new BotCreationFailure(createError);
         canonical = {
           operationKey: submitted.operationKey,
           status: 'created',
@@ -342,4 +370,126 @@ it('offers explicit opening after successful completion in the background', asyn
     params: { slug: 'new-bot', hostId: 'A' },
   });
   expect(creates).toBe(1);
+});
+
+async function importDraft(source: 'git' | 'marketplace' | 'zip') {
+  await controller.ready;
+  await controller.enter({ kind: 'host', hostId: 'A' });
+  if (source === 'zip') await controller.beginZip();
+  else
+    await controller.beginImport({
+      gitUrl: 'https://github.com/a/b',
+      displayName: 'Imported Bot',
+      ...(source === 'marketplace'
+        ? ({ origin: 'marketplace', listingId: 'sample', expectedCommit: 'a'.repeat(40) } as const)
+        : {}),
+    });
+  fixture.params.entry = 'resume';
+  await mount();
+}
+
+it.each(['git', 'marketplace', 'zip'] as const)(
+  'uses shared progress and direct DM entry for %s imports',
+  async (source) => {
+    await importDraft(source);
+    await press('create-bot-submit');
+    expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="create-bot-retry"]')).toBeNull();
+    expect(container.textContent).not.toContain(t.botCreation.uncertain);
+    expect(fixture.screen).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        title:
+          source === 'marketplace'
+            ? t.botCreation.importTitle
+            : source === 'zip'
+              ? t.botCreation.fromZip
+              : t.botCreation.fromGit,
+      }),
+    );
+    expect(operation?.source).toMatchObject(
+      source === 'zip'
+        ? { kind: 'zip', sha256: 'a'.repeat(64), sizeBytes: 30 }
+        : {
+            kind: 'git',
+            commit: 'a'.repeat(40),
+            ...(source === 'marketplace' ? { origin: 'marketplace', listingId: 'sample' } : {}),
+          },
+    );
+    await act(async () => finish?.());
+    expect(fixture.replaced).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'new-bot', hostId: 'A' },
+    });
+    expect(creates).toBe(1);
+  },
+);
+
+it.each(['git', 'marketplace', 'zip'] as const)(
+  'recovers the same %s operation after a lost response without stealing navigation',
+  async (source) => {
+    await importDraft(source);
+    failure = true;
+    await press('create-bot-submit');
+    const accepted = structuredClone(operation);
+    await act(async () => fixture.appStateChanged?.('background'));
+    await act(async () => finish?.());
+    expect(fixture.replaced).toBeUndefined();
+    await act(async () => fixture.appStateChanged?.('active'));
+    await press('create-bot-retry');
+    expect(operation).toEqual(accepted);
+    expect(creates).toBe(1);
+    expect(controller.getSnapshot().receipt).toEqual(canonical);
+    expect(fixture.replaced).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'new-bot', hostId: 'A' },
+    });
+  },
+);
+
+it('keeps a changed Marketplace revision editable with its refresh action and no creation', async () => {
+  await importDraft('marketplace');
+  previewCommit = 'b'.repeat(40);
+  await press('create-bot-submit');
+  expect(controller.getSnapshot().error).toBe('git-source-changed');
+  expect(container.textContent).toContain(t.marketplace.stale);
+  expect(container.querySelector('[data-testid="import-bot-refresh-listing"]')).not.toBeNull();
+  expect(container.querySelector('[role="progressbar"]')).toBeNull();
+  expect(creates).toBe(0);
+});
+
+it('shows Zip transfer progress and does not create after leaving during source validation', async () => {
+  await importDraft('zip');
+  let releasePreview: (() => void) | undefined;
+  previewWait = new Promise<void>((resolve) => {
+    releasePreview = resolve;
+  });
+  await press('create-bot-submit');
+  expect(
+    container.querySelector<HTMLButtonElement>('[data-testid="create-bot-submit"]')?.disabled,
+  ).toBe(true);
+  expect(container.textContent).toContain(t.botCreation.zipProgress(15, 30));
+  expect(container.textContent).toContain(t.botCreation.checkingSource);
+  await act(() => root.render(null));
+  await act(async () => releasePreview?.());
+  expect(creates).toBe(0);
+  expect(controller.getSnapshot().record.kind).toBe('draft');
+});
+
+it('restores a missing archive through the existing owner and retries the pinned operation', async () => {
+  await importDraft('zip');
+  createError = 'zip-file-missing';
+  await press('create-bot-submit');
+  const submitted = structuredClone(operation);
+  await act(async () => finish?.());
+  expect(controller.getSnapshot().error).toBe('zip-file-missing');
+  expect(container.querySelector('[data-testid="import-bot-zip-restore"]')).not.toBeNull();
+  expect(container.querySelector('select')).toBeNull();
+  await press('import-bot-zip-restore');
+  createError = undefined;
+  await press('create-bot-retry');
+  expect(operation).toEqual(submitted);
+  expect(fixture.replaced).toEqual({
+    pathname: '/dm/[slug]',
+    params: { slug: 'new-bot', hostId: 'A' },
+  });
 });

@@ -153,7 +153,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
     flow === 'zip'
       ? copy.fromZip
       : flow === 'git'
-        ? gitSource?.origin === 'marketplace'
+        ? source?.kind === 'git' && source.origin === 'marketplace'
           ? copy.importTitle
           : copy.fromGit
         : copy.title;
@@ -305,7 +305,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                   />
                 </>
               ) : null}
-              {importing || details ? <Text tone="muted">{copy.model}</Text> : null}
+              {details ? <Text tone="muted">{copy.model}</Text> : null}
               {state.transfer ? (
                 <Text accessibilityLiveRegion="polite">
                   {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
@@ -313,7 +313,13 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
               ) : null}
               {draft ? (
                 <Button
-                  label={importing ? copy.import : copy.create}
+                  label={
+                    state.busy && importing
+                      ? copy.checkingSource
+                      : importing
+                        ? copy.import
+                        : copy.create
+                  }
                   testID="create-bot-submit"
                   tone="primary"
                   busy={state.busy}
@@ -324,8 +330,8 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
             </>
           ) : submitted ? (
             <View style={{ gap: space.x5 }}>
-              {state.busy && !importing ? (
-                <LoadingIndicator accessibilityLabel={copy.creating} />
+              {state.busy ? (
+                <LoadingIndicator accessibilityLabel={importing ? copy.importing : copy.creating} />
               ) : null}
               <Text variant="title" strong>
                 {name}
@@ -360,8 +366,10 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
               {state.receipt ||
               (state.record.kind === 'submitted' && state.record.mutationStarted) ? (
                 <Text accessibilityLiveRegion="polite">
-                  {state.busy && !importing
-                    ? copy.creating
+                  {state.busy
+                    ? importing
+                      ? copy.importing
+                      : copy.creating
                     : state.receipt?.status === 'created'
                       ? copy.completed
                       : state.receipt
@@ -401,7 +409,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                     onPress={() => void botCreation.another(targetId)}
                   />
                 </>
-              ) : state.busy && !importing ? null : (
+              ) : state.busy ? null : (
                 <Button
                   label={importing ? copy.import : copy.retry}
                   testID="create-bot-retry"
