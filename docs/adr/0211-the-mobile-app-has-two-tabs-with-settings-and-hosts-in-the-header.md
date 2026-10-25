@@ -48,3 +48,9 @@ The Web Client's mobile shell does not change. No Bot tool or Host capability is
 For #2791 / #2798, notification and interrupted-processing conversation entry share the mobile Channel navigation owner. Its route identity includes Host identity and the DM slug or Channel ID, excluding message focus. A new target preserves its origin; an existing target unwinds to its original route instead of replacing the top or adding another copy. The installed Expo Router stack remains the sole history authority; no parallel history store is introduced.
 
 Notification Host switches are serialized. Obsolete navigation intents and unmounted entry owners cannot dispatch after asynchronous resolution. Source and navigator readiness have bounded waits with visible feedback. Other Profile/list entries, scope resets and Cloud navigation remain separate slices (#2799–#2801).
+
+## Amendment: explicit workspace resets (2026-10-26)
+
+For #2800, explicit Computer/All/Cloud workspace selection clears scoped detail and sheet history after successful selection. Retain the existing two-tab route and root page keys so navigation does not discard valid list state or drafts. Cloud selection leaves one scoped Cloud list above the retained tabs. Failed selection preserves the prior usable stack.
+
+The root observes existing account/pairing authorities only to remove invalid routes after account replacement, logout, unpairing or credential replacement. An ordinary current-Host selection for a notification is not a workspace reset. Drawer choices share intent ownership across Host and Cloud, including asynchronous selection and unmount cancellation. These are presentation rules; Host/Cloud authentication and cache/draft ownership are unchanged.
