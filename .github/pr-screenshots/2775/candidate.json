@@ -1,0 +1,84 @@
+{
+  "productVersion": "1.5.2-rc.2775",
+  "dsh": "0.2.1-rc.3",
+  "providerRuntime": {
+    "runtimeFiles": 422,
+    "runtimeSha256": "5e229732920ae1d8a736426c47b616152f4ec55a8f9719062c896b51ba588689"
+  },
+  "artifacts": [
+    {
+      "name": "@botharness/core",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-core-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-yfNqcUp2b0VWerZfJ1iVJfsmp552bYaD5LtDnmuaKLSedVH7pFLVgU7aZUzli+hTVCQayTU4P0uc7fYn6+OJKw=="
+    },
+    {
+      "name": "@botharness/ui",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-ui-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-mjOm6Y3ZhvOJ2mU0CoQpW9oRDxREN+c4MDg85i4OJ6gJ85+/NX6x/iy3gCGvI71JYV9LIUI7MvA2WmwmUXUe3A=="
+    },
+    {
+      "name": "@botharness/browser",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-browser-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-naicbbSvABgyGHr/tiKK152q0FybbA0Ncn92h7ZrMAdN8cia63gBse/MU6rByLhpl8hx+uTA6L+grMAnq+eMDg=="
+    },
+    {
+      "name": "@botharness/computer",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-computer-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-El0IiRdVjRi+uS7+q+0GC9Pfj38UFOshFB/JBQ0iHu9lP6aRpMpAfnMwo0BhFR+iW+LDJWpB5Vozc7ekWRzOKg=="
+    },
+    {
+      "name": "@botharness/im-provider",
+      "version": "4.32.0-botharness.22",
+      "filename": "botharness-im-provider-4.32.0-botharness.22.tgz",
+      "integrity": "sha512-3cITbzYI3f0SqhY/XesRbh1FQVpU3VZyFYfjDLpbEqfdIDNpcaGmHqu8Je64TC2o1R88uD47Gs7cnSxkUvCUTw=="
+    },
+    {
+      "name": "deepseekbot",
+      "version": "1.5.2-rc.2775",
+      "filename": "deepseekbot-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-4a/4EJxTS7Nodoic1JvfCByKJ0NMWyoGZ+0Q9s63X8ER0lojILCC41IFG3/JGeWQDt0SZ2w4ZABRzzh5ATKAvQ=="
+    },
+    {
+      "name": "@botharness/tobs",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-tobs-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-w7l1O8LvNXS5yPLr86XKncLYnBdXyyYgFc1f7TMoPboN/9TZLpbe5dU/RYxIL3f7D8/ikyCXLHJzsRPDITSEWA=="
+    }
+  ],
+  "platformArtifacts": [
+    {
+      "name": "@botharness/cloudflared-darwin-arm64",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-cloudflared-darwin-arm64-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-KYAm5x0TUi5zTZT7Meiwq3gap4pJOLI2uGNV8L5Xa+FzukAnmO66C85Hwe8muwr+K25KeQ6c1bKdmvOtYVGk7A=="
+    },
+    {
+      "name": "@botharness/cloudflared-darwin-x64",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-cloudflared-darwin-x64-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-LTv3LsfYr5oPBKHSHATinXEsyYX2vV+7Novdc2yNfB1hJJ7HhTtCldD888atleKobpVu+bhOiu1ufBz/AaGc6A=="
+    },
+    {
+      "name": "@botharness/cloudflared-linux-arm64",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-cloudflared-linux-arm64-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-lz2p2a9KbjkBcKrYJn5JWRMGKX+/YthD5By7cirlGaA58UcbsL4y5I6t22Dj0vVKDJhXfPNosrfs7py0B70DCw=="
+    },
+    {
+      "name": "@botharness/cloudflared-linux-x64",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-cloudflared-linux-x64-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-HgLgzL9jIu7NxlhkQi+MeppQN97bUjXEymx1mbD+dN3KkCJDtOrQiz5vTM+1EWLAVA7BqTP3MuzWJCv73sp8dQ=="
+    },
+    {
+      "name": "@botharness/cloudflared-win32-x64",
+      "version": "1.5.2-rc.2775",
+      "filename": "botharness-cloudflared-win32-x64-1.5.2-rc.2775.tgz",
+      "integrity": "sha512-TolbYXmWAeBPTxRFV/hAhiVy44JF7W7s1twSU8Tq0WNL+VHP2tfNXC3AhkCHsC1oC7/2k9BkDGF6t+/lrzL61A=="
+    }
+  ]
+}

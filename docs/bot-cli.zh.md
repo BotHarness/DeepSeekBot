@@ -1129,9 +1129,13 @@ deepseekbot memory-image <bot-id> --path notes/guide.md --image-source <document
 
 ## 桌面整页缩放（S1 受控切片）
 
-产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
+新版 Tobs Bundle 默认加载 macOS/Windows 原生桌面窗口缩放，无需另行 enable。下面的启用/停用命令用于历史手动配置；日常操作进入 Bot 设置 → 通用 → 窗口缩放。浏览器缩放不变，原生验收单独记录于 #2775。
+
+### 旧版手动启用方式
+
+早期产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
 和 Profile。命令使用所选应用附带的 pnpm，禁用安装脚本，并持有与原生插件管理器相同的 Profile
-写锁。桌面 Host 仍在运行、存在其他主题覆盖、产品仍采用旧组合或应用版本不是 0.2.1-rc.2 时拒绝。
+写锁。桌面 Host 仍在运行、存在其他主题覆盖或产品仍采用旧组合时拒绝；准入检查依据协议、平台及包内容完整性。
 只改变一个 Profile 依赖，不修改已安装应用：
 
 ```sh
@@ -1144,7 +1148,7 @@ deepseekbot-zoom-setup disable --home <绝对路径-DSH_HOME> --profile desktop 
 DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解析应用自带的同名主题，因此也拒绝
 这一普通库替换。两条路径的无窗口测试结果不能作为桌面启用验收。
 
-卸载产品前先 `disable`，并重启以恢复原生包解析。手动字体偏好仍由原生 `ui-theme` Patch 保存。
+历史手动启用的 Profile 应在卸载产品前先 `disable`，并重启以恢复原生包解析。此命令清理旧链接；新版 Bundle 仍安装时不会关闭缩放。手动字体偏好仍由原生 `ui-theme` Patch 保存。
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
 
@@ -1168,11 +1172,11 @@ deepseekbot window-zoom-reset --client-id <id> --expected-revision <revision> --
 Client 重启后投递 ID 会改变，需要重新列出；主窗口偏好独立保存。原生验证范围见
 [S1](https://github.com/BotHarness/DeepSeekBot/issues/2268)。这条路径不需要模型，也没有 Host 偏好副本。
 
-Windows 候选版使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
+Windows 旧版手动链接配置使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
 `--home <隔离-home> --profile desktop --desktop-app "<应用目录>/DeepSeek Harness.exe"`。
 整个 `enable` 或 `disable` 事务期间须关闭所选 Desktop；该可执行文件有运行进程即拒绝事务。
-仅接受 FileVersion `0.2.1-rc.2` 和通过哈希检查、声明 Windows 能力的主题包。
-原生 `ui-theme` 行和字体设置保持原有身份。移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
+准入检查依据协议、平台及包内容完整性，不限制为某个固定 FileVersion。
+原生 `ui-theme` 行和字体设置保持原有身份。历史手动启用的 Profile 应在移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
 Ctrl+0 恢复已保存的默认值，包括 120%；固定原生协议不支持数字小键盘键码。
 原生输入、guest 前台恢复、DPI 和 Human QA 的独立门槛见
 [Windows 资格 #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)。

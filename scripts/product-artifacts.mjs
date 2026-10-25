@@ -323,6 +323,8 @@ export function packProduct({
   const launcher = join(tobs, 'src/tobs.mjs');
   writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
   copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme']);
+  mkdirSync(join(tobs, 'dist'), { recursive: true });
+  cpSync(join(source, 'dist/theme-schema.mjs'), join(tobs, 'dist/theme-schema.mjs'));
   cpSync(join(repoRoot, 'LICENSE'), join(tobs, 'LICENSE'));
   packageDirectories.push(tobs);
   const pack = (directory, { preserveModes = false } = {}) => {
@@ -372,7 +374,14 @@ export function tobsManifest(product) {
     keywords: product.keywords,
     publishConfig: { access: 'public' },
     bin: { tobs: './src/tobs.mjs' },
-    files: ['src', 'desktop-theme', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
+    files: [
+      'src',
+      'dist/theme-schema.mjs',
+      'desktop-theme',
+      'cordis.im.patch.yml',
+      'README.md',
+      'LICENSE',
+    ],
     dependencies: { ...product.dependencies, deepseekbot: product.version },
     peerDependencies: product.peerDependencies,
     engines: product.engines,
