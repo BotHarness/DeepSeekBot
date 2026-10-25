@@ -6,7 +6,45 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-No changes since 1.5.0 yet.
+No changes since 1.5.1 yet.
+
+## [1.5.1] - 2026-10-25
+
+Tobs uses the scoped npm package alongside the compatible deepseekbot entry, unifies explicit Bot messaging and repairs background Subagent reporting and installed CLI startup.
+
+Mobile entries describe source and artwork changes for the independently versioned app; this npm release does not publish or qualify an iOS or Android binary. The Human selected 1.5.1 after closing #2435; the entries below describe shipped behavior, not a claim of general per-message retry/recovery support.
+
+### Added
+
+- Added unified Channel and external IM delivery with model-chosen reporting, optional Inbox completion and optional turn conclusion after a successful send, retaining Group draft review and per-message external reply deduplication ([#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)).
+
+### Removed
+
+- Removed obsolete Bot sending tools from both model and direct CLI catalogs; use `bot_send_message` for delivery and `channel_action` for draft actions/reactions. Approval requests no longer force a preliminary message and retry; the model decides when an explanation helps ([#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)).
+
+### Changed
+
+- Independent Bot Subagents select an allowed explicit native preset, a configured child default, or the current DSH system default; forks retain the parent's preset. Their direct CLI calls now use the existing parent Agent's tool pipeline and refuse when no live parent is available ([#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)).
+
+- Use “托布 Tobs” for the Chinese iOS app name, permission prompts and promotional artwork, while the English name remains “Tobs” ([#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)).
+
+- Chinese iOS store artwork now places original native screenshots at their original aspect ratio, with larger headlines and complete phone frames ([#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)).
+
+### Fixed
+
+- Preserve the original Mac desktop setup error or cancellation when temporary video-component cleanup fails, and retry transient cleanup failures before recording a separate diagnostic ([#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)).
+
+- Background Subagent reports can resume an idle Bot and explicitly deliver their results using its current model; long-running direct Subagent calls no longer hide a later Human turn from stop and steering controls ([#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)).
+
+- Publish Tobs through `@botharness/tobs`, retaining the `tobs` command and the supported `deepseekbot` compatibility package after npm refused the unscoped name; the npm README follows the GitHub product introduction ([#2744](https://github.com/BotHarness/DeepSeekBot/issues/2744)).
+
+- Fixed the desktop conversation return button so scrolling away from the latest messages shows an opaque icon above the composer on the right, with hover/press feedback and a badge for new messages, and reaching the bottom hides it ([#2748](https://github.com/BotHarness/DeepSeekBot/issues/2748)).
+
+- Kept the core CLI entry point external when bundling `deepseekbot`, so rebuilding with existing core outputs preserves dependency resource paths and the installed CLI starts correctly ([#2436](https://github.com/BotHarness/DeepSeekBot/pull/2436)).
+
+### Documentation
+
+- Documented Tailscale desktop-control prerequisites, usage and exact-build macOS/iOS qualification, with Connect and pending Windows/Android limitations ([#2562](https://github.com/BotHarness/DeepSeekBot/issues/2562)).
 
 ## [1.5.0] - 2026-10-24
 
