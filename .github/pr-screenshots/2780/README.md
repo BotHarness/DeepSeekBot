@@ -43,4 +43,6 @@ iOS/Android system pickers, crop UI, permissions, Back, large OS text and native
 - 70 focused tests pass: Bot/group avatar entries, removal, cancellation, pending guards, failures/retry, background scope/entry, new-DM resolution, existing Host actions and styling.
 - Lint, source policy, CLI parity, feature map and Release Ledger pass.
 - Expo Web and iOS/Android Hermes exports pass; export is separate from native compilation and device acceptance.
-- Local TypeScript 7 retains baseline diagnostic failures; it is not reported as a passing typecheck.
+- Full repository and mobile typecheck pass in the normal machine environment. Earlier restricted-run diagnostic failures are retained as failed attempts, not current PR failures.
+
+Production mobile sources are unchanged after the captured UI source commit; later changes contain evidence and test assertions only.
