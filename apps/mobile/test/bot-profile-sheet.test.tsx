@@ -169,7 +169,7 @@ describe('Bot profile sheet', () => {
       />,
     );
     const portrait = view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-change"]');
-    expect(portrait).not.toBeNull();
+    expect(portrait !== null).toBe(true);
     await act(async () => portrait!.click());
     expect(avatar.save).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
     const row = view.querySelector<HTMLButtonElement>(
@@ -198,7 +198,7 @@ describe('Bot profile sheet', () => {
       />,
     );
     const portrait = view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-change"]');
-    expect(portrait).not.toBeNull();
+    expect(portrait !== null).toBe(true);
     await act(async () => portrait!.click());
     expect(view.querySelector('[role="alert"]')?.textContent).toContain('save refused');
     const remove = view.querySelector<HTMLButtonElement>(
