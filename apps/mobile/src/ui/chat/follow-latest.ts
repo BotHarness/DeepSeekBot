@@ -70,6 +70,7 @@ export function useFollowLatest<Row>(
   const [away, setAway] = useState(false);
   const [anchor, setAnchor] = useState<string | undefined>();
   const [ready, setReady] = useState(false);
+  const [canRetry, setCanRetry] = useState(false);
   const [browsed, setBrowsed] = useState(false);
   if (!ready && empty) setReady(true);
   const followingNow = useRef(true);
@@ -84,6 +85,7 @@ export function useFollowLatest<Row>(
   latestChange.current = onLatestChange;
   const metrics = useRef<ListMetrics>({ content: 0, layout: 0, offset: 0 });
   const frame = useRef<number | undefined>(undefined);
+  const confirmation = useRef<number | undefined>(undefined);
   const sizes = useRef(0);
   const settled = useRef(false);
   const attempts = useRef(0);
@@ -94,6 +96,8 @@ export function useFollowLatest<Row>(
     () => () => {
       if (frame.current !== undefined) cancelAnimationFrame(frame.current);
       frame.current = undefined;
+      if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
+      confirmation.current = undefined;
     },
     [],
   );
@@ -101,8 +105,14 @@ export function useFollowLatest<Row>(
   const measureEvent = useCallback((event: ScrollEvent): number => {
     const native = event.nativeEvent;
     metrics.current = {
-      content: native.contentSize?.height ?? metrics.current.content,
-      layout: native.layoutMeasurement?.height ?? metrics.current.layout,
+      content:
+        !settled.current && metrics.current.content > 0
+          ? metrics.current.content
+          : (native.contentSize?.height ?? metrics.current.content),
+      layout:
+        !settled.current && metrics.current.layout > 0
+          ? metrics.current.layout
+          : (native.layoutMeasurement?.height ?? metrics.current.layout),
       offset: native.contentOffset.y,
     };
     return distanceFromLatest(metrics.current);
@@ -119,6 +129,9 @@ export function useFollowLatest<Row>(
   const hold = useCallback(() => {
     if (!followingNow.current) return;
     followingNow.current = false;
+    settled.current = true;
+    setReady(true);
+    setCanRetry(false);
     onFollowingChange?.(false);
     setAway(true);
     setAnchor(latestId.current);
@@ -133,16 +146,35 @@ export function useFollowLatest<Row>(
   }, [onFollowingChange]);
 
   const confirm = useCallback((version: number) => {
-    const check = (stable: number) =>
-      requestAnimationFrame(() => {
-        if (settled.current) return;
+    if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
+    const check = (stable: number) => {
+      confirmation.current = requestAnimationFrame(() => {
+        confirmation.current = undefined;
+        if (
+          settled.current ||
+          version !== sizes.current ||
+          version === 0 ||
+          metrics.current.content <= 0 ||
+          !hasRows.current
+        )
+          return;
         attempts.current += 1;
-        const still = version === sizes.current && hasRows.current;
-        if ((still && stable + 1 >= STABLE_FRAMES) || attempts.current >= SETTLE_FRAMES) {
+        const target = latestOffset(metrics.current, startInset.current);
+        const fits =
+          metrics.current.content + startInset.current <= metrics.current.layout + 1 &&
+          metrics.current.offset >= target &&
+          metrics.current.offset <= 0;
+        const positioned =
+          metrics.current.layout > 0 && (fits || Math.abs(metrics.current.offset - target) <= 1);
+        if (positioned && stable + 1 >= STABLE_FRAMES) {
           settled.current = true;
+          setCanRetry(false);
           setReady(true);
-        } else if (still) check(stable + 1);
+        } else if (attempts.current >= SETTLE_FRAMES) {
+          setCanRetry(true);
+        } else check(positioned ? stable + 1 : 0);
       });
+    };
     check(0);
   }, []);
 
@@ -169,8 +201,15 @@ export function useFollowLatest<Row>(
   const onScroll = useCallback(
     (event: ScrollEvent) => {
       measureEvent(event);
+      if (
+        !settled.current &&
+        Math.abs(metrics.current.offset - latestOffset(metrics.current, startInset.current)) <= 1
+      ) {
+        attempts.current = 0;
+        confirm(sizes.current);
+      }
     },
-    [measureEvent],
+    [measureEvent, confirm],
   );
 
   const onScrollBeginDrag = useCallback(() => {
@@ -216,13 +255,23 @@ export function useFollowLatest<Row>(
 
   const jumpToLatest = useCallback(() => {
     follow();
+    settled.current = true;
+    setCanRetry(false);
     setReady(true);
     scrollToLatest(true);
   }, [scrollToLatest, follow]);
 
+  const retry = useCallback(() => {
+    attempts.current = 0;
+    setCanRetry(false);
+    pin();
+  }, [pin]);
+
   return {
     away,
     ready,
+    canRetry,
+    retry,
     browsed,
     unseen: following ? 0 : unseenSince(messages, anchor),
     hold,

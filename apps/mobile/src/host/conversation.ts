@@ -137,6 +137,7 @@ export interface ConversationMessage {
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
   delivery: DeliveryState;
+  attemptStartedAt?: number;
   error?: string;
   welcome?: true;
   activity?: ChannelActivity;
@@ -159,6 +160,7 @@ export interface ConversationSnapshot {
   drafts: ConversationDraft[];
   hasOlder: boolean;
   loadingOlder: boolean;
+  olderError?: boolean;
   fromCache: boolean;
 }
 
@@ -185,6 +187,7 @@ function timelineOf(
     current.reason === previous.reason &&
     current.hasOlder === previous.hasOlder &&
     current.loadingOlder === previous.loadingOlder &&
+    current.olderError === previous.olderError &&
     current.fromCache === previous.fromCache
   )
     return previous;
@@ -262,6 +265,7 @@ interface Outgoing {
   acceptanceObserved?: boolean;
   id: string;
   at: string;
+  attemptStartedAt: number;
   body: string;
   tags: MessageTags;
   files: OutgoingFile[];
@@ -456,6 +460,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let window: JournalEntry[] = [];
   let hasOlder = false;
   let loadingOlder = false;
+  let olderError = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
@@ -485,6 +490,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       drafts: [...drafts.values()],
       hasOlder,
       loadingOlder,
+      ...(olderError ? { olderError: true } : {}),
       fromCache,
     };
   }
@@ -518,6 +524,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           local: file.uri !== undefined,
         })),
         delivery: item.delivery,
+        attemptStartedAt: item.attemptStartedAt,
         ...(item.error === undefined ? {} : { error: item.error }),
       });
     }
@@ -860,6 +867,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const current = session;
       const before = first();
       loadingOlder = true;
+      olderError = false;
       publish();
       try {
         const page = await readPage(last(), before, olderPageSize);
@@ -871,6 +879,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         } else if (entries.length === 0) hasOlder = false;
         persist();
       } catch {
+        if (current === session) olderError = true;
       } finally {
         loadingOlder = false;
         publish();
@@ -880,6 +889,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item: Outgoing = {
         id: newMessageId(),
         at: new Date().toISOString(),
+        attemptStartedAt: Date.now(),
         body,
         tags,
         files,
@@ -919,6 +929,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item = outgoing.get(messageId);
       if (item === undefined || item.delivery !== 'failed') return;
       item.delivery = 'pending';
+      item.attemptStartedAt = Date.now();
       delete item.error;
       publish();
       void deliver(item);

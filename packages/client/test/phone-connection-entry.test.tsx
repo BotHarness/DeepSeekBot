@@ -7,6 +7,7 @@ import { zhTranslate as t } from '../src/client/locale.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: 'button',
+  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
@@ -88,7 +89,9 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 const button = (label: string) =>
-  [...host.querySelectorAll('button')].find((node) => node.textContent === label)!;
+  [...host.querySelectorAll('button')].find(
+    (node) => node.getAttribute('aria-label') === label || node.textContent === label,
+  )!;
 const click = async (label: string) => act(async () => button(label).click());
 const render = async (manage = true) => {
   await act(async () => root.render(<PairedDevicesSettings t={t} />));

@@ -1423,6 +1423,7 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.
+
 ### Message feedback (#2811)
 
 Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,
