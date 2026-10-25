@@ -150,7 +150,9 @@ it.each([
     locale,
   );
   expect(view.textContent).toContain(detail);
-  expect(view.textContent).toContain(locale === 'zh-CN' ? '设置 → 设备' : 'Settings → Devices');
+  expect(view.textContent).toContain(
+    locale === 'zh-CN' ? '设置 → 连接 → 管理' : 'Settings → Connections → Manage',
+  );
   await act(async () => view.querySelector('button')?.click());
   expect(retry).toHaveBeenCalledOnce();
   expect(pairAgain).not.toHaveBeenCalled();
@@ -160,13 +162,13 @@ it.each([
   {
     locale: 'zh-CN',
     check: '请把手机连到电脑所在的 Wi-Fi',
-    devices: '设置 → 设备',
+    devices: '设置 → 连接 → 管理',
     action: '重试',
   },
   {
     locale: 'en-US',
     check: 'Connect this phone to your computer’s Wi-Fi',
-    devices: 'Settings → Devices',
+    devices: 'Settings → Connections → Manage',
     action: 'Retry',
   },
 ])(
@@ -190,5 +192,14 @@ it.each([
     await act(async () => button?.click());
     expect(retry).toHaveBeenCalledOnce();
     expect(pairAgain).not.toHaveBeenCalled();
+  },
+);
+
+it.each(['connecting', 'reconnecting'] as const)(
+  'does not add a banner or alert while %s',
+  async (status) => {
+    const { view } = await render({ status, route: 'https://example.test', attempt: 1 }, 'en-US');
+    expect(view.textContent).toBe('');
+    expect(view.querySelector('[role="alert"]')).toBeNull();
   },
 );

@@ -29,6 +29,8 @@ The phone command explicitly settles JavaScript Promises through the inspector; 
 
 `deepseekbot device-notifications --device-file <private-pairing.json>` reads the admitted device's send-preference copy from a live Host. Add `--preferences-stdin` and pipe `{"approval":true,"question":true,"private-input":true,"reply":false}` to replace its four kinds, even before a push token is registered. The private file has the saved pairing shape (`hostId`, `hostName`, `routes`, `deviceId`, `credential`); never put its credential in arguments or publish the file. Output is one JSON document without credentials; revoked pairings return `device-revoked`. This edits that Host's delivery copy only; the phone's persisted preference is authoritative and overwrites it on the next sync. Browser notification choices remain local to that browser and do not change Host attention.
 
+`deepseekbot device-activity capability --device-file <private-pairing.json>` checks this Computer's configured Lock Screen service. `prepare`, `register` and `stop` use `--activity-stdin`: prepare receives `channelId`, `messageId`, `bundleIdentifier`; register also receives the actual iOS `clientActivityId`, per-activity `token` and `locale` (`en`/`zh`); stop receives only `clientActivityId`. Device identity always comes from the saved pairing, never stdin. A token is secret: pipe it privately, never put it in arguments or publish it. The CLI invokes the same authenticated/encrypted Device routes as the phone and prints only a JSON result or coded refusal. `activity-provider-unconfigured`, `activity-app-unsupported`, `activity-ended` and `device-revoked` refuse unavailable or stale operations. `activity-cleanup-pending` reports a temporary stop failure; only cleanup is retried until acknowledgement or registration expiry. Stopping display never stops the underlying request. `send-status <bot> --message-id <id>` now includes `progress` with explicit Inbox resolution; a handled turn is not completion. CLI tests cover these contracts; the live Host and real iPhone remote-delivery run remain separate QA gates. See [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md).
+
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--core-memory <text> | --core-memory-stdin]
@@ -700,10 +702,11 @@ deepseekbot phone-route-disable --confirm
 
 ### Paired devices
 
-Bot settings → Devices lists paired phones, shows a pairing QR code and revokes a device. The same Devices owner from the CLI:
+Bot settings → Connections lists paired devices, guides new invitations and revokes a device. `device-requests` reads pending receipts, public keys and full fingerprints without running route checks. The same Devices owner from the CLI:
 
 ```bash
 deepseekbot devices
+deepseekbot device-requests
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
@@ -712,6 +715,22 @@ deepseekbot device-revoke <device-id> --confirm
 ```
 
 `devices` returns `{host, devices, routes}`: this Host's pairing identity, every paired device with `id`, `name`, `pairedAt`, `lastSeenAt` and `revokedAt` once revoked, and the phone routes as `phone-route` reports them. Device credentials are never listed. `device-offer` opens a one-time offer for 10 minutes and writes its `deepseekbot://pair?…` link only to `--out`, a new file created with mode 0600 (an existing file is refused with `output-exists` before any offer opens); stdout carries `{receipt, expiresAt, routes, reachable, link: {path}}`. Open the link on the phone, or pair from the QR code in Devices instead; `device-offer` refuses without `--out` (`out-required`). The receipt names the offer without being able to redeem it. `device-offer-status` returns `state`: `pending` with `expiresAt`, `redeemed` with the new `deviceId`, `expired`, `refused` (a redemption with the wrong verifier used it up), `superseded` (more than 16 offers were open) or `unknown`; offers live in Host memory, so every receipt is `unknown` after a Host restart. `device-revoke` returns `{revoked, closedStreams, device: {id, name}}`; the device's next request is refused with `device-revoked` and its open streams close at once. Refusals: `confirm-required`, `device-unknown`, `device-already-revoked`, `receipt-required` and `usage`.
+
+### Connect a selected browser Client
+
+Keep the target browser open. `connection-clients` lists registered Clients on the serving Host; select the intended `id` explicitly. Prepare an invitation on the Remote Host with `device-offer --out <private-file>`, then securely place that file on the CLI machine. Links never belong in arguments, chat or stdout.
+
+```bash
+deepseekbot connection-clients
+deepseekbot connection start --client-id <id> --connection-id <attempt> --link-file /absolute/private-link
+deepseekbot connection status --client-id <id> --connection-id <attempt>
+deepseekbot connection confirm --client-id <id> --connection-id <attempt> --fingerprint '<full Host fingerprint>' --confirm
+deepseekbot connection cancel --client-id <id> --connection-id <attempt>
+```
+
+`--link-file -` reads stdin. Compare the full Host fingerprint independently before confirming. When status is `approve-device`, compare the displayed device fingerprint on the Remote Host and approve its exact pending receipt/public key using `device-approve-key`. Poll status until `connected`: `saved: true` alone is insufficient; the selected Client must read the Host Feed. An empty Channel list is valid. Credentials stay in that browser's origin-local storage; other Clients receive no enrollment.
+
+States are `connecting`, `verify-host`, `approve-device`, `connected`, `failed` and `cancelled`; failures include a coded `code`. Reusing an attempt ID with the same link reads the existing attempt; a different link is refused. Up to 16 attempts are retained for the mounted Client control session. An accepted attempt lasts at most five minutes. Closing/reloading the Client or losing its relay registration cancels unfinished enrollment. Expired commands cannot start an attempt. Cancellation after `saved: true` keeps the already saved Remote Host; remove it explicitly if desired. Offline/stale targets refuse instead of saving in the CLI or Host. This command does not authorize Tob to compare identities or approve devices.
 
 ### Models, usage and activity
 
@@ -1406,3 +1425,29 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.
+
+### Message feedback (#2811)
+
+Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,
+redacted snapshot. Preview defaults to 20 messages before and after the anchor; each count accepts
+0–100. `conversation`, `sessions`, `inbox`, `deliveries`, and `relatedChats` default to true;
+`wholeSessions` defaults to false. Inspect `files`, category choices and `summary.omissions` before
+submitting. Execution records can contain repeated chat text even with `conversation: false`.
+
+```bash
+printf '%s' '{"channelId":"<channel>","messageId":"<message>","before":20,"after":20}' | deepseekbot feedback-preview
+printf '%s' '{"token":"<preview-token>"}' | deepseekbot feedback-download --out evidence.zip
+printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-response"],"comment":"Synthetic QA"}}' | deepseekbot feedback-submit --confirm
+```
+
+Each command uses the normal live Host authentication and emits one JSON document. Download
+creates a new file exclusively. Submit requires `--confirm`; rating is `good` or `bad`, tags are
+optional fixed categories and comment accepts up to 500 Unicode characters. Secrets and content
+belong on stdin/files, never command arguments. Preview tokens expire after 30 minutes, are scoped
+to this Host connection, and only the last four snapshots remain. `preview-stale` requires a new
+preview. A failed submission freezes its rating and snapshot; retry that same request to retain the
+same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId` and `expiresAt`.
+
+The Host must opt in with `BOTHARNESS_FEEDBACK_ENDPOINT`; otherwise preview/download work but
+submit returns `feedback-unavailable`. Only `https://feedback.botharness.ai/feedback` and loopback
+HTTP `/feedback` are accepted; redirects are refused. See [receiver operations](message-feedback.md).

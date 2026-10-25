@@ -1,3 +1,4 @@
+import type { ActivityProvider } from '../live-activity/contract.js';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { hostname as osHostname } from 'node:os';
 import { createServer, type AddressInfo } from 'node:net';
@@ -42,6 +43,7 @@ export type AccountResult =
 export type OfferVerification = { ok: true; verifierHash: string; name?: string } | { ok: false };
 
 export interface ConnectAccount {
+  activity: ActivityProvider;
   status(): AccountStatus;
   verifyOffer(body: string, signature: string | undefined): Promise<OfferVerification>;
   start(): Promise<void>;
@@ -183,11 +185,20 @@ export function createConnectAccount(options: {
     path: string,
     accessToken?: string,
     body?: unknown,
+    timeoutMs?: number,
+    signal?: AbortSignal,
   ): Promise<{ status: number; body: Record<string, unknown> }> => {
     let response: Response;
     try {
       response = await fetcher(`${relay}${path}`, {
         method,
+        ...(timeoutMs === undefined
+          ? {}
+          : {
+              signal: signal
+                ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+                : AbortSignal.timeout(timeoutMs),
+            }),
         headers: {
           ...(accessToken === undefined ? {} : { authorization: `Bearer ${accessToken}` }),
           ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -499,7 +510,48 @@ export function createConnectAccount(options: {
     return { ok: true, verifierHash, ...(typeof name === 'string' ? { name } : {}) };
   };
 
+  const activityCall = (body?: Record<string, unknown>, signal?: AbortSignal) =>
+    serial(async () => {
+      if (signal?.aborted || status.state !== 'signed-in') return { status: 503, body: {} };
+      try {
+        const current = await read();
+        if (!current?.hostId) return { status: 503, body: {} };
+        const call = (access: string) =>
+          relayCall(
+            body ? 'POST' : 'GET',
+            `/v1/hosts/${current.hostId}/live-activity`,
+            access,
+            body,
+            35_000,
+            signal,
+          );
+        try {
+          return await call(cached ?? (await refresh(current)));
+        } catch (error) {
+          if (!(error instanceof AccountError) || error.issue !== 'session-expired') throw error;
+          return await call(await refresh(current));
+        }
+      } catch {
+        return { status: 503, body: {} };
+      }
+    });
   return {
+    activity: {
+      async capability(signal) {
+        const result = await activityCall(undefined, signal);
+        return result.status === 200 &&
+          typeof result.body['bundleIdentifier'] === 'string' &&
+          typeof result.body['source'] === 'string'
+          ? {
+              bundleIdentifier: result.body['bundleIdentifier'],
+              ...(typeof result.body['source'] === 'string'
+                ? { source: result.body['source'] }
+                : {}),
+            }
+          : undefined;
+      },
+      call: activityCall,
+    },
     status: () => ({ ...status }),
     verifyOffer,
     async start() {

@@ -1,4 +1,4 @@
-import type { NavigationAction, NavigationState } from 'expo-router/react-navigation';
+import type { NavigationAction, NavigationState, PartialState } from 'expo-router/react-navigation';
 import type { Stack } from 'expo-router';
 import type { ComponentProps } from 'react';
 
@@ -6,7 +6,9 @@ import type { RosterView } from '../../host/client';
 import type { ChatHref } from '../../host/push';
 
 export type ChannelLink = { channelId?: string; botSlug: string; messageId?: string };
-export type ChannelDestination = ChatHref & { params: { hostId: string } };
+export type ChannelDestination = ChatHref & { params: { hostId: string; focusRequest?: string } };
+
+let focusSequence = 0;
 
 export function channelDestination(
   hostId: string,
@@ -55,11 +57,16 @@ export const channelStackRouter: NonNullable<ComponentProps<typeof Stack>['UNSTA
       'dismissProfile' in payload &&
       payload.dismissProfile === true &&
       state.routes[state.index]?.name === 'bot/[slug]';
+    const dismissActivity =
+      !existing &&
+      'dismissActivity' in payload &&
+      payload.dismissActivity === true &&
+      state.routes[state.index]?.name === 'request-activity';
     return original.getStateForAction(
       state,
       {
         ...action,
-        type: dismissProfile ? 'REPLACE' : 'NAVIGATE',
+        type: dismissProfile || dismissActivity ? 'REPLACE' : 'NAVIGATE',
         payload: { ...payload, pop: true },
       },
       options,
@@ -73,20 +80,38 @@ export type ChannelNavigation = {
   dispatch(action: NavigationAction): void;
 };
 
+export function appStackState(
+  state: NavigationState | PartialState<NavigationState>,
+): NavigationState | undefined {
+  if (state.stale === false && state.routeNames.includes('(tabs)')) return state;
+  const child = state.routes[state.index ?? 0]?.state;
+  return child ? appStackState(child) : undefined;
+}
+
 export function navigateChannel(
   navigation: ChannelNavigation,
   destination: ChannelDestination,
-  intent?: 'dismiss-profile',
+  intent?: 'dismiss-profile' | 'dismiss-activity',
 ): boolean {
   if (!navigation.isReady()) return false;
+  const state = appStackState(navigation.getRootState());
+  if (!state) return false;
+  const params =
+    destination.params.focus === undefined
+      ? destination.params
+      : {
+          ...destination.params,
+          focusRequest: destination.params.focusRequest ?? `channel-focus-${++focusSequence}`,
+        };
   navigation.dispatch({
     type: 'NAVIGATE',
-    target: navigation.getRootState().key,
+    target: state.key,
     payload: {
       name: destination.pathname.slice(1),
-      params: destination.params,
+      params,
       pop: true,
       ...(intent === 'dismiss-profile' ? { dismissProfile: true } : {}),
+      ...(intent === 'dismiss-activity' ? { dismissActivity: true } : {}),
     },
   });
   return true;

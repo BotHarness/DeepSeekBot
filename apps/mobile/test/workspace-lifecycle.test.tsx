@@ -109,6 +109,15 @@ vi.mock('../src/cloud/native', () => ({
   },
 }));
 vi.mock('../src/host/host-session', () => ({
+  useHostSessions: () =>
+    fixture.hosts.map((saved) => ({
+      saved,
+      snapshot: { connection: { status: 'connected', route: saved.routes[0] } },
+      attention: {
+        status: 'ready',
+        sections: { action: [], replies: [], unread: [], handled: [] },
+      },
+    })),
   useHostSession: () => ({
     hosts: fixture.hosts,
     saved: fixture.hosts.find((host) => host.hostId === fixture.selected),

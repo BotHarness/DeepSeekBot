@@ -57,6 +57,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
     createElement('option', { value: modifiers[0]!.tag }, children),
 }));
 vi.mock('@expo/ui/swift-ui/modifiers', () => ({
+  disabled: () => ({}),
   accessibilityLabel: () => ({}),
   pickerStyle: () => ({}),
   tag: (tag: string) => ({ tag }),

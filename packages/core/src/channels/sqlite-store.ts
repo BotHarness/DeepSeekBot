@@ -2322,13 +2322,21 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return database.read((db) => {
         const request = db
           .prepare(`
-          SELECT e.source_event_id, a.attempt_state
+          SELECT e.source_event_id, e.created_at, a.attempt_state, a.resolved_at, a.resolution, a.handled_at, a.observed_at
           FROM source_events e
           JOIN inbox_admissions a ON a.source_event_id = e.source_event_id AND a.bot_slug = ?
           WHERE e.channel_id = ? AND e.message_id = ? AND e.source_kind = 'human-message'
         `)
           .get(botSlug, id, messageId) as
-          | { source_event_id: string; attempt_state: string }
+          | {
+              source_event_id: string;
+              created_at: string;
+              attempt_state: string;
+              resolved_at: string | null;
+              resolution: string | null;
+              handled_at: string | null;
+              observed_at: string | null;
+            }
           | undefined;
         if (!request) return undefined;
         const rows = db
@@ -2356,7 +2364,27 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             ? [message]
             : [];
         });
-        return { sourceEventId: request.source_event_id, state: request.attempt_state, replies };
+        const completed = request.resolved_at !== null && request.resolution === 'done';
+        const ignored = request.resolved_at !== null && request.resolution === 'ignored';
+        const uncertain = ['needs-repair', 'retryable'].includes(request.attempt_state);
+        return {
+          sourceEventId: request.source_event_id,
+          state: request.attempt_state,
+          progress: {
+            state: completed ? 'completed' : ignored || uncertain ? 'unknown' : 'working',
+            terminal: completed || ignored,
+            updatedAt: [
+              request.resolved_at,
+              request.handled_at,
+              request.observed_at,
+            ].reduce<string>(
+              (latest, value) =>
+                value !== null && Date.parse(value) > Date.parse(latest) ? value : latest,
+              request.created_at,
+            ),
+          },
+          replies,
+        };
       });
     },
     observeOutput(id, messageId) {

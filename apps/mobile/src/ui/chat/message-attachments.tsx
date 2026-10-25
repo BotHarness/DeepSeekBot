@@ -23,12 +23,14 @@ function AttachmentImage({
   width,
   height,
   onOpen,
+  onImageReady,
 }: {
   attachment: MessageAttachment;
   human: boolean;
   width: number;
   height: number;
   onOpen(attachment: MessageAttachment): void;
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -68,8 +70,12 @@ function AttachmentImage({
         recyclingKey={attachment.key}
         cachePolicy="memory-disk"
         contentFit="cover"
-        transition={150}
-        onError={() => setFailed(true)}
+        transition={onImageReady === undefined ? 150 : 0}
+        onDisplay={() => onImageReady?.(attachment.key, true)}
+        onError={() => {
+          setFailed(true);
+          onImageReady?.(attachment.key, false);
+        }}
         style={box}
       />
     </Pressable>
@@ -148,7 +154,9 @@ export function MessageAttachments({
   human,
   onOpenImage,
   onShare,
+  onImageReady,
 }: {
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   attachments: MessageAttachment[];
   human: boolean;
   onOpenImage(attachment: MessageAttachment): void;
@@ -170,6 +178,7 @@ export function MessageAttachments({
               width={single ? theme.touch * 5 : theme.touch * 3}
               height={single ? theme.touch * 4 : theme.touch * 3}
               onOpen={onOpenImage}
+              onImageReady={onImageReady}
             />
           ))}
         </View>

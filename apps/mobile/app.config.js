@@ -57,6 +57,10 @@ module.exports = ({ config }) => {
       ...config.plugins,
       './modules/local-computer-video/app.plugin.js',
       './modules/hardware-send/app.plugin.js',
+      [
+        'expo-widgets',
+        { enablePushNotifications: true, groupIdentifier: `group.${bundleIdentifier}` },
+      ],
       ['expo-dev-client', { addGeneratedScheme: !store }],
     ],
     owner: 'deepseekbots-team',

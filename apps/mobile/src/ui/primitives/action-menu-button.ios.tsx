@@ -1,5 +1,12 @@
 import { Button, Host, Image, Menu } from '@expo/ui/swift-ui';
-import { accessibilityLabel, font, foregroundStyle, frame } from '@expo/ui/swift-ui/modifiers';
+import {
+  accessibilityIdentifier,
+  accessibilityLabel,
+  disabled as disabledModifier,
+  font,
+  foregroundStyle,
+  frame,
+} from '@expo/ui/swift-ui/modifiers';
 
 import { useDesignTheme } from '../design/theme';
 import type { MenuAction, ActionMenuButtonProps } from './action-menu-button';
@@ -16,9 +23,16 @@ const SYMBOL = {
   mute: 'bell.slash',
   check: 'checkmark',
   folder: 'folder',
+  chat: 'bubble.left',
+  share: 'square.and.arrow.up',
 } as const satisfies Record<MenuAction['icon'], string>;
 
-export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
+export function ActionMenuButton({
+  label,
+  actions,
+  testID = 'action-menu-trigger',
+  disabled = false,
+}: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   return (
     <Host
@@ -37,7 +51,11 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
             ]}
           />
         }
-        modifiers={[accessibilityLabel(label)]}
+        modifiers={[
+          accessibilityLabel(label),
+          accessibilityIdentifier(testID),
+          disabledModifier(disabled),
+        ]}
       >
         {actions.map((action) => (
           <Button

@@ -2,6 +2,7 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Mobile concurrent paired Hosts, Chats and Activity | only for a reply | shared-device two-Host journey | [phone-multiple-hosts.md](phone-multiple-hosts.md) |
 | Phone long-press Bot/group/section deletion | no | `scripts/e2e-mobile-deletion-web.mjs` | [phone-deletion.md](phone-deletion.md) |
 | Native Subagent presets, live-parent CLI and background wake lifecycle | yes for child results | `verify-app` Bot DM and direct CLI | [subagent-presets.md](subagent-presets.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
@@ -37,7 +38,9 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone Chats drawer views and Android Host accent | no | none (shared-device native path) | [phone-drawer-views.md](phone-drawer-views.md) |
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
+| Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |
 | Native mobile message composer | no (except Bot reply) | none (shared-device native path) | [phone-composer.md](phone-composer.md) |
+| Native mobile Channel files, preview/share and original message | no | none (shared-device native path) | [phone-channel-files.md](phone-channel-files.md) |
 | Mobile press feedback, semantic haptics and local setting | no (except seeding a real decision) | none (shared-device native and physical-device path) | [phone-haptic-feedback.md](phone-haptic-feedback.md) |
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |
 | Native mobile chat backgrounds | no (except live-reply regression) | none (shared-device native path) | [phone-chat-backgrounds.md](phone-chat-backgrounds.md) |

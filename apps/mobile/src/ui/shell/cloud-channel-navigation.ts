@@ -1,4 +1,4 @@
-import type { ChannelNavigation } from './channel-navigation';
+import { appStackState, type ChannelNavigation } from './channel-navigation';
 
 export type CloudChannelTarget = {
   instanceId: string;
@@ -33,9 +33,11 @@ export function navigateCloudChannel(
   target: CloudChannelTarget,
 ): boolean {
   if (!navigation.isReady()) return false;
+  const state = appStackState(navigation.getRootState());
+  if (!state) return false;
   navigation.dispatch({
     type: 'NAVIGATE',
-    target: navigation.getRootState().key,
+    target: state.key,
     payload: { name: 'cloud-channels', params: paramsOf(target), pop: true },
   });
   return true;
@@ -46,7 +48,8 @@ export function ensureCloudChannelParent(
   target: CloudChannelTarget,
 ): void {
   if (!navigation.isReady()) return;
-  const state = navigation.getRootState();
+  const state = appStackState(navigation.getRootState());
+  if (!state) return;
   const current = state.routes[state.index];
   const currentParams: Record<string, unknown> = { ...current?.params };
   if (

@@ -270,3 +270,62 @@ describe('Customize computer sheet', () => {
     expect(handlers.onClose).toHaveBeenCalled();
   });
 });
+
+describe('new paired environment appearance', () => {
+  it('avoids paired icons and colors, persists the choice and preserves customization on re-pair', async () => {
+    let stored: Record<string, HostLook> = {
+      a: { icon: { kind: 'symbol', id: 'desktop' }, color: 'blue' },
+      b: { icon: { kind: 'symbol', id: 'laptop' }, color: 'indigo' },
+    };
+    const looks = createHostLooks({
+      read: async () => stored,
+      write: (value) => {
+        stored = value;
+      },
+    });
+    await looks.initialize('c', ['a', 'b', 'c'], 'Studio');
+    expect(looks.look('c')).toEqual({
+      name: 'Studio',
+      icon: { kind: 'symbol', id: 'display' },
+      color: 'purple',
+    });
+    const restored = createHostLooks({
+      read: async () => stored,
+      write: (value) => {
+        stored = value;
+      },
+    });
+    await restored.ready;
+    expect(restored.look('c')).toEqual(looks.look('c'));
+    const custom: HostLook = { name: 'Home', icon: { kind: 'emoji', emoji: '🏠' }, color: 'green' };
+    restored.set('c', custom);
+    await restored.initialize('c', ['a', 'b', 'c']);
+    expect(restored.look('c')).toEqual(custom);
+  });
+
+  it('counts legacy defaults and reuses the least-used colors after the palette is exhausted', async () => {
+    let stored: Record<string, HostLook> = {};
+    const looks = createHostLooks({
+      read: async () => stored,
+      write: (value) => {
+        stored = value;
+      },
+    });
+    await looks.initialize('first', ['legacy', 'first']);
+    expect(looks.look('first')).toEqual({
+      icon: { kind: 'symbol', id: 'laptop' },
+      color: 'indigo',
+    });
+    const ids: string[] = ['legacy', 'first'];
+    for (let index = 0; index < HOST_COLOR_IDS.length; index++) {
+      const id = `host-${index}`;
+      await looks.initialize(id, ids);
+      ids.push(id);
+    }
+    const counts = HOST_COLOR_IDS.map(
+      (color) => ids.filter((id) => (looks.look(id).color ?? 'blue') === color).length,
+    );
+    expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+    expect(looks.look('legacy')).toEqual(DEFAULT_HOST_LOOK);
+  });
+});

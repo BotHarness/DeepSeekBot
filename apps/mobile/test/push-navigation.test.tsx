@@ -47,6 +47,12 @@ vi.mock('../src/host/native-notifications', () => ({
   },
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
+vi.mock('../src/host/native-conversation-filter', async () => {
+  const { createConversationFilter } = await import('../src/host/conversation-filter');
+  return {
+    conversationFilter: createConversationFilter({ read: async () => undefined, write() {} }),
+  };
+});
 vi.mock('../src/host/client', () => ({
   createHostClient: () => ({
     stop() {},
@@ -268,6 +274,32 @@ it('unwinds intervening routes when another notification targets an older Channe
   });
   expect(state.routes).toHaveLength(2);
   expect(state.routes[state.index]?.key).toBe(key);
+});
+
+it('repeats an explicit notification focus without replacing its retained Channel', async () => {
+  await mount();
+  const target = { ...notification(), messageId: 'original-message' };
+  await act(async () => {
+    fixture.tap?.(target);
+    await vi.runAllTimersAsync();
+  });
+  const original = state.routes[state.index]!;
+  const params = original.params;
+  const request = params && 'focusRequest' in params ? params.focusRequest : undefined;
+  expect(request).toEqual(expect.any(String));
+  navigation.dispatch({ type: 'PUSH', payload: { name: 'inbox/[id]', params: { id: 'next' } } });
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]).toEqual(original);
+  await act(async () => {
+    fixture.tap?.(target);
+    await vi.runAllTimersAsync();
+  });
+  expect(state.routes).toHaveLength(2);
+  expect(state.routes[state.index]).toMatchObject({
+    key: original.key,
+    params: { hostId: 'host-a', id: 'group-a', focus: 'original-message' },
+  });
+  expect(state.routes[state.index]?.params).not.toHaveProperty('focusRequest', request);
 });
 
 it('waits for cold source initialization and its Roster before opening', async () => {

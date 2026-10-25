@@ -36,6 +36,7 @@ export type CardResolution =
 
 export interface MessageAttachment {
   key: string;
+  identity?: string;
   kind: 'image' | 'file' | 'audio';
   name: string;
   mime?: string;
@@ -136,6 +137,7 @@ export interface ConversationMessage {
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
   delivery: DeliveryState;
+  attemptStartedAt?: number;
   error?: string;
   welcome?: true;
   activity?: ChannelActivity;
@@ -158,6 +160,7 @@ export interface ConversationSnapshot {
   drafts: ConversationDraft[];
   hasOlder: boolean;
   loadingOlder: boolean;
+  olderError?: boolean;
   fromCache: boolean;
 }
 
@@ -184,6 +187,7 @@ function timelineOf(
     current.reason === previous.reason &&
     current.hasOlder === previous.hasOlder &&
     current.loadingOlder === previous.loadingOlder &&
+    current.olderError === previous.olderError &&
     current.fromCache === previous.fromCache
   )
     return previous;
@@ -261,6 +265,7 @@ interface Outgoing {
   acceptanceObserved?: boolean;
   id: string;
   at: string;
+  attemptStartedAt: number;
   body: string;
   tags: MessageTags;
   files: OutgoingFile[];
@@ -350,10 +355,10 @@ function attachmentPath(params: Record<string, string>): string {
   return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
 }
 
-function attachmentsOf(
+export function attachmentsOf(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
-  picked: readonly (OutgoingFile | undefined)[],
+  picked: readonly (OutgoingFile | undefined)[] = [],
 ): MessageAttachment[] {
   const message = entry.message;
   const owner = { channelId: entry.channelId, messageId: message.id };
@@ -361,6 +366,7 @@ function attachmentsOf(
     const file = picked[index];
     return {
       key: `${message.id}:${index}`,
+      ...((ref.fileId ?? ref.hash) === undefined ? {} : { identity: ref.fileId ?? ref.hash! }),
       kind: PREVIEWABLE.has(ref.mime) ? 'image' : 'file',
       name: ref.name,
       mime: ref.mime,
@@ -382,6 +388,7 @@ function attachmentsOf(
   const sourceEventId = message.bridgeOrigin?.sourceEventId;
   const bridged = (message.bridgeMedia?.items ?? []).map((item): MessageAttachment => ({
     key: `${message.id}:bridge:${item.id}`,
+    identity: `${sourceEventId ?? message.id}:bridge:${item.id}`,
     kind: item.kind,
     name: item.name,
     ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),
@@ -453,6 +460,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let window: JournalEntry[] = [];
   let hasOlder = false;
   let loadingOlder = false;
+  let olderError = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
@@ -482,6 +490,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       drafts: [...drafts.values()],
       hasOlder,
       loadingOlder,
+      ...(olderError ? { olderError: true } : {}),
       fromCache,
     };
   }
@@ -515,6 +524,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           local: file.uri !== undefined,
         })),
         delivery: item.delivery,
+        attemptStartedAt: item.attemptStartedAt,
         ...(item.error === undefined ? {} : { error: item.error }),
       });
     }
@@ -857,6 +867,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const current = session;
       const before = first();
       loadingOlder = true;
+      olderError = false;
       publish();
       try {
         const page = await readPage(last(), before, olderPageSize);
@@ -868,6 +879,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         } else if (entries.length === 0) hasOlder = false;
         persist();
       } catch {
+        if (current === session) olderError = true;
       } finally {
         loadingOlder = false;
         publish();
@@ -877,6 +889,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item: Outgoing = {
         id: newMessageId(),
         at: new Date().toISOString(),
+        attemptStartedAt: Date.now(),
         body,
         tags,
         files,
@@ -916,6 +929,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item = outgoing.get(messageId);
       if (item === undefined || item.delivery !== 'failed') return;
       item.delivery = 'pending';
+      item.attemptStartedAt = Date.now();
       delete item.error;
       publish();
       void deliver(item);

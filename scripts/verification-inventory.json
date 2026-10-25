@@ -4,6 +4,22 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.quiet-qol",
+      "label": "Quiet send and connection feedback, stable chat loading, native Bot creation and Cloud opening",
+      "source": "apps/mobile/src/ui/chat/conversation-screen.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-qol.md",
+      "task": 2802,
+      "gap": "Controlled owner/transport tests do not establish iOS or Android layout, initial history position, accessibility or native creation acceptance; run the queued device journeys."
+    },
+    {
+      "id": "phone.multiple-hosts.chats",
+      "label": "Combine online paired Hosts in Chats and Activity with source-bound actions",
+      "source": "apps/mobile/src/host/host-session.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-multiple-hosts.md",
+      "task": 2782,
+      "gap": "Screen and transport regression coverage; Android/iOS native two-Host, background notification and visual qualification pending."
+    },
+    {
       "id": "phone.workspace-navigation",
       "label": "Reset explicit workspace history and prune invalid account routes while retaining tab roots",
       "source": "apps/mobile/src/ui/shell/workspace-navigation.ts",
@@ -814,6 +830,14 @@
       "source": "apps/mobile/src/ui/chat/composer.tsx",
       "task": 2566,
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.channel-files",
+      "label": "Browse Channel history files, preview/share and return to the original message",
+      "source": "apps/mobile/src/ui/chat/channel-files-screen.tsx",
+      "task": 2819,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-files.md",
+      "gap": "Transport and native-share boundary tests do not qualify iOS/Android rendering, system-sheet delivery or Human acceptance; both platforms need queued native checks."
     },
     {
       "id": "phone.haptic-feedback",
@@ -2346,9 +2370,9 @@
       "path": "scripts/e2e-phone-recovery.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing"],
-      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA.",
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections → Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
       "task": 2731,
-      "sha256": "70e000a0d26b20f7658f88cad4cc3e33f01fb62afa201569ee8ca874c561171b"
+      "sha256": "df679869173191f5bd7381e2fbed2135c077bb191675786e62dc29a372d686d9"
     },
     {
       "path": "scripts/e2e-timeline-navigation.mjs",

@@ -36,6 +36,7 @@ async function fakeDsh(
   connectOffer?: Parameters<typeof createDeviceGateway>[0]['connectOffer'],
   localVideo?: Parameters<typeof createDeviceGateway>[0]['localVideo'],
   rpc?: (method: string, payload: unknown) => unknown,
+  activity?: Parameters<typeof createDeviceGateway>[0]['activity'],
 ) {
   const state = {
     secret: 1,
@@ -126,6 +127,7 @@ async function fakeDsh(
     authenticatedUrl: (base) => `${base}?token=${state.token}`,
     ...(connectOffer === undefined ? {} : { connectOffer }),
     ...(localVideo === undefined ? {} : { localVideo }),
+    ...(activity === undefined ? {} : { activity }),
   });
   return { state, port, pairing, base: `http://127.0.0.1:${String(port)}` };
 }
@@ -777,4 +779,28 @@ describe('mobile creation recovery through device admission', () => {
       }
     },
   );
+});
+
+it('admits activity operations by credential, ignoring caller-supplied device identity', async () => {
+  const admitted: string[] = [];
+  const live = await fakeDsh(undefined, undefined, undefined, async (input) => {
+    admitted.push(input.deviceId);
+    return { status: 200, body: { accepted: true } };
+  });
+  const paired = live.pairing.redeem({ offer: live.pairing.createOffer().offer, name: 'Phone' });
+  if (!paired.ok) throw new Error('pairing failed');
+  const url = `${live.base}/botharness-device/activity/register`;
+  expect((await fetch(url, { method: 'POST', body: '{}' })).status).toBe(401);
+  expect(admitted).toHaveLength(0);
+  const request = () =>
+    fetch(url, {
+      method: 'POST',
+      headers: { authorization: `Device ${paired.credential}` },
+      body: JSON.stringify({ deviceId: 'other-device', token: 'private-token' }),
+    });
+  expect((await request()).status).toBe(200);
+  expect(admitted).toEqual([paired.device.id]);
+  live.pairing.revoke(paired.device.id);
+  expect((await request()).status).toBe(401);
+  expect(admitted).toHaveLength(1);
 });

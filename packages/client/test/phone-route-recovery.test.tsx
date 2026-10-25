@@ -80,6 +80,7 @@ function tailnet(state: 'running' | 'stopped', ready = state === 'running') {
 async function mountWithTimers() {
   vi.useFakeTimers();
   await act(async () => root.render(<PairedDevicesSettings t={zhTranslate} />));
+  await act(async () => button(zhTranslate('connections.manage'))?.click());
 }
 
 async function poll() {

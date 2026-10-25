@@ -24,6 +24,7 @@ let conversation: Conversation | undefined;
 afterEach(() => {
   conversation?.stop();
   client?.stop();
+  vi.useRealTimers();
 });
 
 function seed(channel: FakeChannel, count: number): void {
@@ -195,6 +196,31 @@ describe('DM conversation', () => {
       before: 16,
       limit: 8,
     });
+  });
+
+  it('keeps loaded history after a failed earlier page and clears the error on explicit retry', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 25);
+    const target = open(host);
+    const live = await until(target, (snapshot) => snapshot.status === 'live');
+    host.failing.add('channelJournalPage');
+    await target.loadOlder();
+    expect(target.getSnapshot()).toMatchObject({
+      status: 'live',
+      loadingOlder: false,
+      hasOlder: true,
+      olderError: true,
+    });
+    expect(ids(target.getSnapshot())).toEqual(ids(live));
+    expect(target.getTimelineSnapshot().olderError).toBe(true);
+    host.failing.delete('channelJournalPage');
+    await target.loadOlder();
+    expect(target.getSnapshot().olderError).toBeUndefined();
+    expect(target.getTimelineSnapshot().olderError).toBeUndefined();
+    expect(revisions(target.getSnapshot())).toEqual(
+      Array.from({ length: 18 }, (_, index) => index + 8),
+    );
+    expect(new Set(ids(target.getSnapshot())).size).toBe(18);
   });
 
   it.each(['allowed-once', 'allowed-always-tool'] as const)(
@@ -534,11 +560,18 @@ describe('DM conversation', () => {
     const target = open(host);
     await until(target, (s) => s.status === 'live');
     host.failing.add('channelSend');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1_000);
     const id = target.send('retry me');
+    expect(target.getSnapshot().messages.at(-1)?.attemptStartedAt).toBe(1_000);
+    const sentAt = target.getSnapshot().messages.at(-1)?.at;
     const failed = await until(target, (s) => s.messages.at(-1)?.delivery === 'failed');
     expect(failed.messages.at(-1)?.error).toBeTruthy();
     host.failing.delete('channelSend');
+    vi.setSystemTime(9_000);
     target.retry(id);
+    expect(target.getSnapshot().messages.at(-1)?.attemptStartedAt).toBe(9_000);
+    expect(target.getSnapshot().messages.at(-1)?.at).toBe(sentAt);
     expect(target.getSnapshot().messages.at(-1)?.delivery).toBe('pending');
     await until(target, (s) => s.messages.at(-1)?.revision === 1);
     target.retry(id);
@@ -681,6 +714,7 @@ describe('DM conversation', () => {
     expect(live.messages[0]?.attachments).toEqual([
       {
         key: 'bot-1:0',
+        identity: 'file:00000000-0000-4000-8000-000000000001',
         kind: 'image',
         name: 'chart.png',
         mime: 'image/png',
@@ -693,6 +727,7 @@ describe('DM conversation', () => {
       },
       {
         key: 'bot-1:1',
+        identity: `sha256:${'a'.repeat(64)}`,
         kind: 'file',
         name: 'report.pdf',
         mime: 'application/pdf',
@@ -707,6 +742,7 @@ describe('DM conversation', () => {
     expect(live.messages[1]?.attachments).toEqual([
       {
         key: 'bridged-1:bridge:img-1',
+        identity: 'evt-9:bridge:img-1',
         kind: 'image',
         name: 'photo.jpg',
         source: {

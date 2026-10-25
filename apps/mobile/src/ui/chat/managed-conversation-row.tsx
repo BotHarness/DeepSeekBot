@@ -25,6 +25,7 @@ export function ManagedConversationRow({
   inbox,
   hostId,
   look,
+  sourceLabel,
   arrangement,
   onDelete,
   onError,
@@ -35,6 +36,7 @@ export function ManagedConversationRow({
   inbox: Inbox | undefined;
   hostId: string | undefined;
   look: HostLook;
+  sourceLabel?: string;
   arrangement: RosterArrangement | undefined;
   onDelete(target: DeletionTarget): void;
   onError(): void;
@@ -70,7 +72,14 @@ export function ManagedConversationRow({
         },
       })
     : [];
-  const common = { row, now: new Date(), look, actions: conversationActions(row, state), onAction };
+  const common = {
+    row,
+    now: new Date(),
+    look,
+    sourceLabel,
+    actions: conversationActions(row, state),
+    onAction,
+  };
   const openMenu = () =>
     showActionMenu(
       titleOf(row),
