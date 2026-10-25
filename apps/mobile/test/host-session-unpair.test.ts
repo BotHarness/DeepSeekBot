@@ -328,20 +328,21 @@ describe('drawer selection through the real Host Session', () => {
         await b;
         gates.c.resolve();
       }
-      await Promise.all([b, c]);
+      expect(await Promise.all([b, c])).toEqual([false, true]);
       await expectSelection('c');
-      expect(writes).toEqual(['b', 'c']);
+      expect(writes).toEqual(['b', 'a', 'c']);
     },
   );
 
-  it('keeps All after the pending Host is saved and adopted', async () => {
+  it('keeps All and the previous Host when an obsolete pending save is rolled back', async () => {
     const { drawer, writes, gates, expectSelection } = await switchingSession();
     const b = drawer.select('b');
     await vi.waitFor(() => expect(writes).toEqual(['b']));
     drawer.selectAll();
     gates.b.resolve();
-    await b;
-    await expectSelection('b', 'all');
+    expect(await b).toBe(false);
+    await expectSelection('a', 'all');
+    expect(writes).toEqual(['b', 'a']);
   });
 });
 
