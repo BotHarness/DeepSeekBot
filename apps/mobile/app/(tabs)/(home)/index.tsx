@@ -151,6 +151,18 @@ const HomeContent = memo(function HomeContent({
   const [filter, setFilter] = useConversationFilter();
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
+  const cloudIntent = useRef(0);
+  const cloudEntryFocused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      cloudEntryFocused.current = true;
+      setOpening(false);
+      return () => {
+        cloudEntryFocused.current = false;
+        cloudIntent.current += 1;
+      };
+    }, []),
+  );
   const [error, setError] = useState<string>();
   const [deleting, setDeleting] = useState<{ hostId: string; target: DeletionTarget }>();
   const [actionError, setActionError] = useState(false);
@@ -345,19 +357,28 @@ const HomeContent = memo(function HomeContent({
   };
   const openCloud = async (target: CloudConversation) => {
     if (opening || cloud.busy || directory.busy) return;
+    const intent = ++cloudIntent.current;
+    const origin = navigation.getRootState();
+    const isCurrent = () =>
+      cloudEntryFocused.current &&
+      cloudIntent.current === intent &&
+      navigation.getRootState() === origin;
     setOpening(true);
     setError(undefined);
     try {
+      if (!isCurrent()) return;
       let current = cloudClient
         .getSnapshot()
         .rows.find((r) => r.config.instanceId === target.instanceId);
       if (cloudViewScope(current) !== target.scope) throw Error('changed source');
       if (!current?.identity) await cloudClient.whoami(target.instanceId);
+      if (!isCurrent()) return;
       current = cloudClient
         .getSnapshot()
         .rows.find((r) => r.config.instanceId === target.instanceId);
       if (!target.guest && current?.organization?.organizationId !== target.organizationId)
         await cloudClient.useOrganization(target.instanceId, target.organizationId);
+      if (!isCurrent()) return;
       if (
         cloudViewScope(
           cloudClient.getSnapshot().rows.find((r) => r.config.instanceId === target.instanceId),
@@ -372,9 +393,9 @@ const HomeContent = memo(function HomeContent({
         accountScope: target.scope,
       });
     } catch (e) {
-      setError(cloudError(e));
+      if (isCurrent()) setError(cloudError(e));
     } finally {
-      setOpening(false);
+      if (cloudEntryFocused.current && cloudIntent.current === intent) setOpening(false);
     }
   };
   const renderHostConversation = (conversation: Conversation, pinned: boolean) => (
