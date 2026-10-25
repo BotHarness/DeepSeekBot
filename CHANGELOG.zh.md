@@ -6,7 +6,31 @@
 
 ## [Unreleased]
 
-1.5.1 之后暂无变更。
+1.5.2 之后暂无变更。
+
+## [1.5.2] - 2026-10-25
+
+Tobs 默认启用原生桌面窗口缩放，并改进 Windows 和 macOS 的 Computer 运行时复用与安装错误恢复。
+
+移动端条目描述独立版本应用的变化；本次 npm 发布不发布或验收 Android/iOS 安装包。
+
+### Documentation
+
+- 将安装指南更新为已验证的 Tobs 1.5.1 发布包，说明新的 `tobs` 命令与保留的 `deepseekbot` 兼容入口（[#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)）。
+
+### Fixed
+
+- 修复 macOS 上 DSH 桌面应用将录屏运行时归档误当成虚拟目录的问题，使已校验的安装可以复用而不再重复下载；进入校验与安装阶段后清除下载进度，并以本地化错误提示引导用户打开缺失的 macOS 权限设置（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
+- 修复移动端从市场导入 Bot 在创建前被拒绝的问题，将来源检查与导入合并为一个操作，并移除 iOS 和 Android 首页导航下方的继续创建入口（[#2768](https://github.com/BotHarness/DeepSeekBot/issues/2768)）。
+
+- 修复 Windows 桌面应用拒绝复用已校验的录屏组件并暴露 ASAR 清理错误的问题；安装完成后可复用组件，校验与安装时清除下载进度，并显示本地化错误提示（[#2771](https://github.com/BotHarness/DeepSeekBot/issues/2771)）。
+
+- 修复 Android 分区弹层缺少标题、关闭、新建分区、返回及创建操作的问题，可以创建新分区并将聊天加入其中（[#2773](https://github.com/BotHarness/DeepSeekBot/issues/2773)）。
+
+### Changed
+
+- macOS 和 Windows 原生桌面随 Tobs Bundle 默认加载整窗口缩放，无需额外启用命令；浏览器缩放与原生字体偏好保持独立（[#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)）。
 
 ## [1.5.1] - 2026-10-25
 

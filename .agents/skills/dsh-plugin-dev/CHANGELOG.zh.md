@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 准备下游 Tobs 1.5.2 发布记录；独立版本的 DSH Skill 及其已验证 DSH 来源不变（[#2777](https://github.com/BotHarness/DeepSeekBot/issues/2777)）。
+
 - 补充下游桌面缩放默认装载与旧手动配置清理说明；DSH/Cordis Context 和 Skill 行为不变 ([#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)).
 
 - 补充 Electron 桌面环境的 ASAR 文件系统行为，以及运行时复用所需的真实文件安装验证（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
