@@ -11,7 +11,7 @@ Git import uses the same target, confirmation, operation record and completion p
 - `android-page`: blank Bot and direct Git forms use full pages with native navigation Back, Settings-style grouped fields and Compose action buttons. Confirm actual keyboard/focus, text scaling and Back behavior; JavaScript adapter tests do not prove native rendering.
 - `channel-page`: Android New Channel selects a Remote Host, name and multiple eligible Bots in a virtualized native-checkbox list. Changing Host immediately clears candidates and selection, retains the name, ignores late reads and never resurrects old selections. Submission retains the original pairing/input/key; a continuation notice survives leaving the form.
 - `receipt`: the original Host, pairing identity, operation key and input survive app restart. Repeated taps and uncertain replies cannot create another Bot.
-- `completion`: active progress opens the new DM on its Host; leaving progress retains an Open Bot action without taking over navigation.
+- `completion`: active progress opens the new DM on its Host; leaving progress retains the result in the creation flow without taking over navigation or adding a Home footer. Reenter through New to recover and open it.
 - `refusal`: unsupported Hosts refuse before mutation; unavailable/revoked targets, changed input and archived results never fall back to another Host or fresh operation.
 - `git`: a Git link, confirmed commit and editable name/Bio/tags produce one ordinary Bot with the imported personality; retry preserves its source, identity and DM.
 - `marketplace`: browse the public catalogue before choosing a Host; native search, topics, details and README retain the selected listing and reviewed commit through confirmation. Android discovery uses a standard button group for sorting and borderless filter chips for topics. Check selected fill, unchanged repeat taps, actual result changes and the large-text radio-list alternative in light and dark themes.
@@ -20,7 +20,7 @@ Git import uses the same target, confirmation, operation record and completion p
 
 ## How to get to it (user POV)
 
-On the phone, open New from All or a selected Computer. Choose Create from scratch, Import Zip, Browse Marketplace or Import Git directly. Blank and direct Git use full pages with native Back navigation; Zip starts with the native file picker. Choose the Computer when needed, enter a name and persona, optionally expand more details, and create. Android also offers New Channel: choose the Computer before selecting participant Bots. Pending or completed creation remains reachable after leaving the form.
+On the phone, open New from All or a selected Computer. Choose Create from scratch, Import Zip, Browse Marketplace or Import Git directly. Blank and direct Git use full pages with native Back navigation; Zip starts with the native file picker. Choose the Computer when needed, enter a name and persona, optionally expand more details, and create. Android also offers New Channel: choose the Computer before selecting participant Bots. For Git, Marketplace and Zip, choose the destination then tap Import once; source inspection runs inside that action. There is no separate Check button. Pending or completed creation remains reachable by reopening New after leaving the form, without a continuation footer below Home navigation.
 
 ## Driving it with verify-app
 

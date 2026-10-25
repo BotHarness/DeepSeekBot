@@ -143,6 +143,10 @@ const en = {
         'The source changed after it was checked. The original import stays saved.',
       'invalid-git-url': 'This Git link is not supported. Check the link and try again.',
       'git-failed': 'The computer could not read this repository. Check its access and try again.',
+      'git-clone-failed':
+        'The computer could not read this repository. Check the link and repository access.',
+      'git-clone-timeout': 'Reading the repository took too long. Try importing again.',
+      'git-not-found': 'Install Git on this computer, then try importing again.',
       'storage-invalid':
         'Could not read the saved creation. Keep this app’s data and try reopening the app.',
       'storage-write': 'Could not save your creation on this phone. Free some space and try again.',
@@ -1720,6 +1724,9 @@ const zh: typeof en = {
       'git-source-changed': '检查后来源已变更，已保留原导入记录。',
       'invalid-git-url': '暂不支持此 Git 链接，请检查后重试。',
       'git-failed': '电脑无法读取此仓库，请检查访问权限后重试。',
+      'git-clone-failed': '电脑无法读取此仓库，请检查链接和仓库访问权限。',
+      'git-clone-timeout': '读取仓库超时，请重新导入。',
+      'git-not-found': '请先在电脑上安装 Git，再重新导入。',
       'storage-invalid': '无法读取已保存的创建操作。请保留 App 数据，并尝试重新打开 App。',
       'storage-write': '无法在手机上保存此次创建。请释放一些空间后重试。',
       'name-required': '请输入 Bot 名称。',

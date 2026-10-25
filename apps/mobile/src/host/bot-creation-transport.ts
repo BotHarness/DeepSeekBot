@@ -88,7 +88,7 @@ export function botCreationTransport(
           ? {
               gitUrl: operation.source.gitUrl,
               expectedCommit: operation.source.commit,
-              ...(operation.source.origin ? { origin: operation.source.origin } : {}),
+              ...(!lookup && operation.source.origin ? { origin: operation.source.origin } : {}),
             }
           : {}),
     });

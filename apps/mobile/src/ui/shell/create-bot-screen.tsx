@@ -131,9 +131,22 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
   const edit = (patch: Partial<BotCreationDraft>) => {
     if (draft) void botCreation.edit({ ...draft, ...patch });
   };
-  const submit = () => {
+  const importingNow = useRef(false);
+  const submit = async () => {
+    if (importingNow.current || state.busy) return;
+    importingNow.current = true;
     visibility.arm();
-    void botCreation.submit();
+    const stillHere = visibility.lease();
+    try {
+      const current = botCreation.getSnapshot();
+      if (current.record.kind === 'draft' && current.record.draft.source) {
+        await botCreation.preview();
+        if (!ready.current || !stillHere() || botCreation.getSnapshot().error) return;
+      }
+      await botCreation.submit();
+    } finally {
+      importingNow.current = false;
+    }
   };
   const title =
     flow === 'zip'
@@ -147,10 +160,11 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
     !draft ||
     !entryReady ||
     state.busy ||
-    !draft.displayName.trim() ||
+    (!draft.displayName.trim() && draft.source?.kind !== 'zip') ||
     !target ||
     state.error === 'storage-invalid' ||
-    (importing && !draft.source?.preview);
+    (draft.source?.kind === 'git' && !draft.source.gitUrl.trim()) ||
+    (importing && !draft.source);
   return (
     <View ref={mounted} style={{ flex: 1 }}>
       <Stack.Screen
@@ -295,22 +309,6 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                 <Text accessibilityLiveRegion="polite">
                   {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
                 </Text>
-              ) : null}
-              {draft.source ? (
-                <>
-                  <Text tone="muted">
-                    {draft.source.preview ? copy.sourceReady : copy.previewHint}
-                  </Text>
-                  <Button
-                    label={copy.preview}
-                    testID="import-bot-preview"
-                    busy={state.busy}
-                    disabled={
-                      (draft.source.kind === 'git' && !draft.source.gitUrl.trim()) || !target
-                    }
-                    onPress={() => void botCreation.preview()}
-                  />
-                </>
               ) : null}
               {draft ? (
                 <Button
