@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, useEffect, useSyncExternalStore, type ReactNode } from 'react';
+import { act, createElement, useCallback, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
@@ -64,7 +64,12 @@ vi.mock('expo-router', () => ({
     },
   },
   useLocalSearchParams: () => fixture.params,
-  useFocusEffect: (callback: () => () => void) => useEffect(callback, [callback]),
+  useFocusEffect: (callback: () => () => void) => {
+    useSyncExternalStore(
+      useCallback(() => callback(), [callback]),
+      () => true,
+    );
+  },
 }));
 vi.mock('../src/host/native-bot-creation', () => ({
   get botCreation() {
