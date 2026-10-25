@@ -17,7 +17,7 @@ export default function GroupInfoScreen() {
   const { id, hostId } = useLocalSearchParams<{ id: string; hostId?: string }>();
   const router = useRouter();
   const theme = useDesignTheme();
-  const { client, saved } = useHostSession();
+  const { client, saved } = useHostSession(hostId);
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const sourceChanged = (hostId ?? openedOn) !== saved?.hostId;
@@ -68,7 +68,10 @@ export default function GroupInfoScreen() {
                 title={t.notifications}
                 disclosure
                 onPress={() =>
-                  router.push({ pathname: '/group/[id]/notifications', params: { id } })
+                  router.push({
+                    pathname: '/group/[id]/notifications',
+                    params: { id, hostId: saved.hostId },
+                  })
                 }
               />
             </SettingsSection>
