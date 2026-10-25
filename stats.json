@@ -1,17 +1,17 @@
 {
   "repository": "BotHarness/DeepSeekBot",
-  "updatedAt": "2026-10-25T05:36:40Z",
+  "updatedAt": "2026-10-25T11:40:05Z",
   "defaultBranch": "main",
-  "defaultBranchSha": "0d960201ae4d2ff346d597b0b8d81e84302cf380",
-  "stars": 288,
-  "forks": 18,
-  "issues": 226,
-  "pullRequests": 23,
-  "release": "v1.4.1",
+  "defaultBranchSha": "4f0044dd1248e9dada5377b3fee7c8953666acb4",
+  "stars": 299,
+  "forks": 19,
+  "issues": 229,
+  "pullRequests": 20,
+  "release": "v1.5.2",
   "activity": {
-    "since": "2026-09-25T05:36:40Z",
-    "until": "2026-10-25T05:36:40Z",
-    "closedPullRequests": 1295,
-    "commits": 2487
+    "since": "2026-09-25T11:40:05Z",
+    "until": "2026-10-25T11:40:05Z",
+    "closedPullRequests": 1297,
+    "commits": 2481
   }
 }
