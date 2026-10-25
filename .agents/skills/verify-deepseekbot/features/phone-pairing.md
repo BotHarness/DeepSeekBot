@@ -66,6 +66,12 @@ Both journeys own their Host: they launch a fresh instance on a free port, resta
 - **Web Client.** `node scripts/verify-app.mjs shot devices --name <n> --bot-mode --locale en --click "Bot settings" --click Devices --click-text "Enable local access" --click-text "Pair a phone" --wait "Pairing QR code"` opens the QR dialog on a Host with a usable LAN address. When only loopback is available, Pair a phone stays disabled and the connection entries explain preparation. Open Show connection steps to verify the independent Tailscale flow. Record real phone reachability separately from Host route preparation.
 - **Hosted Connect section (#2387).** The same Devices page has "Connect without Tailscale". Without a deployed relay, launch with local stand-ins: `DEEPSEEKBOT_CONNECT_RELAY` pointing at a fake relay, a `NODE_OPTIONS=--import` preload answering `api.workos.com`, and `DEEPSEEKBOT_CLOUDFLARED` pointing at a script that prints `Registered tunnel connection` to stderr. Then `--click-text "Sign in" --wait-text "<user code>"`, approve in the stand-in, and `--wait-text Connected`; the Tailscale warning disappears and a new offer carries the Connect route. Against the real relay, `deepseekbot connect-sign-in --wait` does the same from the CLI.
 
+## Connection routes (#2784)
+
+Bot settings → Devices shows connection preparation followed by pairing. LAN and Tailscale setup are independent. Bot settings → Connect owns account/tunnel controls. On mobile, open the environment menu → Connections: verify current route, full saved addresses/ports, copy, and explicit test feedback without changing the selected environment.
+
+In the assigned native lane, pair over LAN, enable managed Tailscale, and confirm the phone learns the address without a second enrollment. Leave Wi-Fi, then return: the same pairing recovers and eventually prefers LAN. Repeat with an upload in flight; optimization must wait and must not replay the write. Check light/dark and default/intermediate/maximum text. Tailscale startup recovery, occupied publishing port, and disable preserving another service require an isolated test publication. Expo Web screenshots are layout evidence only, not native/network qualification.
+
 ## Pair modal to Cloud services regression
 
 In the assigned native QA window, use the signed-out app without redeeming a pairing:

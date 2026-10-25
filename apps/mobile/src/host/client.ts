@@ -1,6 +1,7 @@
 import { readComputerAvailability } from './computer-availability';
 import { encryptedCarrier, encodeBase64, ConnectRefused } from './encrypted-carrier';
 import type { HostEncryption } from './hosts';
+import { learnedRoutes, preferredRoutes } from './learned-routes';
 import type { ConnectionTelemetry } from '../telemetry/connection';
 import { ActivitySmoother } from '../../../../packages/client/src/client/activity-smoothing';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
@@ -102,6 +103,7 @@ export interface RosterView {
 }
 
 export interface HostSnapshot {
+  routes?: readonly { url: string; status: 'unchecked' | 'verified' | 'unreachable' }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
   roster?: RosterView;
@@ -120,6 +122,8 @@ export interface StreamHandlers {
 }
 
 export interface HostClient {
+  updateRoutes?(routes: string[]): void;
+  testRoute?(url: string): Promise<boolean>;
   getSnapshot(): HostSnapshot;
   subscribe(listener: () => void): () => void;
   start(): void;
@@ -147,6 +151,7 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  onRoutesChanged?: (routes: string[]) => Promise<void>;
   hostId?: string;
   encryption?: HostEncryption;
   telemetry?: ConnectionTelemetry;
@@ -277,7 +282,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     credential: options.credential,
     ...(options.encryption === undefined ? {} : { encryption: options.encryption }),
   });
-  const routes = options.routes;
+  let routes = preferredRoutes(options.routes);
+  const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
   let route = routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
@@ -307,12 +313,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let reloading: Promise<void> | undefined;
   let reloadAgain = false;
   let disconnectCurrent: ((reason: string) => void) | undefined;
+  let activeRequests = 0;
+  let checkingPreferred = false;
+  let preferredSwitchAt = 0;
   const followers = new Set<Follower>();
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
   const publish = (connection?: ConnectionState): void => {
     snapshot = {
+      routes: routes.map((url) => ({ url, status: routeChecks.get(url) ?? 'unchecked' })),
       connection: connection ?? snapshot.connection,
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
@@ -451,6 +461,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     work: (signal: AbortSignal) => Promise<T>,
     ms: number = timeoutMs,
   ): Promise<T> => {
+    activeRequests += 1;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ms);
     try {
@@ -475,6 +486,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           : 'The Host could not be reached.',
       );
     } finally {
+      activeRequests -= 1;
       clearTimeout(timer);
     }
   };
@@ -634,6 +646,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const reloadOnce = async (): Promise<void> => {
     void discoverComputer();
+    void discoverRoutes();
     const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       call<{ channels: ChannelListItem[] }>('channels'),
@@ -714,9 +727,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
     for (const candidate of routes) {
       try {
         await call('list', {}, candidate);
+        routeChecks.set(candidate, 'verified');
         route = candidate;
         return;
       } catch (error) {
+        routeChecks.set(candidate, 'unreachable');
         if (
           isConnectRoute(candidate) ||
           error instanceof ConnectRefused ||
@@ -728,6 +743,34 @@ export function createHostClient(options: HostClientOptions): HostClient {
       }
     }
     throw failure instanceof Error ? failure : new Unreachable('The Host could not be reached.');
+  };
+
+  let learningRoutes = false;
+  const discoverRoutes = async (): Promise<void> => {
+    if (!options.hostId || learningRoutes) return;
+    learningRoutes = true;
+    const current = generation;
+    try {
+      const answer = await api('/api/botharness/devices');
+      if (answer.status !== 200 || !running || current !== generation) return;
+      const next = learnedRoutes(
+        {
+          hostId: options.hostId,
+          routes,
+          ...(options.encryption ? { encryption: options.encryption } : {}),
+        },
+        answer.body,
+      );
+      if (JSON.stringify(next) === JSON.stringify(routes)) return;
+      await options.onRoutesChanged?.(next);
+      if (!running || current !== generation) return;
+      routes = next;
+      publish();
+    } catch (error) {
+      refusedBy(error);
+    } finally {
+      learningRoutes = false;
+    }
   };
 
   const openFollower = (follower: Follower): void => {
@@ -884,6 +927,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
     const health = setInterval(() => {
+      void discoverRoutes();
       void refreshConnected(() => call('list')).catch(() => undefined);
     }, 20_000);
     try {
@@ -898,6 +942,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     const disconnect = disconnectCurrent;
     try {
       await read();
+      await recoverPreferred();
     } catch (error) {
       if (running && disconnect !== undefined && disconnect === disconnectCurrent) {
         refusedBy(error);
@@ -908,6 +953,38 @@ export function createHostClient(options: HostClientOptions): HostClient {
         }
       }
       throw error;
+    }
+  };
+
+  const recoverPreferred = async (): Promise<void> => {
+    if (checkingPreferred || activeRequests > 0 || Date.now() - preferredSwitchAt < 60_000) return;
+    const previous = route;
+    const disconnect = disconnectCurrent;
+    const current = generation;
+    checkingPreferred = true;
+    try {
+      for (const candidate of routes.slice(0, routes.indexOf(previous))) {
+        try {
+          await call('list', {}, candidate);
+          routeChecks.set(candidate, 'verified');
+        } catch {
+          routeChecks.set(candidate, 'unreachable');
+          continue;
+        }
+        if (
+          !running ||
+          current !== generation ||
+          route !== previous ||
+          disconnect !== disconnectCurrent ||
+          activeRequests > 0
+        )
+          return;
+        preferredSwitchAt = Date.now();
+        disconnect?.('A preferred connection is available.');
+        return;
+      }
+    } finally {
+      checkingPreferred = false;
     }
   };
 
@@ -943,6 +1020,23 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   return {
+    updateRoutes(next) {
+      routes = preferredRoutes(next);
+      publish();
+    },
+    async testRoute(url) {
+      if (!routes.includes(url)) return false;
+      try {
+        await call('list', {}, url);
+        routeChecks.set(url, 'verified');
+        publish();
+        return true;
+      } catch {
+        routeChecks.set(url, 'unreachable');
+        publish();
+        return false;
+      }
+    },
     getSnapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);

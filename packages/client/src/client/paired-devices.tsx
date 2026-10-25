@@ -138,7 +138,10 @@ function onTailnet(): boolean {
   return location.protocol === 'https:' && location.hostname.endsWith('.ts.net');
 }
 
-export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactElement {
+export function PairedDevicesSettings({
+  t,
+  section = 'devices',
+}: PropsLocale<'botharness'> & { section?: 'devices' | 'connect' }): ReactElement {
   const [snapshot, setSnapshot] = useState<DevicesSnapshot>();
   const [pairView, setPairView] = useState<PairingView>({ state: 'closed' });
   const pairViewRef = useRef<PairingView>({ state: 'closed' });
@@ -228,12 +231,15 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
     return () => clearInterval(timer);
   }, []);
 
-  const publish = async (): Promise<PublishFailure | undefined> => {
+  const publish = async (
+    action: 'enable' | 'disable' = 'enable',
+  ): Promise<PublishFailure | undefined> => {
+    setBusy('tailscale');
     try {
       const response = await fetch(`${PATH}/serve`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ confirm: true }),
+        body: JSON.stringify({ confirm: true, action }),
       });
       const value = (await response.json()) as PublishFailure & {
         routes?: RouteStatus;
@@ -245,6 +251,8 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
       return response.ok ? undefined : value;
     } catch {
       return { code: 'serve-failed' };
+    } finally {
+      if (mounted.current) setBusy(undefined);
     }
   };
 
@@ -454,111 +462,131 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
           </Button>
         </Callout>
       ) : null}
-      <SettingsSection title={t('devices.connection.title')}>
-        {snapshot?.lan ? (
+      {section === 'devices' ? (
+        <SettingsSection title={t('devices.connection.title')}>
+          {snapshot?.lan ? (
+            <SettingsRow
+              title={t('devices.lan.title')}
+              description={t(
+                !freshSnapshot
+                  ? 'devices.connection.unchecked'
+                  : snapshot.lan.state === 'error'
+                    ? 'devices.lan.failed'
+                    : snapshot.lan.state === 'listening'
+                      ? lanReady
+                        ? 'devices.lan.enabled'
+                        : 'devices.lan.noAddress'
+                      : 'devices.lan.notice',
+              )}
+              data={{ 'data-device-lan': snapshot.lan.state }}
+              control={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!freshSnapshot || busy !== undefined}
+                  onClick={() =>
+                    void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
+                  }
+                >
+                  {t(
+                    snapshot.lan.state === 'listening'
+                      ? 'devices.lan.disable'
+                      : 'devices.lan.enable',
+                  )}
+                </Button>
+              }
+            >
+              <Note>{t('devices.lan.network')}</Note>
+            </SettingsRow>
+          ) : null}
           <SettingsRow
-            title={t('devices.lan.title')}
+            title={t('devices.tailscale.title')}
             description={t(
               !freshSnapshot
                 ? 'devices.connection.unchecked'
-                : snapshot.lan.state === 'error'
-                  ? 'devices.lan.failed'
-                  : snapshot.lan.state === 'listening'
-                    ? lanReady
-                      ? 'devices.lan.enabled'
-                      : 'devices.lan.noAddress'
-                    : 'devices.lan.notice',
+                : tailscaleReady
+                  ? 'devices.tailscale.ready'
+                  : routes?.tailscale === 'stopped'
+                    ? 'devices.tailscale.stopped'
+                    : 'devices.tailscale.notice',
             )}
-            data={{ 'data-device-lan': snapshot.lan.state }}
+            data={{
+              'data-device-tailscale': !freshSnapshot
+                ? 'unknown'
+                : tailscaleReady
+                  ? 'ready'
+                  : 'unprepared',
+            }}
             control={
               <Button
                 variant="outline"
                 size="sm"
-                disabled={!freshSnapshot || busy !== undefined}
-                onClick={() =>
-                  void setLan(snapshot.lan?.state === 'listening' ? 'disable' : 'enable')
-                }
+                aria-expanded={showTailscale}
+                disabled={!freshSnapshot}
+                onClick={() => setShowTailscale(!showTailscale)}
               >
-                {t(
-                  snapshot.lan.state === 'listening' ? 'devices.lan.disable' : 'devices.lan.enable',
-                )}
+                {t(showTailscale ? 'devices.tailscale.hide' : 'devices.tailscale.setup')}
               </Button>
             }
           >
-            <Note>{t('devices.lan.network')}</Note>
+            {showTailscale && routes && freshSnapshot ? (
+              <div>
+                {routes.managed?.enabled ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy !== undefined}
+                    onClick={() => {
+                      void publish('disable').then((failure) => setError(failure !== undefined));
+                    }}
+                  >
+                    {t('devices.tailscale.disable')}
+                  </Button>
+                ) : null}
+                <PhoneRouteSteps
+                  t={t}
+                  status={routes}
+                  reachable={tailscaleReady}
+                  port={portOf(routes)}
+                  onPublish={() => publish()}
+                />
+              </div>
+            ) : null}
           </SettingsRow>
-        ) : null}
-        <SettingsRow
-          title={t('devices.tailscale.title')}
-          description={t(
-            !freshSnapshot
-              ? 'devices.connection.unchecked'
-              : tailscaleReady
-                ? 'devices.tailscale.ready'
-                : routes?.tailscale === 'stopped'
-                  ? 'devices.tailscale.stopped'
-                  : 'devices.tailscale.notice',
-          )}
-          data={{
-            'data-device-tailscale': !freshSnapshot
-              ? 'unknown'
-              : tailscaleReady
-                ? 'ready'
-                : 'unprepared',
-          }}
-          control={
-            <Button
-              variant="outline"
-              size="sm"
-              aria-expanded={showTailscale}
-              disabled={!freshSnapshot}
-              onClick={() => setShowTailscale(!showTailscale)}
-            >
-              {t(showTailscale ? 'devices.tailscale.hide' : 'devices.tailscale.setup')}
-            </Button>
-          }
-        >
-          {showTailscale && routes && freshSnapshot ? (
-            <div>
-              <PhoneRouteSteps
-                t={t}
-                status={routes}
-                reachable={tailscaleReady}
-                port={portOf(routes)}
-                onPublish={publish}
-              />
-            </div>
-          ) : null}
-        </SettingsRow>
-        <SettingsRow
-          title={t('devices.pair.title')}
-          description={t('devices.pair.description')}
-          data={{ 'data-pair-phone': '' }}
-          control={
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!ready || busy !== undefined}
-              onClick={open}
-            >
-              {t('devices.pair.open')}
-            </Button>
-          }
-        >
-          {!ready ? (
-            <Note>
-              {t(
-                !snapshot && readState === 'loading'
-                  ? 'devices.list.loading'
-                  : freshSnapshot
-                    ? 'devices.connection.prepare'
-                    : 'devices.connection.unchecked',
-              )}
-            </Note>
-          ) : null}
-        </SettingsRow>
-      </SettingsSection>
-      {signIn === undefined ? null : (
+        </SettingsSection>
+      ) : null}
+      {section === 'devices' ? (
+        <SettingsSection title={t('devices.connection.pairStep')}>
+          <SettingsRow
+            title={t('devices.pair.title')}
+            description={t('devices.pair.description')}
+            data={{ 'data-pair-phone': '' }}
+            control={
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!ready || busy !== undefined}
+                onClick={open}
+              >
+                {t('devices.pair.open')}
+              </Button>
+            }
+          >
+            {!ready ? (
+              <Note>
+                {t(
+                  !snapshot && readState === 'loading'
+                    ? 'devices.list.loading'
+                    : freshSnapshot
+                      ? 'devices.connection.prepare'
+                      : 'devices.connection.unchecked',
+                )}
+              </Note>
+            ) : null}
+          </SettingsRow>
+        </SettingsSection>
+      ) : null}
+      {section !== 'connect' || signIn === undefined ? null : (
         <div data-connect="">
           <SettingsSection title={t('devices.connect.title')}>
             <SettingsRow
@@ -673,56 +701,58 @@ export function PairedDevicesSettings({ t }: PropsLocale<'botharness'>): ReactEl
           </SettingsSection>
         </div>
       )}
-      <SettingsSection title={t('devices.list.title')}>
-        {devices.length === 0 ? (
-          <Note>
-            {snapshot === undefined
-              ? t(readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading')
-              : t('devices.list.empty')}
-          </Note>
-        ) : (
-          devices.map((device) => (
-            <SettingsRow
-              key={device.id}
-              title={device.name}
-              data={{
-                'data-paired-device': device.id,
-                'data-revoked': device.revokedAt === undefined ? undefined : '',
-                'data-new-device': fresh(device) ? '' : undefined,
-              }}
-              description={[
-                t('devices.list.paired', {
-                  when: formatRelativeTime(Date.parse(device.pairedAt), now, t),
-                }),
-                device.revokedAt !== undefined
-                  ? t('devices.list.revoked', {
-                      when: formatRelativeTime(Date.parse(device.revokedAt), now, t),
-                    })
-                  : device.lastSeenAt !== undefined
-                    ? t('devices.list.lastSeen', {
-                        when: formatRelativeTime(Date.parse(device.lastSeenAt), now, t),
+      {section === 'devices' ? (
+        <SettingsSection title={t('devices.list.title')}>
+          {devices.length === 0 ? (
+            <Note>
+              {snapshot === undefined
+                ? t(readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading')
+                : t('devices.list.empty')}
+            </Note>
+          ) : (
+            devices.map((device) => (
+              <SettingsRow
+                key={device.id}
+                title={device.name}
+                data={{
+                  'data-paired-device': device.id,
+                  'data-revoked': device.revokedAt === undefined ? undefined : '',
+                  'data-new-device': fresh(device) ? '' : undefined,
+                }}
+                description={[
+                  t('devices.list.paired', {
+                    when: formatRelativeTime(Date.parse(device.pairedAt), now, t),
+                  }),
+                  device.revokedAt !== undefined
+                    ? t('devices.list.revoked', {
+                        when: formatRelativeTime(Date.parse(device.revokedAt), now, t),
                       })
-                    : t('devices.list.neverSeen'),
-                ...(fresh(device) ? [t('devices.list.new')] : []),
-              ].join(' · ')}
-              control={
-                device.revokedAt === undefined ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy === device.id}
-                    onClick={() => void revoke(device)}
-                  >
-                    {t('devices.list.revoke')}
-                  </Button>
-                ) : undefined
-              }
-            />
-          ))
-        )}
-        {pairing ? null : verification}
-        {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
-      </SettingsSection>
+                    : device.lastSeenAt !== undefined
+                      ? t('devices.list.lastSeen', {
+                          when: formatRelativeTime(Date.parse(device.lastSeenAt), now, t),
+                        })
+                      : t('devices.list.neverSeen'),
+                  ...(fresh(device) ? [t('devices.list.new')] : []),
+                ].join(' · ')}
+                control={
+                  device.revokedAt === undefined ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={busy === device.id}
+                      onClick={() => void revoke(device)}
+                    >
+                      {t('devices.list.revoke')}
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ))
+          )}
+          {pairing ? null : verification}
+          {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
+        </SettingsSection>
+      ) : null}
       {pairing ? (
         <PanelDialog
           title={t('devices.pair.dialogTitle')}

@@ -24,7 +24,7 @@ import { cloudflaredCacheRoot } from './cloudflared.js';
 import { createDeviceConnect } from './connect.js';
 import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
-import { detectPhoneRoutes, publishPhoneRoute } from './routes.js';
+import { createManagedPhoneRoute, parseManagedPhoneRoute } from './routes.js';
 import {
   createPushDelivery,
   type ExpoSender,
@@ -270,8 +270,32 @@ export function mountDevicePairing(
         void account.close().then(() => connect.close());
       };
     }, 'botharness: device connect tunnel');
+    const publishKey = credentialKey('botharness-core', 'device-tailscale');
+    const publishing = createManagedPhoneRoute({
+      port: webServer.port,
+      read: async () => {
+        const credentials = options.credentials?.();
+        if (!credentials) throw new Error('publishing-storage-unavailable');
+        const record = await credentials.readRecord(publishKey);
+        return record?.kind === 'grant' ? parseManagedPhoneRoute(record.payload) : undefined;
+      },
+      write: async (state) => {
+        const credentials = options.credentials?.();
+        if (!credentials) throw new Error('publishing-storage-unavailable');
+        await credentials.modifyRecord(publishKey, async () => ({ kind: 'grant', payload: state }));
+      },
+      log: (event) =>
+        write(
+          'device-tailscale',
+          event.phase,
+          JSON.stringify({ module: 'device-tailscale', ...event }),
+        ),
+    });
+    const publishingReady = publishing.start();
+    webCtx.effect(() => () => publishing.close(), 'botharness: managed Tailscale publishing');
     const routes = async () => {
-      const status = await detectPhoneRoutes({ port: webServer.port });
+      await publishingReady;
+      const status = await publishing.status();
       status.routes.unshift(...lan.routes());
       const tunnel = connect.route();
       if (tunnel === undefined) return status;
@@ -286,7 +310,14 @@ export function mountDevicePairing(
       connect,
       account,
       lan,
-      publish: () => publishPhoneRoute({ port: webServer.port }),
+      publish: async () => {
+        await publishingReady;
+        return publishing.enable();
+      },
+      unpublish: async () => {
+        await publishingReady;
+        return publishing.disable();
+      },
     });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],

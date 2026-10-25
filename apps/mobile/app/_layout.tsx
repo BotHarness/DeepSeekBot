@@ -166,6 +166,10 @@ function RootNavigator() {
                     ...sheetScreenOptions(design, true),
                   }}
                 />
+                <Stack.Screen
+                  name="host-connection"
+                  options={{ title: t.connectionRoutes.title, ...sheetScreenOptions(design, true) }}
+                />
               </Stack>
             </View>
             <BotCreationNotice />

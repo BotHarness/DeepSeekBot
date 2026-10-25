@@ -9,6 +9,7 @@ export interface PhoneRoute {
 }
 
 export interface RouteStatus {
+  managed?: { enabled: boolean; owned: boolean };
   routes: PhoneRoute[];
   tailscale: 'running' | 'stopped' | 'missing';
   serveCommand: string;
@@ -78,9 +79,14 @@ export function phoneRoute(input: string): PhoneRoute | undefined {
   return undefined;
 }
 
-function servesPort(serve: unknown, dnsName: string, port: number): boolean | undefined {
+function servesPort(
+  serve: unknown,
+  dnsName: string,
+  port: number,
+  published = 443,
+): boolean | undefined {
   const web = record(record(serve)['Web']);
-  const site = record(web[`${dnsName}:443`]);
+  const site = record(web[`${dnsName}:${String(published)}`]);
   const handlers = record(site['Handlers']);
   if (Object.keys(handlers).length === 0) return undefined;
   const proxy = record(handlers['/'])['Proxy'];
@@ -88,10 +94,46 @@ function servesPort(serve: unknown, dnsName: string, port: number): boolean | un
   try {
     const target = new URL(proxy.includes('://') ? proxy : `http://${proxy}`);
     const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname);
-    return loopback && Number(target.port || '80') === port;
+    return (
+      loopback &&
+      target.protocol === 'http:' &&
+      target.pathname === '/' &&
+      !target.search &&
+      !target.hash &&
+      !target.username &&
+      !target.password &&
+      Number(target.port || '80') === port
+    );
   } catch {
     return /^\d+$/u.test(proxy) && Number(proxy) === port;
   }
+}
+
+const PUBLISH_PORTS = [443, 8443, 8444, 8445, 8446, 8447, 8448, 8449, 8450, 8451, 8452];
+
+function publishedPort(serve: unknown, dnsName: string, port: number): number | undefined {
+  return Object.keys(record(record(serve)['Web']))
+    .filter((key) => key.startsWith(`${dnsName}:`))
+    .map((key) => Number(key.slice(dnsName.length + 1)))
+    .find((candidate) => servesPort(serve, dnsName, port, candidate) === true);
+}
+
+function freePublishPort(serve: unknown, dnsName: string): number | undefined {
+  const config = record(serve);
+  return PUBLISH_PORTS.find(
+    (port) =>
+      record(config['Web'])[`${dnsName}:${String(port)}`] === undefined &&
+      record(config['TCP'])[String(port)] === undefined,
+  );
+}
+
+function serveArgs(port: number, published: number): string[] {
+  return [
+    'serve',
+    '--bg',
+    ...(published === 443 ? [] : [`--https=${String(published)}`]),
+    String(port),
+  ];
 }
 
 export const CONNECT_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.deepseekbot\.dev$/u;
@@ -124,7 +166,7 @@ export async function detectPhoneRoutes(options: {
     kind: 'loopback',
     ready: true,
   };
-  const serveCommand = `tailscale serve --bg ${String(options.port)}`;
+  let serveCommand = `tailscale serve --bg ${String(options.port)}`;
   for (const binary of TAILSCALE_BINARIES) {
     let status: Record<string, unknown>;
     try {
@@ -137,17 +179,18 @@ export async function detectPhoneRoutes(options: {
     if (status['BackendState'] !== 'Running' || !dnsName.endsWith('.ts.net'))
       return { routes: [loopback], tailscale: 'stopped', serveCommand };
     let served: boolean | undefined;
+    let published = 443;
     try {
-      served = servesPort(
-        JSON.parse(await run(binary, ['serve', 'status', '--json'])),
-        dnsName,
-        options.port,
-      );
+      const config: unknown = JSON.parse(await run(binary, ['serve', 'status', '--json']));
+      published =
+        publishedPort(config, dnsName, options.port) ?? freePublishPort(config, dnsName) ?? 443;
+      served = servesPort(config, dnsName, options.port, published);
+      serveCommand = `tailscale ${serveArgs(options.port, published).join(' ')}`;
     } catch {
       served = undefined;
     }
     const route: PhoneRoute = {
-      url: `https://${dnsName}`,
+      url: `https://${dnsName}${published === 443 ? '' : `:${String(published)}`}`,
       kind: 'tailscale',
       ready: served === true,
       ...(served === true
@@ -187,6 +230,7 @@ function refusal(
 export async function publishPhoneRoute(options: {
   port: number;
   run?: RunCommand;
+  beforePublish?: (mapping: { hostname: string; port: number; target: number }) => Promise<void>;
 }): Promise<PublishRouteResult> {
   const run = options.run ?? runFile;
   const before = await detectPhoneRoutes(options);
@@ -204,7 +248,17 @@ export async function publishPhoneRoute(options: {
     );
   for (const binary of TAILSCALE_BINARIES) {
     try {
-      await run(binary, ['serve', '--bg', String(options.port)], {
+      const published = Number(new URL(route.url).port || '443');
+      const config: unknown = JSON.parse(await run(binary, ['serve', 'status', '--json']));
+      const dnsName = new URL(route.url).hostname;
+      if (freePublishPort(config, dnsName) !== published)
+        return refusal(
+          'serve-other-target',
+          'The publishing entry changed. Check again before publishing.',
+          before,
+        );
+      await options.beforePublish?.({ hostname: dnsName, port: published, target: options.port });
+      await run(binary, serveArgs(options.port, published), {
         timeoutMs: SERVE_TIMEOUT_MS,
       });
       break;
@@ -244,4 +298,137 @@ export async function publishPhoneRoute(options: {
         'tailscale serve finished but this Host is still not published.',
         after,
       );
+}
+
+export interface ManagedPhoneRouteState {
+  enabled: boolean;
+  mapping?: { hostname: string; port: number; target: number };
+}
+
+export function parseManagedPhoneRoute(input: unknown): ManagedPhoneRouteState | undefined {
+  const value = record(input);
+  if (typeof value['enabled'] !== 'boolean') return undefined;
+  const mapping = record(value['mapping']);
+  const port = mapping['port'];
+  const target = mapping['target'];
+  const hostname = mapping['hostname'];
+  if (value['mapping'] === undefined) return { enabled: value['enabled'] };
+  if (
+    typeof hostname !== 'string' ||
+    !/^[a-z0-9.-]+\.ts\.net$/u.test(hostname) ||
+    typeof port !== 'number' ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535 ||
+    typeof target !== 'number' ||
+    !Number.isInteger(target) ||
+    target < 1 ||
+    target > 65535
+  )
+    return undefined;
+  return { enabled: value['enabled'], mapping: { hostname, port, target } };
+}
+
+export function createManagedPhoneRoute(options: {
+  port: number;
+  run?: RunCommand;
+  read(): Promise<ManagedPhoneRouteState | undefined>;
+  write(state: ManagedPhoneRouteState): Promise<void>;
+  log?: (event: { phase: string; durationMs: number; refusal?: string }) => void;
+}) {
+  let state: ManagedPhoneRouteState = { enabled: false };
+  let tail = Promise.resolve();
+  let closed = false;
+  const command: RunCommand = async (_file, args, config) => {
+    for (const binary of TAILSCALE_BINARIES) {
+      try {
+        return await (options.run ?? runFile)(binary, args, config);
+      } catch (error) {
+        if (record(error)['code'] !== 'ENOENT') throw error;
+      }
+    }
+    throw new Error('tailscale-missing');
+  };
+  const save = async (next: ManagedPhoneRouteState) => {
+    await options.write(next);
+    state = next;
+  };
+  const status = async (): Promise<RouteStatus> => ({
+    ...(await detectPhoneRoutes(options)),
+    managed: { enabled: state.enabled, owned: state.mapping !== undefined },
+  });
+  const serial = <T>(work: () => Promise<T>): Promise<T> => {
+    const result = tail.then(work);
+    tail = result.then(
+      () => {},
+      () => {},
+    );
+    return result;
+  };
+  const removeOwned = async () => {
+    const mapping = state.mapping;
+    if (!mapping) return;
+    const config: unknown = JSON.parse(await command('', ['serve', 'status', '--json']));
+    const handlers = record(
+      record(record(record(config)['Web'])[`${mapping.hostname}:${String(mapping.port)}`])[
+        'Handlers'
+      ],
+    );
+    if (
+      Object.keys(handlers).length === 1 &&
+      servesPort(config, mapping.hostname, mapping.target, mapping.port) === true
+    )
+      await command('', ['serve', `--https=${String(mapping.port)}`, 'off'], {
+        timeoutMs: SERVE_TIMEOUT_MS,
+      });
+    await save({ enabled: state.enabled });
+  };
+  const enable = async (): Promise<PublishRouteResult> => {
+    if (closed) return refusal('serve-failed', 'Publishing owner is closed.', await status());
+    await save({ ...state, enabled: true });
+    if (state.mapping && state.mapping.target !== options.port) await removeOwned();
+    const result = await publishPhoneRoute({
+      ...options,
+      beforePublish: async (mapping) => save({ enabled: true, mapping }),
+    });
+    return { ...result, status: await status() };
+  };
+  const transition = (phase: string, work: () => Promise<PublishRouteResult>) =>
+    serial(async () => {
+      const started = performance.now();
+      let result: PublishRouteResult;
+      try {
+        result = await work();
+      } catch {
+        result = refusal(
+          'serve-failed',
+          'Could not save or update Tailscale publishing. Retry setup.',
+          await status(),
+        );
+      }
+      options.log?.({
+        phase,
+        durationMs: Math.round(performance.now() - started),
+        ...(!result.ok ? { refusal: result.code } : {}),
+      });
+      return result;
+    });
+  return {
+    status,
+    start: () =>
+      transition('restore', async () => {
+        state = (await options.read()) ?? { enabled: false };
+        return state.enabled ? enable() : { ok: true, changed: false, status: await status() };
+      }),
+    enable: () => transition('enable', enable),
+    disable: () =>
+      transition('disable', async () => {
+        await save({ ...state, enabled: false });
+        await removeOwned();
+        return { ok: true, changed: true, status: await status() };
+      }),
+    close: () => {
+      closed = true;
+    },
+  };
 }

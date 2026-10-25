@@ -692,9 +692,10 @@ Bot settings → Devices → Pair a phone shows a three-step guide while a phone
 ```bash
 deepseekbot phone-route
 deepseekbot phone-route-publish --confirm
+deepseekbot phone-route-disable --confirm
 ```
 
-`phone-route` returns `{routes}`: `tailscale` (`running`, `stopped` or `missing`), the `serveCommand` for this Host's port, and each route with `ready` and, when not ready, `issue` (`serve-missing` or `serve-other-target`). `phone-route-publish` runs `tailscale serve --bg <port>` on the Host computer and returns `{published, changed, routes}`; `changed:false` means the route was already published. Refusals carry a code: `confirm-required` (no `--confirm`), `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (another service is already published at this address; the Host never replaces it, change it by hand), `serve-needs-enable` (Serve is off for the tailnet; the refusal carries `enableUrl` for the Tailscale admin console), `serve-denied` (Tailscale refused the change for this OS user) and `serve-failed`. Undo with `tailscale serve --https=443 off`; `tailscale serve reset` would also remove every other Serve entry on the computer.
+`phone-route` returns `{routes}` with Tailscale availability, each route's readiness, the proposed `serveCommand`, and managed enablement/ownership. `phone-route-publish` explicitly enables managed publishing and restart recovery, returning `{published, changed, routes}`. It keeps the Host port and chooses a free publishing port from 443, then 8443–8452; an existing matching publication is reused without taking ownership. `phone-route-disable` turns off recovery and removes only a still-matching mapping created by this owner. It preserves pairings and other routes. Refusals are `confirm-required`, `tailscale-missing`, `tailscale-stopped`, `serve-other-target` (no candidate is free or configuration changed), `serve-needs-enable` (includes the Tailscale admin `enableUrl`), `serve-denied`, and `serve-failed`. A permission or tailnet HTTPS refusal requires the corresponding setup action; changing ports does not fix those refusals.
 
 ### Paired devices
 

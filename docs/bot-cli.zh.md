@@ -663,9 +663,10 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 ```bash
 deepseekbot phone-route
 deepseekbot phone-route-publish --confirm
+deepseekbot phone-route-disable --confirm
 ```
 
-`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve --https=443 off` 撤销；`tailscale serve reset` 会连同这台电脑上其他 Serve 配置一起清掉。
+`phone-route` 返回 `{routes}`，包含 Tailscale 可用性、每条路线是否就绪、建议的 `serveCommand`，以及托管启用与归属状态。`phone-route-publish` 明确启用托管发布和重启恢复，返回 `{published, changed, routes}`。Host 端口不变，发布端口依次从 443、8443–8452 中选取空闲项；已有匹配发布直接复用，不取得其所有权。`phone-route-disable` 关闭恢复，仅删除当前仍匹配的自有映射，保留配对和其他路线。拒绝码为 `confirm-required`、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（候选端口全满或配置已变化）、`serve-needs-enable`（带 Tailscale 后台 `enableUrl`）、`serve-denied` 和 `serve-failed`。权限或 tailnet HTTPS 未启用需要完成对应设置，换端口不能解决。
 
 ### 已配对设备
 

@@ -107,6 +107,7 @@ export function createDevicesHttp(options: {
   >;
   routes: () => Promise<RouteStatus>;
   publish?: () => Promise<PublishRouteResult>;
+  unpublish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
   account?: ConnectAccount;
   lan?: DeviceLan;
@@ -184,14 +185,27 @@ export function createDevicesHttp(options: {
     }
     if (request.method === 'POST' && path === DEVICES_SERVE_PATH && options.publish) {
       const input = await body(request);
+      if (
+        input['action'] !== undefined &&
+        input['action'] !== 'enable' &&
+        input['action'] !== 'disable'
+      )
+        return json({ code: 'action-invalid' }, 400);
       if (input['confirm'] !== true)
         return json(
           { code: 'confirm-required', error: 'Pass confirm:true to run tailscale serve.' },
           400,
         );
-      const result = await options.publish();
+      if (input['action'] === 'disable' && options.unpublish === undefined)
+        return json({ code: 'unpublish-unavailable' }, 503);
+      const result =
+        input['action'] === 'disable' ? await options.unpublish!() : await options.publish();
       if (result.ok)
-        return json({ published: true, changed: result.changed, routes: result.status });
+        return json({
+          published: input['action'] !== 'disable',
+          changed: result.changed,
+          routes: result.status,
+        });
       return json(
         {
           code: result.code,
