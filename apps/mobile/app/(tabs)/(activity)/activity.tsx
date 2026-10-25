@@ -1,4 +1,4 @@
-import { Stack, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo } from 'react';
 
@@ -9,7 +9,7 @@ import { Text } from '../../../src/ui/primitives/text';
 import { space } from '../../../src/ui/design/tokens';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { includesComputerActivity } from '../../../src/host/conversation-environments';
-import { cardHref, unreadHref } from '../../../src/host/push';
+import { channelDestination, navigateChannel } from '../../../src/ui/shell/channel-navigation';
 import type { HumanAttentionItem } from '../../../src/host/wire';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
@@ -20,6 +20,7 @@ import { useStrings } from '../../../src/ui/strings';
 export default function ActivityScreen() {
   const t = useStrings();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const focused = useIsFocused();
   const theme = useDesignTheme();
   const { saved, client, inbox } = useHostSession();
@@ -47,22 +48,20 @@ export default function ActivityScreen() {
 
   const open = useCallback(
     (item: HumanAttentionItem) => {
-      const unread = unreadHref(
-        item,
-        (slug) => bot(slug)?.dmChannelId,
-        (channelId) => roster?.channels.some((channel) => channel.id === channelId) ?? false,
-      );
-      if (unread !== undefined) return router.push(unread);
-      const card = cardHref(
-        item,
-        (slug) => bot(slug)?.dmChannelId,
-        (channelId) => roster?.channels.some((channel) => channel.id === channelId) ?? false,
-      );
-      if (card !== undefined) return router.push(card);
+      const opensChannel = [
+        'channel-unread',
+        'tool-approval',
+        'user-question',
+        'workspace-grant-request',
+      ].includes(item.kind);
+      const destination =
+        saved && opensChannel ? channelDestination(saved.hostId, item, roster) : undefined;
+      if (destination && navigateChannel(navigation, destination)) return;
       router.push({
         pathname: '/inbox/[id]',
         params: {
           id: item.id,
+          hostId: saved?.hostId,
           kind: item.kind,
           botSlug: item.botSlug,
           summary: item.summary,
@@ -71,7 +70,7 @@ export default function ActivityScreen() {
         },
       });
     },
-    [router, bot, roster],
+    [router, navigation, saved, roster],
   );
   const header = useMemo(
     () => (
