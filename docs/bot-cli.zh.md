@@ -1378,6 +1378,7 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` 在本机 Computer 所在的 macOS Host 上打开指定隐私设置页，不会自动授权。用户在系统设置里开启权限，必要时重启运行 DSH 的应用，再重新检查。`computer-status` 返回稳定的安装失败原因与各项缺失的 macOS 权限；技术细节保留在诊断信息中。
+
 ### 消息反馈（#2811）
 
 单条消息反馈独立于匿名遥测。Host 生成冻结并脱敏的材料，默认选择锚点前后各 20 条消息，
