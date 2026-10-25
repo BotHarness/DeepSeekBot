@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Synchronized downstream installation guides with the verified Tobs 1.5.1 packages and distinguished the new command from its compatibility entry; DSH/Cordis Context and Skill behavior are unchanged ([#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)).
+
 - Updated the downstream approval guide and verification journey for explicit standing management/device authorizations; DSH/Cordis Context and Skill behavior are unchanged ([#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)).
 
 - Documented Profile path/argument refusal and macOS/Linux detached preparation descendant tracking, with explicit Windows and environment-inheritance limits ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
