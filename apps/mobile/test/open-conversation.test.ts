@@ -34,4 +34,25 @@ describe('conversation links', () => {
       params: { id: 'c1', hostId: 'computer-b', focus: 'message-group' },
     });
   });
+
+  it('carries an explicit repeat request separately from the target message', () => {
+    expect(conversationHref(bot, 'computer-a', 'same-message', 'request-one')).toEqual({
+      pathname: '/dm/[slug]',
+      params: {
+        slug: 'ada',
+        hostId: 'computer-a',
+        focus: 'same-message',
+        focusRequest: 'request-one',
+      },
+    });
+    expect(conversationHref(channel, 'computer-b', 'same-message', 'request-two')).toEqual({
+      pathname: '/channel/[id]',
+      params: {
+        id: 'c1',
+        hostId: 'computer-b',
+        focus: 'same-message',
+        focusRequest: 'request-two',
+      },
+    });
+  });
 });

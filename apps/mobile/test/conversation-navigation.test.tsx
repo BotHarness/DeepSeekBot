@@ -277,7 +277,7 @@ beforeEach(() => {
   state.glassHeader = true;
 });
 
-it('positions a new focus and a repeated source-message visit without a content-size event', async () => {
+it('preserves the reading position on ordinary Back and repositions the same message only for a fresh request', async () => {
   state.active = true;
   state.conversation.messages = ['first', 'second'].map((id) => ({
     id,
@@ -297,6 +297,34 @@ it('positions a new focus and a repeated source-message visit without a content-
   await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
   state.focused = true;
   await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  state.focused = true;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+  state.focused = false;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  state.focused = true;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
   expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
 });
 
@@ -325,7 +353,7 @@ it('asks the existing history owner for an uncached focus and positions it when 
   );
 });
 
-it('retries source paging only after a new history boundary or a repeated focus visit', async () => {
+it('retries source paging only after a new history boundary or an explicit repeated request', async () => {
   state.active = true;
   state.conversation.hasOlder = true;
   const place: ChatPlace = { kind: 'dm', slug: 'ada' };
@@ -352,6 +380,10 @@ it('retries source paging only after a new history boundary or a repeated focus 
   await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
   state.focused = true;
   await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(2);
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="older" focusRequest="retry-source" />),
+  );
   expect(navigation.loadOlder).toHaveBeenCalledTimes(3);
 });
 
