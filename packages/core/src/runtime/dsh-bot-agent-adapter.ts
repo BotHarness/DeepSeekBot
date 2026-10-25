@@ -264,7 +264,7 @@ export interface DshDefaultModelHost {
 }
 
 type ActiveRun =
-  | { role: 'orchestrator'; run: OrchestratorAgentRun }
+  | { role: 'orchestrator'; run: OrchestratorAgentRun; direct?: true }
   | { role: 'assignment'; run: AssignmentAgentRun; reported: boolean };
 
 function agentOptions(
@@ -461,6 +461,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         );
       }
       const fromSeq = handle.agent.session.seq;
+      run.setExecutionReady?.(true);
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
       if (run.acceptNativeInput !== undefined) {
         if (!run.acceptNativeInput()) return;
@@ -483,13 +484,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     } finally {
       this.#humanStops.delete(run.sessionId);
       this.#drafts.end(run.sessionId);
-      if (this.#runs.get(run.sessionId) === entry) this.#runs.delete(run.sessionId);
+      if (this.#runs.get(run.sessionId) === entry) {
+        this.#runs.delete(run.sessionId);
+        run.setExecutionReady?.(false);
+      }
     }
   }
 
   stopOrchestratorTurn(botSlug: string): string | undefined {
     for (const [sessionId, active] of this.#runs) {
-      if (active.role !== 'orchestrator' || active.run.bot.slug !== botSlug) continue;
+      if (active.role !== 'orchestrator' || active.direct || active.run.bot.slug !== botSlug)
+        continue;
       const handle = this.#handles.get(sessionId);
       if (handle === undefined) return undefined;
       this.#humanStops.add(sessionId);
@@ -502,7 +507,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   steerOrchestrator(botSlug: string, text: string): boolean {
     this.#assertOpen();
     for (const [sessionId, active] of this.#runs) {
-      if (active.role !== 'orchestrator' || active.run.bot.slug !== botSlug) continue;
+      if (active.role !== 'orchestrator' || active.direct || active.run.bot.slug !== botSlug)
+        continue;
       const handle = this.#handles.get(sessionId);
       if (handle === undefined) return false;
       handle.agent.steer(
@@ -3345,7 +3351,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     if (tool === undefined)
       throw new DirectBotToolError('tool-not-direct', `${name} cannot run outside a Bot turn`);
     if (this.#runs.has(run.sessionId)) throw new Error('Direct run session is already active');
-    this.#runs.set(run.sessionId, { role: 'orchestrator', run });
+    this.#runs.set(run.sessionId, { role: 'orchestrator', run, direct: true });
     try {
       let value: unknown;
       if (typeof tool === 'string') {

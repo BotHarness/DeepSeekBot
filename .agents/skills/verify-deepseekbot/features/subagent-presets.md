@@ -17,3 +17,7 @@ Launch an isolated Host using `scripts/verify-app.mjs`. Open the Bot DM through 
 ## Gotchas
 
 A model route is not an Agent preset. Tool success alone does not establish the child's composition: read the child's canonical selection. A fork inherits its parent. A system-default change applies to the next independent child. No external IM sending is needed for this journey. Stop only the task-owned Host and preserve evidence.
+
+## Native background lifecycle regression
+
+After a real Bot DM reply, let the parent become idle. Start bot_subagent through the direct CLI with run_in_background true; tell the child to report a unique result and the intended authorized DM destination to its parent. Verify a new native parent turn calls bot_send_message and exactly one visible result reaches that DM. Change the Bot model while idle and verify the first resumed request uses the new selection. During a separate long foreground CLI child, submit a new Human DM and exercise stop or steering; only the real Human turn is controlled. Check cancellation, pause/archive, and a report arriving during prior-turn cleanup with deterministic regressions. Reports create no new Source Event and cannot implicitly reuse previous Human authority.

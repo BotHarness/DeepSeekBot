@@ -110,6 +110,73 @@ const reportRun: OrchestratorAgentRun = {
 };
 
 describe('direct Subagent execution', () => {
+  function deferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    const promise = new Promise<T>((accept) => {
+      resolve = accept;
+    });
+    return { promise, resolve };
+  }
+  it.each(['stop', 'steer'] as const)(
+    'keeps a later Human turn reachable for %s while a direct Subagent is pending',
+    async (operation) => {
+      const directResult = deferred<{ isError: false; value: string }>();
+      const activeTurn = deferred<void>();
+      const turnStarted = deferred<void>();
+      let turns = 0;
+      const agents = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onTurn: async () => {
+            if (++turns === 1) return;
+            turnStarted.resolve();
+            await activeTurn.promise;
+          },
+          onAgentCreated: (agent) => {
+            Object.assign((agent as Agent).ctx.tools, {
+              execute: () => directResult.promise,
+            });
+          },
+        },
+      );
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+        subagentTools: () => [],
+      });
+      let direct: Promise<unknown> | undefined;
+      let turn: Promise<void> | undefined;
+      try {
+        await adapter.runOrchestrator(reportRun);
+        direct = adapter.runDirectTool!(
+          { ...reportRun, sessionId: 'direct-pending-subagent' },
+          'bot_subagent',
+          { description: 'Review', prompt: 'Review', run_in_background: false },
+          new AbortController().signal,
+          reportRun.sessionId,
+        );
+        turn = adapter.runOrchestrator({ ...reportRun, resume: true, message: 'A new request' });
+        await turnStarted.promise;
+        if (operation === 'stop') {
+          expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBe(reportRun.sessionId);
+          expect(agents.cancelled).toEqual([
+            { sessionId: reportRun.sessionId, reason: { kind: 'user' } },
+          ]);
+        } else {
+          expect(adapter.steerOrchestrator?.(BOT.slug, 'Update the active request')).toBe(true);
+          expect(agents.steered.get(reportRun.sessionId)).toHaveLength(1);
+        }
+      } finally {
+        directResult.resolve({ isError: false, value: 'complete' });
+        activeTurn.resolve();
+        await Promise.allSettled([direct, turn]);
+        await adapter.close();
+      }
+    },
+  );
+
   it('requires an existing parent without creating a replacement Agent', async () => {
     const agents = new FakeAgentHost();
     const adapter = createDshBotAgentAdapter({

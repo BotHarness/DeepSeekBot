@@ -1343,6 +1343,8 @@ macOS 继续使用现有 `computer-start --target local`、`computer-video statu
 
 `bot-tool` 支持 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`。这些命令要求现有存活的 Orchestrator Agent，包括私聊结束后处于 idle 的 Agent。调用经过其原生工具执行链，不会创建或恢复父 Agent。`parent-unavailable` 表示没有存活父 Agent，应先向 Bot 发送私聊。原生策略拒绝仍返回错误。通过 `bot-trace --session direct` 查看直接调用结果，通过子 Session 查看实际执行历史。
 
+后台子任务的原生回报可以唤醒该存活父 Agent。BotRuntime 在恢复请求前准备新的工具上下文和当前模型，不借用上一条私聊的来源或目标。如需投递结果，应在委派任务中明确回复来源或发送目标。前台 CLI 调用不会遮蔽另一个用户回合的停止与追加指令。参见 ADR-0252。
+
 ```sh
 printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
 printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin

@@ -302,6 +302,7 @@ export interface OrchestratorAgentRun {
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
   triage?: OrchestratorInboxTriage;
   acceptNativeInput?: () => boolean;
+  setExecutionReady?(ready: boolean): void;
   requireContent?(): void;
   sessionId: string;
   resume: boolean;
@@ -610,7 +611,7 @@ export interface OrchestratorServiceTurn {
   modelContent?: string;
   sessionId: string;
   channelId: string | undefined;
-  sourceEventId: string;
+  sourceEventId: string | undefined;
   markSideEffect: () => void;
   readAdmissions: Set<string>;
   importedFiles: Map<string, ChannelAttachmentRef>;
@@ -727,6 +728,11 @@ export interface BotRuntime {
     requestMessageId: string,
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined;
   nativeQuestionAvailable?(sessionId: string, channelId: string): boolean;
+  prepareNativeOrchestratorStep?(
+    sessionId: string,
+    senderSessionIds: readonly string[],
+    signal: AbortSignal,
+  ): Promise<boolean>;
   originalAttachmentRoot?(
     sessionId: string,
     path: string,
@@ -1329,6 +1335,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #triageContinuation: boolean;
   readonly #tails = new Map<string, Promise<unknown>>();
   readonly #activeTurns = new Map<string, Promise<void>>();
+  readonly #nativeStepReady = new Map<string, (accepted: boolean) => void>();
+  readonly #preparedOrchestrators = new Set<string>();
   readonly #stoppedTurns = new Set<string>();
   readonly #stopNotices = new Map<string, string>();
   readonly #typingTurns = new Map<string, MessagingProcessing>();
@@ -3593,6 +3601,80 @@ class BotRuntimeImplementation implements BotRuntime {
     );
   }
 
+  async prepareNativeOrchestratorStep(
+    sessionId: string,
+    senderSessionIds: readonly string[],
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const owner = this.#ownership.resolve(sessionId);
+    if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return true;
+    const available = () => {
+      const bot = this.#registry.get(owner.botSlug);
+      return (
+        !this.#closed &&
+        !signal.aborted &&
+        bot !== undefined &&
+        !bot.paused &&
+        this.currentOrchestratorSessionId(owner.botSlug) === sessionId
+      );
+    };
+    if (!available()) return false;
+    if (this.#preparedOrchestrators.has(sessionId)) return true;
+    if (
+      !senderSessionIds.length ||
+      !senderSessionIds.every((id) => {
+        const sender = this.#ownership.resolve(id);
+        return (
+          sender?.botSlug === owner.botSlug &&
+          sender.parentSessionId === sessionId &&
+          this.#ownership.contentAvailable(id)
+        );
+      })
+    )
+      return false;
+    const cancellation = AbortSignal.any([signal, this.#waitLifetime.signal]);
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (accepted: boolean) => {
+        if (settled) return;
+        settled = true;
+        cancellation.removeEventListener('abort', abort);
+        if (this.#nativeStepReady.get(sessionId) === finish)
+          this.#nativeStepReady.delete(sessionId);
+        resolve(accepted && available());
+      };
+      const abort = () => finish(false);
+      this.#nativeStepReady.set(sessionId, finish);
+      cancellation.addEventListener('abort', abort, { once: true });
+      if (cancellation.aborted) return abort();
+      void this.#enqueue(owner.botSlug, async () => {
+        if (settled || !available()) return;
+        const bot = this.#registry.get(owner.botSlug)!;
+        await this.#runOrchestratorTurn(
+          bot,
+          { sessionId, resume: true },
+          undefined,
+          undefined,
+          '',
+          [],
+          false,
+          () => {
+            if (!available()) throw new Error('Native Orchestrator is unavailable');
+          },
+          [],
+          [],
+          available,
+        );
+      }).then(
+        () => finish(false),
+        () => {
+          finish(false);
+          this.#warn?.('native-subagent-input-run-failed');
+        },
+      );
+    });
+  }
+
   #nativeQuestionInput(
     botSlug: string,
     sessionId: string,
@@ -4264,21 +4346,23 @@ class BotRuntimeImplementation implements BotRuntime {
   async #runOrchestratorTurn(
     bot: PersonaBotRecord,
     orchestrator: { sessionId: string; resume: boolean },
-    sourceEventId: string,
+    sourceEventId: string | undefined,
     channelId: string | undefined,
     body: string,
     inboxUnits: InboxUnit[],
     coordinateBranchSwitch = false,
-    markAttemptSideEffect: () => void = () => this.#markSideEffectStarted(sourceEventId),
+    markAttemptSideEffect: () => void = () => {
+      if (sourceEventId !== undefined) this.#markSideEffectStarted(sourceEventId);
+    },
     reportEventIds: readonly string[] = [],
-    wakeEventIds: readonly string[] = [sourceEventId],
+    wakeEventIds: readonly string[] = sourceEventId === undefined ? [] : [sourceEventId],
     acceptNativeInput?: () => boolean,
     nativeSourceIds: readonly string[] = [],
   ): Promise<void> {
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
     const turnSources = new Set([
-      sourceEventId,
+      ...(sourceEventId === undefined ? [] : [sourceEventId]),
       ...wakeEventIds,
       ...reportEventIds,
       ...nativeSourceIds,
@@ -4290,7 +4374,7 @@ class BotRuntimeImplementation implements BotRuntime {
       inboundChannelId: channelId,
       steeredChannelIds: new Set(),
     });
-    const typingSources = [sourceEventId, ...inboxUnits.map((unit) => unit.sourceEventId)];
+    const typingSources = [...turnSources, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {
       if (!unit.assignmentSessionId) continue;
       const origin = this.#assignmentRow(bot.slug, unit.assignmentSessionId)?.source_event_id;
@@ -4307,9 +4391,10 @@ class BotRuntimeImplementation implements BotRuntime {
           ) AS ordinary
             FROM source_events e WHERE e.source_event_id = ?
         `)
-        .get(bot.slug, sourceEventId),
+        .get(bot.slug, sourceEventId ?? null),
     );
     const observeMemory =
+      sourceEventId !== undefined &&
       memorySource?.source_kind !== 'bridge-message' &&
       !(memorySource?.source_kind === 'bot-message' && memorySource.ordinary === 1);
     let memoryEventIds: string[] = [];
@@ -4383,6 +4468,12 @@ class BotRuntimeImplementation implements BotRuntime {
       processing = this.#externalMessaging?.beginProcessing(bot.slug, typingSources);
       if (processing) this.#typingTurns.set(bot.slug, processing);
       await this.#agents.runOrchestrator({
+        setExecutionReady: (ready) => {
+          if (ready) {
+            this.#preparedOrchestrators.add(orchestrator.sessionId);
+            this.#nativeStepReady.get(orchestrator.sessionId)?.(true);
+          } else this.#preparedOrchestrators.delete(orchestrator.sessionId);
+        },
         ...(acceptNativeInput === undefined ? {} : { acceptNativeInput }),
         requireContent: () =>
           this.#database.read((db) => {
@@ -4430,7 +4521,7 @@ class BotRuntimeImplementation implements BotRuntime {
           sourceEventId,
           preserveObservation: this.#activeMemoryEvents.get(bot.slug)?.preserveObservation ?? false,
         });
-        this.#recordTurnCommits(bot.slug, sourceEventId);
+        this.#recordTurnCommits(bot.slug, sourceEventId!);
       }
       this.#markReportsHandled(memoryEventIds);
       this.#settleHarvestHandled(bot.slug, [...readAdmissions]);
@@ -4874,14 +4965,18 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #assignmentAccess(
     bot: PersonaBotRecord,
-    sourceEventId: string,
-    markAttemptSideEffect: () => void = () => this.#markSideEffectStarted(sourceEventId),
+    sourceEventId: string | undefined,
+    markAttemptSideEffect: () => void = () => {
+      if (sourceEventId !== undefined) this.#markSideEffectStarted(sourceEventId);
+    },
     orchestratorSessionId?: string,
     readAdmissions?: Set<string>,
   ): OrchestratorAssignmentAccess {
     const markSideEffect = markAttemptSideEffect;
     return {
       create: (input) => {
+        if (sourceEventId === undefined)
+          throw new Error('Assignment creation requires a Source Event');
         this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
         const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input);
         if (outcome.outcome === 'created' || outcome.outcome === 'reused') markSideEffect();
@@ -4910,7 +5005,8 @@ class BotRuntimeImplementation implements BotRuntime {
         return this.#readAssignmentReportPage(sessionId, acceptedSummary, offset);
       },
       request: (input) => {
-        this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
+        if (sourceEventId !== undefined)
+          this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
         const outcome = this.#requestAssignment(bot, input);
         if (outcome.delivery !== 'capacity') markSideEffect();
         return outcome;
@@ -5265,7 +5361,7 @@ class BotRuntimeImplementation implements BotRuntime {
   #channelAccess(
     botSlug: string,
     defaultChannelId: string | undefined,
-    sourceEventId: string,
+    sourceEventId: string | undefined,
     sessionId: string,
     beforeSend: () => void,
     readAdmissions: Set<string>,
@@ -5295,7 +5391,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const initial = this.#database.read((db) =>
       db
         .prepare('SELECT channel_id, message_id FROM source_events WHERE source_event_id = ?')
-        .get(sourceEventId),
+        .get(sourceEventId ?? null),
     );
     if (initial?.channel_id && initial.message_id && !sessionId.startsWith('direct-')) {
       const id = String(initial.channel_id);
@@ -5322,7 +5418,8 @@ class BotRuntimeImplementation implements BotRuntime {
     const authorize = beforeSend;
     beforeSend = () => {
       requireReplySource();
-      this.#database.read((db) => requireSourceEffects(db, sourceEventId, botSlug));
+      if (sourceEventId !== undefined)
+        this.#database.read((db) => requireSourceEffects(db, sourceEventId, botSlug));
       authorize();
     };
     const requireOrdinaryGroupActor = () => {
@@ -5679,7 +5776,7 @@ class BotRuntimeImplementation implements BotRuntime {
             .prepare(
               'SELECT channel_id, message_id, source_kind FROM source_events WHERE source_event_id = ?',
             )
-            .get(sourceEventId),
+            .get(sourceEventId ?? null),
         ) as
           | { channel_id: string | null; message_id: string | null; source_kind: string }
           | undefined;
@@ -6146,7 +6243,7 @@ class BotRuntimeImplementation implements BotRuntime {
         };
         const appended = await this.#channels.appendMessage(channel.id, message, {
           sessionId,
-          sourceEventId,
+          ...(sourceEventId === undefined ? {} : { sourceEventId }),
         });
         if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
         return appended;
@@ -6362,7 +6459,11 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
           ...this.#perf(sessionId, body),
         };
-        const origin = { sessionId, sourceEventId: input.replySourceEventId ?? sourceEventId };
+        const originId = input.replySourceEventId ?? sourceEventId;
+        const origin = {
+          sessionId,
+          ...(originId === undefined ? {} : { sourceEventId: originId }),
+        };
         if (input.deliveryKey === undefined) {
           const appended = await this.#channels.appendMessage(channel.id, message, origin);
           if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
@@ -6401,7 +6502,7 @@ class BotRuntimeImplementation implements BotRuntime {
     recover?: boolean | undefined;
     botSlug: string;
     channel: ChannelRecord;
-    sourceEventId: string;
+    sourceEventId: string | undefined;
     replySourceEventId?: string;
     readSourceEventIds?: ReadonlySet<string>;
     sessionId: string;
@@ -6501,7 +6602,8 @@ class BotRuntimeImplementation implements BotRuntime {
     input.beforeSend();
     if (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined)
       this.#requireSendReviewOwner(botSlug, input.sessionId);
-    this.#database.read((db) => requireSourceEffects(db, input.sourceEventId, botSlug));
+    if (input.sourceEventId !== undefined)
+      this.#database.read((db) => requireSourceEffects(db, input.sourceEventId!, botSlug));
     if (
       input.reviewOwner !== undefined &&
       (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined)
@@ -6520,13 +6622,14 @@ class BotRuntimeImplementation implements BotRuntime {
       }
     }
     let reviewOutcome: import('../channels/send-review.js').SendReviewOutcome | undefined;
+    const originId = input.sourceEventId ?? message.botCausation!.parentSourceEventId;
     const result = await this.#channels.appendMessageOnce(
       channel.id,
       message,
       undefined,
       {
         sessionId: input.sessionId,
-        sourceEventId: input.sourceEventId,
+        sourceEventId: originId,
       },
       (db) => {
         this.#requireMembership(botSlug, channel.id);
@@ -6539,16 +6642,14 @@ class BotRuntimeImplementation implements BotRuntime {
         ) {
           this.#requireSendReviewOwner(botSlug, input.sessionId);
         }
-        this.#database.read((database) =>
-          requireSourceEffects(database, input.sourceEventId, botSlug),
-        );
+        this.#database.read((database) => requireSourceEffects(database, originId, botSlug));
         if (this.groupSendReview.enabled(channel.id) || input.draftId !== undefined) {
           if (!db || !input.reviewOwner)
             throw new Error('Group send review requires the owning transaction');
           reviewOutcome = this.groupSendReview.check(db, {
             owner: input.reviewOwner,
             channelId: channel.id,
-            sourceEventId: input.sourceEventId,
+            sourceEventId: originId,
             message,
             ...(input.observationId === undefined ? {} : { observationId: input.observationId }),
             ...(input.draftId === undefined ? {} : { draftId: input.draftId }),
@@ -6619,7 +6720,9 @@ class BotRuntimeImplementation implements BotRuntime {
     return row?.source_event_id;
   }
 
-  #botCausation(sourceEventId: string): BotMessageCausation {
+  #botCausation(sourceEventId: string | undefined): BotMessageCausation {
+    if (sourceEventId === undefined)
+      throw new Error('Bot send has no trusted Source Event; read or reference its source first');
     const parent = this.#database.read((database) =>
       database
         .prepare(`
@@ -6673,10 +6776,12 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #createBot(
     botSlug: string,
-    sourceEventId: string,
+    sourceEventId: string | undefined,
     beforeSend: () => void,
     input: BotCreateInput,
   ): BotCreateOutcome {
+    if (sourceEventId === undefined)
+      throw new DirectBotToolError('source-required', 'Bot creation requires a Source Event');
     const refuse = (code: string, message: string): never => {
       throw new DirectBotToolError(code, `${code}: ${message}`);
     };
@@ -6795,7 +6900,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string;
     recipientBotSlug: string;
     channel: ChannelRecord;
-    sourceEventId: string;
+    sourceEventId: string | undefined;
     replySourceEventId?: string;
     readSourceEventIds?: ReadonlySet<string>;
     sessionId: string;
@@ -6846,7 +6951,7 @@ class BotRuntimeImplementation implements BotRuntime {
     input.beforeSend();
     const result = await this.#channels.appendMessageOnce(channel.id, message, undefined, {
       sessionId: input.sessionId,
-      sourceEventId: input.sourceEventId,
+      ...(input.sourceEventId === undefined ? {} : { sourceEventId: input.sourceEventId }),
     });
     if (result.status === 'missing') throw new Error(`Bot DM disappeared: ${channel.id}`);
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');

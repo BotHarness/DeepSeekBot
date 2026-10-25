@@ -263,6 +263,7 @@ import {
   installBotSubagentModelTools,
   type BotSubagentPresetConfig,
 } from './runtime/subagent-model-tools.js';
+import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 
 export const name = 'botharness-core';
 
@@ -1561,6 +1562,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .catch(() => undefined);
   };
   const reviewing = new Set<string>();
+  installNativeSubagentWake(ctx, core.runtime);
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {

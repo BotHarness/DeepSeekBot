@@ -1388,6 +1388,8 @@ When `status` advertises `continuousScroll:true`, iOS and `computer-video input 
 
 The `bot-tool` command also supports `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models`. These commands require an existing live Orchestrator Agent, including one that is idle after a DM. They use its native tool pipeline and do not create or resume a parent. `parent-unavailable` means the Bot has no live parent; first send it a DM. Native policy refusals remain errors. Use `bot-trace --session direct` for the direct-call result and the child's Session for its execution history.
 
+A background child's native report may wake that live parent. BotRuntime prepares fresh tool context and the current model before the resumed request, without borrowing the previous DM's source or target. Include the intended reply source or explicit destination in the delegated task when a result should be delivered. A foreground CLI call does not block stop or steering of a separate Human turn. See ADR-0252.
+
 ```sh
 printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
 printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin
