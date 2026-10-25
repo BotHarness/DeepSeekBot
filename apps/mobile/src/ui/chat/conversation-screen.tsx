@@ -352,6 +352,19 @@ function ChatConversation({
     (place.kind === 'dm' ? place.slug : place.channelId) ?? '',
   );
   const [draft, setDraft, draftPersistence] = useSourceDraft(draftKey);
+  const [retryingDraft, setRetryingDraft] = useState(false);
+  const draftRetryPending = useRef(false);
+  const retryDraft = async () => {
+    if (draftRetryPending.current) return;
+    draftRetryPending.current = true;
+    setRetryingDraft(true);
+    try {
+      await draftPersistence.retry();
+    } finally {
+      draftRetryPending.current = false;
+      setRetryingDraft(false);
+    }
+  };
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
@@ -959,7 +972,7 @@ function ChatConversation({
               above={
                 <>
                   {draftPersistence.failed ? (
-                    <DraftSaveNotice onRetry={() => void draftPersistence.retry()} />
+                    <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
                   ) : null}
                   {candidates.length > 0 ? (
                     <MentionSuggestions candidates={candidates} onChoose={mention} />

@@ -159,3 +159,74 @@ it('does not discard persisted drafts when initial hydration failed', async () =
   await drafts.removePersistedWhere((key) => key === 'own');
   expect(disk).toEqual({ other: 'keep' });
 });
+
+it.each(['retry', 'required removal'])(
+  'does not restore removed-source drafts when %s recovers an unreadable initial snapshot',
+  async (recovery) => {
+    let unavailable = true;
+    const removed = cloudDraftKey('removed-account', 'org', 'one');
+    const retained = hostDraftKey('other-computer', 'channel', 'two');
+    let disk: Record<string, string> = { [removed]: 'private', [retained]: 'keep' };
+    const storage = {
+      read: async () => {
+        if (unavailable) throw new Error('read unavailable');
+        return { ...disk };
+      },
+      write: (next: Record<string, string>) => {
+        disk = { ...next };
+      },
+    };
+    const drafts = createSourceDrafts(storage);
+    await drafts.ready;
+    drafts.removeWhere((key) => key === removed);
+    unavailable = false;
+    if (recovery === 'retry') await drafts.retrySave();
+    else await drafts.removePersistedWhere((key) => key === 'another-removed-source');
+    const reopened = createSourceDrafts(storage);
+    await reopened.ready;
+    expect([drafts.get(removed), reopened.get(removed), reopened.get(retained)]).toEqual([
+      '',
+      '',
+      'keep',
+    ]);
+  },
+);
+
+it.each(['resolves', 'rejects'])(
+  'keeps the newest saved snapshot after a stale recovery read %s',
+  async (settlement) => {
+    let settleRetry: (() => void) | undefined;
+    let reads = 0;
+    let disk: Record<string, string> = { removed: 'private', retained: 'keep' };
+    const storage = {
+      read: () => {
+        if (reads++ === 0) return Promise.reject(new Error('initial read unavailable'));
+        if (reads === 2)
+          return new Promise((resolve, reject) => {
+            const snapshot = { ...disk };
+            settleRetry = () => {
+              if (settlement === 'resolves') resolve(snapshot);
+              else reject(new Error('stale read unavailable'));
+            };
+          });
+        return Promise.resolve({ ...disk });
+      },
+      write: (next: Record<string, string>) => {
+        disk = { ...next };
+      },
+    };
+    const drafts = createSourceDrafts(storage);
+    await drafts.ready;
+    const retry = drafts.retrySave();
+    disk.retained = 'Saved after retry started';
+    await drafts.removePersistedWhere((key) => key === 'removed');
+    settleRetry?.();
+    await retry;
+    expect(drafts.get('retained')).toBe('Saved after retry started');
+    drafts.set('retained', 'newest');
+    const reopened = createSourceDrafts(storage);
+    await reopened.ready;
+    expect([reopened.get('removed'), reopened.get('retained')]).toEqual(['', 'newest']);
+    expect(drafts.getPersistence()).toEqual({ loaded: true, failed: false });
+  },
+);
