@@ -39,6 +39,15 @@ async function installed() {
   return directory;
 }
 describe('Mac pinned capture runtime', () => {
+  it('reuses a verified runtime without downloading or extracting again', async () => {
+    const dir = await installed();
+    const fetch = vi.fn();
+    const runner = { run: vi.fn() };
+    vi.stubGlobal('fetch', fetch);
+    await ensureMacVideoHelper({ dir, arch: 'arm64', runner });
+    expect(fetch).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+  });
   it('accepts framework symlinks inside the verified runtime and detects binary changes', async () => {
     const dir = await installed();
     expect(await verifyMacVideoHelper(dir, 'arm64')).toBe(true);
