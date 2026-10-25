@@ -6,7 +6,43 @@
 
 ## [Unreleased]
 
-1.5.0 之后暂无变更。
+1.5.1 之后暂无变更。
+
+## [1.5.1] - 2026-10-25
+
+Tobs 使用带作用域的 npm 包并保留兼容的 deepseekbot 入口，统一 Bot 显式发送，修复后台 Subagent 汇报和安装后的 CLI 启动。
+
+移动端条目记录独立版本应用的源码和宣传图变化；本次 npm 发布不发布或验收 iOS、Android 安装包。用户在关闭 #2435 后指定发布 1.5.1；下列条目仅描述已实现行为，不代表已支持通用的逐条消息重试与恢复。
+
+### Added
+
+- 新增 Channel 和外部 IM 的统一显式发送入口，由模型按需汇报，可在发送成功后选择结清 Inbox 和结束当前回合，保留群聊草稿审查，并支持外部回复逐条去重（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+### Removed
+
+- 移除模型和直接 CLI 目录中的旧 Bot 发送工具，统一使用 `bot_send_message` 发送、`channel_action` 操作草稿和表情。审批请求不再强制先发说明再重试，由模型判断何时需要解释（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+### Changed
+
+- 独立 Bot Subagent 依次使用允许的显式原生 preset、配置的子 Agent 默认值或当前 DSH 系统默认值；fork 继续继承父级。直接 CLI 调用复用现有父 Agent 的工具执行链，无存活父 Agent 时明确拒绝（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+- iOS 中文应用名称、权限说明和宣传图统一使用“托布 Tobs”，英文名称保持“Tobs”（[#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)）。
+
+- 中文 iOS 宣传图改用保持宽高比的原始截图，放大标题并保留完整手机框（[#2725](https://github.com/BotHarness/DeepSeekBot/issues/2725)）。
+
+### Fixed
+
+- 后台 Subagent 回报可恢复空闲 Bot，使用当前模型显式发送结果；长时间运行的直接 Subagent 调用不再遮蔽后续用户回合的停止与追加指令（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
+
+- npm 拒绝无作用域包名后，Tobs 改用 `@botharness/tobs` 发布，保留 `tobs` 命令和继续支持的 `deepseekbot` 兼容包；npm README 与 GitHub 产品介绍保持一致（[#2744](https://github.com/BotHarness/DeepSeekBot/issues/2744)）。
+
+- 修复桌面会话回到底部按钮：离开最新消息时在输入框上方右侧显示不透明图标，悬停、按住时改变颜色，有新消息时显示数量徽标，到底后隐藏（[#2748](https://github.com/BotHarness/DeepSeekBot/issues/2748)）。
+
+- 打包 `deepseekbot` 时保留 core CLI 入口为外部依赖，避免已有 core 构建产物被再次内联后破坏依赖资源路径，确保安装后的 CLI 正常启动（[#2436](https://github.com/BotHarness/DeepSeekBot/pull/2436)）。
+
+### Documentation
+
+- 补充 Tailscale 桌面远控的前提、步骤与具体构建的 macOS/iOS 验收范围，明确 Connect 限制及 Windows/Android 待验收项（[#2562](https://github.com/BotHarness/DeepSeekBot/issues/2562)）。
 
 ## [1.5.0] - 2026-10-24
 
