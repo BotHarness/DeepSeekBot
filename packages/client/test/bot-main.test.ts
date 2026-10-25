@@ -1206,6 +1206,7 @@ describe('Bot main Sessions pane', () => {
       'locate',
       'copy',
       'select',
+      'feedback',
     ]);
     await act(async () => menu!.onSelect!('react'));
     const pressed = document.body.querySelector('[data-reaction-picker]');

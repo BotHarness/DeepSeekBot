@@ -164,6 +164,7 @@ import {
   type ClientState,
 } from './store.js';
 import { DiagnosticBundleDialog } from './diagnostic-bundle.js';
+import { MessageFeedbackDialog } from './message-feedback.js';
 import {
   MessageSelectionBar,
   MessageSelectionContext,
@@ -879,6 +880,7 @@ function MessageGroupView({
 function MessageActionMenu({
   onLocate,
   onReply,
+  onFeedback,
   onSelect,
   onReact,
   request,
@@ -887,6 +889,7 @@ function MessageActionMenu({
 }: {
   onLocate(messageId: string): void;
   onReply(message: ChannelMessage): void;
+  onFeedback?(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
   onReact?(request: MessageMenuRequest): void;
   request: MessageMenuRequest;
@@ -931,11 +934,15 @@ function MessageActionMenu({
                   icon: <IconChecklistOutlineRegular />,
                 },
               ]),
+          ...(onFeedback === undefined || !selectableMessage(request.message)
+            ? []
+            : [{ id: 'feedback', label: t('feedback.title'), icon: <ReactionIcon /> }]),
         ]}
         onSelect={(id) => {
           if (id === 'reply') onReply(request.message);
           else if (id === 'react') onReact?.(request);
           else if (id === 'locate') onLocate(request.message.id);
+          else if (id === 'feedback') onFeedback?.(request.message);
           else if (id === 'copy') {
             void navigator.clipboard?.writeText(request.message.body);
           } else if (id === 'select') onSelect?.(request.message);
@@ -1294,6 +1301,7 @@ function ConversationView({
   const [atLatest, setAtLatest] = useScopedState(scopeKey, true);
   const [messageMenu, setMessageMenu] = useScopedState<MessageMenuRequest | undefined>(scopeKey);
   const [reactionMenu, setReactionMenu] = useScopedState<MessageMenuRequest | undefined>(scopeKey);
+  const [feedbackMessage, setFeedbackMessage] = useScopedState<string | undefined>(scopeKey);
   const [avatarMenu, setAvatarMenu] = useScopedState<AvatarMenuRequest | undefined>(scopeKey);
   const [diagnosticsTarget, setDiagnosticsTarget] = useScopedState<
     | { channelId: string; fromMessageId: string; toMessageId?: string; messageIds: string[] }
@@ -3253,6 +3261,7 @@ function ConversationView({
                 if (channelId !== undefined) void actions.openAround(channelId, messageId);
               }}
               onReply={(message) => setReplyTarget(message)}
+              onFeedback={(message) => setFeedbackMessage(message.id)}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}
               onClose={() => {
                 setMessageMenu(undefined);
@@ -3289,6 +3298,15 @@ function ConversationView({
               onMention={mentionBot}
               onProfile={(botSlug) => void actions.openBot(botSlug, 'profile')}
               onClose={() => setAvatarMenu(undefined)}
+            />
+          )}
+          {feedbackMessage === undefined || channelId === undefined ? null : (
+            <MessageFeedbackDialog
+              key={feedbackMessage}
+              channelId={channelId}
+              messageId={feedbackMessage}
+              t={t}
+              onClose={() => setFeedbackMessage(undefined)}
             />
           )}
           {diagnosticsTarget === undefined ? null : (

@@ -1378,3 +1378,25 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` 在本机 Computer 所在的 macOS Host 上打开指定隐私设置页，不会自动授权。用户在系统设置里开启权限，必要时重启运行 DSH 的应用，再重新检查。`computer-status` 返回稳定的安装失败原因与各项缺失的 macOS 权限；技术细节保留在诊断信息中。
+### 消息反馈（#2811）
+
+单条消息反馈独立于匿名遥测。Host 生成冻结并脱敏的材料，默认选择锚点前后各 20 条消息，
+各侧可设为 0–100。`conversation`、`sessions`、`inbox`、`deliveries`、`relatedChats` 默认开启，
+`wholeSessions` 默认关闭。提交前检查 `files`、类别选择与 `summary.omissions`。
+即使关闭 `conversation`，执行记录仍可能包含重复的聊天文本。
+
+```bash
+printf '%s' '{"channelId":"<channel>","messageId":"<message>","before":20,"after":20}' | deepseekbot feedback-preview
+printf '%s' '{"token":"<preview-token>"}' | deepseekbot feedback-download --out evidence.zip
+printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-response"],"comment":"合成测试"}}' | deepseekbot feedback-submit --confirm
+```
+
+命令沿用在线 Host 鉴权，stdout 只输出一个 JSON。下载不覆盖已有文件。提交必须带 `--confirm`，
+评分为 `good` 或 `bad`，固定标签可选，评价最多 500 个 Unicode 字符。内容通过 stdin 或文件输入，
+不要放在命令参数中。预览令牌属于当前 Host 连接，30 分钟后失效，最多保留最近四份。
+`preview-stale` 需要重新预览。提交失败后材料与评分被冻结，重试原请求沿用同一反馈编号；
+修改内容时请主动刷新预览。成功返回 `reportId` 和 `expiresAt`。
+
+Host 通过 `BOTHARNESS_FEEDBACK_ENDPOINT` 显式启用提交，否则仍可预览和下载，提交返回
+`feedback-unavailable`。只接受 `https://feedback.botharness.ai/feedback` 与回环 HTTP `/feedback`，
+拒绝重定向。接收服务配置见[运维说明](message-feedback.md)。

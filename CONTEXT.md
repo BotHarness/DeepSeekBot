@@ -981,6 +981,10 @@ _Avoid_: secret, API key, token
 
 ### Telemetry and campaigns
 
+**Message Feedback**:
+Under ADR-0249, a Human-initiated evaluation of a Bot's performance anchored to one Channel message, with a good/bad rating, optional classification tags and comment, and Human-selected conversation and execution evidence. It is distinct from anonymous Telemetry and from copying or capturing selected messages for sharing.
+_Avoid_: Telemetry, multi-message export, automatic error reporting
+
 **Mobile Telemetry**:
 Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers (ADR-0214).
 
