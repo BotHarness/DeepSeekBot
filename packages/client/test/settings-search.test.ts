@@ -9,6 +9,14 @@ const rows = [
   { id: 'notifications', order: 21, label: '通知' },
   { id: 'browser', order: 32, label: '浏览器控制' },
 ];
+it('finds the long-message folding switch in Messages in either language', () => {
+  for (const query of ['折叠', 'collapse']) {
+    expect(searchSettings(rows, query, zhTranslate)[0]).toMatchObject({
+      section: 'messaging',
+      target: '自动折叠长消息',
+    });
+  }
+});
 it('finds settings across unmounted sections and returns the exact destination', () => {
   expect(searchSettings(rows, '间距', zhTranslate)).toEqual([
     { section: 'appearance', title: '面板间距', target: '面板间距', page: '界面设置' },

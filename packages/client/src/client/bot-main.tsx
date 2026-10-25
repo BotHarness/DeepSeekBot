@@ -192,7 +192,7 @@ import {
   timelineScrollAnchor,
 } from './timeline-position.js';
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
-import { foldableMessage, MessageFold } from './message-fold.js';
+import { AutoCollapseMessages, foldableMessage, MessageFold } from './message-fold.js';
 import {
   MessageReactionChips,
   MessageReactionPicker,
@@ -3604,16 +3604,23 @@ export function BotMain({
     () => prefs?.source.getSnapshot().sendKey ?? 'enter',
     () => 'enter' as const,
   );
+  const autoCollapseMessages = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().autoCollapseMessages ?? false,
+    () => false,
+  );
   return (
-    <MessageDeveloperMode.Provider value={developerMode}>
-      <ComposerSendKeyContext.Provider value={sendKey}>
-        <AppearanceContext.Provider value={appearance}>
-          <Workspace options={workspace} t={props.t ?? zhTranslate}>
-            <BotMainContent {...props} />
-          </Workspace>
-        </AppearanceContext.Provider>
-      </ComposerSendKeyContext.Provider>
-    </MessageDeveloperMode.Provider>
+    <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+      <MessageDeveloperMode.Provider value={developerMode}>
+        <ComposerSendKeyContext.Provider value={sendKey}>
+          <AppearanceContext.Provider value={appearance}>
+            <Workspace options={workspace} t={props.t ?? zhTranslate}>
+              <BotMainContent {...props} />
+            </Workspace>
+          </AppearanceContext.Provider>
+        </ComposerSendKeyContext.Provider>
+      </MessageDeveloperMode.Provider>
+    </AutoCollapseMessages.Provider>
   );
 }
 

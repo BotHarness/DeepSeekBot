@@ -168,6 +168,7 @@
       "scope": "Host",
       "surfaces": [
         "field:packages/client/src/bot-mode-settings.ts:autoAcceptGroupInvites",
+        "field:packages/client/src/bot-mode-settings.ts:autoCollapseMessages",
         "field:packages/client/src/bot-mode-settings.ts:botIcon",
         "field:packages/client/src/bot-mode-settings.ts:motionPreference",
         "field:packages/client/src/bot-mode-settings.ts:sendKey",
@@ -177,6 +178,7 @@
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('motion.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
       "commands": ["settings", "settings-set"]

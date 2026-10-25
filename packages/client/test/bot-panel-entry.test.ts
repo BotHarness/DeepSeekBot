@@ -43,6 +43,7 @@ const useBotModePrefs = ((selector: (value: BotModePrefsSnapshot) => unknown) =>
     motionPreference: 'system',
     botIcon: 'mascot' as const,
     sendKey: 'enter' as const,
+    autoCollapseMessages: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
