@@ -73,9 +73,9 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
         echo.pressed(event.keyCode, event.metaState, event.eventTime)
       }
     }
-    if (event.isCanceled) {
+    if (event.isCanceled || event.action == KeyEvent.ACTION_UP) {
       echo.clear()
-      press = press?.copy(maySend = false)
+      if (event.isCanceled) press = press?.copy(maySend = false)
     }
     return super.dispatchKeyEventPreIme(event)
   }
