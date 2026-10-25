@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.workspace-navigation",
+      "label": "Reset explicit workspace history and prune invalid account routes while retaining tab roots",
+      "source": "apps/mobile/src/ui/shell/workspace-navigation.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-workspace-navigation.md",
+      "task": 2800,
+      "gap": "Mounted drawer and installed navigator regressions do not qualify native Back gestures or accessibility; shared-device acceptance remains pending."
+    },
+    {
       "id": "phone.bot-rename",
       "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
       "source": "apps/mobile/src/host/bot-name.ts",

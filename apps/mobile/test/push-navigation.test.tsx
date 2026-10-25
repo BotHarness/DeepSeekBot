@@ -7,6 +7,8 @@ import { StackRouter } from '../node_modules/expo-router/build/react-navigation/
 import type { HostSnapshot } from '../src/host/client';
 import { channelRouteId } from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
+import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
+import { resetWorkspaceRoot } from '../src/ui/shell/workspace-navigation';
 
 const fixture = vi.hoisted(() => {
   const snapshot: HostSnapshot = {
@@ -47,6 +49,7 @@ vi.mock('../src/host/native-notifications', () => ({
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
 vi.mock('../src/host/client', () => ({
   createHostClient: () => ({
+    stop() {},
     call: async () => {
       fixture.approvals++;
       await fixture.approvalGate;
@@ -136,8 +139,22 @@ const router = {
       payload: { name: href.pathname.slice(1), ...(href.params ? { params: href.params } : {}) },
     }),
 };
+const workspace = createHostDrawer({
+  switchTo: async () => true,
+  showView: () => {
+    resetWorkspaceRoot({
+      ...navigation,
+      dispatch(action) {
+        if (action.type !== 'RESET') throw new Error('Unexpected workspace action');
+        navigation.dispatch({ type: 'RESET', payload: { ...state, ...action.payload } });
+      },
+    });
+  },
+  pair() {},
+  notifications() {},
+});
 function NotificationEntry() {
-  const ref = usePushRouting();
+  const ref = usePushRouting(undefined, workspace.captureWorkspaceSelection);
   return <View ref={ref} />;
 }
 let root: Root | undefined;
@@ -376,5 +393,69 @@ it('finishes an authorized notification action without overriding a newer manual
   });
   expect(fixture.hostId).toBe('host-b');
   expect(state.routes).toHaveLength(1);
+  expect(fixture.alerts).toEqual([]);
+});
+
+it('a newer All workspace choice prevents a delayed approval from adopting its Host or page', async () => {
+  let release = () => {};
+  fixture.approvalGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () =>
+    fixture.tap?.({ ...notification(), kind: 'tool-approval', messageId: 'approval' }, 'approve'),
+  );
+  expect(fixture.approvals).toBe(1);
+  fixture.hostId = 'host-b';
+  workspace.selectAll();
+  const selected = state;
+  await act(async () => {
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(fixture.hostId).toBe('host-b');
+  expect(state).toBe(selected);
+  expect(fixture.alerts).toEqual([]);
+});
+
+it('a newer workspace choice prevents pending notification Host persistence', async () => {
+  let release = () => {};
+  fixture.switchGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () => fixture.tap?.(notification('host-b')));
+  workspace.selectAll();
+  const selected = state;
+  await act(async () => {
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(fixture.hostId).toBe('host-a');
+  expect(state).toBe(selected);
+  expect(fixture.alerts).toEqual([]);
+});
+
+it('a newer ordinary page navigation wins over a pending notification approval', async () => {
+  let release = () => {};
+  fixture.approvalGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () =>
+    fixture.tap?.({ ...notification(), kind: 'tool-approval', messageId: 'approval' }, 'approve'),
+  );
+  expect(fixture.approvals).toBe(1);
+  navigation.dispatch({
+    type: 'NAVIGATE',
+    payload: { name: 'dm/[slug]', params: { hostId: 'host-b', slug: 'grace' } },
+  });
+  const selected = state;
+  await act(async () => {
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(state).toBe(selected);
+  expect(state.routes[state.index]).toMatchObject({ name: 'dm/[slug]', params: { slug: 'grace' } });
   expect(fixture.alerts).toEqual([]);
 });
