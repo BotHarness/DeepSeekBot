@@ -1,4 +1,4 @@
-import { encryptedCarrier } from './encrypted-carrier';
+import { ConnectRefused, encryptedCarrier } from './encrypted-carrier';
 import type { HostCarrier } from './carrier';
 import type { SavedHost } from './hosts';
 import { isConnectRoute } from './route';
@@ -51,6 +51,7 @@ export function createHostActivity(carrier: HostCarrier): HostActivity {
               typeof value['code'] === 'string' ? value['code'] : 'activity-unavailable',
             );
           } catch (error) {
+            if (error instanceof ConnectRefused) throw new ActivityRequestFailed(error.code);
             if (error instanceof ActivityRequestFailed || isConnectRoute(route)) throw error;
           }
         }

@@ -20,6 +20,7 @@ export interface NativeRequestActivity {
   end(): Promise<void>;
 }
 interface StoredTarget extends ActivityTarget {
+  selectedHostId: string;
   clientActivityId: string;
   linkId: string;
   expiresAt: number;
@@ -38,11 +39,14 @@ const parse = (input: unknown): StoredTarget | undefined => {
     !['hostId', 'channelId', 'messageId', 'botSlug', 'clientActivityId', 'linkId'].every(
       (key) => typeof value[key] === 'string' && String(value[key]).length <= 128,
     ) ||
-    typeof value['expiresAt'] !== 'number'
+    typeof value['expiresAt'] !== 'number' ||
+    (value['selectedHostId'] !== undefined &&
+      (typeof value['selectedHostId'] !== 'string' || value['selectedHostId'].length > 128))
   )
     return undefined;
   return {
     hostId: String(value['hostId']),
+    selectedHostId: String(value['selectedHostId'] ?? value['hostId']),
     channelId: String(value['channelId']),
     messageId: String(value['messageId']),
     botSlug: String(value['botSlug']),
@@ -62,6 +66,8 @@ export function createActivitySession(options: {
   storage: { read(): Promise<unknown>; write(value: unknown): Promise<void> };
   host(hostId: string): SavedHost | undefined;
   currentHostId(): string | undefined;
+  selectionRevision(): number;
+  sourceAvailable(hostId: string): boolean;
   bundleIdentifier: string;
   locale(): 'en' | 'zh';
   url(linkId: string): string;
@@ -89,6 +95,8 @@ export function createActivitySession(options: {
   let boundId: string | undefined;
   let stopRetries = 0;
   let nextStopRetry = 0;
+  let selectionRevision = options.selectionRevision();
+  let boundHost: SavedHost | undefined;
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
     const next = queue.then(work, work);
     queue = next.catch(() => undefined);
@@ -112,14 +120,23 @@ export function createActivitySession(options: {
     .catch(() => {
       publish({ ...state, ready: true });
     });
-  const scopedHost = (target: ActivityTarget) => {
+  const scopedHost = (target: ActivityTarget, selectedHostId: string | undefined) => {
     const host = options.host(target.hostId);
-    if (!host || options.currentHostId() !== target.hostId)
+    if (
+      !host ||
+      !options.sourceAvailable(target.hostId) ||
+      options.currentHostId() !== selectedHostId ||
+      options.selectionRevision() !== selectionRevision ||
+      (boundHost !== undefined &&
+        (host.deviceId !== boundHost.deviceId ||
+          host.credential !== boundHost.credential ||
+          JSON.stringify(host.encryption) !== JSON.stringify(boundHost.encryption)))
+    )
       throw new ActivityRequestFailed('activity-source-changed');
     return host;
   };
   const register = async (target: StoredTarget, token: string) => {
-    const host = scopedHost(target);
+    const host = scopedHost(target, target.selectedHostId);
     return options.remote.request(host, 'register', {
       clientActivityId: target.clientActivityId,
       token,
@@ -140,7 +157,12 @@ export function createActivitySession(options: {
       await activity.end().catch(() => undefined);
     await persisted;
     if (!target) return;
-    const host = removedHost?.hostId === target.hostId ? removedHost : options.host(target.hostId);
+    const host =
+      removedHost?.hostId === target.hostId
+        ? removedHost
+        : boundHost?.hostId === target.hostId
+          ? boundHost
+          : options.host(target.hostId);
     if (!host) return;
     stopRetries += 1;
     nextStopRetry = Date.now() + 60_000;
@@ -198,6 +220,8 @@ export function createActivitySession(options: {
         : undefined;
     },
     start: async (target: ActivityTarget) => {
+      const selectedHostId = options.currentHostId();
+      const initiatingRevision = options.selectionRevision();
       await ready;
       return serial(async () => {
         if (!options.native.supported())
@@ -206,13 +230,18 @@ export function createActivitySession(options: {
         publish({ ...state, busy: true });
         try {
           if (state.pendingStop) await stop();
-          const host = scopedHost(target);
+          selectionRevision = initiatingRevision;
+          boundHost = undefined;
+          const host = scopedHost(target, selectedHostId);
+          if (selectedHostId === undefined)
+            throw new ActivityRequestFailed('activity-source-changed');
+          boundHost = host;
           const prepared = await options.remote.request(host, 'prepare', {
             channelId: target.channelId,
             messageId: target.messageId,
             bundleIdentifier: options.bundleIdentifier,
           });
-          scopedHost(target);
+          scopedHost(target, selectedHostId);
           const progress = prepared['progress'] as
             | { state?: unknown; terminal?: unknown; updatedAt?: unknown }
             | undefined;
@@ -236,6 +265,7 @@ export function createActivitySession(options: {
           );
           const current = {
             ...target,
+            selectedHostId,
             linkId,
             clientActivityId: activity.id,
             expiresAt: Date.now() + 8 * 60 * 60_000,
@@ -245,7 +275,7 @@ export function createActivitySession(options: {
           bind(activity, current);
           const token = await activity.token();
           const registered = await register(current, token);
-          scopedHost(target);
+          scopedHost(target, selectedHostId);
           if (typeof registered['expiresAt'] !== 'number')
             throw new ActivityRequestFailed('activity-protocol-error');
           publish({ ...state, target: { ...current, expiresAt: registered['expiresAt'] } });
@@ -274,7 +304,8 @@ export function createActivitySession(options: {
     async forget(host: SavedHost) {
       await ready;
       return serial(async () => {
-        if (state.target?.hostId === host.hostId) await stop(host);
+        if (state.target?.hostId === host.hostId && (state.tracking || state.pendingStop))
+          await stop(host);
       });
     },
     sync(): Promise<void> {
@@ -294,9 +325,18 @@ export function createActivitySession(options: {
             if (
               !activity ||
               target.expiresAt <= Date.now() ||
-              options.currentHostId() !== target.hostId ||
+              options.currentHostId() !== target.selectedHostId ||
+              options.selectionRevision() !== selectionRevision ||
+              !options.sourceAvailable(target.hostId) ||
               !options.host(target.hostId)
             ) {
+              await stop();
+              return;
+            }
+            try {
+              boundHost ??= scopedHost(target, target.selectedHostId);
+              scopedHost(target, target.selectedHostId);
+            } catch {
               await stop();
               return;
             }

@@ -69,6 +69,9 @@ vi.mock('../src/ui/strings', () => ({ locale: 'en' }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
 vi.mock('../src/host/host-session', () => ({
   hostSession: {
+    getSelectionRevision: () => 0,
+    getHost: (id: string) =>
+      id === device.host.hostId ? { saved: device.host, client: device.client } : undefined,
     getState: () => ({ saved: device.host, hosts: [device.host], client: device.client }),
     subscribe: (fn: () => void) => {
       device.listeners.add(fn);

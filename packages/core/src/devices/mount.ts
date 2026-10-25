@@ -379,6 +379,7 @@ export function mountDevicePairing(
     });
     for (const [path, methods] of [
       [DEVICES_PATH, ['GET']],
+      [`${DEVICES_PATH}/requests`, ['GET']],
       [`${DEVICES_PATH}/offer`, ['POST']],
       [`${DEVICES_PATH}/offer-status`, ['POST']],
       [`${DEVICES_PATH}/approve-key`, ['POST']],

@@ -5,6 +5,7 @@ import {
   createHostActivity,
 } from '../../../../apps/mobile/src/host/live-activity.js';
 import { CliLiveError } from './cli-live-error.js';
+import { nodeDeviceCarrier } from '../devices/node-carrier.js';
 
 export async function runDeviceActivity(
   rest: string[],
@@ -39,15 +40,7 @@ export async function runDeviceActivity(
     );
   }
   if (!host) throw new CliLiveError('invalid-input', 'Invalid saved pairing.');
-  const activity = createHostActivity({
-    async request(url, init) {
-      const result = await fetch(url, { ...init, redirect: 'error' });
-      return { status: result.status, text: () => result.text() };
-    },
-    openSocket() {
-      throw new Error('unary-only');
-    },
-  });
+  const activity = createHostActivity(nodeDeviceCarrier());
   try {
     return await activity.request(
       host,

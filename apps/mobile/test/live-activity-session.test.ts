@@ -17,6 +17,7 @@ function fixture() {
   const calls: { operation: string; body: unknown }[] = [];
   const writes: unknown[] = [];
   let current = host.hostId;
+  let revision = 0;
   let alive = true;
   let listener: ((token: string) => void) | undefined;
   let ended = 0;
@@ -77,6 +78,8 @@ function fixture() {
     },
     host: (id) => (id === host.hostId ? host : undefined),
     currentHostId: () => current,
+    selectionRevision: () => revision,
+    sourceAvailable: (id) => id === host.hostId,
     bundleIdentifier: 'app.deepseekbot.mobile',
     url: (id) => `deepseekbot://request-activity?id=${id}`,
     id: () => 'link-a',
@@ -103,6 +106,7 @@ function fixture() {
     },
     switchHost: () => {
       current = 'host-b';
+      revision++;
     },
     ended: () => ended,
     starts: () => starts,

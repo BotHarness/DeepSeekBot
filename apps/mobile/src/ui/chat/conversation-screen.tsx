@@ -3,6 +3,7 @@ import {
   type InitiatedActivityRequest,
 } from '../../host/live-activity-routing';
 import { useRequestActivityAction } from './request-activity-action';
+import { HostScope } from '../../host/host-scope';
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
@@ -156,9 +157,12 @@ export function ConversationScreen({
   latestWindowOnly?: boolean;
 }) {
   const t = useStrings();
-  const { client, saved } = useHostSession();
-  const [openedOn, setOpenedOn] = useState(saved?.hostId);
-  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
+  const initial = useHostSession();
+  const [openedOn, setOpenedOn] = useState(initial.saved?.hostId);
+  if (openedOn === undefined && initial.saved?.hostId !== undefined)
+    setOpenedOn(initial.saved.hostId);
+  const { client, saved } = useHostSession(expectedHostId ?? openedOn);
+
   const focused = useIsFocused();
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
@@ -179,18 +183,20 @@ export function ConversationScreen({
   const shownHostId = expectedHostId ?? openedOn;
   if (shownHostId && saved?.hostId !== shownHostId) return <Text>{t.sourceChanged}</Text>;
   return (
-    <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
-      <MessageIdentities.Provider value={identities}>
-        <ChatConversation
-          key={JSON.stringify([saved?.hostId, place])}
-          place={place}
-          focus={focus}
-          focusRequest={focusRequest}
-          latestWindowOnly={latestWindowOnly}
-          focused={focused}
-        />
-      </MessageIdentities.Provider>
-    </AccentProvider>
+    <HostScope value={saved?.hostId}>
+      <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
+        <MessageIdentities.Provider value={identities}>
+          <ChatConversation
+            key={JSON.stringify([saved?.hostId, place])}
+            place={place}
+            focus={focus}
+            focusRequest={focusRequest}
+            latestWindowOnly={latestWindowOnly}
+            focused={focused}
+          />
+        </MessageIdentities.Provider>
+      </AccentProvider>
+    </HostScope>
   );
 }
 
@@ -249,6 +255,7 @@ const RequestCard = memo(function RequestCard({
     () => grantRequestPort(client, ref, () => void inbox?.refresh()),
     [client, inbox, ref],
   );
+
   const subject = card.subject === undefined ? {} : { subject: card.subject };
   if (card.kind === 'private-input')
     return (
@@ -821,7 +828,11 @@ function ChatConversation({
                                 ...target,
                                 params: { ...target.params, hostId: saved.hostId },
                               });
-                          } else router.push(target);
+                          } else
+                            router.push({
+                              ...target,
+                              params: { ...target.params, hostId: saved?.hostId },
+                            });
                         },
                       },
               })

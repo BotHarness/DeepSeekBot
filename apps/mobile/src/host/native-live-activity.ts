@@ -80,11 +80,12 @@ export const requestActivitySession = createActivitySession({
   host: (id) => hostSession.getState().hosts.find((host) => host.hostId === id),
   currentHostId: () => {
     const saved = hostSession.getState().saved;
-    return saved === undefined
-      ? undefined
-      : hostSession.getState().client?.getSnapshot().connection.status === 'refused'
-        ? ''
-        : (saved?.hostId ?? '');
+    return saved === undefined ? undefined : (saved?.hostId ?? '');
+  },
+  selectionRevision: () => hostSession.getSelectionRevision(),
+  sourceAvailable: (id) => {
+    const source = hostSession.getHost(id);
+    return source !== undefined && source.client.getSnapshot().connection.status !== 'refused';
   },
   bundleIdentifier: applicationId ?? '',
   locale: () => (locale === 'zh' ? 'zh' : 'en'),
@@ -99,19 +100,46 @@ export function watchRequestActivity(): () => void {
   const sync = () => {
     void requestActivitySession.sync().catch(() => undefined);
   };
+  const source = () => {
+    const state = hostSession.getState();
+    const target = requestActivitySession.getSnapshot().target;
+    const host = target ? hostSession.getHost(target.hostId) : undefined;
+    return {
+      saved: state.saved === undefined ? undefined : (host?.saved ?? null),
+      client: host?.client,
+    };
+  };
   let previousScope = '';
   const changed = () => {
     const state = hostSession.getState();
+    const target = source();
     const scope = JSON.stringify([
       state.saved === undefined ? 'loading' : state.saved?.hostId,
-      state.hosts.map((host) => [host.hostId, host.deviceId, host.credential]),
-      state.client?.getSnapshot().connection.status,
+      hostSession.getSelectionRevision(),
+      target.saved?.hostId,
+      target.saved?.deviceId,
+      target.saved?.credential,
+      target.saved?.encryption,
+      target.client?.getSnapshot().connection.status,
     ]);
     if (scope === previousScope) return;
     previousScope = scope;
     sync();
   };
-  const off = subscribeActivityHost(hostSession, changed);
+  const off = subscribeActivityHost(
+    {
+      getState: source,
+      subscribe(listener) {
+        const offHost = hostSession.subscribe(listener);
+        const offActivity = requestActivitySession.subscribe(listener);
+        return () => {
+          offHost();
+          offActivity();
+        };
+      },
+    },
+    changed,
+  );
   const offRemoval = onHostRemoval((host) => requestActivitySession.forget(host));
   const subscription = AppState.addEventListener('change', (value) => {
     if (value === 'active') sync();

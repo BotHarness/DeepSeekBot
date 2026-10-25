@@ -13,7 +13,10 @@ import { TextField } from './ds/field.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
-import { useThisHost } from './this-host.js';
+import { useThisHost, getThisHost } from './this-host.js';
+import { useMountedResource } from './mounted-resource.js';
+import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
+import { ConnectionProgress } from './connection-progress.js';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
 export { HostGlyph } from './host-glyph.js';
@@ -325,100 +328,121 @@ export function AddRemoteHostDialog({
   onClose: () => void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const thisHost = useThisHost();
   const [link, setLink] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [verification, setVerification] = useState<{
-    fingerprint: string;
-    resolve(value: boolean): void;
-  }>();
-  const [deviceFingerprint, setDeviceFingerprint] = useState<string>();
-  const pending = useRef<AbortController>();
-  const close = () => {
-    pending.current?.abort();
-    verification?.resolve(false);
-    onClose();
-  };
-  const [error, setError] = useState<string | undefined>(undefined);
-  const submit = (): void => {
-    if (verification) {
-      verification.resolve(true);
-      setVerification(undefined);
-      setBusy(true);
-      return;
-    }
-    pending.current = new AbortController();
-    setBusy(true);
-    setError(undefined);
-    const name = thisHost.name ?? t('remoteHosts.this');
-    void remoteHosts()
-      .pair(link, t('remoteHosts.deviceName', { name }), thisHost.id, {
-        signal: pending.current.signal,
-        confirmFingerprint: (fingerprint) =>
-          new Promise((resolve) => {
-            setVerification({ fingerprint, resolve });
-            setBusy(false);
-          }),
-        onPending: setDeviceFingerprint,
-      })
-      .then(async (result) => {
-        setBusy(false);
-        if (!result.ok) {
-          setError(t(PAIR_ERRORS[result.code] ?? 'remoteHosts.error.unreachable'));
-          return;
-        }
+  const [attempt, setAttempt] = useState<ConnectionAttempt>();
+  const [error, setError] = useState<string>();
+  const control = useRef<ReturnType<typeof createConnectionControl>>();
+  const attemptId = useRef<string>();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const owner = createConnectionControl(remoteHosts(), getThisHost);
+    control.current = owner;
+    const off = owner.subscribe(() => {
+      if (!attemptId.current) return;
+      const next = owner.getSnapshot(attemptId.current);
+      setAttempt(next);
+      if (next?.state === 'connected' && next.hostId) {
         const looks = hostLooks();
         const used = [
-          ...(thisHost.id === undefined ? [] : [looks.look(thisHost.id)]),
+          looks.look(getThisHost().id ?? THIS_HOST),
           ...remoteHosts()
             .getSnapshot()
-            .hosts.filter((remote) => remote.host.hostId !== result.host.hostId)
+            .hosts.filter((remote) => remote.host.hostId !== next.hostId)
             .map((remote) => looks.look(remote.host.hostId)),
         ];
-        try {
-          await looks.update(result.host.hostId, (current) =>
+        void looks
+          .update(next.hostId, (current) =>
             current === DEFAULT_HOST_LOOK ? unusedHostLook(used) : current,
-          );
-        } catch {}
-        onClose();
-      });
+          )
+          .catch(() => {});
+      }
+    });
+    return () => {
+      off();
+      owner.dispose();
+      control.current = undefined;
+    };
+  }, []);
+  const busy = attempt?.state === 'connecting' || attempt?.state === 'approve-device';
+  const submit = () => {
+    if (attempt?.state === 'connected' || attempt?.saved) {
+      onClose();
+      return;
+    }
+    const owner = control.current;
+    if (!owner) return;
+    setError(undefined);
+    try {
+      const request = { expiresAt: Date.now() + 8000, signal: new AbortController().signal };
+      if (attempt?.state === 'verify-host') {
+        owner.execute(
+          {
+            action: 'confirm',
+            attemptId: attempt.attemptId,
+            fingerprint: attempt.hostFingerprint,
+            confirm: true,
+          },
+          request,
+        );
+      } else {
+        attemptId.current = crypto.randomUUID();
+        owner.execute({ action: 'start', attemptId: attemptId.current, link }, request);
+      }
+    } catch {
+      setError(t('remoteHosts.error.unreachable'));
+    }
   };
+  const failed = attempt?.state === 'failed' || attempt?.state === 'cancelled';
   return (
     <FormDialog
-      title={t('remoteHosts.add')}
-      description={t('remoteHosts.add.description')}
+      title={t('connections.join')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t(verification ? 'connect.matches' : 'remoteHosts.add.submit')}
-      submitDisabled={link.trim().length === 0}
-      busy={busy}
-      error={error}
-      onCancel={close}
+      submitLabel={t(
+        attempt?.state === 'connected' || attempt?.saved
+          ? 'connections.done'
+          : attempt?.state === 'verify-host'
+            ? 'connect.matches'
+            : 'remoteHosts.add.submit',
+      )}
+      submitDisabled={link.trim().length === 0 || busy}
+      error={
+        error ??
+        (failed && !attempt.saved
+          ? t(PAIR_ERRORS[attempt.code ?? ''] ?? 'remoteHosts.error.unreachable')
+          : undefined)
+      }
+      onCancel={onClose}
       onSubmit={submit}
       submitData={{ 'data-remote-host-add-submit': '' }}
     >
-      {verification ? (
-        <div role="status">
-          <p>{t('connect.verifyHint')}</p>
-          <code>{verification.fingerprint}</code>
-        </div>
-      ) : null}
-      {deviceFingerprint ? (
-        <div role="status">
-          <p>{t('connect.pending')}</p>
-          <code>{deviceFingerprint}</code>
-        </div>
-      ) : null}
-      <TextField
-        label={t('remoteHosts.add.link')}
-        hint={t('remoteHosts.add.hint')}
-        value={link}
-        onChange={setLink}
-        initialFocus
-        monospace
-        spellCheck={false}
-        autoComplete="off"
-        placeholder="deepseekbot://pair?p=…"
-      />
+      <div ref={mount}>
+        <ConnectionProgress t={t} joining step={!attempt || failed ? 0 : attempt.saved ? 2 : 1} />
+        {attempt?.state === 'verify-host' ? (
+          <div role="status">
+            <p>{attempt.hostName}</p>
+            <p>{t('connect.verifyHint')}</p>
+            <code>{attempt.hostFingerprint}</code>
+          </div>
+        ) : attempt?.state === 'approve-device' ? (
+          <div role="status">
+            <p>{t('connect.pending')}</p>
+            <code>{attempt.deviceFingerprint}</code>
+          </div>
+        ) : attempt?.state === 'connected' ? (
+          <div role="status">{t('connections.connected', { name: attempt.hostName ?? '' })}</div>
+        ) : attempt?.saved && failed ? (
+          <div role="status">{t('connections.savedOffline', { name: attempt.hostName ?? '' })}</div>
+        ) : !attempt || failed ? (
+          <TextField
+            label={t('remoteHosts.add.link')}
+            hint={t('remoteHosts.add.hint')}
+            value={link}
+            onChange={setLink}
+            initialFocus={true}
+          />
+        ) : (
+          <div role="status">{t('connections.reading')}</div>
+        )}
+      </div>
     </FormDialog>
   );
 }
