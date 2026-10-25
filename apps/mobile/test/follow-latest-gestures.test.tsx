@@ -10,7 +10,7 @@ import type {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { SETTLE_FRAMES, STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
+import { STABLE_FRAMES, useFollowLatest } from '../src/ui/chat/follow-latest';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,8 +39,16 @@ const flushFrames = () =>
 
 beforeEach(() => {
   frames = [];
-  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => frames.push(callback));
-  vi.stubGlobal('cancelAnimationFrame', () => {});
+  let nextFrame = 0;
+  const cancelled = new Set<number>();
+  vi.stubGlobal('requestAnimationFrame', (callback: () => void) => {
+    const id = ++nextFrame;
+    frames.push(() => {
+      if (!cancelled.has(id)) callback();
+    });
+    return id;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => cancelled.add(id));
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -205,6 +213,9 @@ describe('following a growing conversation', () => {
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END, animated: false });
     expect(view.current.away).toBe(false);
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
     expect(view.current.ready).toBe(true);
     expect(view.following).not.toHaveBeenCalled();
     view.unmount();
@@ -224,6 +235,34 @@ describe('following a growing conversation', () => {
     view.unmount();
   });
 
+  it('does not expose history until the native list acknowledges the requested bottom', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onScroll(event(300)));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('ignores an old native extent when newer content is still awaiting placement', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 300));
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onScroll(event(0, 0, CONTENT + 300)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
   it('reveals the list only once the end has been pinned and the content settled', () => {
     const view = mount([message('a', 'bot')]);
     act(() => view.current.listProps.onLayout(layout(LAYOUT)));
@@ -236,6 +275,9 @@ describe('following a growing conversation', () => {
     expect(view.current.ready).toBe(false);
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 300, animated: false });
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onScroll(event(0, 0, CONTENT + 300)));
+    flushFrames();
     expect(view.current.ready).toBe(true);
     view.unmount();
   });
@@ -251,6 +293,9 @@ describe('following a growing conversation', () => {
     expect(view.current.ready).toBe(false);
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 400, animated: false });
+    expect(view.current.ready).toBe(false);
+    act(() => view.current.listProps.onScroll(event(0, 0, CONTENT + 400)));
+    flushFrames();
     expect(view.current.ready).toBe(true);
     view.unmount();
   });
@@ -266,14 +311,50 @@ describe('following a growing conversation', () => {
     view.unmount();
   });
 
-  it('gives up waiting for stable content after a bounded number of frames', () => {
-    const view = mount([]);
+  it('offers retry rather than exposing unpositioned history after bounded checks', () => {
+    const view = mount([message('a', 'bot')]);
     act(() => view.current.listProps.onLayout(layout(LAYOUT)));
-    for (let frame = 0; frame < SETTLE_FRAMES; frame += 1) {
-      act(() => view.current.listProps.onContentSizeChange(0, CONTENT + frame));
-      flushFrames();
-    }
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    expect(view.current.ready).toBe(false);
+    expect(view.current.canRetry).toBe(true);
+    act(() => view.current.retry());
+    expect(view.current.canRetry).toBe(false);
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
     expect(view.current.ready).toBe(true);
+    expect(view.current.canRetry).toBe(false);
+    view.unmount();
+  });
+
+  it('reveals short content already at the initial offset without a no-op scroll event', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, LAYOUT));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    expect(view.current.canRetry).toBe(false);
+    view.unmount();
+  });
+
+  it('reveals fitting Android content including its hairline without a no-op scroll event', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, LAYOUT + 0.5));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.unmount();
+  });
+
+  it('lets an explicit message-focus jump reveal history without waiting for the bottom', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    act(() => view.current.hold());
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    expect(view.current.away).toBe(true);
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
     view.unmount();
   });
 
@@ -283,6 +364,7 @@ describe('following a growing conversation', () => {
     act(() => view.current.listProps.onContentSizeChange(0, LAYOUT - 100));
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: -100, animated: false });
+    expect(view.current.ready).toBe(true);
     act(() => view.current.listProps.onContentSizeChange(0, LAYOUT - 300));
     flushFrames();
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: -100, animated: false });

@@ -1169,7 +1169,7 @@ function ChatConversation({
           {(!latest.ready && rows.length > 0) ||
           (snapshot.status === 'opening' && rows.length === 0) ? (
             <View
-              pointerEvents="none"
+              pointerEvents={latest.canRetry ? 'auto' : 'none'}
               style={{
                 position: 'absolute',
                 top: listTop,
@@ -1180,6 +1180,14 @@ function ChatConversation({
               }}
             >
               <ListSkeleton layout="messages" />
+              {latest.canRetry ? (
+                <Button
+                  label={t.retry}
+                  variant="text"
+                  testID="history-loading-retry"
+                  onPress={latest.retry}
+                />
+              ) : null}
             </View>
           ) : null}
           {working.length > 0 ? (
