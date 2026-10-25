@@ -53,6 +53,7 @@ let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, 
 let stored: SavedHosts = { hosts: [] };
 let offInbox: (() => void) | undefined;
 let offConnection: (() => void) | undefined;
+let selectionIntent = 0;
 
 export const hostPush = createHostPush(nativeCarrier());
 export const pushSession = createPushSession({
@@ -154,9 +155,19 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   for (const listener of listeners) listener();
 }
 
-async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): Promise<void> {
+async function commit(
+  next: SavedHosts,
+  trigger: ConnectionTrigger = 'switch',
+  current: () => boolean = () => true,
+): Promise<boolean> {
+  if (!current()) return false;
   await saveHosts(next);
+  if (!current()) {
+    await saveHosts(stored);
+    return false;
+  }
   adopt(next, trigger);
+  return true;
 }
 
 let hostsLoaded = false;
@@ -227,22 +238,29 @@ export const hostSession = {
     return () => listeners.delete(listener);
   },
   getState: (): HostSessionState => state,
+  getSelectionRevision: (): number => selectionIntent,
   async pair(host: SavedHost): Promise<void> {
+    selectionIntent++;
     return serialize(async () => {
       await commit(withHost(stored, host), 'pair');
       void pushSession.enable(stored.hosts);
     });
   },
-  async switchTo(hostId: string): Promise<boolean> {
+  async switchTo(hostId: string, current: () => boolean = () => true): Promise<boolean> {
+    const intent = ++selectionIntent;
+    const ownsSelection = () => current() && intent === selectionIntent;
+    if (!ownsSelection()) return false;
+    if (hostsLoaded && stored.current === hostId) return true;
     return serialize(async () => {
+      if (!ownsSelection()) return false;
       if (stored.current === hostId) return true;
       const next = selectHost(stored, hostId);
       if (next === undefined) return false;
-      await commit(next);
-      return true;
+      return commit(next, 'switch', ownsSelection);
     });
   },
   async removeAccount(owner: AccountOwner): Promise<void> {
+    selectionIntent++;
     return serialize(async () => {
       await sourceDrafts.ready;
       await removeAccountConnections({
@@ -271,6 +289,7 @@ export const hostSession = {
   async unpair(
     hostId?: string,
   ): Promise<{ current: boolean; revoked: Promise<boolean> } | undefined> {
+    selectionIntent++;
     return serialize(async () => {
       const host =
         hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);

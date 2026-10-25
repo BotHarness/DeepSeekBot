@@ -29,3 +29,15 @@ Submit this journey to the centralized test center through [shared device QA](..
 - Native screenshots, keyboard, screen-reader interaction and Human visual acceptance remain unrun until the designated runner records them. Source/DOM fixtures isolate native boundaries and are not native geometry evidence.
 - No Organize/drag mode, local pin/order store, section rename/delete, or cross-Host aggregation in this slice. Obtain Human visual feedback before implementing the next slice.
 - #2554 row layout and fixture follow-up are independently owned. Requalify the combined candidate when integrated; do not treat its frozen acceptance as evidence for this list.
+
+## Cloud Channel navigation regression (#2801)
+
+Use the shared Android/iOS queues and disposable Cloud UAT membership; coordinate the wider role/platform acceptance with #2186.
+
+1. In a Cloud workspace list, open a Channel. Verify there is a native detail step; header Back, Android hardware/predictive Back, iOS edge swipe and in-page Back return to that list. Repeat through the Chats Cloud row.
+2. Open a direct `/cloud-channels` link carrying instance, account scope, Organization, guest flag and Channel ID without first opening the list. Back reaches a scoped list, then the existing root. Repeat entry to the same scoped Channel: there must not be another detail page. With a newer detail above an older matching one, reopening the older one unwinds to its retained history.
+3. Type a multiline unsent draft, return and reopen. Verify draft, account scope and message cache stay with their existing owners. Repeat using two accounts with the same Channel ID; an old account link must show source-changed feedback and never read or send under the replacement account.
+4. Exercise offline cache retention, Channel/Organization access denial, delayed cache completion, and a workspace/account reset during direct entry. An unavailable detail remains navigable; denied content is not resurrected by a cache completion or Back. The list revalidates on return.
+5. Preserve creation/join completion: Back must not reopen a completed submission form. Capture exact source and integrated SHAs, matched before/after, English/Chinese and default/intermediate/maximum text in light/dark. Verify keyboard reachability and VoiceOver/TalkBack. Source tests do not qualify native gestures or rendering.
+
+Automated entry coverage: `apps/mobile/test/cloud-channel-navigation.test.tsx` and `apps/mobile/test/cloud-channel-cache.test.tsx` use the installed Expo stack reducer with production page actions and navigation ownership. Native verification remains separately reported.

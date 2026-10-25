@@ -1,18 +1,23 @@
 import { useMounted } from '../src/ui/mounted';
 import { watchRequestActivity } from '../src/host/native-live-activity';
+import { useCallback, useState } from 'react';
+import { Notice } from '../src/ui/request-parts';
+import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, View } from 'react-native';
+import { Platform, View, type ViewInstance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import '../src/host/native-haptic-feedback';
 
 import { usePushRouting } from '../src/host/push-routing';
-import { HostDrawer, WorkspaceButton } from '../src/ui/shell/host-drawer';
+import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
+import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
+import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
@@ -38,16 +43,31 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
-  const routing = usePushRouting();
+  const [routingPending, setRoutingPending] = useState(false);
+  const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
+  const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
+  const stack = useCallback(
+    (node: ViewInstance | null) => {
+      workspace(node);
+      activity(node);
+    },
+    [workspace, activity],
+  );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
         <SafeAreaProvider>
           <View ref={routing} style={{ flex: 1 }}>
             <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
-            <View ref={activity} testID="app-stack-content" style={{ flex: 1 }}>
+            {routingPending ? (
+              <SafeAreaView edges={['top']}>
+                <Notice tone="warning">{t.channelOpening}</Notice>
+              </SafeAreaView>
+            ) : null}
+            <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
+                UNSTABLE_router={channelStackRouter}
                 screenOptions={{
                   orientation: 'portrait',
                   headerStyle: { backgroundColor: theme.background },
@@ -59,8 +79,16 @@ function RootNavigator() {
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
-                <Stack.Screen name="channel/[id]" options={{ title: '' }} />
+                <Stack.Screen
+                  name="dm/[slug]"
+                  dangerouslySingular={channelRouteId}
+                  options={{ title: '' }}
+                />
+                <Stack.Screen
+                  name="channel/[id]"
+                  dangerouslySingular={channelRouteId}
+                  options={{ title: '' }}
+                />
                 <Stack.Screen
                   name="bot/[slug]"
                   options={{
@@ -140,6 +168,7 @@ function RootNavigator() {
                 />
                 <Stack.Screen
                   name="cloud-channels"
+                  dangerouslySingular={cloudChannelRouteId}
                   options={{ title: t.cloudChannels.title, headerRight: () => <WorkspaceButton /> }}
                 />
                 <Stack.Screen name="notifications" options={{ title: t.notifications }} />

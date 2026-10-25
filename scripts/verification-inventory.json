@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.workspace-navigation",
+      "label": "Reset explicit workspace history and prune invalid account routes while retaining tab roots",
+      "source": "apps/mobile/src/ui/shell/workspace-navigation.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-workspace-navigation.md",
+      "task": 2800,
+      "gap": "Mounted drawer and installed navigator regressions do not qualify native Back gestures or accessibility; shared-device acceptance remains pending."
+    },
+    {
       "id": "phone.bot-rename",
       "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
       "source": "apps/mobile/src/host/bot-name.ts",
@@ -806,6 +814,14 @@
       "source": "apps/mobile/src/ui/chat/composer.tsx",
       "task": 2566,
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.channel-files",
+      "label": "Browse Channel history files, preview/share and return to the original message",
+      "source": "apps/mobile/src/ui/chat/channel-files-screen.tsx",
+      "task": 2819,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-files.md",
+      "gap": "Transport and native-share boundary tests do not qualify iOS/Android rendering, system-sheet delivery or Human acceptance; both platforms need queued native checks."
     },
     {
       "id": "phone.haptic-feedback",

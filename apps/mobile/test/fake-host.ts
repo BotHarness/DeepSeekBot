@@ -368,6 +368,13 @@ export class FakeHost {
     }
   }
 
+  endFollower(endpoint: 'botharness/followRoster' | 'botharness/followChannel'): void {
+    for (const entry of this.sockets) {
+      const streamId = entry.streams.get(endpoint);
+      if (streamId !== undefined) entry.events.message(JSON.stringify({ type: 'end', streamId }));
+    }
+  }
+
   kill(): void {
     this.up = false;
     for (const entry of this.sockets) {
