@@ -215,6 +215,7 @@ const en = {
   allConversations: 'All conversations',
   computerChannel: 'Computer conversation',
   cloudListUnavailable: 'Some cloud conversations could not be refreshed. Pull to retry.',
+  hostListLoadFailed: 'Could not load chats. Try again.',
   hostListUnavailable: 'Could not refresh chats. Showing the last list.',
   sourceChanged: 'This conversation belongs to another Computer. Select that Computer to continue.',
   cloudSourceChanged:
@@ -1839,6 +1840,7 @@ const zh: typeof en = {
   allConversations: '全部会话',
   computerChannel: '电脑会话',
   cloudListUnavailable: '部分云会话未能刷新，下拉可重试。',
+  hostListLoadFailed: '聊天未能加载，请重试。',
   hostListUnavailable: '聊天未能刷新，当前显示上次的列表。',
   sourceChanged: '此会话属于另一台电脑，请选择对应电脑后继续。',
   cloudSourceChanged: '此会话属于另一个云端登录身份，请从会话列表重新打开。',

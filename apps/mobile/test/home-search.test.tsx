@@ -567,7 +567,8 @@ describe('Search in the Chats header', () => {
     client.start();
     await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
     const view = await home();
-    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.textContent).toContain(t.hostListLoadFailed);
+    expect(view.textContent).not.toContain(t.hostListUnavailable);
     expect(view.textContent).not.toContain(t.cloudChannels.empty);
     transport.restart();
     await act(async () =>
@@ -576,7 +577,30 @@ describe('Search in the Chats header', () => {
     await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'), {
       timeout: 200,
     });
-    expect(view.textContent).not.toContain(t.hostListUnavailable);
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+  });
+  it('uses refresh copy only when the failed Computer still has a loaded list', async () => {
+    const transport = new FakeHost();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: () => 5,
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    const view = await home();
+    const loadedRoster = client.getSnapshot().roster;
+    expect(loadedRoster?.bots.length).toBeGreaterThan(0);
+    await act(async () => {
+      transport.kill();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    });
+    expect(client.getSnapshot().roster).toEqual(loadedRoster);
+    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.textContent).toContain(loadedRoster!.bots[0]!.displayName);
   });
   it('shows cold skeleton, actionable failure, retry and empty through the cloud directory owner', async () => {
     const source = cloudFixture();

@@ -507,7 +507,11 @@ const HomeContent = memo(function HomeContent({
                       (environment.key === 'all' ||
                         environment.key === computerEnvironmentKey(saved.hostId)) ? (
                         <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                          <Text tone="muted">{t.hostListUnavailable}</Text>
+                          <Text tone="muted">
+                            {snapshot.roster === undefined
+                              ? t.hostListLoadFailed
+                              : t.hostListUnavailable}
+                          </Text>
                           <Button
                             testID="chat-list-retry"
                             label={t.retry}
