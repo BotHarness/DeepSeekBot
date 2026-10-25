@@ -78,6 +78,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
+import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
 import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
 import {
@@ -356,7 +357,20 @@ function ChatConversation({
     place.kind,
     (place.kind === 'dm' ? place.slug : place.channelId) ?? '',
   );
-  const [draft, setDraft] = useSourceDraft(draftKey);
+  const [draft, setDraft, draftPersistence] = useSourceDraft(draftKey);
+  const [retryingDraft, setRetryingDraft] = useState(false);
+  const draftRetryPending = useRef(false);
+  const retryDraft = async () => {
+    if (draftRetryPending.current) return;
+    draftRetryPending.current = true;
+    setRetryingDraft(true);
+    try {
+      await draftPersistence.retry();
+    } finally {
+      draftRetryPending.current = false;
+      setRetryingDraft(false);
+    }
+  };
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
@@ -626,6 +640,7 @@ function ChatConversation({
 
   const send = () => {
     if (host.connection.status !== 'connected') return;
+    if (!draftPersistence.loaded || draftPersistence.failed) return;
     const { body, tags } = submittedMessage(draft, mentions);
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
@@ -1004,7 +1019,12 @@ function ChatConversation({
                     ? t.messageBot(`#${channel.name}`)
                     : t.messagePlaceholder
               }
-              disabled={conversation === undefined || host.connection.status !== 'connected'}
+              disabled={
+                conversation === undefined ||
+                host.connection.status !== 'connected' ||
+                !draftPersistence.loaded ||
+                draftPersistence.failed
+              }
               files={files}
               canAttach={files.length < MAX_PICKED}
               dictation={dictation.state.status}
@@ -1015,24 +1035,27 @@ function ChatConversation({
                 setSelection(undefined);
                 setCaret(next);
               }}
-              {...(candidates.length > 0
-                ? { above: <MentionSuggestions candidates={candidates} onChoose={mention} /> }
-                : clipboard.offered
-                  ? {
-                      above: (
-                        <ClipboardImageOffer
-                          onUnreadable={clipboard.used}
-                          onPaste={(data) => {
-                            clipboard.used();
-                            setAttachError(false);
-                            setFiles((current) =>
-                              [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                            );
-                          }}
-                        />
-                      ),
-                    }
-                  : {})}
+              above={
+                <>
+                  {draftPersistence.failed ? (
+                    <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
+                  ) : null}
+                  {candidates.length > 0 ? (
+                    <MentionSuggestions candidates={candidates} onChoose={mention} />
+                  ) : clipboard.offered ? (
+                    <ClipboardImageOffer
+                      onUnreadable={clipboard.used}
+                      onPaste={(data) => {
+                        clipboard.used();
+                        setAttachError(false);
+                        setFiles((current) =>
+                          [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                        );
+                      }}
+                    />
+                  ) : null}
+                </>
+              }
               onSend={send}
               onPick={pick}
               onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
