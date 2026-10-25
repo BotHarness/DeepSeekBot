@@ -18,6 +18,7 @@ export function channelNavigationHarness() {
       'channel/[id]',
       'cloud-channels',
       'conversation-section',
+      'channel-files',
     ],
     routeParamList: {},
     routeGetIdList: {

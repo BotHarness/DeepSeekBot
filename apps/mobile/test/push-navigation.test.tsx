@@ -276,6 +276,32 @@ it('unwinds intervening routes when another notification targets an older Channe
   expect(state.routes[state.index]?.key).toBe(key);
 });
 
+it('repeats an explicit notification focus without replacing its retained Channel', async () => {
+  await mount();
+  const target = { ...notification(), messageId: 'original-message' };
+  await act(async () => {
+    fixture.tap?.(target);
+    await vi.runAllTimersAsync();
+  });
+  const original = state.routes[state.index]!;
+  const params = original.params;
+  const request = params && 'focusRequest' in params ? params.focusRequest : undefined;
+  expect(request).toEqual(expect.any(String));
+  navigation.dispatch({ type: 'PUSH', payload: { name: 'inbox/[id]', params: { id: 'next' } } });
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]).toEqual(original);
+  await act(async () => {
+    fixture.tap?.(target);
+    await vi.runAllTimersAsync();
+  });
+  expect(state.routes).toHaveLength(2);
+  expect(state.routes[state.index]).toMatchObject({
+    key: original.key,
+    params: { hostId: 'host-a', id: 'group-a', focus: 'original-message' },
+  });
+  expect(state.routes[state.index]?.params).not.toHaveProperty('focusRequest', request);
+});
+
 it('waits for cold source initialization and its Roster before opening', async () => {
   fixture.ready = false;
   delete fixture.snapshot.roster;

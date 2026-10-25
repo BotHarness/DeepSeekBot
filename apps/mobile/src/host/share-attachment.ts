@@ -12,7 +12,11 @@ function fileName(name: string): string {
   return safe === '' ? 'attachment' : safe;
 }
 
-export async function shareAttachment(attachment: MessageAttachment): Promise<void> {
+export async function shareAttachment(
+  attachment: MessageAttachment,
+  stillAvailable: () => boolean = () => true,
+): Promise<void> {
+  if (!stillAvailable()) throw new Error('attachment-unavailable');
   const source = attachment.source;
   if (source === undefined) throw new Error('attachment-unavailable');
   let uri = source.uri;
@@ -33,6 +37,7 @@ export async function shareAttachment(attachment: MessageAttachment): Promise<vo
       uri = file.uri;
     }
   }
+  if (!stillAvailable()) throw new Error('attachment-unavailable');
   await Sharing.shareAsync(uri, {
     dialogTitle: attachment.name,
     ...(attachment.mime === undefined ? {} : { mimeType: attachment.mime }),

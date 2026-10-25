@@ -6,7 +6,9 @@ import type { RosterView } from '../../host/client';
 import type { ChatHref } from '../../host/push';
 
 export type ChannelLink = { channelId?: string; botSlug: string; messageId?: string };
-export type ChannelDestination = ChatHref & { params: { hostId: string } };
+export type ChannelDestination = ChatHref & { params: { hostId: string; focusRequest?: string } };
+
+let focusSequence = 0;
 
 export function channelDestination(
   hostId: string,
@@ -79,12 +81,19 @@ export function navigateChannel(
   intent?: 'dismiss-profile',
 ): boolean {
   if (!navigation.isReady()) return false;
+  const params =
+    destination.params.focus === undefined
+      ? destination.params
+      : {
+          ...destination.params,
+          focusRequest: destination.params.focusRequest ?? `channel-focus-${++focusSequence}`,
+        };
   navigation.dispatch({
     type: 'NAVIGATE',
     target: navigation.getRootState().key,
     payload: {
       name: destination.pathname.slice(1),
-      params: destination.params,
+      params,
       pop: true,
       ...(intent === 'dismiss-profile' ? { dismissProfile: true } : {}),
     },

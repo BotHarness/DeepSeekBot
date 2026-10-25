@@ -13,6 +13,8 @@ let navigationHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 
+vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
+
 const state = vi.hoisted(() => ({
   history: [] as string[],
   hostId: 'computer_a',
@@ -99,7 +101,12 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
 }));
 vi.mock('../src/host/native-source-drafts', async () => {
   const { useState } = await import('react');
-  return { useSourceDraft: () => useState('') };
+  return {
+    useSourceDraft: () => [
+      ...useState(''),
+      { loaded: true, failed: false, retry: async () => true },
+    ],
+  };
 });
 vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => navigationHistory.navigation,

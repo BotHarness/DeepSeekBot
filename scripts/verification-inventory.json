@@ -824,6 +824,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
     },
     {
+      "id": "phone.channel-files",
+      "label": "Browse Channel history files, preview/share and return to the original message",
+      "source": "apps/mobile/src/ui/chat/channel-files-screen.tsx",
+      "task": 2819,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-files.md",
+      "gap": "Transport and native-share boundary tests do not qualify iOS/Android rendering, system-sheet delivery or Human acceptance; both platforms need queued native checks."
+    },
+    {
       "id": "phone.haptic-feedback",
       "label": "Immediate press feedback, semantic haptics and device-local feedback preference",
       "source": "apps/mobile/src/ui/haptics.ts",

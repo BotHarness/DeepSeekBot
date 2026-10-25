@@ -681,6 +681,7 @@ describe('DM conversation', () => {
     expect(live.messages[0]?.attachments).toEqual([
       {
         key: 'bot-1:0',
+        identity: 'file:00000000-0000-4000-8000-000000000001',
         kind: 'image',
         name: 'chart.png',
         mime: 'image/png',
@@ -693,6 +694,7 @@ describe('DM conversation', () => {
       },
       {
         key: 'bot-1:1',
+        identity: `sha256:${'a'.repeat(64)}`,
         kind: 'file',
         name: 'report.pdf',
         mime: 'application/pdf',
@@ -707,6 +709,7 @@ describe('DM conversation', () => {
     expect(live.messages[1]?.attachments).toEqual([
       {
         key: 'bridged-1:bridge:img-1',
+        identity: 'evt-9:bridge:img-1',
         kind: 'image',
         name: 'photo.jpg',
         source: {
