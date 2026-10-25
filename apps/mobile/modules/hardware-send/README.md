@@ -62,3 +62,15 @@ checks the test target and Debug testability before running XCTest. Do not edit
 the generated Podfile or guess a scheme name. Record the exact commit, generated
 scheme, destination and pass/fail results, including the ordinary-send control.
 A source or configuration check is not an iOS keyboard result.
+
+The `verify.yml` workflow also offers a manual `ios_hardware_send_tests` boolean
+input, disabled by default. Enable it on the exact branch head to use the standard
+`xcode-27` runner. The job checks the generated `HardwareSend-Unit-Tests` scheme,
+selects an installed iOS 27 phone simulator, runs the ordinary-send positive
+control, then runs the two cached-command regressions without rebuilding. It uses
+the independent CocoaPods test host and no signing/account credentials. Only
+synthetic test logs, result bundles and scheme/simulator metadata are retained for
+seven days; no app Profile, full DerivedData or Pods folder is uploaded. Until the
+job actually compiles and executes successfully, the test target remains
+unqualified. This cloud UIKit regression is separate from physical keyboard/IME
+and Human acceptance.

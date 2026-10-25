@@ -8,6 +8,12 @@ on:
   schedule:
     - cron: '0 18 * * *'
   workflow_dispatch:
+    inputs:
+      ios_hardware_send_tests:
+        description: Run iOS HardwareSend UIKit tests on a standard Mac runner
+        type: boolean
+        required: false
+        default: false
   workflow_call:
 
 concurrency:
@@ -140,6 +146,109 @@ jobs:
           EXPO_OFFLINE: '1'
       - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :conversation-notifications:compileDebugKotlin :local-computer-video:compileDebugKotlin :lan-channel:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
+  mobile-native-ios:
+    name: iOS HardwareSend UIKit tests (manual)
+    if: github.event_name == 'workflow_dispatch' && inputs.ios_hardware_send_tests
+    runs-on: xcode-27
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: '1'
+      EXPO_OFFLINE: '1'
+      EXPO_NO_TELEMETRY: '1'
+      BOTHARNESS_HARDWARE_SEND_IOS_TESTS: '1'
+      LANG: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
+      COCOAPODS_DISABLE_STATS: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate the opt-in test specification
+        working-directory: apps/mobile
+        run: node node_modules/expo/bin/cli prebuild --platform ios --no-install
+      - name: Install test host pods
+        working-directory: apps/mobile/ios
+        run: pod install --no-repo-update
+      - name: Check the test scheme and select an installed simulator
+        id: simulator
+        run: |
+          mkdir -p "$RUNNER_TEMP/hardware-send-ios"
+          xcodebuild -version
+          xcodebuild -list -json -workspace apps/mobile/ios/DeepSeekBotDev.xcworkspace > "$RUNNER_TEMP/hardware-send-ios/schemes.json"
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/available-simulators.json"
+          node <<'NODE'
+          const fs = require('node:fs');
+          const directory = `${process.env.RUNNER_TEMP}/hardware-send-ios`;
+          const schemes = JSON.parse(fs.readFileSync(`${directory}/schemes.json`, 'utf8'));
+          if (!schemes.workspace?.schemes?.includes('HardwareSend-Unit-Tests')) {
+            throw new Error('Missing HardwareSend-Unit-Tests scheme');
+          }
+          const devices = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/available-simulators.json`, 'utf8'));
+          const phones = Object.entries(devices.devices).flatMap(([runtime, entries]) =>
+            /\.iOS-27(?:-|$)/.test(runtime)
+              ? entries.filter((device) => device.isAvailable && device.name.startsWith('iPhone'))
+                .map((device) => ({ runtime, name: device.name, udid: device.udid }))
+              : []);
+          phones.sort((a, b) => a.name.localeCompare(b.name) || a.udid.localeCompare(b.udid));
+          if (!phones[0]) throw new Error('No installed and available iOS 27 phone simulator');
+          fs.writeFileSync(`${directory}/simulator.json`, JSON.stringify(phones[0], null, 2));
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `id=${phones[0].udid}\n`);
+          NODE
+      - name: Prove ordinary command delivery before composition regressions
+        env:
+          SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
+        run: |
+          xcodebuild test \
+            -workspace apps/mobile/ios/DeepSeekBotDev.xcworkspace \
+            -scheme HardwareSend-Unit-Tests -configuration Debug -sdk iphonesimulator \
+            -destination "id=$SIMULATOR_ID" -destination-timeout 120 \
+            -derivedDataPath "$RUNNER_TEMP/hardware-send-ios-derived" \
+            -resultBundlePath "$RUNNER_TEMP/hardware-send-ios/positive.xcresult" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -jobs 2 \
+            -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testOrdinaryCommandReturnSendsThroughTheResponderChain \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/hardware-send-ios/positive.log"
+      - name: Exercise marked text and stale command actions
+        env:
+          SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
+        run: |
+          xcodebuild test-without-building \
+            -workspace apps/mobile/ios/DeepSeekBotDev.xcworkspace \
+            -scheme HardwareSend-Unit-Tests -configuration Debug -sdk iphonesimulator \
+            -destination "id=$SIMULATOR_ID" -destination-timeout 120 \
+            -derivedDataPath "$RUNNER_TEMP/hardware-send-ios-derived" \
+            -resultBundlePath "$RUNNER_TEMP/hardware-send-ios/regressions.xcresult" \
+            -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
+            -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testCachedCommandDoesNotSendMarkedTextAndNextCommandStillWorks \
+            -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testCachedCommandCannotSendAfterFocusLeavesTheComposer \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/hardware-send-ios/regressions.log"
+      - name: Retain only synthetic HardwareSend test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hardware-send-ios-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/hardware-send-ios/positive.log
+            ${{ runner.temp }}/hardware-send-ios/regressions.log
+            ${{ runner.temp }}/hardware-send-ios/positive.xcresult
+            ${{ runner.temp }}/hardware-send-ios/regressions.xcresult
+            ${{ runner.temp }}/hardware-send-ios/schemes.json
+            ${{ runner.temp }}/hardware-send-ios/simulator.json
+          if-no-files-found: ignore
+          retention-days: 7
+
   test-full:
     name: test (shard ${{ matrix.shard }})
     needs: plan
@@ -227,18 +336,30 @@ jobs:
   verify:
     name: lint, format, typecheck, test, build, docs
     needs:
-      [plan, static, mobile-export, mobile-native, test-full, test-affected, docs-site, e2e-smoke]
+      [
+        plan,
+        static,
+        mobile-export,
+        mobile-native,
+        mobile-native-ios,
+        test-full,
+        test-affected,
+        docs-site,
+        e2e-smoke,
+      ]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
           NEEDS: ${{ toJSON(needs) }}
+          IOS_HARDWARE_SEND_TESTS: ${{ github.event_name == 'workflow_dispatch' && inputs.ios_hardware_send_tests }}
         run: |
           node <<'NODE'
           const needs = JSON.parse(process.env.NEEDS);
           const plan = needs.plan.outputs;
           const required = ['plan', 'static'];
+          if (process.env.IOS_HARDWARE_SEND_TESTS === 'true') required.push('mobile-native-ios');
           if (plan.mobile === 'true') required.push('mobile-export');
           if (plan['android-native'] === 'true') required.push('mobile-native');
           if (plan['docs-site'] === 'true') required.push('docs-site');
