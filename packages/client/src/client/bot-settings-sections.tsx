@@ -129,14 +129,6 @@ export function DevicesSection({ t }: PropsLocale<'botharness'>): ReactElement {
   );
 }
 
-export function ConnectSection({ t }: PropsLocale<'botharness'>): ReactElement {
-  return (
-    <Rows>
-      <PairedDevicesSettings t={t} section="connect" />
-    </Rows>
-  );
-}
-
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {
   return (
     <Rows>

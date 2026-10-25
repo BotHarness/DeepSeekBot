@@ -553,8 +553,8 @@ const en = {
   reconnecting: 'Reconnecting…',
   unreachable: 'Cannot reach your computer',
   connectionNetworkHelp: `Check this phone’s network, keep your computer awake with ${productName.en} open, then retry.`,
-  connectionTailscaleHelp: `Check that Tailscale is connected on both devices to the same network. Keep ${productName.en} open on your computer. If it still fails, check Tailscale in Settings → Devices on the computer, then retry.`,
-  connectionConnectHelp: `Check this phone’s internet connection. On your computer, keep ${productName.en} open and check that ${productName.en} Connect is signed in and connected in Settings → Devices, then retry.`,
+  connectionTailscaleHelp: `Check that Tailscale is connected on both devices to the same network. Keep ${productName.en} open on your computer. If it still fails, check Tailscale in Settings → Connections → Manage on the computer, then retry.`,
+  connectionConnectHelp: `Check this phone’s internet connection. On your computer, keep ${productName.en} open and check that ${productName.en} Connect is signed in and connected in Settings → Connections → Manage, then retry.`,
   refused: 'Your computer refused this app',
   deviceRefusal: {
     'device-revoked': 'This phone was removed from the paired devices on your computer.',
@@ -624,7 +624,7 @@ const en = {
   statisticsStorageError:
     'Could not save this choice. Statistics are paused on this launch. Please try again.',
   pairTitle: 'Pair with your computer',
-  pairHint: `On your computer, open ${productName.en} Settings → Devices → Pair a phone, then scan the code it shows.`,
+  pairHint: `On your computer, open ${productName.en} Settings → Connections → Add connection, then scan the code it shows.`,
   allowCamera: 'Allow the camera to scan',
   pairImage: {
     choose: 'Choose QR image',
@@ -638,7 +638,7 @@ const en = {
     title: 'Before you pair',
     steps: [
       `On your computer, install DeepSeek Harness (DSH) and the ${productName.en} plugin.`,
-      `On the same Wi-Fi, enable local access in the computer’s Settings → Devices. For remote access, use a ${productName.en} account or Tailscale.`,
+      `On the same Wi-Fi, choose Add connection → Connect a device to this Host → Local network in Settings → Connections. For remote access, use a ${productName.en} account or Tailscale.`,
       `Pair: pick the computer under your ${productName.en} account, or show the pairing code on the computer and scan it here.`,
     ],
     open: 'Open the setup guide',
@@ -680,7 +680,7 @@ const en = {
     deleteMessage:
       'Permanently delete your account and all its Connect links. All devices lose access through those links. This phone removes connections saved through this account; manual and older unassigned entries stay. Files, Bots and chats on your computers remain. This cannot be undone.',
     deleteConfirm: 'Delete account',
-    empty: `No computer is linked to this account yet. On your computer, open Settings → Devices → ${productName.en} Connect and sign in.`,
+    empty: `No computer is linked to this account yet. On your computer, open Settings → Connections → Manage → ${productName.en} Connect and sign in.`,
     offline: 'Offline',
     pair: 'Pair',
     drawerTitle: `On your ${productName.en} account`,
@@ -691,11 +691,11 @@ const en = {
     intro: `Your computer needs DeepSeek Harness (DSH) with the ${productName.en} plugin. Choose how this phone connects to it.`,
     account: `Sign in with a ${productName.en} account`,
     accountDetail: 'Pair the computers on your account. No Tailscale needed.',
-    accountComputer: `On your computer, open ${productName.en} Settings → Devices → ${productName.en} Connect and sign in to the same account.`,
+    accountComputer: `On your computer, open ${productName.en} Settings → Connections → Manage → ${productName.en} Connect and sign in to the same account.`,
     lan: 'Use the same Wi-Fi',
     lanDetail: 'Scan your computer’s code. No account needed.',
     lanHint:
-      'Join the same network. On your computer, open Settings → Devices, enable local access, then scan its pairing code. Approve this phone on the computer.',
+      'Join the same network. On your computer, open Settings → Connections → Manage, enable local access, then scan its pairing code. Approve this phone on the computer.',
     tailscale: 'Use Tailscale',
     tailscaleDetail: 'Scan the pairing code or paste a pairing link.',
     tailscaleHint:
@@ -707,7 +707,7 @@ const en = {
   pairRefused: {
     'lan-build-required': 'Update the phone app to use local access.',
     'lan-unreachable':
-      'Connect this phone to your computer’s Wi-Fi, allow Local Network access and enable local access in Settings → Devices on your computer, then retry.',
+      'Connect this phone to your computer’s Wi-Fi, allow Local Network access and enable local access in Settings → Connections → Manage on your computer, then retry.',
     'already-paired': 'This computer is already added.',
     'host-key-required': 'Pair again using a new code from your computer.',
     'host-key-confirmation-required': 'Compare the fingerprint on your computer before pairing.',
@@ -828,7 +828,7 @@ const en = {
   removeDevice: 'Remove it',
   deviceRemoved: 'The new device was removed. It can no longer use this computer.',
   deviceRemoveFailed:
-    'Could not reach your computer to remove the device. Remove it in Settings → Devices on the computer.',
+    'Could not reach your computer to remove the device. Remove it in Settings → Connections → Manage on the computer.',
   submit: 'Send answer',
   otherAnswer: 'Other answer',
   typeAnswer: 'Type your answer',
@@ -1486,7 +1486,7 @@ const en = {
   computerVideoBuildRequired: 'Install the updated app to watch live video.',
   computerVideoViewerLimit: 'This Computer is already being watched. Close the other viewer first.',
   computerVideoCarrierRequired:
-    'This connection cannot carry video yet. For local access, connect this phone to your computer’s Wi-Fi and enable local access in Settings → Devices on your computer.',
+    'This connection cannot carry video yet. For local access, connect this phone to your computer’s Wi-Fi and enable local access in Settings → Connections → Manage on your computer.',
   computerVideoConnectionIssue: (check: string) => `Cannot reach your computer. ${check}`,
   computerVideoInputUnknown:
     'The last action may have happened. Check the screen before trying again.',
@@ -2109,8 +2109,8 @@ const zh: typeof en = {
   reconnecting: '正在重新连接…',
   unreachable: '无法连接到你的电脑',
   connectionNetworkHelp: `请检查手机网络，并确认电脑未休眠且 ${productName.zh} 正在运行，然后重试。`,
-  connectionTailscaleHelp: `请确认手机和电脑的 Tailscale 已连接到同一网络，并保持电脑上的 ${productName.zh} 运行。仍连不上时，在电脑「设置 → 设备」检查 Tailscale，再点重试。`,
-  connectionConnectHelp: `请检查手机网络。在电脑上保持 ${productName.zh} 运行，并在「设置 → 设备」确认 ${productName.zh} Connect 已登录且连接正常，再点重试。`,
+  connectionTailscaleHelp: `请确认手机和电脑的 Tailscale 已连接到同一网络，并保持电脑上的 ${productName.zh} 运行。仍连不上时，在电脑「设置 → 连接 → 管理」检查 Tailscale，再点重试。`,
+  connectionConnectHelp: `请检查手机网络。在电脑上保持 ${productName.zh} 运行，并在「设置 → 连接 → 管理」确认 ${productName.zh} Connect 已登录且连接正常，再点重试。`,
   refused: '你的电脑拒绝了这个应用',
   deviceRefusal: {
     'device-revoked': '电脑已将这台手机从配对设备中移除。',
@@ -2179,7 +2179,7 @@ const zh: typeof en = {
     '用于改善配对、连接、首次聊天及 Bot 创建和导入。PostHog 只收到随机标识、应用版本、粗粒度设备信息和操作结果，不含聊天、文件、链接、密钥或电脑身份。关闭后会清除标识和未发送的事件。电脑端统计另有开关。',
   statisticsStorageError: '无法保存此选择，本次运行已暂停统计，请重试。',
   pairTitle: '与电脑配对',
-  pairHint: `在电脑上打开 ${productName.zh} 设置 → 设备 → 配对手机，然后扫描二维码。`,
+  pairHint: `在电脑上打开 ${productName.zh} 设置 → 连接 → 添加连接，然后扫描二维码。`,
   allowCamera: '允许使用相机扫码',
   pairImage: {
     choose: '从相册选择二维码',
@@ -2192,7 +2192,7 @@ const zh: typeof en = {
     title: '配对前的准备',
     steps: [
       `在电脑上安装 DSH（DeepSeek Harness）和 ${productName.zh} 插件。`,
-      `使用同一 Wi-Fi 时，在电脑的设置 → 设备中开启局域网连接。远程连接可选 ${productName.zh} 账号或 Tailscale。`,
+      `使用同一 Wi-Fi 时，在电脑的设置 → 连接中选择「添加连接 → 让设备连接本机 → 局域网」。远程连接可选 ${productName.zh} 账号或 Tailscale。`,
       `配对：在 ${productName.zh} 账号里选择这台电脑，或者在电脑上显示配对二维码，然后在这里扫码。`,
     ],
     open: '查看安装与配对教程',
@@ -2234,7 +2234,7 @@ const zh: typeof en = {
     deleteMessage:
       '永久删除账号及其全部 Connect 关联，所有设备将无法再通过这些关联访问电脑。此手机会移除归属该账号的连接；手动和未记录归属的旧记录会保留。电脑上的文件、Bot 和聊天不会删除。此操作无法撤销。',
     deleteConfirm: '删除账号',
-    empty: `这个账号还没有关联电脑。请在电脑上打开设置 → 设备 → ${productName.zh} Connect，登录账号。`,
+    empty: `这个账号还没有关联电脑。请在电脑上打开设置 → 连接 → 管理 → ${productName.zh} Connect，登录账号。`,
     offline: '离线',
     pair: '配对',
     drawerTitle: `${productName.zh} 账号里的电脑`,
@@ -2245,11 +2245,11 @@ const zh: typeof en = {
     intro: `电脑上需要装好 DSH（DeepSeek Harness）和 ${productName.zh} 插件。选择这台手机连接电脑的方式：`,
     account: `登录 ${productName.zh} 账号`,
     accountDetail: '直接配对账号下的电脑，不用 Tailscale。',
-    accountComputer: `在电脑上打开 ${productName.zh} 设置 → 设备 → ${productName.zh} Connect，登录同一个账号。`,
+    accountComputer: `在电脑上打开 ${productName.zh} 设置 → 连接 → 管理 → ${productName.zh} Connect，登录同一个账号。`,
     lan: '使用同一 Wi-Fi',
     lanDetail: '扫描电脑上的二维码，不需要账号。',
     lanHint:
-      '手机和电脑连到同一网络。在电脑的设置 → 设备中开启局域网连接，扫码后在电脑上批准这台手机。',
+      '手机和电脑连到同一网络。在电脑的设置 → 连接 → 管理中开启局域网连接，扫码后在电脑上批准这台手机。',
     tailscale: '使用 Tailscale',
     tailscaleDetail: '扫描配对二维码，或粘贴配对链接。',
     tailscaleHint: '在手机和电脑上都安装 Tailscale，并登录同一个 Tailscale 账号。',
@@ -2260,7 +2260,7 @@ const zh: typeof en = {
   pairRefused: {
     'lan-build-required': '请更新手机 App 后再使用局域网连接。',
     'lan-unreachable':
-      '请把手机连到电脑所在的 Wi-Fi，允许本地网络访问，并在电脑的「设置 → 设备」中开启局域网连接，然后重试。',
+      '请把手机连到电脑所在的 Wi-Fi，允许本地网络访问，并在电脑的「设置 → 连接 → 管理」中开启局域网连接，然后重试。',
     'already-paired': '这台电脑已添加。',
     'host-key-required': '请使用电脑上的新二维码重新配对。',
     'host-key-confirmation-required': '请先核对电脑上的指纹，再继续配对。',
@@ -2377,7 +2377,7 @@ const zh: typeof en = {
   reject: '拒绝',
   removeDevice: '移除',
   deviceRemoved: '已移除新设备，它不能再使用这台电脑。',
-  deviceRemoveFailed: '连不上你的电脑，没能移除。请在电脑上打开设置 → 设备移除它。',
+  deviceRemoveFailed: '连不上你的电脑，没能移除。请在电脑上打开设置 → 连接 → 管理移除它。',
   submit: '发送回答',
   otherAnswer: '其他回答',
   typeAnswer: '输入你的回答',
@@ -3013,7 +3013,7 @@ const zh: typeof en = {
   computerVideoBuildRequired: '请安装新版应用以观看实时视频。',
   computerVideoViewerLimit: '已有设备正在查看这台 Computer。请先关闭另一端。',
   computerVideoCarrierRequired:
-    '当前连接暂不支持视频。可把手机连到电脑所在的 Wi-Fi，并在电脑的「设置 → 设备」中开启局域网连接。',
+    '当前连接暂不支持视频。可把手机连到电脑所在的 Wi-Fi，并在电脑的「设置 → 连接 → 管理」中开启局域网连接。',
   computerVideoConnectionIssue: (check: string) => `无法连接电脑。${check}`,
   computerVideoInputUnknown: '上一次操作可能已执行。重试前请先查看画面。',
   computerVideoUnavailable: `视频不可用，请在电脑上打开 ${productName.zh} 并启动 Computer，再重新连接。若你已接管，Bot 会继续暂停。`,
