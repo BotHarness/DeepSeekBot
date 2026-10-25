@@ -113,13 +113,6 @@ export function BubbleBody({
   const ink = human ? 'onAccent' : 'fg';
   return (
     <View
-      {...(deliveryAccessibility && human && message.delivery === 'pending'
-        ? {
-            accessible: true,
-            accessibilityState: { busy: true },
-            accessibilityValue: { text: t.sending },
-          }
-        : {})}
       style={{
         ...bubbleShape(human, group),
         ...fill,
@@ -129,6 +122,14 @@ export function BubbleBody({
         opacity: mutedPending ? 0.7 : 1,
       }}
     >
+      {deliveryAccessibility && human && message.delivery === 'pending' ? (
+        <View
+          accessible
+          accessibilityLabel={t.sending}
+          accessibilityState={{ busy: true }}
+          style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
+        />
+      ) : null}
       <MessageBody message={message} streaming={streaming} />
       {message.attachments.length > 0 ? (
         <MessageAttachments

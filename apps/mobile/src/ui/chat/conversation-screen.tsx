@@ -1172,6 +1172,7 @@ function ChatConversation({
               <Pressable
                 testID="chat-connection-retry"
                 accessibilityRole="button"
+                accessibilityLabel={t.retry}
                 onPress={() => client?.retryNow()}
                 hitSlop={space.x3}
               >

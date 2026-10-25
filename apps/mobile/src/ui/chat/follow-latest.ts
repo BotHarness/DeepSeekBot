@@ -150,7 +150,14 @@ export function useFollowLatest<Row>(
     const check = (stable: number) => {
       confirmation.current = requestAnimationFrame(() => {
         confirmation.current = undefined;
-        if (settled.current || version !== sizes.current || !hasRows.current) return;
+        if (
+          settled.current ||
+          version !== sizes.current ||
+          version === 0 ||
+          metrics.current.content <= 0 ||
+          !hasRows.current
+        )
+          return;
         attempts.current += 1;
         const target = latestOffset(metrics.current, startInset.current);
         const fits =

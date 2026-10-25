@@ -34,6 +34,7 @@ vi.mock('react-native', async () => {
         native.presses.set(pressKey, props['onPress'] as () => void);
       const attributes: Record<string, string> = {};
       for (const key of [
+        'accessible',
         'accessibilityLabel',
         'accessibilityRole',
         'accessibilityHint',
@@ -190,12 +191,67 @@ describe('message states', () => {
       expect(html).not.toContain(`>${t.sending}<`);
       expect(html).toContain('data-accessibilitystate="{&quot;busy&quot;:true}"');
       expect(html).toContain(
-        `data-accessibilityvalue="{&quot;text&quot;:&quot;${t.sending}&quot;}"`,
+        body
+          ? `data-accessibilityvalue="{&quot;text&quot;:&quot;${t.sending}&quot;}"`
+          : `data-accessibilitylabel="${t.sending}"`,
       );
       expect(html).not.toContain(t.retrySend);
       expect(html).not.toContain('data-accessibilityrole="button"');
     },
   );
+
+  it('keeps pending attachment actions outside the sending accessibility group', () => {
+    const source = { uri: 'file:///local/chart.png', headers: {} };
+    const image = {
+      key: 'pending-image',
+      kind: 'image' as const,
+      name: 'chart.png',
+      source,
+      local: true,
+    };
+    const file = {
+      key: 'pending-file',
+      kind: 'file' as const,
+      name: 'report.pdf',
+      source,
+      local: true,
+    };
+    const open = vi.fn();
+    const share = vi.fn(async () => {});
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      act(() =>
+        root.render(
+          <MessageBubble
+            message={human({ body: '', delivery: 'pending', attachments: [image, file] })}
+            onOpenImage={open}
+            onShare={share}
+            onReact={() => {}}
+          />,
+        ),
+      );
+      const buttons = [
+        ...container.querySelectorAll<HTMLElement>(
+          '[data-accessibilityrole="imagebutton"], [data-accessibilityrole="button"]',
+        ),
+      ];
+      expect(buttons).toHaveLength(2);
+      for (const button of buttons) {
+        expect(button.parentElement?.closest('[data-accessible="true"]')).toBeNull();
+      }
+      const status = container.querySelector('[data-accessible="true"]');
+      expect(status?.getAttribute('data-accessibilitystate')).toBe('{"busy":true}');
+      expect(status?.getAttribute('data-accessibilitylabel')).toBe(t.sending);
+      expect(container.textContent).not.toContain(t.sending);
+      act(() => buttons[0]!.click());
+      act(() => buttons[1]!.click());
+      expect(open).toHaveBeenCalledWith(image);
+      expect(share).toHaveBeenCalledWith(file);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
 
   it('shows a delivered message as sent until its journal entry arrives', () => {
     expect(deliveryLabel(human({}))).toBe(t.sent);

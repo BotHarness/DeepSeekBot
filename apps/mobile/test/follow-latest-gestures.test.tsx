@@ -235,6 +235,26 @@ describe('following a growing conversation', () => {
     view.unmount();
   });
 
+  it.each([0, 100])(
+    'waits for measured content after an early viewport layout (inset %s)',
+    (start) => {
+      const view = mount([message('a', 'bot')], start);
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => view.current.listProps.onContentSizeChange(0, 0));
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      flushFrames();
+      expect(view.current.ready).toBe(false);
+      act(() => view.current.listProps.onScroll(event(0)));
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      view.unmount();
+    },
+  );
+
   it('does not expose history until the native list acknowledges the requested bottom', () => {
     const view = mount([message('a', 'bot')]);
     act(() => view.current.listProps.onLayout(layout(LAYOUT)));
