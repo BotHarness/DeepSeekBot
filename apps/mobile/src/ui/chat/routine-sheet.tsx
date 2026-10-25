@@ -24,7 +24,7 @@ import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { Chip } from '../primitives/chip';
 import { ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { RoutineTarget } from '../../host/routines';
 import { firingText, routineDetail, when } from './routine-text';
 import {
@@ -157,6 +157,7 @@ function RoutineEditor({
   preview: Loadable<string[]> | undefined;
   onChange(patch: Partial<RoutineForm>): void;
 }) {
+  const t = useStrings();
   const problem = routineProblem(form);
   return (
     <>
@@ -265,7 +266,6 @@ export function RoutineSheet({
   routines,
   onChanged,
   onClose,
-  onOpenFullClient,
 }: {
   page?: ComponentType<SheetPageProps> | undefined;
   initialMode?: 'detail' | 'edit';
@@ -275,8 +275,8 @@ export function RoutineSheet({
   routines: Routines;
   onChanged(): void;
   onClose(): void;
-  onOpenFullClient(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [routine, setRoutine] = useState<BotScheduleSummary | undefined>(
     target.kind === 'open' ? target.routine : undefined,
@@ -535,33 +535,36 @@ export function RoutineSheet({
           })}
         />
         <View style={{ height: space.x5 }} />
-        <SettingsGroupItem first last={false} on={SHEET_GROUP}>
-          <SettingsRow
-            title={t.routineEdit}
-            trailing={chevron}
-            on={SHEET_GROUP}
-            onPress={
-              busy !== undefined
-                ? undefined
-                : editable
-                  ? () => {
-                      if (onEdit !== undefined) {
-                        onEdit();
-                        return;
+        {editable ? (
+          <SettingsGroupItem first last={false} on={SHEET_GROUP}>
+            <SettingsRow
+              title={t.routineEdit}
+              accessibilityLabel={t.routineEdit}
+              trailing={chevron}
+              on={SHEET_GROUP}
+              onPress={
+                busy !== undefined
+                  ? undefined
+                  : editable
+                    ? () => {
+                        if (onEdit !== undefined) {
+                          onEdit();
+                          return;
+                        }
+                        const next = routineFormOf(routine)!;
+                        latest.current = next;
+                        setForm(next);
+                        setError(undefined);
+                        setNotice(undefined);
+                        setMode('edit');
+                        refreshPreview(next, 0);
                       }
-                      const next = routineFormOf(routine)!;
-                      latest.current = next;
-                      setForm(next);
-                      setError(undefined);
-                      setNotice(undefined);
-                      setMode('edit');
-                      refreshPreview(next, 0);
-                    }
-                  : onOpenFullClient
-            }
-          />
-        </SettingsGroupItem>
-        <SettingsGroupItem first={false} last on={SHEET_GROUP}>
+                    : undefined
+              }
+            />
+          </SettingsGroupItem>
+        ) : null}
+        <SettingsGroupItem first={!editable} last on={SHEET_GROUP}>
           <SettingsRow
             title={t.routineDelete}
             tone="danger"

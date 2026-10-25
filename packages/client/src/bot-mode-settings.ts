@@ -32,6 +32,8 @@ export const DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS = false;
 
 export const BOT_MODE_SEND_KEY_FIELD = 'sendKey';
 
+export const BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD = 'autoCollapseMessages';
+
 export const BOT_MODE_SORT_MODES = ['updated', 'manual'] as const;
 
 export const BOT_MODE_SEND_KEYS = ['enter', 'shift-enter', 'mod-enter'] as const;
@@ -83,6 +85,7 @@ export interface BotModeSettings {
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sendKey?: BotModeSendKey;
+  autoCollapseMessages?: boolean;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
 }

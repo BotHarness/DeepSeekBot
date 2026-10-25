@@ -3,20 +3,24 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
+import { setBotAvatar } from '../../../src/host/bot-avatar';
+import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { BotProfileSheet } from '../../../src/ui/chat/bot-profile';
 import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function BotProfileScreen() {
+  const t = useStrings();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const router = useRouter();
   const theme = useDesignTheme();
   const { client, saved } = useHostSession();
-  const roster = useHostSnapshot(client).roster;
+  const snapshot = useHostSnapshot(client);
+  const roster = snapshot.roster;
   const bot = roster?.bots.find((entry) => entry.slug === slug);
   const channels = useMemo(() => botChannels(roster, slug ?? ''), [roster, slug]);
   const profile = useMemo(
@@ -24,7 +28,7 @@ export default function BotProfileScreen() {
     [client, bot?.slug, bot?.dmChannelId],
   );
 
-  if (bot === undefined || profile === undefined)
+  if (bot === undefined || profile === undefined || client === undefined)
     return (
       <View
         style={{
@@ -44,6 +48,7 @@ export default function BotProfileScreen() {
       channels={channels}
       initialProfile={profile.peek()}
       load={profile.refresh}
+      avatar={{ pick: pickAvatarImage, save: (avatar) => setBotAvatar(client, bot, avatar) }}
       settings={client === undefined ? undefined : <BotSettingsPanel client={client} bot={bot} />}
       actions={{
         onOpenRoutine: (routine) =>
@@ -63,7 +68,9 @@ export default function BotProfileScreen() {
                 }),
             }
           : {}),
-        ...(bot.computerAccess
+        ...(snapshot.computerAvailable === true &&
+        snapshot.connection.status !== 'refused' &&
+        snapshot.connection.status !== 'stopped'
           ? {
               onComputer: () =>
                 router.push({

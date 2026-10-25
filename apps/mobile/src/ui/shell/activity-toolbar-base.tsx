@@ -1,12 +1,13 @@
 import { useImperativeHandle, useState, type Ref } from 'react';
 import { Stack } from 'expo-router';
-import { Keyboard, View } from 'react-native';
+import { Keyboard, Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { materialSearchHeight } from '../design/material-search';
+import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { HeaderAction } from './header-action';
 import { HeaderSearch } from './header-search';
 
@@ -33,6 +34,7 @@ export function ActivityToolbar({
   onFilter,
   onHeight,
 }: ActivityToolbarProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const [searching, setSearching] = useState(false);
@@ -63,11 +65,14 @@ export function ActivityToolbar({
         }}
       >
         <View
+          testID="activity-header"
           style={{
+            minHeight:
+              Platform.OS === 'android' ? materialSearchHeight(theme.fontScale) : undefined,
             flexDirection: 'row',
             alignItems: 'center',
             gap: space.x2,
-            paddingHorizontal: space.x4,
+            paddingHorizontal: tabHeader.gutter,
           }}
         >
           {!unavailable && searching ? (

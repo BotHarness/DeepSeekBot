@@ -19,7 +19,7 @@ export const APPEARANCE_COMMANDS = [
   },
   {
     command: 'appearance-clients',
-    description: 'list online Client targets for device-local DeepSeekBot appearance',
+    description: 'list online Client targets for device-local Tobs appearance',
   },
   {
     command: 'appearance-get',

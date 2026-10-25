@@ -26,9 +26,14 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   };
 });
 
-import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+import {
+  BotModePrefs,
+  botModePrefsFace,
+  type BotModePrefsSnapshot,
+} from '../src/client/bot-mode-prefs.js';
 import {
   AssignmentConcurrencyRow,
+  AutoCollapseMessagesSetting,
   BotIconCard,
   BotIconSetting,
   DeveloperModeSetting,
@@ -41,6 +46,24 @@ import { shortcutKeyLabel } from '../src/client/ds/kbd.js';
 import { zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
 
 const t = zhTranslate;
+
+it('offers an off-by-default folding switch that updates the shared message preference', () => {
+  const prefs = new BotModePrefs();
+  const markup = renderToStaticMarkup(
+    createElement(AutoCollapseMessagesSetting, {
+      ...botModePrefsFace(prefs),
+      t,
+      useBotModePrefs: (selector) => selector(prefs.source.getSnapshot()),
+    }),
+  );
+  expect(markup).toContain('自动折叠长消息');
+  const toggle = captured.switches.at(-1);
+  expect(toggle?.['checked']).toBe(false);
+  const change = toggle?.['onChange'];
+  if (typeof change !== 'function') throw new Error('folding switch has no change handler');
+  change(true);
+  expect(prefs.source.getSnapshot().autoCollapseMessages).toBe(true);
+});
 const mounted: Array<{ root: Root; container: HTMLDivElement }> = [];
 afterEach(() => {
   for (const { root, container } of mounted.splice(0)) {
@@ -67,6 +90,7 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     motionPreference: 'system',
     botIcon: 'mascot' as const,
     sendKey: 'enter' as const,
+    autoCollapseMessages: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
@@ -219,7 +243,7 @@ describe('Bot mode setting rows', () => {
     const setBotIcon = vi.fn();
     const card = BotIconCard({
       option: 'simple',
-      label: 'DeepSeekBot 简约',
+      label: 'Tobs 简约',
       selected: false,
       onSelect: setBotIcon,
     });

@@ -130,7 +130,7 @@ const sent = previous
         timer +
         ' and description "Group motion Human QA". No extra commands, files, Assignment or Subagent. After actual successful completion send ' +
         marker +
-        ' with channel_send to this Group, then end.',
+        ' with bot_send_message to this Group, then end.',
       mentions: [
         {
           botSlug: scene.owner.slug,

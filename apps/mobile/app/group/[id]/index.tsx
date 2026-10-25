@@ -4,15 +4,16 @@ import { View } from 'react-native';
 
 import { groupActions, groupInfo } from '../../../src/host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
-import { pickGroupAvatar } from '../../../src/host/pick-group-avatar';
+import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { SettingsRow, SettingsSection } from '../../../src/ui/primitives/settings-row';
 import { GroupInfoSheet } from '../../../src/ui/chat/group-info';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function GroupInfoScreen() {
+  const t = useStrings();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const theme = useDesignTheme();
@@ -62,7 +63,7 @@ export default function GroupInfoScreen() {
         ) : null
       }
       actions={actions}
-      pickAvatar={pickGroupAvatar}
+      pickAvatar={pickAvatarImage}
       onOpenBot={(slug) => router.push({ pathname: '/bot/[slug]', params: { slug } })}
       onDisbanded={() => router.dismissAll()}
     />

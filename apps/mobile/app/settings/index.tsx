@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 
-import { fullClientParams } from '../../src/host/full-client';
 import { hostSession, useHostSession, useHostSnapshot } from '../../src/host/host-session';
 import { loadUsage } from '../../src/host/usage';
 import { appBuildLabel } from '../../src/ui/app-build';
@@ -10,15 +9,17 @@ import { currentAppBuild } from '../../src/ui/native-app-build';
 import { StatisticsSettings } from '../../src/ui/shell/statistics-settings';
 import { MessageDisplaySettings } from '../../src/ui/shell/message-display-settings';
 import { ActivityCountLink } from '../../src/ui/shell/activity-count-settings';
+import { HapticFeedbackSetting } from '../../src/ui/shell/haptic-feedback-setting';
 import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow } from '../../src/ui/primitives/settings-row';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 import { SettingsView } from '../../src/ui/settings-view';
 import { openHostDrawer } from '../../src/ui/shell/host-drawer';
 import { noticeHostKept } from '../../src/ui/unpair-notice';
 
 export default function SettingsScreen() {
+  const t = useStrings();
   const router = useRouter();
   const { saved, client } = useHostSession();
   const { connection } = useHostSnapshot(client);
@@ -31,6 +32,7 @@ export default function SettingsScreen() {
       statistics={<StatisticsSettings />}
       messageDisplay={<MessageDisplaySettings />}
       activityCount={<ActivityCountLink />}
+      hapticFeedback={<HapticFeedbackSetting />}
       chatBackground={
         <SettingsRow
           on={SHEET_GROUP}
@@ -47,11 +49,6 @@ export default function SettingsScreen() {
       version={appBuildLabel(currentAppBuild())}
       actions={{
         onUsage: () => router.push('/settings/usage'),
-        onOpenFullClient: () =>
-          router.push({
-            pathname: '/full-client',
-            params: fullClientParams({ kind: 'home' }),
-          }),
         onComputers: () => {
           router.back();
           openHostDrawer();

@@ -130,6 +130,7 @@ export function createConnectAccount(options: {
   let status: AccountStatus = { state: 'signed-out' };
   let attempt = 0;
   let watch: ReturnType<typeof setInterval> | undefined;
+  let cached: string | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
@@ -228,13 +229,15 @@ export function createConnectAccount(options: {
     const access = reply.body['access_token'];
     const rotated = reply.body['refresh_token'];
     if (!reply.ok || typeof access !== 'string') {
-      if (reply.status >= 400 && reply.status < 500) throw new AccountError('session-expired');
+      if (reply.status >= 400 && reply.status < 500 && reply.status !== 408 && reply.status !== 429)
+        throw new AccountError('session-expired');
       throw new AccountError('relay-unavailable');
     }
     if (typeof rotated === 'string' && rotated !== current.refreshToken) {
       current.refreshToken = rotated;
       await save(current);
     }
+    cached = access;
     return access;
   };
 
@@ -263,7 +266,7 @@ export function createConnectAccount(options: {
 
   const link = async (current: AccountRecord, access: string): Promise<void> => {
     const reply = await relayCall('POST', '/v1/hosts', access, {
-      name: hostName().slice(0, 64) || 'DeepSeekBot',
+      name: hostName().slice(0, 64) || 'Tobs',
     });
     const id = (reply.body['host'] as { id?: unknown } | undefined)?.id;
     if (reply.status !== 201 || typeof id !== 'string') throw new AccountError('relay-unavailable');
@@ -282,6 +285,61 @@ export function createConnectAccount(options: {
     };
     record('account-error', `issue=${issue}`);
   };
+
+  const revoke = async (error: unknown, current?: AccountRecord): Promise<void> => {
+    fail(error, current);
+    if (!(error instanceof AccountError) || error.issue !== 'session-expired') return;
+    attempt += 1;
+    cached = undefined;
+    await connect.disable();
+    try {
+      await native().deleteRecord(key);
+    } catch {
+      record('revoke-failed');
+      return;
+    }
+    record('revoked');
+  };
+
+  const check = (): Promise<void> =>
+    serial(async () => {
+      if (status.state !== 'signed-in') return;
+      let current: AccountRecord | undefined;
+      let listed: unknown;
+      try {
+        current = await read();
+        if (current === undefined) {
+          await connect.disable();
+          status = { state: 'signed-out' };
+          return;
+        }
+        const stored = current;
+        const hosts = (token: string) => relayCall('GET', '/v1/hosts', token);
+        const fresh = async () => hosts(await refresh(stored));
+        const reply =
+          cached === undefined
+            ? await fresh()
+            : await hosts(cached).catch((error: unknown) => {
+                if (error instanceof AccountError && error.issue === 'session-expired')
+                  return fresh();
+                throw error;
+              });
+        listed = reply.body['hosts'];
+      } catch (error) {
+        if (error instanceof AccountError && error.issue === 'session-expired')
+          await revoke(error, current);
+        return;
+      }
+      const hostId = current.hostId;
+      if (
+        Array.isArray(listed) &&
+        hostId !== undefined &&
+        !listed.some((host) => (host as { id?: unknown } | null)?.id === hostId)
+      ) {
+        record('host-missing', `host=${hostId}`);
+        void sync();
+      }
+    });
 
   const sync = (): Promise<void> =>
     serial(async () => {
@@ -317,7 +375,7 @@ export function createConnectAccount(options: {
           ...(current.hostId ? { hostId: current.hostId } : {}),
         };
       } catch (error) {
-        fail(error, current);
+        await revoke(error, current);
       }
     });
 
@@ -389,6 +447,7 @@ export function createConnectAccount(options: {
         (status.state === 'error' && status.issue === 'relay-unavailable')
       )
         void sync();
+      else if (status.state === 'signed-in') void check();
     }, options.watchMs ?? WATCH_MS);
     watch.unref?.();
   };

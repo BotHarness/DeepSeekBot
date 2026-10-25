@@ -36,11 +36,19 @@ export const makeMutable = <T>(value: T) => ({ value });
 export const measure = () => null;
 export const useAnimatedRef = () => ({ current: null });
 export const useAnimatedStyle = (worklet: () => object) => worklet();
-export const useDerivedValue = <T>(worklet: () => T) => ({ value: worklet() });
+export const useDerivedValue = <T>(worklet: () => T) => ({ value: worklet(), get: worklet });
 export const useAnimatedReaction = () => {};
 export const useAnimatedScrollHandler = (handlers: unknown) => handlers;
 export const useScrollOffset = () => ({ value: 0 });
-export const useSharedValue = <T>(value: T) => ({ value });
+export const useSharedValue = <T>(value: T) => ({
+  value,
+  get() {
+    return this.value;
+  },
+  set(next: T) {
+    this.value = next;
+  },
+});
 export const FadeOut = transition;
 export const FadeIn = transition;
 export const withSpring = <T>(value: T) => value;

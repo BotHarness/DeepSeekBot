@@ -465,9 +465,9 @@ app.doc('/openapi.json', {
     title: 'BotHarness Campaign Links',
     version: '1.0.0',
     description:
-      'Campaign short links on go.botharness.ai (ADR-0132). GET /{slug} redirects to deepseekbot.botharness.ai with UTM parameters.',
+      'Campaign short links on go.tobs.app (ADR-0132). GET /{slug} redirects to tobs.app with UTM parameters.',
   },
-  servers: [{ url: 'https://go.botharness.ai' }],
+  servers: [{ url: 'https://go.tobs.app' }],
 });
 
 app.route('/admin', admin);
@@ -498,7 +498,7 @@ app.openapi(
     summary:
       'Redirect to the product site with utm_campaign, utm_source, utm_medium and utm_content; unknown or archived slugs go to the site root without UTMs',
     request: { params: SlugParam },
-    responses: { 302: { description: 'Redirect to deepseekbot.botharness.ai' } },
+    responses: { 302: { description: 'Redirect to tobs.app' } },
   }),
   async (c) => {
     const slug = c.req.valid('param').slug;

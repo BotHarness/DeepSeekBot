@@ -142,7 +142,7 @@ if (mode === '--serve') {
         message: event.data.message,
       }));
     assert.ok(
-      results.some((result) => result.call?.name === 'channel_send' && !result.message.isError),
+      results.some((result) => result.call?.name === 'bot_send_message' && !result.message.isError),
       'Committed DM reply required',
     );
     return { sessionId, results, fresh };
@@ -195,7 +195,7 @@ if (mode === '--serve') {
     const turn = await modelTurn(
       bot.slug,
       dm.id,
-      `本地功能验收。只调用 browser_open 打开 ${fixture}/page，再 browser_observe，最后 channel_send 回复页面标题。不要截图、上传或发布。`,
+      `本地功能验收。只调用 browser_open 打开 ${fixture}/page，再 browser_observe，最后 bot_send_message 回复页面标题。不要截图、上传或发布。`,
     );
     assert.equal(success(turn.results, 'browser_open').length, 1);
     assert.ok(
@@ -227,7 +227,7 @@ if (mode === '--serve') {
       const turn = await modelTurn(
         state.slug,
         state.channelId,
-        '我已授权本次本地截图上传验收：调用 browser_screenshot 截取当前无私密信息的测试页；使用返回的保存路径，browser_observe 后取 Attach screenshot 的 ref，调用 browser_upload 上传截图到这个本地页面。然后重新 observe，channel_send 回复附件名称。此步不要点击 Publish screenshot。',
+        '我已授权本次本地截图上传验收：调用 browser_screenshot 截取当前无私密信息的测试页；使用返回的保存路径，browser_observe 后取 Attach screenshot 的 ref，调用 browser_upload 上传截图到这个本地页面。然后重新 observe，bot_send_message 回复附件名称。此步不要点击 Publish screenshot。',
       );
       const shots = success(turn.results, 'browser_screenshot');
       const uploads = success(turn.results, 'browser_upload');
@@ -276,7 +276,7 @@ if (mode === '--serve') {
       const turn = await modelTurn(
         state.slug,
         state.channelId,
-        '我已授权向这个本地 disposable 测试页发布一次截图。browser_observe 后取 Publish screenshot 的新 ref，browser_click 点击一次。再次 observe 确认 Published: 1，channel_send 回复真实结果，不重复提交。',
+        '我已授权向这个本地 disposable 测试页发布一次截图。browser_observe 后取 Publish screenshot 的新 ref，browser_click 点击一次。再次 observe 确认 Published: 1，bot_send_message 回复真实结果，不重复提交。',
       );
       assert.equal(success(turn.results, 'browser_click').length, 1);
       assert.ok(

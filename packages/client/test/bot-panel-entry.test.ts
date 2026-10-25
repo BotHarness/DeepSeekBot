@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   return {
+    MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
     Button: stub,
     IconAgentPresetOutlineRegular: stub,
     IconChevronDownOutlineRegular: stub,
@@ -42,6 +43,7 @@ const useBotModePrefs = ((selector: (value: BotModePrefsSnapshot) => unknown) =>
     motionPreference: 'system',
     botIcon: 'mascot' as const,
     sendKey: 'enter' as const,
+    autoCollapseMessages: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,

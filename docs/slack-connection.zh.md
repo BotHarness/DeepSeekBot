@@ -153,7 +153,7 @@ _本节图片为旧版 Profile 布局；现在绑定位于右侧侧栏的「外�
 
 在已授权 Slack 频道里，从提及选择器选中实际应用，发送：
 
-> @你的应用 请通过 bridge_reply 在这个 Slack 话题只回复 SLACK-OK，不要发本地 DM。
+> @你的应用 请通过 bot_send_message 在这个 Slack 话题只回复 SLACK-OK，不要发本地 DM。
 
 打开 PersonaBot 侧边栏的 **Bot 收件箱**，或活动中心，找到新来源并打开详情。核对 Slack 频道、原始发送者、接收身份与正文。「已处理」表示 Bot 已处理此来源，还需要到 Slack 检查实际回复。
 

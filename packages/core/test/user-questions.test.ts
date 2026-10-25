@@ -1,3 +1,4 @@
+import { Context } from '@deepseek-ai/cordis';
 import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
@@ -5,7 +6,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 
 import { createChannelStore } from '../src/channels/store.js';
-import { ChannelUserQuestions, type TimedQuestionPort } from '../src/channels/user-questions.js';
+import {
+  ChannelUserQuestions,
+  registerChannelUserQuestions,
+  type TimedQuestionPort,
+} from '../src/channels/user-questions.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { createTempRoot, createTestOwnership } from './helpers.js';
 
@@ -612,4 +617,43 @@ describe('live question attention authority', () => {
     await closed;
     expect(state.states.snapshot('ada').attention).toBeUndefined();
   });
+});
+
+describe('Channel question routing before native Client answerers', () => {
+  it('commits and resolves an owned question before an earlier answerer can consume it', async () => {
+    const state = fixture();
+    const ctx = new Context();
+    const native = vi.fn(async () => ({ answers: [{ id: 'memory-branch', selected: ['main'] }] }));
+    ctx.on('user-questions/request', native, { global: true });
+    registerChannelUserQuestions(ctx, state.answerer);
+    const waiting = ctx.waterfall(
+      'user-questions/request',
+      { agent: state.agent, questions },
+      native,
+    );
+    await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
+    const request = state.channels.readMessages(channelId)[0]!;
+    const answer = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
+    expect(await state.answerer.answer('ada', request.id, answer)).toBe(true);
+    expect(await waiting).toEqual(answer);
+    expect(native).not.toHaveBeenCalled();
+  });
+
+  it.each(['unowned', 'not-live'] as const)(
+    'preserves native fallback for %s callers',
+    async (kind) => {
+      const state = fixture(kind === 'unowned' ? 'assignment' : 'orchestrator');
+      if (kind === 'not-live') state.setLive(false);
+      const ctx = new Context();
+      const expected = { answers: [{ id: 'memory-branch', selected: ['main'] }] };
+      const native = vi.fn(async () => expected);
+      ctx.on('user-questions/request', native, { global: true });
+      registerChannelUserQuestions(ctx, state.answerer);
+      expect(
+        await ctx.waterfall('user-questions/request', { agent: state.agent, questions }, native),
+      ).toEqual(expected);
+      expect(native).toHaveBeenCalledOnce();
+      expect(state.channels.readMessages(channelId)).toEqual([]);
+    },
+  );
 });

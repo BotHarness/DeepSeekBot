@@ -1,6 +1,6 @@
 import { TextField } from '../primitives/text-field';
 import { useState, type ReactNode } from 'react';
-import { FlatList, SectionList, View } from 'react-native';
+import { SectionList, View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -17,7 +17,7 @@ import {
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import {
   SettingsGroupItem,
@@ -27,9 +27,11 @@ import {
 } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon, PlusIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
-import { SHEET_GROUP, Sheet, SheetActions, SheetCallout, SheetNote } from './sheet';
+import { AvatarSettings, EditableAvatar, useAvatarEditor } from './avatar-editor';
+import { InviteSheet } from './invite-sheet';
+import { Sheet, SheetActions, SheetCallout } from './sheet';
 
 const MARK = 72;
 const ICON = 20;
@@ -123,6 +125,7 @@ function RenameSheet({
   onSave(name: string): Promise<boolean>;
   onClose(): void;
 }) {
+  const t = useStrings();
   const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
   const next = draft.trim();
@@ -174,47 +177,6 @@ function RenameSheet({
   );
 }
 
-function InviteSheet({
-  visible,
-  candidates,
-  onInvite,
-  onClose,
-}: {
-  visible: boolean;
-  candidates: RosterBot[];
-  onInvite(bot: RosterBot): void;
-  onClose(): void;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <Sheet visible={visible} label={t.groupInvite} title={t.groupInvite} onClose={onClose}>
-      {candidates.length === 0 ? (
-        <SheetNote>{t.groupInviteNone}</SheetNote>
-      ) : (
-        <FlatList
-          data={candidates}
-          keyExtractor={(bot) => bot.slug}
-          renderItem={({ item, index }) => (
-            <SettingsGroupItem
-              first={index === 0}
-              last={index === candidates.length - 1}
-              on={SHEET_GROUP}
-            >
-              <SettingsRow
-                title={item.displayName}
-                on={SHEET_GROUP}
-                leading={<MemberAvatar entry={{ slug: item.slug, bot: item }} />}
-                trailing={<PlusIcon color={theme.color.muted} size={ICON} />}
-                onPress={() => onInvite(item)}
-              />
-            </SettingsGroupItem>
-          )}
-        />
-      )}
-    </Sheet>
-  );
-}
-
 export function GroupInfoSheet({
   info,
   actions,
@@ -230,11 +192,13 @@ export function GroupInfoSheet({
   onDisbanded(): void;
   background?: ReactNode;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
+  const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
   const { channel } = info;
   const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
 
@@ -250,17 +214,6 @@ export function GroupInfoSheet({
     } finally {
       setBusy(undefined);
     }
-  };
-
-  const chooseAvatar = async () => {
-    let avatar: string | undefined;
-    try {
-      avatar = await pickAvatar();
-    } catch {
-      setError(t.groupAvatarFailed);
-      return;
-    }
-    if (avatar !== undefined) await run('avatar', () => actions.setAvatar(avatar));
   };
 
   const memberActions = (member: GroupMember): MenuAction[] => {
@@ -283,6 +236,7 @@ export function GroupInfoSheet({
       memberName(member),
       memberActions(member).map((action) => ({
         text: action.label,
+        icon: action.icon,
         onPress: action.run,
         ...(action.destructive === true ? { style: 'destructive' as const } : {}),
       })),
@@ -305,7 +259,9 @@ export function GroupInfoSheet({
   const header = (
     <View style={{ gap: space.x5, paddingBottom: space.x3, paddingHorizontal: space.x5 }}>
       <View style={{ alignItems: 'center', gap: space.x3 }}>
-        <GroupMark avatar={channel.avatar} size={MARK} corner={radius.lg} variant="display" />
+        <EditableAvatar editor={avatar} corner={radius.lg} testID="group-avatar-change">
+          <GroupMark avatar={channel.avatar} size={MARK} corner={radius.lg} variant="display" />
+        </EditableAvatar>
         <View style={{ alignItems: 'center', gap: space.x1 }}>
           <Text accessibilityRole="header" variant="display" numberOfLines={2}>
             {channel.name}
@@ -320,6 +276,12 @@ export function GroupInfoSheet({
           <SheetCallout tone="danger">{error}</SheetCallout>
         </View>
       )}
+      <AvatarSettings
+        editor={avatar}
+        hasAvatar={channel.avatar !== undefined}
+        portrait={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
+        testID="group-avatar-settings"
+      />
       {background}
       <SettingsSection title={t.groupSettingsSection}>
         <SettingsRow
@@ -332,26 +294,6 @@ export function GroupInfoSheet({
             setSheet('rename');
           }}
         />
-        <Divider />
-        <SettingsRow
-          title={t.groupAvatarChange}
-          leading={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
-          trailing={busy === 'avatar' ? undefined : chevron}
-          onPress={busy === 'avatar' ? undefined : () => void chooseAvatar()}
-        />
-        {channel.avatar === undefined ? null : (
-          <>
-            <Divider />
-            <SettingsRow
-              title={t.groupAvatarRemove}
-              onPress={
-                busy === 'avatar'
-                  ? undefined
-                  : () => void run('avatar', () => actions.setAvatar(null))
-              }
-            />
-          </>
-        )}
       </SettingsSection>
     </View>
   );
@@ -409,15 +351,14 @@ export function GroupInfoSheet({
           )}
         />
       </View>
-      <InviteSheet
-        visible={sheet === 'invite'}
-        candidates={info.candidates}
-        onClose={() => setSheet(undefined)}
-        onInvite={(bot) => {
-          setSheet(undefined);
-          void run(`add:${bot.slug}`, () => actions.invite(bot.slug));
-        }}
-      />
+      {sheet === 'invite' ? (
+        <InviteSheet
+          key={channel.id}
+          candidates={info.candidates}
+          onClose={() => setSheet(undefined)}
+          onInvite={(bot) => actions.invite(bot.slug)}
+        />
+      ) : null}
       <RenameSheet
         key={renameOpened}
         visible={sheet === 'rename'}
@@ -426,19 +367,6 @@ export function GroupInfoSheet({
         onClose={() => setSheet(undefined)}
       />
     </>
-  );
-}
-
-function Divider() {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        height: 0,
-        borderTopWidth: edge.hairline,
-        borderTopColor: theme.layer.raised.divider,
-      }}
-    />
   );
 }
 
@@ -461,6 +389,7 @@ function GroupRow({
   onCancelInvite(pending: GroupPending): void;
   onDecide(pending: GroupPending, accept: boolean): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'empty')
     return (

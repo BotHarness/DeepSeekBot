@@ -130,7 +130,7 @@ describe('Full Access approval composition', () => {
     expect(state.broker.validAfterDecision(state.execution().agent!, 'call-1')).toBe(false);
   });
 
-  it('keeps permission changes Human-only under Full Access and rejects remembered decisions', async () => {
+  it('offers saving permission approvals under Full Access without asking the model reviewer', async () => {
     const state = fixture({ fullAccess: () => true });
     state.broker.track(
       state.execution(
@@ -141,7 +141,7 @@ describe('Full Access approval composition', () => {
     const answer = state.ask('bash');
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     const request = state.messages[0]!;
-    expect(request.toolApprovalRequest?.allowAlways).toBe(false);
+    expect(request.toolApprovalRequest?.allowAlways).toBe(true);
     expect(state.review).not.toHaveBeenCalled();
     expect(await state.broker.decide(botSlug, request.id, 'allowed-always-tool')).toBe(false);
     expect(await state.broker.decide(botSlug, request.id, 'allowed-always-exact')).toBe(false);
@@ -445,15 +445,17 @@ describe('Approval Reviewer in the tool approval gate', () => {
     'deepseekbot grant-write-set ada grant --enabled true',
     '{"method":"grantRequestApprove"}',
   ])(
-    'never lets the reviewer or a saved rule answer a policy or Grant change: %s',
+    'asks the Human to opt in to policy or Grant approvals without using the model: %s',
     async (command) => {
-      const rules = { match: vi.fn(() => ({ id: 'rule' })) } as unknown as ToolApprovalRuleStore;
+      const match = vi.fn(() => undefined);
+      const rules = { match } as unknown as ToolApprovalRuleStore;
       const state = fixture({ rules });
       state.broker.track(state.execution({ command }, 'bash'));
       expect(state.broker.willPrompt(state.execution().agent!, 'call-1')).toBe(true);
       const answer = state.ask('bash');
       await vi.waitFor(() => expect(state.messages).toHaveLength(1));
       expect(state.review).not.toHaveBeenCalled();
+      expect(match).toHaveBeenCalledWith(expect.objectContaining({ explicitOnly: true }));
       expect(state.messages[0]!.toolApprovalRequest?.toolName).toBe('bash');
       await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected');
       expect(await answer).toBe('rejected');

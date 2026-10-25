@@ -36,7 +36,7 @@ const ONLINE = new Set(['healthy', 'degraded']);
 const RECLAIM_BATCH = 15;
 const VERIFIER_HASH = /^[A-Za-z0-9_-]{43}$/u;
 const OFFER_TIMEOUT_MS = 10_000;
-export const OFFER_PATH = '/botharness-device/connect/offer';
+export const OFFER_PATH = '/botharness-device/channel';
 export const SIGNATURE_HEADER = 'x-botharness-relay-signature';
 
 function base64Url(bytes: ArrayBuffer): string {
@@ -221,9 +221,7 @@ export function createRelay(options: RelayOptions) {
     let reply: Response;
     try {
       reply = await (options.fetchHost ?? fetch)(`https://${hostname(row.id)}${OFFER_PATH}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', [SIGNATURE_HEADER]: signature },
-        body: payload,
+        method: 'GET',
         signal: AbortSignal.timeout(OFFER_TIMEOUT_MS),
       });
     } catch {
@@ -231,19 +229,24 @@ export function createRelay(options: RelayOptions) {
     }
     if (reply.status >= 500) return failure(409, 'host-offline');
     const answer = (await reply.json().catch(() => undefined)) as
-      | { offer?: unknown; expiresAt?: unknown; host?: { id?: unknown; name?: unknown } }
+      | {
+          encryption?: { protocol?: unknown; publicKey?: unknown };
+          host?: { id?: unknown; name?: unknown };
+        }
       | undefined;
     if (
       reply.status !== 200 ||
-      typeof answer?.offer !== 'string' ||
-      typeof answer.expiresAt !== 'string' ||
+      answer?.encryption?.protocol !== 'connect-noise-xk-v1' ||
+      typeof answer.encryption.publicKey !== 'string' ||
+      !/^[0-9a-f]{64}$/u.test(answer.encryption.publicKey) ||
       typeof answer.host?.id !== 'string' ||
       typeof answer.host.name !== 'string'
     )
       return failure(502, 'host-refused');
     return json(200, {
-      offer: answer.offer,
-      expiresAt: answer.expiresAt,
+      enrollment: { body: payload, signature },
+      encryption: answer.encryption,
+      expiresAt: new Date(now().getTime() + 5 * 60 * 1000).toISOString(),
       hostname: hostname(row.id),
       host: { id: answer.host.id, name: answer.host.name },
     });

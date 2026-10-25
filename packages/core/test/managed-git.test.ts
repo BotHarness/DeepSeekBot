@@ -11,7 +11,7 @@ import {
 } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { probeGit, type GitAvailability } from '../src/memory/git-probe.js';
@@ -184,9 +184,13 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
   });
 
   it('gives up on a source that stops sending data and tries the next one', async () => {
+    const requested: string[] = [];
+    const aborted: string[] = [];
     const { dist, logs, options } = setup({
       stallTimeoutMs: 50,
       fetchImpl: (async (url: string, init?: RequestInit) => {
+        requested.push(url);
+        init?.signal?.addEventListener('abort', () => aborted.push(url));
         if (url.startsWith('https://mirror.test/')) {
           return new Promise<Response>((_resolve, reject) =>
             init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
@@ -196,12 +200,44 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
       }) as typeof fetch,
     });
     const git = createGitService(options);
-    git.install();
-    await git.settled();
-    expect(git.status()).toMatchObject({ available: true, source: 'managed' });
-    expect(logs).toContainEqual(
-      expect.stringMatching(/source=mirror\.test error=no data for 0\.05s/u),
-    );
+    const scheduleDeadline = setTimeout;
+    const cancelDeadline = clearTimeout;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      git.install();
+      await vi.advanceTimersByTimeAsync(49);
+      const beforeDeadline = { requested: [...requested], aborted: [...aborted] };
+      await vi.advanceTimersByTimeAsync(1);
+      const atDeadline = { requested: [...requested], aborted: [...aborted] };
+      await Promise.race([
+        git.settled(),
+        new Promise<never>((_resolve, reject) => {
+          deadline = scheduleDeadline(
+            () => reject(new Error('Managed Git fallback did not settle')),
+            2_000,
+          );
+        }),
+      ]);
+      expect(beforeDeadline).toEqual({ requested: [`https://mirror.test/${ASSET}`], aborted: [] });
+      expect(atDeadline).toEqual({
+        requested: [`https://mirror.test/${ASSET}`, `https://github.test/${ASSET}`],
+        aborted: [`https://mirror.test/${ASSET}`],
+      });
+      expect(requested).toEqual([`https://mirror.test/${ASSET}`, `https://github.test/${ASSET}`]);
+      expect(aborted).toEqual([`https://mirror.test/${ASSET}`]);
+      expect(git.status()).toMatchObject({ available: true, source: 'managed' });
+      expect(logs).toContainEqual(
+        expect.stringMatching(/source=mirror\.test error=no data for 0\.05s/u),
+      );
+      expect(logs).toContainEqual(
+        expect.stringMatching(/^git phase=downloaded source=github\.test /u),
+      );
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      cancelDeadline(deadline);
+      vi.useRealTimers();
+    }
   });
 
   it('reports a network failure naming every source when all downloads fail', async () => {

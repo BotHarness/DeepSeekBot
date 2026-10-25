@@ -1,7 +1,7 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
@@ -18,19 +18,24 @@ import { cloudConversations, useCloudConversations } from '../../../src/cloud/na
 import { cloudViewScope } from '../../../src/cloud/workspace-directory';
 import { cloudError } from '../../../src/cloud/client';
 import type { CloudConversation } from '../../../src/cloud/conversations';
-import { ConversationRow } from '../../../src/ui/chat/conversation-row';
+import { ManagedConversationRow } from '../../../src/ui/chat/managed-conversation-row';
+import { DeletionSheet } from '../../../src/ui/chat/deletion-sheet';
+import type { DeletionTarget } from '../../../src/host/deletion';
+import { ItemMenu } from '../../../src/ui/primitives/item-menu';
 import {
-  conversationActions,
-  conversationChannelId,
-  runConversationAction,
-} from '../../../src/ui/chat/conversation-actions';
-import { showAppDialog } from '../../../src/ui/primitives/app-dialog';
-import { conversations, searchKey, type Conversation } from '../../../src/ui/chat/conversations';
+  PINNED_SECTION,
+  chatList,
+  conversations,
+  searchKey,
+  type ChatListItem,
+  type Conversation,
+} from '../../../src/ui/chat/conversations';
+import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
+import { SectionHeader } from '../../../src/ui/chat/section-header';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { space } from '../../../src/ui/design/tokens';
-import { EnvironmentPager } from '../../../src/ui/shell/environment-pager';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -43,11 +48,9 @@ import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
-import { ConversationPeek, conversationPeek } from '../../../src/ui/shell/conversation-peek';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
-import { conversationHref, openConversation } from '../../../src/ui/shell/open-conversation';
-import { useChromeScroll, useScrollChrome } from '../../../src/ui/shell/scroll-chrome';
-import { t } from '../../../src/ui/strings';
+import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
+import { useStrings } from '../../../src/ui/strings';
 import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 
@@ -68,13 +71,28 @@ type Row =
       pinned: false;
       at?: string;
     };
+type ListRow =
+  | Row
+  | {
+      type: 'section';
+      key: string;
+      environment: string;
+      section: Extract<ChatListItem, { kind: 'section' }>;
+    };
 export default function HomeScreen() {
   const focused = useIsFocused();
   const { saved, client, inbox } = useHostSession();
   const snapshot = useHostSnapshot(client, focused);
   const list = useInbox(inbox, focused);
   return (
-    <HomeContent saved={saved} client={client} inbox={inbox} snapshot={snapshot} list={list} />
+    <HomeContent
+      key={saved?.hostId ?? 'unpaired'}
+      saved={saved}
+      client={client}
+      inbox={inbox}
+      snapshot={snapshot}
+      list={list}
+    />
   );
 }
 
@@ -91,6 +109,7 @@ const HomeContent = memo(function HomeContent({
   snapshot: ReturnType<typeof useHostSnapshot>;
   list: ReturnType<typeof useInbox>;
 }) {
+  const t = useStrings();
   const router = useRouter();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
@@ -112,8 +131,10 @@ const HomeContent = memo(function HomeContent({
   const [query, setQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
-  const onScroll = useChromeScroll(true, searchFocused || query !== '');
-  const chrome = useScrollChrome();
+  const onScroll = useChromeScroll(
+    true,
+    searchFocused || query !== '' || (Platform.OS === 'android' && searching),
+  );
   const bottom = useFloatingTabInset();
   const look = useHostLook(saved?.hostId);
   const cloud = useCloudSnapshot();
@@ -122,6 +143,9 @@ const HomeContent = memo(function HomeContent({
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string>();
+  const [deleting, setDeleting] = useState<{ hostId: string; target: DeletionTarget }>();
+  const [actionError, setActionError] = useState(false);
+  const [refreshFailedHost, setRefreshFailedHost] = useState<string>();
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
   const unpaired =
     !cloudAvailable &&
@@ -155,10 +179,12 @@ const HomeContent = memo(function HomeContent({
         directory.workspaces,
         t.allEnvironments,
       ),
-    [saved, look, cloud.rows, directory.workspaces],
+    [t, saved, look, cloud.rows, directory.workspaces],
   );
-  const effectiveFilter = filters.some((f) => f.key === filter) ? filter : 'all';
+  const environment = filters.find((item) => item.key === filter) ?? filters[0]!;
+  const effectiveFilter = environment.key;
   const quiet = useQuietChannels(saved?.hostId);
+  const collapsed = useCollapsedSections(saved?.hostId);
   useFocusEffect(
     useCallback(() => {
       if (saved) refreshQuietChannels(saved);
@@ -239,6 +265,31 @@ const HomeContent = memo(function HomeContent({
           a.key.localeCompare(b.key),
       );
   }, [snapshot.roster, list, directory.rows, saved, query, quiet]);
+  const displayed = useMemo((): ListRow[] => {
+    const visible = (row: { environment: string }) =>
+      effectiveFilter === 'all' || row.environment === effectiveFilter;
+    if (searchKey(query)) return rows.filter(visible);
+    const hostEnvironment = saved ? computerEnvironmentKey(saved.hostId) : '';
+    const hostRows = new Map(
+      rows.filter((row) => row.type === 'computer').map((row) => [row.conversation.key, row]),
+    );
+    const grouped: ListRow[] = saved
+      ? chatList(
+          snapshot.roster,
+          list.status === 'ready' ? list.sections.action : [],
+          collapsed,
+          list.status === 'ready' ? list.unread : {},
+          quiet,
+        ).flatMap((item): ListRow[] => {
+          const key = JSON.stringify(['computer', saved.hostId, item.key]);
+          if (item.kind === 'section')
+            return [{ type: 'section', key, environment: hostEnvironment, section: item }];
+          const row = hostRows.get(item.row.key);
+          return row ? [row] : [];
+        })
+      : [];
+    return [...grouped, ...rows.filter((row) => row.type === 'cloud')].filter(visible);
+  }, [rows, effectiveFilter, query, saved, snapshot.roster, list, collapsed, quiet]);
   if (saved === undefined || (!cloud.ready && !cloud.error))
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -275,9 +326,12 @@ const HomeContent = memo(function HomeContent({
     );
   const refresh = async () => {
     setRefreshing(true);
-    await Promise.all([client?.refresh(), inbox?.refresh(), cloudConversations.refresh()]).catch(
-      () => undefined,
-    );
+    const result = await Promise.allSettled([
+      client?.refresh(),
+      inbox?.refresh(),
+      cloudConversations.refresh(),
+    ]);
+    setRefreshFailedHost(result[0]?.status === 'rejected' ? saved?.hostId : undefined);
     setRefreshing(false);
   };
   const openCloud = async (target: CloudConversation) => {
@@ -317,11 +371,27 @@ const HomeContent = memo(function HomeContent({
       setOpening(false);
     }
   };
+  const renderHostConversation = (conversation: Conversation, pinned: boolean) => (
+    <ManagedConversationRow
+      row={conversation}
+      pinned={pinned}
+      look={look}
+      client={client}
+      inbox={inbox}
+      hostId={saved?.hostId}
+      arrangement={snapshot.roster?.arrangement}
+      onError={() => setActionError(true)}
+      onDelete={(target) => {
+        if (saved) setDeleting({ hostId: saved.hostId, target });
+      }}
+    />
+  );
   return (
     <>
-      <Stack.Screen options={{ title: t.allConversations, headerShown: false }} />
+      <Stack.Screen options={{ title: environment.title, headerShown: false }} />
       <HostDrawerEdge>
         <HomeHeader
+          environment={environment}
           search={
             searching ? (
               <HeaderSearch
@@ -347,122 +417,160 @@ const HomeContent = memo(function HomeContent({
                 testID="search-button"
                 onPress={() => setSearching(true)}
               />
-              <HeaderAction
-                icon="settings"
-                label={t.settings}
-                testID="settings-button"
-                onPress={() => router.push('/settings')}
-              />
+              {Platform.OS !== 'ios' && Platform.OS !== 'android' && (
+                <HeaderAction
+                  icon="settings"
+                  label={t.settings}
+                  testID="settings-button"
+                  onPress={() => router.push('/settings')}
+                />
+              )}
             </>
           }
         >
-          <EnvironmentPager
-            routes={filters}
-            selected={effectiveFilter}
-            onSelect={(key) => {
-              chrome.hidden.value = false;
-              setFilter(key);
-            }}
-            renderPage={(environment, active) => (
-              <PullToRefresh
-                refreshing={refreshing || directory.busy}
-                onRefresh={() => void refresh()}
-              >
-                {(pull) => (
-                  <Animated.FlatList<Row>
-                    {...pull}
-                    renderScrollComponent={renderKeyboardFormScroll}
-                    onScroll={active ? onScroll : undefined}
-                    scrollEventThrottle={1}
-                    contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                    data={rows.filter(
-                      (row) => environment.key === 'all' || row.environment === environment.key,
-                    )}
-                    keyExtractor={(r) => r.key}
-                    ListHeaderComponent={
-                      <>
-                        {saved &&
-                          (environment.key === 'all' ||
-                            environment.key === computerEnvironmentKey(saved.hostId)) && (
-                            <ConnectionBanner
-                              connection={snapshot.connection}
-                              onRetry={() => client?.retryNow()}
-                              onPairAgain={() => router.push('/pair')}
-                            />
-                          )}
-                        {(directory.errors.length > 0 || cloud.error || error) && (
-                          <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                            {t.cloudListUnavailable}
-                            {error ? ` (${error})` : ''}
-                          </Text>
-                        )}
-                      </>
-                    }
-                    ListEmptyComponent={
-                      directory.busy ||
-                      (saved &&
-                        (environment.key === 'all' ||
-                          environment.key === computerEnvironmentKey(saved.hostId)) &&
-                        !snapshot.roster &&
-                        snapshot.connection.status === 'connecting') ? (
-                        <View style={{ padding: space.x6, alignItems: 'center' }}>
-                          <LoadingIndicator />
-                        </View>
-                      ) : (
-                        <Text tone="muted" style={{ padding: space.x6 }}>
-                          {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
+          {(headerTravel) => (
+            <PullToRefresh
+              refreshing={refreshing || directory.busy}
+              onRefresh={() => void refresh()}
+            >
+              {(pull) => (
+                <Animated.FlatList<ListRow>
+                  {...pull}
+                  renderScrollComponent={renderKeyboardFormScroll}
+                  onScroll={onScroll}
+                  scrollEventThrottle={1}
+                  contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                  data={displayed}
+                  keyExtractor={(r) => r.key}
+                  ListHeaderComponent={
+                    <>
+                      {actionError ? (
+                        <Text accessibilityRole="alert" tone="danger">
+                          {t.rowActions.failed}
                         </Text>
-                      )
-                    }
-                    renderItem={({ item }) =>
-                      item.type === 'computer' ? (
-                        conversationPeek ? (
-                          <ConversationPeek
-                            href={conversationHref(item.conversation, saved?.hostId)}
-                          >
-                            <ConversationRow row={item.conversation} now={new Date()} look={look} />
-                          </ConversationPeek>
-                        ) : (
-                          <ConversationRow
-                            row={item.conversation}
-                            now={new Date()}
-                            look={look}
-                            onPress={() =>
-                              openConversation(router, item.conversation, saved?.hostId)
+                      ) : null}
+                      {saved &&
+                        (environment.key === 'all' ||
+                          environment.key === computerEnvironmentKey(saved.hostId)) && (
+                          <ConnectionBanner
+                            connection={snapshot.connection}
+                            onRetry={() => client?.retryNow()}
+                            onPairAgain={() => router.push('/pair')}
+                          />
+                        )}
+                      {saved &&
+                      refreshFailedHost === saved.hostId &&
+                      (environment.key === 'all' ||
+                        environment.key === computerEnvironmentKey(saved.hostId)) ? (
+                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                          <Text tone="muted">{t.hostListUnavailable}</Text>
+                          <Button
+                            testID="chat-list-retry"
+                            label={t.retry}
+                            on="canvas"
+                            onPress={() => void refresh()}
+                            disabled={refreshing}
+                          />
+                        </View>
+                      ) : null}
+                      {(directory.errors.length > 0 || cloud.error || error) && (
+                        <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
+                          {t.cloudListUnavailable}
+                          {error ? ` (${error})` : ''}
+                        </Text>
+                      )}
+                    </>
+                  }
+                  ListEmptyComponent={
+                    directory.busy ||
+                    (saved &&
+                      (environment.key === 'all' ||
+                        environment.key === computerEnvironmentKey(saved.hostId)) &&
+                      !snapshot.roster &&
+                      snapshot.connection.status === 'connecting') ? (
+                      <View style={{ padding: space.x6, alignItems: 'center' }}>
+                        <LoadingIndicator />
+                      </View>
+                    ) : (
+                      <Text tone="muted" style={{ padding: space.x6 }}>
+                        {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
+                      </Text>
+                    )
+                  }
+                  renderItem={({ item }) =>
+                    item.type === 'section' ? (
+                      <ItemMenu
+                        title={item.section.name ?? t.pinnedSection}
+                        actions={
+                          item.section.id === PINNED_SECTION || !saved || !client
+                            ? []
+                            : [
+                                {
+                                  key: 'delete-section',
+                                  glyph: 'delete',
+                                  label: t.deletion.deleteSection,
+                                  destructive: true,
+                                  run: () =>
+                                    setDeleting({
+                                      hostId: saved.hostId,
+                                      target: {
+                                        kind: 'section',
+                                        id: item.section.id,
+                                        name: item.section.name ?? '',
+                                      },
+                                    }),
+                                },
+                              ]
+                        }
+                      >
+                        {(open, nativeContextMenu) => (
+                          <SectionHeader
+                            {...item.section}
+                            testID={`chat-section-${item.section.id}`}
+                            name={item.section.name ?? t.pinnedSection}
+                            onLongPress={
+                              nativeContextMenu || item.section.id === PINNED_SECTION
+                                ? undefined
+                                : open
                             }
-                            actions={conversationActions(item.conversation, {
-                              pinned: item.pinned,
-                              hostMuted:
-                                snapshot.roster?.arrangement?.muted?.includes(
-                                  conversationChannelId(item.conversation) ?? '',
-                                ) === true,
-                            })}
-                            onAction={(key) => {
-                              if (client === undefined) return;
-                              runConversationAction(client, inbox, item.conversation, key).catch(
-                                () =>
-                                  showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-                              );
+                            onMenu={item.section.id === PINNED_SECTION ? undefined : open}
+                            onToggle={() => {
+                              if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
                             }}
                           />
-                        )
-                      ) : (
-                        <CloudConversationRow
-                          row={item.conversation}
-                          disabled={opening || cloud.busy || directory.busy}
-                          onPress={() => void openCloud(item.conversation)}
-                        />
-                      )
-                    }
-                  />
-                )}
-              </PullToRefresh>
-            )}
-          />
+                        )}
+                      </ItemMenu>
+                    ) : item.type === 'computer' ? (
+                      renderHostConversation(item.conversation, item.pinned)
+                    ) : (
+                      <CloudConversationRow
+                        row={item.conversation}
+                        disabled={opening || cloud.busy || directory.busy}
+                        onPress={() => void openCloud(item.conversation)}
+                      />
+                    )
+                  }
+                />
+              )}
+            </PullToRefresh>
+          )}
         </HomeHeader>
       </HostDrawerEdge>
+      {deleting && client && saved?.hostId === deleting.hostId ? (
+        <DeletionSheet
+          key={`${deleting.hostId}:${deleting.target.kind}:${deleting.target.id}`}
+          target={deleting.target}
+          client={client}
+          hostName={shownHostName(look, saved.hostName)}
+          onClose={() => setDeleting(undefined)}
+          onDeleted={() => {
+            setDeleting(undefined);
+            void inbox?.refresh();
+          }}
+        />
+      ) : null}
     </>
   );
 });

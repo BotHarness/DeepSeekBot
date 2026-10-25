@@ -4,7 +4,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { parse, parseDocument } from 'yaml';
 import semver from 'semver';
-import { productDsh, productImProvider } from './product-artifacts.mjs';
+import { productImProvider } from './product-artifacts.mjs';
 import { cloudflaredPackageNames } from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 
@@ -55,6 +55,7 @@ export function parseProductComposition(source) {
 }
 
 const PRODUCT_PACKAGES = new Set([
+  '@botharness/tobs',
   'deepseekbot',
   '@botharness/browser',
   '@botharness/computer',
@@ -80,7 +81,8 @@ export function verifiedProductArtifacts(directory) {
   const root = resolve(directory);
   const manifest = JSON.parse(readFileSync(join(root, 'artifacts.json'), 'utf8'));
   if (
-    manifest.dsh !== productDsh ||
+    typeof manifest.dsh !== 'string' ||
+    semver.valid(manifest.dsh) !== manifest.dsh ||
     !Number.isSafeInteger(manifest.providerRuntime?.runtimeFiles) ||
     manifest.providerRuntime.runtimeFiles < 1 ||
     !/^[a-f0-9]{64}$/.test(manifest.providerRuntime.runtimeSha256) ||
@@ -154,11 +156,13 @@ export function packagedProfileManifest(manifest, directory) {
   const retained = bundles.filter((bundle) => !ownedStandaloneBundles.has(bundle));
   const artifacts = verifiedProductArtifacts(directory);
   const product = artifacts.artifacts.find((artifact) => artifact.name === 'deepseekbot');
+  const tobs = artifacts.artifacts.find((artifact) => artifact.name === '@botharness/tobs');
   return {
     ...manifest,
     dependencies: {
       ...manifest.dependencies,
       deepseekbot: `file:${join(artifacts.directory, product.filename)}`,
+      '@botharness/tobs': `file:${join(artifacts.directory, tobs.filename)}`,
     },
     dsh: {
       ...manifest.dsh,
@@ -184,12 +188,15 @@ export function verifyPackagedProfile(profileDirectory, directory) {
   const expected = verifiedProductArtifacts(directory);
   const productManifestPath = join(profileDirectory, 'node_modules', 'deepseekbot', 'package.json');
   const dependencyRequire = createRequire(realpathSync(productManifestPath));
+  const profileRequire = createRequire(join(profileDirectory, 'package.json'));
   const installedPaths = new Map();
   for (const artifact of expected.artifacts) {
     const manifestPath =
       artifact.name === 'deepseekbot'
         ? productManifestPath
-        : dependencyRequire.resolve(`${artifact.name}/package.json`);
+        : artifact.name === '@botharness/tobs'
+          ? profileRequire.resolve('@botharness/tobs/package.json')
+          : dependencyRequire.resolve(`${artifact.name}/package.json`);
     installedPaths.set(artifact.name, dirname(manifestPath));
     const installed = JSON.parse(readFileSync(manifestPath, 'utf8'));
     if (installed.name !== artifact.name || installed.version !== artifact.version)

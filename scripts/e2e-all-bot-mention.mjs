@@ -139,7 +139,7 @@ try {
             await rpc('create', {
               displayName,
               persona:
-                'Follow explicit Human instructions. When asked in a group, reply once using channel_send in that group with your own name and ALL_BOTS_ACK. Do not create assignments or contact other Bots.',
+                'Follow explicit Human instructions. When asked in a group, reply once using bot_send_message in that group with your own name and ALL_BOTS_ACK. Do not create assignments or contact other Bots.',
             })
           ).bot,
         );
@@ -238,7 +238,7 @@ try {
         await theme(false);
         await click('[role=option]', '@所有 Bot仅当前群内的活跃 Bot2 个 Bot');
         await page.keyboard.type(
-          ' 请使用 channel_send 在这个群里回复一次：你的名字和 ALL_BOTS_ACK。不要创建 Assignment，不要给其他 Bot 发消息。',
+          ' 请使用 bot_send_message 在这个群里回复一次：你的名字和 ALL_BOTS_ACK。不要创建 Assignment，不要给其他 Bot 发消息。',
         );
         await page.waitForFunction(() =>
           document.querySelector('[data-all-bot-preview]')?.textContent?.includes('2'),

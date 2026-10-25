@@ -15,6 +15,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
 import {
   MarketplaceAvatar,
+  MarketplaceBanner,
   MarketplaceBotFlow,
   MarketplaceBrowseControls,
   MarketplaceDescription,
@@ -49,20 +50,23 @@ function MarketplaceTile({
     <div className="bh-market-tile" role="listitem" data-market-bot={bot.fullName}>
       <button
         type="button"
-        className="bh-market-open bh-market-tile-head"
+        className="bh-market-open bh-market-tile-open"
         aria-label={t('market.detail.open', { name: bot.fullName })}
         onClick={onOpen}
       >
-        <MarketplaceAvatar bot={bot} size={40} t={t} />
-        <span className="bh-market-copy">
-          <span className="bh-market-card-name">{marketplaceName(bot)}</span>
-          <span className="bh-market-owner">{bot.fullName}</span>
+        <MarketplaceBanner bot={bot} className="bh-market-tile-banner" />
+        <span className="bh-market-tile-head">
+          <MarketplaceAvatar bot={bot} size={40} t={t} />
+          <span className="bh-market-copy">
+            <span className="bh-market-card-name">{marketplaceName(bot)}</span>
+            <span className="bh-market-owner">{bot.fullName}</span>
+          </span>
         </span>
       </button>
       {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
       <div className="bh-market-tile-foot">
         <MarketplaceMeta bot={bot} t={t} topics={false} created={created} />
-        <Button size="sm" variant="outline" onClick={onImport}>
+        <Button size="sm" variant="primary" onClick={onImport}>
           {t('market.import')}
         </Button>
       </div>

@@ -6,7 +6,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
@@ -35,6 +35,7 @@ function StatusPill({ label }: { label: string }) {
 }
 
 function Details({ children }: { children: ReactNode }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
   return (

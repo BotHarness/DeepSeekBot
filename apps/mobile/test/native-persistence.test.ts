@@ -140,3 +140,25 @@ describe('native persistence across SDK upgrades', () => {
     expect(restarted.dmActivityPreferences.hidden('a', 'ada')).toEqual(['posts']);
   });
 });
+
+it('blocks native Host look writes after a failed read and recovers explicitly without changing the setter contract', async () => {
+  const path = 'documents/deepseekbot-host-looks.json';
+  disk.files.set(path, '{invalid');
+  const { hostLooks } = await import('../src/host/native-host-look');
+  await expect(hostLooks.ready).resolves.toBeUndefined();
+  expect(hostLooks.error()).toBe('host-look-storage-read-failed');
+  expect(() => hostLooks.set('b', { ...hostLooks.look('b'), name: 'Unsafe' })).not.toThrow();
+  expect(disk.files.get(path)).toBe('{invalid');
+  await expect(hostLooks.read('b')).rejects.toThrow('host-look-storage-read-failed');
+  disk.files.set(path, JSON.stringify({ a: { name: 'Preserved' } }));
+  await hostLooks.refresh();
+  expect(hostLooks.set('b', { ...hostLooks.look('b'), name: 'Recovered' })).toBeUndefined();
+  expect(snapshot(path).a.name).toBe('Preserved');
+  expect(snapshot(path).b.name).toBe('Recovered');
+  const known = hostLooks.look('b');
+  disk.files.set(path, '{broken again');
+  await expect(hostLooks.refresh()).rejects.toThrow('host-look-storage-read-failed');
+  expect(hostLooks.look('b')).toBe(known);
+  hostLooks.set('b', { ...known, name: 'Unsafe again' });
+  expect(disk.files.get(path)).toBe('{broken again');
+});

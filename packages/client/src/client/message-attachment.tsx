@@ -1,5 +1,6 @@
 import { useMemo, type ReactElement, type ReactNode } from 'react';
 import {
+  Button,
   FileTypeIcon,
   IconDownloadOutlineRegular,
   IconEllipsisOutlineRegular,
@@ -13,6 +14,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelAttachmentRef } from './store.js';
 import { MessageAudio } from './message-audio.js';
 import { galleryImageKey, SingleImageGallery, useImageGallery } from './message-image-gallery.js';
+import { useMessageResource } from './message-resource.js';
+import { useMessageHost } from './message-host.js';
 
 const INLINE_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
 
@@ -72,6 +75,7 @@ export function MessageAttachment({
     | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const commands = useMemo<HostFileCommands | undefined>(
     () =>
       actions === undefined
@@ -90,10 +94,22 @@ export function MessageAttachment({
   const menu = useHostFileMenu(commands, channelId, t);
   const gallery = useImageGallery();
   const id = ref.fileId;
-  const url =
-    channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined;
   const image = inlineImageAttachment(ref.mime);
+  const resource = useMessageResource(
+    channelId !== undefined ? channelAttachmentUrl(ref, { channelId, messageId }) : undefined,
+    image,
+  );
+  const { url } = resource;
   const audio = ref.mime.startsWith('audio/');
+  if (resource.failed)
+    return (
+      <div role="status">
+        {t('bridgeMedia.unavailable')}{' '}
+        <Button type="button" variant="toolbar" size="sm" onClick={resource.retry}>
+          {t('bridgeMedia.retry')}
+        </Button>
+      </div>
+    );
   if (audio && !compact) {
     return (
       <div
@@ -101,7 +117,14 @@ export function MessageAttachment({
         onContextMenu={id === undefined ? undefined : (event) => menu.open(id, event)}
         onKeyDown={id === undefined ? undefined : (event) => menu.onKey(id, event)}
       >
-        <MessageAudio name={ref.name} size={ref.size} url={url} t={t} />
+        <MessageAudio
+          name={ref.name}
+          size={ref.size}
+          url={url}
+          onPrepare={host === undefined ? undefined : resource.prepare}
+          onDownload={host === undefined ? undefined : () => void resource.download(ref.name)}
+          t={t}
+        />
         {menu.menu}
         {menu.feedback}
       </div>
@@ -121,24 +144,37 @@ export function MessageAttachment({
     </>
   );
   const downloadAction =
-    url === undefined ? null : (
+    url === undefined && host === undefined ? null : (
       <>
         <span className="bh-message-file-divider" aria-hidden="true" />
         <Tooltip label={t('fileAction.download')} side="bottom" delayMs={500}>
-          <a
-            className="bh-message-file-download"
-            href={url}
-            download={ref.name}
-            aria-label={`${t('fileAction.download')}: ${ref.name}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <IconDownloadOutlineRegular size={16} />
-          </a>
+          {host === undefined ? (
+            <a
+              className="bh-message-file-download"
+              href={url}
+              download={ref.name}
+              aria-label={`${t('fileAction.download')}: ${ref.name}`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <IconDownloadOutlineRegular size={16} />
+            </a>
+          ) : (
+            <Button
+              type="button"
+              variant="toolbar"
+              size="sm"
+              aria-label={`${t('fileAction.download')}: ${ref.name}`}
+              disabled={resource.loading}
+              onClick={() => void resource.download(ref.name)}
+            >
+              <IconDownloadOutlineRegular size={16} />
+            </Button>
+          )}
         </Tooltip>
       </>
     );
   const hostMenuButton =
-    id === undefined ? null : (
+    id === undefined || (host !== undefined && commands === undefined) ? null : (
       <Tooltip label={t('fileAction.menu')} side="bottom" delayMs={500}>
         <button
           type="button"
@@ -204,10 +240,14 @@ export function MessageAttachment({
         </div>
       ) : (
         <div className="bh-message-file">
-          {id === undefined ? (
-            <a className="bh-message-file-main" href={url} download={ref.name}>
-              {contents}
-            </a>
+          {id === undefined || (host !== undefined && commands === undefined) ? (
+            host === undefined ? (
+              <a className="bh-message-file-main" href={url} download={ref.name}>
+                {contents}
+              </a>
+            ) : (
+              <span className="bh-message-file-main">{contents}</span>
+            )
           ) : image && compact && url !== undefined ? (
             <SingleImageGallery t={t}>
               {(openAlone) => (

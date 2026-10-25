@@ -1,7 +1,10 @@
+import type { BotImportsService } from '../bots/imports.js';
 import { isAuthenticatedOwner } from './owner-compat.js';
 import type { CloudManagementInput, CloudManagementResult } from '../cloud/management.js';
 import type { ChannelManagementResult } from '../channels/management.js';
 import type { BotCreationReceipt } from '../bots/creation.js';
+import type { BotZipUploadStatus } from '../bots/zip-upload.js';
+import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
@@ -178,6 +181,8 @@ declare module '@deepseek-ai/dsh-typert-protocol/types' {
     'marketplace-unavailable': Record<string, never>;
   }
 }
+
+export { SECRET_ROUTE_METHODS, secretRouteRefusal } from './secret-route.js';
 
 const REMOTE_METHOD_DESCRIPTOR = '@deepseek-ai/dsh-typert-protocol/remote-methods';
 
@@ -808,15 +813,138 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  createLookup(
+    operationKey: string,
+    displayName: string,
+    roles?: string[],
+    persona?: string,
+    description?: string,
+    model?: string,
+    preset?: string,
+    workspaces?: string[],
+    avatar?: string,
+    memoryLocation?: string,
+    coreMemory?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return unwrap(
+      this.methods.createLookup({
+        displayName,
+        roles,
+        persona,
+        description,
+        model,
+        preset,
+        workspaces,
+        avatar,
+        memoryLocation,
+        coreMemory,
+        operationKey,
+      }),
+    );
+  }
+
+  async botImportPreview(
+    gitUrl: string,
+  ): Promise<Awaited<ReturnType<BotImportsService['previewGit']>>> {
+    return unwrapAsync(this.methods.botImportPreview({ gitUrl }));
+  }
+  botImportLookup(
+    operationKey: string,
+    gitUrl: string,
+    expectedCommit: string,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return unwrap(
+      this.methods.botImportLookup({
+        operationKey,
+        gitUrl,
+        expectedCommit,
+        displayName,
+        roles,
+        description,
+      }),
+    );
+  }
+  zipUploadBegin(uploadKey: string, sha256: string, sizeBytes: number): BotZipUploadStatus {
+    return unwrap(this.methods.zipUploadBegin({ uploadKey, sha256, sizeBytes }));
+  }
+
+  zipUploadChunk(
+    uploadKey: string,
+    sha256: string,
+    sizeBytes: number,
+    offset: number,
+    dataBase64: string,
+  ): BotZipUploadStatus {
+    return unwrap(
+      this.methods.zipUploadChunk({ uploadKey, sha256, sizeBytes, offset, dataBase64 }),
+    );
+  }
+
+  zipUploadPreview(uploadKey: string, sha256: string, sizeBytes: number): BotZipPreview {
+    return unwrap(this.methods.zipUploadPreview({ uploadKey, sha256, sizeBytes }));
+  }
+
+  zipImportLookup(
+    operationKey: string,
+    sha256: string,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): { receipt: BotCreationReceipt | null } {
+    return unwrap(
+      this.methods.zipImportLookup({ operationKey, sha256, displayName, roles, description }),
+    );
+  }
+
+  async zipImport(
+    operationKey: string,
+    uploadKey: string,
+    sha256: string,
+    sizeBytes: number,
+    displayName: string,
+    roles?: string[],
+    description?: string,
+  ): Promise<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }> {
+    return unwrapAsync(
+      this.methods.zipImport({
+        operationKey,
+        uploadKey,
+        sha256,
+        sizeBytes,
+        displayName,
+        roles,
+        description,
+      }),
+    );
+  }
+
   async createFromGit(
     displayName: string,
     gitUrl: string,
     roles?: string[],
     description?: string,
     origin?: 'marketplace',
-  ): Promise<{ bot: PersonaBotDetail; httpsFallback?: HttpsFallback }> {
+    operationKey?: string,
+    expectedCommit?: string,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    httpsFallback?: HttpsFallback;
+    receipt?: BotCreationReceipt;
+    channelId?: string;
+  }> {
     return unwrapAsync(
-      this.methods.createFromGit({ displayName, gitUrl, roles, description, origin }),
+      this.methods.createFromGit({
+        displayName,
+        gitUrl,
+        roles,
+        description,
+        origin,
+        operationKey,
+        expectedCommit,
+      }),
     );
   }
 
@@ -1380,6 +1508,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     unreadOnly?: boolean,
     queryVersion?: number,
     dismissed?: boolean,
+    notifications?: boolean,
   ): HumanAttentionPage {
     return unwrap(
       this.methods.humanAttention({
@@ -1395,6 +1524,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         unreadOnly,
         queryVersion,
         dismissed,
+        notifications,
       }),
     );
   }
@@ -1991,6 +2121,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'activitySnapshot',
   'get',
   'create',
+  'createLookup',
+  'zipUploadBegin',
+  'zipUploadChunk',
+  'zipUploadPreview',
+  'zipImportLookup',
+  'zipImport',
+  'botImportPreview',
+  'botImportLookup',
   'createFromGit',
   'update',
   'dataResetPreview',

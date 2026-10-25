@@ -269,7 +269,7 @@ export function BotSessionFolders({
     >
       <PanelHeader
         icon={<BotIcon icon={icon} size={16} />}
-        label="DeepSeekBot"
+        label="Tobs"
         badge={<span {...stylex.props(styles.count)}>{shown.length}</span>}
         disclosure={{
           expanded: rootExpanded,

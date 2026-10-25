@@ -6,6 +6,12 @@ import type { MemoryPreviewIO } from './memory-preview';
 
 export const nativeMemoryPreview: MemoryPreviewIO = {
   async fetch(source, signal) {
+    if (source.read) {
+      const result = await source.read(signal);
+      return new Response(Uint8Array.from(result.bytes), {
+        headers: { 'content-type': result.mime },
+      });
+    }
     return fetch(source.uri, {
       headers: source.headers,
       signal,

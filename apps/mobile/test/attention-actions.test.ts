@@ -1,7 +1,17 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { interfacePreferences } from '../src/ui/interface-preferences';
+
+beforeEach(() => interfacePreferences.setLanguage('en'));
+afterEach(() => interfacePreferences.setLanguage('system'));
+
+const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }));
+vi.mock('expo-router', () => ({ useRouter: () => ({ push: navigate }) }));
+vi.mock('../src/host/host-session', () => ({
+  useHostSession: () => ({ saved: { hostId: 'host-qa' } }),
+}));
 
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
@@ -337,25 +347,23 @@ describe('Phone actions for Inbox items', () => {
     expect(page.textContent).toContain('fallback');
   });
 
-  it('opens the private input form on this phone and collapses once it is handled', async () => {
-    const fill = vi.fn();
+  it('opens the native private-input route for the current Host and collapses once handled', async () => {
     const page = await render(
       createElement(PrivateInputCard, {
         botName: 'Ada',
         purpose: 'Read the private repository',
-        onFill: fill,
+        target: { channelId: 'dm-ada', messageId: 'private-1', botSlug: 'ada' },
       }),
     );
     expect(page.textContent).toContain(t.privateInputTitle('Ada'));
     expect(page.textContent).toContain('Read the private repository');
-    expect(page.textContent).toContain(t.privateInputNote);
-    await press(button(page, t.privateInputFill));
-    expect(fill).toHaveBeenCalledOnce();
-    act(() =>
-      root!.render(
-        createElement(PrivateInputCard, { botName: 'Ada', resolved: true, onFill: fill }),
-      ),
-    );
+    expect(page.textContent).toContain(t.privateInputSecureNote);
+    act(() => page.querySelector<HTMLButtonElement>('[data-testid=private-input-open]')!.click());
+    expect(navigate).toHaveBeenCalledWith({
+      pathname: '/private-input',
+      params: { hostId: 'host-qa', channelId: 'dm-ada', messageId: 'private-1', botSlug: 'ada' },
+    });
+    act(() => root!.render(createElement(PrivateInputCard, { botName: 'Ada', resolved: true })));
     expect(line(page)).toBe(t.cardLine(t.kind['private-input']!, t.privateInputDone));
   });
 });

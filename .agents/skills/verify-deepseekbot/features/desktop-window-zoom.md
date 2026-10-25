@@ -11,16 +11,12 @@
 In the isolated desktop, enter Bot mode → Bot Settings → General → Window zoom.
 Set a default, press ordinary Cmd+= once, and press Cmd+0 to reset to the saved default. The sidebar,
 settings modal and content must change together while manual font sizes remain unchanged.
-Ordinary product install carries the pinned adapter but does not enable it. Use the explicit
-`deepseekbot-zoom-setup enable --home <home> --profile desktop --desktop-app <app>`
-command with the isolated Desktop fully closed, then reopen the same Desktop. The macOS path and Windows
-candidate accept app 0.2.1-rc.2, retaining the root `ui-theme` settings namespace and exactly one native theme
-module id. A Profile-local package link points to the portable licensed product payload;
-there is no task-only theme dependency or installed-app modification. The actual Client boot
-release also gates the font-key lease. Disable before uninstall or switching outside the
-qualified Desktop/Host/Client tuple. Unknown versions are not qualified by this runtime guard.
-Ordinary browsers retain browser-native zoom. Package tests and native activation are
-separate checks; verify the actual theme id and source in `__DSH_BOOT__` after restart.
+New product Bundles activate the carried theme without a separate setup command. The same
+`ui-theme` identity preserves native appearance and font settings. Legacy manually enabled
+Profiles must remove their old link with `deepseekbot-zoom-setup disable` before uninstalling
+its target product. Restart Desktop after changing Bundle composition. Admission uses the
+adapter protocol, platform and payload integrity, not an exact release label. Native platform
+qualification remains separate. Ordinary Web keeps browser-native zoom.
 
 ## Driving it with verify-app
 
@@ -94,7 +90,8 @@ compatibility and platform matrices remain separate S2/S3 gates.
 
 ## Product activation and native Settings identity
 
-Ordinary Bundle install alone does not activate zoom. In the explicit isolated Profile,
+Legacy manual-link qualification only: new Bundles activate zoom without setup. For a Profile
+that was manually enabled before default activation, use an explicit isolated Profile and
 run `deepseekbot-zoom-setup enable --home <home> --profile desktop --desktop-app <app>`
 with the target Desktop fully closed, then reopen it. Keep the root `ui-theme` namespace and one native theme
 module id. Read pre-existing fonts, edit them through native Settings, restart and read back.
@@ -102,8 +99,8 @@ Run `disable` before product removal, restart and verify original theme bytes an
 font preferences. The package command reports configuration only, not runtime acceptance.
 Never replace this check with a standalone Node hook test or rename the settings namespace.
 
-The copied Client exposes its zoom lease only when the actual `__DSH_BOOT__.release.version`
-is 0.2.1-rc.2. Unknown/missing releases retain the font-key scope and expose no zoom capability.
+The copied Client admits its zoom lease through matching platform and adapter protocol checks.
+The release label is diagnostic information, not an exact-version admission gate.
 This runtime guard does not remove an already installed Profile package override or qualify
 that copied theme on another Host. Disable the override before switching outside the verified
 Desktop/Host/Client tuple; re-enable only after qualifying the new combination.
@@ -186,3 +183,7 @@ adapter and must fail the coordinate regression. Source fixtures are separate fr
 native pixels and never qualify guest painting. The adapter is owned by the qualified zoom
 lease and restores its styles/listeners on disposal; ordinary browsers and unknown Desktop
 versions do not acquire it.
+
+## Default packaged activation (#2775)
+
+Install the ordinary candidate Bundle and restart native Desktop without running zoom-setup. Check exactly one ui-theme Fiber, preserved appearance and custom font sizes, one change per shortcut, saved default/reset, and unchanged Web behavior. Remove the candidate Bundle and confirm upstream theme restoration. Separately verify an existing manually enabled Profile; retain its old link until explicit cleanup before uninstall. Record Windows/macOS independently; source tests do not qualify native input.

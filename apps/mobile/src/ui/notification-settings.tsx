@@ -9,6 +9,7 @@ import {
   type PushSettings,
 } from '../host/push';
 import type { PushStatus } from '../host/push-session';
+import type { DevicePreferenceSnapshot } from '../host/device-notification-preferences';
 import { space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
@@ -16,11 +17,11 @@ import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
 import { Toggle } from './primitives/toggle';
 import { ActionButton, Loading, Notice, errorText } from './request-parts';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 
 export interface NotificationSettingsPort {
   load(): Promise<PushSettings>;
-  set(preferences: Partial<PushPreferences>): Promise<PushSettings>;
+  set(preferences: Partial<PushPreferences>): Promise<PushSettings | void>;
   setEnabled(enabled: boolean): Promise<PushSettings>;
   test(): Promise<void>;
 }
@@ -58,15 +59,18 @@ export function NotificationSettings({
   status,
   hostName,
   port,
+  preference,
   onEnable,
   onOpenSettings,
 }: {
   status: PushStatus;
   hostName: string;
   port: NotificationSettingsPort;
+  preference?: DevicePreferenceSnapshot;
   onEnable(): void;
   onOpenSettings(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [settings, setSettings] = useState<PushSettings | undefined>();
   const [error, setError] = useState<string | undefined>();
@@ -80,16 +84,25 @@ export function NotificationSettings({
     port.load().then(setSettings, (reason: unknown) => setError(failure(reason)));
   }, [port]);
   const mount = useMounted<ScrollViewInstance>(() => {
-    if (on) load();
+    load();
   }, [on, load]);
 
   const toggle = (kind: PushKind, value: boolean) => {
-    if (settings === undefined) return;
+    if (settings === undefined && preference?.preferences === undefined) return;
+    if (settings === undefined) {
+      void port.set({ [kind]: value }).catch((reason: unknown) => setError(failure(reason)));
+      return;
+    }
     setSettings({ ...settings, preferences: { ...settings.preferences, [kind]: value } });
-    port.set({ [kind]: value }).then(setSettings, (reason: unknown) => {
-      setError(failure(reason));
-      load();
-    });
+    port.set({ [kind]: value }).then(
+      (next) => {
+        if (next !== undefined) setSettings(next);
+      },
+      (reason: unknown) => {
+        setError(failure(reason));
+        load();
+      },
+    );
   };
 
   const allow = (enabled: boolean) => {
@@ -148,6 +161,9 @@ export function NotificationSettings({
         </Notice>
       ) : null}
       {error !== undefined ? <Notice tone="danger">{error}</Notice> : null}
+      {preference?.failed.length ? (
+        <Notice tone="warning">{t.notificationPreferencePending}</Notice>
+      ) : null}
       {on && settings === undefined && error === undefined ? <Loading /> : null}
       {on && settings !== undefined ? (
         <SettingsSection
@@ -168,7 +184,7 @@ export function NotificationSettings({
           />
         </SettingsSection>
       ) : null}
-      {on && settings?.enabled === true ? (
+      {preference?.preferences !== undefined || (on && settings?.enabled === true) ? (
         <View style={{ gap: space.x3 }}>
           <Text accessibilityRole="header" variant="meta" tone="muted" strong>
             {t.notifyAbout}
@@ -182,9 +198,9 @@ export function NotificationSettings({
                 trailing={
                   <PushSwitch
                     label={t.pushKind[kind]}
-                    value={settings.preferences[kind]}
+                    value={(preference?.preferences ?? settings!.preferences)[kind]}
                     onChange={(value) => toggle(kind, value)}
-                    disabled={!settings.registered}
+                    disabled={preference?.preferences === undefined && !settings?.registered}
                   />
                 }
               />
@@ -196,7 +212,7 @@ export function NotificationSettings({
               tone="secondary"
               onPress={sendTest}
               busy={test?.state === 'sending'}
-              disabled={!settings.registered}
+              disabled={!on || !settings?.registered}
             />
           </View>
           {test?.state === 'sent' ? <Notice tone="success">{t.testSent}</Notice> : null}

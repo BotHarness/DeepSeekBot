@@ -1,3 +1,4 @@
+import { fetchMessageResource, type MessageHost } from './message-host.js';
 import { subscribeMessagingDefaults } from './messaging-defaults-live.js';
 import { boundedBridgeMediaRequest } from './bridge-media-request.js';
 
@@ -12,6 +13,7 @@ export function createBridgeImageResource(
   channelId: string,
   sourceEventId: string,
   attachmentId: string,
+  host?: MessageHost,
 ) {
   let state = EMPTY;
   let element: HTMLDivElement | null = null;
@@ -39,10 +41,11 @@ export function createBridgeImageResource(
       if (!request.signal.aborted) update({ failure: value });
     };
     void boundedBridgeMediaRequest(request.signal, async () => {
-      const response = await fetch(
-        './api/botharness/attachment?' +
+      const response = await fetchMessageResource(
+        '/api/botharness/attachment?' +
           new URLSearchParams({ channelId, sourceEventId, attachmentId }),
-        { signal: request.signal },
+        request.signal,
+        host,
       );
       request.signal.throwIfAborted();
       if (!response.ok) {
@@ -120,7 +123,7 @@ export function createBridgeImageResource(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (listeners.size === 1) {
-        stopLive = subscribeMessagingDefaults(reload);
+        stopLive = host === undefined ? subscribeMessagingDefaults(reload) : undefined;
         observe();
       }
       return () => {

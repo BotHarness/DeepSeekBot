@@ -1,4 +1,6 @@
+import type { EncryptionIdentity } from './noise-identity.js';
 import { encode } from 'uqr';
+import type { DeviceLan, LanStatus } from './lan.js';
 
 import type { AccountStatus, ConnectAccount } from './connect-account.js';
 import type { ConnectStatus, DeviceConnect } from './connect.js';
@@ -20,7 +22,8 @@ const headers = {
 };
 
 export interface PairingPayload {
-  v: 1;
+  v: 1 | 2;
+  encryption?: EncryptionIdentity & { loopback?: 'encrypted' };
   host: HostIdentity;
   offer: string;
   routes: string[];
@@ -28,16 +31,22 @@ export interface PairingPayload {
 }
 
 export interface DevicesSnapshot {
+  lan?: LanStatus;
   host: HostIdentity;
   devices: PairedDevice[];
+  pendingKeys?: ReturnType<DevicePairing['pendingKeys']>;
   routes: RouteStatus;
-  connect: ConnectStatus & { account?: AccountStatus };
+  connect: ConnectStatus & {
+    account?: AccountStatus;
+    encryption?: EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' };
+  };
 }
 
 export interface PairingOfferView {
   link: string;
   qr: { size: number; path: string };
   expiresAt: string;
+  receipt: string;
   routes: string[];
   reachable: boolean;
 }
@@ -67,7 +76,8 @@ function qrPath(text: string): { size: number; path: string } {
 }
 
 export function offeredRoutes(status: RouteStatus, clientOrigin: string | undefined): PhoneRoute[] {
-  const routes = status.routes.filter((route) => route.ready && route.kind === 'tailscale');
+  const routes = status.routes.filter((route) => route.ready && route.kind === 'lan');
+  routes.push(...status.routes.filter((route) => route.ready && route.kind === 'tailscale'));
   const own = clientOrigin === undefined ? undefined : phoneRoute(clientOrigin);
   if (own?.kind === 'tailscale' && !routes.some((route) => route.url === own.url)) routes.push(own);
   routes.push(...status.routes.filter((route) => route.ready && route.kind === 'connect'));
@@ -92,21 +102,29 @@ async function body(request: Request): Promise<Record<string, unknown>> {
 
 export function createDevicesHttp(options: {
   pairing: DevicePairing;
+  encryption?: () => Promise<
+    EncryptionIdentity & { state: 'negotiating' | 'encrypted' | 'disconnected' }
+  >;
   routes: () => Promise<RouteStatus>;
   publish?: () => Promise<PublishRouteResult>;
+  unpublish?: () => Promise<PublishRouteResult>;
   connect?: DeviceConnect;
   account?: ConnectAccount;
+  lan?: DeviceLan;
 }): (request: Request) => Promise<Response> {
   const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
+        ...(options.lan ? { lan: options.lan.status() } : {}),
         host: pairing.host(),
         devices: pairing.list(),
+        pendingKeys: pairing.pendingKeys(),
         routes: await options.routes(),
         connect: {
           ...(connect?.status() ?? { state: 'off' }),
+          ...(options.encryption === undefined ? {} : { encryption: await options.encryption() }),
           ...(account === undefined ? {} : { account: account.status() }),
         },
       };
@@ -119,6 +137,7 @@ export function createDevicesHttp(options: {
       const offer = pairing.createOffer();
       const link = pairingLink({
         v: 1,
+        ...(options.encryption === undefined ? {} : { encryption: await options.encryption() }),
         host: pairing.host(),
         offer: offer.offer,
         routes,
@@ -128,30 +147,65 @@ export function createDevicesHttp(options: {
         link,
         qr: qrPath(link),
         expiresAt: offer.expiresAt,
+        receipt: offer.receipt,
         routes,
         reachable: routes.some((route) => {
           const kind = phoneRoute(route)?.kind;
-          return kind === 'tailscale' || kind === 'connect';
+          return kind === 'lan' || kind === 'tailscale' || kind === 'connect';
         }),
       };
       return json(view);
     }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/offer-status`) {
+      const input = await body(request);
+      if (typeof input['receipt'] !== 'string' || input['receipt'] === '')
+        return json({ code: 'receipt-required' }, 400);
+      return json(pairing.offerStatus(input['receipt']));
+    }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/approve-key`) {
+      const input = await body(request);
+      if (
+        input['confirm'] !== true ||
+        typeof input['receipt'] !== 'string' ||
+        typeof input['publicKey'] !== 'string'
+      )
+        return json({ code: 'key-confirmation-required' }, 400);
+      const approved = pairing.approveKey(input['receipt'], input['publicKey']);
+      return json({ approved }, approved ? 200 : 409);
+    }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/revoke`) {
       const input = await body(request);
       if (typeof input['deviceId'] !== 'string') return json({ code: 'device-unknown' }, 400);
-      const result = pairing.revoke(input['deviceId']);
-      return result.revoked ? json(result) : json({ code: 'device-unknown' }, 404);
+      const target = pairing.list().find((device) => device.id === input['deviceId']);
+      if (target === undefined) return json({ code: 'device-unknown' }, 404);
+      if (target.revokedAt !== undefined)
+        return json({ code: 'device-already-revoked', device: target }, 409);
+      const result = pairing.revoke(target.id);
+      return json({ ...result, device: { id: target.id, name: target.name } });
     }
     if (request.method === 'POST' && path === DEVICES_SERVE_PATH && options.publish) {
       const input = await body(request);
+      if (
+        input['action'] !== undefined &&
+        input['action'] !== 'enable' &&
+        input['action'] !== 'disable'
+      )
+        return json({ code: 'action-invalid' }, 400);
       if (input['confirm'] !== true)
         return json(
           { code: 'confirm-required', error: 'Pass confirm:true to run tailscale serve.' },
           400,
         );
-      const result = await options.publish();
+      if (input['action'] === 'disable' && options.unpublish === undefined)
+        return json({ code: 'unpublish-unavailable' }, 503);
+      const result =
+        input['action'] === 'disable' ? await options.unpublish!() : await options.publish();
       if (result.ok)
-        return json({ published: true, changed: result.changed, routes: result.status });
+        return json({
+          published: input['action'] !== 'disable',
+          changed: result.changed,
+          routes: result.status,
+        });
       return json(
         {
           code: result.code,
@@ -161,6 +215,15 @@ export function createDevicesHttp(options: {
         },
         409,
       );
+    }
+    if (request.method === 'POST' && path === `${DEVICES_PATH}/lan` && options.lan) {
+      const input = await body(request);
+      if (input['action'] !== 'enable' && input['action'] !== 'disable')
+        return json({ code: 'lan-action-invalid' }, 400);
+      if (input['action'] === 'enable' && input['confirm'] !== true)
+        return json({ code: 'confirm-required' }, 400);
+      const result = await options.lan[input['action']]();
+      return result.ok ? json(result.status) : json({ code: result.code }, 503);
     }
     if (request.method === 'POST' && path === `${DEVICES_PATH}/connect` && connect !== undefined) {
       const input = await body(request);

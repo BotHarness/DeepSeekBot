@@ -5,8 +5,9 @@ import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { BackIcon } from '../shell/back-icon';
 import { CheckIcon, CloseIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { Text } from './text';
+import { HeaderCircleButton } from '../chat/header-chrome';
 
 function HeaderButton({
   label,
@@ -43,21 +44,26 @@ export function DrawerHeader({
   icon,
   headingRef,
   onClose,
-  closeLabel = t.close,
+  glassClose = false,
+  closeLabel: requestedCloseLabel,
   onBack,
   onConfirm,
-  confirmLabel = t.done,
+  confirmLabel: requestedConfirmLabel,
 }: {
   title: string;
   subtitle?: string;
   icon?: ReactNode;
   headingRef?: Ref<ViewInstance>;
   onClose?: () => void;
+  glassClose?: boolean;
   closeLabel?: string;
   onBack?: () => void;
   onConfirm?: () => void;
   confirmLabel?: string;
 }) {
+  const t = useStrings();
+  const closeLabel = requestedCloseLabel ?? t.close;
+  const confirmLabel = requestedConfirmLabel ?? t.done;
   const theme = useDesignTheme();
   const slot = { width: theme.touch, minHeight: theme.touch };
   return (
@@ -68,6 +74,10 @@ export function DrawerHeader({
             <HeaderButton label={t.back} onPress={onBack}>
               <BackIcon color={theme.color.fg} size={theme.type.title.line} />
             </HeaderButton>
+          ) : onClose !== undefined && glassClose ? (
+            <HeaderCircleButton label={closeLabel} testID="sheet-close" onPress={onClose}>
+              <CloseIcon color={theme.color.fg} size={theme.type.title.line} />
+            </HeaderCircleButton>
           ) : onClose !== undefined ? (
             <HeaderButton label={closeLabel} onPress={onClose}>
               <CloseIcon color={theme.color.fg} size={theme.type.title.line} />

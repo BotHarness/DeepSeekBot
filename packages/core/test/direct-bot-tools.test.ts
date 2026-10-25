@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import type { Context } from '@deepseek-ai/cordis';
+import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
@@ -39,6 +41,7 @@ function setup() {
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
     orchestratorCwd: () => join(home, 'memory'),
     ensureWorkspace: () => undefined,
+    subagentTools: () => createBotSubagentModelTools({} as Context, () => undefined),
   });
   const runtime = createBotRuntime({
     database: owner,
@@ -52,6 +55,52 @@ function setup() {
 }
 
 describe('direct Bot tool runner', () => {
+  it('removes obsolete delivery tools from the catalog and refuses direct execution', async () => {
+    const { runtime } = setup();
+    try {
+      const names = runtime.directBotTools!().map((tool) => tool.name);
+      for (const name of [
+        'channel_send',
+        'bridge_reply',
+        'bridge_reply_file',
+        'bridge_post',
+        'bot_dm_send',
+      ]) {
+        expect(names).not.toContain(name);
+        await expect(
+          runtime.runDirectBotTool!('ada', name, {}, new AbortController().signal),
+        ).rejects.toMatchObject({ code: 'tool-not-direct' });
+      }
+    } finally {
+      await runtime.close();
+    }
+  });
+  it('delivers an explicit local message through the same tool without a model turn', async () => {
+    const { runtime, channels, dm, host } = setup();
+    try {
+      const sent = await runtime.runDirectBotTool!(
+        'ada',
+        'bot_send_message',
+        { channel_id: dm.id, body: 'The checks passed.', end_turn: true },
+        new AbortController().signal,
+      );
+      expect(sent.result).toMatchObject({
+        channelId: dm.id,
+        status: 'committed',
+        inboxResolution: { outcome: 'not-requested' },
+      });
+      expect(channels.readMessages(dm.id)).toContainEqual(
+        expect.objectContaining({
+          body: 'The checks passed.',
+          author: { kind: 'bot', slug: 'ada' },
+        }),
+      );
+      expect(host.sessions).toHaveLength(0);
+    } finally {
+      await runtime.close();
+    }
+  });
+
   it('requests a workspace through the same production tool without the model', async () => {
     const { runtime, channels, dm } = setup();
     try {
@@ -111,7 +160,7 @@ describe('direct Bot tool runner', () => {
 
     const sent = await runtime.runDirectBotTool!(
       'ada',
-      'channel_send',
+      'bot_send_message',
       { body: 'direct hello', channel_id: dm.id },
       signal,
     );
@@ -125,7 +174,7 @@ describe('direct Bot tool runner', () => {
     const calls = runtime.directBotToolCalls!('ada');
     expect(calls.map((call) => [call.tool, call.outcome])).toEqual([
       ['channel_list', 'ok'],
-      ['channel_send', 'ok'],
+      ['bot_send_message', 'ok'],
     ]);
     expect(directToolTrace(calls, { turns: 1 })).toEqual([
       {
@@ -135,7 +184,7 @@ describe('direct Bot tool runner', () => {
         noToolCalls: false,
         calls: [
           {
-            name: 'channel_send',
+            name: 'bot_send_message',
             callId: calls[1]!.callId,
             args: { body: 'direct hello', channel_id: dm.id },
             outcome: 'ok',
@@ -150,8 +199,8 @@ describe('direct Bot tool runner', () => {
     const { runtime, registry } = setup();
     const signal = new AbortController().signal;
     await expect(
-      runtime.runDirectBotTool!('ada', 'channel_send', { body: 'no channel' }, signal),
-    ).rejects.toThrow(/No inbound local Channel/);
+      runtime.runDirectBotTool!('ada', 'bot_send_message', { body: 'no channel' }, signal),
+    ).rejects.toThrow(/exactly one trusted reply source/);
     await expect(
       runtime.runDirectBotTool!('ada', 'channel_list', { limit: 'many' }, signal),
     ).rejects.toMatchObject({ code: 'invalid-args' });

@@ -1,9 +1,16 @@
+import { readComputerAvailability } from './computer-availability';
+import { encryptedCarrier, encodeBase64, ConnectRefused } from './encrypted-carrier';
+import type { HostEncryption } from './hosts';
+import { learnedRoutes, preferredRoutes } from './learned-routes';
 import type { ConnectionTelemetry } from '../telemetry/connection';
 import { ActivitySmoother } from '../../../../packages/client/src/client/activity-smoothing';
 import type { BotPrimaryColor } from '../../../../packages/core/src/bots/primary-color';
 import type { HostCarrier, HostSocket } from './carrier';
+import { rosterSortingOf, type RosterSorting } from './roster-sorting';
 import { DEVICE_PREFIX } from './pairing';
-import { socketOrigin } from './route';
+import { checkRoute, isConnectRoute, isEncryptedRoute, isLanRoute, socketOrigin } from './route';
+import { LOCAL_VIDEO_PATH } from '../../../../packages/computer/src/local-video-contract';
+import { secretRouteRefusal } from '../../../../packages/core/src/bridge/secret-route';
 import {
   REMOTE_STREAM_MUX_PATH,
   type ActivityLiveFrame,
@@ -30,6 +37,7 @@ export type ConnectionState =
   | { status: 'stopped'; route: string };
 
 export interface RosterBot {
+  tob?: boolean;
   slug: string;
   displayName: string;
   avatarUrl?: string;
@@ -92,14 +100,18 @@ export interface RosterView {
   channels: RosterChannel[];
   activityChannels?: ChannelListItem[];
   arrangement?: RosterArrangement;
+  sorting?: RosterSorting;
 }
 
 export interface HostSnapshot {
+  routes?: readonly { url: string; status: 'unchecked' | 'verified' | 'unreachable' }[];
+  computerAvailable?: boolean;
   connection: ConnectionState;
   roster?: RosterView;
 }
 
 export interface RemoteSource {
+  read?: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; mime: string }>;
   uri: string;
   headers: Record<string, string>;
 }
@@ -111,6 +123,8 @@ export interface StreamHandlers {
 }
 
 export interface HostClient {
+  updateRoutes?(routes: string[]): void;
+  testRoute?(url: string): Promise<boolean>;
   getSnapshot(): HostSnapshot;
   subscribe(listener: () => void): () => void;
   start(): void;
@@ -121,6 +135,7 @@ export interface HostClient {
   upload(name: string, data: Blob): Promise<AttachmentRef>;
   api(path: string, init?: HostApiInit): Promise<HostApiAnswer>;
   resource(path: string): RemoteSource;
+  secretInputAllowed?(): boolean;
   onLive(listener: (source: 'roster' | 'activity') => void): () => void;
   follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
 }
@@ -137,6 +152,9 @@ export interface HostApiAnswer {
 }
 
 export interface HostClientOptions {
+  onRoutesChanged?: (routes: string[]) => Promise<void>;
+  hostId?: string;
+  encryption?: HostEncryption;
   telemetry?: ConnectionTelemetry;
   routes: string[];
   credential: string;
@@ -259,37 +277,55 @@ export function arrangementOf(value: unknown): RosterArrangement | undefined {
 }
 
 export function createHostClient(options: HostClientOptions): HostClient {
-  const routes = options.routes;
+  const carrier = encryptedCarrier({
+    raw: options.carrier,
+    hostId: options.hostId ?? '',
+    credential: options.credential,
+    ...(options.encryption === undefined ? {} : { encryption: options.encryption }),
+  });
+  let routes = preferredRoutes(options.routes);
+  const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
-  let route = routes[0] ?? '';
+  let route = options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
+  const avatars = new Map<string, string>();
+  const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
   let snapshot: HostSnapshot = { connection: { status: 'stopped', route } };
   let bots: PersonaBotSummary[] | undefined;
+  let computerAvailable: boolean | undefined;
   let channels = new Map<string, ChannelListItem>();
   let states = new Map<string, WireBotActivity>();
   let rawStates = new Map<string, WireBotActivity>();
   const smoother = new ActivitySmoother<WireBotActivity>();
   let settle: ReturnType<typeof setTimeout> | undefined;
   let arrangement: RosterArrangement | undefined;
+  let sorting: RosterSorting | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
   let generation = 0;
+  let connectionSequence = 0;
   let socket: HostSocket | undefined;
   let wake: (() => void) | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let reloading: Promise<void> | undefined;
   let reloadAgain = false;
+  let disconnectCurrent: ((reason: string) => void) | undefined;
+  let activeRequests = 0;
+  let checkingPreferred = false;
+  let preferredSwitchAt = 0;
   const followers = new Set<Follower>();
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
   const publish = (connection?: ConnectionState): void => {
     snapshot = {
+      routes: routes.map((url) => ({ url, status: routeChecks.get(url) ?? 'unchecked' })),
       connection: connection ?? snapshot.connection,
+      ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
     };
     if (connection !== undefined)
@@ -334,16 +370,19 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return {
             slug: bot.slug,
             displayName: bot.displayName,
-            ...(bot.avatar === undefined
-              ? {}
-              : { avatarUrl: absolute(bot.avatar), avatarHeaders: authorization }),
+            tob: bot.tob !== undefined,
+            ...(bot.avatar === undefined ? {} : avatar(bot.avatar)),
+
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
-            computerAccess: bot.computerAccess === true,
-            browserAccess: bot.browserAccess === true,
+            computerAccess:
+              bot.computerAccess === true &&
+              (!isEncryptedRoute(route, options.encryption) || isLanRoute(route)),
+            browserAccess:
+              bot.browserAccess === true && !isEncryptedRoute(route, options.encryption),
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
@@ -355,11 +394,67 @@ export function createHostClient(options: HostClientOptions): HostClient {
       channels: groups,
       activityChannels: [...channels.values()].filter((channel) => channel.deletedAt === undefined),
       ...(arrangement === undefined ? {} : { arrangement }),
+      ...(sorting === undefined ? {} : { sorting }),
     };
   };
 
   const absolute = (path: string): string =>
     path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
+
+  const resource = (path: string): RemoteSource => {
+    if (checkRoute(route).ok && !isEncryptedRoute(route, options.encryption))
+      return { uri: absolute(path), headers: authorization };
+    const origin = route;
+    return {
+      uri: `connect-resource:${options.hostId ?? ''}:${path}`,
+      headers: {},
+      read: async (signal) => {
+        if (!path.startsWith('/') || path.startsWith('//'))
+          throw new Error('resource-path-invalid');
+        const response = await carrier.request(`${origin}${DEVICE_PREFIX}${path}`, {
+          method: 'GET',
+          signal,
+        });
+        if (response.status !== 200 || !response.bytes) throw new Error('resource-unavailable');
+        return {
+          bytes: await response.bytes(),
+          mime: response.contentType ?? 'application/octet-stream',
+        };
+      },
+    };
+  };
+  const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
+    if (!checkRoute(route).ok) return {};
+    if (!isEncryptedRoute(route, options.encryption))
+      return { avatarUrl: absolute(path), avatarHeaders: authorization };
+    const key = route + path;
+    const cached = avatars.get(key);
+    if (cached) return { avatarUrl: cached, avatarHeaders: {} };
+    if (running && avatars.size < 64 && avatarLoading.size < 8 && !avatarLoading.has(key)) {
+      avatarLoading.add(key);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      void resource(path).read!(controller.signal)
+        .then(
+          ({ bytes, mime }) => {
+            if (
+              running &&
+              bytes.length <= 512 * 1024 &&
+              /^image\/(?:png|jpeg|webp|gif)$/u.test(mime.split(';')[0]!)
+            ) {
+              avatars.set(key, `data:${mime};base64,${encodeBase64(bytes)}`);
+              publish();
+            }
+          },
+          () => {},
+        )
+        .finally(() => {
+          clearTimeout(timer);
+          avatarLoading.delete(key);
+        });
+    }
+    return {};
+  };
 
   const reloadInBackground = (): void => {
     reload().catch(() => {});
@@ -374,6 +469,13 @@ export function createHostClient(options: HostClientOptions): HostClient {
     try {
       return await work(controller.signal);
     } catch (error) {
+      if (error instanceof ConnectRefused) {
+        if (error.code in REFUSALS) throw new CredentialRefused(error.code as DeviceRefusal);
+        throw new MethodRefused(
+          error.code,
+          'Encrypted connection refused. Check the Host fingerprint and pair again.',
+        );
+      }
       if (
         error instanceof CredentialRefused ||
         error instanceof Unreachable ||
@@ -397,13 +499,18 @@ export function createHostClient(options: HostClientOptions): HostClient {
   ): Promise<T> =>
     withDeadline(async (signal) => {
       const name = method.includes('/') ? method : `botharness/${method}`;
+      const refusal =
+        isEncryptedRoute(via, options.encryption) && options.encryption === undefined
+          ? secretRouteRefusal(name)
+          : undefined;
+      if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
       const request: ClientRequest = {
         type: 'client-request',
         rpcId: id(),
         method: name,
         payload: { args },
       };
-      const response = await options.carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
+      const response = await carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
         method: 'POST',
         body: JSON.stringify(request),
         headers: authorization,
@@ -433,7 +540,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const upload = (name: string, data: Blob): Promise<AttachmentRef> =>
     withDeadline(async (signal) => {
-      const response = await options.carrier.request(
+      const response = await carrier.request(
         `${route}${DEVICE_PREFIX}/api/botharness/attachment/upload?${new URLSearchParams({ name })}`,
         {
           method: 'POST',
@@ -462,6 +569,24 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
     withDeadline(async (signal) => {
+      if (isConnectRoute(route) && path === LOCAL_VIDEO_PATH)
+        return {
+          status: 403,
+          body: {
+            ok: false,
+            code: 'connect-carrier-required',
+            error: 'Local Computer video requires the paired LAN route.',
+          },
+        };
+      if (
+        isEncryptedRoute(route, options.encryption) &&
+        /^\/api\/(?:browser|computer)\//u.test(path) &&
+        !(isLanRoute(route) && path === LOCAL_VIDEO_PATH)
+      )
+        throw new MethodRefused(
+          'connect-viewer-unavailable',
+          'Use the Host or Tailscale for Browser and Computer viewers.',
+        );
       const outer = init.signal;
       if (outer?.aborted === true) throw new Unreachable('The request was cancelled.');
       const controller = new AbortController();
@@ -469,7 +594,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       signal.addEventListener('abort', cancel);
       outer?.addEventListener('abort', cancel);
       try {
-        const response = await options.carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
           method: init.body === undefined ? 'GET' : 'POST',
           ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
           headers: authorization,
@@ -496,23 +621,46 @@ export function createHostClient(options: HostClientOptions): HostClient {
     if (error instanceof CredentialRefused && running) {
       running = false;
       generation += 1;
+      disconnectCurrent?.(error.message);
       socket?.close();
       publish({ status: 'refused', route, code: error.code, reason: error.message });
     }
   };
 
+  const discoverComputer = async (): Promise<void> => {
+    const currentRoute = route;
+    const currentGeneration = generation;
+    if (isEncryptedRoute(route, options.encryption) && !isLanRoute(route)) {
+      computerAvailable = false;
+      return;
+    }
+    try {
+      const available = await readComputerAvailability(api, isLanRoute(route));
+      if (currentRoute === route && currentGeneration === generation && available !== undefined) {
+        computerAvailable = available;
+        publish();
+      }
+    } catch (error) {
+      if (currentRoute === route && currentGeneration === generation) refusedBy(error);
+    }
+  };
+
   const reloadOnce = async (): Promise<void> => {
-    const [list, channelList, rosterArrangement] = await Promise.all([
+    void discoverComputer();
+    void discoverRoutes();
+    const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
       call<{ bots: PersonaBotSummary[] }>('list'),
       call<{ channels: ChannelListItem[] }>('channels'),
       call<unknown>('rosterGet').then(arrangementOf, (error: unknown) => {
         if (error instanceof MethodRefused) return undefined;
         throw error;
       }),
+      call<unknown>('settings/describe').then(rosterSortingOf),
     ]);
     bots = list.bots;
     channels = new Map(channelList.channels.map((channel) => [channel.id, channel]));
     arrangement = rosterArrangement;
+    sorting = rosterSorting;
     publish();
   };
 
@@ -580,14 +728,50 @@ export function createHostClient(options: HostClientOptions): HostClient {
     for (const candidate of routes) {
       try {
         await call('list', {}, candidate);
+        routeChecks.set(candidate, 'verified');
         route = candidate;
         return;
       } catch (error) {
-        if (error instanceof CredentialRefused) throw error;
+        routeChecks.set(candidate, 'unreachable');
+        if (
+          isConnectRoute(candidate) ||
+          error instanceof ConnectRefused ||
+          error instanceof CredentialRefused ||
+          error instanceof MethodRefused
+        )
+          throw error;
         failure = error;
       }
     }
     throw failure instanceof Error ? failure : new Unreachable('The Host could not be reached.');
+  };
+
+  let learningRoutes = false;
+  const discoverRoutes = async (): Promise<void> => {
+    if (!options.hostId || learningRoutes) return;
+    learningRoutes = true;
+    const current = generation;
+    try {
+      const answer = await api('/api/botharness/devices');
+      if (answer.status !== 200 || !running || current !== generation) return;
+      const next = learnedRoutes(
+        {
+          hostId: options.hostId,
+          routes,
+          ...(options.encryption ? { encryption: options.encryption } : {}),
+        },
+        answer.body,
+      );
+      if (JSON.stringify(next) === JSON.stringify(routes)) return;
+      await options.onRoutesChanged?.(next);
+      if (!running || current !== generation) return;
+      routes = next;
+      publish();
+    } catch (error) {
+      refusedBy(error);
+    } finally {
+      learningRoutes = false;
+    }
   };
 
   const openFollower = (follower: Follower): void => {
@@ -631,7 +815,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   const connectOnce = async (current: number): Promise<void> => {
+    const sequence = ++connectionSequence;
     await pickRoute();
+    if (!running || current !== generation) return;
     const baselines = { roster: false, activity: false };
     let resolveReady: () => void = () => {};
     let rejectReady: (error: Error) => void = () => {};
@@ -643,6 +829,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
     const closed = new Promise<string>((resolve) => {
       resolveClosed = resolve;
     });
+    const disconnect = (reason: string): void => {
+      interruptFollowers(reason);
+      socket?.close();
+      carrier.close?.();
+      resolveClosed(reason);
+    };
     let opened = false;
     streams = new Map();
     const endCore = (frame: MuxServerFrame): void => {
@@ -658,11 +850,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
       const frame: MuxClientFrame = { type: 'open', streamId, endpoint, payload: { args: {} } };
       socket?.send(JSON.stringify(frame));
     };
-    socket = options.carrier.openSocket(
+    socket = carrier.openSocket(
       socketOrigin(route) + DEVICE_PREFIX + REMOTE_STREAM_MUX_PATH,
       {
         open: () => {
-          if (current !== generation) return;
+          if (current !== generation || sequence !== connectionSequence) return;
           opened = true;
           const carrier = socket;
           liveSocket = {
@@ -692,7 +884,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           for (const follower of followers) openFollower(follower);
         },
         message: (text) => {
-          if (current !== generation) return;
+          if (current !== generation || sequence !== connectionSequence) return;
           let frame: MuxServerFrame;
           try {
             frame = JSON.parse(text) as MuxServerFrame;
@@ -708,7 +900,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
           }
         },
         closed: (reason) => {
-          if (current === generation) interruptFollowers(reason || 'The live connection closed.');
+          if (current === generation && sequence === connectionSequence)
+            interruptFollowers(reason || 'The live connection closed.');
           rejectReady(new Unreachable(reason || 'The live connection closed.'));
           resolveClosed(reason);
         },
@@ -732,8 +925,68 @@ export function createHostClient(options: HostClientOptions): HostClient {
     if (current !== generation) return;
     attempt = 0;
     everConnected = true;
+    disconnectCurrent = disconnect;
     publish({ status: 'connected', route });
-    await closed;
+    const health = setInterval(() => {
+      void discoverRoutes();
+      void refreshConnected(() => call('list')).catch(() => undefined);
+    }, 20_000);
+    try {
+      await closed;
+    } finally {
+      clearInterval(health);
+      if (disconnectCurrent === disconnect) disconnectCurrent = undefined;
+    }
+  };
+
+  const refreshConnected = async (read: () => Promise<unknown> = reload): Promise<void> => {
+    const disconnect = disconnectCurrent;
+    try {
+      await read();
+      await recoverPreferred();
+    } catch (error) {
+      if (running && disconnect !== undefined && disconnect === disconnectCurrent) {
+        refusedBy(error);
+        if (running && error instanceof Unreachable) {
+          const reason = error instanceof Error ? error.message : 'The Host could not be reached.';
+          publish({ status: 'unreachable', route, attempt: Math.max(1, attempt), reason });
+          disconnect(reason);
+        }
+      }
+      throw error;
+    }
+  };
+
+  const recoverPreferred = async (): Promise<void> => {
+    if (checkingPreferred || activeRequests > 0 || Date.now() - preferredSwitchAt < 60_000) return;
+    const previous = route;
+    const disconnect = disconnectCurrent;
+    const current = generation;
+    checkingPreferred = true;
+    try {
+      for (const candidate of routes.slice(0, routes.indexOf(previous))) {
+        try {
+          await call('list', {}, candidate);
+          routeChecks.set(candidate, 'verified');
+        } catch {
+          routeChecks.set(candidate, 'unreachable');
+          continue;
+        }
+        if (
+          !running ||
+          current !== generation ||
+          route !== previous ||
+          disconnect !== disconnectCurrent ||
+          activeRequests > 0
+        )
+          return;
+        preferredSwitchAt = Date.now();
+        disconnect?.('A preferred connection is available.');
+        return;
+      }
+    } finally {
+      checkingPreferred = false;
+    }
   };
 
   const loop = async (current: number): Promise<void> => {
@@ -768,6 +1021,23 @@ export function createHostClient(options: HostClientOptions): HostClient {
   };
 
   return {
+    updateRoutes(next) {
+      routes = preferredRoutes(next);
+      publish();
+    },
+    async testRoute(url) {
+      if (!routes.includes(url)) return false;
+      try {
+        await call('list', {}, url);
+        routeChecks.set(url, 'verified');
+        publish();
+        return true;
+      } catch {
+        routeChecks.set(url, 'unreachable');
+        publish();
+        return false;
+      }
+    },
     getSnapshot: () => snapshot,
     subscribe(listener) {
       listeners.add(listener);
@@ -786,6 +1056,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     stop() {
       running = false;
+      disconnectCurrent?.('stopped');
       interruptFollowers('stopped');
       generation += 1;
       clearTimeout(retryTimer);
@@ -794,6 +1065,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
       wake?.();
       socket?.close();
       socket = undefined;
+      carrier.close?.();
+      avatars.clear();
+      avatarLoading.clear();
       publish({ status: 'stopped', route });
       options.telemetry?.dispose();
     },
@@ -801,7 +1075,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
       if (!running) return;
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
-        void reload().then(
+        void refreshConnected().then(
           () => {
             if (running && snapshot.connection.status === 'connected')
               options.telemetry?.update('connected');
@@ -813,27 +1087,43 @@ export function createHostClient(options: HostClientOptions): HostClient {
       wake?.();
     },
     async refresh() {
-      if (snapshot.connection.status === 'connected') await reload();
+      if (snapshot.connection.status === 'connected') await refreshConnected();
       else this.retryNow();
     },
     async call<T>(method: string, args: Record<string, unknown> = {}) {
+      activeRequests += 1;
       try {
         return await call<T>(method, args);
       } catch (error) {
         refusedBy(error);
         throw error;
+      } finally {
+        activeRequests -= 1;
       }
     },
     async api(path, init) {
+      activeRequests += 1;
       try {
         return await api(path, init);
       } catch (error) {
         refusedBy(error);
         throw error;
+      } finally {
+        activeRequests -= 1;
       }
     },
-    upload,
-    resource: (path) => ({ uri: absolute(path), headers: authorization }),
+    async upload(name, data) {
+      activeRequests += 1;
+      try {
+        return await upload(name, data);
+      } finally {
+        activeRequests -= 1;
+      }
+    },
+    resource,
+    secretInputAllowed: () =>
+      checkRoute(route).ok &&
+      (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);
       return () => liveListeners.delete(listener);

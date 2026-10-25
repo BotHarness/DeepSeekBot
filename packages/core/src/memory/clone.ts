@@ -155,3 +155,94 @@ export async function cloneMemoryRepository(input: {
     }
   }
 }
+
+export type MemoryRepositoryPreview =
+  | { ok: true; gitUrl: string; commit: string; httpsFallback?: HttpsFallback }
+  | { ok: false; code: MemoryCloneFailureCode };
+export async function previewMemoryRepository(input: {
+  url: string;
+  timeoutMs?: number;
+  log?: (message: string) => void;
+}): Promise<MemoryRepositoryPreview> {
+  const startedAt = performance.now();
+  const log = (
+    phase: 'started' | 'complete' | 'refused' | 'fallback',
+    reason?: MemoryCloneFailureCode,
+  ) => {
+    try {
+      input.log?.(
+        'bot-import-preview initiator=bot-import-preview phase=' +
+          phase +
+          ' command=git-ls-remote durationMs=' +
+          (phase === 'started' ? 0 : Math.round(performance.now() - startedAt)) +
+          (reason === undefined ? '' : ' reason=' + reason),
+      );
+    } catch {}
+  };
+  const refuse = (code: MemoryCloneFailureCode): MemoryRepositoryPreview => {
+    log('refused', code);
+    return { ok: false, code };
+  };
+  log('started');
+  const url = parseMemoryGitUrl(input.url);
+  if (url === undefined) return refuse('invalid-git-url');
+  const inspect = async (target: string) => {
+    const { stdout } = await execFileAsync(
+      'git',
+      ['ls-remote', '--exit-code', '--', target, 'HEAD'],
+      {
+        timeout: input.timeoutMs ?? MEMORY_CLONE_TIMEOUT_MS,
+        maxBuffer: 512 * 1024,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'Never',
+          GIT_SSH_COMMAND: process.env['GIT_SSH_COMMAND'] ?? 'ssh -oBatchMode=yes',
+        },
+      },
+    );
+    const commit = /^((?:[a-f0-9]{40}|[a-f0-9]{64}))\s+HEAD(?:\r?\n|$)/u.exec(stdout)?.[1];
+    if (!commit) throw new Error('No repository HEAD');
+    return commit;
+  };
+  try {
+    const commit = await inspect(url);
+    log('complete');
+    return { ok: true, gitUrl: url, commit };
+  } catch (error) {
+    const code = cloneFailure(error);
+    const fallback = code === 'git-not-found' ? undefined : httpsUrlForSsh(url);
+    if (!fallback) return refuse(code);
+    log('fallback', code);
+    try {
+      const commit = await inspect(fallback);
+      log('complete');
+      return {
+        ok: true,
+        gitUrl: url,
+        commit,
+        httpsFallback: { from: url, to: fallback, ...sshFailure(error) },
+      };
+    } catch {
+      return refuse(code);
+    }
+  }
+}
+export async function memoryRepositoryMatchesCommit(
+  directory: string,
+  commit: string,
+): Promise<boolean> {
+  if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit)) return false;
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', 'HEAD'], {
+      cwd: directory,
+      timeout: 10000,
+      maxBuffer: 4096,
+      windowsHide: true,
+    });
+    return stdout.trim() === commit;
+  } catch {
+    return false;
+  }
+}

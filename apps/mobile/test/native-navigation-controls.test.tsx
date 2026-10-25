@@ -114,3 +114,38 @@ it('native controls preserve selection, unread label and distinct navigation/cre
     host.remove();
   }
 });
+
+it('shows the native Settings gear and opens it without selecting a new tab', async () => {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  const open = vi.fn();
+  try {
+    await act(async () =>
+      root.render(
+        <NavigationDestinations
+          items={[
+            {
+              key: 'settings',
+              focused: false,
+              activity: false,
+              settings: true,
+              count: 0,
+              onPress: open,
+              onLongPress: () => {},
+            },
+          ]}
+        />,
+      ),
+    );
+    const button = host.querySelector('button')!;
+    expect(button.querySelector('i')?.title).toBe('gearshape');
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(button.getAttribute('aria-label')).toBe(button.textContent);
+    await act(async () => button.click());
+    expect(open).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+  }
+});

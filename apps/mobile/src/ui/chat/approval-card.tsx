@@ -20,7 +20,7 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import {
   ActionCard,
   CardButtons,
@@ -123,8 +123,15 @@ export function ApprovalCard({
   wide?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const known = useRef(resolution !== undefined);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) {
+    current.current = { port, pending: false, active: false };
+    known.current = resolution !== undefined;
+  }
+  const submission = current.current;
   const [phase, setPhase] = useState<Phase>(
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
@@ -133,6 +140,7 @@ export function ApprovalCard({
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       setPhase(
         request.status === 'pending'
           ? { kind: 'pending', request }
@@ -145,13 +153,18 @@ export function ApprovalCard({
             },
       );
     } catch {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed' });
     }
-  }, [port]);
+  }, [port, submission]);
 
   const mount = useMounted<ViewInstance>(() => {
+    submission.active = true;
     if (!known.current) void load();
-  }, [load]);
+    return () => {
+      submission.active = false;
+    };
+  }, [load, submission]);
 
   const tool = phase.kind === 'pending' ? phase.request.toolName : (subject ?? '');
   const label =
@@ -197,11 +210,20 @@ export function ApprovalCard({
 
   const { request } = phase;
   const decide = async (outcome: ApprovalChoice) => {
-    haptic(outcome === 'rejected' ? 'deny' : 'approve');
+    if (
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission ||
+      resolution !== undefined
+    )
+      return;
+    submission.pending = true;
     setPhase({ kind: 'pending', request, busy: outcome });
     try {
       const result = await port.decide(outcome);
+      if (!submission.active || current.current !== submission) return;
       if (result === 'accepted') {
+        haptic(outcome === 'rejected' ? 'deny' : 'approve');
         setPhase({
           kind: 'settled',
           status: 'decided',
@@ -213,6 +235,7 @@ export function ApprovalCard({
         return;
       }
       const now = await port.load().catch(() => undefined);
+      if (!submission.active || current.current !== submission) return;
       setPhase({
         kind: 'settled',
         status: result,
@@ -222,6 +245,8 @@ export function ApprovalCard({
       });
       onSettled?.(result);
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       setPhase({
         kind: 'pending',
         request,

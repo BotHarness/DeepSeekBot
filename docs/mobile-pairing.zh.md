@@ -76,6 +76,34 @@ tailscale serve --bg 3080
 
 ![配对后的手机，在全部和 My Mac 下显示电脑上的 Bot](/guides/mobile-pairing/06-phone-paired-zh.webp)
 
+## 通过 Tailscale 远控电脑
+
+手机通过 Host 的 Tailscale HTTPS 地址配对后，可以从另一网络打开 Bot 的 **Computer**。手机与电脑不必连接同一 Wi-Fi。这复用现有原生桌面观看端，不代表 Connect 已支持桌面视频。
+
+### 使用前提
+
+- 手机和电脑加入同一 tailnet，Tailscale 保持在线，访问规则允许两端通信。Host 持续运行，电脑保持唤醒并有可访问的桌面会话。
+- 完成上面的 HTTPS 配对。在手机连接设置中确认选中的 Host 使用 `https://<computer>.<tailnet>.ts.net` 地址（可能带配置的端口），而不是 Connect 或 LAN 路径。如果 Tailscale Serve 已承载其他服务，保留原映射，使用 Host 配置的端点，不要直接覆盖。
+- Host 和手机原生 App 都须包含 Local Computer 视频模块。下方记录了已验证的 macOS/iOS 测试构建，不代表所有旧稳定版或商店版均具备此能力。
+- 为 Bot 开启 Computer Access，并在 Host 上通过「检查权限」或 `deepseekbot computer-start --target local` 启动本机 Computer。macOS 需要为采集助手与 Computer 驱动授予屏幕录制权限，为输入授予辅助功能权限；授权采集后重启本机 Computer。
+
+### 观看、接管与交还
+
+1. 在手机选中已配对的 Host，打开 Bot，进入 **Computer**。
+2. 等待实时画面。观看不会暂停 Bot。没有画面时，检查连接、电脑唤醒状态和采集权限，解决后点「重新连接视频」。
+3. 点「接管控制」，再用触控板移动光标；使用当前 App 版本实际提供的控件。接管会暂停同一 Profile 中所有 Bot 对这台 Computer 的操作。
+4. 结束时点「交还 Bot／交还控制」，确认回到 Bot 可操作状态。仅退出页面不等于恢复 Bot。交还会释放控制并恢复 Bot，同时可继续观看。
+
+网络中断或手机锁屏后，输入应停止。重新连接只恢复观看，需再次明确接管。输入结果不确定时，先检查桌面，不要自动重复点击或输入文字。
+
+### 已验证范围
+
+2026-10-25 已验证 macOS → iPhone XS Max：手机连接另一台手机的移动数据热点，**拔掉 USB** 后，持续画面、接管、移动光标和交还均通过。Host 与 iOS Release App 源码为 `8418bad80a499213427606b23dcbc8e9ff2974ad`。这是绑定具体构建的证据，不是最低支持版本或新商店版本公告。Windows → Android 在源码中支持原生观看端，但 **Tailscale 跨网络实测仍待完成**。强制断网恢复、完整输入矩阵和长时间性能也仍待验收。参见[验收记录](https://github.com/BotHarness/DeepSeekBot/issues/2562#issuecomment-6388900922)。
+
+自行验证跨网络时，让电脑保留原网络，手机使用移动数据或另一台手机提供的移动数据热点。拔掉 USB，不使用 ADB reverse 等本地转发，否则画面可能绕过 Tailscale。HTTPS 连接成功只能证明信令可达，不能单独证明视频路径。
+
+这条路径不依赖项目提供公共 TURN。Tailscale 可能直连，也可能使用它自己的中继；WebRTC 显示 `direct` 不等于 Tailscale 底层必然点对点。用户的网络与 Tailscale 套餐仍适用。**Connect 暂不支持桌面视频**，不影响普通 Connect 聊天和配对，也不妨碍改用单独的 Tailscale 连接。
+
 ## 不用 Tailscale：DeepSeekBot Connect
 
 DeepSeekBot Connect 让手机通过 `https://<id>.deepseekbot.dev` 的加密隧道连到电脑，不需要 Tailscale。两台设备登录同一个 DeepSeekBot 账号即可，可以用 Google、Apple 或发到邮箱的验证码登录。隧道只开放 DSH 给手机用的接口，你的 Bot 和对话仍然留在电脑上。

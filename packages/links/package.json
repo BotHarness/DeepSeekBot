@@ -2,7 +2,7 @@
   "name": "@botharness/links-worker",
   "version": "0.0.0",
   "private": true,
-  "description": "Campaign short link Worker: go.botharness.ai redirects with UTM parameters and counts clicks (ADR-0132)",
+  "description": "Campaign short link Worker: go.tobs.app redirects with UTM parameters and counts clicks (ADR-0132)",
   "type": "module",
   "scripts": {
     "build:assets": "node scripts/build-admin-assets.mjs",

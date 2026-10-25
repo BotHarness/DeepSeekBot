@@ -1,3 +1,4 @@
+import { useMessageHost } from './message-host.js';
 import { useRef, useState, type ReactElement } from 'react';
 import {
   Button,
@@ -21,9 +22,13 @@ export function PrivateAccountControls({
 }: {
   channelId: string;
   messageId: string;
-  actions: BridgeActions;
+  actions: Pick<
+    BridgeActions,
+    'privateAccountStatus' | 'privateInputReplace' | 'privateAccountRevoke'
+  >;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const [status, setStatus] = useState<PrivateAccountStatus['status'] | 'loading'>('loading');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -63,7 +68,9 @@ export function PrivateAccountControls({
       current?.active !== true ||
       current.busy ||
       status !== 'configured' ||
-      store.getSnapshot().conversation.channel?.id !== channelId
+      (host === undefined
+        ? store.getSnapshot().conversation.channel?.id !== channelId
+        : !host.current(channelId))
     )
       return;
     current.busy = true;

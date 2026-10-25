@@ -11,6 +11,9 @@ import {
   TOB_CHANNEL_CAPABILITIES,
 } from './tob/cli-channel-operations.js';
 import { createBotCreation, type BotCreationService } from './bots/creation.js';
+import { createBotImports } from './bots/imports.js';
+import { createBotZipImport, type BotZipImportService } from './bots/zip-import.js';
+import { createBotZipUploads } from './bots/zip-upload.js';
 import {
   createTobBotCreationOperations,
   TOB_BOT_CREATE_CAPABILITIES,
@@ -103,7 +106,7 @@ import { homedir } from 'node:os';
 import type { BotAgentSetupInfo } from './runtime/dsh-bot-agent-adapter.js';
 import { registerBridge } from './bridge/rpc.js';
 import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
-import { mountDevicePairing, type DeviceWebUpgrade } from './devices/mount.js';
+import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import {
@@ -118,7 +121,6 @@ import { createPluginUpdateService } from './release/plugins.js';
 import {
   createTelemetryService,
   installedDshVersion,
-  pluginStartedProperties,
   telemetryDecision,
   type TelemetryCapture,
 } from './telemetry/service.js';
@@ -183,6 +185,7 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
+  alignOrchestratorSubagentPermission,
   deviceToolAuthorization,
   grantExecutionDenial,
   grantToolExecutionDenial,
@@ -215,7 +218,7 @@ import {
   type CompactCommandRunner,
 } from './runtime/idle-compaction.js';
 import { createIdleCompactionSettings } from './runtime/idle-compaction-settings.js';
-import { ChannelUserQuestions } from './channels/user-questions.js';
+import { ChannelUserQuestions, registerChannelUserQuestions } from './channels/user-questions.js';
 import { mountPrivateInputs } from './credentials/mount.js';
 import type { PrivateInputs } from './credentials/private-inputs.js';
 import {
@@ -255,7 +258,12 @@ import { createDshActivityProjection } from './state/dsh-activity.js';
 import { readPublicToolDetail } from './state/tool-activity.js';
 import { createUsageProjection, type UsageProjection } from './usage/usage.js';
 import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
-import { installBotSubagentModelTools } from './runtime/subagent-model-tools.js';
+import {
+  createBotSubagentModelTools,
+  installBotSubagentModelTools,
+  type BotSubagentPresetConfig,
+} from './runtime/subagent-model-tools.js';
+import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 
 export const name = 'botharness-core';
 
@@ -317,6 +325,7 @@ export interface BotHarnessConfig {
   privateInputWebUrl?: string;
 
   agentPreset?: string;
+  subagent?: BotSubagentPresetConfig;
   activityDetailConsumers?: string[];
   marketplaceUrl?: string;
   telemetry?: boolean;
@@ -347,6 +356,20 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
   agentPreset: Schema.string()
     .default(DEFAULT_AGENT_PRESET)
     .description('PersonaBot 会话加入的 DSH agent preset（提供 file/Shell/grep 等普通工具）'),
+  subagent: Schema.object({
+    agentPreset: Schema.string()
+      .min(1)
+      .description(
+        'Independent Subagent native Agent preset; omitted uses the current system default preset.',
+      ),
+    allowedAgentPresets: (
+      Schema.array(Schema.string().min(1)).min(1) as Schema<string[] | undefined>
+    )
+      .default(undefined)
+      .description(
+        'Explicit native preset allowlist for bot_subagent; omitted disables agent_preset selection.',
+      ),
+  }).default(undefined as unknown as BotSubagentPresetConfig),
   marketplaceUrl: Schema.string()
     .default(DEFAULT_MARKETPLACE_URL)
     .description('Bot Marketplace 服务地址'),
@@ -358,12 +381,12 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
-  deviceWebUpgrade?: DeviceWebUpgrade;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
   tob: TobService;
   creations: BotCreationService;
+  zipImports: BotZipImportService;
   channelManagement: ChannelManagementService;
   partLibrary: PartLibrary;
   operationalDatabase: OperationalDatabaseOwner;
@@ -506,6 +529,7 @@ export function createCore(
           options.warn?.('bot-name-publication-failed');
         }
       },
+      onAvatarChanged: () => live?.publishRosterCommitted(),
       cloneMemory: (destination, url) => cloneMemoryRepository({ destination, url }),
       ...(options.capture === undefined ? {} : { capture: options.capture }),
       syncDescriptor: (memoryDir, record, sync) => {
@@ -837,6 +861,13 @@ export function createCore(
     database: attachOperationalModule(operationalDatabase, 'bot-creation'),
     registry,
     channels,
+    ...(options.warn === undefined ? {} : { log: options.warn }),
+  });
+  const zipImports = createBotZipImport({
+    uploads: createBotZipUploads({ rootDir: join(dshHome, 'botharness', 'zip-uploads') }),
+    imports: createBotImports(creations),
+    registry,
+    log: (event) => options.warn?.(JSON.stringify(event)),
   });
   const channelManagement = createChannelManagement({
     database: attachOperationalModule(operationalDatabase, 'channel-management'),
@@ -984,6 +1015,7 @@ export function createCore(
     onboarding,
     tob,
     creations,
+    zipImports,
     channelManagement,
     partLibrary,
     rootDir,
@@ -1048,6 +1080,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const telemetry = createTelemetryService({
     decision: telemetryChoice,
     dataDir: telemetryDir,
+    pluginVersion: release.version(),
+    dshVersion: installedDshVersion(),
     log: (message) => ctx.logger.info(message),
   });
   const telemetryState = telemetry.status();
@@ -1057,15 +1091,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       : `telemetry phase=disabled reason=${telemetryState.lockedBy ?? 'preference'}`,
   );
   ctx.effect(() => () => void telemetry.close(), 'botharness: telemetry');
-  telemetry.capture(
-    'plugin_started',
-    pluginStartedProperties({
-      pluginVersion: release.version(),
-      dshVersion: installedDshVersion(),
-      os: process.platform,
-      arch: process.arch,
-    }),
-  );
+  telemetry.capture('plugin_started');
   deliverPendingExceptions(telemetry, telemetryDir);
   if (telemetryState.lockedBy === undefined)
     ctx.effect(
@@ -1139,6 +1165,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    subagentTools: (slug) =>
+      createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
     hasSession: async (sessionId) => {
       const persistence = ctx.get('sessionPersistence') as unknown as
         | { stat(id: string): Promise<unknown> }
@@ -1357,7 +1385,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: attachment sweep',
   );
-  const deviceWebUpgrade = mountDevicePairing(ctx, {
+  mountDevicePairing(ctx, {
     database: core.operationalDatabase,
     dshHome,
     packageAnchors: releaseAnchors,
@@ -1409,7 +1437,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => core.schedules.close(), 'botharness: bot schedules');
   ctx.effect(() => () => core.live.close(), 'botharness: Channel live hub');
   ctx.effect(() => () => core.companions.close(), 'botharness: Window Companion feed');
-  if (deviceWebUpgrade !== undefined) core.deviceWebUpgrade = deviceWebUpgrade;
   ctx.provide('botharness', core);
   if (config.privateInputExecution === true)
     ctx.logger.warn(
@@ -1535,6 +1562,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .catch(() => undefined);
   };
   const reviewing = new Set<string>();
+  installNativeSubagentWake(ctx, core.runtime);
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
@@ -1546,6 +1574,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'reject' };
       }
       alignOrchestratorPermission(agent);
+      alignOrchestratorSubagentPermission(
+        core,
+        agent.session,
+        ctx.get('sandboxPolicy'),
+        ctx.get('approval'),
+      );
       return permissionDenial(agent.session) === undefined ? next() : { kind: 'reject' };
     },
     { global: true },
@@ -1734,13 +1768,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     () => core.companions.attachQuestions(userQuestions),
     'botharness: companion question observation',
   );
-  ctx.on(
-    'user-questions/request',
-    async (request, next) => (await userQuestions.ask(request)) ?? next(),
-    { global: true },
-  );
+  registerChannelUserQuestions(ctx, userQuestions);
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
+  const deviceCallReleases = new Map<symbol, () => void>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
+  ctx.effect(
+    () => () => {
+      for (const release of deviceCallReleases.values()) release();
+      deviceCallReleases.clear();
+    },
+    'botharness: device approval execution leases',
+  );
   ctx.effect(() => () => toolApproval.close(), 'botharness: Channel tool approvals');
   registerChannelToolApproval(ctx, toolApproval);
   ctx.on(
@@ -1775,6 +1813,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             ownsTool?(name: string): boolean;
             needsAuthorization?(sessionId: string): boolean;
             authorizationScope?(): string;
+            approvalScope?(sessionId: string): string;
+            authorizeCall?(token: symbol, authorized: () => boolean): () => void;
             markAuthorized?(sessionId: string, scope?: string): boolean | void;
           }
         | undefined;
@@ -1791,8 +1831,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             reason: 'Computer Target changed while awaiting Human approval; request a new action.',
           };
         const authorizationScope = computerTools.authorizationScope?.();
+        if (!computerTools.approvalScope || !computerTools.authorizeCall)
+          return { kind: 'deny', reason: 'Computer approval Provider is unavailable' };
         const computerApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackComputer = toolApproval.track(execution, 'web-only', false, 'computer');
+        const untrackComputer = toolApproval.track(
+          execution,
+          'operation',
+          false,
+          'computer',
+          undefined,
+          {
+            authorizationScope: () => computerTools.approvalScope!(agent.session.id),
+          },
+        );
         if (computerApproval === undefined || untrackComputer === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1814,7 +1865,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   : reviewerRejectionText(reviewed),
             };
           }
-          if (computerTools.markAuthorized?.(agent.session.id, authorizationScope) === false)
+          if (
+            !toolApproval.usesStandingRule(agent, execution.callId) &&
+            computerTools.markAuthorized?.(agent.session.id, authorizationScope) === false
+          )
             return {
               kind: 'deny',
               reason:
@@ -1823,6 +1877,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
             return { kind: 'deny', reason: 'Approval authority changed before execution' };
+          if (toolApproval.usesStandingRule(agent, execution.callId))
+            deviceCallReleases.set(
+              execution.token,
+              computerTools.authorizeCall(execution.token, () =>
+                guard(execution.name, execution.arguments),
+              ),
+            );
           approvedCalls.set(execution.token, guard);
           return await next();
         } catch {
@@ -1837,6 +1898,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             executionSignal?(sessionId: string): AbortSignal | undefined;
             needsAuthorization?(sessionId: string): boolean;
             authorizationScope?(sessionId?: string): string;
+            approvalScope?(sessionId: string): string;
+            authorizeCall?(token: symbol, authorized: () => boolean): () => void;
             markAuthorized?(sessionId: string, scope?: string): boolean | void;
           }
         | undefined;
@@ -1857,8 +1920,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               'Browser authority changed while awaiting Human approval; request a new action.',
           };
         const browserAuthorizationScope = browserTools.authorizationScope?.(agent.session.id);
+        if (!browserTools.approvalScope || !browserTools.authorizeCall)
+          return { kind: 'deny', reason: 'Browser approval Provider is unavailable' };
         const browserApproval = ctx.get('approval') as ApprovalService | undefined;
-        const untrackBrowser = toolApproval.track(execution, 'web-only', false, 'browser');
+        const untrackBrowser = toolApproval.track(
+          execution,
+          'operation',
+          false,
+          'browser',
+          undefined,
+          {
+            authorizationScope: () => browserTools.approvalScope!(agent.session.id),
+          },
+        );
         if (browserApproval === undefined || untrackBrowser === undefined) {
           return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
         }
@@ -1880,7 +1954,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   : reviewerRejectionText(reviewed),
             };
           }
-          if (browserTools.markAuthorized?.(agent.session.id, browserAuthorizationScope) === false)
+          if (
+            !toolApproval.usesStandingRule(agent, execution.callId) &&
+            browserTools.markAuthorized?.(agent.session.id, browserAuthorizationScope) === false
+          )
             return {
               kind: 'deny',
               reason:
@@ -1889,6 +1966,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           const guard = toolApproval.executionGuard(agent, execution.callId);
           if (!guard || !guard(execution.name, execution.arguments))
             return { kind: 'deny', reason: 'Approval authority changed before execution' };
+          if (toolApproval.usesStandingRule(agent, execution.callId))
+            deviceCallReleases.set(
+              execution.token,
+              browserTools.authorizeCall(execution.token, () =>
+                guard(execution.name, execution.arguments),
+              ),
+            );
           approvedCalls.set(execution.token, guard);
           return await next();
         } catch {
@@ -1923,10 +2007,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'deny', reason: 'The tool call cannot be presented for Human approval' };
       }
       try {
-        const notice = toolApproval.willPrompt(agent, execution.callId)
-          ? core.runtime.askNotice?.(agent.session.id, execution.name)
-          : undefined;
-        if (notice !== undefined) return { kind: 'deny', reason: notice };
         const outcome = eachUse
           ? ((await toolApproval.ask({
               agent,
@@ -1947,7 +2027,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                           JSON.stringify(execution.arguments) ?? '',
                           templateInUse,
                         )
-                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. Only a Human can approve this; neither a saved rule nor the Approval Reviewer answers it.'
+                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
                       : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
@@ -2061,6 +2141,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'tools/result',
     (execution) => {
+      deviceCallReleases.get(execution.token)?.();
+      deviceCallReleases.delete(execution.token);
       approvedCalls.delete(execution.token);
       if (execution.agent !== undefined)
         core.runtime.settleAssignmentTool?.(execution.agent.session.id, execution.callId);
@@ -2225,6 +2307,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     onboarding: core.onboarding,
     tob: core.tob,
     creations: core.creations,
+    zipImports: core.zipImports,
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
     onboardingNews: (slug) =>
@@ -2747,15 +2830,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   ctx.on(
     'agent/created',
-    ({ agent }) => {
+    async ({ agent }) => {
       activity.handleAgentCreated(agent.session);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const owner = core.ownership.resolve(agent.session.id);
       if (owner !== undefined) {
-        installBotSubagentModelTools(
+        await installBotSubagentModelTools(
           agent.ctx,
-          agent,
           () => core.registry.get(owner.botSlug)?.modelPlan,
+          config.subagent,
         );
       }
     },

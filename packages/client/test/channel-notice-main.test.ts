@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {
   act,
+  Fragment,
   createElement,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
@@ -9,8 +10,12 @@ import {
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+type TestMenuItem = { id: string; label?: ReactNode; disabled?: boolean; submenu?: TestMenuItem[] };
+
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
+  const flatten = (items: TestMenuItem[]): TestMenuItem[] =>
+    items.flatMap((item) => [item, ...flatten(item.submenu ?? [])]);
   return {
     Toast: stub,
     IconCodeOutlineRegular: () => null,
@@ -67,10 +72,12 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       items = [],
       onSelect,
       children,
+      selectedId,
     }: {
       anchor: ReactNode;
       open: boolean;
-      items?: { id: string; label: string }[];
+      items?: TestMenuItem[];
+      selectedId?: string;
       onSelect?: (id: string) => void;
       children?: ReactNode;
     }) =>
@@ -82,10 +89,16 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
           ? createElement(
               'div',
               { role: 'menu' },
-              ...items.map((item) =>
+              ...flatten(items).map((item) =>
                 createElement(
                   'button',
-                  { key: item.id, role: 'menuitem', onClick: () => onSelect?.(item.id) },
+                  {
+                    key: item.id,
+                    role: 'menuitem',
+                    disabled: 'disabled' in item && item.disabled === true,
+                    'aria-current': selectedId === item.id ? 'true' : undefined,
+                    onClick: () => onSelect?.(item.id),
+                  },
                   item.label,
                 ),
               ),
@@ -99,6 +112,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       createElement('button', { role: 'menuitem', onClick: onSelect }, children),
     MarkdownText: stub,
     Modal: stub,
+    Switch: ({ label, checked, onChange }: { label: string; checked: boolean; onChange(): void }) =>
+      createElement('input', { type: 'checkbox', 'aria-label': label, checked, onChange }),
     StateDot: stub,
     Tag: stub,
     Tooltip: ({ children }: { children: ReactNode }) => children,
@@ -107,6 +122,9 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
+import { ChannelTraceEntry } from '../src/client/channel-personal-settings.js';
+import { ChannelHeaderMenu } from '../src/client/human-channel-name.js';
+import { zhTranslate } from '../src/client/locale.js';
 import { BotMain } from '../src/client/bot-main.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { toggleHiddenDmAction } from '../src/client/dm-actions.js';
@@ -395,6 +413,122 @@ describe('Channel Notices in a Group', () => {
     await act(async () => toggleHiddenDmAction('mira', 'posts'));
     expect(container.querySelector('.bh-dm-trace-line')).not.toBeNull();
     window.localStorage.clear();
+  });
+
+  it('switches existing and arriving memory updates between detailed, compact and hidden through the Channel menu', async () => {
+    const slug = 'memory-display-menu';
+    const channel = { ...mira, id: 'dm-memory-display-menu', botSlug: slug };
+    const update = {
+      ...commitLine,
+      memoryCommit: { ...commit, botSlug: slug },
+      noticeOrigin: { channelId: group.id },
+    };
+    const memoryGitCommitDiff = vi.fn(async () => ({
+      sha: commit.sha,
+      files: [{ path: 'launch.md', status: 'A' }],
+      diff: 'diff --git a/launch.md b/launch.md\n--- a/launch.md\n+++ b/launch.md\n@@ -0,0 +1 @@\n+Launch is Friday\n',
+    }));
+    const actions = proxyActions({ memoryGitCommitDiff });
+    const render = async () =>
+      act(async () =>
+        root.render(
+          createElement(
+            Fragment,
+            null,
+            createElement(ChannelHeaderMenu, {
+              channel,
+              actions,
+              t: zhTranslate,
+              anchor: ({ toggle }) =>
+                createElement('button', { onClick: toggle }, 'History options'),
+            }),
+            createElement(ChannelTraceEntry, {
+              channelId: channel.id,
+              botSlug: slug,
+              scope: 'personabot',
+              actions,
+              t: zhTranslate,
+            }),
+            createElement(BotMain, { actions, channelSidebar: createChannelSidebarRegistry() }),
+          ),
+        ),
+      );
+    await show(channel, actions);
+    await act(async () => {
+      store.setRoster([bot(slug, 'Mira')], [group, channel]);
+      store.setConversation({ ...store.getSnapshot().conversation, channel, messages: [update] });
+    });
+    await render();
+    const click = async (text: string) => {
+      const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+        (item) => item.textContent === text || item.getAttribute('aria-label') === text,
+      );
+      expect(button, `button ${text}`).toBeDefined();
+      await act(async () => button!.click());
+    };
+    expect(container.textContent).toContain('Remember the launch date');
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="记忆显示"]')?.textContent).toBe(
+      '详细',
+    );
+    await click('History options');
+    await click('记忆显示：简约');
+    expect(container.textContent).toContain('在 #Launch crew 更新了记忆');
+    expect(container.textContent).not.toContain('Remember the launch date');
+    expect(container.textContent).not.toContain('launch.md');
+    expect(container.textContent).not.toContain('aaaaaaa');
+    const compact = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+      (item) => item.textContent === 'Mira在 #Launch crew 更新了记忆',
+    );
+    expect(compact?.title).not.toContain(commit.sha);
+    await act(async () => compact!.click());
+    expect(memoryGitCommitDiff).toHaveBeenCalledWith(channel.id, commit.sha);
+    expect(container.textContent).toContain('Launch is Friday');
+    await click('返回对话');
+    await click('记忆更新');
+    expect(container.textContent).not.toContain('在 #Launch crew 更新了记忆');
+    await click('记忆更新');
+    expect(container.textContent).not.toContain('Remember the launch date');
+    await act(async () =>
+      store.setConversation({
+        ...store.getSnapshot().conversation,
+        messages: [update, { ...update, id: 'arrived-memory-update' }],
+      }),
+    );
+    expect(
+      [...container.querySelectorAll('button')].filter(
+        (item) => item.textContent === 'Mira在 #Launch crew 更新了记忆',
+      ),
+    ).toHaveLength(2);
+    await click('记忆显示：详细');
+    expect(container.textContent).toContain('Remember the launch date');
+    expect(container.textContent).toContain('launch.md');
+    await click('History options');
+    await click('记忆显示');
+    await click('简约');
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="记忆显示"]')?.textContent).toBe(
+      '简约',
+    );
+    expect(container.textContent).not.toContain('Remember the launch date');
+    const memorySwitch = container.querySelector<HTMLInputElement>('input[aria-label="记忆更新"]')!;
+    await act(async () => memorySwitch.click());
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="记忆显示"]')?.disabled).toBe(
+      true,
+    );
+    await act(async () => memorySwitch.click());
+    expect(container.querySelector<HTMLButtonElement>('[aria-label="记忆显示"]')?.textContent).toBe(
+      '简约',
+    );
+    await act(async () => root.render(null));
+    await render();
+    expect(container.textContent).not.toContain('Remember the launch date');
+    await act(async () =>
+      store.setConversation({ ...store.getSnapshot().conversation, messages: [commitLine] }),
+    );
+    expect(container.textContent).toContain('Remember the launch date');
+    await show(group, actions);
+    expect(container.textContent).toContain('Remember the launch date');
+    await show(mira, actions);
+    expect(container.textContent).toContain('Remember the launch date');
   });
 
   it('opens the commit view in the Bot DM from a pending intent', async () => {

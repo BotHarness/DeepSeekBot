@@ -7,6 +7,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from 'react';
+import { useReplyHaptic } from './reply-haptic';
 import {
   Platform,
   Pressable,
@@ -36,7 +37,7 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { bubbleCorners, bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
@@ -68,6 +69,7 @@ export function BubbleBody({
   fill?: { maxWidth?: DimensionValue; width?: number; maxHeight?: number } | undefined;
   streaming?: boolean;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
@@ -125,6 +127,7 @@ function PressableBubble({
   onDoubleTap?: () => void;
   children: ReactNode;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const reduced = useReducedMotion();
   const ref = useRef<ViewInstance>(null);
@@ -249,6 +252,7 @@ export const MessageBubble = memo(function MessageBubble({
   streaming?: boolean;
   rowKey?: string;
 }) {
+  const t = useStrings();
   const human = message.author === 'human';
   const failed = message.delivery === 'failed';
   const label = deliveryLabel(message);
@@ -376,10 +380,12 @@ export const PlaybackBubble = memo(function PlaybackBubble({
   playback,
   queueKey,
   message,
+  focused = false,
   ...props
 }: Omit<ComponentProps<typeof MessageBubble>, 'message' | 'streaming'> & {
   playback?: ConversationPlayback | undefined;
   queueKey: string;
+  focused?: boolean;
   message?: ConversationMessage | undefined;
 }) {
   const fallback = useMemo(
@@ -395,6 +401,7 @@ export const PlaybackBubble = memo(function PlaybackBubble({
     [playback, queueKey, fallback],
   );
   const snapshot = useSyncExternalStore(subscribe, read);
+  useReplyHaptic(playback, queueKey, snapshot, focused);
   return snapshot === undefined ? null : (
     <MessageBubble
       {...props}

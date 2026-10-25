@@ -1,9 +1,22 @@
+import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
+import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
   WINDOW_ZOOM_COMMANDS,
   WINDOW_ZOOM_OPTIONS,
   runWindowZoomCommand,
 } from './cli-window-zoom.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
+import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
+import {
+  DEVICE_NOTIFICATION_COMMANDS,
+  DEVICE_NOTIFICATION_OPTIONS,
+  runDeviceNotifications,
+} from './cli-device-notifications.js';
+import {
+  BROWSER_NOTIFICATION_COMMANDS,
+  runBrowserNotifications,
+} from './cli-browser-notifications.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -121,6 +134,10 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'link-file': { type: 'string' },
+  'remote-host-id': { type: 'string' },
+  'host-id': { type: 'string' },
+  ...DEVICE_NOTIFICATION_OPTIONS,
   ...WINDOW_ZOOM_OPTIONS,
   ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
@@ -153,6 +170,7 @@ export const LIVE_OPTIONS = {
   scope: { type: 'string' },
   'acknowledge-risk': { type: 'boolean' },
   'patch-stdin': { type: 'boolean' },
+  refresh: { type: 'boolean' },
   'previous-value': { type: 'string' },
   member: { type: 'string', multiple: true },
   app: { type: 'string' },
@@ -189,6 +207,7 @@ const DEVICE_COMMANDS = [
   'computer-frame',
   'computer-takeover',
   'computer-input',
+  'computer-video',
 ] as const;
 
 const IM_CONTROL_COMMANDS = [
@@ -216,8 +235,13 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...BROWSER_NOTIFICATION_COMMANDS,
+  ...HOST_LOOK_COMMANDS,
+  ...DEVICE_NOTIFICATION_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
+  ...DEVICES_COMMANDS,
+  ...DEVICE_CLIENT_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
   ...MESSAGING_COMMANDS,
@@ -338,6 +362,11 @@ export const LIVE_COMMANDS = [
   },
   { command: 'computer-status', description: 'read the profile Computer target and state' },
   {
+    command: 'computer-video',
+    description:
+      'Local Computer video status/open/signal/heartbeat/takeover/input/release/resume/close (JSON from stdin; open needs --out)',
+  },
+  {
     command: 'computer-frame',
     description: 'save the current picture of the profile Computer desktop to a file',
   },
@@ -411,6 +440,11 @@ interface LiveValues
     ApprovalTemplateValues,
     ApprovalReviewerValues {
   'client-id'?: string;
+  'device-file'?: string;
+  'link-file'?: string;
+  'remote-host-id'?: string;
+  'host-id'?: string;
+  'preferences-stdin'?: boolean;
   host?: string;
   'token-file'?: string;
   'image-source'?: string;
@@ -433,6 +467,7 @@ interface LiveValues
   scope?: string;
   'acknowledge-risk'?: boolean;
   'patch-stdin'?: boolean;
+  refresh?: boolean;
   'previous-value'?: string;
   member?: string[];
   'operation-key'?: string;
@@ -727,6 +762,18 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (command === 'host-look') {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
+  }
+  if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
+  if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
+  if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
+    return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (IM_COMMANDS.some((entry) => entry.command === command)) {
     const operation = await prepareImAuthorization(command, rest, values, io);
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -767,6 +814,12 @@ export async function runLiveCli(
     return runPhoneRouteCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (isDevicesCommand(command))
+    return runDevicesCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+    return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {
     const input = await prepareCloudWork(rest, values, io);
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
@@ -1398,25 +1451,35 @@ async function runDeviceCommand(
   io: BotCreateCliIo,
 ): Promise<unknown> {
   const direct = command === 'browser-tool' || command === 'computer-tool';
+  const video = command === 'computer-video';
   const computer = (command.startsWith('computer-') && !direct) || command === 'browser-tools';
-  const positionals = direct ? 2 : computer ? 0 : 1;
+  const positionals = direct ? 2 : video ? 1 : computer ? 0 : 1;
   if (rest.length !== positionals || rest.some((value) => !value.trim()))
     usage(
       direct
         ? `${command} needs a bot id and a tool name.`
-        : computer
-          ? `${command} takes no positional arguments.`
-          : `${command} needs exactly one bot id.`,
+        : video
+          ? 'computer-video needs exactly one operation.'
+          : computer
+            ? `${command} takes no positional arguments.`
+            : `${command} needs exactly one bot id.`,
     );
   let toolArgs: Record<string, unknown> = {};
-  const input = command === 'browser-input' || command === 'computer-input';
+  const input =
+    command === 'browser-input' ||
+    command === 'computer-input' ||
+    (video && !['status', 'open'].includes(rest[0]!));
   if (input && values['args-stdin'] !== true)
     usage(
-      `${command} needs --args-stdin with a JSON input such as {"kind":"click","x":10,"y":20}.`,
+      video
+        ? `computer-video ${rest[0]} needs --args-stdin with its binding/runtime command JSON.`
+        : `${command} needs --args-stdin with a JSON input such as {"kind":"click","x":10,"y":20}.`,
     );
   if ((direct || input) && values['args-stdin'] === true) {
     try {
-      const parsed: unknown = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+      const raw = await (io.readStdin?.() ?? Promise.resolve(''));
+      if (video && Buffer.byteLength(raw) > 128 * 1024) throw new Error('input too large');
+      const parsed: unknown = JSON.parse(raw);
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
         throw new Error('not an object');
       toolArgs = parsed as Record<string, unknown>;
@@ -1432,6 +1495,32 @@ async function runDeviceCommand(
   )
     usage('--out must be an absolute file path.');
   const slug = rest[0]?.trim() ?? '';
+  if (video) {
+    if (
+      ![
+        'status',
+        'open',
+        'signal',
+        'heartbeat',
+        'takeover',
+        'input',
+        'release',
+        'resume',
+        'close',
+      ].includes(slug)
+    )
+      usage(
+        'computer-video needs status, open, signal, heartbeat, takeover, input, release, resume or close.',
+      );
+    if (toolArgs['force'] === true && values.confirm !== true)
+      usage('Forced takeover requires --confirm.');
+    if (
+      slug === 'open' &&
+      (values.out === undefined ||
+        (!values.out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(values.out)))
+    )
+      usage('computer-video open requires --out <absolute-file> for private signaling data.');
+  }
   if (command === 'browser-frame' || command === 'computer-frame') {
     const out = values.out ?? '';
     if (!out.startsWith('/') && !/^[A-Za-z]:[\\/]/u.test(out))
@@ -1478,6 +1567,36 @@ async function runDeviceCommand(
       return { type: 'image', mimeType: item['mimeType'], bytes: bytes.byteLength };
     });
   if (command === 'browser-tools') return json('/api/browser/tools');
+  if (video) {
+    const result = record(
+      await json('/api/computer/video', {
+        ...toolArgs,
+        kind: slug,
+        ...(toolArgs['force'] === true ? { confirm: values.confirm === true } : {}),
+      }),
+    );
+    const state = record(result['state']);
+    const { offer, ...safeState } = state;
+    if (offer !== undefined && values.out !== undefined) {
+      try {
+        writeFileSync(values.out, JSON.stringify(offer), { mode: 0o600, flag: 'wx' });
+      } catch {
+        if (state['binding'] !== undefined)
+          await json('/api/computer/video', { kind: 'close', binding: state['binding'] }).catch(
+            () => undefined,
+          );
+        throw new CliLiveError(
+          'signaling-file-failed',
+          'Private signaling could not be saved. Use a new writable absolute file.',
+        );
+      }
+    }
+    return {
+      ...result,
+      ...(result['state'] === undefined ? {} : { state: safeState }),
+      ...(offer === undefined ? {} : { signalingFile: values.out }),
+    };
+  }
   if (command === 'computer-tools') return json('/api/computer/tools');
   if (command === 'computer-tool') {
     const result = record(

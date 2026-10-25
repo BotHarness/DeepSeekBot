@@ -363,10 +363,8 @@ export function PersonaBotAvatar({
   nativeTitle = true,
   t = zhTranslate,
 }: PersonaBotAvatarProps): ReactElement {
-  const systemIcon = useTobDefaultIcon(personaBotId);
-  const currentTob = useTobBot(personaBotId);
-  const tobIcon = preview ? undefined : systemIcon;
-  const tob = preview ? undefined : currentTob;
+  const tobIcon = useTobDefaultIcon(preview ? undefined : personaBotId);
+  const tob = useTobBot(preview ? undefined : personaBotId);
   const name = tob?.displayName ?? inputName;
   const src = tob ? tob.avatar : inputSrc;
   const appearance = tob ? tob.appearance : inputAppearance;

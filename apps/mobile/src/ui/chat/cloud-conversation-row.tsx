@@ -1,5 +1,5 @@
 import type { CloudConversation } from '../../cloud/conversations';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ConversationGroupAvatar, ConversationRowFrame } from './conversation-row';
 
 export function CloudConversationRow({
@@ -11,6 +11,7 @@ export function CloudConversationRow({
   disabled: boolean;
   onPress(): void;
 }) {
+  const t = useStrings();
   return (
     <ConversationRowFrame
       testID={`conversation-row-cloud:${row.channel.channelId}`}

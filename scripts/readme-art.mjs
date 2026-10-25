@@ -98,7 +98,7 @@ export function renderStatus(stats, lang, theme) {
   const zh = lang === 'zh';
   let body =
     frame(960, 414, p) +
-    text('REPOSITORY / DeepSeekBot', 27, 37, 20, theme === 'day' ? p.ink : p.hi) +
+    text('REPOSITORY / Tobs', 27, 37, 20, theme === 'day' ? p.ink : p.hi) +
     text(stats.updatedAt.slice(0, 16).replace('T', ' ') + ' UTC', 927, 35, 15, p.soft, 'end');
   const metrics = [
     ['STARS', stats.stars, zh ? '收藏这个小镇' : 'Stargazers'],
@@ -141,7 +141,7 @@ export function renderStatus(stats, lang, theme) {
   return svg(
     960,
     414,
-    `DeepSeekBot: ${stats.stars} stars, ${stats.forks} forks, ${stats.issues} open issues, ${stats.pullRequests} open PRs; last 30 days: ${stats.activity.closedPullRequests} closed PRs, ${stats.activity.commits} commits. Updated ${stats.updatedAt}`,
+    `Tobs: ${stats.stars} stars, ${stats.forks} forks, ${stats.issues} open issues, ${stats.pullRequests} open PRs; last 30 days: ${stats.activity.closedPullRequests} closed PRs, ${stats.activity.commits} commits. Updated ${stats.updatedAt}`,
     body,
   );
 }
@@ -188,7 +188,7 @@ export function renderArtwork(assets) {
               .join('')
           : '';
       const title = text(
-        'DeepSeekBot',
+        'Tobs',
         480,
         107,
         79,
@@ -210,7 +210,7 @@ export function renderArtwork(assets) {
           theme === 'day' ? p.soft : p.hi,
           'middle',
         ) +
-        `<g transform="translate(5 5)">${text('DeepSeekBot', 480, 107, 79, p.accent, 'middle', `stroke="${p.ink}" stroke-width="6" paint-order="stroke"`)}</g>` +
+        `<g transform="translate(5 5)">${text('Tobs', 480, 107, 79, p.accent, 'middle', `stroke="${p.ink}" stroke-width="6" paint-order="stroke"`)}</g>` +
         title +
         text(
           zh
@@ -226,10 +226,10 @@ export function renderArtwork(assets) {
         rect(10, 277, 936, 4, theme === 'day' ? '#97b96c' : '#49765c') +
         crew +
         text('MIT / OPEN SOURCE', 29, 266, 13, theme === 'day' ? p.soft : p.hi) +
-        text('deepseekbot.app', 928, 266, 14, theme === 'day' ? p.soft : p.hi, 'end');
+        text('tobs.app', 928, 266, 14, theme === 'day' ? p.soft : p.hi, 'end');
       writeFileSync(
         join(assets, `hero-${lang}-${theme}.svg`),
-        svg(960, 310, 'DeepSeekBot — a crew of your own', hero),
+        svg(960, 310, 'Tobs — a crew of your own', hero),
       );
       for (const [id, [cn, en]] of Object.entries(names)) {
         const label = zh ? cn : en;
@@ -262,9 +262,7 @@ export function renderArtwork(assets) {
           theme === 'day' ? p.ink : p.hi,
         ) +
         text(
-          zh
-            ? '收藏 DeepSeekBot，下次回来继续建设。'
-            : 'Save DeepSeekBot. Come back and build with us.',
+          zh ? '收藏 Tobs，下次回来继续建设。' : 'Save Tobs. Come back and build with us.',
           110,
           72,
           18,
@@ -273,7 +271,7 @@ export function renderArtwork(assets) {
         text('STAR', 851, 59, 31, p.accent, 'middle');
       writeFileSync(
         join(assets, `star-${lang}-${theme}.svg`),
-        svg(960, 100, zh ? '收藏 DeepSeekBot' : 'Star DeepSeekBot', star),
+        svg(960, 100, zh ? '收藏 Tobs' : 'Star Tobs', star),
       );
     }
     for (const [id, label, accent] of [

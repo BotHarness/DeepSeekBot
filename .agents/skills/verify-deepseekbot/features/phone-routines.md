@@ -8,7 +8,7 @@ A paired phone runs, pauses, resumes, deletes, creates and edits a PersonaBot's 
 - `run-now` calls `scheduleRunNow`; the manual firing shows under Recent runs.
 - `pause` calls `scheduleUpdate` with `enabled`; the button flips between Pause and Resume.
 - `delete` asks in place, then calls `scheduleDelete`.
-- `author` uses a nested Edit or New routine page inside that same drawer, and creates (`scheduleCreate`) or edits (`scheduleUpdate`) a daily, weekly or every-N-hours routine, previewing the next runs with `schedulePreview`. Minute, once and cron triggers say the phone cannot edit them and open the full client.
+- `author` uses a nested Edit or New routine page inside that same drawer, and creates (`scheduleCreate`) or edits (`scheduleUpdate`) a daily, weekly or every-N-hours routine, previewing the next runs with `schedulePreview`. Minute, once and cron triggers say the phone cannot edit them; no full-client action is available.
 
 ## How to get to it (user POV)
 
@@ -18,7 +18,7 @@ A paired phone runs, pauses, resumes, deletes, creates and edits a PersonaBot's 
 
 Preconditions: no model credential is needed.
 
-- **Scripted journey.** `node scripts/e2e-mobile-routines-web.mjs [--skip-export]` exports the app for web, pairs it through a phone-origin proxy, creates a daily and a cron routine through the API, then checks Pause and Resume on the Host, Run now in the Host history, Delete after confirming, the cron routine's full-client note, and a new weekly routine whose preview matches the Host's `schedulePreview`, in light and dark. Evidence lands in `.humanlayer/verify/mobile-routines-web/evidence/`.
+- **Scripted journey.** `node scripts/e2e-mobile-routines-web.mjs [--skip-export]` exports the app for web, pairs it through a phone-origin proxy, creates a daily and a cron routine through the API, then checks Pause and Resume on the Host, Run now in the Host history, Delete after confirming, the cron routine's read-only note, and a new weekly routine whose preview matches the Host's `schedulePreview`, in light and dark. Evidence lands in `.humanlayer/verify/mobile-routines-web/evidence/`.
 
 ## Gotchas
 

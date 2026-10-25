@@ -138,6 +138,7 @@ import {
   createRosterSection,
   errorMessage,
   loadWorkspaceOptions,
+  loadHostFolders,
   loadWorkspaceGrants,
   loadToolApprovalRules,
   loadApprovalTemplates,
@@ -162,6 +163,9 @@ import {
   type ToolApprovalExecutionState,
   decideToolApproval,
   loadUserQuestionStatus,
+  loadPrivateInputStatus,
+  submitPrivateInput,
+  cancelPrivateInput,
   answerUserQuestion,
   type WorkspaceOption,
   type WorkspaceGrantView,
@@ -332,6 +336,7 @@ export interface HostDirectoryListing {
   crumbs: { name: string; path: string; hidden: boolean }[];
   entries: { name: string; path: string; hidden: boolean }[];
   truncated: boolean;
+  roots?: { name: string; path: string; hidden: boolean }[];
 }
 
 export interface BridgeActions {
@@ -956,7 +961,6 @@ export function createActions(
   clientStore: ClientStore,
   folderAccess?: {
     pickDirectory(): Promise<string | null>;
-    listDirectory?(path?: string, signal?: AbortSignal): Promise<HostDirectoryListing>;
     createWorkspace(input: { path: string }): Promise<{ workspaceId: string }>;
     openSession?(sessionId: string): void;
     nativeFiles?: NativeHostFiles;
@@ -1617,11 +1621,7 @@ export function createActions(
       setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
     setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
       setModelPlan(call, slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels),
-    listHostFolders(path, signal) {
-      if (folderAccess?.listDirectory === undefined)
-        throw new Error('DSH folder browser is unavailable');
-      return folderAccess.listDirectory(path, signal);
-    },
+    listHostFolders: (path, signal) => loadHostFolders(call, path, signal),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
       const path = await folderAccess.pickDirectory();
@@ -1674,24 +1674,11 @@ export function createActions(
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
       loadToolApprovalStatus(call, channelId, messageId),
-    privateInputStatus: async (channelId, messageId) => {
-      const result = await call('privateInputStatus', { channelId, messageId });
-      if (!result.ok) throw new Error('Private input status is unavailable');
-      const status = (result.value as { status?: unknown }).status;
-      if (!['pending', 'configured', 'cancelled', 'expired'].includes(String(status)))
-        throw new Error('Private input status is invalid');
-      return status as import('../../../core/src/credentials/contracts.js').PrivateInputStatus;
-    },
-    privateInputSubmit: async (channelId, messageId, values) => {
-      const result = await call('privateInputSubmit', { channelId, messageId, values });
-      if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
-        throw new Error('Private input was not accepted');
-    },
-    privateInputCancel: async (channelId, messageId) => {
-      const result = await call('privateInputCancel', { channelId, messageId });
-      if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
-        throw new Error('Private input cancellation was not accepted');
-    },
+    privateInputStatus: (channelId, messageId) =>
+      loadPrivateInputStatus(call, channelId, messageId),
+    privateInputSubmit: (channelId, messageId, values) =>
+      submitPrivateInput(call, channelId, messageId, values),
+    privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
     privateAccountStatus: async (channelId, messageId) => {
       const result = await call('privateAccountStatus', { channelId, messageId });
       if (!result.ok) throw new Error('Private account status is unavailable');

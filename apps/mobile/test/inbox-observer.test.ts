@@ -20,7 +20,7 @@ function host() {
       : { ok: true, value: { items: [], queryVersion: 1 } };
   });
   const client = createHostClient({
-    routes: ['https://studio.example'],
+    routes: ['https://studio.tailnet.ts.net'],
     credential: fake.credential,
     carrier: fake.carrier,
   });
@@ -110,7 +110,7 @@ describe('Activity query observation', () => {
       };
     });
     const client = createHostClient({
-      routes: ['https://studio.example'],
+      routes: ['https://studio.tailnet.ts.net'],
       credential: fake.credential,
       carrier: fake.carrier,
     });

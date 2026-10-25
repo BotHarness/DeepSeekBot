@@ -1,17 +1,18 @@
+import { processIsRunning } from './dev-instance-lifecycle.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { basename, delimiter, dirname, join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { assertDshVersion } from './dsh-compatibility.mjs';
+import { prepareZipImportProof } from './e2e-zip-import-proof.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const helper = join(root, 'scripts', 'dev-instance.mjs');
 const withDm = process.argv.includes('--with-dm');
 const home = mkdtempSync(join(tmpdir(), 'bh-e2e-web-'));
 const workspacePath = join(home, 'workspace');
-const expectedVersion = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-  .devDependencies['@deepseek-ai/dsh'];
 const env = {
   ...process.env,
   PATH: [join(root, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter),
@@ -21,9 +22,7 @@ function dshVersion() {
   const result = spawnSync('dsh', ['--version'], { cwd: root, env, encoding: 'utf8' });
   if (result.status !== 0) throw new Error('Installed DSH CLI is unavailable');
   const version = result.stdout.trim();
-  if (version !== expectedVersion) {
-    throw new Error(`Expected DSH ${expectedVersion}, found ${version}`);
-  }
+  assertDshVersion(version);
   return version;
 }
 
@@ -90,13 +89,120 @@ async function rpc(port, namespace, method, args = {}) {
   return envelope.result.value;
 }
 
-async function waitForStop(port) {
+function creationCli(instance, command, input) {
+  const login = new URL(instance.url);
+  const token = login.searchParams.get('token');
+  if (!token) throw new Error('Isolated Host login token is unavailable');
+  const result = spawnSync(
+    process.execPath,
+    [
+      join(root, 'packages', 'deepseekbot', 'dist', 'deepseekbot.mjs'),
+      command,
+      '--host',
+      login.origin,
+      '--timeout',
+      '30',
+      '--name',
+      input.displayName,
+      ...(input.gitUrl
+        ? ['--from-git', input.gitUrl, '--expected-commit', input.expectedCommit]
+        : ['--persona', input.persona]),
+      '--description',
+      input.description,
+      '--role',
+      input.roles[0],
+      '--operation-key',
+      input.operationKey,
+    ],
+    {
+      cwd: root,
+      env: { ...env, DEEPSEEKBOT_HOST_TOKEN: token },
+      encoding: 'utf8',
+      timeout: 45_000,
+      maxBuffer: 1024 * 1024,
+      windowsHide: true,
+    },
+  );
+  if (result.error !== undefined || result.status !== 0)
+    throw new Error(
+      'Creation CLI ' + command + ' failed (exit ' + (result.status ?? 'unknown') + ')',
+    );
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    throw new Error('Creation CLI did not return one JSON document');
+  }
+}
+
+function gitPreviewCli(instance, gitUrl) {
+  const login = new URL(instance.url);
+  const token = login.searchParams.get('token');
+  if (!token) throw new Error('Isolated Host login token is unavailable');
+  const result = spawnSync(
+    process.execPath,
+    [
+      join(root, 'packages', 'deepseekbot', 'dist', 'deepseekbot.mjs'),
+      'bot-import-preview',
+      '--host',
+      login.origin,
+      '--from-git',
+      gitUrl,
+    ],
+    {
+      cwd: root,
+      env: { ...env, DEEPSEEKBOT_HOST_TOKEN: token },
+      encoding: 'utf8',
+      timeout: 45000,
+      windowsHide: true,
+    },
+  );
+  if (result.status !== 0) throw new Error('Git source CLI inspection failed');
+  return JSON.parse(result.stdout);
+}
+
+function sameReceipt(actual, expected) {
+  if (
+    actual?.operationKey !== expected.operationKey ||
+    actual?.botSlug !== expected.botSlug ||
+    actual?.status !== 'created' ||
+    actual?.channelId !== expected.channelId
+  )
+    throw new Error('Creation recovery changed the original Bot or DM receipt');
+}
+
+async function creationCounts(port) {
+  const [bots, channels] = await Promise.all([
+    rpc(port, 'botharness', 'list'),
+    rpc(port, 'botharness', 'channels'),
+  ]);
+  return { bots: bots.bots, channels: channels.channels };
+}
+
+async function verifyOneCreation(port, baseline, receipt, input) {
+  const current = await creationCounts(port);
+  if (
+    current.bots.length !== baseline.bots.length + 1 ||
+    current.channels.length !== baseline.channels.length + 1 ||
+    current.bots.filter(
+      (bot) => bot.slug === receipt.botSlug && bot.displayName === input.displayName,
+    ).length !== 1 ||
+    current.channels.filter(
+      (channel) =>
+        channel.id === receipt.channelId &&
+        channel.type === 'dm' &&
+        channel.botSlug === receipt.botSlug,
+    ).length !== 1
+  )
+    throw new Error('Creation retry did not preserve exactly one new Bot and its DM');
+}
+
+async function waitForStop(port, hostPid) {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     try {
       await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(500) });
     } catch {
-      return;
+      if (!processIsRunning(hostPid)) return;
     }
     await new Promise((resolveWait) => setTimeout(resolveWait, 100));
   }
@@ -117,6 +223,22 @@ const version = dshVersion();
 const port = await availablePort();
 try {
   mkdirSync(workspacePath);
+  const gitSource = join(home, 'git-source');
+  mkdirSync(gitSource);
+  const git = (...args) =>
+    execFileSync('git', ['-C', gitSource, ...args], { encoding: 'utf8', windowsHide: true }).trim();
+  git('init', '--quiet');
+  git('config', 'user.name', 'Import QA');
+  git('config', 'user.email', 'import@example.test');
+  writeFileSync(join(gitSource, 'SOUL.md'), 'Immutable imported persona.');
+  git('add', '.');
+  git('commit', '--quiet', '-m', 'source fixture');
+  const sourceCommit = git('rev-parse', 'HEAD');
+  const gitUrl = 'https://import-fixture.example/source.git';
+  const rewriteIndex = Number(env.GIT_CONFIG_COUNT ?? 0);
+  env.GIT_CONFIG_COUNT = String(rewriteIndex + 1);
+  env['GIT_CONFIG_KEY_' + rewriteIndex] = 'url.' + gitSource.replaceAll('\\', '/') + '/.insteadOf';
+  env['GIT_CONFIG_VALUE_' + rewriteIndex] = gitUrl;
   const first = launch(port, true);
   pid = first.pid;
 
@@ -162,11 +284,127 @@ try {
     }
   }
 
+  const creationInput = {
+    operationKey: 'e2e-blank-create-001',
+    displayName: 'Blank recovery QA',
+    persona: 'Keep replies short.',
+    description: 'Creation recovery check',
+    roles: ['qa'],
+  };
+  const creationBaseline = await creationCounts(port);
+  const missing = await rpc(port, 'botharness', 'createLookup', creationInput);
+  const missingCli = creationCli(first, 'create-status', creationInput);
+  const afterLookup = await creationCounts(port);
+  if (
+    missing.receipt !== null ||
+    missingCli.receipt !== null ||
+    afterLookup.bots.length !== creationBaseline.bots.length ||
+    afterLookup.channels.length !== creationBaseline.channels.length
+  )
+    throw new Error('Creation lookup mutated a previously absent operation');
+
+  await rpc(port, 'botharness', 'create', creationInput);
+  const recovered = await rpc(port, 'botharness', 'createLookup', creationInput);
+  const receipt = recovered.receipt;
+  if (
+    receipt?.operationKey !== creationInput.operationKey ||
+    receipt.status !== 'created' ||
+    typeof receipt.botSlug !== 'string' ||
+    typeof receipt.channelId !== 'string'
+  )
+    throw new Error('The Host did not return a completed blank creation receipt');
+  sameReceipt(creationCli(first, 'create-status', creationInput).receipt, receipt);
+  const retried = creationCli(first, 'create', creationInput);
+  sameReceipt(retried.operation, receipt);
+  if (retried.bot?.id !== receipt.botSlug || retried.dm?.channelId !== receipt.channelId)
+    throw new Error('Creation CLI returned a different Bot or DM');
+  await verifyOneCreation(port, creationBaseline, receipt, creationInput);
+
+  const gitInput = {
+    operationKey: 'e2e-git-import-001',
+    displayName: 'Git recovery QA',
+    gitUrl,
+    expectedCommit: sourceCommit,
+    description: 'Pinned Git source',
+    roles: ['qa'],
+  };
+  const gitBaseline = await creationCounts(port);
+  const gitPreview = gitPreviewCli(first, gitUrl);
+  if (gitPreview.source?.commit !== sourceCommit || gitPreview.source?.gitUrl !== gitUrl)
+    throw new Error('Git preview changed selected source');
+  const gitMissing = await rpc(port, 'botharness', 'botImportLookup', gitInput);
+  if (gitMissing.receipt !== null || creationCli(first, 'create-status', gitInput).receipt !== null)
+    throw new Error('Unexpected existing Git operation');
+  await rpc(port, 'botharness', 'createFromGit', gitInput);
+  const gitReceipt = (await rpc(port, 'botharness', 'botImportLookup', gitInput)).receipt;
+  if (gitReceipt?.status !== 'created') throw new Error('Missing completed Git receipt');
+  const importedDetail = await rpc(port, 'botharness', 'get', { slug: gitReceipt.botSlug });
+  if (
+    readFileSync(join(importedDetail.bot.memoryDir, 'SOUL.md'), 'utf8') !==
+    'Immutable imported persona.'
+  )
+    throw new Error('Git import changed the selected personality');
+  sameReceipt(creationCli(first, 'create', gitInput).operation, gitReceipt);
+  await verifyOneCreation(port, gitBaseline, gitReceipt, gitInput);
+  writeFileSync(join(gitSource, 'SOUL.md'), 'Remote source changed after accepted import.');
+  git('add', '.');
+  git('commit', '--quiet', '-m', 'move remote HEAD');
+  const staleInput = { ...gitInput, operationKey: 'e2e-git-stale-source-001' };
+  let staleRefused = false;
+  try {
+    await rpc(port, 'botharness', 'createFromGit', staleInput);
+  } catch (error) {
+    staleRefused = error instanceof Error && error.message.endsWith('git-source-changed');
+  }
+  if (!staleRefused) throw new Error('Changed Git source was not refused');
+  const completeBaseline = await creationCounts(port);
+  if (
+    completeBaseline.bots.length !== gitBaseline.bots.length + 1 ||
+    completeBaseline.channels.length !== gitBaseline.channels.length + 1
+  )
+    throw new Error('Stale source published a Bot or DM');
+
+  const zipProof = await prepareZipImportProof({
+    root,
+    home,
+    port,
+    sourceSlug: receipt.botSlug,
+    rpc,
+    cookie,
+    env,
+  });
+
   stop(pid);
-  await waitForStop(port);
+  await waitForStop(port, pid);
   pid = undefined;
   const restarted = launch(port, false);
   pid = restarted.pid;
+
+  sameReceipt((await rpc(port, 'botharness', 'createLookup', creationInput)).receipt, receipt);
+  sameReceipt(creationCli(restarted, 'create-status', creationInput).receipt, receipt);
+  sameReceipt(creationCli(restarted, 'create', creationInput).operation, receipt);
+  sameReceipt((await rpc(port, 'botharness', 'botImportLookup', gitInput)).receipt, gitReceipt);
+  sameReceipt(creationCli(restarted, 'create-status', gitInput).receipt, gitReceipt);
+  sameReceipt(creationCli(restarted, 'create', gitInput).operation, gitReceipt);
+  if (
+    readFileSync(join(importedDetail.bot.memoryDir, 'SOUL.md'), 'utf8') !==
+    'Immutable imported persona.'
+  )
+    throw new Error('Git recovery replaced imported personality with changed remote source');
+  const afterRecovery = await creationCounts(port);
+  if (
+    afterRecovery.bots.length !== completeBaseline.bots.length ||
+    afterRecovery.channels.length !== completeBaseline.channels.length
+  )
+    throw new Error('Restart recovery duplicated a Bot or DM');
+
+  const zipImported = await zipProof.finishAfterUploadRestart(restarted);
+  stop(pid);
+  await waitForStop(port, pid);
+  pid = undefined;
+  const zipRestarted = launch(port, false);
+  pid = zipRestarted.pid;
+  await zipImported.verifyAfterImportRestart(zipRestarted);
 
   const list = await rpc(port, 'botharness', 'list');
   const read = await rpc(port, 'botharness', 'get', { slug });
@@ -202,9 +440,20 @@ try {
       personaBotCreated: true,
       persistedAfterRestart: true,
       gitMemoryReady: true,
+      blankCreationLookup: true,
+      blankCreationCli: true,
+      blankCreationRetry: true,
+      blankCreationAfterRestart: true,
+      gitImportPreview: true,
+      gitImportCliRecovery: true,
+      gitImportAfterRestart: true,
+      zipUploadAfterRestart: true,
+      zipImportCliRecovery: true,
+      zipImportAfterRestart: true,
       ...(withDm ? { dmHistoryAfterRestart: true } : {}),
     }),
   );
 } finally {
   stop(pid);
+  if (pid !== undefined) await waitForStop(port, pid);
 }

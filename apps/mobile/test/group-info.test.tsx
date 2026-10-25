@@ -27,12 +27,21 @@ vi.mock('../src/ui/chat/sheet', () => {
       visible,
       label,
       children,
+      onClose,
     }: {
       visible: boolean;
       label: string;
       children: ReactNode;
+      onClose(): void;
     }) =>
-      visible ? createElement('div', { role: 'dialog', 'aria-label': label }, children) : null,
+      visible
+        ? createElement(
+            'div',
+            { role: 'dialog', 'aria-label': label },
+            createElement('button', { 'aria-label': 'dismiss-sheet', onClick: onClose }),
+            children,
+          )
+        : null,
     SheetActions: pass,
     SheetNote: pass,
     SheetCallout: ({ children }: { children: ReactNode }) =>
@@ -125,6 +134,85 @@ function sheet(
 }
 
 describe('Group info', () => {
+  it('lets the Human replace the photo by pressing the large Channel avatar', async () => {
+    const props = sheet({ pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA==') });
+    const view = await render(<GroupInfoSheet {...props} />);
+    const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]');
+    expect(avatar).not.toBeNull();
+    expect(avatar?.getAttribute('aria-label')).toBe(t.avatarChange);
+    await act(async () => avatar!.click());
+    expect(props.pickAvatar).toHaveBeenCalledOnce();
+    expect(props.actions.setAvatar).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
+  });
+
+  it('keeps the current photo when picking is cancelled and allows another attempt', async () => {
+    const props = sheet();
+    const view = await render(<GroupInfoSheet {...props} />);
+    const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!;
+    await act(async () => avatar.click());
+    expect(props.actions.setAvatar).toHaveBeenCalledTimes(0);
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+    expect(avatar.disabled).toBe(false);
+    await act(async () => avatar.click());
+    expect(props.pickAvatar).toHaveBeenCalledTimes(2);
+  });
+
+  it('prevents repeat picks until the selected photo has finished saving', async () => {
+    const picking = Promise.withResolvers<string | undefined>();
+    const saving = Promise.withResolvers<void>();
+    const props = sheet({
+      pickAvatar: vi.fn(() => picking.promise),
+      actions: actions({ setAvatar: vi.fn(() => saving.promise) }),
+    });
+    const view = await render(<GroupInfoSheet {...props} />);
+    const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!;
+    await act(async () => {
+      avatar.click();
+      avatar.click();
+    });
+    expect(props.pickAvatar).toHaveBeenCalledOnce();
+    expect(avatar.disabled).toBe(true);
+    await act(async () => picking.resolve('data:image/jpeg;base64,/9j/AA=='));
+    expect(props.actions.setAvatar).toHaveBeenCalledOnce();
+    expect(avatar.disabled).toBe(true);
+    await act(async () => saving.resolve());
+    expect(avatar.disabled).toBe(false);
+  });
+
+  it('shows picker failures and lets the Human try again', async () => {
+    const pickAvatar = vi
+      .fn<() => Promise<string | undefined>>()
+      .mockRejectedValueOnce(new Error('picker failed'))
+      .mockResolvedValueOnce('data:image/jpeg;base64,/9j/AA==');
+    const props = sheet({ pickAvatar });
+    const view = await render(<GroupInfoSheet {...props} />);
+    const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!;
+    await act(async () => avatar.click());
+    expect(view.querySelector('[role="alert"]')?.textContent).toBe(t.avatarPickFailed);
+    expect(props.actions.setAvatar).toHaveBeenCalledTimes(0);
+    await act(async () => avatar.click());
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+    expect(props.actions.setAvatar).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
+  });
+
+  it('shows photo save failures and enables retry', async () => {
+    const props = sheet({
+      pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
+      actions: actions({
+        setAvatar: vi.fn(async () => {
+          throw new Error('save failed');
+        }),
+      }),
+    });
+    const view = await render(<GroupInfoSheet {...props} />);
+    const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!;
+    await act(async () => avatar.click());
+    expect(view.querySelector('[role="alert"]')?.textContent).toBe(
+      `${t.avatarSaveFailed} save failed`,
+    );
+    expect(avatar.disabled).toBe(false);
+  });
+
   it('lists the members, the creator, pending invitations and join requests', async () => {
     const view = await render(<GroupInfoSheet {...sheet()} />);
     const text = view.textContent ?? '';
@@ -136,6 +224,7 @@ describe('Group info', () => {
     const headers = [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
     expect(headers).toEqual([
       'Launch',
+      t.avatarTitle,
       t.groupSettingsSection,
       t.groupJoinsSection,
       t.groupMembersSection,
@@ -170,6 +259,31 @@ describe('Group info', () => {
     expect(props.actions.invite).toHaveBeenCalledWith('fay');
   });
 
+  for (const settles of ['success', 'failure'] as const) {
+    it(`does not dismiss a replacement sheet after an old invitation ${settles}`, async () => {
+      let resolve!: () => void;
+      let reject!: (failure: Error) => void;
+      const pending = new Promise<void>((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
+      const props = sheet({ actions: actions({ invite: vi.fn(() => pending) }) });
+      const view = await render(<GroupInfoSheet {...props} />);
+      await act(async () => button(view, t.groupInvite)!.click());
+      const invite = view.querySelector(`[role="dialog"][aria-label="${t.groupInvite}"]`)!;
+      await act(async () => button(invite, 'Fay')!.click());
+      await act(async () => button(invite, 'dismiss-sheet')!.click());
+      await act(async () => button(view, `${t.groupRename}, Launch`)!.click());
+      expect(view.querySelector(`textarea[aria-label="${t.groupName}"]`)).not.toBeNull();
+      await act(async () => {
+        if (settles === 'success') resolve();
+        else reject(new Error('old invitation failed'));
+      });
+      expect(view.querySelector(`textarea[aria-label="${t.groupName}"]`)).not.toBeNull();
+      expect(view.textContent).not.toContain('old invitation failed');
+    });
+  }
+
   it('removes a member only after the confirmation', async () => {
     const props = sheet();
     const view = await render(<GroupInfoSheet {...props} />);
@@ -198,9 +312,12 @@ describe('Group info', () => {
     await act(async () => button(view, t.groupRenameSave)!.click());
     expect(props.actions.rename).toHaveBeenCalledWith('Launch crew');
 
-    await act(async () => button(view, t.groupAvatarChange)!.click());
+    const photoRow = view.querySelectorAll<HTMLButtonElement>(
+      `button[aria-label="${t.avatarChange}"]`,
+    )[1]!;
+    await act(async () => photoRow.click());
     expect(props.actions.setAvatar).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
-    expect(button(view, t.groupAvatarRemove)).toBeNull();
+    expect(button(view, t.avatarRemove)).toBeNull();
   });
 
   it('shows the Host refusal as a notice and keeps the page', async () => {

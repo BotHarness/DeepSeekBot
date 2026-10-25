@@ -72,6 +72,7 @@ vi.mock('../src/cloud/native', () => ({
 import { cloudViewScope } from '../src/cloud/workspace-directory';
 import { useCloudSnapshot } from '../src/cloud/native';
 import { CloudChannelsScreen } from '../src/ui/cloud/channels-screen';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 const cached = {
   channel: { channelId: 'channel_a', name: 'Private channel' },
@@ -79,6 +80,7 @@ const cached = {
   hasMore: false,
 };
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   state.userId = 'user_a';
   state.list.mockReset().mockResolvedValue({
     channels: [{ channelId: 'channel_b', name: 'B' }],
@@ -86,6 +88,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  interfacePreferences.setLanguage('system');
   state.initialChannelId = 'channel_a';
 });
 describe('cloud channel cached access', () => {

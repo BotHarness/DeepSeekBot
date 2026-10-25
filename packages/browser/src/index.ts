@@ -1,11 +1,12 @@
 import { BROWSER_TOOLS, browserToolName } from './tool/catalog.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
+import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
+import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
 import Schema from '@deepseek-ai/schemastery';
-import type { DeviceViewerUpgrade } from '../../core/src/http/viewer-proxy.js';
 import { registerBrowserViewer, type BrowserViewerHost } from './viewer.js';
 import {
   LOCAL_VIEWER_PREFIX,
@@ -179,6 +180,28 @@ export function apply(
       registrationScopes.set(signal, ++registrationRevision);
     return `${target()}:${driver()}:${revision}:${borrow.revision}:${daily.revision}:${profile.revision}:${signal === undefined ? '' : registrationScopes.get(signal)}`;
   };
+  const connectionEpoch = randomUUID();
+  const savedTargetScope = createDeviceApprovalScope(
+    join(profileDirectory(), 'approval-target.json'),
+    () => JSON.stringify([target(), driver(), config.browserPath.trim()]),
+  );
+  const approvalScope = (sessionId: string): string => {
+    const owner = (
+      coreLookup()?.ownership as
+        | { resolve(id: string): { botSlug: string } | undefined }
+        | undefined
+    )?.resolve(sessionId);
+    if (!owner) throw new Error('Browser approval requires current Session ownership');
+    const selected = target();
+    return JSON.stringify([
+      savedTargetScope.current(),
+      runtimes.profileOf(owner.botSlug),
+      selected === 'profile-control' ? profile.authorizationIdentity() : '',
+      selected === 'extension' || selected === 'daily-control'
+        ? [connectionEpoch, borrow.revision, daily.revision]
+        : '',
+    ]);
+  };
   let switching: Promise<void> = Promise.resolve();
   let registerViewer: BrowserViewerRegistration | undefined;
   const webrtcCalls = new Map<string, { calls: SelkiesWebRtc; touch: () => void }>();
@@ -193,9 +216,6 @@ export function apply(
         prefix,
         upstream,
         rejection: (headers) => services.connection.requestRejection({ headers }),
-        deviceUpgrade: () =>
-          (coreLookup() as { deviceWebUpgrade?: DeviceViewerUpgrade } | undefined)
-            ?.deviceWebUpgrade,
       });
       const viewer = prefix.slice(prefix.lastIndexOf('/') + 1);
       const calls = createSelkiesWebRtc({
@@ -394,6 +414,9 @@ export function apply(
     executionSignal: (sessionId: string) => provider.executionSignal(sessionId),
     needsAuthorization: (sessionId: string) => provider.needsAuthorization(sessionId),
     authorizationScope,
+    approvalScope,
+    authorizeCall: (token: symbol, authorized: () => boolean) =>
+      provider.authorizeCall(token, authorized),
     markAuthorized: (sessionId: string, expectedScope?: string) => {
       if (expectedScope !== undefined && expectedScope !== authorizationScope(sessionId))
         return false;
@@ -443,6 +466,7 @@ export function apply(
     )
       return;
     revision += 1;
+    savedTargetScope.invalidate();
     borrow.clear();
     daily.clear();
     profile.clear();

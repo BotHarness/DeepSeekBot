@@ -2,7 +2,7 @@ import { useMemo, useRef, type ReactNode } from 'react';
 import { PanResponder, View } from 'react-native';
 import type { BackgroundChoice } from '../../host/chat-background';
 import { radius, space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { backgroundOverflow, dragBackground } from './background-position';
 import { ChatBackground } from './chat-background';
 
@@ -21,6 +21,7 @@ export function BackgroundPreview({
   viewport: { width: number; height: number };
   onViewport(size: { width: number; height: number }): void;
 }) {
+  const t = useStrings();
   const overflow =
     choice.kind === 'image' ? backgroundOverflow(choice, viewport, choice.fit) : { x: 0, y: 0 };
   const current = useRef({ choice, overflow, onChange });

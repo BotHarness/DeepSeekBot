@@ -10,13 +10,13 @@ import {
   INSTALL_ID_FILE,
   installedDshVersion,
   readInstallId,
-  pluginStartedProperties,
   TELEMETRY_API_KEY,
   TELEMETRY_ENDPOINT,
   telemetryDecision,
   type TelemetryBatch,
   type TelemetrySender,
 } from '../src/telemetry/service.js';
+import { hostContextProperties, type HostTelemetryFacts } from '../src/telemetry/context.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 
 const dirs: string[] = [];
@@ -31,12 +31,17 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-const STARTED = pluginStartedProperties({
+const FACTS: HostTelemetryFacts = {
   pluginVersion: '1.0.2',
   dshVersion: '0.2.0-rc.1',
   os: 'darwin',
   arch: 'arm64',
-});
+  nodeVersion: '24.21.0',
+  osRelease: '25.1.0-private-kernel-suffix',
+  cpuCount: 10,
+  totalMemory: 24 * 1024 ** 3,
+};
+const STARTED = hostContextProperties(FACTS);
 
 function recordingSender(): { send: TelemetrySender; batches: TelemetryBatch[] } {
   const batches: TelemetryBatch[] = [];
@@ -77,7 +82,8 @@ describe('telemetry service', () => {
   ])('never calls the sender or writes an Install ID with %s', async (_, decision) => {
     const dir = dataDir();
     const { send } = recordingSender();
-    const telemetry = createTelemetryService({ decision, dataDir: dir, send });
+    const context = vi.fn(() => FACTS);
+    const telemetry = createTelemetryService({ decision, dataDir: dir, send, context });
 
     telemetry.capture('plugin_started', STARTED);
     await telemetry.flush();
@@ -92,6 +98,7 @@ describe('telemetry service', () => {
     telemetry.capture('second', {});
     await telemetry.flush();
     expect(send).not.toHaveBeenCalled();
+    expect(context).not.toHaveBeenCalled();
     expect(() => readFileSync(join(dir, INSTALL_ID_FILE))).toThrow();
   });
 
@@ -103,6 +110,7 @@ describe('telemetry service', () => {
       dataDir: dir,
       send,
       now: () => new Date('2026-10-06T08:00:00.000Z'),
+      context: () => FACTS,
     });
 
     telemetry.capture('plugin_started', STARTED);
@@ -124,8 +132,13 @@ describe('telemetry service', () => {
       dsh_version: '0.2.0-rc.1',
       os: 'darwin',
       arch: 'arm64',
+      node_version: '24',
+      os_release_major: '25',
+      cpu_count_bucket: '9-16',
+      total_mem_gb_bucket: '32',
       source: 'plugin',
       $process_person_profile: false,
+      $geoip_disable: true,
     });
     const serialized = JSON.stringify(batch);
     for (const forbidden of [dir, tmpdir(), process.cwd(), 'bh-telemetry-']) {
@@ -135,13 +148,62 @@ describe('telemetry service', () => {
 
   it('reduces non-version facts to unknown so paths cannot leak', () => {
     expect(
-      pluginStartedProperties({
+      hostContextProperties({
+        ...FACTS,
         pluginVersion: '/Users/someone/.dsh/package.json',
         dshVersion: undefined,
         os: 'linux',
         arch: 'x64',
       }),
-    ).toEqual({ plugin_version: 'unknown', dsh_version: 'unknown', os: 'linux', arch: 'x64' });
+    ).toEqual({
+      ...STARTED,
+      plugin_version: 'unknown',
+      dsh_version: 'unknown',
+      os: 'linux',
+      arch: 'x64',
+    });
+  });
+
+  it('attaches authoritative context to usage and exceptions, including after re-enabling', async () => {
+    const { send, batches } = recordingSender();
+    const context = vi.fn(() => FACTS);
+    const telemetry = createTelemetryService({
+      decision: { enabled: true },
+      dataDir: dataDir(),
+      send,
+      context,
+    });
+    telemetry.capture('bot_created', {
+      plugin_version: 'spoofed',
+      cpu_count_bucket: 999,
+      $geoip_disable: false,
+    });
+    telemetry.capture('daily_usage', { messages: 7 });
+    telemetry.captureException({
+      type: 'Error',
+      mechanism: { type: 'onuncaughtexception', handled: false },
+      stacktrace: { type: 'raw', frames: [] },
+    });
+    await telemetry.flush();
+    telemetry.setPreference(false);
+    telemetry.capture('discarded');
+    telemetry.setPreference(true);
+    telemetry.capture('bot_archived');
+    await telemetry.close();
+    const events = batches.flatMap((batch) => batch.batch);
+    expect(events.map((event) => event.event)).toEqual([
+      'bot_created',
+      'daily_usage',
+      '$exception',
+      'bot_archived',
+    ]);
+    for (const event of events)
+      expect(event.properties).toMatchObject({
+        ...STARTED,
+        $geoip_disable: true,
+        $process_person_profile: false,
+      });
+    expect(context).toHaveBeenCalledOnce();
   });
 
   it('keeps the same Install ID across starts', async () => {

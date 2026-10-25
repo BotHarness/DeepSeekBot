@@ -31,7 +31,9 @@ function fixture(policy?: { rules?: ToolApprovalRuleStore; autoApproval?: ToolAu
   } as unknown as ChannelStore;
   const owner = { sessionId: 'tob-root', botSlug: 'tob', rootRole: 'orchestrator' as const };
   const ownership = { resolve: () => owner } as unknown as SessionOwnership;
-  const actor = { session: { id: owner.sessionId, header: { cwd: '/test/tob' } } } as Agent;
+  const actor = {
+    session: { id: owner.sessionId, header: { cwd: '/test/tob' }, snapshotEvents: () => [] },
+  } as unknown as Agent;
   let scope = 'initial';
   let authorized = true;
   let fullAccess = false;
@@ -122,6 +124,73 @@ function writeAfterApproval(options: Parameters<typeof approveTobCliOperation>[0
 }
 
 describe('Tob CLI operations use existing Channel approval', () => {
+  it('accepts a committed model-review approval for an ordinary settings write', async () => {
+    const review = vi.fn(async () => ({ outcome: 'allow' as const, reason: 'Allowed' }));
+    const f = fixture({
+      autoApproval: {
+        template: () => ({ name: 'routine', text: 'Allow ordinary settings' }),
+        review,
+        log: vi.fn(),
+      },
+    });
+    const pending = writeAfterApproval(f.options);
+    const result = await pending.result;
+    expect(result).toMatchObject({ ok: true });
+    expect(pending.write).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledTimes(1);
+    expect(f.messages.some((message) => message.toolAutoApproval?.outcome === 'allowed')).toBe(
+      true,
+    );
+    expect(f.channelApproval.requests('tob')).toEqual([]);
+    f.setScope('changed');
+    if (!result.ok) throw new Error('Expected approved write');
+    expect(() => result.guard()).toThrow('approval-authority-changed');
+  });
+
+  it('accepts a committed Human override for an ordinary settings write', async () => {
+    const f = fixture();
+    f.messages.push({
+      id: 'ordinary-rejection',
+      at: new Date().toISOString(),
+      author: { kind: 'system' },
+      body: 'Rejected',
+      toolAutoApproval: {
+        botSlug: 'tob',
+        sessionId: 'tob-root',
+        callId: 'older-settings-call',
+        toolName: 'deepseekbot settings-set',
+        input: JSON.stringify({
+          parentShellCallId: 'original-shell',
+          scope: 'global',
+          ...f.operation,
+        }),
+        template: 'routine',
+        outcome: 'rejected',
+        reason: 'Needs review',
+      },
+    });
+    expect(await f.channelApproval.overrideRejection('dm-tob', 'ordinary-rejection')).toMatchObject(
+      {
+        ok: true,
+      },
+    );
+    const pending = writeAfterApproval(f.options);
+    expect(await pending.result).toMatchObject({ ok: true });
+    expect(pending.write).toHaveBeenCalledTimes(1);
+    expect(f.channelApproval.requests('tob')).toEqual([]);
+  });
+
+  it('rejects an ordinary native approval outcome without a committed decision or review', async () => {
+    const f = fixture();
+    f.request.mockResolvedValueOnce('allowed-once');
+    const pending = writeAfterApproval(f.options);
+    expect(await pending.result).toMatchObject({
+      ok: false,
+      error: { code: 'approval-authority-changed' },
+    });
+    expect(pending.write).not.toHaveBeenCalled();
+  });
+
   it('reviews parsed global old/new values and revision without replacing the parent Shell call', async () => {
     const f = fixture();
     const untrackShell = f.channelApproval.track(f.execution)!;
@@ -304,9 +373,9 @@ describe('disruptive scoped CLI operations require Human review', () => {
   }
 
   it.each(['release-install', 'release-restart', 'bot-delete-confirm', 'bot-delete-retry'])(
-    'does not bypass %s via full access, saved rules or automatic reviewer',
+    'offers saving %s while keeping full access and the model reviewer separate',
     async (command) => {
-      const match = vi.fn(() => ({ id: 'allow-all' }));
+      const match = vi.fn(() => undefined);
       const createPending = vi.fn();
       const template = vi.fn(() => ({ name: 'allow-all', text: 'Allow operations' }));
       const review = vi.fn(async () => ({ outcome: 'allow' as const, reason: 'Allowed' }));
@@ -320,19 +389,22 @@ describe('disruptive scoped CLI operations require Human review', () => {
       const card = await f.card();
       expect(card.toolApprovalRequest).toMatchObject({
         toolName: 'deepseekbot ' + command,
-        externalDecision: 'each-use',
+        externalDecision: 'operation',
+        allowAlways: true,
       });
       expect(JSON.parse(card.toolApprovalRequest!.input)).toMatchObject({
         ...operation,
         parentShellCallId: 'original-shell',
       });
       expect(pending.write).not.toHaveBeenCalled();
-      expect(match).not.toHaveBeenCalled();
+      expect(match).toHaveBeenCalledWith(expect.objectContaining({ explicitOnly: true }));
       expect(template).not.toHaveBeenCalled();
       expect(review).not.toHaveBeenCalled();
       expect(await f.channelApproval.decide('tob', card.id, 'allowed-always-exact')).toBe(false);
       expect(await f.channelApproval.decide('tob', card.id, 'allowed-always-all')).toBe(false);
-      expect(createPending).not.toHaveBeenCalled();
+      expect(createPending).toHaveBeenCalledWith(
+        expect.objectContaining({ kind: 'exact', toolName: 'deepseekbot ' + command }),
+      );
       expect(await f.channelApproval.decide('tob', card.id, 'allowed-once')).toBe(true);
       expect(await pending.result).toMatchObject({ ok: true });
       expect(pending.write).toHaveBeenCalledTimes(1);
@@ -372,7 +444,7 @@ describe('disruptive scoped CLI operations require Human review', () => {
     const pending = writeAfterApproval({ ...f.options, operation });
     const card = await f.card();
     expect(pending.write).not.toHaveBeenCalled();
-    expect(card.toolApprovalRequest!.externalDecision).toBe('each-use');
+    expect(card.toolApprovalRequest!.externalDecision).toBe('operation');
     await f.channelApproval.decide('tob', card.id, 'rejected');
     expect(await pending.result).toMatchObject({ ok: false, error: { code: 'approval-denied' } });
   });

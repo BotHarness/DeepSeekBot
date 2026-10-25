@@ -5,7 +5,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ComposerFieldMaterial } from './composer-chrome';
 import type { MentionCandidate } from './mention-draft';
 
@@ -19,6 +19,7 @@ export function MentionSuggestions({
   candidates: readonly MentionCandidate[];
   onChoose(candidate: MentionCandidate): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const corner = glass ? radius.xl : radius.lg;

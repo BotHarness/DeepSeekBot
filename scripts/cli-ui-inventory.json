@@ -13,7 +13,9 @@
         "storage:packages/client/src/client/dm-actions.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/file-open-preferences.ts:setItem(storageKey)",
         "setting:packages/client/src/client/channel-personal-settings.tsx:{t(`dmTrace.kind.${kind}`)}",
-        "storage:packages/client/src/client/activity-indicator.ts:setItem(ACTIVITY_INDICATOR_KEY)"
+        "storage:packages/client/src/client/activity-indicator.ts:setItem(ACTIVITY_INDICATOR_KEY)",
+        "setting:packages/client/src/client/channel-personal-settings.tsx:{t('dmTrace.memoryDisplay')}",
+        "storage:packages/client/src/client/dm-actions.ts:setItem(MEMORY_DISPLAY_STORAGE_KEY)"
       ],
       "issue": "#2095"
     },
@@ -34,6 +36,7 @@
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
+        "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
         "storage:packages/client/src/client/memory-view-prefs.ts:setItem(MEMORY_VIEW_PREFERENCES_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_BACKUP_KEY)",
         "storage:packages/client/src/client/roster-config.ts:setItem(ROSTER_CONFIG_KEY)",
@@ -58,14 +61,26 @@
     },
     {
       "id": "device-pairing",
-      "description": "Device list, offers, revoke and paired-device gateway authorization; the hosted Connect tunnel route has connect-status/enable/disable/sign-in/sign-out.",
+      "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], ] as const",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
+        "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
+        "route:packages/core/src/devices/mount.ts:CONNECT_CHANNEL_PATH",
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}"
       ],
-      "issue": "#2098"
+      "commands": [
+        "devices",
+        "device-offer",
+        "device-offer-status",
+        "device-approve-key",
+        "device-lan",
+        "device-revoke",
+        "connect-enable",
+        "connect-disable"
+      ]
     },
     {
       "id": "device-connect",
@@ -79,9 +94,12 @@
     },
     {
       "id": "phone-route",
-      "description": "Phone route status and the confirmed tailscale serve publish behind the Pair a phone stepper.",
+      "description": "Phone route status and the confirmed tailscale serve publish under the separate Tailscale connection entry.",
       "scope": "Profile",
-      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.tailscale.title')}"
+      ],
       "commands": ["phone-route", "phone-route-publish"]
     },
     {
@@ -150,6 +168,7 @@
       "scope": "Host",
       "surfaces": [
         "field:packages/client/src/bot-mode-settings.ts:autoAcceptGroupInvites",
+        "field:packages/client/src/bot-mode-settings.ts:autoCollapseMessages",
         "field:packages/client/src/bot-mode-settings.ts:botIcon",
         "field:packages/client/src/bot-mode-settings.ts:motionPreference",
         "field:packages/client/src/bot-mode-settings.ts:sendKey",
@@ -159,6 +178,7 @@
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('motion.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
       "commands": ["settings", "settings-set"]
@@ -253,7 +273,8 @@
       "description": "#2088 reuses default-model, Bot plan and preset create/read/update/apply owners with scoped Tob revisions/catalog validation. No preset delete owner; credentials remain native private input.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}"
+        "setting:packages/client/src/client/onboarding-view.tsx:{t('onboarding.defaultTitle')}",
+        "setting:packages/client/src/client/remote-host-models.tsx:{t('remoteHosts.settings.models')}"
       ],
       "commands": [
         "home-model-set",
@@ -316,10 +337,11 @@
       "description": "Workspace access and grant controls.",
       "scope": "Host",
       "surfaces": [
+        "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('grant.browseLocation')}",
         "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('access.scopeTitle')}",
         "setting:packages/client/src/client/workspace-grants-entry.tsx:{t('access.title')}"
       ],
-      "commands": ["grants", "grant-create", "grant-revoke"]
+      "commands": ["folder-browse", "grants", "grant-create", "grant-revoke"]
     },
     {
       "id": "im-apps",
@@ -431,13 +453,13 @@
       "scope": "Client transport / transient state",
       "surfaces": [
         "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-notifications.ts:removeItem(REMOTE_NOTIFICATION_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:removeItem(oldKey)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)",
-        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)"
       ],
-      "exemption": "Per-browser connections, legacy-key migration, the tab filter and Host looks belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
+      "exemption": "Per-browser connections, legacy-key migration, and the tab filter belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting. Browser notifications and Host looks use separately inventoried Client relay commands. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
       "configurable": false
     },
     {
@@ -488,8 +510,7 @@
         "route:packages/computer/src/index.ts:VIEWER_PREFIX",
         "route:packages/computer/src/index.ts:socketPath in viewerUpgradePaths(VIEWER_PREFIX)",
         "route:packages/core/src/devices/mount.ts:DEVICE_GATEWAY_PREFIX",
-        "route:packages/core/src/devices/mount.ts:path in [DEVICE_MUX_PATH, DEVICE_WEB_MUX_PATH, ...DEVICE_SIGNALING_PATHS]",
-        "route:packages/core/src/http/viewer-proxy.ts:`${DEVICE_WEB_PREFIX}${path}`"
+        "route:packages/core/src/devices/mount.ts:path in [DEVICE_MUX_PATH, ...DEVICE_SIGNALING_PATHS]"
       ],
       "exemption": "Native viewer media/signaling/proxy transport; no user-configurable setting on these routes. Control and diagnostic APIs are covered separately.",
       "configurable": false
@@ -648,6 +669,13 @@
       "commands": ["computer-logs"]
     },
     {
+      "id": "computer-open-permission-settings",
+      "description": "Open an allowlisted macOS privacy pane on the Local Computer Host without granting permission.",
+      "scope": "Host",
+      "surfaces": ["route:packages/computer/src/index.ts:'/api/computer/open-permission-settings'"],
+      "commands": ["computer-open-permission-settings"]
+    },
+    {
       "id": "computer-open-dir",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",
@@ -705,6 +733,13 @@
         "route:packages/computer/src/index.ts:'/api/computer/upload-content'"
       ],
       "commands": ["computer-upload"]
+    },
+    {
+      "id": "computer-video",
+      "description": "Observe and explicitly control Local Computer video through the same Computer owner as paired devices.",
+      "scope": "Host",
+      "surfaces": ["route:packages/computer/src/index.ts:LOCAL_VIDEO_PATH"],
+      "commands": ["computer-video"]
     },
     {
       "id": "computer-webrtc",
@@ -776,6 +811,23 @@
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
     },
     {
+      "id": "remote-host-notifications",
+      "description": "Browser-owned Remote Host choices; inbox --notifications pages Host-decided attention. Phone owner AX is development-client-only (phone-notifications); release parity and native real runs remain unverified. device-notifications edits Host copies only.",
+      "scope": "Client / Paired Device",
+      "surfaces": [
+        "storage:packages/client/src/client/remote-notifications.ts:setItem(REMOTE_NOTIFICATION_KEY)",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t('remoteHosts.notifications.enable')}",
+        "setting:packages/client/src/client/remote-notification-settings.tsx:{t(labels[kind])}"
+      ],
+      "commands": [
+        "browser-notification-clients",
+        "browser-notifications",
+        "device-notifications",
+        "phone-notifications",
+        "inbox"
+      ]
+    },
+    {
       "id": "deepseekbot-local-appearance",
       "description": "Explicit Client-targeted device-local DeepSeekBot themes; authenticated Host forwards requests without a preference mirror.",
       "scope": "Client",
@@ -804,6 +856,15 @@
         "appearance-clear-panels",
         "appearance-reset"
       ]
+    },
+    {
+      "id": "device-local-host-look",
+      "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
+      "scope": "Client / Host",
+      "surfaces": [
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+      ],
+      "commands": ["appearance-clients", "host-look"]
     }
   ]
 }

@@ -105,16 +105,18 @@ export function usePushRouting(
                 hostSession.getState().hosts,
                 target,
                 action,
-                (host, route, ref, outcome) =>
-                  decideApproval(
-                    createHostClient({
-                      routes: [route],
-                      credential: host.credential,
-                      carrier: nativeCarrier(),
-                    }),
-                    ref,
-                    outcome,
-                  ),
+                async (host, route, ref, outcome) => {
+                  const client = createHostClient({
+                    ...host,
+                    routes: [route],
+                    carrier: nativeCarrier(),
+                  });
+                  try {
+                    return await decideApproval(client, ref, outcome);
+                  } finally {
+                    client.stop();
+                  }
+                },
               );
             if (!current(next.version)) continue;
             if (next.selection !== hostSession.getSelectionRevision()) continue;

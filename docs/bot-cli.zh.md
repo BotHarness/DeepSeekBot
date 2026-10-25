@@ -1,10 +1,33 @@
 # 用命令行创建 Bot
 
+安装 `@botharness/tobs` 后使用 `tobs` 命令；安装兼容包 `deepseekbot` 后使用 `deepseekbot` 命令。本页保留 `deepseekbot` 示例，使用新包时将命令名替换为 `tobs`，其余参数相同。
+安装命令见[安装指南](https://tobs.app/docs/installation/)。
+
 `list` 返回的 Bot 摘要在有记录时包含 `lastActivityAt`（毫秒时间戳），来自本地用户可见的 Bot 消息或 Assignment 汇报。后续频道消息和重启不会覆盖它；缺省表示没有记录到活动，不会用创建时间或频道访问时间代替。
 
 `deepseekbot create` 无需点击即可创建新的 PersonaBot：空白创建、从 Bot 包导入（目录或 zip，与[ Bot 打包导出](docs/bot-zip.md)形状相同）、或从 GitHub 导入。它为驱动 DSH 的外部编程智能体而建，因此输出以机器读取优先。
 
 ## 用法
+
+### 可恢复的 Zip 上传与导入
+
+连接手机使用的同一个已认证 Host，运行 `bot-zip-upload --from-zip <文件> --upload-key <稳定键> --host <地址>`。结果包含 `sha256`、`sizeBytes`、`offset`、`chunkBytes` 和 `expiresAt`。命令通过 `zipUploadBegin` 和 `zipUploadChunk` 上传，使用相同键和文件可继续已确认的分块。每块原始数据为 256 KiB，base64 请求封装后仍小于加密设备通道的 4 MiB 限制。
+
+创建前运行 `bot-zip-preview --upload-key <键> --archive-sha256 <摘要> --archive-size <字节数> --host <地址>`。`zipUploadPreview` 校验完整压缩包并返回名称等信息、文件数、解压字节数和历史标志。确认名称、可选 `--description` 和重复的 `--role` 后，使用相同来源参数运行 `bot-zip-import`，并增加 `--operation-key <稳定操作键> --name <名称>`。`zipImport` 通过既有导入 owner 创建一个 Bot 及其私聊，不启动模型或授予工作区权限。
+
+导入响应丢失后，运行 `bot-zip-import-status --archive-sha256 <摘要> --operation-key <键> --name <名称>`，并原样携带可选描述和标签。`zipImportLookup` 不需要文件或上传会话。已完成回执在 Host 重启和上传过期后仍保留；重复 `bot-zip-import` 返回同一个 Bot 和私聊。相同操作键换摘要或元数据会被拒绝。未完成的上传过期后可明确重新传输，继续使用原导入操作键。
+
+暂存区独立于 Bot 的权威存储。沿用桌面端的压缩包限制：压缩及解压大小均最多 100 MiB、20,000 个文件项。Host 最多保留八个并行上传、共预留 400 MiB，以支持多个大文件并限制磁盘占用；会话 24 小时过期，在开始上传时回收。在暂存期间，上传键绑定摘要和大小。相同分块可重试，内容改变、偏移错误和最终摘要不匹配均拒绝。不保证后台传输。认证凭据沿用私有 token 文件或环境输入，不出现在输出中，也不扩大 Tob 的 CLI 权限。
+
+`deepseekbot browser-notification-clients` 列出在线 Client。`deepseekbot browser-notifications --client-id <id> --remote-host-id <id>` 读取该浏览器的本地选择和 revision。写入时加 `--expected-revision <revision> --patch-stdin`，从标准输入传入 `{"enabled":true,"preferences":{"approval":true,"question":true,"private-input":true,"reply":false}}`。命令使用提供页面的 Host 的现有认证及 Client 定向控制通道；Host 不保存浏览器选择或远程凭据。版本过期或远程不存在时明确拒绝。开启前须已在浏览器授予通知权限，否则返回 `notification-permission-required`；CLI 不弹出系统授权。页面关闭后，控制目标和提醒都会结束。 开启原先未启用的类型时，先通过共享 Inbox 读完全部通知分页，完整基线就绪前保持旧选择；写入成功才是启用边界，此前条目静默，此后的群回复和 DM 可提醒。部分页失败返回 `notification-baseline-unavailable`，UI 基线的十秒期限返回 `notification-baseline-timeout`。CLI 写入还将既有 appearance relay 的请求期限（当前八秒）和取消信号传到同一 owner，并在落盘前再次检查；relay 超时或卸载后，迟到分页不能写入，已过期的通知命令不发送迟到回执。切换 Host、关闭设置、移除配对、权限丢失或释放页面会取消待完成的启用（`notification-activation-cancelled`），迟到结果不能落盘。拒绝后显式重试；页面仍订阅时，正常共享 Host Feed 观察继续。
+
+`deepseekbot phone-notifications --metro-port <端口> --target-id <精确ID> --device-name <精确名称>` 在已分配的 Expo development client 中读取现有手机偏好 owner。加 `--preferences-stdin`，仅传入四类布尔值，由同一 owner 持久化并复制到全部已配对 Host。前提是共享设备 batch/lease、运行中的 loopback Metro inspector、精确且唯一的目标、开发版 app ID、`__DEV__` 和唯一已初始化的 owner。命令不直接写存储、不新建 owner、不弹系统授权、不把 Host 副本当手机选择。单个 JSON 分别返回 `saved`、`syncStatus`（`complete`/`pending`）、`syncing` 和 `failedHostIds`。断开/超时后的写入结果未知，应先重新读取再决定是否重试。目标缺失/歧义、release、owner 未就绪及传输失败均返回明确错误码；写入是否已开始按下段区分。**该 AX 路径仅限 development client，release 不可用，也不代表 release CLI parity 或原生 QA 已通过。** 原生真实运行仍交外部统一批次验收。
+
+手机命令通过 inspector 显式等待 JavaScript Promise 完成，不依赖 Hermes 执行 CDP 的 `awaitPromise`。连接后，启动操作、轮询和取结果共用一个 20 秒期限。每次请求使用唯一的临时结果槽，取走结果或取消时删除；debugger 断开后由运行时的 20 秒到期清理兜底，迟到完成不能重建槽。运行时到期清理需要应用的 JavaScript 事件循环运行；应用暂停时，定时器恢复后执行清理。只有通过结构校验的手机 owner 结果才算成功，Promise 内部字段或不合规响应返回 `inspector-result-required`。传输层无法撤回 owner 已开始的写入，因此超时仍表示写入结果未知，不能据此认定未改变；重试前先读回。命令自身也会区分这些结果：可能已经发出的写入若无法取得结果，会保留底层错误码，并明确提示写入结果未知、先不带 `--preferences-stdin` 读回；只读失败和确定发生在写入前的拒绝不使用该提示。
+
+`deepseekbot inbox --notifications [--limit 1..100] [--cursor <游标>]` 使用 Host 现有 `humanAttention` 的通知发现模式。遍历全部返回游标，取得 Host 判定的待办、未读群提及/回复和普通未读 DM 回复。它独立于 Activity 的 mentions-first 分页窗口，不可混用筛选条件。响应须有 `notificationVersion: 1`，旧 Host 明确拒绝；不增加 Feed 连接，不修改 attention 或已读状态。
+
+`deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
@@ -55,6 +78,18 @@ deepseekbot search <words>
 `--home` 指向目标 `DSH_HOME`；全新目录零点击可用。不传时使用环境中的 `DSH_HOME`。离线数据库命令须先停 Host，否则独占写租约返回 `lease-unavailable`。凭据文件命令可在线执行；以下在线命令走已认证的 Host RPC。
 
 ## 在线 Host 命令
+
+### 远程设置
+
+`appearance-clients` 列出打开的浏览器 Client。`host-look --client-id <id> --host-id <id>` 读取该浏览器内的 Host 名称、图标、颜色和内容修订。写入时加 `--patch-stdin --expected-revision <revision>`，从 stdin 传入 JSON，例如 `{"name":"Studio","icon":{"kind":"symbol","id":"server"},"color":"teal"}`。空名称恢复 Host 原始显示名；`color: null` 清除颜色。名称去除首尾空格并限制为 40 字符，与手机共享 HostLook 规则。Host ID 可为已配对的远程 Host 或本机 Host；命令不接收或返回远程凭据。
+
+命令复用已认证的 `appearance-control` relay，直达 UI 使用的同一 Client 本地 `HostLooks`，不修改操作系统 hostname，也不同步到其他设备。浏览器须保持打开并显式选择 Client。同源标签页共同使用名为 `botharness.hostLooks.v1` 的独占 Web Lock；owner 在锁内重读持久数据、比较目标 Host 的内容 revision，再只合并该 Host。UI 字段变换也在锁内应用于当前值，不携带旧整份外观覆盖其他字段。旧 revision 返回 `host-look-revision-stale`；Web Locks 不可用时返回 `host-look-lock-unavailable`，不降级为不安全的读改写。
+
+`host-look-storage-read-failed` 会保留内存中已知的显示状态，但阻止读取和写入，不把默认值当成成功加载。修复浏览器存储访问后，执行 `host-look --client-id <id> --host-id <id> --refresh`，或在设置中选择「刷新外观」，显式恢复；刷新本身不写入。事务锁内重读失败同样阻止落盘。`host-look-storage-failed` 表示浏览器拒绝写入，不发布未保存的外观；解决存储问题并刷新后才能重新提交。
+
+CLI 在读取 stdin 和连接前记录绝对期限；Host 将期限限制为 relay 接收后最多八秒。Client 在加载后、获得锁后和实际 `localStorage.setItem` 前复核墙上时间，即使定时回调尚未运行，越期命令也不能开始写入。Client 释放与 Host 移除也在写入前复核。这不代表远端取消已确认：期限前杀掉 CLI 或断开 HTTP，已送达命令仍可能在期限内执行。写入回执丢失或 relay 超时，在 CLI 仍能输出时报告 `host-look-outcome-unknown`；重试前须读回相同 Client/Host。期限内已完成的写入可能成功而回执丢失。Host 设置统一包含外观、通知、模型、用量和存储；离线时仍可进入外观和通知。通知继续使用 `browser-notifications`，保留权限、激活基线和取消语义。
+
+浏览器远程图标菜单中的「Host 设置」与以下在线命令使用同一个 Host 所有者。通过 `--host <origin>` 和私有的 `--token-file <file>`（或已有环境变量）指定来源 Host，不要默认指向提供当前网页的本机。模型使用 `model-catalog`、`home-model-set`、`model-presets`、`model-preset-create` 和 `model-preset-update`；用量与 Memory 活动使用 `overview-usage`、`overview-memory`；存储使用 `storage-usage` 及两组清理预览／确认命令。删除仍须传入 `--confirmation-stdin --confirm`，且预览必须来自同一 Host。连接失败或被拒绝时，不会改用本地 Profile。这些命令不读取浏览器的配对密钥，也不修改本设备保存的 Host 外观。
 
 将 `DEEPSEEKBOT_HOST` 设为运行中 Host 的 loopback origin 或 tailnet HTTPS origin。使用 tailnet origin（例如 loopback Host 前面的 `tailscale serve`）时，Host 必须以 `--trusted-host <machine>.<tailnet>.ts.net` 启动；否则登录能成功，但 DSH 的 `/api` Host 校验会拒绝每个请求，CLI 返回 `host-untrusted`。`--host <origin>` 可覆盖它。当前启动令牌通过 `DEEPSEEKBOT_HOST_TOKEN` 或 `--token-file <私有文件>` 提供，不得把令牌值放入参数。每次调用重新登录，cookie 只留在内存；Host 重启后须使用新令牌。在线命令不打开 Profile 数据库。参见 [ADR-0159](adr/0159-live-cli-verbs-ride-the-dsh-http-carrier.md)。
 
@@ -121,6 +156,7 @@ deepseekbot access-set <bot-id> --mode danger-full-access --scope chat --acknowl
 deepseekbot access-set <bot-id> --mode workspace-write
 deepseekbot settings botharness-client
 printf '{"assignmentConcurrencyLimit":3}' | deepseekbot settings-set botharness-client --patch-stdin
+printf '{"autoCollapseMessages":true}' | deepseekbot settings-set botharness-client --patch-stdin
 deepseekbot workspace-create /srv/bots/workspace
 deepseekbot group-create "Skill Lab" --member <bot-id> --member <bot-id>
 ```
@@ -166,28 +202,27 @@ deepseekbot channel-purge-preview <channel> --source-event <id> | jq '{token}' \
   | deepseekbot channel-purge-confirm <channel> --source-event <id> --confirm --confirmation-stdin
 ```
 
-`channel_send` 可选传入 `resolve_inbox_ids`，显式指定 1–200 个已观察的 Source Event 或 Message ID，仅在发送提交或成功 drop 后标记 done。不传时保留 Inbox 责任；held/refused 不结清。省略结清参数时，`inboxResolution.outcome` 为 `not-requested`，提示在本轮结束前显式结清已完成事项。drop 省略 `channel_id` 时使用入站 Channel。单独检查 `inboxResolution`：结清失败时用 `inbox_resolve` 修复，不要重发已提交的消息。CLI `bot-tool <bot> channel_send --args-stdin` 使用相同参数。
+`bot_send_message` 仅在确认送达后，结清 `resolve_inbox_ids` 中显式选择的同一个 `source_event_id`。`channel_action` 的 `action: "drop"` 可指定 1–200 个已观察且完成的事项，并保护未完成责任。两者都需要明确目标，不再回退到入站 Channel。检查 `inboxResolution`，失败时用 `inbox_resolve` 修复，不重发消息。CLI `bot-tool <bot> <tool> --args-stdin` 使用相同合同。
 
-若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`channel_send` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
+若本轮发起来源是启用复核的 Group，成员资格被撤销后不能把回复改道其他 Channel；`bot_send_message` 返回 `refused`，reason 为 `group-reply-source-revoked`。后续独立私聊请求不受影响。
 
 `group-send-review <channel> --accept` 在本地 Group 启用发送复核；`--off` 关闭，无标志时读取状态。
 该设置不修改唤醒策略。直接调用 `bot-tool <bot> channel_read --args-stdin`，从 `observationIds`
-取得目标群的观察凭据，作为 `observation_id` 传给 `channel_send`。`held` 表示尚未发送：读取变化后，
-携带 `draft_id`、新观察凭据和改写（或保持原文）的 `body` 复核，最多两次。`drop: true` 配合 `draft_id`
-和空 `body` 放弃草稿，不会解决 Inbox 事项。`expired`、`refused`、`requires-review` 停止自动发送。
+取得目标群的观察凭据，作为 `observation_id` 传给 `bot_send_message`。`held` 表示尚未发送：读取变化后，
+携带 `draft_id`、新观察凭据和改写（或保持原文）的 `body` 复核，最多两次。`channel_action` 的 `action: "drop"` 配合明确的 `channel_id` 和 `draft_id` 放弃草稿，不会解决 Inbox 事项。`expired`、`refused`、`requires-review` 停止自动发送。
 凭据不能跨 Bot owner 或 Group 使用。
 
-发送中断后，通过同一条直接 Tool 命令传入
-`{"channel_id":"...","body":"","review_action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
+发送中断后，通过 `bot-tool <bot> channel_action --args-stdin` 传入
+`{"channel_id":"...","action":"inspect"}`，读取自己最多 20 条草稿／回执元数据，
 待处理记录优先，并返回 `hasMore`；指定 `draft_id` 可查更早的准确记录。检查不发送消息、不结清 Inbox。
-Host 重启后，先读取当前群聊，再用 `review_action:"recover"`、`draft_id`、新 `observation_id`
+Host 重启后，先读取当前群聊，再用 `recover:true`、`draft_id`、新 `observation_id`
 和修正后的 `body` 恢复。旧观察无效，过期时间及已消耗的复核预算不重置。
 已提交回执给出原 `messageId`，可读取规范消息核实；同 `draft_id`、同正文重放只返回原消息 ID，
 不新增消息或 Admission。正文变化返回 `draft-commit-content-changed`。成员、owner、来源和附件仍须
 通过当前授权检查；直接 runner 可能在 Tool 执行前拒绝已撤权的群。
 
-主动让话使用同一条 `bot-tool <bot> channel_send --args-stdin`，传入
-`{"channel_id":"...","body":"","drop":true,"draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`。
+主动让话使用 `bot-tool <bot> channel_action --args-stdin`，传入
+`{"channel_id":"...","action":"drop","draft_id":"...","observation_id":"...","yield_to_message_ids":["..."]}`。
 先读同伴完整答复；`review.peerMessageIds` 标出已完整返回的同伴消息。成功返回
 `dropped`、`reason: explicit-peer-yield` 和 `yieldedToMessageIds`，依据保留在草稿审计与
 `bot-trace` 中。未观察、已变更、已清除、自己的消息、Human 消息或仅预览的引用返回
@@ -198,7 +233,7 @@ Host 重启后，先读取当前群聊，再用 `review_action:"recover"`、`dra
 
 `channel <group-channel>` 返回 `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}`，拒绝非群频道。稳定创建／邀请参数及重试语义见 [Tob 建群与邀请](#tob-建群与邀请)，Human 在线命令也可使用。
 
-与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_send` 的 `react_to` 和 `reaction` 回应，只回应时 `body` 留空；`bot-tool <bot> channel_send --args-stdin` 可以不经过模型执行它。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
+与 Web 界面一样，重命名 Bot 私聊会同时重命名该 Bot。`group-avatar-set` 读取不超过 96 KiB 的 PNG、JPEG 或 WebP 文件。邀请 ID 和入群申请 ID 位于群组的 `invitations` 和 `joinRequests` 中，`channels` 和每个群组命令都会返回。`group-wake-set` 设置成员 Bot 对普通群消息何时唤醒：`all`、`mentions`、`digest`（累计 `--count` 条消息或经过 `--interval` 秒后唤醒，默认 5 和 30）或 `silent`；`--inherit` 让该成员恢复其 Bot 的默认设置。`channel-timeline` 和 `channel-journal` 按聊天视图的方式分页读取消息；`channel-journal` 的 `--through` 取 `channel-timeline` 返回的 `revision`。`channel-retry` 在 Bot 回复失败后让它重新回答一条 Human 私聊消息。`channel-unread` 列出每个有未读的频道的 Bot 未读消息数，即侧边栏每行显示的数字。`channel-mute` 与侧边栏菜单一样把频道设为免打扰：该行变灰，普通消息、提及和回复在搜索与分页之前退出 Activity 消息列表，也不计入全局未读；`--off` 依原有已读、隐藏和稍后提醒规则恢复资格。真实 Channel 已读位置与待审批、问答等明确 Human 请求保持不变。`channel-bot-stop` 停止 Bot 当前这一轮工作，与工作状态条上的“停止”按钮相同：Bot 回到空闲，Channel 里记录 Human 停止了它；Bot 没在工作时以 `not-working` 拒绝。Bot 已委派的 Assignment 继续运行。`channel-react` 给一条消息加上你的表情回应，带 `--remove` 则撤回，并返回该消息的 `reactions`；每条消息最多保留你的 20 个回应，表情必须是单个 emoji。Bot 通过 `channel_action` 的 `action: "react"`、`channel_id`、`react_to` 和 `reaction` 回应；`bot-tool <bot> channel_action --args-stdin` 可直接执行。表情工具不发送正文。`channel-search` 在你可见的消息中不区分大小写地匹配 `--query`，按时间从新到旧返回，并用返回的 `nextCursor` 翻页。
 
 `group-delete` 和 `channel-purge-confirm` 无法撤销，必须带 `--confirm`。`channel-history` 列出已删除、内容仍可清除的群组。清除与历史页面一样分两步：`channel-purge-preview` 列出所选 Source Event 将删除的消息、Bot 受理记录、文件和后续效果，并返回短时有效的 `token`；`channel-purge-confirm` 从标准输入读取 `{"token": …}`，针对同一组 Source Event 执行，范围变化时以错误码拒绝。Source Event 从 `channel-history-sources` 中选取，它用返回的 `before` 游标分页。
 
@@ -403,6 +438,32 @@ deepseekbot schedule-delete <bot-id> --sid <schedule-id> --confirm
 
 选定 Host 后，定时任务命令调用与「定时任务」面板相同的 Host 方法，由 Host 检查 Bot、触发器、时区和锁定状态；被拒时保留 Host 的错误码（`invalid-input`、`not-found`、`locked`、`inactive`）。`schedule-preview` 返回触发器和 Host 算出的接下来几次时刻。`schedule-run-now` 排入一次触发，由运行中的 Host 执行。`schedule-delete` 会连同该任务的历史一起删除，所以和面板上的确认一样，需要 `--confirm`。
 
+### Local Computer 视频
+
+Windows 本机 Computer 使用 [Android 纯视频路径](local-computer-video.zh.md)。前文 `computer-frame`、`computer-takeover`、`computer-input` 的描述只适用于旧目标；迁移后的 Windows 目标返回 `update-required`。Bot／诊断截图仍是独立能力，并遵守全局 Bot 暂停。
+
+```bash
+deepseekbot computer-video status
+deepseekbot computer-video open --out /private/absolute/offer.json
+deepseekbot computer-video signal --args-stdin
+deepseekbot computer-video heartbeat --args-stdin
+deepseekbot computer-video takeover --args-stdin
+deepseekbot computer-video input --args-stdin
+deepseekbot computer-video release --args-stdin
+deepseekbot computer-video resume --args-stdin
+deepseekbot computer-video close --args-stdin
+```
+
+所有操作使用 `POST /api/computer/video`，stdout 输出一个 JSON 文档。`status` 报告全局 `paused`、`viewerCount`、`controlHeld`、媒体健康与 runtime；`controller`、binding 和 grant 仅属于认证调用者。手机使用已配对设备身份，本机认证 CLI 使用 Host owner 身份，不能通过提交设备 ID 冒充手机。第二观看端收到 `viewer-limit`。
+
+手机只在加密 LAN 通道内发送准确的命令路径，并使用 Noise 准入后的设备身份直接分派。Connect 在 owner 执行之前拒绝视频；请求里的 route 标签不能覆盖服务端 listener。Host owner CLI 成功不能证明手机配对或 LAN／原生播放。手机单一「交还 Bot」动作使用 `resume`，它与重新连接在确认停滞时仍可用，独立于输入资格；底层 `release` 保持暂停，重连只恢复观察。回滚曾写入暂停状态的版本前，先阅读[恢复与降级](local-computer-video.zh.md#恢复与降级)。
+
+`open` 不暂停 Bot。它返回服务端生成的 `binding`（`computerId`、`runtimeId`、`viewerId`、`attemptId`），把 gathered offer 写入全新的私密 `--out` 文件，stdout 不含 SDP。后续命令 JSON 从 stdin 读取：`signal` 接收 `binding` 和 `answer: {"type":"answer","sdp":"…"}`；`heartbeat` 接收 `binding` 和真实接收端呈现产生的 `playback: {"presentedFrames":42,"presenting":true}`。伪造心跳不算播放验证。`takeover` 接收 `binding`；强制接管还需 `force:true` 与 CLI 的 `--confirm`，但 T1 会更早拒绝第二观看端。
+
+`input` 接收 `binding`、grant 的 `generation`、严格递增的 `sequence`，以及 `input: {"kind":"click","x":10,"y":20,"button":"left","count":1}` 或 `input: {"kind":"scroll","direction":"right","amount":2,"x":10,"y":20}`。滚动支持 `up`、`down`、`left`、`right`，步数为 1–50；坐标为完整显示器的实际像素。输入只执行一次；`input-result-unknown` 表示不可重发。`release` 接收 `binding` 和可选 `generation`，保持持久暂停；`close` 接收 `binding`，关闭媒体但不恢复 Bot。`resume` 必须提交当前 `runtimeId`，重启后无需 viewer/helper 也可执行：先作废控制、排空 Human 输入，再恢复 Bot。有其他控制者时返回 `control-conflict`；旧 runtime/attempt/grant 均被拒绝。
+
+`computer-diagnostics` 和 `computer-logs` 提供有界生命周期证据。常见拒绝包括 `not-running`、`helper-missing`、`helper-start-failed`、`viewer-limit`、`media-not-live`、`control-required`、`control-disconnected`、`stale-attempt`、`stale-grant`、`pause-write-failed`、`drain-timeout`、`queue-full` 和 `connect-carrier-required`。证据中不打印信令文件、凭据或输入内容。CLI 信令成功不等于视频呈现或真机验收。
+
 ### 浏览器和 Computer：观察、系统包、传输与日志
 
 ```bash
@@ -420,6 +481,7 @@ deepseekbot computer-export [--dir /abs/exports] [--out /tmp/computer.tar]
 deepseekbot computer-upload /abs/path/backup.tar [--name restore.tar]
 deepseekbot computer-import restore.tar --confirm
 deepseekbot computer-open-dir [--dir /abs/exports]
+deepseekbot computer-open-permission-settings --permission accessibility|screen-recording --confirm
 deepseekbot computer-webrtc [--probe]
 deepseekbot browser-webrtc --viewer <id> [--probe]
 ```
@@ -479,11 +541,23 @@ Bot 用来发言、读取 Inbox、管理 Channel 和计划的 Harness 工具，�
 ```bash
 deepseekbot bot-tools
 deepseekbot bot-tool <bot-id> channel_list
-printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-tool <bot-id> channel_send --args-stdin
+printf '{"channel_id":"dm-<bot-id>","body":"direct hello"}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
 deepseekbot bot-trace <bot-id> --session direct --turns 5
 ```
 
-`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、Subagent、提问与密钥卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
+Channel 和外部 IM 可通过统一发送工具发送：
+
+```bash
+printf '{"channel_id":"dm-<bot-id>","body":"检查已通过。"}' | deepseekbot bot-tool <bot-id> bot_send_message --args-stdin
+```
+
+回复明确引用可信 `source_event_id`；主动发送明确指定目标。此切片的 `resolve_inbox_ids` 只能包含明确引用的这一来源，送达后才结清；单独检查 `inboxResolution`，失败时用 `inbox_resolve` 补状态，不要重发已送达消息。`end_turn` 默认 false，在原生模型回合中仅在发送及请求的结清成功后结束回合；直接 CLI 没有模型回合需要结束。未提供持久 Group `draft_id` 的普通 CLI 调用是新消息，不是通用持久重试命令；相同草稿与内容的重放保留原消息标识。当前统一入口也支持群聊、Bot DM 和外部 IM：回复使用可信 `source_event_id`，主动发送明确指定 `channel_id`、同事 `bot_id`、`bridge_targets` 返回的 `grant_id`，或 `binding_id` 与 `conversation_id` 的组合；这些目标形式与回复来源互斥。群聊保留原有草稿审查，修订时传入 `draft_id` 与 `observation_id`；重启恢复使用 `recover`。`attachments` 接受导入的附件引用；外部文件回复仅支持一个文件和空正文，主动外部文件发送会被拒绝。没有确认回执的外部发送不会结清 Inbox 或结束回合。
+
+`bot-trace --session direct` 可查看直接调用结果。
+
+`channel_action` 通过同一 `bot-tool` 执行表情与草稿动作：明确指定 `channel_id`，`action` 使用 `inspect`、`drop` 或 `react`，并提供相应草稿或消息引用。它不能发送正文。模型仅看到 `bot_send_message` 发送入口，旧发送名仅供直接 CLI 兼容。主动联系同事使用 `bot_id`；可达外部会话使用 `binding_id` 与 `conversation_id`，均与其他目标形式互斥。
+
+`bot-tools` 列出可直接调用的工具及其输入 schema。`bot-tool` 从标准输入读取参数 JSON 对象，执行与 Bot 回合中完全相同的工具代码，保留工具自身的参数校验、成员资格和权限检查，返回 `{slug, tool, sessionId: "direct", result}`。直接调用没有入站 Channel，回合中默认使用入站 Channel 的地方要显式传 `channel_id`。直接读取不会把 Inbox 条目标为已读；Bot 之间的发送会被拒绝，因为没有 Source Event 承载 Bot 因果链。失败时以非零退出并给出错误码：只能在 Bot 回合内运行的工具（创建或等待 Assignment、提问与密钥卡片、切换 Memory 分支、申请工作区授权、交给模型的图片）返回 `tool-not-direct`，此外还有 `invalid-args`、`unknown-bot`、`bot-paused`，以及带工具原始消息的 `tool-failed`。每次调用都记入 Host 的近期直接调用记录，`bot-trace --session direct` 可读取，Host 重启后清空。
 
 `bot_create` 以该 Bot 的身份创建一个空白 PersonaBot，与 Bot 在聊天中创建时相同：`display_name` 必填；`description`、`tags`、`avatar_path`（Bot 记忆仓库或工作区授权内 PNG、JPEG 或 WebP 文件的绝对路径）、`soul`、`core_memory` 和 `memory_location` 可选。返回 `bot_id`、`display_name`、`dm_channel_id`、`memory_dir` 和 `model`（新 Bot 使用 Host 默认模型时为 `host-default`，有自己的模型后为 `set`），同时打开新 Bot 的私聊，并在创建者 Bot 的 Human 私聊中留下一条提示。拒绝时返回错误码：`invalid-input`、`invalid-avatar`、`invalid-memory-dir`、`git-not-found` 和 `memory-unavailable`。直接运行时不经过 Bot 回合中的工具审批，因为运行命令的就是 Human 本人。
 
@@ -537,7 +611,7 @@ deepseekbot approval-template-set <bot-id> off
 
 `list` 返回 `{templates}`，每个模板含 `name`、`title`、`description`、`builtIn` 和 `usedBy`（选用它的 Bot）；加 `--bot` 时还返回该 Bot 当前选中的 `selected`，未选为 `null`。`show` 返回 `{template}`，含完整 Markdown `text`。`create` 和 `edit` 返回 `{template}`；`create --from` 复制另一个模板的内容，内置模板就是这样改的。`delete` 返回 `{template, clearedBots}`：所有选用了它的 Bot 都会清空选择，审批改回卡片。`approval-template-set` 返回 `{bot}`，其中是新的 `approvalTemplate`。`approval-templates` 和 `approval-template-show` 仍可用，分别等同于 `list` 和 `show`。
 
-防止自我提权：Bot 在自己的 Shell 里运行这些命令时，新建模板、或编辑没有任何 Bot 在用的模板，都不需要卡片，所以 Bot 可以替你起草模板。选择模板，以及编辑或删除某个 Bot 正在使用的模板，一定会变成发给 Human 的审批卡片，已保存的规则和审批员都不能替你回答；你拒绝后，文件保持不变。拒绝时带错误码：`invalid-input`（名称不合法、内容为空或过大、要选择的模板不存在）、`template-exists`、`template-read-only`（内置模板）、`unknown-template` 和 `unknown-bot`。
+Bot 在自己的 Shell 里运行这些命令时，新建模板、或编辑没有任何 Bot 在用的模板，都不需要卡片，所以 Bot 可以替你起草模板。选择模板，以及编辑或删除某个 Bot 正在使用的模板，需要 Human 决定，或在独立管理范围中显式保存的授权规则；模型审批员不能代答。你拒绝后，文件保持不变。拒绝时带错误码：`invalid-input`（名称不合法、内容为空或过大、要选择的模板不存在）、`template-exists`、`template-read-only`（内置模板）、`unknown-template` 和 `unknown-bot`。
 
 审批员拒绝的每次调用都会成为 Human Inbox 里的一条 `auto-rejection`。它的 `autoRejection` 含会话、工具、参数、模板和理由。`inbox-allow-once` 就是收件箱里的“仍然允许这一次”：只放行那一次完全相同的调用。Bot 会收到通知并可以重试，同一会话里同一工具、参数完全相同的下一次调用不经审核直接运行。之后的调用仍按模板审核。
 
@@ -560,7 +634,7 @@ deepseekbot approval-reviewer-model-set deepseek/<model> [--effort <effort>]
 deepseekbot approval-reviewer-model-set bot
 ```
 
-两个命令都返回 `{follows, model}`：`follows` 为 `bot`（跟随每个 Bot 自己的模型，`model` 为 `null`）、`model`（所有审批都用指定模型）或 `invalid`（设置文件读不出来）。指定模型时还会返回 `available`，为 `false` 时附带 `unavailableReason`。不在模型目录里、或服务商没有可用密钥的模型仍会保存，但之后每次审批都会改发普通的人类审批卡片，并在 `logs.db` 里写入 `fallback=model-unavailable` 和原因；审批员绝不会自己换用别的模型。`logs.db` 里每条 `approval-review` 记录都写明这次用的 `model` 和 `reviewSession`。Bot 在自己的 Shell 里运行 `approval-reviewer-model-set` 时，这次调用一定会变成发给人类的审批卡片，已保存的规则和审批员都不能替你回答。拒绝时带错误码：`usage`（没有 `<provider>/<model>`，或对 `bot` 加了 `--effort`）和 `invalid-input`。
+两个命令都返回 `{follows, model}`：`follows` 为 `bot`（跟随每个 Bot 自己的模型，`model` 为 `null`）、`model`（所有审批都用指定模型）或 `invalid`（设置文件读不出来）。指定模型时还会返回 `available`，为 `false` 时附带 `unavailableReason`。不在模型目录里、或服务商没有可用密钥的模型仍会保存，但之后每次审批都会改发普通的人类审批卡片，并在 `logs.db` 里写入 `fallback=model-unavailable` 和原因；审批员绝不会自己换用别的模型。`logs.db` 里每条 `approval-review` 记录都写明这次用的 `model` 和 `reviewSession`。Bot 在自己的 Shell 里运行 `approval-reviewer-model-set` 时，这次调用需要人类决定，或在独立管理范围中显式保存的授权规则；模型审批员不能代答。拒绝时带错误码：`usage`（没有 `<provider>/<model>`，或对 `bot` 加了 `--effort`）和 `invalid-input`。
 
 ### 空闲压缩（Idle Compaction）
 
@@ -575,6 +649,14 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
 
+### 加密局域网手机连接
+
+无需模型的设备侧验收使用 `device-pair --link-file <可信私有链接文件> --out <新私有配对.json> --confirm`，执行与手机相同的加密注册。等待批准时，配对进程向标准错误输出一条 `device-key-confirmation-required` JSON 状态，只包含本端公钥指纹。在另一个 CLI 进程将其与 `devices.pendingKeys[].fingerprint` 完整逐位比较，再用 `device-approve-key` 批准该条目的准确公钥；不得只按设备名或列表位置批准。最终标准输出只有 Host/设备 ID 和输出路径，密钥及凭据只写入新私有文件。之后用 `device-probe --device-file <私有配对.json>` 通过手机连接模块读取真实 Host Feed，只报告路由类型与列表数量，不发送 DM，也不需要模型。配对链接和凭据不得放入命令参数。
+
+`deepseekbot device-lan enable --confirm` 开启受限的加密入口。`device-lan disable` 关闭 LAN 连接并移除启用记录，不撤销设备，也不关闭 Connect。两者只返回一个 JSON 状态（`off` 或带端口的 `listening`）。`devices` 增加 `lan` 状态和可用路由。拒绝码包括 `confirm-required`、`lan-action-invalid`、`lan-listen-failed`、`lan-storage-unavailable`。LAN 默认关闭；启用后端口在普通 Host 重启时保留。
+
+继续使用现有配对命令 `device-offer --out <新私有文件>` 和 `device-approve-key <receipt> <公钥> --confirm`。已安装的 App 扫描可信电脑上的二维码，然后等待电脑批准准确的手机公钥。公钥可作为参数；链接和凭据只放在受保护文件中。原生构建与网络要求见 [LAN 协议](architecture/lan-phone-v1.md)。
+
 ### 手机连接（Tailscale）
 
 手机连不上这台 Host 时，Bot 设置 → 设备 → 配对手机会显示三步指引：安装 Tailscale、启动并登录、把 Host 发布到 tailnet。最后一步可以确认后由 DeepSeekBot 代为运行 `tailscale serve --bg <port>`，也可以复制命令自己运行。CLI 中的对应操作：
@@ -582,9 +664,25 @@ deepseekbot idle-compaction-cache-set deepseek/<model> auto
 ```bash
 deepseekbot phone-route
 deepseekbot phone-route-publish --confirm
+deepseekbot phone-route-disable --confirm
 ```
 
-`phone-route` 返回 `{routes}`：`tailscale`（`running`、`stopped` 或 `missing`）、本 Host 端口对应的 `serveCommand`，以及每条路由的 `ready`；未就绪时带 `issue`（`serve-missing` 或 `serve-other-target`）。`phone-route-publish` 在 Host 所在电脑上运行 `tailscale serve --bg <port>`，返回 `{published, changed, routes}`；`changed:false` 表示原本就已发布。拒绝时带错误码：`confirm-required`（缺少 `--confirm`）、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（这个地址已发布了别的服务，Host 不会覆盖，请手动处理）、`serve-needs-enable`（tailnet 未开启 Serve，返回 `enableUrl` 指向 Tailscale 后台）、`serve-denied`（Tailscale 不允许当前系统用户修改）和 `serve-failed`。用 `tailscale serve --https=443 off` 撤销；`tailscale serve reset` 会连同这台电脑上其他 Serve 配置一起清掉。
+`phone-route` 返回 `{routes}`，包含 Tailscale 可用性、每条路线是否就绪、建议的 `serveCommand`，以及托管启用与归属状态。`phone-route-publish` 明确启用托管发布和重启恢复，返回 `{published, changed, routes}`。Host 端口不变，发布端口依次从 443、8443–8452 中选取空闲项；已有匹配发布直接复用，不取得其所有权。`phone-route-disable` 关闭恢复，仅删除当前仍匹配的自有映射，保留配对和其他路线。拒绝码为 `confirm-required`、`tailscale-missing`、`tailscale-stopped`、`serve-other-target`（候选端口全满或配置已变化）、`serve-needs-enable`（带 Tailscale 后台 `enableUrl`）、`serve-denied` 和 `serve-failed`。权限或 tailnet HTTPS 未启用需要完成对应设置，换端口不能解决。
+
+### 已配对设备
+
+Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤销设备。CLI 使用同一个设备所有者：
+
+```bash
+deepseekbot devices
+deepseekbot device-offer --out /absolute/new-private-file
+deepseekbot device-lan enable --confirm
+deepseekbot device-lan disable
+deepseekbot device-offer-status <receipt>
+deepseekbot device-revoke <device-id> --confirm
+```
+
+`devices` 返回 `{host, devices, routes}`：本 Host 的配对身份，每台已配对设备的 `id`、`name`、`pairedAt`、`lastSeenAt` 以及撤销后的 `revokedAt`，和 `phone-route` 相同的手机路由。设备凭据不会出现在列表里。`device-offer` 打开一个 10 分钟有效的一次性配对邀请，只把它的 `deepseekbot://pair?…` 链接写入 `--out`：一个以 0600 权限新建的文件（文件已存在时在打开邀请前以 `output-exists` 拒绝）；标准输出只有 `{receipt, expiresAt, routes, reachable, link: {path}}`。在手机上打开这个链接，或改用设备页里的二维码配对；没有 `--out` 时 `device-offer` 以 `out-required` 拒绝。回执能指代邀请，但不能用来兑换。`device-offer-status` 返回 `state`：`pending`（带 `expiresAt`）、`redeemed`（带新设备的 `deviceId`）、`expired`、`refused`（用错误的验证值兑换而作废）、`superseded`（同时打开了超过 16 个邀请）或 `unknown`；邀请只保存在 Host 内存中，Host 重启后所有回执都是 `unknown`。`device-revoke` 返回 `{revoked, closedStreams, device: {id, name}}`；该设备的下一个请求会以 `device-revoked` 被拒绝，已打开的连接立即关闭。拒绝码：`confirm-required`、`device-unknown`、`device-already-revoked`、`receipt-required` 和 `usage`。
 
 ### 模型、用量与活动
 
@@ -618,6 +716,8 @@ deepseekbot group-activity <group-channel>
 `bot-activity-history` 的模型行在混有未报告调用时保留已上报的 `totalTokens` 下界，并标记 `partial: true`；完全未报告时保持 `null`。严格的 `bot-usage` 查询继续保留原来的未知总计语义。
 
 ### 市场、版本更新、使用统计、Git 与配对审核
+
+客户端市场默认按最多 Star 排序，并在当前浏览器记住选择。`--sort stars` 依次按 Star、最后更新、创建时间、仓库 ID 降序排列，翻页保持同一顺序。CLI 不读取浏览器偏好。
 
 这些命令调用的 Host 方法与市场页面、更新卡片、使用统计提示、Git 提示和 IM 配对面板相同：
 
@@ -765,7 +865,7 @@ deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
 ```
 
-`folder-browse` 列出 Host 上某个文件夹的子文件夹，与电脑使用系统文件夹选择器时手机上的文件夹选择相同。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 
@@ -840,7 +940,15 @@ deepseekbot resume <bot-id> --expected-profile <profileFingerprint>
 
 Host 先通过持久创建回执保留一个身份，再创建 Memory Repository 和 DM。响应丢失后重复**同一个 operation key 和同一份 payload**：已完成的回执返回原 Bot 与 DM，部分完成的操作沿用预留身份进行核对。受限模式已完成的重试走权限检查后的读取，不再申请一次创建审批。相同 key 配不同 payload 返回 `creation-key-conflict`；身份已归档或删除返回 `creation-identity-unavailable`，不会因重放而重建。`creation-memory-conflict` 表示预留目录已经存在但 Registry 身份未落地，应保留现场修复，不要删除目录或换 key 再建。回执不构成文件系统与数据库之间的原子事务，也不承诺自动修复该中断状态。
 
-已认证 Human 的在线 `create` 同样支持 `--operation-key`，限受管 Memory 的空白创建，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为，包括导入行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
+已认证 Human 的在线 `create` 同样支持 `--operation-key`，适用于受管 Memory 中的空白创建或已检查的 Git 来源，不可同时传 `--preset` 或自定义 Memory 位置；模型计划和 Memory 迁移另行操作。不传 key 保留原行为。本片不向 Tob 授予 Git／Zip／目录导入、市场搜索或修改其他 Bot 既有 Memory 的权限。
+
+Human 在线命令 `create-status` 在原 Host 只读查询创建回执。名称、人格、简介、标签等空白创建输入和 key 必须与原请求一致；不同输入会被拒绝。尚无操作时返回 `{receipt:null}`，否则返回 `{receipt:{operationKey,botSlug,status,channelId?}}`。`reserved` 可用完全相同的输入和 key 再次执行 `create` 恢复；`created` 指向已创建的同一个 Bot 和私聊。结果不确定时不要换 Host 或生成新 key。移动端在首次创建前先查询，以免旧 Host 不支持恢复却仍创建 Bot。
+
+```bash
+deepseekbot create-status --host <原Host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+deepseekbot create --host <原Host> --name Ada --persona 'Keep replies short.' --description 'Research helper' --role research --operation-key create-ada-001
+# 响应丢失后，用完全相同的参数再次执行 create-status。
+```
 
 受限 `show` 返回 `{bot, profileFingerprint}`。每次执行 `update`、`pause`、`resume`、`bot-avatar-set`、`bot-banner-set`、`bot-appearance-set` 或 `bot-primary-color-set` 前，先读取目标，再用 `--expected-profile` 传入该指纹。展示命令保留既有文件／recipe／清除／颜色参数。指纹覆盖完整 Registry record，因此任何已记录资料字段的并发变更都会使审核快照失效。Host 在审批后、调用原 owner 前重新检查，完成后返回规范资料及新指纹。遇到 `stale-setting` 重新读取，不静默覆盖。资料更新仅包含名称、简介和标签，不包含 Workspace Grants、凭据或模型配置。Human 的在线 `update` 同样必须传入 `show` 返回的 `--expected-profile`，复用原 Host owner；不会静默刷新已过期的指纹。`--description ''` 清空简介，`--role ''` 清空全部标签。
 
@@ -983,7 +1091,7 @@ deepseekbot release-restart --confirm
 ### 恢复已耗尽复核额度的群聊草稿
 
 Host 重启后先检查草稿、重新读取群聊，再通过同一个
-`bot-tool ... channel_send --args-stdin` 命令同时传入 `review_action: "recover"`、
+`bot-tool ... bot_send_message --args-stdin` 命令同时传入 `recover: true`、
 `freshness_override`（当前 `draftVersion` 与理由）、新 `observation_id`、原 `draft_id`
 和修正后的正文。恢复不会重置两次复核额度或已消耗的显式继续机会；提交前又有未读变化
 仍会拒绝。成功的显式继续也保留提交回执，重启后以相同意图重试只返回原消息 ID。
@@ -1023,9 +1131,13 @@ deepseekbot memory-image <bot-id> --path notes/guide.md --image-source <document
 
 ## 桌面整页缩放（S1 受控切片）
 
-产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
+新版 Tobs Bundle 默认加载 macOS/Windows 原生桌面窗口缩放，无需另行 enable。下面的启用/停用命令用于历史手动配置；日常操作进入 Bot 设置 → 通用 → 窗口缩放。浏览器缩放不变，原生验收单独记录于 #2775。
+
+### 旧版手动启用方式
+
+早期产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
 和 Profile。命令使用所选应用附带的 pnpm，禁用安装脚本，并持有与原生插件管理器相同的 Profile
-写锁。桌面 Host 仍在运行、存在其他主题覆盖、产品仍采用旧组合或应用版本不是 0.2.1-rc.2 时拒绝。
+写锁。桌面 Host 仍在运行、存在其他主题覆盖或产品仍采用旧组合时拒绝；准入检查依据协议、平台及包内容完整性。
 只改变一个 Profile 依赖，不修改已安装应用：
 
 ```sh
@@ -1038,7 +1150,7 @@ deepseekbot-zoom-setup disable --home <绝对路径-DSH_HOME> --profile desktop 
 DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解析应用自带的同名主题，因此也拒绝
 这一普通库替换。两条路径的无窗口测试结果不能作为桌面启用验收。
 
-卸载产品前先 `disable`，并重启以恢复原生包解析。手动字体偏好仍由原生 `ui-theme` Patch 保存。
+历史手动启用的 Profile 应在卸载产品前先 `disable`，并重启以恢复原生包解析。此命令清理旧链接；新版 Bundle 仍安装时不会关闭缩放。手动字体偏好仍由原生 `ui-theme` Patch 保存。
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
 
@@ -1062,11 +1174,11 @@ deepseekbot window-zoom-reset --client-id <id> --expected-revision <revision> --
 Client 重启后投递 ID 会改变，需要重新列出；主窗口偏好独立保存。原生验证范围见
 [S1](https://github.com/BotHarness/DeepSeekBot/issues/2268)。这条路径不需要模型，也没有 Host 偏好副本。
 
-Windows 候选版使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
+Windows 旧版手动链接配置使用已安装产品的 `deepseekbot-zoom-setup` 命令，显式传入
 `--home <隔离-home> --profile desktop --desktop-app "<应用目录>/DeepSeek Harness.exe"`。
 整个 `enable` 或 `disable` 事务期间须关闭所选 Desktop；该可执行文件有运行进程即拒绝事务。
-仅接受 FileVersion `0.2.1-rc.2` 和通过哈希检查、声明 Windows 能力的主题包。
-原生 `ui-theme` 行和字体设置保持原有身份。移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
+准入检查依据协议、平台及包内容完整性，不限制为某个固定 FileVersion。
+原生 `ui-theme` 行和字体设置保持原有身份。历史手动启用的 Profile 应在移除产品前先执行 `disable`；每次冷启动后重新枚举 Client ID。
 Ctrl+0 恢复已保存的默认值，包括 120%；固定原生协议不支持数字小键盘键码。
 原生输入、guest 前台恢复、DPI 和 Human QA 的独立门槛见
 [Windows 资格 #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)。
@@ -1115,7 +1227,9 @@ token 存进 DSH 凭据存储，把自己关联到账号（每个账号最多 5 
 Host 离线后被回收的隧道会在同一个 `<host-id>.deepseekbot.dev` 上恢复。`connect-status` 增加
 `connect.account`：`state`（`signed-out`、`signing-in`、`signed-in`、`error`）、`email`、`hostId`
 和 `issue`（`relay-unavailable`、`sign-in-denied`、`sign-in-expired`、`session-expired`、
-`account-not-allowed`、`host-limit`、`credential-unavailable`）。`connect-sign-out` 在 relay 上解除
+`account-not-allowed`、`host-limit`、`credential-unavailable`）。登录期间 Host 每分钟向 relay
+复查一次账号；relay 或 WorkOS 拒绝会话后（例如 `DELETE /v1/account` 之后），Host 停掉隧道、删除
+保存的会话，并报告 `error` 和 `session-expired`。`connect-sign-out` 在 relay 上解除
 关联、停掉隧道并删除会话。任何已登录的账号都能关联 Host。
 
 ## 设备本地 DeepSeekBot 外观
@@ -1186,6 +1300,64 @@ deepseekbot appearance-reset --client-id <id> --expected-revision <appearance-re
 
 ### 三个审批动作（#2080）
 
-`tool-approval-decide ... --outcome allowed-always-tool` 对应网页的“始终允许”：批准本次并记住此 Bot、角色及当前授权范围中的当前工具。参数变化仍可匹配；其他工具和变化后的范围不能匹配。`tool-approval-rules` 返回 `tool` 类型；`tool-approval-rule-revoke --confirm` 撤销后恢复询问。旧 exact／broad／Secret 规则不改义。权限与策略变更不能记住；不可用的“始终允许”由 Host 返回带代码的拒绝。Secret CLI 仍只记住程序、账号及环境变量名；MCP 服务记忆保留独立检查。
+`tool-approval-decide ... --outcome allowed-always-tool` 对应网页的“始终允许”：批准本次并记住此 Bot、角色及当前授权范围中的当前工具。参数变化仍可匹配；其他工具和变化后的范围不能匹配。`tool-approval-rules` 返回 `tool` 类型；`tool-approval-rule-revoke --confirm` 撤销后恢复询问。旧 exact／broad／Secret 规则不改义。权限与策略变更、浏览器与电脑授权，以及 Tob 安装更新、重启和删除 Bot 均可用相同命令保存“始终允许”。这些操作使用独立范围，旧普通规则不会自动扩大权限；撤销规则或切换设备目标后恢复询问。Secret CLI 仍只记住程序、账号及环境变量名；MCP 服务记忆保留独立检查。
 
 Full Access 保留原生 `ask`，使识别出的权限变更可以到达 Human；明确范围内的普通请求自动回答，不再逐次弹卡。不会扩大选定 mode／scope 或已有 Assignment 权限。原生 `never` 仍表示直接拒绝，没有绕过它。目录授权仍使用 `grant-request-approve --confirm`。
+
+Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect.encryption` 字段包含 `protocol`、`required`、`state`、`publicKey` 和 Host 指纹；`state` 为 `negotiating`、`encrypted` 或 `disconnected`，仅开启 tunnel 不代表已有加密会话。`devices` 同时返回待批准的 `pendingKeys`。核对新设备显示的完整指纹与设备页后，使用 `deepseekbot device-approve-key <receipt> <public-key> --confirm` 批准准确的公钥；缺少确认或公钥无效会拒绝。配对链接、设备私钥和 bearer 不出现在这些状态输出中。
+
+手机原生私密表单和浏览器远程聊天通过同一个加密通道调用既有凭据 owner。旧 Connect 配对必须重新核对指纹；失败不会重试明文。手机完整 Host WebView 仍已移除，Connect 的 Browser/Computer 查看器暂不可用。加密 CLI 状态不替代原生验收或实际 Cloudflare 链路验证。
+
+## 从电脑建立 SSH 隧道
+
+在使用浏览器的电脑上运行 `ssh-tunnel`。Linux Host 必须已运行；先用普通终端验证 SSH alias 的主机密钥和密钥／agent 登录。此命令使用批处理认证，遇到密码提示或未知、变化的 SSH 主机密钥会拒绝，不会安装或启动远端 Host。电脑上需运行支持“添加远程”的新版 Host 浏览器客户端；旧客户端会拒绝版本 2 的隧道链接。
+
+1. 在远端 Linux Host，用已有 Owner 认证的 CLI 执行 `device-offer --out /absolute/private/offer.txt`，保存返回的 receipt。安全传输该文件到电脑；不要把配对链接放入命令参数或日志。
+2. 在电脑运行下面的前台命令并保持运行。local port 选择空闲且固定的端口，remote port 填远端 Host 已有的回环端口：
+
+   ```text
+   deepseekbot ssh-tunnel my-linux --remote-port 39105 --local-port 32451 --pairing-file /absolute/private/offer.txt --out /absolute/private/browser-offer.txt
+   ```
+
+   Windows 使用带盘符的绝对路径。可选 `--ssh-config <absolute-file>` 指定已有配置，默认使用系统 OpenSSH 配置。输入必须是私有普通文件（Linux/macOS 权限为 0600）；输出只新建，不覆盖。启动失败可能留下空输出文件，重试时选择新的输出路径。
+
+3. Noise 握手校验 Host 密钥成功后，stdout 输出单个就绪 JSON。在本机 Host 浏览器的“添加远程”中粘贴私有输出文件里的链接。通过可信远端终端核对 Host 指纹，并在远端执行 `device-approve-key <receipt> <public-key> --confirm`，批准这个浏览器的准确设备密钥。隧道命令不会自动配对或批准。
+4. 打开远端会话并使用已有 Host 操作。Ctrl+C 只停止隧道，远端 Host 和浏览器配对仍保留。用相同 local port、新的输出文件重启命令即可重连。过期输入链接仍可标识已配对 Host，但不会恢复过期 offer；新浏览器需新建 offer。
+
+隧道只监听 `127.0.0.1`。SSH 配对后的回环请求与流继续使用加密设备通道，端口被替换时不会明文发送设备凭据。吊销使用远端已有的 `device-revoke <device-id> --confirm`；关闭隧道不等于吊销。建立 SSH 配对后不要降级浏览器客户端。
+
+stderr 提供结构化生命周期诊断，区分 `ssh-missing`、`ssh-host-key-refused`、`ssh-authentication-refused`、`ssh-local-port-unavailable`、`ssh-host-unready` 与 `ssh-host-identity-mismatch`。错误不会触发远端安装或明文重试，也不会打印原始 SSH 输出或配对链接。所有权与验证边界见 [ADR-0246](adr/0246-ssh-tunnels-preserve-paired-host-authority.md)。
+`ssh-tunnel` 的本地端口只提供加密 Device Gateway，直接在浏览器打开会返回 403。请在本地 Host 浏览器中使用“添加远端”。载体会丢弃浏览器自动附带的本地登录 Cookie，不会将它发送给远端 Host。
+
+### 固定 Git 来源并恢复导入
+
+确认新导入前，先在目标 Host 检查所选来源。返回值包含规范化的 Git URL 和当前 HEAD 提交。把 URL、提交、名称、简介、标签及操作 key 一起保留；提交和恢复时不会自动改用更新的提交。
+
+```bash
+deepseekbot bot-import-preview --host <host> --from-git owner/repository
+deepseekbot create-status --host <host> --name Helper --from-git <已检查的URL> --expected-commit <提交> --operation-key import-helper-001
+deepseekbot create --host <host> --name Helper --from-git <已检查的URL> --expected-commit <提交> --operation-key import-helper-001
+```
+
+查询只读，可携带与创建一致的可选 `--description` 和重复 `--role` 参数。响应丢失或 Host 重启后仍指向同一个 Bot、受管 Memory 和私聊。若克隆后的 HEAD 与检查的提交不同，`git-source-changed` 会在发布 Bot 前拒绝；已保留的 key 仍绑定原输入。重新查看来源后，才可明确开始另一项导入。同 key 换来源或元数据返回 `creation-key-conflict`；原身份已归档或删除时返回 `creation-identity-unavailable`。不会自动调用模型或复制凭据。
+
+### Mac 本机电脑视频（#2653）
+
+macOS 继续使用现有 `computer-start --target local`、`computer-video status`、观看／信令、接管、输入与恢复命令及同一个 Computer owner，不增加 CLI 身份或传输。明确启动时安装固定 Mac 采集运行时，观看不下载。`screen-recording-required` 要求授予 macOS 屏幕录制权限并重启。命令边界的点击仍使用视频像素，由 owner 校验 Retina 尺寸，再由固定版本驱动转换为逻辑点。视频不可用时仍可明确恢复 Bot；iPhone 实际交互需另做原生验证。
+
+当 `status` 返回 `continuousScroll:true` 时，iOS 与 `computer-video input --args-stdin` 可沿用相同 binding、grant 和递增 sequence，发送 `input:{"kind":"scroll-motion","x":100,"y":100,"vx":0,"vy":-200}`。坐标仍是完整画面的像素，速度为每秒逻辑像素，每轴限制为 ±200。按住期间持续刷新（iOS 为 80ms），松手发送两轴速度为零。Mac 在 250ms 未刷新或控制失效时停止；每帧重新检查权限，丢弃过期帧且不积压未确认帧。该路径使用系统原生桥接并要求 Host 已有辅助功能授权，不自动请求权限。旧 Host 和 Android 保留逐格滚动。
+
+### 原生 Subagent preset 与直接调用
+
+`bot_subagent` 依次选择允许的显式 `agent_preset`、配置的 `subagent.agentPreset`、当前 DSH 系统默认 preset。`subagent.allowedAgentPresets` 允许显式选择；省略时不允许显式选择。这些原生 preset 控制工具和人格，与允许的 LLM 路由独立。`bot_subagent_fork` 继承父 preset，并拒绝 `agent_preset`。
+
+`bot-tool` 支持 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`。这些命令要求现有存活的 Orchestrator Agent，包括私聊结束后处于 idle 的 Agent。调用经过其原生工具执行链，不会创建或恢复父 Agent。`parent-unavailable` 表示没有存活父 Agent，应先向 Bot 发送私聊。原生策略拒绝仍返回错误。通过 `bot-trace --session direct` 查看直接调用结果，通过子 Session 查看实际执行历史。
+
+后台子任务的原生回报可以唤醒该存活父 Agent。BotRuntime 在恢复请求前准备新的工具上下文和当前模型，不借用上一条私聊的来源或目标。如需投递结果，应在委派任务中明确回复来源或发送目标。前台 CLI 调用不会遮蔽另一个用户回合的停止与追加指令。参见 ADR-0252。
+
+```sh
+printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
+printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin
+```
+
+`computer-open-permission-settings` 在本机 Computer 所在的 macOS Host 上打开指定隐私设置页，不会自动授权。用户在系统设置里开启权限，必要时重启运行 DSH 的应用，再重新检查。`computer-status` 返回稳定的安装失败原因与各项缺失的 macOS 权限；技术细节保留在诊断信息中。

@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 import { SheetStack } from '../../../src/ui/primitives/sheet-stack';
 
 export default function BotProfileLayout() {
+  const t = useStrings();
   return (
     <SheetStack>
       <Stack.Screen name="chat-background" options={{ title: t.chatBackground.title }} />

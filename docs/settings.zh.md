@@ -30,7 +30,7 @@
 botharness-profile restore --file "environment.botharness-backup" --new-home "new-environment"
 ```
 
-源码 checkout 可使用 `node scripts/profile-restore.mjs` 加相同参数。恢复完成时环境仍停止；用可信的 DSH **0.2.0-rc.1** 和匹配的 BotHarness Bundle 启动该 DSH_HOME。开发环境可运行 `node scripts/dev-instance.mjs --home <新目录> --port <端口>`，由固定原生 CLI 创建 Profile 组合，不加载备份里的可执行配置。运行中的 Settings 不提供任意目标目录写入，也不替换自身数据；已有目录会被拒绝，暂存数据库使用既有 Profile Writer Lease 校验和迁移后才发布。
+源码 checkout 可使用 `node scripts/profile-restore.mjs` 加相同参数。恢复完成时环境仍停止；用已验证的 DSH（**0.2.1-rc.2** 或 **0.2.0-rc.2**）和匹配的 BotHarness Bundle 启动该 DSH_HOME。开发环境可运行 `node scripts/dev-instance.mjs --home <新目录> --port <端口>`，由固定原生 CLI 创建 Profile 组合，不加载备份里的可执行配置。运行中的 Settings 不提供任意目标目录写入，也不替换自身数据；已有目录会被拒绝，暂存数据库使用既有 Profile Writer Lease 校验和迁移后才发布。
 
 恢复默认进入灾难恢复状态：Bot 暂停，账号绑定、外部触发器、Service Grants、持久工具授权和定时任务挂起；Workspace 需要重新映射，Browser／Computer 访问关闭，旧 Session／Inbox／Outbox 不重放。冷状态仍能读取聊天历史和 Memory。在 DSH 模型设置配置目标本地凭证，并在 Bot Profile 保存明确的模型计划；回到管理备份刷新准备度，点击「授权此目标模型」，确认已考虑旧设备仍运行的同身份双活风险，再「激活此 Bot」。发送新的 DM，保留身份并使用新的 Orchestrator Session。模型不可用或计划修订变化会阻止新请求，不静默回退；外部账号需要另行明确授权。
 
@@ -197,6 +197,6 @@ DeepSeekBot 默认由 DSH 后台发送匿名使用统计；首次打开 Bot 模�
 
 ## 高级参数与可选能力
 
-公共 npm 包的产品组合是 Core、Client 和已验证的 IM Provider。Browser / Computer 等开发能力不因为上述安装步骤就自动可用；只在实际部署了相应插件时出现。Core 的 `enabled`（启用）、`agentPreset`（会话工具预设，默认 standard）、`activityDetailConsumers`（允许读取活动详情的受信任 Host 插件名单，默认空）、`telemetry`（匿名使用统计，默认开启）见代码生成的 [Core 配置参考](/zh/dev/reference/config)。可选 Browser 的目标、驱动、路径、无窗口模式和空闲停止参数见 [Browser 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/browser/src/index.ts)；Computer 的目标、桌面资源、导出目录和操作授权参数见 [Computer 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/computer/src/index.ts)。操作教程见 [分享日常浏览器标签页](/zh/docs/daily-browser) 与 [Computer 导出与迁移](/zh/docs/computer-export)。
+公共 npm 包 **`deepseekbot`** 默认包含 Core、Client、Browser、Computer 和已验证的 IM Provider；首次安装不连接任何 IM 账号，每个 Bot 的 Browser / Computer 访问权限也默认关闭，需按 Bot 显式开启。Core 的 `enabled`（启用）、`agentPreset`（会话工具预设，默认 standard）、`activityDetailConsumers`（允许读取活动详情的受信任 Host 插件名单，默认空）、`telemetry`（匿名使用统计，默认开启）见代码生成的 [Core 配置参考](/zh/dev/reference/config)。Browser 的目标、驱动、路径、无窗口模式和空闲停止参数见 [Browser 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/browser/src/index.ts)；Computer 的目标、桌面资源、导出目录和操作授权参数见 [Computer 配置定义](https://github.com/BotHarness/BotHarness/blob/main/packages/computer/src/index.ts)。操作教程见 [分享日常浏览器标签页](/zh/docs/daily-browser) 与 [Computer 导出与迁移](/zh/docs/computer-export)。
 
 高级修改时先核对实际安装版本，再从 **设置 → 内置插件** 查看对应插件的详情 / 参数；没有表单的部署参数按 [DSH 官方文档](https://deepseek-harness.github.io/deepseek-harness/develop/basic/publish) 在 Profile / Patch 层配置。当前网站开发参考可能比 npm 发布版更新，不能把开发参考中的可选能力当作这个安装包已经提供。

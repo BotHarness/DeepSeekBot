@@ -9,7 +9,7 @@ import { haptic } from '../haptics';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ActionCard, CardButtons, CardLine, CardNote } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { FolderPickerSheet, type FolderPickerPort } from './folder-picker-sheet';
@@ -45,8 +45,15 @@ export function GrantRequestCard({
   wide?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const known = useRef(resolved);
+  const current = useRef({ port, pending: undefined as Promise<void> | undefined, active: false });
+  if (current.current.port !== port) {
+    current.current = { port, pending: undefined, active: false };
+    known.current = resolved;
+  }
+  const submission = current.current;
   const [phase, setPhase] = useState<Phase>(
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
@@ -55,19 +62,25 @@ export function GrantRequestCard({
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       setPhase(
         request.status === 'pending'
           ? { kind: 'pending', request, picking: false }
           : { kind: 'settled', mine: false },
       );
     } catch {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed' });
     }
-  }, [port]);
+  }, [port, submission]);
 
   const mount = useMounted<ViewInstance>(() => {
+    submission.active = true;
     if (!known.current) void load();
-  }, [load]);
+    return () => {
+      submission.active = false;
+    };
+  }, [load, submission]);
 
   const category = t.kind['workspace-grant-request']!;
   const mine = phase.kind === 'settled' && phase.mine;
@@ -110,15 +123,26 @@ export function GrantRequestCard({
     );
 
   const { request } = phase;
-  const confirm = async (folder: WorkspaceOption) => {
-    const result = await port.approve(folder.id);
-    if (result === 'accepted') haptic('approve');
-    setPhase(
-      result === 'accepted'
-        ? { kind: 'settled', mine: true, folder: folder.title }
-        : { kind: 'settled', mine: false },
-    );
-    onSettled?.(result);
+  const confirm = (folder: WorkspaceOption): Promise<void> => {
+    if (submission.pending !== undefined) return submission.pending;
+    if (!submission.active || current.current !== submission || resolved) return Promise.resolve();
+    submission.pending = Promise.resolve().then(async () => {
+      try {
+        const result = await port.approve(folder.id);
+        if (!submission.active || current.current !== submission) return;
+        if (result === 'accepted') haptic('approve');
+        setPhase(
+          result === 'accepted'
+            ? { kind: 'settled', mine: true, folder: folder.title }
+            : { kind: 'settled', mine: false },
+        );
+        onSettled?.(result);
+      } catch (error) {
+        submission.pending = undefined;
+        throw error;
+      }
+    });
+    return submission.pending;
   };
   return (
     <View ref={mount}>

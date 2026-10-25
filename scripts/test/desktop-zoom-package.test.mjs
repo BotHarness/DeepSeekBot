@@ -16,7 +16,21 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { preparePackagedDesktopZoomTheme, ZOOM_THEME_HASHES } from '../desktop-zoom-compat.mjs';
+import {
+  prepareDesktopZoomCompatibility,
+  preparePackagedDesktopZoomTheme,
+  ZOOM_THEME_HASHES,
+} from '../desktop-zoom-compat.mjs';
+const dshRequire = createRequire(
+  createRequire(import.meta.url).resolve('@deepseek-ai/dsh/package.json'),
+);
+const { applyEntryPatches } = await import(
+  pathToFileURL(dshRequire.resolve('@deepseek-ai/cordis-plugin-include')).href
+);
+const { Context } = await import(pathToFileURL(dshRequire.resolve('@deepseek-ai/cordis')).href);
+const { Loader, EntryTree } = await import(
+  pathToFileURL(dshRequire.resolve('@deepseek-ai/cordis-plugin-loader')).href
+);
 import { parseProductComposition } from '../packaged-profile.mjs';
 
 const source = realpathSync(
@@ -36,6 +50,54 @@ afterEach(() => {
 });
 
 describe('product-owned desktop theme payload', () => {
+  it.each([
+    ['manifest', 'zoom-theme-version-unsupported', 'zoom-theme-version-unsupported'],
+    ['host', 'zoom-theme-host-unsupported', 'zoom-theme-version-unsupported'],
+    ['client', 'zoom-theme-build-unsupported', 'zoom-theme-build-unsupported'],
+    ['both', 'zoom-theme-build-unsupported', 'zoom-theme-version-unsupported'],
+  ])(
+    'preserves entry-specific refusal precedence for %s mutations',
+    (mutation, localError, packagedError) => {
+      const root = temporary();
+      const changed = join(root, 'changed');
+      cpSync(source, changed, {
+        recursive: true,
+        filter: (path) => !relative(source, path).split(sep).includes('node_modules'),
+      });
+      if (mutation === 'manifest') {
+        const manifest = JSON.parse(readFileSync(join(changed, 'package.json'), 'utf8'));
+        manifest.name = 'unexpected-theme';
+        writeFileSync(join(changed, 'package.json'), JSON.stringify(manifest));
+      }
+      if (mutation === 'host' || mutation === 'both')
+        writeFileSync(join(changed, 'lib/index.js'), 'unqualified');
+      if (mutation === 'client' || mutation === 'both')
+        writeFileSync(join(changed, 'lib/client.js'), 'unqualified');
+      for (const [prepare, error, name] of [
+        [prepareDesktopZoomCompatibility, localError, 'local'],
+        [preparePackagedDesktopZoomTheme, packagedError, 'packaged'],
+      ]) {
+        const target = join(root, name);
+        expect(() => prepare({ source: changed, target })).toThrow(error);
+        expect(existsSync(target)).toBe(false);
+      }
+    },
+  );
+
+  it('shares transformed client bytes while retaining local fresh-directory semantics', () => {
+    const root = temporary();
+    const local = join(root, 'local');
+    const packaged = join(root, 'packaged');
+    prepareDesktopZoomCompatibility({ source, target: local });
+    preparePackagedDesktopZoomTheme({ source, target: packaged });
+    expect(readFileSync(join(local, 'lib/client.js'))).toEqual(
+      readFileSync(join(packaged, 'lib/client.js')),
+    );
+    expect(() => prepareDesktopZoomCompatibility({ source, target: local })).toThrow(
+      'zoom-target-must-be-new',
+    );
+  });
+
   it('keeps a complete licensed package and resolves its Host schema relative to a relocated product', async () => {
     const root = temporary();
     const product = join(root, 'product');
@@ -107,13 +169,47 @@ describe('product-owned desktop theme payload', () => {
 });
 
 for (const patch of ['cordis.patch.yml', 'cordis.im.patch.yml']) {
-  it(`${patch} retains the original native theme row and its settings namespace`, () => {
+  it(`${patch} activates one theme with retained settings and restores upstream on cold removal`, async () => {
     const text = readFileSync(
       new URL(`../../packages/deepseekbot/${patch}`, import.meta.url),
       'utf8',
     );
     const rows = parseProductComposition(text);
-    expect(rows.some((row) => row.id === 'ui-theme')).toBe(false);
+    const original = [{ id: 'ui-theme', name: '@deepseek-ai/dsh-client-ui-theme' }];
+    const config = { preference: 'dark', fontSize: 17, codeFontSize: 13 };
+    const composed = applyEntryPatches(original, [...rows, { id: 'ui-theme', config }], () => {});
+    async function boot(entries) {
+      const ctx = new Context();
+      const loader = await ctx.plugin(Loader);
+      const tree = new EntryTree(ctx);
+      const started = [];
+      const stopped = [];
+      tree.import = async (name) => ({
+        apply(context, settings) {
+          started.push({ name, config: settings });
+          context.effect(() => () => stopped.push(name));
+        },
+      });
+      try {
+        await tree.root.update(entries.filter((row) => row.id === 'ui-theme'));
+        await tree.await();
+      } finally {
+        tree.root.stop();
+        await loader.dispose();
+      }
+      return { started, stopped };
+    }
+    expect(await boot(composed)).toEqual({
+      started: [{ name: './desktop-theme/lib/index.js', config }],
+      stopped: ['./desktop-theme/lib/index.js'],
+    });
+    expect(await boot(applyEntryPatches(original, [{ id: 'ui-theme', config }], () => {}))).toEqual(
+      {
+        started: [{ name: '@deepseek-ai/dsh-client-ui-theme', config }],
+        stopped: ['@deepseek-ai/dsh-client-ui-theme'],
+      },
+    );
+    expect(original).toEqual([{ id: 'ui-theme', name: '@deepseek-ai/dsh-client-ui-theme' }]);
     expect(text).not.toContain('botharness-desktop-theme');
   });
 }

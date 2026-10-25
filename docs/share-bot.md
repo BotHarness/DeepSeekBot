@@ -19,7 +19,7 @@ Deleting a file is not enough if sensitive content appears in the history. The p
 
 ## Option 1: let the Bot publish itself (recommended)
 
-The computer running DeepSeekBot (the Host) needs the [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`. The Bot asks for your approval before each command, so you see every step.
+The computer running Tobs (the Host) needs the [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`. The Bot asks for your approval before each command, so you see every step.
 
 Copy this and send it in the DM of the Bot you want to share:
 
@@ -28,7 +28,7 @@ Please share your Memory repository to the BotHarness Bot Marketplace. Follow th
 
 1. List every file in your Memory and check the file contents and Git history for passwords, tokens, personal information or anything I may not want public. List what you find and wait for my confirmation before going on. Do not push anything before I confirm.
 2. If there is no README.md, write a short one: who you are, what you are good at, and how to use you. Then write the same introduction in the other language: README.zh-CN.md in Chinese if README.md is in English, or README.en.md in English if it is in Chinese.
-3. Check that .botharness/bot.json exists (DeepSeekBot normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio, as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, keep what is there. Then add the bio in the other language under "i18n", as {"i18n": {"zh": {"bio": "一句话简介"}}} or {"i18n": {"en": {"bio": "One sentence"}}}.
+3. Check that .botharness/bot.json exists (Tobs normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio, as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, keep what is there. Then add the bio in the other language under "i18n", as {"i18n": {"zh": {"bio": "一句话简介"}}} or {"i18n": {"en": {"bio": "One sentence"}}}.
 4. Use gh to create a public repository under my GitHub account and push the current branch. Name it after you in English, and tell me the name before creating it. If step 1 found anything in the history that should not be public, push a single new commit without history instead.
 5. Add the botharness-bot topic: gh repo edit --add-topic botharness-bot
 6. Send me the repository URL.
@@ -52,11 +52,11 @@ You can also create an empty public repository on GitHub, push with `git remote 
 
 ## Get it into the Bot Marketplace
 
-A repository is listed when it is public and has the `botharness-bot` topic. Matching repositories are picked up once a day. To list it right away, click **+ (New) → Bot Marketplace** above the message list in the DeepSeekBot sidebar, paste the repository URL at the top and click **List**:
+A repository is listed when it is public and has the `botharness-bot` topic. Matching repositories are picked up once a day. To list it right away, click **+ (New) → Bot Marketplace** above the message list in the Tobs sidebar, paste the repository URL at the top and click **List**:
 
 ![Paste the repository URL in the Bot Marketplace to list it now](/guides/share-bot/03-market-paste-zh.webp)
 
-Once listed, it appears in the DeepSeekBot Bot Marketplace and on the [Bot Marketplace website](https://deepseekbot.botharness.ai/en/market) with its README, stars, update date and topics. After each push, the Marketplace moves to the latest commit within an hour.
+Once listed, it appears in the Tobs Bot Marketplace and on the [Bot Marketplace website](https://deepseekbot.botharness.ai/en/market) with its README, stars, update date and topics. After each push, the Marketplace moves to the latest commit within an hour.
 
 ![The listed Bot on the Bot Marketplace website](/guides/share-bot/04-site-market-zh.webp)
 
@@ -71,9 +71,9 @@ When listing fails, the Bot Marketplace says why:
 
 ## Name, tags, bio, avatar and banner: `.botharness/bot.json`
 
-DeepSeekBot writes `.botharness/bot.json` into every Bot's Memory and keeps it up to date: when you create a Bot, and each time you change its name, tags, bio or avatar in **Edit profile**. Bots created before this get the file the next time DeepSeekBot starts. The Marketplace and the installed Bot read it, so they show the same name, tags, bio and avatar as your sidebar. An uploaded avatar image is saved next to it as `.botharness/avatar.png` (or `.jpg`, `.webp`). The Profile banner is always saved as `.botharness/banner.png` (1500 × 500), whether it is a generated pixel scene or an uploaded image.
+Tobs writes `.botharness/bot.json` into every Bot's Memory and keeps it up to date: when you create a Bot, and each time you change its name, tags, bio or avatar in **Edit profile**. Bots created before this get the file the next time Tobs starts. The Marketplace and the installed Bot read it, so they show the same name, tags, bio and avatar as your sidebar. An uploaded avatar image is saved next to it as `.botharness/avatar.png` (or `.jpg`, `.webp`). The Profile banner is always saved as `.botharness/banner.png` (1500 × 500), whether it is a generated pixel scene or an uploaded image.
 
-You can also edit the file by hand. DeepSeekBot keeps any other keys you add, and keeps your edits until you next change the name, tags, bio or avatar in DeepSeekBot:
+You can also edit the file by hand. Tobs keeps any other keys you add, and keeps your edits until you next change the name, tags, bio or avatar in Tobs:
 
 ```json
 {
@@ -97,7 +97,7 @@ Every field is optional. An invalid file is ignored as a whole, and the Marketpl
 
 ## Chinese and English: `README.zh-CN.md` and `i18n`
 
-The Bot Marketplace in DeepSeekBot and on the website shows each listing in the reader's language, Chinese or English, when the repository has it. Write your listing in one language and add the other next to it:
+The Bot Marketplace in Tobs and on the website shows each listing in the reader's language, Chinese or English, when the repository has it. Write your listing in one language and add the other next to it:
 
 | What                     | Where                                                                | Shown to                                |
 | ------------------------ | -------------------------------------------------------------------- | --------------------------------------- |
@@ -122,7 +122,7 @@ When a listing has no bio in the reader's language, the Marketplace writes a one
 
 ## Profile banner
 
-Every Bot has a banner at the top of its Profile and of the popover you get from the name at the top of a DM. A new Bot gets a pixel scene picked from its name, and renaming the Bot doesn't change it; Bots created before banners existed get one the next time DeepSeekBot starts.
+Every Bot has a banner at the top of its Profile and of the popover you get from the name at the top of a DM. A new Bot gets a pixel scene picked from its name, and renaming the Bot doesn't change it; Bots created before banners existed get one the next time Tobs starts.
 
 Hover the banner and click **Change banner** to:
 

@@ -9,7 +9,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { Segmented } from '../primitives/segmented';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useLoad, Status } from './memory-browser';
 import { MemoryMarkdownBlock } from './memory-markdown';
 import { MemoryPreviewImage } from './memory-preview-image';
@@ -22,6 +22,7 @@ export function MemoryFileView({
   load: () => Promise<MemoryFile | undefined>;
   preview?: { client: HostClient; io: MemoryPreviewIO; slug: string; path: string };
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { state, read, mount } = useLoad<MemoryFile | undefined, ViewInstance>(load);
   const [mode, setMode] = useState<'preview' | 'source'>('preview');

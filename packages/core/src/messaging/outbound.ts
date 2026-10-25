@@ -298,7 +298,12 @@ export interface OutboundMessaging {
   defaults<Platform extends string = 'feishu'>(platform?: Platform): MessagingDefaults<Platform>;
   setDefaults(input: MessagingDefaultsInput): Promise<MessagingDefaults>;
   identity(botSlug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
-  reply(botSlug: string, sourceEventId: string, text: string): Promise<OutboxIntent>;
+  reply(
+    botSlug: string,
+    sourceEventId: string,
+    text: string,
+    messageKey?: string,
+  ): Promise<OutboxIntent>;
   privateInputNotice(
     botSlug: string,
     sourceEventId: string,
@@ -329,6 +334,7 @@ export interface OutboundMessaging {
     botSlug: string,
     sourceEventId: string,
     file: ChannelAttachmentRef,
+    messageKey?: string,
   ): Promise<OutboxIntent>;
   register(provider: MessagingProvider): () => void;
   snapshot(botSlug: string): Promise<MessagingSnapshot>;
@@ -1301,6 +1307,7 @@ export function createOutboundMessaging(options: {
     sourceEventId: string,
     text: string,
     noticeId?: string,
+    messageKey?: string,
   ): Promise<OutboxIntent> {
     if (noticeId === undefined && /private:[0-9a-f-]{36}:[a-z][a-z0-9_]{0,47}/.test(text))
       throw new MessagingError('private-reference-not-deliverable');
@@ -1319,7 +1326,7 @@ export function createOutboundMessaging(options: {
       const result = await service.send(
         botSlug,
         source.grantId,
-        noticeId ?? 'reply-' + sourceEventId,
+        noticeId ?? (messageKey === undefined ? 'reply-' + sourceEventId : 'message-' + messageKey),
         text,
         sourceEventId,
       );
@@ -1365,6 +1372,7 @@ export function createOutboundMessaging(options: {
       );
     const requestId =
       noticeId ??
+      (messageKey === undefined ? undefined : 'message-' + messageKey) ??
       'reply-' +
         createHash('sha256')
           .update(JSON.stringify([botSlug, sourceEventId]))
@@ -1960,14 +1968,14 @@ export function createOutboundMessaging(options: {
         throw error;
       }
     },
-    async replyFile(botSlug, sourceEventId, file) {
+    async replyFile(botSlug, sourceEventId, file, messageKey) {
       if (!inbound.available(botSlug, sourceEventId))
         throw new MessagingError('source-unavailable');
       const source = inbound.read(botSlug, sourceEventId);
       const result = await service.send(
         botSlug,
         source.grantId,
-        'reply-' + sourceEventId,
+        messageKey === undefined ? 'reply-' + sourceEventId : 'message-' + messageKey,
         'File reply: ' + file.name,
         sourceEventId,
         file,
@@ -1976,7 +1984,8 @@ export function createOutboundMessaging(options: {
         feedback.notify(botSlug, sourceEventId, 'answered', result.id);
       return result;
     },
-    reply: (botSlug, sourceEventId, text) => routedReply(botSlug, sourceEventId, text),
+    reply: (botSlug, sourceEventId, text, messageKey) =>
+      routedReply(botSlug, sourceEventId, text, undefined, messageKey),
     async privateInputNotice(botSlug, sourceEventId, requestId, webUrl, authority) {
       if (!/^[0-9a-f-]{36}$/.test(requestId)) throw new MessagingError('source-unavailable');
       if (authority.signal.aborted || !authority.current())
@@ -2482,12 +2491,20 @@ export function createOutboundMessaging(options: {
             !source.event.reply.threadId
           )
             continue;
-          const setupReply = database.read((db) =>
+          const threadId = source.event.reply.threadId;
+          const setupReplies = database.read((db) =>
             db
-              .prepare('SELECT body FROM messaging_outbox WHERE bot_slug = ? AND request_id = ?')
-              .get(botSlug, `reply-${source.id}`),
-          ) as { body: string } | undefined;
-          const candidate = setupReply ? (JSON.parse(setupReply.body) as OutboxIntent) : undefined;
+              .prepare(`SELECT body FROM messaging_outbox
+                WHERE bot_slug = ?
+                  AND json_extract(body, '$.sourceEventId') = ?
+                  AND json_extract(body, '$.grantId') = ?
+                  AND json_extract(body, '$.reply.route.threadId') = ?
+                ORDER BY created_at DESC, id DESC`)
+              .all(botSlug, source.id, current.id, threadId),
+          ) as { body: string }[];
+          const candidate = setupReplies
+            .map(({ body }) => JSON.parse(body) as OutboxIntent)
+            .find((reply) => reply.text.trim() === 'LARK-SETUP-OK');
           const intent =
             candidate?.sourceEventId === source.id &&
             candidate.grantId === current.id &&

@@ -2,12 +2,11 @@ import { CliLiveError } from './cli-live-error.js';
 export const CONNECT_COMMANDS = [
   {
     command: 'connect-status',
-    description: 'read DeepSeekBot Connect state and the phone routes',
+    description: 'read Tobs Connect state and the phone routes',
   },
   {
     command: 'connect-enable',
-    description:
-      'run a DeepSeekBot Connect tunnel for --hostname with its connector token from stdin',
+    description: 'run a Tobs Connect tunnel for --hostname with its connector token from stdin',
   },
   {
     command: 'connect-disable',
@@ -71,7 +70,8 @@ export async function runConnectCommand(
     ) as Record<string, unknown>;
     if (!values.wait || started['state'] !== 'signing-in') return started;
     io.stderr?.(
-      `Open ${String(started['verificationUri'])} and confirm code ${String(started['userCode'])}\n`,
+      `Open ${String(started['verificationUri'])} and confirm code ${String(started['userCode'])}\n` +
+        'To use a different account, open the link in a private window.\n',
     );
     const deadline = Date.parse(String(started['expiresAt'])) || Date.now() + 300_000;
     for (;;) {
@@ -80,8 +80,13 @@ export async function runConnectCommand(
         connect?: { account?: Record<string, unknown> };
       };
       const account = snapshot.connect?.account;
-      if (account?.['state'] !== 'signing-in' || Date.now() > deadline)
+      if (account?.['state'] !== 'signing-in' || Date.now() > deadline) {
+        if (account?.['state'] === 'signed-in' && typeof account['email'] === 'string')
+          io.stderr?.(
+            `Signed in as ${account['email']}. Not you? Run deepseekbot connect-sign-out.\n`,
+          );
         return { connect: snapshot.connect };
+      }
     }
   }
   return decode(

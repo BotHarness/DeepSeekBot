@@ -130,7 +130,7 @@ async function prepare() {
     await rpc('create', {
       displayName: `Workspace attention QA ${Date.now()}`,
       persona:
-        'Follow exact Human requests. Request a Workspace Grant before delegated work if none is available. End the Turn after requesting it. After a Human Grant-linked authorization reply, use channel_send with GRANT_VERIFIED and the granted workspace title. Do not create an Assignment unless explicitly asked.',
+        'Follow exact Human requests. Request a Workspace Grant before delegated work if none is available. End the Turn after requesting it. After a Human Grant-linked authorization reply, use bot_send_message with GRANT_VERIFIED and the granted workspace title. Do not create an Assignment unless explicitly asked.',
     })
   ).bot;
   const channelId = (await rpc('channelDm', { slug: bot.slug })).channel.id;
@@ -153,7 +153,7 @@ async function start(scene) {
   await rpc('channelSend', {
     channelId: scene.channelId,
     messageId: `human-${crypto.randomUUID()}`,
-    body: 'I want to delegate work in a project folder, but you have no authorized Workspace Grant. Call request_workspace_grant once with reason "Please authorize the QA project folder", then end this Turn. Do not create an Assignment yet. After actual Grant-linked Human authorization, use list_workspace_grants and channel_send GRANT_VERIFIED with the authorized workspace title.',
+    body: 'I want to delegate work in a project folder, but you have no authorized Workspace Grant. Call request_workspace_grant once with reason "Please authorize the QA project folder", then end this Turn. Do not create an Assignment yet. After actual Grant-linked Human authorization, use list_workspace_grants and bot_send_message GRANT_VERIFIED with the authorized workspace title.',
   });
   const request = await waitFor(
     async () =>

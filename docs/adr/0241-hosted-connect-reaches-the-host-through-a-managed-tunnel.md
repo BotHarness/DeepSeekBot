@@ -6,6 +6,18 @@ Issues: [#2387](https://github.com/BotHarness/DeepSeekBot/issues/2387), [#1643](
 
 # Hosted Connect reaches the Host through a managed tunnel
 
+## Amendment — one pairing, multiple routes (2026-10-25, #2784)
+
+LAN and Tailscale are independent optional connection preparations. Either usable route permits pairing immediately; Connect has a separate settings section. A saved Remote Host retains one device identity while its authenticated device snapshot advertises additional routes. The phone accepts those addresses only for the same Host ID and, for encrypted pairings, the same pinned key. Learning addresses never approves a new key or upgrades legacy trust.
+
+Route preference is LAN, Tailscale, then Connect. The client probes preferred routes after foreground recovery and bounded health checks, waits for in-flight unary calls/uploads, and applies a cooldown before another optimization. Normal application calls use one selected route. It does not replay uncertain writes. The environment details expose addresses, current use, and per-client test observations without a route-lock setting.
+
+An explicit Tailscale enable action persists managed intent in the existing credentials owner. Restore occurs at Host startup. Publishing keeps the Host's port and searches bounded HTTPS publishing ports, preserving unrelated Serve entries. Disable deletes only a still-matching mapping this owner created, never an adopted or edited mapping. Configuration checks cannot provide atomic coordination with an unrelated external Tailscale writer; unexpected changes refuse or preserve state. Native LAN→Tailscale→LAN and system-text qualification remain acceptance gates, distinct from Expo Web preview evidence.
+
+The publishing flags follow the [Tailscale Serve reference](https://tailscale.com/docs/reference/tailscale-cli/serve). Enablement can fail because the daemon is stopped, permissions are missing, or tailnet HTTPS needs approval; port occupancy is only one cause.
+
+**2026-10-22 safety amendment:** Vain requires removal of the phone's full Host WebView on every route. Track A (#2541) removes that surface and refuses known secret-entry methods on Connect. [ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) proposes encrypted channels and independently approved device pairing; its complete protocol remains pending approval. The earlier plaintext/account-only design is not a confidentiality guarantee.
+
 Testers must install Tailscale, sign in on both devices and run `tailscale serve` before the phone app can reach their computer ([#2385](https://github.com/BotHarness/DeepSeekBot/pull/2385)). The Human wants a T3 Connect–style option instead: sign in with the same account on the computer and on each phone, and the devices connect without Tailscale. Research and sources: [`docs/research/2026-10-20-hosted-connect.md`](../research/2026-10-20-hosted-connect.md).
 
 The Human chose this direction on 2026-10-20: **an account only discovers Hosts and brokers a one-time pairing credential. Application traffic reaches the Host through one Cloudflare Tunnel per Host that a BotHarness relay Worker provisions; it never passes through the Worker. The tunnel is one more route in the ADR-0199 route list and admits only the device gateway.**
@@ -54,3 +66,19 @@ One isolated Host and the iOS Simulator, against a test Cloudflare account and a
 - We publish and update one pinned `cloudflared` npm package per platform.
 - `deepseekbot connect …` CLI commands ship with the Devices UI (CLI parity).
 - Store builds keep `EXPO_PUBLIC_DEEPSEEKBOT_CLOUD` separate from Connect, so Connect can ship in test builds without exposing TOB cloud Channels.
+
+## Amendment — ADR-0244 (2026-10-22)
+
+[ADR-0244](0244-connect-encrypts-device-traffic-against-pinned-host-keys.md) supersedes account-only automatic enrollment and plaintext Connect application transport. The relay returns signed account enrollment metadata and a public Host-key hint; the client independently checks the fingerprint. The Host creates/redeems the offer inside Noise only after exact device-key approval. The browser uses its trusted serving Host's origin-local key store. The full phone WebView remains removed on every route; private input now uses the native form. Viewer signaling/media on Connect are unavailable until separately qualified. See the [wire contract](../architecture/connect-channel-v1.md); source implementation does not establish native or deployed-network qualification.
+
+## Amendment — confirmed phone account actions (2026-10-23, #2603)
+
+The phone account session and per-Host device credentials remain separate authorities. Both Sign out and Delete account require a native confirmation describing their different effects; opening or cancelling the dialog does not mutate either authority. Confirmation is bound to the current local sign-in instance and expires when the account page changes or the operation becomes busy.
+
+New account-mediated pairings record the WorkOS subject returned by the authenticated token exchange, the issuer, OAuth client and relay origin. The phone serializes their final save with account actions. It never infers ownership from email, Host membership, route hostname or manual pairing payloads. Existing records without provenance stay unassigned; a successful refresh persists a stable sign-in-instance identifier and may establish account identity for future pairings but does not migrate old Host credentials into that account.
+
+Confirmed Sign out removes the phone session and only connections with matching recorded ownership. It stops their local clients and performs local cache/draft cleanup and best-effort push unregistration; it does not globally unlink Hosts, revoke other devices, or delete remote Host data. Delete account additionally retains the relay's existing account-wide tunnel/DNS/link and WorkOS-user deletion. A manual pairing record stays, but a Connect route backed by a deleted tunnel no longer works.
+
+Account action progress lives in the existing account SecureStore record. A completed remote-delete marker allows local cleanup retries without another remote request. A pending-delete marker means the remote outcome may be partial or unknown; expired authentication cannot establish completion and requires support rather than an invented rollback. Observed remote success survives a failed completion-marker write in process memory for local retry; after restart, only the persisted marker is trusted. A separate, explicitly confirmed “Clear this phone only” action can finish local cleanup without authentication while making no claim about remote deletion. Its local-only marker forbids another remote deletion attempt; checking or finishing the remote outcome requires support. The existing paired-Host store retains removed entries in a pending-cleanup journal until required draft, conversation-cache, recent-chat/shortcut and filter writes complete; the active Host list excludes them. Mutations are serialized, and re-pairing a pending Host is refused until cleanup finishes. An explicitly empty paired-Host list is authoritative over legacy single-Host storage. These recovery records are not a second account or pairing authority.
+
+Native confirmation and fixture qualification are distinct from real WorkOS/Cloudflare deletion qualification. Development fixtures use injected memory stores and a closed request substitute; they cannot authorize testing on a Human account. See [#2603](https://github.com/BotHarness/DeepSeekBot/issues/2603) for the implementation and acceptance scope.

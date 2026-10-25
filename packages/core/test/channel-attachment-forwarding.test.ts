@@ -25,6 +25,7 @@ type Fixture = {
   core: ReturnType<typeof createCore>;
   tools: readonly ToolDefinition[];
   dmId: string;
+  sourceId: string;
   groupId: string;
   image: ChannelAttachmentRef;
   legacy: ChannelAttachmentRef;
@@ -36,10 +37,29 @@ async function call(
   args: unknown,
   callId?: string,
 ) {
-  return tools.find((tool) => tool.name === name)!.execute(args, { callId } as ToolRunContext);
+  return tools
+    .find((tool) => tool.name === name)!
+    .execute(args, {
+      callId: callId ?? randomUUID(),
+      signal: new AbortController().signal,
+    } as ToolRunContext);
 }
-async function send(f: Fixture, args: unknown, callId?: string) {
-  const result = JSON.parse(String(await call(f.tools, 'channel_send', args, callId)));
+async function send(f: Fixture, args: Record<string, unknown>, callId?: string) {
+  const result = JSON.parse(
+    String(
+      await call(
+        f.tools,
+        'bot_send_message',
+        {
+          ...(args.channel_id === undefined && args.source_event_id === undefined
+            ? { source_event_id: f.sourceId }
+            : {}),
+          ...args,
+        },
+        callId,
+      ),
+    ),
+  );
   expect(Object.keys(result).sort()).toEqual([
     'channelId',
     'inboxResolution',
@@ -58,6 +78,7 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
   let legacy: ChannelAttachmentRef;
   let currentLegacy: ChannelAttachmentRef;
   let dmId = '';
+  let sourceId = '';
   let groupId = '';
   const host = new FakeAgentHost(
     { kind: 'completed' },
@@ -66,7 +87,7 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
         if (checked) return;
         checked = true;
         try {
-          await check({ core, tools, dmId, groupId, image, legacy, currentLegacy });
+          await check({ core, tools, dmId, sourceId, groupId, image, legacy, currentLegacy });
         } catch (error) {
           failures.push(error);
           throw error;
@@ -112,6 +133,7 @@ async function fixture(check: (f: Fixture) => Promise<void>, recipients = 0) {
     };
     const { body, ...envelope } = message;
     const sourceEventId = randomUUID();
+    sourceId = sourceEventId;
     const database = attachOperationalModule(core.operationalDatabase, 'attachment-forward-test');
     database.transaction((db) => {
       db.prepare(`INSERT INTO source_events
@@ -165,7 +187,7 @@ describe('trusted Orchestrator attachment forwarding', () => {
       const defaultAck = await send(f, {
         body: '',
         attachments: [references[0]],
-        reply_to: 'source',
+        source_event_id: f.sourceId,
       });
       expect(defaultAck.channelId).toBe(f.dmId);
       expect(f.core.channels.message(f.dmId, defaultAck.messageId)).toMatchObject({
@@ -180,7 +202,7 @@ describe('trusted Orchestrator attachment forwarding', () => {
         expect(f.core.channels.message(f.groupId, ack.messageId)?.attachments).toEqual([ref]);
         expect(await send(f, args, 'forward-' + index)).toEqual(ack);
         await expect(
-          call(f.tools, 'channel_send', { ...args, body: 'different' }, 'forward-' + index),
+          call(f.tools, 'bot_send_message', { ...args, body: 'different' }, 'forward-' + index),
         ).rejects.toThrow('different content');
       }
       expect(f.core.channels.readMessages(f.groupId)).toHaveLength(2);
@@ -215,18 +237,18 @@ describe('trusted Orchestrator attachment forwarding', () => {
       ];
       for (const attachments of invalid) {
         await expect(
-          call(f.tools, 'channel_send', { body: '', channel_id: f.groupId, attachments }),
+          call(f.tools, 'bot_send_message', { body: '', channel_id: f.groupId, attachments }),
         ).rejects.toThrow();
         expect(f.core.channels.readMessages(f.groupId)).toEqual([]);
       }
       const unjoined = f.core.channels.createGroup({ name: 'Private', members: [] });
       await expect(
-        call(f.tools, 'channel_send', {
+        call(f.tools, 'bot_send_message', {
           body: '',
           channel_id: unjoined.id,
           attachments: [f.image],
         }),
-      ).rejects.toThrow('not a member');
+      ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
       expect(f.core.channels.readMessages(unjoined.id)).toEqual([]);
     });
   });
@@ -234,24 +256,42 @@ describe('trusted Orchestrator attachment forwarding', () => {
   it('retains same-Channel replies and current mention eligibility at the 20-ID boundary', async () => {
     await fixture(async (f) => {
       await expect(
-        call(f.tools, 'channel_send', {
+        call(f.tools, 'bot_send_message', {
           body: '',
           channel_id: f.groupId,
           attachments: [f.image],
-          reply_to: 'source',
+          source_event_id: f.sourceId,
         }),
       ).rejects.toThrow();
-      const parent = await send(f, { body: 'parent', channel_id: f.groupId });
+      await f.core.channels.appendMessage(f.groupId, {
+        id: 'group-parent',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: '@Ada parent',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      f.core.runtime.admitGroupMessage(f.groupId, 'group-parent');
+      const parentSource = attachOperationalModule(
+        f.core.operationalDatabase,
+        'reply-source-test',
+      ).read(
+        (db) =>
+          db
+            .prepare(
+              'SELECT source_event_id FROM source_events WHERE channel_id = ? AND message_id = ?',
+            )
+            .get(f.groupId, 'group-parent')?.source_event_id,
+      );
+      expect(typeof parentSource).toBe('string');
       const ids = Array.from({ length: 20 }, (_, index) => 'peer-' + index);
       const ack = await send(f, {
         body: '',
-        channel_id: f.groupId,
+        source_event_id: parentSource,
         attachments: [f.image],
         mention_bot_ids: ids,
-        reply_to: parent.messageId,
       });
       expect(f.core.channels.message(f.groupId, ack.messageId)).toMatchObject({
-        replyTo: parent.messageId,
+        replyTo: 'group-parent',
       });
       expect(f.core.channels.message(f.groupId, ack.messageId)?.mentions).toHaveLength(20);
       f.core.registry.setPaused('peer-0', true);
@@ -265,7 +305,7 @@ describe('trusted Orchestrator attachment forwarding', () => {
         ['missing'],
       ]) {
         await expect(
-          call(f.tools, 'channel_send', {
+          call(f.tools, 'bot_send_message', {
             body: 'invalid',
             channel_id: f.groupId,
             mention_bot_ids,
@@ -274,7 +314,11 @@ describe('trusted Orchestrator attachment forwarding', () => {
         expect(f.core.channels.readMessages(f.groupId)).toHaveLength(before);
       }
       await expect(
-        call(f.tools, 'channel_send', { body: 'invalid', mention_bot_ids: ['peer-1'] }),
+        call(f.tools, 'bot_send_message', {
+          channel_id: f.dmId,
+          body: 'invalid',
+          mention_bot_ids: ['peer-1'],
+        }),
       ).rejects.toThrow('Group');
     }, 20);
   });
@@ -285,7 +329,11 @@ describe('trusted Orchestrator attachment forwarding', () => {
         .spyOn(f.core.channels, 'appendMessageOnce')
         .mockResolvedValueOnce({ status: 'missing' });
       await expect(
-        call(f.tools, 'channel_send', { body: '', channel_id: f.groupId, attachments: [f.image] }),
+        call(f.tools, 'bot_send_message', {
+          body: '',
+          channel_id: f.groupId,
+          attachments: [f.image],
+        }),
       ).rejects.toThrow('disappeared');
       expect(f.core.channels.readMessages(f.groupId)).toEqual([]);
       append.mockRestore();

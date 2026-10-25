@@ -1,3 +1,5 @@
+import { expandGitHubRef } from './bot-create-cli.js';
+import { parseMemoryGitUrl } from '../memory/clone.js';
 import { parseAgentBots } from './cli-agent-bots.js';
 import { validBotCreationKey, type BotCreationReceipt } from './creation.js';
 import { dmChannelId } from '../channels/channel.js';
@@ -22,6 +24,8 @@ import type { PersonaBotDeletionPreview } from './deletion.js';
 
 export const ONLINE_MANAGEMENT_COMMANDS = [
   'create',
+  'create-status',
+  'bot-import-preview',
   'list',
   'show',
   'update',
@@ -96,18 +100,36 @@ export async function runOnlineManagement(
   const operationKey = values['operation-key'];
   if (
     operationKey !== undefined &&
-    (command !== 'create' ||
+    (!['create', 'create-status'].includes(command) ||
       !validBotCreationKey(operationKey) ||
-      create?.source.kind !== 'blank' ||
-      create.presetId !== undefined ||
-      create.memoryLocation !== undefined)
+      !['blank', 'git'].includes(create?.source.kind ?? '') ||
+      create?.presetId !== undefined ||
+      create?.memoryLocation !== undefined)
   )
     usage(
-      '--operation-key requires blank online creation with a valid 8–128 character key, no preset and the managed Memory location.',
+      '--operation-key requires blank or inspected Git creation with a valid 8–128 character key, no preset and managed Memory.',
     );
-  const noTarget = ['create', 'list', 'model-presets', 'model-preset-create', 'channels'].includes(
-    command,
-  );
+  const expectedCommit = values['expected-commit'];
+  if (
+    expectedCommit !== undefined &&
+    (!['create', 'create-status'].includes(command) ||
+      create?.source.kind !== 'git' ||
+      !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(expectedCommit))
+  )
+    usage('--expected-commit requires Git creation or lookup and the inspected commit.');
+  if (operationKey !== undefined && create?.source.kind === 'git' && expectedCommit === undefined)
+    usage('Stable Git creation requires --expected-commit from bot-import-preview.');
+  if (command === 'create-status' && operationKey === undefined)
+    usage('create-status requires --operation-key.');
+  const noTarget = [
+    'create',
+    'create-status',
+    'bot-import-preview',
+    'list',
+    'model-presets',
+    'model-preset-create',
+    'channels',
+  ].includes(command);
   if (rest.length !== (noTarget ? 0 : 1))
     usage(`${command} ${noTarget ? 'takes no positional arguments' : 'requires one Bot ID'}.`);
   const slug = rest[0]?.trim();
@@ -200,11 +222,23 @@ export async function runOnlineManagement(
           io,
         )
       : undefined;
+  let previewUrl: string | undefined;
+  if (command === 'bot-import-preview') {
+    previewUrl = values['from-git'] === undefined ? undefined : expandGitHubRef(values['from-git']);
+    if (
+      !previewUrl ||
+      !parseMemoryGitUrl(previewUrl) ||
+      values['from-zip'] !== undefined ||
+      values['from-dir'] !== undefined
+    )
+      usage('bot-import-preview requires one --from-git source.');
+  }
   const { rpc, importBotZip } = await connectLiveHost(
     values,
     io,
     AbortSignal.timeout(Math.ceil(seconds * 1000)),
   );
+  if (command === 'bot-import-preview') return rpc('botImportPreview', { gitUrl: previewUrl });
   if (command === 'list') return rpc('list', {});
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
@@ -272,6 +306,17 @@ export async function runOnlineManagement(
             },
     };
   }
+  if (command === 'create-status' && create !== undefined)
+    return rpc(create.source.kind === 'git' ? 'botImportLookup' : 'createLookup', {
+      ...(create.source.kind === 'git' ? { gitUrl: create.source.gitUrl, expectedCommit } : {}),
+      operationKey,
+      displayName: create.displayName,
+      ...(create.persona === undefined ? {} : { persona: create.persona }),
+      ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),
+      ...(create.roles === undefined ? {} : { roles: create.roles }),
+      ...(create.description === undefined ? {} : { description: create.description }),
+      ...(create.avatar === undefined ? {} : { avatar: create.avatar }),
+    });
   if (command !== 'create' || create === undefined) usage('Unsupported online management command.');
   const steps: BotCreateStep[] = [{ name: 'validate', status: 'ok' }];
   let bot: { id: string; name: string } | undefined;
@@ -312,7 +357,10 @@ export async function runOnlineManagement(
             ...metadata,
             ...(operationKey === undefined ? {} : { operationKey }),
             ...(create.source.kind === 'git'
-              ? { gitUrl: create.source.gitUrl }
+              ? {
+                  gitUrl: create.source.gitUrl,
+                  ...(expectedCommit === undefined ? {} : { expectedCommit }),
+                }
               : {
                   ...(create.persona === undefined ? {} : { persona: create.persona }),
                   ...(create.coreMemory === undefined ? {} : { coreMemory: create.coreMemory }),

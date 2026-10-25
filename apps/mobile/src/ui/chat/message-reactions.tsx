@@ -4,7 +4,7 @@ import { reactedByMe, type ConversationReaction } from '../../host/conversation'
 import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 
 export function reactionSummary(
   reaction: ConversationReaction,
@@ -27,6 +27,7 @@ export function ReactionChips({
   botName: (id: string) => string;
   onToggle?: (emoji: string, active: boolean) => void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x2 * 2) / 2);
   return (

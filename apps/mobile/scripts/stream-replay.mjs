@@ -102,7 +102,7 @@ const server = createServer(async (req, res) => {
     const fixture = config.fixture ?? 'prose';
     const intervalMs = ['gentle', 'rhythm'].includes(fixture) ? 100 : 32;
     const chunkGraphemes = fixture === 'gentle' ? 3 : 80;
-    const tool = (request.tools ?? []).find((entry) => entry.function?.name === 'channel_send');
+    const tool = (request.tools ?? []).find((entry) => entry.function?.name === 'bot_send_message');
     const done =
       !config.runId ||
       consumed.has(config.runId) ||
@@ -116,7 +116,7 @@ const server = createServer(async (req, res) => {
     const id = 'qa_replay_' + ++requestCount;
     const argumentsText = JSON.stringify({ channel_id: 'dm-' + config.slug, body });
     const toolCalls = [
-      { id, type: 'function', function: { name: 'channel_send', arguments: argumentsText } },
+      { id, type: 'function', function: { name: 'bot_send_message', arguments: argumentsText } },
     ];
     if (!request.stream) {
       res.writeHead(200, { 'content-type': 'application/json' });
@@ -174,7 +174,7 @@ const server = createServer(async (req, res) => {
       send({
         role: 'assistant',
         tool_calls: [
-          { index: 0, id, type: 'function', function: { name: 'channel_send', arguments: '' } },
+          { index: 0, id, type: 'function', function: { name: 'bot_send_message', arguments: '' } },
         ],
       });
       const graphemes = Array.from(

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  hostContextProperties,
+  readHostTelemetryFacts,
+  type HostTelemetryFacts,
+} from './context.js';
 
 export const TELEMETRY_ENDPOINT = 'https://t.botharness.ai/batch/';
 export const TELEMETRY_API_KEY = 'phc_CxrCyBuRHVSs996eyHXAeyJbyE8rJXgREbEYsfxUkR3J';
@@ -11,7 +16,6 @@ const FLUSH_DELAY_MS = 2_000;
 const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_QUEUE = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/u;
 
 export type TelemetryValue = string | number | boolean;
 
@@ -70,18 +74,14 @@ export interface TelemetryService {
 export interface TelemetryServiceOptions {
   decision: TelemetryDecision;
   dataDir: string;
+  pluginVersion?: string | undefined;
+  dshVersion?: string | undefined;
+  context?: () => HostTelemetryFacts;
   send?: TelemetrySender;
   now?: () => Date;
   flushDelayMs?: number;
   createId?: () => string;
   log?: (message: string) => void;
-}
-
-export interface PluginStartedFacts {
-  pluginVersion: string | undefined;
-  dshVersion: string | undefined;
-  os: string;
-  arch: string;
 }
 
 const OFF_VALUES = new Set(['0', 'false', 'off', 'no']);
@@ -162,19 +162,6 @@ export function writeTelemetryPreference(dataDir: string, enabled: boolean): voi
   updateTelemetryFile(dataDir, { enabled: enabled ? undefined : false });
 }
 
-export function telemetryVersion(value: string | undefined): string {
-  return value !== undefined && VERSION.test(value) ? value : 'unknown';
-}
-
-export function pluginStartedProperties(facts: PluginStartedFacts): Record<string, TelemetryValue> {
-  return {
-    plugin_version: telemetryVersion(facts.pluginVersion),
-    dsh_version: telemetryVersion(facts.dshVersion),
-    os: facts.os,
-    arch: facts.arch,
-  };
-}
-
 export function installedDshVersion(
   resolve: (specifier: string) => string = (specifier) => import.meta.resolve(specifier),
 ): string | undefined {
@@ -224,6 +211,7 @@ export function createTelemetryService(options: TelemetryServiceOptions): Teleme
   let timer: ReturnType<typeof setTimeout> | undefined;
   let inflight: Promise<void> | undefined;
   let closed = false;
+  let context: Record<string, string> | undefined;
 
   const distinctId = (): string => {
     installId ??= ensureInstallId(options.dataDir, options.createId);
@@ -283,14 +271,19 @@ export function createTelemetryService(options: TelemetryServiceOptions): Teleme
   ): void => {
     if (!enabled || closed) return;
     try {
+      context ??= hostContextProperties(
+        options.context?.() ?? readHostTelemetryFacts(options.pluginVersion, options.dshVersion),
+      );
       queue.push({
         event: {
           event,
           distinct_id: distinctId(),
           properties: {
             ...properties,
+            ...context,
             source: TELEMETRY_SOURCE,
             $process_person_profile: false,
+            $geoip_disable: true,
           },
           timestamp: at.toISOString(),
         },
