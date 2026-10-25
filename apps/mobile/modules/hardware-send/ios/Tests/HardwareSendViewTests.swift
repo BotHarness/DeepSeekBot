@@ -9,9 +9,12 @@ final class HardwareSendViewTests: XCTestCase {
   private var field: UITextView!
   private var sends = 0
 
-  private func prepareEditor() {
+  private func prepareEditor() throws {
     sends = 0
-    window = UIWindow(frame: CGRect(x: 0, y: 0, width: 600, height: 400))
+    let scene = try XCTUnwrap(
+      UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+    window = UIWindow(windowScene: scene)
+    window.frame = CGRect(x: 0, y: 0, width: 600, height: 400)
     let controller = UIViewController()
     window.rootViewController = controller
     view = HardwareSendView(appContext: nil)
@@ -35,7 +38,7 @@ final class HardwareSendViewTests: XCTestCase {
   }
 
   func testOrdinaryCommandReturnSendsThroughTheResponderChain() throws {
-    prepareEditor()
+    try prepareEditor()
     defer { removeEditor() }
     let command = try sendCommand()
     let action = try XCTUnwrap(command.action)
@@ -44,7 +47,7 @@ final class HardwareSendViewTests: XCTestCase {
   }
 
   func testCachedCommandDoesNotSendMarkedTextAndNextCommandStillWorks() throws {
-    prepareEditor()
+    try prepareEditor()
     defer { removeEditor() }
     let command = try sendCommand()
     let action = try XCTUnwrap(command.action)
@@ -64,7 +67,7 @@ final class HardwareSendViewTests: XCTestCase {
   }
 
   func testCachedCommandCannotSendAfterFocusLeavesTheComposer() throws {
-    prepareEditor()
+    try prepareEditor()
     defer { removeEditor() }
     let command = try sendCommand()
     let action = try XCTUnwrap(command.action)

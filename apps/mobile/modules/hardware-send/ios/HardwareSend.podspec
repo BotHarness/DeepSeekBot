@@ -14,11 +14,27 @@ Pod::Spec.new do |s|
   s.dependency 'ExpoModulesCore'
 
   s.source_files = '**/*.{h,m,swift}'
-  s.exclude_files = 'Tests/**/*'
+  s.exclude_files = 'Tests/**/*', 'TestHost/**/*'
   s.test_spec 'Tests' do |tests|
     tests.source_files = 'Tests/**/*.swift'
     tests.requires_app_host = true
+    tests.app_host_name = 'HardwareSend/TestHost'
+    tests.dependency 'HardwareSend/TestHost'
     tests.libraries = 'c++'
+  end
+  s.app_spec 'TestHost' do |host|
+    host.source_files = 'TestHost/**/*.swift'
+    host.libraries = 'c++'
+    host.info_plist = {
+      'UIApplicationSceneManifest' => {
+        'UIApplicationSupportsMultipleScenes' => false,
+        'UISceneConfigurations' => {
+          'UIWindowSceneSessionRoleApplication' => [
+            { 'UISceneConfigurationName' => 'HardwareSend Tests' }
+          ]
+        }
+      }
+    }
   end
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',
