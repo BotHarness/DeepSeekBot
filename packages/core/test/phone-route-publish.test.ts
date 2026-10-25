@@ -37,6 +37,25 @@ function tailscale(options: { serve?: string; fail?: unknown } = {}) {
 }
 
 describe('publishing the phone route', () => {
+  it('does not publish after the lifecycle closes during persistence', async () => {
+    const fake = tailscale();
+    let release: (() => void) | undefined;
+    const owner = createManagedPhoneRoute({
+      port: 4100,
+      run: fake.run,
+      read: async () => undefined,
+      write: () =>
+        new Promise<void>((resolve) => {
+          release = resolve;
+        }),
+    });
+    const pending = owner.enable();
+    await vi.waitFor(() => expect(release).toBeDefined());
+    owner.close();
+    release?.();
+    expect((await pending).ok).toBe(false);
+    expect(fake.calls.some((args) => args.includes('--bg'))).toBe(false);
+  });
   it('restores its own publication after restart and removes only its own mapping', async () => {
     let state: ManagedPhoneRouteState | undefined;
     let served = '{}';

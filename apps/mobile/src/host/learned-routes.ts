@@ -33,5 +33,5 @@ export function learnedRoutes(
     } else if (!url.hostname.endsWith('.ts.net')) continue;
     added.push(checked.origin);
   }
-  return preferredRoutes([...host.routes, ...added]);
+  return preferredRoutes([...added, ...host.routes]).slice(0, 12);
 }

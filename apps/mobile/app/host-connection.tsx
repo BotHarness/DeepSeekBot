@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { ScrollView } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
@@ -25,11 +25,13 @@ export default function HostConnectionScreen() {
     () => active ?? (host ? createHostClient({ ...host, carrier: nativeCarrier() }) : undefined),
     [active, host?.hostId, host?.credential],
   );
-  useEffect(() => {
-    if (!client || client === active) return;
-    client.start();
-    return () => client.stop();
-  }, [client, active]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!client || client === active) return;
+      client.start();
+      return () => client.stop();
+    }, [client, active]),
+  );
   const snapshot = useHostSnapshot(client);
   const [busy, setBusy] = useState<string>();
   const [copied, setCopied] = useState<string>();
@@ -44,6 +46,16 @@ export default function HostConnectionScreen() {
       />
       <ScrollView contentContainerStyle={{ padding: space.x5, gap: space.x5 }}>
         <Text tone="muted">{host ? copy.automatic : t.hostLookMissing}</Text>
+        {host && snapshot.connection.status !== 'connected' ? (
+          <SettingsSection>
+            <SettingsRow
+              title={copy.scan}
+              detail={copy.scanHint}
+              testID="connection-scan-update"
+              onPress={() => router.push('/pair/tailscale')}
+            />
+          </SettingsSection>
+        ) : null}
         {routes.map(({ url, status }, index) => {
           const current =
             snapshot.connection.status === 'connected' && snapshot.connection.route === url;

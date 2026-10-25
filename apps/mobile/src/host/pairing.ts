@@ -13,6 +13,7 @@ import type { HostCarrier } from './carrier';
 import { checkRoute } from './route';
 import type { ConnectRefusal } from './connect-account';
 import type { SavedHost } from './hosts';
+import { learnedRoutes } from './learned-routes';
 
 export const DEVICE_PREFIX = '/botharness-device';
 
@@ -283,6 +284,7 @@ export async function removeDevice(options: {
 export type PairingFailure = PairingRefusal | 'storage-failure' | 'cancelled' | 'unknown';
 
 export async function pairHost(options: {
+  existing?: (hostId: string) => SavedHost | undefined;
   text: string | (() => Promise<ParsedLink>);
   method: import('../telemetry/schema').PairingMethod;
   deviceName: string;
@@ -308,18 +310,21 @@ export async function pairHost(options: {
       observation.finish('refused', parsed.code);
       return parsed;
     }
-    const redeemed = await redeemPairing({
-      payload: parsed.payload,
-      deviceName: options.deviceName,
-      carrier: options.carrier,
-      ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
-      ...(options.method === 'qr'
-        ? { confirmFingerprint: async () => true }
-        : options.confirmFingerprint === undefined
-          ? {}
-          : { confirmFingerprint: options.confirmFingerprint }),
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    });
+    const existing = options.existing?.(parsed.payload.host.id);
+    const redeemed = existing
+      ? await updatePairedRoutes(existing, parsed.payload, options.carrier, options.signal)
+      : await redeemPairing({
+          payload: parsed.payload,
+          deviceName: options.deviceName,
+          carrier: options.carrier,
+          ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
+          ...(options.method === 'qr'
+            ? { confirmFingerprint: async () => true }
+            : options.confirmFingerprint === undefined
+              ? {}
+              : { confirmFingerprint: options.confirmFingerprint }),
+          ...(options.signal === undefined ? {} : { signal: options.signal }),
+        });
     if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!redeemed.ok) {
       observation.finish(redeemed.code === 'unreachable' ? 'failed' : 'refused', redeemed.code);
@@ -342,6 +347,49 @@ export async function pairHost(options: {
     return { ok: false, code };
   } finally {
     options.signal?.removeEventListener('abort', cancelled);
+  }
+}
+
+export async function updatePairedRoutes(
+  host: SavedHost,
+  payload: PairingPayload,
+  raw: HostCarrier,
+  signal?: AbortSignal,
+): Promise<Redemption> {
+  if (!host.encryption) return { ok: false, code: 'host-key-required' };
+  if (payload.host.id !== host.hostId || payload.encryption?.publicKey !== host.encryption.hostKey)
+    return { ok: false, code: 'channel-authentication-failed' };
+  const carrier = encryptedCarrier({
+    raw,
+    hostId: host.hostId,
+    credential: host.credential,
+    encryption: host.encryption,
+    requireEncryption: true,
+  });
+  try {
+    for (const route of payload.routes.slice(0, 12)) {
+      if (signal?.aborted) return { ok: false, code: 'unreachable' };
+      if (!checkRoute(route).ok) continue;
+      try {
+        const deadline = AbortSignal.timeout(8000);
+        const response = await carrier.request(`${route}${DEVICE_PREFIX}/api/botharness/devices`, {
+          method: 'GET',
+          signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
+        });
+        if (response.status !== 200) continue;
+        const snapshot = record(JSON.parse(await response.text()));
+        if (
+          record(snapshot['host'])['id'] !== host.hostId ||
+          record(record(snapshot['connect'])['encryption'])['publicKey'] !== host.encryption.hostKey
+        )
+          continue;
+        const routes = learnedRoutes(host, snapshot);
+        return { ok: true, host: { ...host, routes } };
+      } catch {}
+    }
+    return { ok: false, code: 'unreachable' };
+  } finally {
+    carrier.close?.();
   }
 }
 

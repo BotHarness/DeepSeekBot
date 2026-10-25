@@ -334,15 +334,27 @@ export function createManagedPhoneRoute(options: {
   run?: RunCommand;
   read(): Promise<ManagedPhoneRouteState | undefined>;
   write(state: ManagedPhoneRouteState): Promise<void>;
-  log?: (event: { phase: string; durationMs: number; refusal?: string }) => void;
+  log?: (event: {
+    phase: string;
+    initiator: string;
+    command: string;
+    durationMs: number;
+    refusal?: string;
+  }) => void;
 }) {
   let state: ManagedPhoneRouteState = { enabled: false };
   let tail = Promise.resolve();
   let closed = false;
+  let commandSummary = 'none';
+  const runOwned: RunCommand = async (file, args, config) => {
+    if (closed) throw new Error('publishing-owner-closed');
+    if (args[0] === 'serve' && args[1] !== 'status') commandSummary = `tailscale ${args.join(' ')}`;
+    return (options.run ?? runFile)(file, args, config);
+  };
   const command: RunCommand = async (_file, args, config) => {
     for (const binary of TAILSCALE_BINARIES) {
       try {
-        return await (options.run ?? runFile)(binary, args, config);
+        return await runOwned(binary, args, config);
       } catch (error) {
         if (record(error)['code'] !== 'ENOENT') throw error;
       }
@@ -389,6 +401,7 @@ export function createManagedPhoneRoute(options: {
     if (state.mapping && state.mapping.target !== options.port) await removeOwned();
     const result = await publishPhoneRoute({
       ...options,
+      run: runOwned,
       beforePublish: async (mapping) => save({ enabled: true, mapping }),
     });
     return { ...result, status: await status() };
@@ -408,6 +421,8 @@ export function createManagedPhoneRoute(options: {
       }
       options.log?.({
         phase,
+        initiator: phase === 'restore' ? 'startup' : 'operator',
+        command: commandSummary,
         durationMs: Math.round(performance.now() - started),
         ...(!result.ok ? { refusal: result.code } : {}),
       });
@@ -423,6 +438,7 @@ export function createManagedPhoneRoute(options: {
     enable: () => transition('enable', enable),
     disable: () =>
       transition('disable', async () => {
+        if (closed) return refusal('serve-failed', 'Publishing owner is closed.', await status());
         await save({ ...state, enabled: false });
         await removeOwned();
         return { ok: true, changed: true, status: await status() };

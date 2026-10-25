@@ -531,7 +531,7 @@ export function PairedDevicesSettings({
           >
             {showTailscale && routes && freshSnapshot ? (
               <div>
-                {routes.managed?.enabled ? (
+                {routes.managed?.enabled || routes.managed?.owned ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -542,7 +542,19 @@ export function PairedDevicesSettings({
                   >
                     {t('devices.tailscale.disable')}
                   </Button>
+                ) : tailscaleReady ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={busy !== undefined}
+                    onClick={() => {
+                      void publish().then((failure) => setError(failure !== undefined));
+                    }}
+                  >
+                    {t('devices.tailscale.manage')}
+                  </Button>
                 ) : null}
+                {error ? <Note tone="danger">{t('devices.error')}</Note> : null}
                 <PhoneRouteSteps
                   t={t}
                   status={routes}

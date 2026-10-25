@@ -179,6 +179,16 @@ function serialize<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export const hostSession = {
+  async updateRoutes(hostId: string, credential: string, routes: string[]): Promise<void> {
+    return serialize(async () => {
+      const existing = stored.hosts.find((host) => host.hostId === hostId);
+      if (!existing || existing.credential !== credential) throw new Error('pairing-changed');
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((host) => (host.hostId === hostId ? { ...host, routes } : host)),
+      });
+    });
+  },
   subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);

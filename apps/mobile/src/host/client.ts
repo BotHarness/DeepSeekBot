@@ -285,7 +285,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let routes = preferredRoutes(options.routes);
   const routeChecks = new Map<string, 'verified' | 'unreachable'>();
   const authorization = { authorization: `Device ${options.credential}` };
-  let route = routes[0] ?? '';
+  let route = options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
   const avatars = new Map<string, string>();
@@ -461,7 +461,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
     work: (signal: AbortSignal) => Promise<T>,
     ms: number = timeoutMs,
   ): Promise<T> => {
-    activeRequests += 1;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), ms);
     try {
@@ -486,7 +485,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
           : 'The Host could not be reached.',
       );
     } finally {
-      activeRequests -= 1;
       clearTimeout(timer);
     }
   };
@@ -1090,22 +1088,35 @@ export function createHostClient(options: HostClientOptions): HostClient {
       else this.retryNow();
     },
     async call<T>(method: string, args: Record<string, unknown> = {}) {
+      activeRequests += 1;
       try {
         return await call<T>(method, args);
       } catch (error) {
         refusedBy(error);
         throw error;
+      } finally {
+        activeRequests -= 1;
       }
     },
     async api(path, init) {
+      activeRequests += 1;
       try {
         return await api(path, init);
       } catch (error) {
         refusedBy(error);
         throw error;
+      } finally {
+        activeRequests -= 1;
       }
     },
-    upload,
+    async upload(name, data) {
+      activeRequests += 1;
+      try {
+        return await upload(name, data);
+      } finally {
+        activeRequests -= 1;
+      }
+    },
     resource,
     secretInputAllowed: () =>
       checkRoute(route).ok &&

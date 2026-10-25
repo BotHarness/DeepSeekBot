@@ -105,6 +105,32 @@ it('does not optimize routes while an accepted request is still in flight', asyn
   expect(host.calls.filter((entry) => entry.method === 'pending-write')).toHaveLength(1);
 });
 
+it('recovers preference even when background route discovery is slower than the health read', async () => {
+  const host = new FakeHost();
+  host.unreachable.add(PRIMARY);
+  client = createHostClient({
+    hostId: host.hostId,
+    routes: [PRIMARY, SECONDARY],
+    credential: host.credential,
+    carrier: {
+      ...host.carrier,
+      request: async (url, init) => {
+        if (url.endsWith('/devices')) await new Promise((resolve) => setTimeout(resolve, 80));
+        return host.carrier.request(url, init);
+      },
+    },
+    backoff: () => 5,
+    timeoutMs: 200,
+  });
+  client.start();
+  await until((state) => state.connection.status === 'connected');
+  host.unreachable.delete(PRIMARY);
+  client.retryNow('resume');
+  await until(
+    (state) => state.connection.status === 'connected' && state.connection.route === PRIMARY,
+  );
+});
+
 it('learns a newly published address through the paired Host without enrolling again', async () => {
   const host = new FakeHost();
   host.deviceSnapshot = {
@@ -127,7 +153,7 @@ it('learns a newly published address through the paired Host without enrolling a
       state.connection.status === 'connected' &&
       state.routes?.some((entry) => entry.url === SECONDARY) === true,
   );
-  expect(persist).toHaveBeenCalledWith([PRIMARY, SECONDARY]);
+  expect(persist).toHaveBeenCalledWith([SECONDARY, PRIMARY]);
   host.unreachable.add(PRIMARY);
   client.retryNow('resume');
   await until(

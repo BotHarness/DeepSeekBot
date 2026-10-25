@@ -22,8 +22,8 @@ const advertisement = (id = 'one', key = 'pinned') => ({
 it('learns usable routes from the same pinned Host, preferring LAN without adding loopback', () => {
   expect(learnedRoutes(host, advertisement())).toEqual([
     'http://192.168.1.2:18000',
-    'https://studio.ts.net',
     'https://studio.ts.net:8443',
+    'https://studio.ts.net',
   ]);
 });
 it('retains pairing routes when the Host identity changes', () => {
@@ -32,7 +32,7 @@ it('retains pairing routes when the Host identity changes', () => {
 });
 it('never silently upgrades legacy pairing to an encrypted route', () => {
   expect(learnedRoutes({ hostId: host.hostId, routes: host.routes }, advertisement())).toEqual([
-    'https://studio.ts.net',
     'https://studio.ts.net:8443',
+    'https://studio.ts.net',
   ]);
 });

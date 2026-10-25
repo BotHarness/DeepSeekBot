@@ -1605,6 +1605,8 @@ const en = {
   hostLookReset: 'Reset to default',
   hostLookMissing: 'This computer is no longer paired.',
   connectionRoutes: {
+    scan: 'Scan to update addresses',
+    scanHint: 'Open a fresh pairing code on this computer. Your existing pairing is kept.',
     title: 'Connections',
     automatic:
       'Uses LAN first, then Tailscale, then Connect. Addresses update from your paired computer.',
@@ -3118,6 +3120,8 @@ const zh: typeof en = {
   hostLookReset: '恢复默认',
   hostLookMissing: '这台电脑已不再配对。',
   connectionRoutes: {
+    scan: '扫码更新地址',
+    scanHint: '在这台电脑打开新的配对码。原有配对会保留。',
     title: '连接详情',
     automatic: '优先使用局域网，其次是 Tailscale 和 Connect。地址会从已配对电脑自动更新。',
     lan: '局域网',

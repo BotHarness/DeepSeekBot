@@ -53,6 +53,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setError(undefined);
     let accountPair: { accountOwner: AccountOwner; sessionKey: string } | undefined;
     const result = await pairHost({
+      existing: (id) => hostSession.getState().hosts.find((host) => host.hostId === id),
       text:
         hostId === undefined
           ? text
@@ -62,7 +63,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
               accountPair = offer.value;
               if (
                 options.preventDuplicates &&
-                hostSession.getState().hosts.some((host) => host.hostId === offer.value.host.id)
+                hostSession
+                  .getState()
+                  .hosts.some((host) => host.hostId === offer.value.host.id && !host.encryption)
               )
                 return { ok: false, code: 'already-paired' };
               return { ok: true, payload: offer.value };
@@ -91,9 +94,18 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         }),
       onPending: setFingerprint,
       save: async (host) => {
+        const existing = hostSession.getState().hosts.find((saved) => saved.hostId === host.hostId);
+        if (existing?.credential === host.credential) {
+          await hostSession.updateRoutes(host.hostId, host.credential, host.routes);
+          return;
+        }
         if (
           options.preventDuplicates &&
-          hostSession.getState().hosts.some((saved) => saved.hostId === host.hostId)
+          hostSession
+            .getState()
+            .hosts.some(
+              (saved) => saved.hostId === host.hostId && saved.credential !== host.credential,
+            )
         )
           throw new Error('already-paired');
         if (accountPair) {
