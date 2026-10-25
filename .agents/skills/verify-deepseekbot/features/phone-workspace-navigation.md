@@ -26,4 +26,4 @@ Source tests do not qualify native gestures or accessibility. Account cleanup re
 
 ## Automated coverage
 
-`apps/mobile/test/workspace-navigation.test.ts` drives the production drawer selection owner and Cloud selection adapter through the installed Expo stack reducer. `apps/mobile/test/workspace-lifecycle.test.tsx` mounts the production root lifecycle hook, changes external account/Host snapshots and asserts actual retained routes and Back. Existing Host drawer and bottom-navigation tests remain part of the focused run.
+`apps/mobile/test/workspace-navigation.test.tsx` drives the production drawer selection owner and Cloud selection adapter through the installed Expo stack reducer. `apps/mobile/test/workspace-lifecycle.test.tsx` mounts the production root lifecycle hook, changes external account/Host snapshots and asserts actual retained routes and Back. Existing Host drawer and bottom-navigation tests remain part of the focused run.
