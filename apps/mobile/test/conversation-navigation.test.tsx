@@ -325,7 +325,7 @@ it('asks the existing history owner for an uncached focus and positions it when 
   );
 });
 
-it('does not repeatedly request a failed source page without a new history boundary or visit', async () => {
+it('retries source paging only after a new history boundary or a repeated focus visit', async () => {
   state.active = true;
   state.conversation.hasOlder = true;
   const place: ChatPlace = { kind: 'dm', slug: 'ada' };
@@ -336,6 +336,23 @@ it('does not repeatedly request a failed source page without a new history bound
   state.conversation.loadingOlder = false;
   await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
   expect(navigation.loadOlder).toHaveBeenCalledOnce();
+  state.conversation.messages = [
+    {
+      id: 'middle',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'middle',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(2);
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.focused = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(3);
 });
 
 it.each(['ios', 'android'])(
