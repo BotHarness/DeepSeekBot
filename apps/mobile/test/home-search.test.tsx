@@ -5,7 +5,8 @@ import { FakeHost } from './fake-host';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CloudRow } from '../src/cloud/client';
+import { CloudClient, type CloudRow } from '../src/cloud/client';
+import { createHash } from 'node:crypto';
 import {
   createCloudConversations,
   type CloudConversation,
@@ -50,6 +51,7 @@ const {
     live: undefined as HostClient | undefined,
   },
   cloudState: {
+    live: undefined as CloudClient | undefined,
     error: undefined as string | undefined,
     ready: true,
     busy: false,
@@ -157,8 +159,16 @@ vi.mock('../src/host/native-conversation-filter', async () => {
   };
 });
 vi.mock('../src/cloud/native', () => ({
-  useCloudSnapshot: () => cloudState,
-  cloudClient: { getSnapshot: () => cloudState },
+  useCloudSnapshot: () =>
+    cloudState.live
+      ? useSyncExternalStore(cloudState.live.subscribe, cloudState.live.getSnapshot)
+      : cloudState,
+  cloudClient: {
+    getSnapshot: () => cloudState.live?.getSnapshot() ?? cloudState,
+    whoami: (id: string) => cloudState.live!.whoami(id),
+    useOrganization: (id: string, organizationId: string) =>
+      cloudState.live!.useOrganization(id, organizationId),
+  },
 }));
 vi.mock('../src/cloud/native-conversations', () => ({
   useCloudConversations: () =>
@@ -316,6 +326,7 @@ afterEach(() => {
   rowProps.clear();
   Platform.OS = 'web';
   conversationFilter.set('all');
+  cloudState.live = undefined;
   cloudState.rows = [];
   cloudState.ready = true;
   cloudState.error = undefined;
@@ -414,6 +425,83 @@ function cloudFixture(): CloudRow {
   return cloudRow;
 }
 
+async function openingFixture() {
+  const config = cloudFixture().config;
+  let storage: string | null = null;
+  const access: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const state = { denied: false, userId: 'user_a' };
+  const response = (value: unknown, status = 200) =>
+    new Response(JSON.stringify(value), { status });
+  const client = new CloudClient({
+    read: async () => storage,
+    write: async (value) => {
+      storage = value;
+    },
+    now: () => 1_000_000,
+    random: () => 'random-verifier-or-state-43-characters-00000000',
+    challenge: async () => 's256-challenge',
+    digest: async (value) => createHash('sha256').update(value).digest('hex'),
+    authorize: async (url) =>
+      MOBILE_REDIRECT_URI + '?code=fixture&state=' + new URL(url).searchParams.get('state'),
+    request: async (url) => {
+      if (url.endsWith('/.well-known/open-cloud-groups')) return response(config);
+      if (url === config.auth.tokenEndpoint)
+        return response({
+          access_token: 'header.' + btoa(JSON.stringify({ exp: 4_000_000_000 })) + '.signature',
+          refresh_token: 'fixture-refresh',
+        });
+      if (url.endsWith('/api/me'))
+        return response({
+          userId: state.userId,
+          instanceId: config.instanceId,
+          instanceRole: 'user',
+        });
+      if (url.endsWith('/api/onboarding')) return response({ organizationId: 'org_a' });
+      if (url.endsWith('/access')) {
+        access.push(url);
+        await gate;
+        return state.denied
+          ? response({ error: { code: 'ACCESS_DENIED' } }, 403)
+          : response({ allowed: true });
+      }
+      if (url.includes('/api/organizations/'))
+        return response({
+          organizationId: url.split('/').at(-1),
+          name: 'Cloud team',
+          description: '',
+          version: 1,
+          role: 'member',
+        });
+      throw Error('Unexpected cloud fixture request');
+    },
+  });
+  await client.importConfig(JSON.stringify(config));
+  await client.login(config.instanceId);
+  cloudState.live = client;
+  const source = client.getSnapshot().rows[0]!;
+  directoryState.rows = ['a', 'b'].map((id) => ({
+    key: 'cloud-' + id,
+    scope: cloudViewScope(source),
+    instanceId: config.instanceId,
+    organizationId: 'org_' + id,
+    organizationName: 'Cloud team',
+    guest: false,
+    channel: {
+      channelId: 'ch_' + id.repeat(64),
+      name: 'Cloud ' + id,
+      creatorId: 'user_a',
+      creatorType: 'human',
+      createdAt: '2026-10-18T00:00:00Z',
+    },
+  }));
+  directoryState.workspaces = directoryState.rows.map((row) => ({ ...row, server: config.server }));
+  return { client, access, release, state };
+}
+
 describe('Search in the Chats header', () => {
   it('keeps actual Host connection progress at the selected identity through recovery', async () => {
     const transport = new FakeHost();
@@ -455,6 +543,7 @@ describe('Search in the Chats header', () => {
       transport.kill();
     });
     expect(identity().getAttribute('aria-label')).toContain(t.reconnecting);
+    expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
     expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
     expect(view.querySelector('[role="alert"]')).toBeNull();
   });
@@ -464,6 +553,30 @@ describe('Search in the Chats header', () => {
     const view = await home();
     expect(view.textContent).toContain('Ada');
     expect(view.textContent).toContain(t.cloudListUnavailable);
+  });
+  it('retries an initially unreachable Computer from All without showing a successful empty list', async () => {
+    const transport = new FakeHost();
+    transport.kill();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: () => 60_000,
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    const view = await home();
+    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    transport.restart();
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="chat-list-retry"]')!.click(),
+    );
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'), {
+      timeout: 200,
+    });
+    expect(view.textContent).not.toContain(t.hostListUnavailable);
   });
   it('shows cold skeleton, actionable failure, retry and empty through the cloud directory owner', async () => {
     const source = cloudFixture();
@@ -542,6 +655,14 @@ describe('Search in the Chats header', () => {
     });
     expect(view.textContent).toContain('Cached cloud');
     expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="conversation-row-cloud:ch_' + 'a'.repeat(64) + '"]',
+        )!
+        .click(),
+    );
+    expect(push).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/cloud-channels' }));
     offline = true;
     await act(async () => {
       release();
@@ -555,6 +676,64 @@ describe('Search in the Chats header', () => {
     });
     expect(view.textContent).not.toContain('Cached cloud');
   });
+  it('shows immediate target feedback, deduplicates taps and opens only the newer target after real access checks', async () => {
+    const fixture = await openingFixture();
+    const view = await home();
+    const button = (id: string) =>
+      view.querySelector<HTMLButtonElement>(
+        '[data-testid="conversation-row-cloud:ch_' + id.repeat(64) + '"]',
+      )!;
+    await act(async () => {
+      button('a').click();
+      button('a').click();
+    });
+    expect(fixture.access).toHaveLength(1);
+    expect(button('a').getAttribute('aria-label')).toContain(t.loading);
+    expect(button('a').querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(button('b').disabled).toBe(false);
+    await act(async () => button('b').click());
+    expect(button('b').getAttribute('aria-label')).toContain(t.loading);
+    expect(fixture.access).toHaveLength(1);
+    await act(async () => fixture.release());
+    await vi.waitFor(() => expect(push).toHaveBeenCalledTimes(1));
+    expect(push).toHaveBeenLastCalledWith(
+      expect.objectContaining({ params: expect.objectContaining({ organizationId: 'org_b' }) }),
+    );
+    expect(fixture.access).toHaveLength(2);
+  });
+  it.each(['refusal', 'account change', 'leaving'] as const)(
+    'does not navigate after %s during access',
+    async (reason) => {
+      const fixture = await openingFixture();
+      const view = await home();
+      await act(async () =>
+        view
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="conversation-row-cloud:ch_' + 'a'.repeat(64) + '"]',
+          )!
+          .click(),
+      );
+      if (reason === 'refusal') fixture.state.denied = true;
+      if (reason === 'account change') fixture.state.userId = 'user_b';
+      if (reason === 'leaving')
+        await act(async () => {
+          root?.unmount();
+          root = undefined;
+        });
+      await act(async () => fixture.release());
+      await vi.waitFor(() => expect(fixture.client.getSnapshot().busy).toBe(false));
+      expect(push).not.toHaveBeenCalled();
+      if (reason === 'refusal') {
+        expect(view.textContent).toContain(t.cloudListUnavailable);
+        expect(view.querySelector('[data-testid="cloud-list-retry"]')).not.toBeNull();
+        fixture.state.denied = false;
+        await act(async () =>
+          view.querySelector<HTMLButtonElement>('[data-testid="cloud-list-retry"]')!.click(),
+        );
+        expect(push).toHaveBeenCalledTimes(1);
+      }
+    },
+  );
   it('opens a cloud row with its account and organization while leaving the paired Computer selected', async () => {
     const cloudRow = cloudFixture();
     const config = cloudRow.config;

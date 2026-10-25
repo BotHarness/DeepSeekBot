@@ -141,8 +141,12 @@ const HomeContent = memo(function HomeContent({
   const directory = useCloudConversations();
   const [filter, setFilter] = useConversationFilter();
   const [refreshing, setRefreshing] = useState(false);
-  const [opening, setOpening] = useState(false);
+  const [opening, setOpening] = useState<string>();
+  const openTarget = useRef<string | undefined>(undefined);
+  const openSequence = useRef(0);
+  const openTail = useRef(Promise.resolve());
   const [error, setError] = useState<string>();
+  const [failedOpen, setFailedOpen] = useState<CloudConversation>();
   const [deleting, setDeleting] = useState<{ hostId: string; target: DeletionTarget }>();
   const [actionError, setActionError] = useState(false);
   const [refreshFailedHost, setRefreshFailedHost] = useState<string>();
@@ -183,6 +187,17 @@ const HomeContent = memo(function HomeContent({
   );
   const environment = filters.find((item) => item.key === filter) ?? filters[0]!;
   const effectiveFilter = environment.key;
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        openSequence.current++;
+        openTarget.current = undefined;
+        setOpening(undefined);
+        setFailedOpen(undefined);
+        setError(undefined);
+      };
+    }, [enrollment, effectiveFilter]),
+  );
   const quiet = useQuietChannels(saved?.hostId);
   const collapsed = useCollapsedSections(saved?.hostId);
   useFocusEffect(
@@ -346,42 +361,61 @@ const HomeContent = memo(function HomeContent({
     setRefreshFailedHost(result[0]?.status === 'rejected' ? saved?.hostId : undefined);
     setRefreshing(false);
   };
-  const openCloud = async (target: CloudConversation) => {
-    if (opening || cloud.busy || directory.busy) return;
-    setOpening(true);
+  const openCloud = (target: CloudConversation) => {
+    if (openTarget.current === target.key) return;
+    const sequence = ++openSequence.current;
+    openTarget.current = target.key;
+    setOpening(target.key);
     setError(undefined);
-    try {
-      let current = cloudClient
-        .getSnapshot()
-        .rows.find((r) => r.config.instanceId === target.instanceId);
-      if (cloudViewScope(current) !== target.scope) throw Error('changed source');
-      if (!current?.identity) await cloudClient.whoami(target.instanceId);
-      current = cloudClient
-        .getSnapshot()
-        .rows.find((r) => r.config.instanceId === target.instanceId);
-      if (!target.guest && current?.organization?.organizationId !== target.organizationId)
-        await cloudClient.useOrganization(target.instanceId, target.organizationId);
-      if (
-        cloudViewScope(
-          cloudClient.getSnapshot().rows.find((r) => r.config.instanceId === target.instanceId),
-        ) !== target.scope
-      )
+    setFailedOpen(undefined);
+    const currentRow = () =>
+      cloudClient.getSnapshot().rows.find((row) => row.config.instanceId === target.instanceId);
+    const isCurrent = () => sequence === openSequence.current;
+    const requireScope = () => {
+      const current = currentRow();
+      if (!current?.hasSession || cloudViewScope(current) !== target.scope)
         throw Error('changed source');
-      router.push({
-        pathname: '/cloud-channels',
-        params: {
-          instanceId: target.instanceId,
-          organizationId: target.organizationId,
-          channelId: target.channel.channelId,
-          guest: String(target.guest),
-          accountScope: target.scope,
-        },
-      });
-    } catch (e) {
-      setError(cloudError(e));
-    } finally {
-      setOpening(false);
-    }
+      return current;
+    };
+    const open = async () => {
+      if (!isCurrent()) return;
+      try {
+        let current = requireScope();
+        if (!current.identity) {
+          await cloudClient.whoami(target.instanceId);
+          if (!isCurrent()) return;
+          current = requireScope();
+        }
+        if (!target.guest && current.organization?.organizationId !== target.organizationId) {
+          await cloudClient.useOrganization(target.instanceId, target.organizationId);
+          if (!isCurrent()) return;
+          requireScope();
+        }
+        if (!isCurrent()) return;
+        router.push({
+          pathname: '/cloud-channels',
+          params: {
+            instanceId: target.instanceId,
+            organizationId: target.organizationId,
+            channelId: target.channel.channelId,
+            guest: String(target.guest),
+            accountScope: target.scope,
+          },
+        });
+      } catch (error) {
+        if (isCurrent()) {
+          setError(cloudError(error));
+          setFailedOpen(target);
+        }
+      } finally {
+        if (isCurrent()) {
+          openTarget.current = undefined;
+          setOpening(undefined);
+        }
+      }
+    };
+    // Session mutations share CloudClient's lock. Superseded taps never start another mutation.
+    openTail.current = openTail.current.then(open, open);
   };
   const renderHostConversation = (conversation: Conversation, pinned: boolean) => (
     <ManagedConversationRow
@@ -494,7 +528,7 @@ const HomeContent = memo(function HomeContent({
                             testID="cloud-list-retry"
                             label={t.retry}
                             on="canvas"
-                            onPress={() => void refresh()}
+                            onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
                             disabled={refreshing}
                           />
                         </View>
@@ -558,7 +592,7 @@ const HomeContent = memo(function HomeContent({
                     ) : (
                       <CloudConversationRow
                         row={item.conversation}
-                        disabled={opening || cloud.busy || directory.busy}
+                        pending={opening === item.conversation.key}
                         onPress={() => void openCloud(item.conversation)}
                       />
                     )
