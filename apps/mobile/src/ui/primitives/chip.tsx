@@ -10,12 +10,14 @@ export function Chip({
   count,
   selected,
   onPress,
+  disabled = false,
 }: {
   label: string;
   testID?: string;
   count?: number;
   selected: boolean;
   onPress(): void;
+  disabled?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -25,7 +27,8 @@ export function Chip({
     <Pressable
       testID={testID}
       accessibilityRole="button"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled }}
+      disabled={disabled}
       accessibilityLabel={count === undefined ? label : t.filterChip(label, count)}
       hitSlop={{ top: slop, bottom: slop }}
       onPress={onPress}

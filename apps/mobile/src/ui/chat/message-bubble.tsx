@@ -61,7 +61,9 @@ export function BubbleBody({
   onShare = async () => {},
   fill,
   streaming = false,
+  onImageReady,
 }: {
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
   group: BubbleGroup;
   onOpenImage?: (attachment: MessageAttachment) => void;
@@ -91,6 +93,7 @@ export function BubbleBody({
           human={human}
           onOpenImage={onOpenImage}
           onShare={onShare}
+          onImageReady={onImageReady}
         />
       ) : null}
       {message.card ? (
@@ -291,8 +294,8 @@ export const MessageBubble = memo(function MessageBubble({
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
         {...(actionable
           ? {
-              accessibilityHint: onReact === undefined ? t.copyHint : t.messageActionsHint,
-              accessibilityActionLabel: onReact === undefined ? t.copy : t.messageActions,
+              accessibilityHint: t.messageActionsHint,
+              accessibilityActionLabel: t.messageActions,
               onLongPress: (anchor: Rect) => onLongPress(message, anchor, group),
             }
           : {})}

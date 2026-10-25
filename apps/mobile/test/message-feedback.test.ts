@@ -64,3 +64,27 @@ describe('phone feedback through the authenticated Host client', () => {
     client.stop();
   });
 });
+
+it('downloads evidence bytes through the same authenticated gateway', async () => {
+  const bytes = new Uint8Array([80, 75, 3, 4]);
+  const client = createHostClient({
+    routes: ['https://example.ts.net'],
+    credential: 'phone.secret',
+    carrier: {
+      openSocket: () => ({ send() {}, close() {} }),
+      async request(url, init) {
+        expect(url).toContain('/botharness-device/api/botharness/message-feedback/download');
+        expect(init.headers?.authorization).toBe('Device phone.secret');
+        return {
+          status: 200,
+          text: async () => {
+            throw new Error('binary must not decode as text');
+          },
+          bytes: async () => bytes,
+        };
+      },
+    },
+  });
+  expect(await createMessageFeedback(client).download('preview-token')).toEqual(bytes);
+  client.stop();
+});

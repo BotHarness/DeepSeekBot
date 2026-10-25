@@ -1,4 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
+import { useLocalSearchParams, usePreventRemove, useRouter } from 'expo-router';
 import { useHostSession } from '../src/host/host-session';
 import { MessageFeedbackForm } from '../src/ui/chat/message-feedback';
 import { SheetPage } from '../src/ui/primitives/sheet-page';
@@ -12,6 +13,8 @@ export default function MessageFeedbackScreen() {
   }>();
   const { client, saved } = useHostSession();
   const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  usePreventRemove(busy, () => {});
   const t = useStrings();
   return (
     <SheetPage title={t.feedback.title}>
@@ -21,7 +24,10 @@ export default function MessageFeedbackScreen() {
           client={client}
           channelId={channelId}
           messageId={messageId}
-          onClose={() => router.back()}
+          onBusyChange={setBusy}
+          onClose={() => {
+            if (!busy) router.back();
+          }}
         />
       ) : (
         <Text>{t.feedback.unavailable}</Text>

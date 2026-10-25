@@ -39,6 +39,7 @@ export function Segmented<T extends string>({
   value,
   on = 'canvas',
   onChange,
+  disabled = false,
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
@@ -102,6 +103,7 @@ export function Segmented<T extends string>({
         >
           {options.map((option) => (
             <ToggleButton
+              enabled={!disabled}
               key={option.value}
               checked={option.value === value}
               onCheckedChange={(checked) => {

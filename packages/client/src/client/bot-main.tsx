@@ -165,6 +165,7 @@ import {
 import { MessageFeedbackDialog } from './message-feedback.js';
 import {
   MessageSelectionBar,
+  MessageImagePreview,
   MessageSelectionContext,
   useMessageSelection,
 } from './message-selection.js';
@@ -1540,6 +1541,9 @@ function ConversationView({
         };
   const cancelSelection = useCallback(() => setSelectedMessages(undefined), [scopeKey]);
   const [selectionBusy, setSelectionBusy] = useScopedState(scopeKey, false);
+  const [selectionImage, setSelectionImage] = useScopedState<Blob | undefined>(scopeKey);
+  const snapshotScope = useRef(scopeKey);
+  snapshotScope.current = scopeKey;
   const [selectionNotice, setSelectionNotice] = useScopedState<string>(scopeKey);
   const flashSelectionNotice = (notice: string): void => {
     setSelectionNotice(notice);
@@ -1591,13 +1595,7 @@ function ConversationView({
     try {
       const blob = await renderMessageSnapshot(timeline, sheet);
       if (blob === undefined) throw new Error('snapshot-empty');
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `deepseekbot-messages-${new Date().toISOString().replace(/[:.]/gu, '-')}.png`;
-      anchor.click();
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-      flashSelectionNotice(t('selection.imageSaved', { count: String(ids.length) }));
+      if (snapshotScope.current === scopeKey) setSelectionImage(blob);
     } catch {
       flashSelectionNotice(t('selection.failed'));
     } finally {
@@ -3282,6 +3280,13 @@ function ConversationView({
               onMention={mentionBot}
               onProfile={(botSlug) => void actions.openBot(botSlug, 'profile')}
               onClose={() => setAvatarMenu(undefined)}
+            />
+          )}
+          {selectionImage === undefined ? null : (
+            <MessageImagePreview
+              blob={selectionImage}
+              t={t}
+              onClose={() => setSelectionImage(undefined)}
             />
           )}
           {feedbackMessage === undefined || channelId === undefined ? null : (

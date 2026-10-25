@@ -1,3 +1,5 @@
+import { Segmented } from '../primitives/segmented';
+import { Chip } from '../primitives/chip';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { shareFeedbackArchive } from '../../host/share-feedback';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -35,11 +37,13 @@ export function MessageFeedbackForm({
   channelId,
   messageId,
   onClose,
+  onBusyChange,
 }: {
   client: HostClient;
   channelId: string;
   messageId: string;
   onClose(): void;
+  onBusyChange?(busy: boolean): void;
 }) {
   const t = useStrings();
   const f = t.feedback;
@@ -65,6 +69,9 @@ export function MessageFeedbackForm({
   const [receipt, setReceipt] = useState<FeedbackReceipt>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  useEffect(() => {
+    onBusyChange?.(busy);
+  }, [busy, onBusyChange]);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const frozen = useRef<{ token: string; feedback: FeedbackRating } | undefined>(undefined);
   const pending = useRef(false);
@@ -142,28 +149,28 @@ export function MessageFeedbackForm({
     );
   const header = (
     <View style={{ gap: space.x4 }}>
-      <View style={{ flexDirection: 'row', gap: space.x3 }}>
-        {(['good', 'bad'] as const).map((value) => (
-          <Button
-            key={value}
-            label={f[value]}
-            tone={rating === value ? 'primary' : 'secondary'}
-            disabled={locked || busy}
-            testID={'feedback-' + value}
-            onPress={() => {
-              setRating(value);
-              setTags([]);
-            }}
-          />
-        ))}
-      </View>
+      <Segmented
+        label={f.title}
+        options={[
+          { value: 'good', label: f.good },
+          { value: 'bad', label: f.bad },
+        ]}
+        value={rating ?? ''}
+        disabled={locked || busy}
+        onChange={(value) => {
+          if (value === 'good' || value === 'bad') {
+            setRating(value);
+            setTags([]);
+          }
+        }}
+      />
       {rating === undefined ? null : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
           {feedbackTags[rating].map((tag) => (
-            <Button
+            <Chip
               key={tag}
               label={f[`tag.${tag}`]}
-              tone={tags.includes(tag) ? 'primary' : 'secondary'}
+              selected={tags.includes(tag)}
               disabled={locked || busy}
               testID={'feedback-tag-' + tag}
               onPress={() =>
@@ -244,9 +251,14 @@ export function MessageFeedbackForm({
           <Text strong>
             {f.preview} · {Math.ceil(preview.bytes / 1024)} KB
           </Text>
+          <Text variant="meta">
+            {f.sessions}: {preview.summary.sessions.length} · {f.inbox}:{' '}
+            {preview.summary.admissions}
+          </Text>
           {preview.summary.channels.map((channel, i) => (
             <Text key={i}>
-              {channel.name} · {channel.messages} {f.messages}
+              {channel.role === 'selected' ? f.conversation : f.relatedChats}: {channel.name} ·{' '}
+              {channel.messages} {f.messages}
             </Text>
           ))}
           {preview.summary.omissions.map((omission, i) => (
