@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-Editable group/Bot portraits, explicit Change avatar and Remove avatar rows, shared phone photo selection and square conversion, independent chat backgrounds, cancellation and duplicate-tap/failure recovery.
+Editable group/Bot portraits, explicit Change avatar and Remove avatar rows, shared phone photo selection and square conversion, independent chat backgrounds, editable Bot display names, cancellation and duplicate-tap/failure recovery.
 
 ## How to get to it (user POV)
 
@@ -16,8 +16,9 @@ Follow the shared-device queues in docs/agents/device-qa.md and the task resourc
 1. On each page, capture the large portrait, Change avatar and Chat background together where possible. English and Chinese labels must name avatars and backgrounds separately.
 2. Set an avatar through both the large portrait and the explicit row. Accept a task-owned photo/crop. Group saves affect only that group; Bot saves update the Bot in its DM, Chats and group member rows. Read the saved group through deepseekbot channel and the Bot through deepseekbot show, then reload.
 3. Open each Chat background setting. It edits the existing phone-local Host/Channel scope, not the group/Bot avatar. Set a color/photo, confirm and reopen. Changing/removing an avatar must preserve both chats' backgrounds; changing a background must preserve both avatars. A Bot with no cached DM id must resolve its DM before opening the background editor.
-4. Cancel, dismiss and use native Back from the picker; the saved image remains. Repeated portrait/row taps and Remove avatar cannot overlap a pending pick/save. Picker/save refusals show an actionable error and allow retry. Removing a custom avatar restores the default portrait.
-5. Repeat iOS and Android independently, light/dark × default/intermediate/maximum system text. Save accessible snapshots, screenshots and Host readback. Expo Web proves only the rendered Expo view, web file picker and Host save; native photo crop, permissions, storage and gestures need their own evidence.
+4. On the Bot profile, open Name, type a new name and Save. The profile heading, DM/Chats and group member row must show it while the Bot id, avatar and chat backgrounds remain unchanged. Cancel leaves the old name; blank/unchanged names cannot save; a refusal retains the draft for retry. The existing get/update contract carries the observed profile fingerprint.
+5. Cancel, dismiss and use native Back from the picker; the saved image remains. Repeated portrait/row taps and Remove avatar cannot overlap a pending pick/save. Picker/save refusals show an actionable error and allow retry. Removing a custom avatar restores the default portrait.
+6. Repeat iOS and Android independently, light/dark × default/intermediate/maximum system text. Save accessible snapshots, screenshots and Host readback. Expo Web proves only the rendered Expo view, web file picker and Host save; native photo crop, permissions, storage and gestures need their own evidence.
 
 Focused tests: apps/mobile/test/group-info.test.tsx, bot-profile-sheet.test.tsx, bot-avatar.test.ts, bot-background-entry.test.tsx, chat-background-screen.test.tsx and chat-background.test.ts.
 

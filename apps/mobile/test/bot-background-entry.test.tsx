@@ -21,6 +21,7 @@ vi.mock('../src/ui/chat/composer-context', () => ({
   }),
 }));
 vi.mock('../src/ui/chat/dm-activity-settings', () => ({ DmActivitySettings: () => null }));
+vi.mock('../src/ui/chat/bot-name-setting', () => ({ BotNameSetting: () => null }));
 
 import { createHostClient } from '../src/host/client';
 import { BotSettingsPanel } from '../src/ui/chat/bot-settings-panel';
