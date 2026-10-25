@@ -35,6 +35,7 @@ export function ConversationRow({
   onPress,
   actions = [],
   onAction,
+  onLongPress,
   look,
 }: {
   row: Conversation;
@@ -43,6 +44,7 @@ export function ConversationRow({
   onPress?: () => void;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
+  onLongPress?: () => void;
 }) {
   const title = titleOf(row);
   const status = rowStatus(row, now);
@@ -75,6 +77,7 @@ export function ConversationRow({
         unread={row.unread > 0 && !row.muted}
         badge={badge}
         onPress={onPress}
+        onLongPress={onLongPress}
         avatar={
           row.kind === 'bot' ? (
             <AvatarSlot>
@@ -126,12 +129,14 @@ export function ConversationRowFrame({
   disabled = false,
   actions = [],
   onAction,
+  onLongPress,
   testID,
   look,
 }: {
   look?: HostLook | undefined;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
+  onLongPress?: (() => void) | undefined;
   title: string;
   source: 'computer' | 'cloud';
   label: string;
@@ -150,13 +155,21 @@ export function ConversationRowFrame({
     <Pressable
       testID={testID}
       onPress={onPress}
+      onLongPress={onLongPress}
       disabled={disabled || onPress === undefined}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={label}
-      accessibilityActions={actions.map((action) => ({ name: action.key, label: action.label }))}
-      onAccessibilityAction={(event) =>
-        onAction?.(event.nativeEvent.actionName as ConversationActionKey)
-      }
+      accessibilityActions={[
+        ...actions.map((action) => ({ name: action.key, label: action.label })),
+        ...(onLongPress ? [{ name: 'actions', label: t.deletion.actions(title) }] : []),
+      ]}
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'actions') onLongPress?.();
+        else {
+          const action = actions.find((entry) => entry.key === event.nativeEvent.actionName);
+          if (action) onAction?.(action.key);
+        }
+      }}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

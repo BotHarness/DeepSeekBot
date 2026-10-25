@@ -136,6 +136,7 @@ export interface SendStatus {
 }
 
 export interface PersonaBotSummary {
+  tob?: { defaultName: boolean; defaultAvatar: boolean };
   slug: string;
   displayName: string;
   avatar?: string;

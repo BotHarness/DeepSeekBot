@@ -15,6 +15,8 @@ export function SectionHeader({
   unread,
   collapsed,
   onToggle,
+  onLongPress,
+  onMenu,
 }: {
   name: string;
   count: number;
@@ -22,13 +24,19 @@ export function SectionHeader({
   unread: number;
   collapsed: boolean;
   onToggle(): void;
+  onLongPress?: (() => void) | undefined;
+  onMenu?: (() => void) | undefined;
 }) {
   const theme = useDesignTheme();
   const Chevron = collapsed ? ChevronRightIcon : ChevronDownIcon;
   const badge = collapsed ? countBadge({ needsYou, unread, muted: false }) : undefined;
   return (
     <Pressable
+      testID="section-header"
       onPress={onToggle}
+      onLongPress={onLongPress}
+      accessibilityActions={onMenu ? [{ name: 'actions', label: t.deletion.actions(name) }] : []}
+      onAccessibilityAction={() => onMenu?.()}
       accessibilityRole="button"
       accessibilityState={{ expanded: !collapsed }}
       accessibilityLabel={t.sectionLabel(name, count, needsYou, unread)}

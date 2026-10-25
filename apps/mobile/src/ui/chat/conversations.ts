@@ -196,8 +196,9 @@ export function chatList(
   action: HumanAttentionItem[],
   collapsed: ReadonlySet<string> = new Set(),
   unread: UnreadCounts = {},
+  quiet: readonly string[] = [],
 ): ChatListItem[] {
-  const rows = conversations(roster, action, unread);
+  const rows = conversations(roster, action, unread, quiet);
   const arrangement = roster?.arrangement;
   const flat = rows.map((row): ChatListItem => ({ kind: 'row', key: row.key, row }));
   if (arrangement === undefined || arrangement.sections.length === 0) return flat;

@@ -30,6 +30,7 @@ export type ConnectionState =
   | { status: 'stopped'; route: string };
 
 export interface RosterBot {
+  tob?: boolean;
   slug: string;
   displayName: string;
   avatarUrl?: string;
@@ -334,6 +335,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return {
             slug: bot.slug,
             displayName: bot.displayName,
+            tob: bot.tob !== undefined,
             ...(bot.avatar === undefined
               ? {}
               : { avatarUrl: absolute(bot.avatar), avatarHeaders: authorization }),

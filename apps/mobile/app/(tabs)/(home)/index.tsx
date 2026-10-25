@@ -12,20 +12,26 @@ import {
 } from '../../../src/host/host-session';
 import { prefetchInbox } from '../../../src/host/inbox';
 import { useHostLook } from '../../../src/host/native-host-look';
+import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
 import { cloudAvailable } from '../../../src/cloud/available';
 import { cloudConversations, useCloudConversations } from '../../../src/cloud/native-conversations';
 import { cloudViewScope } from '../../../src/cloud/workspace-directory';
 import { cloudError } from '../../../src/cloud/client';
 import type { CloudConversation } from '../../../src/cloud/conversations';
-import { ConversationRow } from '../../../src/ui/chat/conversation-row';
+import { ManagedConversationRow } from '../../../src/ui/chat/managed-conversation-row';
+import { DeletionSheet } from '../../../src/ui/chat/deletion-sheet';
+import type { DeletionTarget } from '../../../src/host/deletion';
+import { ItemMenu } from '../../../src/ui/primitives/item-menu';
+import { SectionHeader } from '../../../src/ui/chat/section-header';
 import {
-  conversationActions,
-  conversationChannelId,
-  runConversationAction,
-} from '../../../src/ui/chat/conversation-actions';
-import { showAppDialog } from '../../../src/ui/primitives/app-dialog';
-import { conversations, searchKey, type Conversation } from '../../../src/ui/chat/conversations';
+  chatList,
+  PINNED_SECTION,
+  conversations,
+  searchKey,
+  type ChatListItem,
+  type Conversation,
+} from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
@@ -43,9 +49,7 @@ import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
-import { ConversationPeek, conversationPeek } from '../../../src/ui/shell/conversation-peek';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
-import { conversationHref, openConversation } from '../../../src/ui/shell/open-conversation';
 import { useChromeScroll, useScrollChrome } from '../../../src/ui/shell/scroll-chrome';
 import { t } from '../../../src/ui/strings';
 import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
@@ -68,13 +72,28 @@ type Row =
       pinned: false;
       at?: string;
     };
+type DisplayRow =
+  | Row
+  | {
+      type: 'section';
+      key: string;
+      environment: string;
+      section: Extract<ChatListItem, { kind: 'section' }>;
+    };
 export default function HomeScreen() {
   const focused = useIsFocused();
   const { saved, client, inbox } = useHostSession();
   const snapshot = useHostSnapshot(client, focused);
   const list = useInbox(inbox, focused);
   return (
-    <HomeContent saved={saved} client={client} inbox={inbox} snapshot={snapshot} list={list} />
+    <HomeContent
+      key={saved?.hostId ?? 'unpaired'}
+      saved={saved}
+      client={client}
+      inbox={inbox}
+      snapshot={snapshot}
+      list={list}
+    />
   );
 }
 
@@ -122,6 +141,10 @@ const HomeContent = memo(function HomeContent({
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string>();
+  const [actionError, setActionError] = useState(false);
+  const [deleting, setDeleting] = useState<{ hostId: string; target: DeletionTarget }>();
+  const collapsed = useCollapsedSections(saved?.hostId);
+
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
   const unpaired =
     !cloudAvailable &&
@@ -239,6 +262,37 @@ const HomeContent = memo(function HomeContent({
           a.key.localeCompare(b.key),
       );
   }, [snapshot.roster, list, directory.rows, saved, query, quiet]);
+  const displayed = useMemo((): DisplayRow[] => {
+    if (!saved || query || !snapshot.roster?.arrangement?.sections.length) return rows;
+    const computerRows = new Map(
+      rows.flatMap((row) =>
+        row.type === 'computer' ? [[row.conversation.key, row] as const] : [],
+      ),
+    );
+    const items = chatList(
+      snapshot.roster,
+      list.status === 'ready' ? list.sections.action : [],
+      collapsed,
+      list.status === 'ready' ? list.unread : {},
+      quiet,
+    );
+    return [
+      ...items.flatMap((item): DisplayRow[] => {
+        if (item.kind === 'section')
+          return [
+            {
+              type: 'section',
+              key: item.key,
+              environment: computerEnvironmentKey(saved.hostId),
+              section: item,
+            },
+          ];
+        const row = computerRows.get(item.row.key);
+        return row ? [row] : [];
+      }),
+      ...rows.filter((row) => row.type === 'cloud'),
+    ];
+  }, [rows, saved, query, snapshot.roster, list, collapsed, quiet]);
   if (saved === undefined || (!cloud.ready && !cloud.error))
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -369,7 +423,7 @@ const HomeContent = memo(function HomeContent({
                 onRefresh={() => void refresh()}
               >
                 {(pull) => (
-                  <Animated.FlatList<Row>
+                  <Animated.FlatList<DisplayRow>
                     {...pull}
                     renderScrollComponent={renderKeyboardFormScroll}
                     onScroll={active ? onScroll : undefined}
@@ -377,12 +431,21 @@ const HomeContent = memo(function HomeContent({
                     contentContainerStyle={{ paddingBottom: bottom + space.x6 }}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
-                    data={rows.filter(
+                    data={displayed.filter(
                       (row) => environment.key === 'all' || row.environment === environment.key,
                     )}
                     keyExtractor={(r) => r.key}
                     ListHeaderComponent={
                       <>
+                        {actionError ? (
+                          <Text
+                            accessibilityRole="alert"
+                            tone="danger"
+                            style={{ paddingHorizontal: space.x5 }}
+                          >
+                            {t.rowActions.failed}
+                          </Text>
+                        ) : null}
                         {saved &&
                           (environment.key === 'all' ||
                             environment.key === computerEnvironmentKey(saved.hostId)) && (
@@ -417,37 +480,60 @@ const HomeContent = memo(function HomeContent({
                       )
                     }
                     renderItem={({ item }) =>
-                      item.type === 'computer' ? (
-                        conversationPeek ? (
-                          <ConversationPeek
-                            href={conversationHref(item.conversation, saved?.hostId)}
-                          >
-                            <ConversationRow row={item.conversation} now={new Date()} look={look} />
-                          </ConversationPeek>
-                        ) : (
-                          <ConversationRow
-                            row={item.conversation}
-                            now={new Date()}
-                            look={look}
-                            onPress={() =>
-                              openConversation(router, item.conversation, saved?.hostId)
-                            }
-                            actions={conversationActions(item.conversation, {
-                              pinned: item.pinned,
-                              hostMuted:
-                                snapshot.roster?.arrangement?.muted?.includes(
-                                  conversationChannelId(item.conversation) ?? '',
-                                ) === true,
-                            })}
-                            onAction={(key) => {
-                              if (client === undefined) return;
-                              runConversationAction(client, inbox, item.conversation, key).catch(
-                                () =>
-                                  showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-                              );
-                            }}
-                          />
-                        )
+                      item.type === 'section' ? (
+                        <ItemMenu
+                          title={item.section.name ?? t.pinnedSection}
+                          actions={
+                            item.section.id === PINNED_SECTION || !saved || !client
+                              ? []
+                              : [
+                                  {
+                                    key: 'delete-section',
+                                    label: t.deletion.deleteSection,
+                                    destructive: true,
+                                    run: () =>
+                                      setDeleting({
+                                        hostId: saved.hostId,
+                                        target: {
+                                          kind: 'section',
+                                          id: item.section.id,
+                                          name: item.section.name ?? '',
+                                        },
+                                      }),
+                                  },
+                                ]
+                          }
+                        >
+                          {(open, nativeContextMenu) => (
+                            <SectionHeader
+                              {...item.section}
+                              name={item.section.name ?? t.pinnedSection}
+                              onLongPress={
+                                nativeContextMenu || item.section.id === PINNED_SECTION
+                                  ? undefined
+                                  : open
+                              }
+                              onMenu={item.section.id === PINNED_SECTION ? undefined : open}
+                              onToggle={() => {
+                                if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
+                              }}
+                            />
+                          )}
+                        </ItemMenu>
+                      ) : item.type === 'computer' ? (
+                        <ManagedConversationRow
+                          row={item.conversation}
+                          pinned={item.pinned}
+                          look={look}
+                          client={client}
+                          inbox={inbox}
+                          hostId={saved?.hostId}
+                          arrangement={snapshot.roster?.arrangement}
+                          onError={() => setActionError(true)}
+                          onDelete={(target) => {
+                            if (saved) setDeleting({ hostId: saved.hostId, target });
+                          }}
+                        />
                       ) : (
                         <CloudConversationRow
                           row={item.conversation}
@@ -463,6 +549,19 @@ const HomeContent = memo(function HomeContent({
           />
         </HomeHeader>
       </HostDrawerEdge>
+      {deleting && client && saved?.hostId === deleting.hostId ? (
+        <DeletionSheet
+          key={`${deleting.hostId}:${deleting.target.kind}:${deleting.target.id}`}
+          target={deleting.target}
+          client={client}
+          hostName={shownHostName(look, saved.hostName)}
+          onClose={() => setDeleting(undefined)}
+          onDeleted={() => {
+            setDeleting(undefined);
+            void inbox?.refresh();
+          }}
+        />
+      ) : null}
     </>
   );
 });

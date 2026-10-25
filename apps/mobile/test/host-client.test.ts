@@ -49,6 +49,21 @@ async function until(
 }
 
 describe('Host client', () => {
+  it('preserves the Host-owned Tob marker for deletion menus', async () => {
+    const host = new FakeHost();
+    host.methods.set('list', () => ({
+      bots: [
+        {
+          slug: 'steward-id',
+          displayName: 'Renamed steward',
+          tob: { defaultName: false, defaultAvatar: true },
+          aggregateState: 'idle',
+        },
+      ],
+    }));
+    const snapshot = await until(connect(host), (state) => state.connection.status === 'connected');
+    expect(snapshot.roster?.bots[0]).toMatchObject({ slug: 'steward-id', tob: true });
+  });
   it('retains Bot DM metadata for activity links without listing it as a group', async () => {
     const host = new FakeHost();
     host.methods.set('channels', () => ({ channels: wire.activityJournal.channels }));
