@@ -18,6 +18,7 @@ import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import type { RosterView } from '../src/host/client';
+import { hostDrawer } from '../src/ui/shell/host-drawer';
 import { EDGE_WIDTH } from '../src/ui/shell/host-drawer-model';
 
 const {
@@ -248,13 +249,21 @@ vi.mock('expo-symbols', () => ({
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
-  hostDrawer: { setReturnFocus: () => {} },
-  focusOn: () => {},
-  openHostDrawer: () => {},
-  useHostDrawerOpen: () => false,
-}));
+vi.mock('../src/ui/shell/host-drawer', async () => {
+  const { createHostDrawer } = await import('../src/ui/shell/host-drawer-model');
+  return {
+    HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
+    hostDrawer: createHostDrawer({
+      switchTo: async () => true,
+      showView: () => {},
+      pair: () => {},
+      notifications: () => {},
+    }),
+    focusOn: () => {},
+    openHostDrawer: () => {},
+    useHostDrawerOpen: () => false,
+  };
+});
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
@@ -380,7 +389,7 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).toContain('Ada');
     expect(view.textContent).toContain(t.cloudListUnavailable);
   });
-  it.each([false, true])(
+  it.each(['none', 'reset', 'workspace-intent'])(
     'opens Cloud only while the originating navigation intent is current (reset=%s)',
     async (reset) => {
       const config = publicInstance({
@@ -444,7 +453,7 @@ describe('Search in the Chats header', () => {
         sections: [{ id: 'work', name: 'Work', channelIds: ['launch-team'] }],
       };
       let finishIdentity: (() => void) | undefined;
-      if (reset) {
+      if (reset !== 'none') {
         cloudRow.identity = undefined;
         whoami.mockImplementation(
           () =>
@@ -473,7 +482,7 @@ describe('Search in the Chats header', () => {
           )!
           .click(),
       );
-      if (reset) {
+      if (reset !== 'none') {
         expect(whoami).toHaveBeenCalledOnce();
         const state = cloudHistory.state;
         cloudHistory.navigation.dispatch({

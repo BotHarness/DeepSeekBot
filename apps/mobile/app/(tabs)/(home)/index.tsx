@@ -55,7 +55,7 @@ import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
-import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
+import { HostDrawerEdge, hostDrawer } from '../../../src/ui/shell/host-drawer';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
@@ -359,7 +359,9 @@ const HomeContent = memo(function HomeContent({
     if (opening || cloud.busy || directory.busy) return;
     const intent = ++cloudIntent.current;
     const origin = navigation.getRootState();
+    const workspaceCurrent = hostDrawer.captureWorkspaceSelection();
     const isCurrent = () =>
+      workspaceCurrent() &&
       cloudEntryFocused.current &&
       cloudIntent.current === intent &&
       navigation.getRootState() === origin;
