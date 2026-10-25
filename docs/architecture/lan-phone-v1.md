@@ -4,9 +4,9 @@
 
 ## Authority and lifecycle
 
-LAN starts off. Devices → Local network access, or `deepseekbot device-lan enable --confirm`, opens a restricted IPv4 listener. The Profile's Credentials Provider stores its port for restart. Disabling closes LAN sockets and removes the preference; Connect remains independent.
+LAN starts off. Connections → Add connection → Connect a device to this Host → Local network → Enable and continue, or `deepseekbot device-lan enable --confirm`, opens a restricted IPv4 listener. The Profile's Credentials Provider stores its port for restart. Disabling closes LAN sockets and removes the preference; Connect remains independent.
 
-This refines ADR-0199's same-listener transport decision. DSH stays loopback-bound; the application-defined adapter exposes only WebSocket upgrade at `/botharness-device/channel`. All ordinary HTTP paths return 404. Authorization, cookie, browser Origin and subprotocol headers are refused before upgrade. No operator API, general proxy or Web Client is exposed.
+This refines ADR-0199's same-listener transport decision. DSH stays loopback-bound; the application-defined adapter exposes only WebSocket upgrade at `/botharness-device/channel`. All ordinary HTTP paths return 404. Authorization, cookie and subprotocol headers are refused before upgrade. Browser Origin must be an exact HTTP(S) origin recognized by the existing device route policy; unrelated origins, `null` and paths are refused. The fixed desktop origin `dsh-app://app` is also eligible; other custom origins are refused. Native carriers may omit Origin. [ADR-0253](../adr/0253-connection-onboarding-targets-the-owning-client.md) extends the original native-only filter to browser Clients without changing Noise identity or approval. No operator API, general proxy or Web Client is exposed.
 
 The adapter instantiates the existing encrypted gateway against the same Host key and Device Pairing owner. Admitted requests traverse the existing loopback device gateway and its normal authorization checks. There is no second device store or business dispatcher. Revocation closes that device's channels across transports.
 
