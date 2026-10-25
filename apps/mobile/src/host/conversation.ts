@@ -136,6 +136,8 @@ export interface ConversationMessage {
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
   delivery: DeliveryState;
+  /** Device-local start of the current send attempt; never the message timestamp. */
+  attemptStartedAt?: number;
   error?: string;
   welcome?: true;
   activity?: ChannelActivity;
@@ -261,6 +263,7 @@ interface Outgoing {
   acceptanceObserved?: boolean;
   id: string;
   at: string;
+  attemptStartedAt: number;
   body: string;
   tags: MessageTags;
   files: OutgoingFile[];
@@ -515,6 +518,7 @@ export function createConversation(options: ConversationOptions): Conversation {
           local: file.uri !== undefined,
         })),
         delivery: item.delivery,
+        attemptStartedAt: item.attemptStartedAt,
         ...(item.error === undefined ? {} : { error: item.error }),
       });
     }
@@ -877,6 +881,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item: Outgoing = {
         id: newMessageId(),
         at: new Date().toISOString(),
+        attemptStartedAt: Date.now(),
         body,
         tags,
         files,
@@ -916,6 +921,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const item = outgoing.get(messageId);
       if (item === undefined || item.delivery !== 'failed') return;
       item.delivery = 'pending';
+      item.attemptStartedAt = Date.now();
       delete item.error;
       publish();
       void deliver(item);

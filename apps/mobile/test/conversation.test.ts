@@ -24,6 +24,7 @@ let conversation: Conversation | undefined;
 afterEach(() => {
   conversation?.stop();
   client?.stop();
+  vi.useRealTimers();
 });
 
 function seed(channel: FakeChannel, count: number): void {
@@ -534,11 +535,18 @@ describe('DM conversation', () => {
     const target = open(host);
     await until(target, (s) => s.status === 'live');
     host.failing.add('channelSend');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1_000);
     const id = target.send('retry me');
+    expect(target.getSnapshot().messages.at(-1)?.attemptStartedAt).toBe(1_000);
+    const sentAt = target.getSnapshot().messages.at(-1)?.at;
     const failed = await until(target, (s) => s.messages.at(-1)?.delivery === 'failed');
     expect(failed.messages.at(-1)?.error).toBeTruthy();
     host.failing.delete('channelSend');
+    vi.setSystemTime(9_000);
     target.retry(id);
+    expect(target.getSnapshot().messages.at(-1)?.attemptStartedAt).toBe(9_000);
+    expect(target.getSnapshot().messages.at(-1)?.at).toBe(sentAt);
     expect(target.getSnapshot().messages.at(-1)?.delivery).toBe('pending');
     await until(target, (s) => s.messages.at(-1)?.revision === 1);
     target.retry(id);

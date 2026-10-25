@@ -1,6 +1,8 @@
 import {
   memo,
   useCallback,
+  useEffect,
+  useState,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -9,6 +11,7 @@ import {
 } from 'react';
 import { useReplyHaptic } from './reply-haptic';
 import {
+  AppState,
   Platform,
   Pressable,
   View,
@@ -32,7 +35,7 @@ import {
   type MessageAttachment,
 } from '../../host/conversation';
 import type { ConversationPlayback } from '../../host/conversation-playback';
-import { doubleTap, lift, motion, radius, space } from '../design/tokens';
+import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
@@ -49,9 +52,40 @@ export type { Speaker } from './speaker-row';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
-  if (message.delivery === 'pending') return t.sending;
+  if (message.delivery === 'pending') return undefined;
   if (message.delivery === 'failed') return `${t.notSent} · ${t.retrySend}`;
   return message.revision === undefined ? t.sent : undefined;
+}
+
+const PENDING_FEEDBACK_MS = 3_000;
+
+function usePendingFeedback(message: ConversationMessage): boolean {
+  const started =
+    message.author === 'human' && message.delivery === 'pending'
+      ? message.attemptStartedAt
+      : undefined;
+  const [elapsedAttempt, setElapsedAttempt] = useState<number>();
+  useEffect(() => {
+    if (started === undefined) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const update = () => {
+      clearTimeout(timer);
+      if (AppState.currentState !== 'active') return;
+      const remaining = started + PENDING_FEEDBACK_MS - Date.now();
+      if (remaining <= 0) setElapsedAttempt(started);
+      else timer = setTimeout(update, remaining);
+    };
+    update();
+    const subscription = AppState.addEventListener('change', update);
+    return () => {
+      clearTimeout(timer);
+      subscription.remove();
+    };
+  }, [started]);
+  return (
+    started !== undefined &&
+    (elapsedAttempt === started || Date.now() >= started + PENDING_FEEDBACK_MS)
+  );
 }
 
 export function BubbleBody({
@@ -72,6 +106,7 @@ export function BubbleBody({
   const t = useStrings();
   const theme = useDesignTheme();
   const human = message.author === 'human';
+  const mutedPending = usePendingFeedback(message);
   const ink = human ? 'onAccent' : 'fg';
   return (
     <View
@@ -81,7 +116,7 @@ export function BubbleBody({
         overflow: fill?.maxHeight === undefined ? 'visible' : 'hidden',
         backgroundColor: human ? theme.color.accent : theme.color.surface,
         gap: space.x2,
-        opacity: human && message.delivery === 'pending' ? 0.7 : 1,
+        opacity: mutedPending ? 0.7 : 1,
       }}
     >
       <MessageBody message={message} streaming={streaming} />
