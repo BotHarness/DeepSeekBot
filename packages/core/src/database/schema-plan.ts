@@ -2481,6 +2481,22 @@ const DEVICE_NOTIFICATION_PREFERENCE_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
+  generation: 107,
+  module: 'live-activity',
+  description: 'Track device-owned Live Activity delivery handles, never request execution state',
+  migrate(database) {
+    database.exec(`CREATE TABLE device_live_activities (
+      client_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL, source_event_id TEXT NOT NULL, handle TEXT NOT NULL,
+      expires_at INTEGER NOT NULL, locale TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
+      terminal INTEGER NOT NULL DEFAULT 0, last_sent INTEGER NOT NULL DEFAULT 0,
+      last_state TEXT NOT NULL DEFAULT '', pending_state TEXT NOT NULL DEFAULT '',
+      attempt_at INTEGER NOT NULL DEFAULT 0, attempts INTEGER NOT NULL DEFAULT 0
+    );`);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2587,4 +2603,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   THREE_ACTION_APPROVAL_MIGRATION,
   PUSH_APP_RENDER_MIGRATION,
   DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
+  DEVICE_LIVE_ACTIVITY_MIGRATION,
 ]);

@@ -27,6 +27,10 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   useRecentChat: () => () => {},
 }));
 vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => ({ ready: true, busy: false, tracking: false }),
+  requestActivitySession: { start: async () => {}, stop: async () => {} },
+}));
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
   usePreventRemove: () => {},

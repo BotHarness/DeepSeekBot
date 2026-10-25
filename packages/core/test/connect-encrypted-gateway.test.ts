@@ -161,6 +161,14 @@ it.each(['connect', 'lan'] as const)(
           },
         );
         expect(await response.text()).toBe(sentinel);
+        const activity = await carrier.request(`${origin}/botharness-device/activity/register`, {
+          method: 'POST',
+          body: 'private-activity-token',
+          signal: new AbortController().signal,
+        });
+        expect(activity.status).toBe(200);
+        expect(await activity.text()).toBe('private-activity-token');
+        expect(observed.join('')).not.toContain('private-activity-token');
         const settings = await carrier.request(`${origin}/botharness-device/push`, {
           method: 'GET',
           signal: new AbortController().signal,

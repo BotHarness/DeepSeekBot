@@ -39,6 +39,16 @@ export interface HostSessionState {
 
 const clientHosts = new WeakMap<HostClient, string>();
 const listeners = new Set<() => void>();
+const removalListeners = new Set<(host: SavedHost) => Promise<void>>();
+export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () => void {
+  removalListeners.add(listener);
+  return () => {
+    removalListeners.delete(listener);
+  };
+}
+const clearPresentations = async (host: SavedHost) => {
+  await Promise.allSettled([...removalListeners].map((listener) => listener(host)));
+};
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
 let stored: SavedHosts = { hosts: [] };
 let offInbox: (() => void) | undefined;
@@ -241,6 +251,7 @@ export const hostSession = {
         persist: saveHosts,
         adopt,
         clearLocal: async (host) => {
+          await clearPresentations(host);
           await sourceDrafts.removePersistedWhere((key) => {
             try {
               const parts = JSON.parse(key);
@@ -274,6 +285,7 @@ export const hostSession = {
           return false;
         }
       });
+      await clearPresentations(host);
       await commit(withoutHost(stored, host.hostId));
       try {
         clearHostConversationCache(host.hostId);

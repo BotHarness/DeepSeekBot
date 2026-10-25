@@ -59,7 +59,12 @@ function fakeConnect(bindPort = 41001) {
 }
 
 function fakeServices(
-  options: { pending?: number; allowed?: boolean; deleted?: { workos: boolean } } = {},
+  options: {
+    pending?: number;
+    allowed?: boolean;
+    deleted?: { workos: boolean };
+    activity?: boolean;
+  } = {},
 ) {
   let pending = options.pending ?? 1;
   let refreshCount = 0;
@@ -124,6 +129,12 @@ function fakeServices(
       hosts.add('hstudioaaaaa');
       return Response.json({ host: { id: 'hstudioaaaaa' } }, { status: 201 });
     }
+    if (options.activity && url.pathname === '/v1/hosts/hstudioaaaaa/live-activity')
+      return Response.json(
+        method === 'GET'
+          ? { bundleIdentifier: 'app.deepseekbot.mobile', source: 'Studio' }
+          : { handle: 'opaque-handle', expiresAt: Date.now() + 60000 },
+      );
     const tunnel = /^\/v1\/hosts\/([^/]+)\/tunnel$/u.exec(url.pathname)?.[1];
     if (tunnel !== undefined) {
       if (!hosts.has(tunnel))
@@ -370,6 +381,40 @@ describe('Connect account deletion', () => {
     expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
     await account.close();
   });
+});
+
+it('exposes ActivityKit only through the signed-in owning Connect Host and clears capability on sign-out', async () => {
+  const services = fakeServices({ pending: 0, activity: true });
+  const { account } = setup(services);
+  try {
+    expect(await account.activity.capability()).toBeUndefined();
+    await account.signIn();
+    await settle(account);
+    expect(await account.activity.capability()).toEqual({
+      bundleIdentifier: 'app.deepseekbot.mobile',
+      source: 'Studio',
+    });
+    expect(
+      (
+        await account.activity.call({
+          operation: 'register',
+          deviceId: 'approved-device',
+          hostId: 'wrong-host',
+          token: 'a'.repeat(64),
+        })
+      ).status,
+    ).toBe(200);
+    expect(services.calls.at(-1)).toMatchObject({
+      path: `${RELAY}/v1/hosts/hstudioaaaaa/live-activity`,
+      auth: expect.stringMatching(/^Bearer /),
+    });
+    await account.signOut();
+    const count = services.calls.length;
+    expect(await account.activity.capability()).toBeUndefined();
+    expect(services.calls).toHaveLength(count);
+  } finally {
+    await account.close();
+  }
 });
 
 describe('connect sign-in CLI', () => {
