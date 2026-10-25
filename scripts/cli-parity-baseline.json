@@ -14,11 +14,8 @@
   "tools": {
     "ask_secret": "Opens a private input card that resumes the calling Bot turn; the ask-secret-* commands cover the Human side.",
     "ask_user_question": "DSH native question card that pauses the calling Agent turn; user-question-status and user-question-answer cover the Human side.",
-    "bot_subagent": "Starts a child DSH Agent from the calling Bot's running Agent; there is no parent Agent outside a Bot turn.",
-    "bot_subagent_fork": "Forks a child DSH Agent from the calling Bot's completed turns; there is no parent Agent outside a Bot turn.",
     "channel_read_image": "Returns the image to the calling model as input; with no model there is nothing to receive it. channel_read and channel_attachment_save cover the file.",
     "create_assignment": "Starts an Assignment owned by the Source Event of the calling Bot turn; reach it through send and inspect it with bot-trace.",
-    "list_bot_subagent_models": "Reads the delegation routes of the calling Agent's Subagent tools and is registered only on a running Agent.",
     "list_subagent_models": "Reads the delegation routes of the calling Agent's Subagent tools and is registered only on a running Agent.",
     "memory_continue_from_commit": "Coordinates the Memory working tree with the running Orchestrator turn; the Human Memory commands cover it (#1693).",
     "memory_switch_branch": "Coordinates the Memory working tree with the running Orchestrator turn; the Human Memory commands cover it (#1693).",

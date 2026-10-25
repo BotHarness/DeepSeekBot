@@ -742,3 +742,7 @@ T4 preserves ADR-0220 Sessions scope: DM Bot-owned Sessions, Group Current chann
 ### SSH access to an existing Host (#2607)
 
 The computer CLI owns a foreground system OpenSSH tunnel; the browser pairs through the existing Device Gateway and retains its device-local Remote Host record. A private Host-pinned offer becomes a version 2 link restricted to the forwarded loopback route. The saved encryption contract marks that loopback route as encrypted; requests and streams never fall back to raw credentials at a reused local port. The existing Host listener and Noise protocol remain unchanged. Disconnect stops only the tunnel, while exact key approval, revocation and all operations remain with their current Host owners. This slice does not provide phone SSH, server bootstrap, Bot server operations or remote desktop. See [ADR-0246](../adr/0246-ssh-tunnels-preserve-paired-host-authority.md). Runtime qualification is tracked in #2607.
+
+### Independent Subagent native composition
+
+Independent `bot_subagent` activations select an allowed explicit preset, the configured child preset, or the live DSH registry's system default, in that order. Forks retain the parent's native composition. This application-defined policy is separate from Model Plan route validation. Direct CLI calls reuse a live Orchestrator's native tool pipeline; absent parents are refused rather than created implicitly. DSH remains the preset and child-lifecycle owner (ADR-0251).

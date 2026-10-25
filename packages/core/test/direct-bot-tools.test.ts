@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import type { Context } from '@deepseek-ai/cordis';
+import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
@@ -39,6 +41,7 @@ function setup() {
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
     orchestratorCwd: () => join(home, 'memory'),
     ensureWorkspace: () => undefined,
+    subagentTools: () => createBotSubagentModelTools({} as Context, () => undefined),
   });
   const runtime = createBotRuntime({
     database: owner,
