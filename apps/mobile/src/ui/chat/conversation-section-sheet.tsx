@@ -15,6 +15,7 @@ import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
 import { createSectionFlow } from './conversation-sections';
+import { ConversationSectionHeader } from './conversation-section-header';
 
 export function ConversationSectionSheet({
   client,
@@ -116,63 +117,37 @@ export function ConversationSectionSheet({
     <View ref={mount} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          headerShown: true,
+          headerShown: Platform.OS !== 'android',
           headerBackVisible: false,
           title: creating ? t.conversationSection.create : t.rowActions.section,
           gestureEnabled: !state.busy,
         }}
       />
-      <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button
-          accessibilityLabel={creating ? t.back : t.close}
-          icon={
-            Platform.OS === 'ios'
-              ? creating
-                ? 'chevron.left'
-                : 'xmark'
-              : creating
-                ? require('../../../assets/toolbar/back.png')
-                : require('../../../assets/toolbar/close.png')
-          }
-          disabled={state.busy}
-          onPress={creating ? returnToList : close}
-        >
-          {creating ? t.back : t.close}
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
-      <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          accessibilityLabel={
-            creating
-              ? state.selected
-                ? t.retry
-                : t.conversationSection.submit
-              : t.conversationSection.create
-          }
-          icon={
-            creating
-              ? Platform.OS === 'android'
-                ? require('../../../assets/toolbar/check.png')
-                : undefined
-              : Platform.OS === 'ios'
-                ? 'plus'
-                : require('../../../assets/toolbar/add.png')
-          }
-          disabled={!current || state.busy || (creating && !state.selected && !name.trim())}
-          variant={creating ? 'done' : 'plain'}
-          onPress={
-            creating
-              ? submit
-              : () => {
-                  flow.reset();
-                  setName('');
-                  setCreating(true);
-                }
-          }
-        >
-          {creating ? (state.selected ? t.retry : t.conversationSection.submit) : undefined}
-        </Stack.Toolbar.Button>
-      </Stack.Toolbar>
+      <ConversationSectionHeader
+        title={creating ? t.conversationSection.create : t.rowActions.section}
+        leading={{
+          label: creating ? t.back : t.close,
+          icon: creating ? 'back' : 'close',
+          disabled: state.busy,
+          onPress: creating ? returnToList : close,
+        }}
+        trailing={{
+          label: creating
+            ? state.selected
+              ? t.retry
+              : t.conversationSection.submit
+            : t.conversationSection.create,
+          icon: creating ? 'check' : 'add',
+          disabled: !current || state.busy || (creating && !state.selected && !name.trim()),
+          onPress: creating
+            ? submit
+            : () => {
+                flow.reset();
+                setName('');
+                setCreating(true);
+              },
+        }}
+      />
       {creating ? (
         <KeyboardFormScroll
           contentInsetAdjustmentBehavior="automatic"

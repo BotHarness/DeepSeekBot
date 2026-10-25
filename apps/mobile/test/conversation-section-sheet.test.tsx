@@ -3,9 +3,21 @@ import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+vi.hoisted(async () => {
+  const { createRequire, Module } = await import('node:module');
+  const requireAsset = createRequire(import.meta.url);
+  for (const name of ['close', 'back', 'add', 'check']) {
+    const path = requireAsset.resolve(`../assets/toolbar/${name}.png`);
+    const asset = new Module(path);
+    asset.exports = 1;
+    requireAsset.cache[path] = asset;
+  }
+});
+
 const { state, client, back } = vi.hoisted(() => ({
   state: {
     hostId: 'h1',
+    platform: 'ios',
     ready: true,
     arrangement: true,
     connection: 'connected',
@@ -17,18 +29,71 @@ const { state, client, back } = vi.hoisted(() => ({
   },
   back: vi.fn(),
 }));
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Platform: {
+    get OS() {
+      return state.platform;
+    },
+  },
+}));
 vi.mock('react-native-keyboard-controller', () => import('./keyboard-controller-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
+vi.mock('../src/ui/chat/conversation-section-header', async () => {
+  const ios = await vi.importActual<typeof import('../src/ui/chat/conversation-section-header')>(
+    '../src/ui/chat/conversation-section-header',
+  );
+  const android = await import('../src/ui/chat/conversation-section-header.android');
+  return {
+    ConversationSectionHeader: (
+      props: import('../src/ui/chat/conversation-section-header').ConversationSectionHeaderProps,
+    ) =>
+      state.platform === 'android' ? (
+        <android.ConversationSectionHeader {...props} />
+      ) : (
+        <ios.ConversationSectionHeader {...props} />
+      ),
+  };
+});
+vi.mock('@expo/ui/jetpack-compose', () => {
+  const pass = ({ children }: { children?: ReactNode }) => children;
+  return {
+    Host: pass,
+    RNHostView: pass,
+    Icon: () => null,
+    TopAppBar: Object.assign(pass, { Title: pass, NavigationIcon: pass, Actions: pass }),
+    IconButton: ({
+      enabled,
+      onClick,
+      modifiers,
+    }: {
+      enabled: boolean;
+      onClick(): void;
+      modifiers: Array<{ label?: string }>;
+    }) => (
+      <button
+        aria-label={modifiers.find((modifier) => modifier.label)?.label}
+        disabled={!enabled}
+        onClick={onClick}
+      />
+    ),
+  };
+});
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+  semantics: ({ contentDescription }: { contentDescription: string }) => ({
+    label: contentDescription,
+  }),
+  defaultMinSize: () => ({}),
+  testID: () => ({}),
+}));
 vi.mock('expo-router', () => {
   const Toolbar = Object.assign(
-    ({ children, placement }: { children: ReactNode; placement: string }) => (
-      <div data-toolbar={placement}>{children}</div>
-    ),
+    ({ children, placement }: { children: ReactNode; placement: string }) =>
+      state.platform === 'android' ? null : <div data-toolbar={placement}>{children}</div>,
     {
       Button: ({
         children,
@@ -100,12 +165,27 @@ afterEach(() => {
   client.refresh.mockResolvedValue();
   back.mockReset();
   state.hostId = 'h1';
+  state.platform = 'ios';
   state.ready = true;
   state.arrangement = true;
   state.connection = 'connected';
   state.sections = [{ id: 's-existing', name: 'Host work', channelIds: [] }];
 });
 describe('native section sheet source behavior', () => {
+  it('keeps Android sheet creation reachable when the native formSheet has no navigation bar', async () => {
+    state.platform = 'android';
+    state.sections = [];
+    await render();
+    await press(t.conversationSection.create);
+    await typeName('Android work');
+    client.call.mockResolvedValueOnce({ section: { id: 's-new', name: 'Android work' } });
+    await press(t.conversationSection.submit);
+    expect(client.call.mock.calls).toEqual([
+      ['sectionCreate', { name: 'Android work' }],
+      ['channelAssign', { channelId: 'dm-ada', sectionId: 's-new' }],
+    ]);
+    expect(back).toHaveBeenCalledOnce();
+  });
   it('keeps Close and New in the native header contract, with section choices in the body', async () => {
     await render();
     expect(view.querySelector('[data-toolbar="left"] button')?.getAttribute('aria-label')).toBe(
@@ -184,26 +264,30 @@ describe('native section sheet source behavior', () => {
     expect(view.textContent).toContain('Host work');
     expect(view.textContent).not.toContain(t.conversationSection.loadFailed);
   });
-  it('shows progress and prevents duplicate submit or dismissal while creating', async () => {
-    let resolve!: (value: unknown) => void;
-    client.call.mockImplementationOnce(
-      () =>
-        new Promise((done) => {
-          resolve = done;
-        }),
-    );
-    await render();
-    await press(t.conversationSection.create);
-    await typeName('Work');
-    await press(t.conversationSection.submit);
-    expect(view.querySelector('[role="progressbar"]')).not.toBeNull();
-    await press(t.conversationSection.submit);
-    await press(t.back);
-    expect(client.call).toHaveBeenCalledOnce();
-    expect(view.querySelector('[data-testid="section-name"]')).not.toBeNull();
-    await act(async () => resolve({ section: { id: 'new', name: 'Work' } }));
-    expect(back).toHaveBeenCalledOnce();
-  });
+  it.each(['ios', 'android'])(
+    'shows progress and prevents duplicate submit or dismissal while creating (%s)',
+    async (platform) => {
+      state.platform = platform;
+      let resolve!: (value: unknown) => void;
+      client.call.mockImplementationOnce(
+        () =>
+          new Promise((done) => {
+            resolve = done;
+          }),
+      );
+      await render();
+      await press(t.conversationSection.create);
+      await typeName('Work');
+      await press(t.conversationSection.submit);
+      expect(view.querySelector('[role="progressbar"]')).not.toBeNull();
+      await press(t.conversationSection.submit);
+      await press(t.back);
+      expect(client.call).toHaveBeenCalledOnce();
+      expect(view.querySelector('[data-testid="section-name"]')).not.toBeNull();
+      await act(async () => resolve({ section: { id: 'new', name: 'Work' } }));
+      expect(back).toHaveBeenCalledOnce();
+    },
+  );
   it('reads Host sections and assigns the chosen section', async () => {
     await render();
     await press('Host work');
@@ -248,16 +332,20 @@ describe('native section sheet source behavior', () => {
     );
     expect(back).not.toHaveBeenCalled();
   });
-  it('hides stale sections and refuses creation after switching Hosts', async () => {
-    await render();
-    state.hostId = 'h2';
-    state.sections = [{ id: 's-other', name: 'Other Host', channelIds: [] }];
-    await act(async () => root.render(<Screen />));
-    expect(view.textContent).not.toContain('Other Host');
-    expect(view.textContent).not.toContain('Host work');
-    expect(view.textContent).toContain(t.conversationSection.changed);
-    await press(t.conversationSection.create);
-    expect(view.querySelector('[data-testid="section-name"]')).toBeNull();
-    expect(client.call).not.toHaveBeenCalled();
-  });
+  it.each(['ios', 'android'])(
+    'hides stale sections and refuses creation after switching Hosts (%s)',
+    async (platform) => {
+      state.platform = platform;
+      await render();
+      state.hostId = 'h2';
+      state.sections = [{ id: 's-other', name: 'Other Host', channelIds: [] }];
+      await act(async () => root.render(<Screen />));
+      expect(view.textContent).not.toContain('Other Host');
+      expect(view.textContent).not.toContain('Host work');
+      expect(view.textContent).toContain(t.conversationSection.changed);
+      await press(t.conversationSection.create);
+      expect(view.querySelector('[data-testid="section-name"]')).toBeNull();
+      expect(client.call).not.toHaveBeenCalled();
+    },
+  );
 });
