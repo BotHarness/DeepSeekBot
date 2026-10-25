@@ -7,7 +7,10 @@ draft and the send action stay in React Native, and the view only reports
 
 - **iOS and iPadOS:** the view adds a `UIKeyCommand` for ⌘↩. UIKit collects key
   commands along the responder chain, so it applies only while the field inside
-  is first responder. The command title appears in the ⌘-hold shortcut overlay.
+  is first responder. The command is offered and its action is accepted only when
+  a text input inside the view remains first responder and has no marked text.
+  This also rejects a cached action after composition starts or focus leaves the
+  composer. The command title appears in the ⌘-hold shortcut overlay.
 - **Android:** the view intercepts `dispatchKeyEvent` before the focused
   `EditText`. Enter sends when `enter` is set, Shift+Enter always adds a line,
   and Ctrl+Enter or Meta+Enter always sends. Key events flagged as coming from
@@ -45,11 +48,12 @@ bash apps/mobile/android/gradlew -p apps/mobile/android :hardware-send:testDebug
 `ios/Tests/HardwareSendViewTests.swift` drives a real `UITextView` in a window,
 then dispatches the view's `UIKeyCommand` and observes Expo's `onSend` event.
 It includes an ordinary-send positive control, marked text with a cached command,
-and a cached command after focus leaves the composer. These tests are prepared
-for the reserved Mac QA batch; their Swift compilation and execution remain
-unverified. The iOS production implementation has not yet changed.
+and a cached command after focus leaves the composer. The opt-in CocoaPods
+`HardwareSend/TestHost` app specification supplies an independent scene-based
+UIKit host; the fixture attaches its window to that host's real connected scene.
+It does not build or launch the full app.
 
-The normal app excludes `Tests/**/*`. Only the task-specific, non-public
+The normal app excludes `Tests/**/*` and `TestHost/**/*`. Only the task-specific, non-public
 `BOTHARNESS_HARDWARE_SEND_IOS_TESTS=1` environment flag enables the local config
 plugin. During CNG it declares the `HardwareSend/Tests` test specification before
 Expo autolinking, without changing app identity, signing or permissions. The
@@ -70,7 +74,8 @@ selects an installed iOS 27 phone simulator, runs the ordinary-send positive
 control, then runs the two cached-command regressions without rebuilding. It uses
 the independent CocoaPods test host and no signing/account credentials. Only
 synthetic test logs, result bundles and scheme/simulator metadata are retained for
-seven days; no app Profile, full DerivedData or Pods folder is uploaded. Until the
-job actually compiles and executes successfully, the test target remains
-unqualified. This cloud UIKit regression is separate from physical keyboard/IME
-and Human acceptance.
+seven days; no app Profile, full DerivedData or Pods folder is uploaded. Each
+successful phase must also report exactly its expected test methods and passing
+counts; missing, skipped, empty or crash-placeholder results fail verification.
+A UIKit `markedTextRange` regression is separate from actual CJK candidate input,
+physical keyboards and Human acceptance.

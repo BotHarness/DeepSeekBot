@@ -220,6 +220,9 @@ jobs:
             -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 -jobs 2 \
             -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testOrdinaryCommandReturnSendsThroughTheResponderChain \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/hardware-send-ios/positive.log"
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/hardware-send-ios/positive.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/positive-summary.json"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/hardware-send-ios/positive.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/positive-tests.json"
+          node apps/mobile/scripts/check-hardware-send-ios-results.mjs positive "$RUNNER_TEMP/hardware-send-ios/positive-summary.json" "$RUNNER_TEMP/hardware-send-ios/positive-tests.json"
       - name: Exercise marked text and stale command actions
         env:
           SIMULATOR_ID: ${{ steps.simulator.outputs.id }}
@@ -234,6 +237,9 @@ jobs:
             -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testCachedCommandDoesNotSendMarkedTextAndNextCommandStillWorks \
             -only-testing:HardwareSend-Unit-Tests/HardwareSendViewTests/testCachedCommandCannotSendAfterFocusLeavesTheComposer \
             CODE_SIGNING_ALLOWED=NO 2>&1 | tee "$RUNNER_TEMP/hardware-send-ios/regressions.log"
+          xcrun xcresulttool get test-results summary --path "$RUNNER_TEMP/hardware-send-ios/regressions.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/regressions-summary.json"
+          xcrun xcresulttool get test-results tests --path "$RUNNER_TEMP/hardware-send-ios/regressions.xcresult" --compact > "$RUNNER_TEMP/hardware-send-ios/regressions-tests.json"
+          node apps/mobile/scripts/check-hardware-send-ios-results.mjs regressions "$RUNNER_TEMP/hardware-send-ios/regressions-summary.json" "$RUNNER_TEMP/hardware-send-ios/regressions-tests.json"
       - name: Retain only synthetic HardwareSend test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -244,6 +250,8 @@ jobs:
             ${{ runner.temp }}/hardware-send-ios/regressions.log
             ${{ runner.temp }}/hardware-send-ios/positive.xcresult
             ${{ runner.temp }}/hardware-send-ios/regressions.xcresult
+            ${{ runner.temp }}/hardware-send-ios/*-summary.json
+            ${{ runner.temp }}/hardware-send-ios/*-tests.json
             ${{ runner.temp }}/hardware-send-ios/schemes.json
             ${{ runner.temp }}/hardware-send-ios/simulator.json
           if-no-files-found: ignore
