@@ -229,7 +229,18 @@ export async function ensureMacVideoHelper(options: {
             : stage === 'verify'
               ? 'Mac video runtime verification failed. Start Local Computer again to download a verified copy.'
               : 'Mac video runtime installation failed. Check available disk space and folder permissions, then start Local Computer again.';
-    throw new LocalVideoError('helper-missing', message);
+    throw Object.assign(new LocalVideoError('helper-missing', message), {
+      setupCode:
+        reason === 'ENOSPC'
+          ? 'disk-full'
+          : reason === 'EACCES' || reason === 'EPERM'
+            ? 'runtime-write-refused'
+            : stage === 'download'
+              ? 'download-failed'
+              : stage === 'verify'
+                ? 'verification-failed'
+                : 'installation-failed',
+    });
   } finally {
     const cleanup = async (path: string, target: 'staging' | 'previous'): Promise<void> => {
       try {

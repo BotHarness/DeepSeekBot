@@ -1668,6 +1668,19 @@ window.__ModuleLoader__.load({
 		//#region packages/computer/src/client/locale.ts
 		const LOCALE_NS = "botharness-computer";
 		const zh = {
+			"local.error.permissions": "请在 macOS 系统设置中允许所需权限。",
+			"local.error.disk": "磁盘空间不足。请释放空间后重新检查。",
+			"local.error.write": "无法写入桌面组件。请检查安装目录权限后重试。",
+			"local.error.download": "桌面组件下载失败。请检查网络后重试。",
+			"local.error.verify": "桌面组件校验失败。请重新检查以下载安装。",
+			"local.error.install": "桌面组件安装失败。请检查磁盘空间和目录权限后重试。",
+			"local.error.settings": "无法打开系统设置。请手动打开“隐私与安全性”。",
+			"local.error.target": "操作目标已变更。请确认当前目标后重试。",
+			"local.error.request": "无法连接电脑服务。请检查 DSH 是否运行后重试。",
+			"local.error.setup": "电脑检查失败。请重试；若仍失败，请查看诊断日志。",
+			"local.open.accessibility": "打开辅助功能设置",
+			"local.open.screen": "打开屏幕录制设置",
+			"local.permissions.help": "允许运行 DSH 的应用访问这些权限，然后完全退出并重新打开该应用，再检查一次。",
 			"rows.target.title": "操作目标",
 			"rows.target.description": "本 Profile 的所有 Bot 共用一个目标；切换后需要重新授权操作。",
 			"rows.target.local": "本机 Computer",
@@ -1782,6 +1795,19 @@ window.__ModuleLoader__.load({
 			"rows.pickerFallback": "目录选择器不可用；可手动输入路径，或继续使用当前目录：{dir}"
 		};
 		const en = {
+			"local.error.permissions": "Allow the required permissions in macOS System Settings.",
+			"local.error.disk": "Not enough disk space. Free some space and check again.",
+			"local.error.write": "Could not write the desktop helper. Check folder permissions and retry.",
+			"local.error.download": "Could not download the desktop helper. Check your connection and retry.",
+			"local.error.verify": "Desktop helper verification failed. Check again to reinstall it.",
+			"local.error.install": "Could not install the desktop helper. Check disk space and folder permissions, then retry.",
+			"local.error.settings": "Could not open System Settings. Open Privacy & Security manually.",
+			"local.error.target": "The Computer target changed. Check the selected target and retry.",
+			"local.error.request": "Could not reach the computer service. Check that DSH is running and retry.",
+			"local.error.setup": "Computer setup failed. Retry; if it still fails, check the diagnostic logs.",
+			"local.open.accessibility": "Open Accessibility settings",
+			"local.open.screen": "Open Screen Recording settings",
+			"local.permissions.help": "Allow these permissions for the app running DSH, fully quit and reopen that app, then check again.",
 			"rows.target.title": "Computer Target",
 			"rows.target.description": "All Bots in this Profile share one target. Switching requires new action authorization.",
 			"rows.target.local": "Local Computer",
@@ -2335,6 +2361,22 @@ window.__ModuleLoader__.load({
 			});
 		}
 		//#endregion
+		//#region packages/computer/src/client/local-setup-copy.ts
+		function localSetupFailure(code, t) {
+			switch (code) {
+				case "permissions-required": return t("local.error.permissions");
+				case "disk-full": return t("local.error.disk");
+				case "runtime-write-refused": return t("local.error.write");
+				case "download-failed": return t("local.error.download");
+				case "verification-failed": return t("local.error.verify");
+				case "installation-failed": return t("local.error.install");
+				case "settings-open-failed": return t("local.error.settings");
+				case "target-changed": return t("local.error.target");
+				case "request-failed": return t("local.error.request");
+				default: return t("local.error.setup");
+			}
+		}
+		//#endregion
 		//#region packages/client/src/client/missing-packages.tsx
 		function formatProgressMiB(bytes) {
 			return `${(bytes / 1048576).toFixed(1)} MB`;
@@ -2402,11 +2444,11 @@ window.__ModuleLoader__.load({
 					credentials: "same-origin",
 					...signal === void 0 ? {} : { signal }
 				});
-				if (!response.ok) throw new Error(`Computer status: HTTP ${String(response.status)}`);
+				if (!response.ok) throw new Error("request-failed");
 				const next = await response.json();
 				if (!signal?.aborted) {
 					setPayload(next);
-					setError(void 0);
+					setError((old) => old === "request-failed" ? void 0 : old);
 				}
 			}, []);
 			const resource = useMountedResource(() => {
@@ -2417,8 +2459,8 @@ window.__ModuleLoader__.load({
 					pending = true;
 					try {
 						await refresh(AbortSignal.any([controller.signal, AbortSignal.timeout(1e4)]));
-					} catch (error) {
-						if (!controller.signal.aborted) setError(String(error));
+					} catch {
+						if (!controller.signal.aborted) setError("request-failed");
 					} finally {
 						pending = false;
 					}
@@ -2433,7 +2475,8 @@ window.__ModuleLoader__.load({
 			const installing = payload?.install?.state === "installing";
 			const preparing = busy || installing || payload?.status?.phase === "starting";
 			const missing = payload?.status?.missing;
-			const failure = error ?? (payload?.install?.state === "failed" ? payload.install.text : void 0) ?? (missing === void 0 ? payload?.status?.detail : void 0) ?? payload?.probe?.detail;
+			const failure = (error ?? (payload?.install?.state === "failed" ? payload.install.text : void 0) ?? (missing === void 0 ? payload?.status?.detail : void 0) ?? payload?.probe?.detail) === void 0 ? void 0 : localSetupFailure(error ?? payload?.status?.refusal, t);
+			const permissions = payload?.status?.refusal === "permissions-required" ? payload.status.permissions : void 0;
 			const post = (path, body) => {
 				setBusy(true);
 				setError(void 0);
@@ -2443,9 +2486,13 @@ window.__ModuleLoader__.load({
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify(body)
 				}).then(async (response) => {
-					if (!response.ok) throw new Error(await response.text());
+					if (!response.ok) {
+						const refused = await response.json().catch(() => ({}));
+						setError(refused.code ?? "request-failed");
+						return;
+					}
 					await refresh();
-				}).catch((error) => setError(String(error))).finally(() => setBusy(false));
+				}).catch(() => setError("request-failed")).finally(() => setBusy(false));
 			};
 			const check = () => post("./api/computer/start", {
 				authorize: true,
@@ -2483,14 +2530,40 @@ window.__ModuleLoader__.load({
 					copied: t("local.copied")
 				},
 				children: checkButton
-			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [payload?.status?.phase === "starting" && (download?.totalBytes ?? 0) > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProgressLine, {
-				percent: download?.percent ?? 0,
-				label: t("local.downloading", {
-					percent: String(download?.percent ?? 0),
-					downloaded: formatProgressMiB(download?.downloadedBytes ?? 0),
-					total: formatProgressMiB(download?.totalBytes ?? 0)
-				})
-			}) : null, checkButton] });
+			}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+				payload?.status?.phase === "starting" && (download?.totalBytes ?? 0) > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ProgressLine, {
+					percent: download?.percent ?? 0,
+					label: t("local.downloading", {
+						percent: String(download?.percent ?? 0),
+						downloaded: formatProgressMiB(download?.downloadedBytes ?? 0),
+						total: formatProgressMiB(download?.totalBytes ?? 0)
+					})
+				}) : null,
+				permissions ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+					!permissions.accessibility ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						size: "sm",
+						variant: "outline",
+						disabled: preparing,
+						onClick: () => post("./api/computer/open-permission-settings", {
+							authorize: true,
+							permission: "accessibility"
+						}),
+						children: t("local.open.accessibility")
+					}) : null,
+					!permissions.screenRecording ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(_deepseek_ai_dsh_client_ui_primitives.Button, {
+						size: "sm",
+						variant: "outline",
+						disabled: preparing,
+						onClick: () => post("./api/computer/open-permission-settings", {
+							authorize: true,
+							permission: "screen-recording"
+						}),
+						children: t("local.open.screen")
+					}) : null,
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Note, { children: t("local.permissions.help") })
+				] }) : null,
+				checkButton
+			] });
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				ref: resource,
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SidebarCardList, {

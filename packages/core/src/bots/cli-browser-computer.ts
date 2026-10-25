@@ -10,6 +10,7 @@ import type { connectLiveHost } from './cli-live.js';
 type LiveHost = Awaited<ReturnType<typeof connectLiveHost>>;
 
 export const BROWSER_COMPUTER_OPTIONS = {
+  permission: { type: 'string' },
   tab: { type: 'string' },
   profile: { type: 'string' },
   package: { type: 'string', multiple: true },
@@ -23,6 +24,11 @@ export const BROWSER_COMPUTER_OPTIONS = {
 } as const;
 
 export const BROWSER_COMPUTER_COMMANDS = [
+  {
+    command: 'computer-open-permission-settings',
+    description:
+      'open a macOS privacy pane on the Host (--permission accessibility|screen-recording, --confirm)',
+  },
   {
     command: 'browser-observation',
     description: "read a Bot's Browser state, tabs and current picture (--out saves the picture)",
@@ -85,6 +91,7 @@ export const BROWSER_COMPUTER_COMMANDS = [
 ] as const;
 
 export interface BrowserComputerValues {
+  permission?: string;
   tab?: string;
   profile?: string;
   package?: string[];
@@ -112,6 +119,7 @@ const BOT_COMMANDS: readonly Command[] = [
 ];
 const FILE_COMMANDS: readonly Command[] = ['computer-upload', 'computer-import'];
 const CONFIRMED: readonly Command[] = [
+  'computer-open-permission-settings',
   'browser-install-packages',
   'computer-install-packages',
   'computer-import',
@@ -223,11 +231,18 @@ export async function runBrowserComputerCommand(
           : `${command} needs exactly one bot id.`,
     );
   const target = rest[0]?.trim() ?? '';
+  if (
+    command === 'computer-open-permission-settings' &&
+    !['accessibility', 'screen-recording'].includes(values.permission ?? '')
+  )
+    usage('--permission must be accessibility or screen-recording.');
   if (CONFIRMED.includes(command) && values.confirm !== true)
     usage(
-      command === 'computer-import'
-        ? 'computer-import replaces Container Computer data with the archive. Pass --confirm.'
-        : `${command} installs system packages on the Host. Pass --confirm.`,
+      command === 'computer-open-permission-settings'
+        ? 'Opening the Host system settings requires --confirm.'
+        : command === 'computer-import'
+          ? 'computer-import replaces Container Computer data with the archive. Pass --confirm.'
+          : `${command} installs system packages on the Host. Pass --confirm.`,
     );
   if (values.out !== undefined && !absolute(values.out))
     usage('--out must be an absolute file path.');
@@ -392,6 +407,11 @@ export async function runBrowserComputerCommand(
     }
     case 'computer-import':
       return json('/api/computer/import', { authorize: true, file: target });
+    case 'computer-open-permission-settings':
+      return json('/api/computer/open-permission-settings', {
+        authorize: true,
+        permission: values.permission,
+      });
     case 'computer-open-dir':
       return json('/api/computer/open-dir', {
         authorize: true,

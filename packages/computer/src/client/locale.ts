@@ -3,6 +3,21 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness-computer';
 
 export const zh = {
+  'local.error.permissions': '请在 macOS 系统设置中允许所需权限。',
+  'local.error.disk': '磁盘空间不足。请释放空间后重新检查。',
+  'local.error.write': '无法写入桌面组件。请检查安装目录权限后重试。',
+  'local.error.download': '桌面组件下载失败。请检查网络后重试。',
+  'local.error.verify': '桌面组件校验失败。请重新检查以下载安装。',
+  'local.error.install': '桌面组件安装失败。请检查磁盘空间和目录权限后重试。',
+  'local.error.settings': '无法打开系统设置。请手动打开“隐私与安全性”。',
+  'local.error.target': '操作目标已变更。请确认当前目标后重试。',
+  'local.error.request': '无法连接电脑服务。请检查 DSH 是否运行后重试。',
+  'local.error.setup': '电脑检查失败。请重试；若仍失败，请查看诊断日志。',
+  'local.open.accessibility': '打开辅助功能设置',
+  'local.open.screen': '打开屏幕录制设置',
+  'local.permissions.help':
+    '允许运行 DSH 的应用访问这些权限，然后完全退出并重新打开该应用，再检查一次。',
+
   'rows.target.title': '操作目标',
   'rows.target.description': '本 Profile 的所有 Bot 共用一个目标；切换后需要重新授权操作。',
   'rows.target.local': '本机 Computer',
@@ -124,6 +139,24 @@ export const zh = {
 } as const;
 
 export const en: Record<keyof typeof zh, string> = {
+  'local.error.permissions': 'Allow the required permissions in macOS System Settings.',
+  'local.error.disk': 'Not enough disk space. Free some space and check again.',
+  'local.error.write': 'Could not write the desktop helper. Check folder permissions and retry.',
+  'local.error.download': 'Could not download the desktop helper. Check your connection and retry.',
+  'local.error.verify': 'Desktop helper verification failed. Check again to reinstall it.',
+  'local.error.install':
+    'Could not install the desktop helper. Check disk space and folder permissions, then retry.',
+  'local.error.settings': 'Could not open System Settings. Open Privacy & Security manually.',
+  'local.error.target': 'The Computer target changed. Check the selected target and retry.',
+  'local.error.request':
+    'Could not reach the computer service. Check that DSH is running and retry.',
+  'local.error.setup':
+    'Computer setup failed. Retry; if it still fails, check the diagnostic logs.',
+  'local.open.accessibility': 'Open Accessibility settings',
+  'local.open.screen': 'Open Screen Recording settings',
+  'local.permissions.help':
+    'Allow these permissions for the app running DSH, fully quit and reopen that app, then check again.',
+
   'rows.target.title': 'Computer Target',
   'rows.target.description':
     'All Bots in this Profile share one target. Switching requires new action authorization.',
