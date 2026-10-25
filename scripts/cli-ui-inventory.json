@@ -110,7 +110,15 @@
         "route:packages/core/src/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
         "setting:packages/client/src/client/profile-backup.tsx:{t('backup.title')}"
       ],
-      "issue": "#2099"
+      "commands": [
+        "profile-backup-preview",
+        "profile-backup-export",
+        "profile-backup-inspect",
+        "profile-backup-restore",
+        "profile-backup-recovery",
+        "profile-backup-authorize",
+        "profile-backup-activate"
+      ]
     },
     {
       "id": "browser-pairing",

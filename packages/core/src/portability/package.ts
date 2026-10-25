@@ -57,14 +57,12 @@ import {
 } from './files.js';
 export const PROFILE_BACKUP_LIMITS = { maxEntries: 60_000, maxTotalBytes: 512 * 1024 * 1024 };
 const hash = z.string().regex(/^[0-9a-f]{64}$/u);
-const manifestSchema = z
+const manifestContents = z
   .object({
     format: z.literal('botharness-backup'),
-    version: z.literal(1),
     id: z.uuid(),
     createdAt: z.iso.datetime(),
     schemaGeneration: z.number().int().min(70),
-    producer: z.object({ botharness: z.string().max(100), dsh: z.literal('0.2.0-rc.1') }).strict(),
     sessions: z
       .object({
         status: z.literal('unsupported'),
@@ -90,7 +88,7 @@ const manifestSchema = z
       .array(
         z
           .object({
-            kind: z.enum(['model', 'provider', 'workspace', 'runtime']),
+            kind: z.string().min(1).max(100),
             scope: z.string().max(200),
             reference: z.string().max(2000),
             required: z.boolean(),
@@ -116,7 +114,58 @@ const manifestSchema = z
       .strict(),
   })
   .strict();
+const versionEvidence = z.string().trim().min(1).max(100);
+const manifestSchema = z.discriminatedUnion('version', [
+  manifestContents.extend({
+    version: z.literal(1),
+    producer: z.object({ botharness: versionEvidence, dsh: versionEvidence }).strict(),
+  }),
+  manifestContents.extend({
+    version: z.literal(2),
+    producer: z
+      .object({
+        botharness: versionEvidence,
+        dsh: versionEvidence.nullable(),
+        dshTools: versionEvidence.nullable(),
+      })
+      .strict(),
+  }),
+]);
 export type ProfileBackupManifest = z.infer<typeof manifestSchema>;
+
+function validateDependencyContracts(manifest: ProfileBackupManifest): void {
+  const contracts = {
+    runtime: 'botharness-core/1',
+    model: 'model-route/1',
+    provider: 'messaging-binding/1',
+    workspace: 'workspace-grant/1',
+  };
+  const core = manifest.dependencies.filter(
+    (item) => item.kind === 'runtime' && item.scope === 'core',
+  );
+  if (core.length !== 1 || core[0]?.required !== true)
+    throw new ProfileBackupError(
+      'dependency-incompatible',
+      'Backup must retain the required core data contract',
+    );
+  for (const dependency of manifest.dependencies) {
+    if (!dependency.required) continue;
+    const referenceSupported =
+      dependency.kind !== 'runtime' ||
+      (manifest.version === 1
+        ? /^dsh@\S+$/u.test(dependency.reference)
+        : dependency.reference === 'botharness-core');
+    if (
+      !Object.hasOwn(contracts, dependency.kind) ||
+      dependency.contract !== contracts[dependency.kind as keyof typeof contracts] ||
+      !referenceSupported
+    )
+      throw new ProfileBackupError(
+        'dependency-incompatible',
+        'Upgrade Tobs to read the required backup data contract',
+      );
+  }
+}
 
 export interface ProfileBackupSource {
   database: OperationalDatabaseOwner;
@@ -125,7 +174,7 @@ export interface ProfileBackupSource {
   attachments: AttachmentStore;
   purge: ContentPurge;
   version: string;
-  dshVersion: string | undefined;
+  runtimeVersions(): Promise<{ host: string | null; tools: string | null }>;
   sessionCount(): number;
   log?(message: string): void;
 }
@@ -142,25 +191,22 @@ export function inspectProfileBackup(archive: Buffer): {
     const metadata = entries.find((entry) => entry.path === 'manifest.json');
     if (!metadata || metadata.data.length > 8 * 1024 * 1024)
       throw new Error('Manifest missing or too large');
-    const manifest = manifestSchema.parse(JSON.parse(metadata.data.toString('utf8')));
+    const input: unknown = JSON.parse(metadata.data.toString('utf8'));
+    const envelope = z
+      .object({
+        format: z.literal('botharness-backup'),
+        version: z.number().int().positive(),
+      })
+      .parse(input);
+    if (envelope.version > 2)
+      throw new ProfileBackupError(
+        'format-upgrade-required',
+        'Upgrade Tobs to read this backup format',
+      );
+    const manifest = manifestSchema.parse(input);
     if (manifest.schemaGeneration > BOT_HARNESS_SCHEMA_PLAN.targetGeneration)
       throw new ProfileBackupError('upgrade-required', 'Backup requires a newer BotHarness schema');
-    const contracts = {
-      runtime: 'botharness-core/1',
-      model: 'model-route/1',
-      provider: 'messaging-binding/1',
-      workspace: 'workspace-grant/1',
-    };
-    for (const dependency of manifest.dependencies)
-      if (
-        dependency.required &&
-        (dependency.contract !== contracts[dependency.kind] ||
-          (dependency.kind === 'runtime' && dependency.reference !== 'dsh@0.2.0-rc.1'))
-      )
-        throw new ProfileBackupError(
-          'dependency-incompatible',
-          'Backup requires an unsupported runtime dependency contract',
-        );
+    validateDependencyContracts(manifest);
     const names = new Set<string>();
     let bytes = 0;
     for (const file of manifest.files) {
@@ -225,10 +271,10 @@ export function inspectProfileBackup(archive: Buffer): {
 }
 
 export function profileBackupPreview(source: ProfileBackupSource) {
-  if (source.dshVersion !== '0.2.0-rc.1')
+  if (source.database.mode !== 'ready')
     throw new ProfileBackupError(
-      'dependency-incompatible',
-      'Profile Backup requires the verified DSH 0.2.0-rc.1 runtime',
+      'source-unavailable',
+      'The Profile database is unavailable; resolve its recovery state before exporting',
     );
   const memories = profileMemoryFiles(source.registry, source.deletions);
   const memoryFiles = memories.flatMap((repo) => repo.files);
@@ -309,6 +355,7 @@ export async function exportProfileBackup(
   if (lstatSync(destination, { throwIfNoEntry: false }))
     throw new ProfileBackupError('destination-exists', 'Choose a new backup filename');
   options.signal?.throwIfAborted();
+  const runtime = await source.runtimeVersions();
   const preview = profileBackupPreview(source);
   space(parent, preview.estimatedBytes * 3, options.availableBytes);
   const stage = mkdtempSync(join(parent, '.botharness-backup-'));
@@ -399,7 +446,7 @@ export async function exportProfileBackup(
           {
             kind: 'runtime',
             scope: 'core',
-            reference: 'dsh@0.2.0-rc.1',
+            reference: 'botharness-core',
             required: true,
             contract: 'botharness-core/1',
           },
@@ -446,11 +493,15 @@ export async function exportProfileBackup(
         }
         return manifestSchema.parse({
           format: 'botharness-backup',
-          version: 1,
+          version: 2,
           id,
           createdAt: new Date().toISOString(),
           schemaGeneration: source.database.generation,
-          producer: { botharness: source.version, dsh: '0.2.0-rc.1' },
+          producer: {
+            botharness: source.version,
+            dsh: runtime.host,
+            dshTools: runtime.tools,
+          },
           sessions: {
             status: 'unsupported',
             count: source.sessionCount(),

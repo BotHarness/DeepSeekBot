@@ -243,8 +243,7 @@ export const zh = {
   'backup.inspected': '文件验证通过：{bots} 个 Bot · {files} 个文件 · 最终大小 {bytes} 字节。',
   'backup.restoreCommand':
     '使用已安装可信版本的本地恢复命令，替换为所选备份文件和一个尚不存在的新目录：',
-  'backup.launch':
-    '以新目录作为 DSH_HOME 启动可信 DSH 0.2.0-rc.1 与 BotHarness，再回到此 Settings 查看历史和恢复准备度。开发 checkout 可用 scripts/profile-restore.mjs 与 scripts/dev-instance.mjs。',
+  'backup.launch': '用兼容的可信 Tobs 安装启动新环境，再回到这里查看历史和恢复准备度。',
   'backup.restorePosture':
     '默认灾难恢复：账号绑定、触发器、Service Grants、Workspace 与持久工具授权均挂起，Browser／Computer 访问关闭。旧 Session／Outbox 不重放；目录映射与外部账号须另行明确授权。',
   'backup.integrity': '文件 SHA-256（完整性，不证明来源）',
@@ -265,7 +264,13 @@ export const zh = {
   'backup.activate': '激活此 Bot',
   'backup.working': '正在验证环境数据…',
   'backup.cancel': '取消',
-  'backup.error': '操作未完成（{code}）。原环境与已有备份保留；修复后重新预览。',
+  'backup.error': '操作未完成，请重试。原环境与已有备份未被替换。',
+  'backup.error.upgrade': '此备份需要更新版本的 Tobs，请升级后重试。',
+  'backup.error.invalid': '备份文件校验失败，请重新选择完整文件。',
+  'backup.error.source': '当前环境的数据不可用，请修复环境后重新导出。',
+  'backup.error.stale': '环境已变化，请重新预览后下载。',
+  'backup.error.space': '磁盘空间不足，请腾出空间后重试。',
+  'backup.error.large': '数据超出备份大小限制，请查看备份说明。',
   'purge.history': '已结束会话的历史',
   'purge.historyHint':
     '删除会话会结束本地参与并保留历史。内容清除须另行预览、确认；隐藏会话仍可恢复。',
@@ -4512,7 +4517,7 @@ export const en = {
   'backup.restoreCommand':
     'Use the trusted installed local restore command, substituting the selected backup and a new directory that does not exist:',
   'backup.launch':
-    'Launch trusted DSH 0.2.0-rc.1 and BotHarness with the new directory as DSH_HOME, then return to these Settings for history and readiness. Development checkouts can use scripts/profile-restore.mjs and scripts/dev-instance.mjs.',
+    'Start the new environment with a compatible trusted Tobs installation, then return here to review history and readiness.',
   'backup.restorePosture':
     'Disaster Restore suspends account bindings, triggers, Service Grants, Workspaces and saved tool approvals; Browser/Computer access is off. Old Sessions/Outbox never replay. Map directories and authorize external accounts explicitly.',
   'backup.integrity': 'File SHA-256 (integrity, not source authenticity)',
@@ -4535,7 +4540,15 @@ export const en = {
   'backup.working': 'Verifying environment data…',
   'backup.cancel': 'Cancel',
   'backup.error':
-    'Operation did not complete ({code}). Original data and existing backups are retained; repair and preview again.',
+    'Could not complete the operation. Try again; your environment and existing backups were not replaced.',
+  'backup.error.upgrade': 'This backup needs a newer version of Tobs. Update and try again.',
+  'backup.error.invalid':
+    'Backup verification failed. Select a complete backup file and try again.',
+  'backup.error.source':
+    'This environment’s data is unavailable. Repair the environment before exporting.',
+  'backup.error.stale': 'The environment changed. Preview again before downloading.',
+  'backup.error.space': 'Not enough disk space. Free some space and try again.',
+  'backup.error.large': 'The data exceeds the backup size limit. Check the backup guide.',
   'purge.history': 'Ended Channel history',
   'purge.historyHint':
     'Deleting a Channel ends local participation and retains history. Content Purge requires a separate preview and confirmation; hidden Channels remain reversible.',

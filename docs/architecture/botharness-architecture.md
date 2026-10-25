@@ -1309,3 +1309,7 @@ Under ADR-0245, `scroll-motion` travels through the existing Local Computer vide
 独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用复用存活 Orchestrator 的原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。
 
 后台 Subagent 的原生回报在 prompt assembly 前进入现有 BotRuntime 队列，以实际 Adapter 工具上下文就绪为准恢复父 Agent；与普通用户输入竞争时共用已准备的回合，清理间隙则等待。新回合不继承上一条用户消息的 Source Event 或 Channel，消息仍由模型按需显式发送。CLI direct 调用单独标记，停止与追加只选择真实 Orchestrator 回合（ADR-0252）。
+
+### Profile Backup compatibility (ADR-0253)
+
+Profile Backup owns archive interpretation behind the existing preview/export/inspect/Managed Restore interface. Historical v1 archives remain readable. New v2 archives record the running Host and plugin-resolved DSH tools versions separately, with explicit unknown values; release labels are provenance, not data compatibility gates. Format version, Schema Generation and Host-owned Dependency Contracts govern readability. The operational database owner performs staged migrations; Activation Readiness separately gates execution. A required core contract cannot be removed or downgraded by the archive. Web and CLI adapters preserve refusal reasons and the UI displays each failure beside its operation. See [ADR-0253](../adr/0253-profile-backup-compatibility-is-owned-by-the-data-contract.md).

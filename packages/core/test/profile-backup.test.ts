@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import {
   existsSync,
   mkdirSync,
@@ -22,6 +25,7 @@ import {
 import {
   exportProfileBackup,
   inspectProfileBackup,
+  profileBackupPreview,
   restoreProfileBackup,
   type ProfileBackupSource,
 } from '../src/portability/package.js';
@@ -65,10 +69,264 @@ function source(core: BotHarnessCore): ProfileBackupSource {
     attachments: core.attachments,
     purge: core.contentPurge,
     version: 'test',
-    dshVersion: '0.2.0-rc.1',
+    runtimeVersions: async () => ({ host: '0.2.0-rc.1', tools: '0.2.0-rc.1' }),
     sessionCount: () => core.ownership.list().length,
   };
 }
+
+it('runs online preview, download and inspection through the CLI and the same Profile Backup owner', async () => {
+  const core = mount();
+  const handler = createProfileBackupHttp(source(core), root(), core.profileRecovery, catalog);
+  const server = createServer(async (request, response) => {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    if (url.pathname === '/') {
+      if (url.searchParams.get('token') !== 'synthetic-private-token') {
+        response.writeHead(401).end();
+        return;
+      }
+      response.setHeader('set-cookie', 'authority=synthetic; HttpOnly');
+      response.writeHead(302, { location: '/' }).end();
+      return;
+    }
+    if (request.headers.cookie !== 'authority=synthetic') {
+      response.writeHead(401).end();
+      return;
+    }
+    const chunks: Buffer[] = [];
+    for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const reply = await handler(
+      new Request(url, {
+        method: request.method ?? 'GET',
+        ...(request.method === 'POST' ? { body: new Uint8Array(Buffer.concat(chunks)) } : {}),
+      }),
+    );
+    response.writeHead(reply.status, Object.fromEntries(reply.headers));
+    response.end(Buffer.from(await reply.arrayBuffer()));
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Missing test listener');
+    const invoke = async (args: string[], stdin = '') => {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const code = await runBotCreateCli(args, {
+        env: {
+          DEEPSEEKBOT_HOST: `http://127.0.0.1:${address.port}`,
+          DEEPSEEKBOT_HOST_TOKEN: 'synthetic-private-token',
+        },
+        stdout: (value) => stdout.push(value),
+        stderr: (value) => stderr.push(value),
+        readStdin: async () => stdin,
+      });
+      if (code === 0) expect(stderr).toEqual([]);
+      expect(stdout).toHaveLength(1);
+      expect(stdout[0]).not.toContain('synthetic-private-token');
+      return { code, value: JSON.parse(stdout[0]!) };
+    };
+    const preview = await invoke(['profile-backup-preview']);
+    for (const args of [
+      ['profile-backup-restore'],
+      ['profile-backup-authorize', 'keeper'],
+      ['profile-backup-activate', 'keeper', '--confirm'],
+      ['profile-backup-export'],
+    ]) {
+      const refused = await invoke(args);
+      expect(refused.code).not.toBe(0);
+      expect(refused.value).toMatchObject({ error: { code: 'usage' } });
+    }
+    expect((await invoke(['profile-backup-recovery'])).value).toMatchObject({ restored: false });
+    expect(preview.code).toBe(0);
+    expect(preview.value).toMatchObject({ bots: 0, token: expect.any(String) });
+    const path = join(root(), 'download.botharness-backup');
+    const downloaded = await invoke(
+      ['profile-backup-export', '--out', path, '--confirmation-stdin'],
+      JSON.stringify(preview.value),
+    );
+    expect(downloaded.code).toBe(0);
+    expect(downloaded.value).toMatchObject({ bytes: readFileSync(path).length });
+    const inspected = await invoke(['profile-backup-inspect', '--file', path]);
+    expect(inspected.code).toBe(0);
+    expect(inspected.value).toMatchObject({ manifest: { version: 2, counts: { bots: 0 } } });
+    const destination = join(root(), 'restored-cli');
+    const restored = await invoke([
+      'profile-backup-restore',
+      '--file',
+      path,
+      '--new-home',
+      destination,
+      '--confirm',
+    ]);
+    expect(restored.code).toBe(0);
+    expect(restored.value).toMatchObject({ state: 'stopped' });
+    expect(mount(destination).registry.list()).toEqual([]);
+    writeFileSync(path, 'damaged backup');
+    const invalid = await invoke(['profile-backup-inspect', '--file', path]);
+    expect(invalid.code).not.toBe(0);
+    expect(invalid.value).toMatchObject({
+      error: { code: 'package-invalid', operation: 'inspect' },
+    });
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+it('reports unavailable source capability as an export refusal instead of a damaged package', async () => {
+  const core = mount();
+  const handler = createProfileBackupHttp(source(core), root(), core.profileRecovery, catalog);
+  core.operationalDatabase.close();
+  const response = await handler(new Request('http://dsh.internal' + PROFILE_BACKUP_PATH));
+  expect(await response.json()).toMatchObject({
+    error: { code: 'source-unavailable', operation: 'preview' },
+  });
+});
+
+it('exports and restores compatible data from a newer DSH without a release-label lock', async () => {
+  const { core } = await scene();
+  const current = {
+    ...source(core),
+    runtimeVersions: async () => ({ host: '0.2.1-rc.3', tools: '0.2.1-rc.2' }),
+  };
+  expect(profileBackupPreview(current).bots).toBe(3);
+  const parent = root();
+  const path = join(parent, 'current.botharness-backup');
+  await exportProfileBackup(current, path);
+  const archive = readFileSync(path);
+  expect(inspectProfileBackup(archive).manifest.producer.dsh).toBe('0.2.1-rc.3');
+  expect(inspectProfileBackup(archive).manifest.producer).toMatchObject({ dshTools: '0.2.1-rc.2' });
+  const destination = join(parent, 'restored');
+  await restoreProfileBackup(archive, destination);
+  const restored = mount(destination);
+  expect(restored.registry.get('keeper')?.paused).toBe(true);
+  expect(restored.ownership.resolve('old-orchestrator')?.botSlug).toBe('keeper');
+});
+
+it('restores the fixed historical v1 archive without rewriting it and keeps cold identity across restart', async () => {
+  const archive = readFileSync(
+    new URL('./fixtures/profile-backup/legacy-v1.botharness-backup', import.meta.url),
+  );
+  expect(inspectProfileBackup(archive).manifest).toMatchObject({
+    version: 1,
+    producer: { dsh: '0.2.0-rc.1' },
+  });
+  const destination = join(root(), 'historical');
+  await restoreProfileBackup(archive, destination);
+  let restored = mount(destination);
+  const verify = () => {
+    expect(restored.registry.get('keeper')).toMatchObject({
+      createdAt: '2026-10-25T16:22:53.325Z',
+      paused: true,
+    });
+    expect(
+      readFileSync(join(restored.registry.memoryDirFor('keeper')!, 'SOUL.md'), 'utf8'),
+    ).toContain('Synthetic Soul');
+    expect(
+      readFileSync(
+        restored.attachments.fileTarget('file:8fe02f42-1218-4b1e-a4ba-debe6c6de967').path,
+        'utf8',
+      ),
+    ).toBe('current editable bytes');
+    expect(restored.channels.message('group-synthetic-history', 'kept')?.body).toBe(
+      'Sensitive synthetic history',
+    );
+    expect(restored.channels.message('group-synthetic-history', 'purged')?.body).toBe('');
+    expect(restored.contentPurge.checkpoint().facts).toHaveLength(1);
+    expect(restored.registry.getHistorical('deleted-retained')).toBeDefined();
+    expect(restored.ownership.contentAvailable('old-orchestrator')).toBe(false);
+    expect(() => restored.profileRecovery.requireExecution('keeper')).toThrow(
+      'explicitly activate',
+    );
+  };
+  verify();
+  restored.schedules.close();
+  await restored.runtime.close();
+  restored.operationalDatabase.close();
+  restored = mount(destination);
+  verify();
+});
+
+it.each(['0.2.0-rc.2', '0.2.1-rc.2', '0.2.1-rc.3', '9.0.0-next.1', null])(
+  'exports provenance %s without equating release labels to data compatibility',
+  async (host) => {
+    const core = mount();
+    const current = { ...source(core), runtimeVersions: async () => ({ host, tools: null }) };
+    const path = join(root(), 'portable.botharness-backup');
+    const result = await exportProfileBackup(current, path);
+    expect(result.manifest).toMatchObject({ version: 2, producer: { dsh: host, dshTools: null } });
+    await restoreProfileBackup(readFileSync(path), join(root(), 'target'));
+  },
+);
+
+it('delegates an older operational Schema Generation to the existing staged migrations', async () => {
+  const core = mount();
+  const older = mountOperationalDatabase({
+    dshHome: root(),
+    schemaPlan: {
+      targetGeneration: 105,
+      migrations: BOT_HARNESS_SCHEMA_PLAN.migrations.filter(
+        (migration) => migration.generation <= 105,
+      ),
+    },
+  });
+  try {
+    expect(older.mode).toBe('ready');
+    const path = join(root(), 'older.botharness-backup');
+    await exportProfileBackup({ ...source(core), database: older }, path);
+    expect(inspectProfileBackup(readFileSync(path)).manifest.schemaGeneration).toBe(105);
+    const destination = join(root(), 'migrated');
+    await restoreProfileBackup(readFileSync(path), destination);
+    expect(mount(destination).operationalDatabase.generation).toBe(
+      BOT_HARNESS_SCHEMA_PLAN.targetGeneration,
+    );
+  } finally {
+    older.close();
+  }
+});
+
+it.each([
+  ['future format', 'format-upgrade-required'],
+  ['future schema', 'upgrade-required'],
+  ['missing core', 'dependency-incompatible'],
+  ['optional core', 'dependency-incompatible'],
+  ['unknown contract', 'dependency-incompatible'],
+  ['unknown kind', 'dependency-incompatible'],
+] as const)('refuses %s before publishing a restored destination', async (scenario, code) => {
+  const archive = readFileSync(
+    new URL('./fixtures/profile-backup/legacy-v1.botharness-backup', import.meta.url),
+  );
+  const { manifest, entries } = inspectProfileBackup(archive);
+  const changed = {
+    ...manifest,
+    ...(scenario === 'future format' ? { version: 999 } : {}),
+    ...(scenario === 'future schema' ? { schemaGeneration: 9999 } : {}),
+    dependencies: manifest.dependencies.flatMap((dependency) => {
+      if (dependency.kind !== 'runtime' || dependency.scope !== 'core') return [dependency];
+      if (scenario === 'missing core') return [];
+      if (scenario === 'optional core') return [{ ...dependency, required: false }];
+      if (scenario === 'unknown contract') return [{ ...dependency, contract: 'future-core/99' }];
+      return [dependency];
+    }),
+  };
+  if (scenario === 'unknown kind')
+    changed.dependencies.push({
+      kind: 'future-extension',
+      scope: 'extra',
+      reference: 'future',
+      required: true,
+      contract: 'future/1',
+    });
+  const destination = join(root(), 'refused');
+  const modified = writeZip(
+    entries.map((entry) =>
+      entry.path === 'manifest.json'
+        ? { ...entry, data: Buffer.from(JSON.stringify(changed)) }
+        : entry,
+    ),
+  );
+  await expect(restoreProfileBackup(modified, destination)).rejects.toMatchObject({ code });
+  expect(existsSync(destination)).toBe(false);
+});
 async function scene() {
   const home = root();
   const core = mount(home);

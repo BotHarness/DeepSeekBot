@@ -39,16 +39,20 @@ and SHA-256. Hashes establish integrity rather than source authenticity. Restore
 trusted installed local command, substituting your file and a directory that does not exist:
 
 ```text
-botharness-profile restore --file "environment.botharness-backup" --new-home "new-environment"
+tobs profile-backup-restore --file "environment.botharness-backup" --new-home "new-environment" --confirm
 ```
 
-For a source checkout, use `node scripts/profile-restore.mjs` with the same arguments. No Host is
-started by restore. Launch the new home using trusted DSH **0.2.0-rc.1** and the matching BotHarness
+For a source checkout, the legacy `node scripts/profile-restore.mjs restore --file <file> --new-home <directory>` entry remains available. No Host is
+started by restore. Launch the new home using a compatible trusted DSH installation and the matching BotHarness
 Bundle; development checkouts use `node scripts/dev-instance.mjs --home <new-home> --port <port>`.
 The launcher creates native Profile composition from the trusted pinned CLI rather than loading
 executable configuration from the backup. Live Settings cannot choose a destination or replace
 its own environment. Existing targets are refused, and the staging database uses the existing
 Profile Writer Lease before validation/migration and publication.
+
+DSH release labels record where a backup came from; compatibility depends on the archive format,
+database generation and required data contracts. Historical v1 backups remain readable. New v2
+exports require an updated Tobs reader; unsupported future formats or schemas require an upgrade.
 
 The restored environment starts in **Disaster Restore** posture: Bots paused; account bindings,
 provider triggers, Service Grants, saved tool approvals and schedules suspended; Workspaces need

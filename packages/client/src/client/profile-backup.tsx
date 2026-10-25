@@ -92,6 +92,27 @@ async function result<T>(response: Response): Promise<T> {
   return value as T;
 }
 export type ProfileBackupSettingsProps = PropsLocale<'botharness'>;
+type BackupArea = 'export' | 'import' | 'recovery';
+function failureText(code: string, t: ProfileBackupSettingsProps['t']): string {
+  switch (code) {
+    case 'format-upgrade-required':
+    case 'upgrade-required':
+    case 'dependency-incompatible':
+      return t('backup.error.upgrade');
+    case 'package-invalid':
+      return t('backup.error.invalid');
+    case 'source-unavailable':
+      return t('backup.error.source');
+    case 'preview-stale':
+      return t('backup.error.stale');
+    case 'disk-space-insufficient':
+      return t('backup.error.space');
+    case 'too-large':
+      return t('backup.error.large');
+    default:
+      return t('backup.error');
+  }
+}
 export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactElement {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<Preview>();
@@ -99,7 +120,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
   const [inspection, setInspection] = useState<Inspection>();
   const [bytes, setBytes] = useState<number>();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<{ area: BackupArea; code: string }>();
   const [acknowledged, setAcknowledged] = useState(false);
   const active = useRef<AbortController | undefined>(undefined);
   const mounted = useRef(false);
@@ -111,7 +132,10 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       active.current?.abort();
     };
   }, []);
-  const run = async (work: (signal: AbortSignal) => Promise<void>): Promise<void> => {
+  const run = async (
+    area: BackupArea,
+    work: (signal: AbortSignal) => Promise<void>,
+  ): Promise<void> => {
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
@@ -121,7 +145,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       await work(controller.signal);
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted)
-        setError(failure instanceof Error ? failure.message : 'operation-failed');
+        setError({ area, code: failure instanceof Error ? failure.message : 'operation-failed' });
     } finally {
       if (mounted.current && active.current === controller) {
         active.current = undefined;
@@ -136,7 +160,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
   };
   const show = () => {
     setOpen(true);
-    void run(refresh);
+    void run('recovery', refresh);
   };
   const close = () => {
     active.current?.abort();
@@ -146,7 +170,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
     setAcknowledged(false);
   };
   const prepare = () =>
-    run(async (signal) => {
+    run('export', async (signal) => {
+      setPreview(undefined);
       const value = await result<Preview>(await fetch(PATH, { signal }));
       if (!signal.aborted) {
         setPreview(value);
@@ -154,7 +179,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       }
     });
   const download = () =>
-    run(async (signal) => {
+    run('export', async (signal) => {
       if (!preview) return;
       const response = await fetch(PATH, {
         method: 'POST',
@@ -180,7 +205,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       setPreview(undefined);
     });
   const inspect = (selected: File) =>
-    run(async (signal) => {
+    run('import', async (signal) => {
+      setInspection(undefined);
       const value = await result<Inspection>(
         await fetch(PATH + '/inspect', {
           method: 'POST',
@@ -192,7 +218,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       if (!signal.aborted) setInspection(value);
     });
   const act = (slug: string, action: 'authorize' | 'activate') =>
-    run(async (signal) => {
+    run('recovery', async (signal) => {
       const value = await result<Recovery>(
         await fetch(PATH + '/' + action, {
           method: 'POST',
@@ -256,6 +282,9 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                 {t('backup.complete', { bytes: String(bytes) })}
               </p>
             )}
+            {error?.area === 'export' ? (
+              <Note tone="danger">{failureText(error.code, t)}</Note>
+            ) : null}
           </section>
           <section aria-label={t('backup.import')} {...stylex.props(styles.section)}>
             <h3 {...stylex.props(styles.heading)}>{t('backup.import')}</h3>
@@ -291,8 +320,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                 </p>
                 <p {...stylex.props(styles.text)}>{t('backup.restoreCommand')}</p>
                 <pre {...stylex.props(styles.pre)}>
-                  botharness-profile restore --file "environment.botharness-backup" --new-home
-                  "new-environment"
+                  tobs profile-backup-restore --file "environment.botharness-backup" --new-home
+                  "new-environment" --confirm
                 </pre>
                 <p {...stylex.props(styles.text)}>{t('backup.launch')}</p>
                 <p {...stylex.props(styles.text)}>{t('backup.restorePosture')}</p>
@@ -301,6 +330,9 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                   <code {...stylex.props(styles.code)}>{inspection.sha256}</code>
                 </details>
               </div>
+            ) : null}
+            {error?.area === 'import' ? (
+              <Note tone="danger">{failureText(error.code, t)}</Note>
             ) : null}
           </section>
           {recovery?.restored ? (
@@ -322,7 +354,7 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                   variant="outline"
                   size="sm"
                   disabled={busy}
-                  onClick={() => void run(refresh)}
+                  onClick={() => void run('recovery', refresh)}
                 >
                   {t('backup.refresh')}
                 </Button>
@@ -387,7 +419,9 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
               </Button>
             </div>
           ) : null}
-          {error ? <Note tone="danger">{t('backup.error', { code: error })}</Note> : null}
+          {error?.area === 'recovery' ? (
+            <Note tone="danger">{failureText(error.code, t)}</Note>
+          ) : null}
         </PanelDialog>
       ) : null}
     </SettingsRow>
