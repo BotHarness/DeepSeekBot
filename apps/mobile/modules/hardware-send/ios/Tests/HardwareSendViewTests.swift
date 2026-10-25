@@ -9,8 +9,7 @@ final class HardwareSendViewTests: XCTestCase {
   private var field: UITextView!
   private var sends = 0
 
-  override func setUp() {
-    super.setUp()
+  private func prepareEditor() {
     sends = 0
     window = UIWindow(frame: CGRect(x: 0, y: 0, width: 600, height: 400))
     let controller = UIViewController()
@@ -27,22 +26,25 @@ final class HardwareSendViewTests: XCTestCase {
     XCTAssertTrue(field.becomeFirstResponder())
   }
 
-  override func tearDown() {
+  private func removeEditor() {
     field.resignFirstResponder()
     window.isHidden = true
     window = nil
     field = nil
     view = nil
-    super.tearDown()
   }
 
   func testOrdinaryCommandReturnSendsThroughTheResponderChain() throws {
+    prepareEditor()
+    defer { removeEditor() }
     let command = try sendCommand()
     XCTAssertTrue(UIApplication.shared.sendAction(command.action, to: nil, from: command, for: nil))
     XCTAssertEqual(sends, 1)
   }
 
   func testCachedCommandDoesNotSendMarkedTextAndNextCommandStillWorks() throws {
+    prepareEditor()
+    defer { removeEditor() }
     let command = try sendCommand()
     field.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0))
     XCTAssertNotNil(field.markedTextRange)
@@ -59,6 +61,8 @@ final class HardwareSendViewTests: XCTestCase {
   }
 
   func testCachedCommandCannotSendAfterFocusLeavesTheComposer() throws {
+    prepareEditor()
+    defer { removeEditor() }
     let command = try sendCommand()
     let other = UITextView(frame: CGRect(x: 0, y: 200, width: 500, height: 100))
     window.rootViewController!.view.addSubview(other)
