@@ -37,3 +37,7 @@ Original recordings and exact-frame analysis are retained in the indexed local Q
 ## Q3 Chats cold loading
 
 `chats-loading.png` is the exact decoded 8s frame of the real cold-start recording, showing three native row skeletons. `chats-loaded.png` is the 22s frame with the real synthetic roster after transport recovery. The intervening 15s frame is an actionable failure, not uninterrupted skeleton-to-content: it exposed misleading cold-failure wording claiming a cached list existed. No successful Retry tap or avatar-spinner proof is inferred from this recording.
+
+## Q2 Channel identity connection progress
+
+`connection.png` captures the production Channel route during a bounded task-owned Host stall: the native spinner is over the # identity, cached history remains, and no transient banner row is shown. Because the directory is unavailable, the title falls back to the synthetic group identifier; this is disclosed rather than edited out. The bright gear on the right is developer tooling, not the connection indicator. This proves the Channel identity state only, not every environment selector, accessibility or geometry transition.
