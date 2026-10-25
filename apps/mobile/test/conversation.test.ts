@@ -198,6 +198,31 @@ describe('DM conversation', () => {
     });
   });
 
+  it('keeps loaded history after a failed earlier page and clears the error on explicit retry', async () => {
+    const host = new FakeHost();
+    seed(host.channel(DM), 25);
+    const target = open(host);
+    const live = await until(target, (snapshot) => snapshot.status === 'live');
+    host.failing.add('channelJournalPage');
+    await target.loadOlder();
+    expect(target.getSnapshot()).toMatchObject({
+      status: 'live',
+      loadingOlder: false,
+      hasOlder: true,
+      olderError: true,
+    });
+    expect(ids(target.getSnapshot())).toEqual(ids(live));
+    expect(target.getTimelineSnapshot().olderError).toBe(true);
+    host.failing.delete('channelJournalPage');
+    await target.loadOlder();
+    expect(target.getSnapshot().olderError).toBeUndefined();
+    expect(target.getTimelineSnapshot().olderError).toBeUndefined();
+    expect(revisions(target.getSnapshot())).toEqual(
+      Array.from({ length: 18 }, (_, index) => index + 8),
+    );
+    expect(new Set(ids(target.getSnapshot())).size).toBe(18);
+  });
+
   it.each(['allowed-once', 'allowed-always-tool'] as const)(
     'marks request cards and %s history',
     async (outcome) => {

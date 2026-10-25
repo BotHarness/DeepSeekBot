@@ -125,6 +125,8 @@ import { MarkdownViewportContext } from '../markdown-viewport';
 import { KeyboardChatFrame, useListBottomSafeArea } from '../primitives/keyboard-frame';
 import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { ListSkeleton } from '../primitives/list-skeleton';
+import { Button } from '../primitives/button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
@@ -551,7 +553,12 @@ function ChatConversation({
       latest.hold();
       list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
-    else if (snapshot.status === 'live' && snapshot.hasOlder && !snapshot.loadingOlder)
+    else if (
+      snapshot.status === 'live' &&
+      snapshot.hasOlder &&
+      !snapshot.loadingOlder &&
+      !snapshot.olderError
+    )
       void conversation?.loadOlder();
   };
 
@@ -1058,6 +1065,11 @@ function ChatConversation({
                 ref={attachList}
                 removeClippedSubviews={false}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
+                pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                importantForAccessibility={
+                  !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
+                }
                 contentInsetAdjustmentBehavior="automatic"
                 contentInset={{ bottom: -listSafeArea }}
                 automaticallyAdjustsScrollIndicatorInsets
@@ -1091,7 +1103,7 @@ function ChatConversation({
                     100,
                   );
                 }}
-                {...(latest.ready && latest.browsed
+                {...(latest.ready && latest.browsed && !snapshot.olderError
                   ? { onStartReached: () => void conversation?.loadOlder() }
                   : {})}
                 onStartReachedThreshold={0.5}
@@ -1129,6 +1141,18 @@ function ChatConversation({
                         {t.olderLoading}
                       </Text>
                     </View>
+                  ) : snapshot.olderError ? (
+                    <View style={{ padding: space.x4, gap: space.x2 }}>
+                      <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+                        {t.olderLoadFailed}
+                      </Text>
+                      <Button
+                        label={t.retry}
+                        variant="text"
+                        testID="history-retry"
+                        onPress={() => void conversation?.loadOlder()}
+                      />
+                    </View>
                   ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
                     <Text
                       variant="meta"
@@ -1139,16 +1163,25 @@ function ChatConversation({
                     </Text>
                   ) : undefined
                 }
-                ListEmptyComponent={
-                  snapshot.status === 'opening' ? (
-                    <View style={{ padding: space.x6, alignItems: 'center' }}>
-                      <LoadingIndicator />
-                    </View>
-                  ) : undefined
-                }
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
+          {(!latest.ready && rows.length > 0) ||
+          (snapshot.status === 'opening' && rows.length === 0) ? (
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: listTop,
+                bottom: composerHeight + edgeFade.bottom + workingReserve,
+                left: 0,
+                right: 0,
+                justifyContent: 'flex-end',
+              }}
+            >
+              <ListSkeleton layout="messages" />
+            </View>
+          ) : null}
           {working.length > 0 ? (
             <Animated.View
               pointerEvents="none"

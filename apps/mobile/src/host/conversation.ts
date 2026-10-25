@@ -160,6 +160,7 @@ export interface ConversationSnapshot {
   drafts: ConversationDraft[];
   hasOlder: boolean;
   loadingOlder: boolean;
+  olderError?: boolean;
   fromCache: boolean;
 }
 
@@ -186,6 +187,7 @@ function timelineOf(
     current.reason === previous.reason &&
     current.hasOlder === previous.hasOlder &&
     current.loadingOlder === previous.loadingOlder &&
+    current.olderError === previous.olderError &&
     current.fromCache === previous.fromCache
   )
     return previous;
@@ -456,6 +458,7 @@ export function createConversation(options: ConversationOptions): Conversation {
   let window: JournalEntry[] = [];
   let hasOlder = false;
   let loadingOlder = false;
+  let olderError = false;
   let fromCache = false;
   let status: ConversationStatus = 'opening';
   let reason: string | undefined;
@@ -485,6 +488,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       drafts: [...drafts.values()],
       hasOlder,
       loadingOlder,
+      ...(olderError ? { olderError: true } : {}),
       fromCache,
     };
   }
@@ -861,6 +865,7 @@ export function createConversation(options: ConversationOptions): Conversation {
       const current = session;
       const before = first();
       loadingOlder = true;
+      olderError = false;
       publish();
       try {
         const page = await readPage(last(), before, olderPageSize);
@@ -872,6 +877,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         } else if (entries.length === 0) hasOlder = false;
         persist();
       } catch {
+        if (current === session) olderError = true;
       } finally {
         loadingOlder = false;
         publish();
