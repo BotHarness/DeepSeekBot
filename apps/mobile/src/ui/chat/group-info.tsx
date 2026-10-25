@@ -1,6 +1,6 @@
 import { TextField } from '../primitives/text-field';
-import { useState, type ReactNode } from 'react';
-import { SectionList, View } from 'react-native';
+import { useRef, useState, type ReactNode } from 'react';
+import { Pressable, SectionList, View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -16,7 +16,7 @@ import {
 } from '../../host/group-channel';
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
-import { useDesignTheme } from '../design/theme';
+import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import {
@@ -197,6 +197,7 @@ export function GroupInfoSheet({
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
+  const avatarPending = useRef(false);
   const { channel } = info;
   const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
 
@@ -215,14 +216,23 @@ export function GroupInfoSheet({
   };
 
   const chooseAvatar = async () => {
-    let avatar: string | undefined;
+    if (avatarPending.current) return;
+    avatarPending.current = true;
+    setBusy('avatar');
+    setError(undefined);
     try {
-      avatar = await pickAvatar();
-    } catch {
-      setError(t.groupAvatarFailed);
-      return;
+      let avatar: string | undefined;
+      try {
+        avatar = await pickAvatar();
+      } catch {
+        setError(t.groupAvatarFailed);
+        return;
+      }
+      if (avatar !== undefined) await run('avatar', () => actions.setAvatar(avatar));
+    } finally {
+      avatarPending.current = false;
+      setBusy(undefined);
     }
-    if (avatar !== undefined) await run('avatar', () => actions.setAvatar(avatar));
   };
 
   const memberActions = (member: GroupMember): MenuAction[] => {
@@ -268,7 +278,22 @@ export function GroupInfoSheet({
   const header = (
     <View style={{ gap: space.x5, paddingBottom: space.x3, paddingHorizontal: space.x5 }}>
       <View style={{ alignItems: 'center', gap: space.x3 }}>
-        <GroupMark avatar={channel.avatar} size={MARK} corner={radius.lg} variant="display" />
+        <Pressable
+          testID="group-avatar-change"
+          accessibilityRole="button"
+          accessibilityLabel={t.groupAvatarChange}
+          accessibilityState={{ disabled: busy === 'avatar', busy: busy === 'avatar' }}
+          disabled={busy === 'avatar'}
+          onPress={() => void chooseAvatar()}
+          android_ripple={{ color: pressTint(theme.color.fg) }}
+          style={({ pressed }) => ({
+            borderRadius: radius.lg,
+            overflow: 'hidden',
+            opacity: pressed || busy === 'avatar' ? 0.7 : 1,
+          })}
+        >
+          <GroupMark avatar={channel.avatar} size={MARK} corner={radius.lg} variant="display" />
+        </Pressable>
         <View style={{ alignItems: 'center', gap: space.x1 }}>
           <Text accessibilityRole="header" variant="display" numberOfLines={2}>
             {channel.name}
