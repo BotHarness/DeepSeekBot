@@ -1304,3 +1304,7 @@ Android Computer uses native Material command buttons and a floating toolbar; th
 ### Continuous macOS Human scroll input
 
 Under ADR-0245, `scroll-motion` travels through the existing Local Computer video input command and its controller grant. iOS renews a bounded velocity while held; the macOS owner validates capture-to-logical geometry and delegates frame injection to a short-lived system-native bridge. Every frame rechecks the current grant; zero velocity, invalidation and a 250ms missing-refresh deadline stop the process. Only one acknowledged, expiring native packet is allowed in flight. This adapter supplements the general-purpose Computer driver only for continuous Human scrolling and grants no Bot capability. Android and legacy Hosts retain the existing discrete path.
+
+### 独立 Subagent 的原生组合
+
+独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用复用存活 Orchestrator 的原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。

@@ -805,6 +805,13 @@
       "guide": null,
       "task": 2722,
       "gap": "Package command qualification only; Host persistence and native mobile identity require separate journeys."
+    },
+    {
+      "id": "bot.subagent-presets",
+      "label": "Independent Subagents choose explicit, configured or current system preset; forks inherit; direct CLI uses live parent",
+      "source": "packages/core/src/runtime/subagent-model-tools.ts",
+      "task": 2435,
+      "guide": ".agents/skills/verify-deepseekbot/features/subagent-presets.md"
     }
   ],
   "scripts": [

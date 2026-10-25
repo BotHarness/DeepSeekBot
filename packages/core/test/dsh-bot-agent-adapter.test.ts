@@ -109,6 +109,67 @@ const reportRun: OrchestratorAgentRun = {
   },
 };
 
+describe('direct Subagent execution', () => {
+  it('requires an existing parent without creating a replacement Agent', async () => {
+    const agents = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      subagentTools: () => [],
+    });
+    try {
+      await expect(
+        adapter.runDirectTool!(reportRun, 'bot_subagent', {}, new AbortController().signal),
+      ).rejects.toMatchObject({ code: 'parent-unavailable' });
+      expect(agents.createOptions).toEqual([]);
+      expect(agents.resumeOptions).toEqual([]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it.each([false, true])(
+    'preserves the parent native pipeline result (refused: %s)',
+    async (refused) => {
+      const agents = new FakeAgentHost();
+      const execute = vi.fn(async () =>
+        refused
+          ? {
+              isError: true,
+              error: { message: 'Preset is not allowed', info: { code: 'INVALID_ARGS' } },
+            }
+          : { isError: false, value: '{"accepted":true}' },
+      );
+      const parent = { id: 'live-parent', ctx: { tools: { execute } } } as unknown as Agent;
+      vi.spyOn(agents, 'get').mockReturnValue(parent);
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        subagentTools: () => [],
+      });
+      const signal = new AbortController().signal;
+      const args = { description: 'Review', prompt: 'Review', agent_preset: 'reviewer' };
+      try {
+        const result = adapter.runDirectTool!(
+          reportRun,
+          'bot_subagent',
+          args,
+          signal,
+          'live-parent',
+        );
+        if (refused) await expect(result).rejects.toMatchObject({ code: 'invalid-args' });
+        else await expect(result).resolves.toEqual({ accepted: true });
+        expect(execute).toHaveBeenCalledWith(
+          expect.objectContaining({ agent: parent, signal, arguments: args, name: 'bot_subagent' }),
+        );
+        expect(agents.createOptions).toEqual([]);
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+});
+
 describe('explicit Inbox completion with messaging tools', () => {
   async function fixture(
     check: (

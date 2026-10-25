@@ -52,6 +52,13 @@ describe("generated developer reference", () => {
         source: "packages/core/src/plugin.ts",
       },
       {
+        name: "subagent",
+        type: "BotSubagentPresetConfig",
+        default: undefined,
+        description: undefined,
+        source: "packages/core/src/plugin.ts",
+      },
+      {
         name: "marketplaceUrl",
         type: "string",
         default: "https://market.botharness.ai",
