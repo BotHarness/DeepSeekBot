@@ -106,7 +106,7 @@ function RootNavigator() {
                   options={{
                     ...sheetScreenOptions(design, true),
                     title: t.rowActions.section,
-                    headerShown: true,
+                    headerShown: Platform.OS !== 'android',
                   }}
                 />
                 <Stack.Screen
