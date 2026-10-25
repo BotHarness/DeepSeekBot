@@ -140,11 +140,13 @@ export function ConversationScreen({
   expectedHostId,
   place,
   focus,
+  focusRequest,
   latestWindowOnly = false,
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
   focus: string | undefined;
+  focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
 }) {
   const t = useStrings();
@@ -173,6 +175,7 @@ export function ConversationScreen({
           key={JSON.stringify([saved?.hostId, place])}
           place={place}
           focus={focus}
+          focusRequest={focusRequest}
           latestWindowOnly={latestWindowOnly}
           focused={focused}
         />
@@ -289,12 +292,14 @@ const RequestCard = memo(function RequestCard({
 function ChatConversation({
   place,
   focus,
+  focusRequest,
   latestWindowOnly,
   focused,
 }: {
   focused: boolean;
   place: ChatPlace;
   focus: string | undefined;
+  focusRequest: string | undefined;
   latestWindowOnly: boolean;
 }) {
   const t = useStrings();
@@ -386,8 +391,8 @@ function ChatConversation({
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const focusPage = useRef<string | undefined>(undefined);
-  const focusVisit = useRef<{ active: boolean; message: string | undefined }>({
-    active: false,
+  const focusIntent = useRef<{ request: string | undefined; message: string | undefined }>({
+    request: undefined,
     message: undefined,
   });
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
@@ -597,15 +602,15 @@ function ChatConversation({
   ]);
 
   useLayoutEffect(() => {
-    const previous = focusVisit.current;
-    focusVisit.current = { active: focused, message: focus };
     if (!focused) return;
-    if (!previous.active || previous.message !== focus) {
+    const previous = focusIntent.current;
+    if (previous.message !== focus || previous.request !== focusRequest) {
+      focusIntent.current = { request: focusRequest, message: focus };
       jumped.current = undefined;
       focusPage.current = undefined;
     }
     jump();
-  }, [focused, focus, jump]);
+  }, [focused, focus, focusRequest, jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);

@@ -1,4 +1,5 @@
 import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import { randomUUID } from 'expo-crypto';
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
@@ -117,6 +118,7 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
           : { kind: 'bot', bot: { slug: botSlug } },
         hostId,
         file.messageId,
+        randomUUID(),
       ),
     );
   };
