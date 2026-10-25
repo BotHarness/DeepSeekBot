@@ -22,7 +22,9 @@ describe('system language', () => {
       photosPermission: 'NSPhotoLibraryUsageDescription',
       speechRecognitionPermission: 'NSSpeechRecognitionUsageDescription',
     };
-    const declared = new Set<string>();
+    const declared = new Set<string>(
+      Object.keys(expo.ios.infoPlist).filter((key) => /^NS.*UsageDescription$/u.test(key)),
+    );
     for (const plugin of expo.plugins) {
       if (!Array.isArray(plugin)) continue;
       for (const option of Object.keys(plugin[1])) {

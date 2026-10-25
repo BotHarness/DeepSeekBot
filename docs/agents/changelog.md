@@ -20,6 +20,8 @@ that all identity, channel and recovery gates have shipped or authorize a live t
 
 Public install instructions use the published stable identity in `scripts/install-release.json`, not the development package version or npm's moving `latest` tag. After publishing and verifying registry bytes and qualification evidence, update that identity, run `pnpm install:sync` and `pnpm install:check`, and review the resulting README/guide changes. The check runs in lint and rejects drift. Never advance this file during prerelease preparation or before publication.
 
+Keep the version and package name in that identity rather than copying a current version into ordinary documentation. Link readers to `https://tobs.app/docs/installation/` or `https://tobs.app/en/docs/installation/`; the installation guides and website copy buttons generate exact commands from the shared identity. Release notes, compatibility records and historical qualification evidence retain their original version numbers.
+
 Before publication, the `prepare` job of `npm-release.yml` runs `scripts/e2e-fresh-profile-install.mjs` on the exact prepared tarballs: for every supported DSH release it installs the product into a brand-new Profile with no pre-approved builds, then boots the Host, creates a Bot and DM, and restarts. A dependency that needs build approval fails the release, because users would otherwise have to approve it on the Plugins page before DeepSeekBot installs.
 
 In the product Site checkout, run `BOTHARNESS=<this-qualified-checkout> pnpm install:sync` to copy the identity and synchronize only the bilingual installation guides. Site copy buttons and CLI instructions derive from this identity. Ship the two PRs through their normal review gates; this is a repeatable release-sync command, not an automatic publication or npm candidate-selection bypass. Registry candidate selection/upgrade E2E and the DSH-owned preview/install mismatch remain separate gates.
@@ -183,6 +185,10 @@ Before release, remove an `Unreleased` entry whose change was fully reverted. Af
 history immutable and describe a restoration, withdrawal, or fix in the next version.
 
 ## Preparing a GitHub Release draft
+
+Retain accepted screenshots and recordings using [local QA evidence and release archives](qa-evidence.md).
+The archive binds separate macOS/iOS and Windows/Android results to one acceptance SHA and each
+artifact's build identity; only reviewed public derivatives are candidates for release attachments.
 
 After archiving `Unreleased` under a dated version, generate a review-only payload from that exact
 canonical release section:

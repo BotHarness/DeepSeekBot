@@ -34,7 +34,7 @@ function cliModulePath(): string {
   if (existsSync(built)) return built;
   const source = fileURLToPath(new URL('../../cli/index.mjs', import.meta.url));
   if (existsSync(source)) return source;
-  throw new Error('The managed DeepSeekBot CLI is unavailable; rebuild the Bundle.');
+  throw new Error('The managed Tobs CLI is unavailable; rebuild the Bundle.');
 }
 function makeShim(modulePath: string): { directory: string; remove(): void } {
   const directory = mkdtempSync(join(tmpdir(), 'botharness-tob-cli-'));

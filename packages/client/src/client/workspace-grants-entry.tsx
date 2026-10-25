@@ -336,6 +336,10 @@ const browserStyles = stylex.create({
   checkbox: { margin: 0, accentColor: color.accent },
 });
 
+export interface FolderBrowserActions {
+  listHostFolders(path?: string, signal?: AbortSignal): Promise<Omit<HostDirectoryListing, 'home'>>;
+}
+
 export function FolderBrowser({
   initial,
   actions,
@@ -344,14 +348,15 @@ export function FolderBrowser({
   busy,
   t,
 }: {
-  initial: HostDirectoryListing;
-  actions: ChannelSidebarEntryProps['actions'];
+  initial: Omit<HostDirectoryListing, 'home'> & { home?: string };
+  actions: FolderBrowserActions;
   onCancel: () => void;
   onChoose: (path: string) => void;
   busy: boolean;
   t: ChannelSidebarEntryProps['t'];
 }): ReactElement {
   const [listing, setListing] = useState(initial);
+  const [location, setLocation] = useState(initial.path);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
   const [showHidden, setShowHidden] = useState(false);
@@ -373,7 +378,10 @@ export function FolderBrowser({
       .listHostFolders(path, controller.signal)
       .then(
         (next) => {
-          if (!controller.signal.aborted) setListing(next);
+          if (!controller.signal.aborted) {
+            setListing(next);
+            setLocation(next.path);
+          }
         },
         (cause: unknown) => {
           if (!controller.signal.aborted) setError(errorMessage(cause));
@@ -401,7 +409,7 @@ export function FolderBrowser({
           </Button>
           <Button
             variant="primary"
-            disabled={busy || loading}
+            disabled={busy || loading || location.trim() !== listing.path || error !== undefined}
             onClick={() => onChoose(listing.path)}
           >
             {t('grant.authorize')}
@@ -409,8 +417,46 @@ export function FolderBrowser({
         </>
       }
     >
+      <div role="group" aria-label={t('grant.browseRoots')} {...stylex.props(browserStyles.crumbs)}>
+        {(listing.roots ?? []).map((root) => (
+          <Button
+            key={root.path}
+            variant="outline"
+            data-folder-browser-root={root.path}
+            aria-label={t('grant.browseRoot', {
+              name: root.path === listing.home ? t('grant.browseHome') : root.name,
+            })}
+            disabled={busy || loading}
+            onClick={() => navigate(root.path)}
+          >
+            {root.path === listing.home ? t('grant.browseHome') : root.name}
+          </Button>
+        ))}
+      </div>
+      <SettingsRow title={t('grant.browseLocation')} description={t('grant.browsePathHelp')}>
+        <Input
+          type="text"
+          aria-label={t('grant.pathLabel')}
+          value={location}
+          disabled={busy || loading}
+          onChange={(event) => setLocation(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              if (!loading && isAbsoluteHostPath(location.trim())) navigate(location.trim());
+            }
+          }}
+        />
+        <Button
+          variant="outline"
+          disabled={busy || loading || !isAbsoluteHostPath(location.trim())}
+          onClick={() => navigate(location.trim())}
+        >
+          {t('grant.browseGo')}
+        </Button>
+      </SettingsRow>
       <div
-        aria-label={t('grant.browseLocation')}
+        aria-label={t('grant.browseBreadcrumbs')}
         ref={abortOnUnmount}
         {...stylex.props(browserStyles.crumbs)}
       >

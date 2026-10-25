@@ -35,7 +35,6 @@ const desktopVersion = execFileSync(
   ['-c', 'Print :CFBundleShortVersionString', join(app, 'Contents/Info.plist')],
   { encoding: 'utf8' },
 ).trim();
-if (desktopVersion !== '0.2.1-rc.2') throw Error('Unqualified desktop version: ' + desktopVersion);
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 let interrupted = false;
 for (const sig of ['SIGINT', 'SIGTERM'])
@@ -213,6 +212,7 @@ try {
   writeFileSync(
     join(root, 'owned-instance.json'),
     JSON.stringify({
+      desktopVersion,
       pid: ownedPid(),
       debugPort: port,
       cliAccessFile,

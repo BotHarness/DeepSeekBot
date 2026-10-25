@@ -9,6 +9,9 @@ import {
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
   DM_ACTION_KINDS,
+  DM_MEMORY_DISPLAYS,
+  dmMemoryDisplaySnapshot,
+  type DmMemoryDisplay,
   hiddenDmActionsSnapshot,
   subscribeHiddenDmActions,
   type DmActionKind,
@@ -80,21 +83,50 @@ export function channelNicknameItem(t: BotHarnessTranslate): MenuItem {
 
 const dmActionItemId = (kind: DmActionKind): string => `dm:${kind}`;
 
-export function dmActionsItem(t: BotHarnessTranslate, hidden: readonly DmActionKind[]): MenuItem {
+export function dmActionsItem(
+  t: BotHarnessTranslate,
+  hidden: readonly DmActionKind[],
+  display: DmMemoryDisplay = 'detailed',
+): MenuItem {
   return {
     id: DM_ACTIONS_ITEM,
     label: t('dmTrace.menu'),
     icon: <ChannelSidebarIcon name="eye" size={16} />,
-    submenu: DM_ACTION_KINDS.map((kind) => ({
-      id: dmActionItemId(kind),
-      label: t(`dmTrace.kind.${kind}`),
-      icon: hidden.includes(kind) ? (
-        <span aria-hidden="true" {...stylex.props(styles.checkSlot)} />
-      ) : (
-        <IconCheckOutlineRegular size={16} />
-      ),
-    })),
+    submenu: [
+      ...DM_ACTION_KINDS.map((kind) => ({
+        id: dmActionItemId(kind),
+        label: t(`dmTrace.kind.${kind}`),
+        icon: hidden.includes(kind) ? (
+          <span aria-hidden="true" {...stylex.props(styles.checkSlot)} />
+        ) : (
+          <IconCheckOutlineRegular size={16} />
+        ),
+      })),
+      ...DM_MEMORY_DISPLAYS.map((value) => ({
+        id: `dm:memory-display:${value}`,
+        label: t('dmTrace.memoryDisplay.option', { style: t(`dmTrace.memoryDisplay.${value}`) }),
+        disabled: hidden.includes('memory'),
+        icon:
+          display === value ? (
+            <IconCheckOutlineRegular size={16} />
+          ) : (
+            <span aria-hidden="true" {...stylex.props(styles.checkSlot)} />
+          ),
+      })),
+    ],
   };
+}
+
+export function dmMemoryDisplayOf(id: string): DmMemoryDisplay | undefined {
+  return DM_MEMORY_DISPLAYS.find((value) => id === `dm:memory-display:${value}`);
+}
+
+export function useDmMemoryDisplay(botSlug: string | undefined): DmMemoryDisplay {
+  return useSyncExternalStore(
+    subscribeHiddenDmActions,
+    () => dmMemoryDisplaySnapshot(botSlug),
+    () => dmMemoryDisplaySnapshot(botSlug),
+  );
 }
 
 export function dmActionKindOf(id: string): DmActionKind | undefined {

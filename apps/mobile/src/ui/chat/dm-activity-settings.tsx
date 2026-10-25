@@ -6,7 +6,7 @@ import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { SHEET_GROUP } from './sheet';
 
 export function DmActivitySettings({
@@ -18,6 +18,7 @@ export function DmActivitySettings({
   botSlug: string;
   name: string;
 }) {
+  const t = useStrings();
   const hidden = useHiddenDmActivity(hostId, botSlug);
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';

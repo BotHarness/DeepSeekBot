@@ -113,7 +113,7 @@ await waitForAdmission(botSlug, marker(0), 'pending');
 const directMarker = `BACKLOG_DIRECT_${stamp}`;
 await rpc('channelSend', {
   channelId: group.id,
-  body: `@${displayName} 请只根据本轮自动附上的群聊上下文，回复其中最早和最近两条普通消息的代号，并包含 ${directMarker}。不需要再读历史、记忆或执行其他工具；只调用 channel_send 回复。`,
+  body: `@${displayName} 请只根据本轮自动附上的群聊上下文，回复其中最早和最近两条普通消息的代号，并包含 ${directMarker}。不需要再读历史、记忆或执行其他工具；只调用 bot_send_message 回复。`,
   mentions: [{ botSlug, label: displayName, start: 0, end: displayName.length + 1 }],
 });
 const reply = await waitForReply(group.id, directMarker);
@@ -127,7 +127,7 @@ const pendingAfterFirst = await findPendingInGroup(botSlug, group.id, stamp);
 const continuationMarker = `BACKLOG_CONTINUE_${stamp}`;
 await rpc('channelSend', {
   channelId: group.id,
-  body: `@${displayName} 请只根据本轮自动附上的群聊上下文，继续看下一批最早的待处理消息，并回复 ${continuationMarker}。不需要再读历史、记忆或执行其他工具；只调用 channel_send 回复。`,
+  body: `@${displayName} 请只根据本轮自动附上的群聊上下文，继续看下一批最早的待处理消息，并回复 ${continuationMarker}。不需要再读历史、记忆或执行其他工具；只调用 bot_send_message 回复。`,
   mentions: [{ botSlug, label: displayName, start: 0, end: displayName.length + 1 }],
 });
 await waitForReply(group.id, continuationMarker);

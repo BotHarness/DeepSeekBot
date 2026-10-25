@@ -23,12 +23,18 @@ import {
   MessageIcon,
   PlusIcon,
 } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
 import { routineDetail } from './routine-text';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import {
+  AvatarSettings,
+  EditableAvatar,
+  useAvatarEditor,
+  type AvatarActions,
+} from './avatar-editor';
 
 const AVATAR = 72;
 const ICON = 22;
@@ -186,14 +192,19 @@ function ProfileHeader({
   bot,
   actions,
   settings,
+  avatar,
 }: {
   bot: RosterBot;
   actions: BotProfileActions;
   settings: ReactNode;
+  avatar: ReturnType<typeof useAvatarEditor>;
 }) {
+  const t = useStrings();
   return (
     <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x5 }}>
-      <BotAvatar bot={bot} size={AVATAR} />
+      <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
+        <BotAvatar bot={bot} size={AVATAR} />
+      </EditableAvatar>
       <View style={{ alignItems: 'center', gap: space.x1 }}>
         <Text accessibilityRole="header" variant="display" numberOfLines={2}>
           {bot.displayName}
@@ -240,6 +251,12 @@ function ProfileHeader({
           onPress={actions.onNotifications}
         />
       </View>
+      <AvatarSettings
+        editor={avatar}
+        hasAvatar={bot.avatarUrl !== undefined}
+        portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
+        testID="bot-avatar-settings"
+      />
       {settings === undefined ? null : (
         <View style={{ alignSelf: 'stretch', paddingTop: space.x3 }}>{settings}</View>
       )}
@@ -262,6 +279,7 @@ function ProfileRow({
   onRetry(): void;
   actions: BotProfileActions;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'activity')
     return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
@@ -428,6 +446,7 @@ export function BotProfileSheet({
   actions: given,
   settings,
   initialProfile,
+  avatar,
 }: {
   bot: RosterBot;
   channels: RosterChannel[];
@@ -435,7 +454,10 @@ export function BotProfileSheet({
   actions: BotProfileActions;
   settings?: ReactNode;
   initialProfile?: BotProfile | undefined;
+  avatar: AvatarActions;
 }) {
+  const t = useStrings();
+  const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -475,6 +497,7 @@ export function BotProfileSheet({
           <ProfileHeader
             bot={bot}
             actions={actions}
+            avatar={avatarEditor}
             settings={content.ready ? settings : undefined}
           />
         }

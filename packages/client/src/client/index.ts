@@ -10,6 +10,7 @@ import { refreshBotPrimaryColors } from './bot-primary-color.js';
 import { Appearance } from './appearance.js';
 import { mountAppearance } from './appearance-scope.js';
 import { mountAppearanceControl } from './appearance-control.js';
+import { remoteHosts } from './remote-hosts.js';
 import { bindBotAppearance } from './bot-color-scheme.js';
 import type {} from '@deepseek-ai/dsh-client-ui-theme/client';
 import { AppearanceSection } from './appearance-settings.js';
@@ -75,6 +76,7 @@ import {
   CompanionsSection,
   DataPrivacySection,
   DevicesSection,
+  ConnectSection,
   GeneralSection,
   MessagingSection,
   ModelsSection,
@@ -233,6 +235,7 @@ export function apply(ctx: ClientContext): void {
       ? undefined
       : takeHmrView(window as unknown as Record<string, unknown>);
   const t = ctx.locale.bind(LOCALE_NS);
+  remoteHosts(t);
   const zoom = mountWindowZoom({
     document: typeof document === 'undefined' ? undefined : document,
     window: typeof window === 'undefined' ? undefined : window,
@@ -269,11 +272,6 @@ export function apply(ctx: ClientContext): void {
       const picker = ctx.get('uiWorkspace');
       if (picker === undefined) throw new Error('DSH folder picker is unavailable');
       return picker.pickDirectory();
-    },
-    listDirectory: (path, signal) => {
-      const picker = ctx.get('uiWorkspace');
-      if (picker === undefined) throw new Error('DSH folder browser is unavailable');
-      return picker.listDirectory(path, signal);
     },
     createWorkspace: (input) => {
       const workspaces = ctx.get('workspaces');
@@ -530,7 +528,7 @@ export function apply(ctx: ClientContext): void {
         ...createChannelSidebarBuiltins(t, prefs, nativeSessions).map((entry) =>
           channelSidebar.register(entry),
         ),
-        dockPanels.register(createActivityCenterPanel(actions, t)),
+        dockPanels.register(createActivityCenterPanel(actions, t, dockPanels)),
         dockPanels.register(createMarketPanel(actions, dockPanels, t)),
       ];
     };
@@ -973,6 +971,19 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({}),
         },
         DevicesSection,
+      ),
+    );
+    settingsCtx.slots.inject('botharness.settings.section', () =>
+      settingsCtx.slots.register(
+        {
+          name: 'botharness.settings.section',
+          id: BOT_SETTINGS_SECTIONS.connect,
+          order: 46,
+          label: () => t('botSettings.section.connect'),
+          locale: LOCALE_NS,
+          inject: () => ({}),
+        },
+        ConnectSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

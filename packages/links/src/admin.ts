@@ -569,6 +569,21 @@ function invalid(issues: { path: PropertyKey[]; message: string }[]): string {
 
 export const admin = new Hono<AppEnv>();
 
+admin.use('*', async (c, next) => {
+  const url = new URL(c.req.url);
+  if (c.env.ADMIN_ORIGIN && url.origin !== c.env.ADMIN_ORIGIN) {
+    if (!['GET', 'HEAD'].includes(c.req.method)) {
+      return c.text('Use the configured admin origin', 403);
+    }
+    const target = new URL(c.env.ADMIN_ORIGIN);
+    target.pathname = url.pathname;
+    target.search = url.search;
+    c.header('cache-control', 'no-store');
+    return c.redirect(target.toString(), 302);
+  }
+  await next();
+});
+
 admin.use('*', accessAuth);
 admin.use(
   '*',

@@ -13,9 +13,10 @@ import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../../src/ui/primitives/settings-row';
 import { Text } from '../../src/ui/primitives/text';
 import { PairingGuide } from '../../src/ui/shell/pairing-guide';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function PairChoiceScreen() {
+  const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
   const firstPairing = useHostSession().hosts.length === 0;
@@ -43,6 +44,15 @@ export default function PairChoiceScreen() {
       <DrawerHeader title={t.pairTitle} onClose={() => router.back()} />
       <Text tone="muted">{t.pairChoice.intro}</Text>
       <SettingsSection on={SHEET_GROUP}>
+        <SettingsRow
+          testID="pair-choice-lan"
+          on={SHEET_GROUP}
+          title={t.pairChoice.lan}
+          detail={t.pairChoice.lanDetail}
+          leading={<RowIcon name="qr" />}
+          disclosure
+          onPress={() => router.push({ pathname: '/pair/tailscale', params: { mode: 'lan' } })}
+        />
         <SettingsRow
           testID="pair-choice-account"
           on={SHEET_GROUP}

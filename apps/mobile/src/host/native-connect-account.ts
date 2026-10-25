@@ -5,6 +5,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { fetch } from 'expo/fetch';
 
 import { MOBILE_REDIRECT_URI } from '../cloud/instance-contract';
+import { hostSession } from './host-session';
 import { createConnectAccount } from './connect-account';
 
 const KEY = 'botharness.connect-account.v1';
@@ -12,6 +13,7 @@ const base64url = (value: string) =>
   value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
 export const connectAccount = createConnectAccount({
+  removeConnections: (owner) => hostSession.removeAccount(owner),
   redirectUri: Application.applicationId
     ? `${Application.applicationId}:/oauth2redirect`
     : MOBILE_REDIRECT_URI,

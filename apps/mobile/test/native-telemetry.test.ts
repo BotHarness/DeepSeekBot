@@ -10,6 +10,14 @@ const native = vi.hoisted(() => ({
 }));
 const wire = vi.hoisted(() => ({ send: vi.fn(async () => {}), clear: vi.fn(async () => {}) }));
 vi.mock('expo-device', () => ({
+  DeviceType: { PHONE: 1, TABLET: 2 },
+  osVersion: '26.1.2',
+  deviceType: 1,
+  get modelId() {
+    return native.platform === 'ios' ? 'iPhone11,6' : null;
+  },
+  totalMemory: 6 * 1024 ** 3,
+  deviceYearClass: 2018,
   get isDevice() {
     return native.physical;
   },
@@ -100,6 +108,11 @@ it.each([
                 app_version: '2.0.0',
                 app_build: '42',
                 platform,
+                os_version: '26.1',
+                device_class: 'phone',
+                device_model: platform === 'ios' ? 'iPhone11,6' : 'unknown',
+                total_mem_gb_bucket: '8',
+                device_year_class: 2018,
               }),
             }),
           ],

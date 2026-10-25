@@ -5,7 +5,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { KeyboardIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function PullToComposeHint({
   progress,
@@ -16,6 +16,7 @@ export function PullToComposeHint({
   ready: boolean;
   bottom: number;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const layer = theme.layer.raised;
   const style = useAnimatedStyle(() => ({

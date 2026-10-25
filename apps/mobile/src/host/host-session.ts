@@ -1,3 +1,5 @@
+import type { AccountOwner } from './account-owner';
+import { removeAccountConnections } from './account-connections';
 import { sourceDrafts } from './native-source-drafts';
 import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
 import { HostScope } from './host-scope';
@@ -20,6 +22,7 @@ import { avatarInputs } from './notification-avatars';
 import { revokePairing } from './pairing';
 import { createHostPush } from './push';
 import { createPushSession, type PushStatus } from './push-session';
+import { notificationPreferences } from './native-notification-preferences';
 import { createQuietChannels } from './quiet-channels';
 import { loadSavedHosts, saveHosts, type SavedHost } from './saved-host';
 import { mobileTelemetry } from '../telemetry/native';
@@ -69,6 +72,8 @@ export const pushSession = createPushSession({
     'remove-device': t.removeDevice,
   }),
   hostPush,
+  beforeRegister: () => notificationPreferences.retry(),
+  prepareRegistration: (host) => notificationPreferences.prepare(host),
   platform: Platform.OS === 'android' ? 'android' : 'ios',
   locale: locale === 'zh' ? 'zh' : 'en',
 });
@@ -82,6 +87,19 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
 
 function connect(saved: SavedHost, trigger: ConnectionTrigger) {
   const client = createHostClient({
+    ...saved,
+    onRoutesChanged: (routes) =>
+      serialize(async () => {
+        const existing = stored.hosts.find((host) => host.hostId === saved.hostId);
+        if (!existing || existing.credential !== saved.credential) return;
+        await commit({
+          ...stored,
+          hosts: stored.hosts.map((host) =>
+            host.hostId === saved.hostId ? { ...host, routes } : host,
+          ),
+        });
+        void pushSession.sync(stored.hosts);
+      }),
     routes: saved.routes,
     credential: saved.credential,
     carrier: nativeCarrier(),
@@ -93,6 +111,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     reflectInbox(saved.hostId, inbox);
     publishFeeds();
   });
+
   let connected = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
@@ -101,7 +120,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
       void pushSession.retryFailed();
-      refreshQuietChannels(saved);
+      void notificationPreferences.retry().catch(() => undefined);
     }
     connected = now;
     const inputs = snapshot.roster === undefined ? undefined : avatarInputs(snapshot.roster);
@@ -131,13 +150,15 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
+  notificationPreferences.setForeground(AppState.currentState === 'active');
   stored = next;
+  void notificationPreferences.sync(next.hosts).catch(() => undefined);
   for (const [id, session] of sessions) {
     const saved = next.hosts.find((host) => host.hostId === id);
     if (
       !saved ||
       saved.credential !== session.host.saved.credential ||
-      JSON.stringify(saved.routes) !== JSON.stringify(session.host.saved.routes)
+      JSON.stringify(saved.encryption) !== JSON.stringify(session.host.saved.encryption)
     ) {
       sessions.delete(id);
       session.dispose();
@@ -147,6 +168,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     const existing = sessions.get(saved.hostId);
     if (existing) {
       existing.host.saved = saved;
+      existing.host.client.updateRoutes?.(saved.routes);
       continue;
     }
     const session = connect(saved, trigger);
@@ -165,17 +187,19 @@ async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): 
   adopt(next, trigger);
 }
 
-void loadSavedHosts().then(
-  (hosts) => {
-    adopt(hosts);
-    void pushSession.sync(hosts.hosts);
-  },
-  () => adopt({ hosts: [] }),
-);
+let hostsLoaded = false;
+const restoreHosts = (hosts: SavedHosts) => {
+  adopt(hosts);
+  hostsLoaded = true;
+  void pushSession.sync(hosts.hosts);
+};
+const hostsReady = loadSavedHosts().then(restoreHosts, () => adopt({ hosts: [] }));
 
 AppState.addEventListener('change', (next) => {
   mobileTelemetry.foreground(next === 'active', state.hosts.length);
+  notificationPreferences.setForeground(next === 'active');
   if (next !== 'active') return;
+  void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
   void pushSession.retryFailed();
   for (const { host } of sessions.values()) {
@@ -184,7 +208,50 @@ AppState.addEventListener('change', (next) => {
   }
 });
 
+let mutation: Promise<unknown> = Promise.resolve();
+function serialize<T>(work: () => Promise<T>): Promise<T> {
+  const next = mutation.then(async () => {
+    await hostsReady;
+    if (!hostsLoaded) restoreHosts(await loadSavedHosts());
+    return work();
+  });
+  mutation = next.catch(() => undefined);
+  return next;
+}
+
 export const hostSession = {
+  async replaceApprovedPairing(host: SavedHost, previousCredential: string): Promise<void> {
+    return serialize(async () => {
+      const previous = stored.hosts.find((item) => item.hostId === host.hostId);
+      if (
+        !previous ||
+        previous.credential !== previousCredential ||
+        (previous.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
+      )
+        throw new Error('pairing-changed');
+      const replacement = {
+        ...host,
+        ...(previous.accountOwner ? { accountOwner: previous.accountOwner } : {}),
+      };
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((item) => (item.hostId === host.hostId ? replacement : item)),
+      });
+      void pushSession.sync(stored.hosts);
+      void revokePairing({ host: previous, carrier: nativeCarrier() });
+    });
+  },
+  async updateRoutes(hostId: string, credential: string, routes: string[]): Promise<void> {
+    return serialize(async () => {
+      const existing = stored.hosts.find((host) => host.hostId === hostId);
+      if (!existing || existing.credential !== credential) throw new Error('pairing-changed');
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((host) => (host.hostId === hostId ? { ...host, routes } : host)),
+      });
+      void pushSession.sync(stored.hosts);
+    });
+  },
   subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);
@@ -193,46 +260,77 @@ export const hostSession = {
   getHost: (hostId: string): ConnectedHost | undefined =>
     feeds.find((host) => host.saved.hostId === hostId),
   async pair(host: SavedHost): Promise<void> {
-    await commit(withHost(stored, host), 'pair');
-    void pushSession.enable(stored.hosts);
+    return serialize(async () => {
+      await commit(withHost(stored, host), 'pair');
+      void pushSession.enable(stored.hosts);
+    });
   },
   async switchTo(hostId: string): Promise<boolean> {
-    if (stored.current === hostId) return true;
-    const next = selectHost(stored, hostId);
-    if (next === undefined) return false;
-    await commit(next);
-    return true;
+    return serialize(async () => {
+      if (stored.current === hostId) return true;
+      const next = selectHost(stored, hostId);
+      if (next === undefined) return false;
+      await commit(next);
+      return true;
+    });
+  },
+  async removeAccount(owner: AccountOwner): Promise<void> {
+    return serialize(async () => {
+      await sourceDrafts.ready;
+      await removeAccountConnections({
+        owner,
+        state: stored,
+        persist: saveHosts,
+        adopt,
+        clearLocal: async (host) => {
+          await sourceDrafts.removePersistedWhere((key) => {
+            try {
+              const parts = JSON.parse(key);
+              return parts[0] === 'computer' && parts[1] === host.hostId;
+            } catch {
+              return false;
+            }
+          });
+          clearHostConversationCache(host.hostId);
+          await forgetRecentChats(host.hostId);
+          await conversationFilter.clearPersisted(computerEnvironmentKey(host.hostId));
+          await pushSession.forget(host).catch(() => undefined);
+        },
+      });
+    });
   },
   async unpair(
     hostId?: string,
   ): Promise<{ current: boolean; revoked: Promise<boolean> } | undefined> {
-    const host =
-      hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
-    if (host === null || host === undefined) return undefined;
-    const current = host.hostId === state.saved?.hostId;
-    await sourceDrafts.ready;
-    sourceDrafts.removeWhere((key) => {
+    return serialize(async () => {
+      const host =
+        hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
+      if (host === null || host === undefined) return undefined;
+      const current = host.hostId === state.saved?.hostId;
+      await sourceDrafts.ready;
+      sourceDrafts.removeWhere((key) => {
+        try {
+          const parts = JSON.parse(key);
+          return parts[0] === 'computer' && parts[1] === host.hostId;
+        } catch {
+          return false;
+        }
+      });
+      await commit(withoutHost(stored, host.hostId));
       try {
-        const parts = JSON.parse(key);
-        return parts[0] === 'computer' && parts[1] === host.hostId;
-      } catch {
-        return false;
-      }
+        clearHostConversationCache(host.hostId);
+      } catch {}
+      void forgetRecentChats(host.hostId).catch(() => undefined);
+      void conversationFilter.ready.then(() => {
+        if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
+          conversationFilter.set('all');
+      });
+      const revoked = pushSession
+        .forget(host)
+        .then(() => revokePairing({ host, carrier: nativeCarrier() }))
+        .then((result) => result === 'revoked');
+      return { current, revoked };
     });
-    await commit(withoutHost(stored, host.hostId));
-    try {
-      clearHostConversationCache(host.hostId);
-    } catch {}
-    void forgetRecentChats(host.hostId);
-    void conversationFilter.ready.then(() => {
-      if (conversationFilter.getSnapshot() === computerEnvironmentKey(host.hostId))
-        conversationFilter.set('all');
-    });
-    const revoked = pushSession
-      .forget(host)
-      .then(() => revokePairing({ host, carrier: nativeCarrier() }))
-      .then((result) => result === 'revoked');
-    return { current, revoked };
   },
 };
 

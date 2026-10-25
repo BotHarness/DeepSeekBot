@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useLayoutEffect, type ReactNode } from 'react';
+import { act, useLayoutEffect, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,11 +7,41 @@ import type { CloudRow } from '../src/cloud/client';
 import type { CloudConversation, ConversationWorkspace } from '../src/cloud/conversations';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
 import { cloudViewScope } from '../src/cloud/workspace-directory';
+import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/conversation-environments';
+import { HOST_COLORS, type HostColorId } from '../src/ui/design/host-look';
+import { Platform } from 'react-native';
+import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
+import { HomeHeader } from '../src/ui/shell/home-header';
+import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import type { RosterView } from '../src/host/client';
+import { EDGE_WIDTH } from '../src/ui/shell/host-drawer-model';
 
-const { push, cloudState, directoryState, hostState } = vi.hoisted(() => ({
+const {
+  push,
+  cloudState,
+  directoryState,
+  hostState,
+  call,
+  refresh,
+  menus,
+  swipeConfigs,
+  rowProps,
+} = vi.hoisted(() => ({
   push: vi.fn(),
-  hostState: { connecting: false },
+  call: vi.fn(async () => ({})),
+  refresh: vi.fn(async () => undefined),
+  menus: [] as Array<{ text: string; onPress?: () => unknown }[]>,
+  swipeConfigs: [] as Array<Record<string, unknown>>,
+  rowProps: new Map<string, Record<string, unknown>>(),
+  hostState: {
+    connecting: false,
+    removed: false,
+    color: undefined as HostColorId | undefined,
+    fontScale: 1,
+    actions: false,
+    unread: false,
+    hostId: 'h1',
+  },
   cloudState: {
     error: undefined as string | undefined,
     ready: true,
@@ -26,6 +56,57 @@ const { push, cloudState, directoryState, hostState } = vi.hoisted(() => ({
     errors: [] as string[],
   },
 }));
+vi.mock('react-native-gesture-handler/ReanimatedSwipeable', async () => {
+  const { useImperativeHandle, useState } = await import('react');
+  return {
+    default: (props: {
+      ref: Ref<{ close(): void }>;
+      children: ReactNode;
+      onSwipeableWillClose?(): void;
+      onSwipeableWillOpen?(): void;
+      renderRightActions(): ReactNode;
+    }) => {
+      swipeConfigs.push({ ...props });
+      const [open, setOpen] = useState(false);
+      useImperativeHandle(props.ref, () => ({
+        close: () => {
+          props.onSwipeableWillClose?.();
+          setOpen(false);
+        },
+      }));
+      return (
+        <div>
+          {props.children}
+          <button
+            aria-label="Swipe row"
+            onClick={() => {
+              props.onSwipeableWillOpen?.();
+              setOpen(true);
+            }}
+          >
+            Swipe
+          </button>
+          {open ? props.renderRightActions() : null}
+        </div>
+      );
+    },
+  };
+});
+vi.mock('../src/ui/primitives/app-dialog', () => ({
+  showActionMenu: (_title: string, actions: { text: string; onPress?: () => unknown }[]) =>
+    menus.push(actions),
+  showAppDialog: vi.fn(),
+}));
+vi.mock('../src/ui/shell/conversation-peek', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/ui/shell/conversation-peek')>();
+  const { Platform } = await import('react-native');
+  return {
+    ...actual,
+    get conversationPeek() {
+      return Platform.OS === 'ios';
+    },
+  };
+});
 const roster: RosterView = {
   bots: [
     {
@@ -53,8 +134,19 @@ const roster: RosterView = {
 };
 
 vi.mock('../src/host/native-conversation-filter', async () => {
-  const { useState } = await import('react');
-  return { useConversationFilter: () => useState('all') };
+  const { useSyncExternalStore } = await import('react');
+  const { createConversationFilter } = await import('../src/host/conversation-filter');
+  const conversationFilter = createConversationFilter({
+    read: async () => undefined,
+    write: () => {},
+  });
+  return {
+    conversationFilter,
+    useConversationFilter: () => [
+      useSyncExternalStore(conversationFilter.subscribe, conversationFilter.getSnapshot),
+      conversationFilter.set,
+    ],
+  };
 });
 vi.mock('../src/cloud/native', () => ({
   useCloudSnapshot: () => cloudState,
@@ -66,17 +158,50 @@ vi.mock('../src/cloud/native-conversations', () => ({
 }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => {
+  const native = await import('./react-native-shim');
+  return {
+    ...native,
+    BackHandler: { addEventListener: vi.fn(() => ({ remove: vi.fn() })) },
+    Pressable: (props: Parameters<typeof native.Pressable>[0]) => {
+      const id = props.testID;
+      if (typeof id === 'string' && id.startsWith('conversation-row-')) rowProps.set(id, props);
+      return native.Pressable(props);
+    },
+    useWindowDimensions: () => ({
+      ...native.useWindowDimensions(),
+      fontScale: hostState.fontScale,
+    }),
+  };
+});
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: ({ width, height }: { width: number; height: number }) => (
+    <svg width={width} height={height} />
+  ),
+  Path: () => null,
+  Circle: () => null,
+}));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('expo-router', () => {
   const Stack = () => null;
   Stack.Screen = () => null;
+  const Link = ({ children }: { children: ReactNode }) => <div>{children}</div>;
+  Link.Trigger = ({ children }: { children: ReactNode }) => children;
+  Link.Preview = () => <div data-testid="native-preview" />;
+  Link.Menu = ({ children }: { children: ReactNode }) => (
+    <div data-testid="native-context-menu">{children}</div>
+  );
+  Link.MenuAction = ({ children, onPress }: { children: ReactNode; onPress(): void }) => (
+    <button data-menu-title={children} onClick={onPress}>
+      {children}
+    </button>
+  );
   return {
+    Link,
     Redirect: () => null,
     Stack,
     router: { push },
@@ -86,65 +211,72 @@ vi.mock('expo-router', () => {
   };
 });
 vi.mock('../src/host/host-session', () => ({
+  useHostSessions: () =>
+    hostState.removed
+      ? []
+      : [
+          {
+            saved: { hostId: hostState.hostId, hostName: 'studio' },
+            client: { call, refresh },
+            inbox: { refresh: async () => {} },
+            snapshot: {
+              connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
+              roster: hostState.connecting ? undefined : roster,
+            },
+            attention: hostState.unread
+              ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
+              : { status: 'loading' },
+          },
+        ],
   quietChannels: { get: () => [] },
-  useHostSessions: () => [
-    {
-      saved: { hostId: 'h1', hostName: 'studio' },
-      client: undefined,
-      inbox: undefined,
-      snapshot: {
-        connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
-        roster: hostState.connecting ? undefined : roster,
-      },
-      attention: { status: 'loading' },
-    },
-  ],
   useHostSession: () => ({
-    saved: { hostId: 'h1', hostName: 'studio' },
-    client: undefined,
+    saved: hostState.removed ? null : { hostId: hostState.hostId, hostName: 'studio' },
+    client: hostState.actions ? { call, refresh } : undefined,
     inbox: undefined,
   }),
   useHostSnapshot: () => ({
     connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
     roster: hostState.connecting ? undefined : roster,
   }),
-  useInbox: () => ({ status: 'loading' }),
+  useInbox: () =>
+    hostState.unread
+      ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
+      : { status: 'loading' },
   useQuietChannels: () => [],
   refreshQuietChannels: () => {},
 }));
-vi.mock('../src/host/native-section-collapse', () => ({
-  sectionCollapse: { toggle: () => {} },
-  useCollapsedSections: () => new Set(),
+vi.mock('../src/host/native-section-collapse', async () => {
+  const { useSyncExternalStore } = await import('react');
+  const { createSectionCollapse } = await import('../src/host/section-collapse');
+  const sectionCollapse = createSectionCollapse({ read: async () => undefined, write: () => {} });
+  return {
+    sectionCollapse,
+    useCollapsedSections: (hostId: string) =>
+      useSyncExternalStore(sectionCollapse.subscribe, () => sectionCollapse.collapsed(hostId)),
+  };
+});
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
 }));
-vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
-  hostLooks: { look: () => ({ icon: { kind: 'symbol', id: 'desktop' } }) },
-  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
-}));
-vi.mock('../src/ui/chat/section-header', () => ({ SectionHeader: () => null }));
-vi.mock('../src/ui/shell/home-header', () => ({
-  HomeHeader: ({
-    actions,
-    search,
-    children,
-  }: {
-    actions?: ReactNode;
-    search?: ReactNode;
-    children: ReactNode;
-  }) => (
-    <>
-      {search ?? actions}
-      {children}
-    </>
-  ),
+  hostLooks: { look: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }) },
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
   HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
+  hostDrawer: { setReturnFocus: () => {} },
+  focusOn: () => {},
+  openHostDrawer: () => {},
+  useHostDrawerOpen: () => false,
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
+vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
+
+import { conversationFilter } from '../src/host/native-conversation-filter';
+import { sectionCollapse } from '../src/host/native-section-collapse';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import { t } from '../src/ui/strings';
 
@@ -166,6 +298,24 @@ afterEach(() => {
   push.mockReset();
   vi.unstubAllGlobals();
   hostState.connecting = false;
+  hostState.removed = false;
+  hostState.color = undefined;
+  hostState.fontScale = 1;
+  hostState.actions = false;
+  hostState.unread = false;
+  hostState.hostId = 'h1';
+  delete roster.bots[0]!.latestMessageId;
+  delete roster.arrangement;
+  delete roster.sorting;
+  for (const id of ['h1', 'h2', JSON.stringify(['view', 'all'])])
+    for (const section of sectionCollapse.collapsed(id)) sectionCollapse.toggle(id, section);
+  call.mockClear();
+  refresh.mockClear();
+  menus.length = 0;
+  swipeConfigs.length = 0;
+  rowProps.clear();
+  Platform.OS = 'web';
+  conversationFilter.set('all');
   cloudState.rows = [];
   cloudState.ready = true;
   cloudState.error = undefined;
@@ -179,6 +329,22 @@ async function home(): Promise<HTMLElement> {
   root = createRoot(host);
   await act(async () => root!.render(<HomeScreen />));
   return host;
+}
+
+async function rowMenuAction(view: HTMLElement, key: keyof typeof t.rowActions) {
+  if (Platform.OS === 'ios') {
+    const row = view.querySelector('[data-testid="conversation-row-bot:ada"]')!;
+    const menu = row.parentElement!.querySelector('[data-testid="native-context-menu"]')!;
+    const action = [...menu.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === t.rowActions[key],
+    )!;
+    await act(async () => action.click());
+  } else {
+    await act(async () => (rowProps.get('conversation-row-bot:ada')!.onLongPress as () => void)());
+    await act(async () =>
+      menus.at(-1)!.find((action) => action.text === t.rowActions[key])!.onPress!(),
+    );
+  }
 }
 
 async function type(view: HTMLElement, text: string): Promise<void> {
@@ -196,6 +362,13 @@ async function type(view: HTMLElement, text: string): Promise<void> {
 
 const rows = (view: HTMLElement) =>
   [...view.querySelectorAll('button')]
+    .filter(
+      (node) =>
+        node.dataset.testid !== 'action-menu-trigger' &&
+        node.getAttribute('aria-label') !== 'Swipe row',
+    )
+    .filter((node) => node.dataset.testid !== 'chats-view-button')
+    .filter((node) => !node.dataset.testid?.startsWith('chat-section-'))
     .filter((node) => !node.closest('[hidden]') && !node.dataset.testid?.startsWith('pager-'))
     .filter(
       (node) =>
@@ -206,6 +379,7 @@ const rows = (view: HTMLElement) =>
           t.closeSearch,
           t.openSearch,
           t.settings,
+          t.workspaces,
         ].includes(node.getAttribute('aria-label') ?? ''),
     )
     .map((node) => node.getAttribute('aria-label'));
@@ -273,18 +447,21 @@ describe('Search in the Chats header', () => {
       ...directoryState.workspaces[0]!,
       organizationId: 'same-name-empty',
     });
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      hidden: [],
+      sectionOrder: ['work'],
+      sections: [{ id: 'work', name: 'Work', channelIds: ['launch-team'] }],
+    };
     const view = await home();
-    const duplicate = view.querySelector<HTMLButtonElement>(
-      '[role="tab"][aria-label="Cloud team, https://uat.example.test, same-name-empty"]',
-    )!;
-    expect(duplicate).not.toBeNull();
-    await act(async () => duplicate.click());
+    expect(view.querySelector('[data-testid="conversation-row-bot:ada"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
+    expect(view.querySelector('[role="tab"]')).toBeNull();
+    expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
+    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
     expect(rows(view).join(' ')).not.toContain('Cloud general');
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>(`[role="tab"][aria-label="${t.allEnvironments}"]`)!
-        .click(),
-    );
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('Cloud team');
+    await act(async () => conversationFilter.set('all'));
     expect(view.textContent).toContain('Cloud general');
     expect(view.textContent).toContain('Ada');
     await act(async () =>
@@ -304,26 +481,28 @@ describe('Search in the Chats header', () => {
         accountScope: scope,
       },
     });
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="pager-next"]')!.click(),
-    );
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('studio');
     expect(rows(view).join(' ')).not.toContain('Cloud general');
     expect(view.textContent).toContain('Ada');
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="pager-next"]')!.click(),
-    );
-    expect(
-      view
-        .querySelector('[role="tab"][aria-label="Cloud team, https://uat.example.test, org_a"]')
-        ?.getAttribute('aria-selected'),
-    ).toBe('true');
-    expect(rows(view).join(' ')).not.toContain('Ada, Done');
+    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
+    expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
+    expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
+    expect(rows(view).join(' ')).not.toContain('Ada, Done, studio');
     expect(rows(view).join(' ')).toContain('Cloud general');
     hostState.connecting = true;
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('button[aria-label="Empty workspace"]')!.click(),
-    );
+    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'empty')));
     expect(view.textContent).toContain(t.cloudChannels.empty);
+  });
+
+  it('falls back to All when its selected Host is no longer available', async () => {
+    const view = await home();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('removed-host')));
+    expect(conversationFilter.getSnapshot()).toBe('all');
+    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(
+      t.allEnvironments,
+    );
+    expect(rows(view)).toHaveLength(3);
   });
 
   it('filters the list in place and opens the chat the Human taps', async () => {
@@ -397,4 +576,418 @@ describe('Search in the Chats header', () => {
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
     expect(view.querySelector(`button[aria-label="${t.settings}"]`)).not.toBeNull();
   });
+});
+
+describe('Selected view header accessibility', () => {
+  it.each(['all', 'computer', 'cloud'] as const)(
+    'announces the full %s view and scales its icon with live system text size',
+    async (kind) => {
+      const title = kind === 'all' ? t.allEnvironments : 'Studio team with a long complete name';
+      const accessibilityLabel =
+        kind === 'cloud' ? `${title}, cloud.example.test, team-one` : undefined;
+      host = document.createElement('div');
+      root = createRoot(host);
+      for (const fontScale of [1, 1.4, 2]) {
+        hostState.fontScale = fontScale;
+        await act(async () =>
+          root!.render(
+            <DesignThemeProvider appearance={{ scheme: 'light' }}>
+              <HomeHeader
+                environment={{
+                  key: kind,
+                  kind,
+                  title,
+                  ...(accessibilityLabel === undefined ? {} : { accessibilityLabel }),
+                  ...(kind === 'computer'
+                    ? { hostIcon: { kind: 'symbol', id: 'desktop' } as const }
+                    : {}),
+                }}
+              >
+                {null}
+              </HomeHeader>
+            </DesignThemeProvider>,
+          ),
+        );
+        const button = host.querySelector('[data-testid="chats-view-button"]')!;
+        expect(button.getAttribute('aria-label')).toBe(
+          `${t.workspaces}, ${accessibilityLabel ?? title}`,
+        );
+        const size = resolveTheme('light', {}, 'ios').type.title.line * fontScale;
+        if (kind === 'computer') {
+          expect(button.querySelector('[data-symbol-size]')?.getAttribute('data-symbol-size')).toBe(
+            String(size),
+          );
+        } else {
+          expect(button.querySelector('svg')?.getAttribute('width')).toBe(String(size));
+          expect(button.querySelector('svg')?.getAttribute('height')).toBe(String(size));
+        }
+      }
+    },
+  );
+});
+
+describe('Selected current Host accent', () => {
+  it.each(['light', 'dark'] as const)(
+    'limits Android tint to the current Host filter and follows %s theme changes',
+    async (scheme) => {
+      const Probe = () => <span>{useDesignTheme().color.accent}</span>;
+      host = document.createElement('div');
+      root = createRoot(host);
+      const render = (appearance = scheme) =>
+        root!.render(
+          <DesignThemeProvider appearance={{ scheme: appearance }}>
+            <HostAccentProvider>
+              <Probe />
+            </HostAccentProvider>
+          </DesignThemeProvider>,
+        );
+      const before = Platform.OS;
+      try {
+        Platform.OS = 'android';
+        hostState.color = 'orange';
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+        expect(host.textContent).toBe(
+          resolveTheme(scheme, { accent: HOST_COLORS.orange[scheme] }, 'android').color.accent,
+        );
+        const otherScheme = scheme === 'light' ? 'dark' : 'light';
+        await act(async () => render(otherScheme));
+        expect(host.textContent).toBe(
+          resolveTheme(otherScheme, { accent: HOST_COLORS.orange[otherScheme] }, 'android').color
+            .accent,
+        );
+        await act(async () => render());
+        await act(async () => conversationFilter.set('all'));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('other-host')));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(cloudEnvironmentKey('cloud', 'team')));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+        hostState.color = 'teal';
+        await act(async () => render());
+        expect(host.textContent).toBe(
+          resolveTheme(scheme, { accent: HOST_COLORS.teal[scheme] }, 'android').color.accent,
+        );
+        Platform.OS = 'ios';
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'ios').color.accent);
+        await act(async () => conversationFilter.set('all'));
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'ios').color.accent);
+        Platform.OS = 'android';
+        await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+        hostState.color = undefined;
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+        hostState.color = 'orange';
+        hostState.removed = true;
+        await act(async () => render());
+        expect(host.textContent).toBe(resolveTheme(scheme, {}, 'android').color.accent);
+      } finally {
+        Platform.OS = before;
+      }
+    },
+  );
+});
+
+describe('Chats row actions share the Host path', () => {
+  it.each(['android', 'ios'] as const)(
+    'removes overflow while keeping complete accessible actions on %s',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      hostState.unread = true;
+      roster.bots[0]!.latestMessageId = 'message-1';
+      const view = await home();
+      expect(view.querySelector('[data-testid="action-menu-trigger"]')).toBeNull();
+      const props = rowProps.get('conversation-row-bot:ada')!;
+      expect(typeof props.onLongPress).toBe(platform === 'android' ? 'function' : 'undefined');
+      expect(props.accessibilityActions).toEqual(
+        ['pin', 'section', 'mute', 'read'].map((key) => ({
+          name: key,
+          label: t.rowActions[key as keyof typeof t.rowActions],
+        })),
+      );
+      const invoke = props.onAccessibilityAction as (event: {
+        nativeEvent: { actionName: string };
+      }) => void;
+      for (const key of ['pin', 'section', 'mute', 'read'] as const) {
+        call.mockClear();
+        push.mockClear();
+        if (platform === 'android' && key === 'read') {
+          await act(async () => invoke({ nativeEvent: { actionName: key } }));
+          expect(call).toHaveBeenLastCalledWith('channelMarkRead', {
+            channelId: 'dm-ada',
+            messageId: 'message-1',
+          });
+          continue;
+        }
+        await rowMenuAction(view, key);
+        const fromMenu = [...call.mock.calls];
+        const navigation = [...push.mock.calls];
+        call.mockClear();
+        push.mockClear();
+        await act(async () => invoke({ nativeEvent: { actionName: key } }));
+        expect(call.mock.calls).toEqual(fromMenu);
+        expect(push.mock.calls).toEqual(navigation);
+      }
+      call.mockClear();
+      await act(async () => invoke({ nativeEvent: { actionName: 'unknown' } }));
+      expect(call).not.toHaveBeenCalled();
+      expect(rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBeUndefined();
+      expect(rowProps.get('conversation-row-bot:xiaoming')!.accessibilityActions).toEqual([]);
+      if (platform === 'ios') {
+        const preview = view.querySelector(
+          '[data-testid="conversation-row-bot:ada"]',
+        )!.parentElement!;
+        expect(preview.querySelector('[data-testid="native-preview"]')).not.toBeNull();
+        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(4);
+      }
+    },
+  );
+  it('Android scrolling has no row swipe recognizer; long press retains three actions', async () => {
+    Platform.OS = 'android';
+    hostState.actions = true;
+    hostState.unread = true;
+    roster.bots[0]!.latestMessageId = 'message-1';
+    const view = await home();
+    expect(swipeConfigs).toHaveLength(0);
+    expect(view.querySelector('[aria-label="Swipe row"]')).toBeNull();
+    await rowMenuAction(view, 'pin');
+    expect(menus.at(-1)!.map((action) => action.text)).toEqual([
+      t.rowActions.pin,
+      t.rowActions.section,
+      t.rowActions.mute,
+    ]);
+    expect(call).toHaveBeenLastCalledWith('rosterBatch', { action: 'pin', channelIds: ['dm-ada'] });
+    await rowMenuAction(view, 'mute');
+    expect(call).toHaveBeenLastCalledWith('channelMuteSet', { channelId: 'dm-ada', muted: true });
+    await rowMenuAction(view, 'section');
+    expect(push).toHaveBeenLastCalledWith({
+      pathname: '/conversation-section',
+      params: { hostId: 'h1', channelId: 'dm-ada' },
+    });
+  });
+  it.each(['ios'] as const)(
+    'keeps mark-read in the %s menu with three swipe actions',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      hostState.unread = true;
+      roster.bots[0]!.latestMessageId = 'message-1';
+      const view = await home();
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      expect(view.querySelectorAll('[data-testid^="conversation-swipe-"]')).toHaveLength(3);
+      expect(view.querySelector('[data-testid="conversation-swipe-read"]')).toBeNull();
+      await rowMenuAction(view, 'read');
+      expect(call).toHaveBeenLastCalledWith('channelMarkRead', {
+        channelId: 'dm-ada',
+        messageId: 'message-1',
+      });
+    },
+  );
+  it.each(['ios'] as const)('runs pin and mute from swipe and menu on %s', async (platform) => {
+    Platform.OS = platform;
+    hostState.actions = true;
+    const view = await home();
+    for (const key of ['pin', 'mute'] as const) {
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!.click(),
+      );
+      const swipeCall = call.mock.calls.at(-1);
+      await rowMenuAction(view, key);
+      expect(call.mock.calls.at(-1)).toEqual(swipeCall);
+      expect(swipeCall).toEqual(
+        key === 'pin'
+          ? ['rosterBatch', { action: 'pin', channelIds: ['dm-ada'] }]
+          : ['channelMuteSet', { channelId: 'dm-ada', muted: true }],
+      );
+    }
+    expect(refresh).toHaveBeenCalledTimes(4);
+    expect(view.querySelector('[data-testid="native-preview"]') !== null).toBe(platform === 'ios');
+    expect(swipeConfigs[0]?.hitSlop).toEqual(
+      platform === 'ios' ? { left: -EDGE_WIDTH } : undefined,
+    );
+  });
+
+  it.each(['ios'] as const)(
+    'opens the same Host-bound section chooser from the %s menu and swipe',
+    async (platform) => {
+      Platform.OS = platform;
+      hostState.actions = true;
+      const view = await home();
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      await act(async () =>
+        view
+          .querySelector<HTMLButtonElement>('[data-testid="conversation-swipe-section"]')!
+          .click(),
+      );
+      expect(push).toHaveBeenLastCalledWith({
+        pathname: '/conversation-section',
+        params: { hostId: 'h1', channelId: 'dm-ada' },
+      });
+      await rowMenuAction(view, 'section');
+      expect(push.mock.calls[1]).toEqual(push.mock.calls[0]);
+      expect(call).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['ios'] as const)('uses the same inverse operations on %s', async (platform) => {
+    Platform.OS = platform;
+    hostState.actions = true;
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      muted: ['dm-ada'],
+      hidden: [],
+      sections: [],
+      sectionOrder: [],
+    };
+    const view = await home();
+    for (const key of ['unpin', 'unmute'] as const) {
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>('[aria-label="Swipe row"]')!.click(),
+      );
+      await act(async () =>
+        view.querySelector<HTMLButtonElement>(`[data-testid="conversation-swipe-${key}"]`)!.click(),
+      );
+      const fromSwipe = call.mock.calls.at(-1);
+      await rowMenuAction(view, key);
+      expect(call.mock.calls.at(-1)).toEqual(fromSwipe);
+      expect(fromSwipe).toEqual(
+        key === 'unpin'
+          ? ['rosterBatch', { action: 'unpin', channelIds: ['dm-ada'] }]
+          : ['channelMuteSet', { channelId: 'dm-ada', muted: false }],
+      );
+    }
+  });
+});
+
+describe('Remote Host section and Pinned presentation', () => {
+  it('ranks a title prefix ahead of a pinned substring when searching', async () => {
+    roster.arrangement = { pins: ['launch-team'], hidden: [], sections: [], sectionOrder: [] };
+    const view = await home();
+    expect(
+      view.querySelector('[data-testid="conversation-row-channel:launch-team"]'),
+    ).not.toBeNull();
+    await type(view, 'a');
+    expect(rows(view)[0]).toBe('Ada, Done, studio');
+    expect(rows(view)[1]).toContain('Launch team');
+    expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
+  });
+  const seed = () => {
+    conversationFilter.set(computerEnvironmentKey(hostState.hostId));
+    roster.arrangement = {
+      pins: ['dm-ada'],
+      hidden: [],
+      sections: [
+        { id: 'work', name: 'Work', channelIds: ['dm-ada', 'launch-team'] },
+        { id: 'empty', name: 'Empty', channelIds: [] },
+      ],
+      sectionOrder: ['work', 'empty'],
+      topOrder: [
+        { kind: 'section', id: 'work' },
+        { kind: 'channel', id: 'bot:xiaoming' },
+        { kind: 'section', id: 'empty' },
+      ],
+    };
+    roster.sorting = { sortMode: 'manual', sortModes: {} };
+  };
+  const ordered = (view: HTMLElement) =>
+    [...view.querySelectorAll('[data-testid]')]
+      .map((node) => node.getAttribute('data-testid'))
+      .filter((id) => id?.startsWith('chat-section-') || id?.startsWith('conversation-row-'));
+  const toggle = async (view: HTMLElement, id: string) =>
+    act(async () =>
+      view.querySelector<HTMLButtonElement>(`[data-testid="chat-section-${id}"]`)!.click(),
+    );
+
+  it('renders pinned and section chats with the same full rows and restores arrangement after search', async () => {
+    seed();
+    hostState.unread = true;
+    const view = await home();
+    expect(ordered(view)).toEqual([
+      'chat-section-pinned',
+      'conversation-row-bot:ada',
+      'chat-section-work',
+      'conversation-row-channel:launch-team',
+      'conversation-row-bot:xiaoming',
+      'chat-section-empty',
+    ]);
+    const pinned = view.querySelector('[data-testid="conversation-row-bot:ada"]')!;
+    expect(pinned.textContent).toContain('Ada');
+    expect(pinned.textContent).toContain('Done');
+    expect(pinned.textContent).toContain('2');
+    expect(pinned.getAttribute('aria-label')).toContain(t.unreadCount(2));
+    await type(view, 'Ada');
+    expect(ordered(view)).toEqual(['conversation-row-bot:ada']);
+    expect(view.textContent).toContain('Done');
+    await type(view, '');
+    expect(ordered(view)[0]).toBe('chat-section-pinned');
+    expect(roster.arrangement?.sections[0]?.channelIds).toEqual(['dm-ada', 'launch-team']);
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it('isolates section and Pinned collapse per Host and does not lose collapsed search matches', async () => {
+    seed();
+    const view = await home();
+    await toggle(view, 'pinned');
+    await toggle(view, 'work');
+    expect(ordered(view)).not.toContain('conversation-row-bot:ada');
+    expect(ordered(view)).not.toContain('conversation-row-channel:launch-team');
+    await type(view, 'Ada');
+    expect(ordered(view)).toEqual(['conversation-row-bot:ada']);
+    await type(view, '');
+    expect(ordered(view)).not.toContain('conversation-row-bot:ada');
+    hostState.hostId = 'h2';
+    conversationFilter.set(computerEnvironmentKey('h2'));
+    await act(async () => root!.render(<HomeScreen />));
+    expect(ordered(view)).toContain('conversation-row-bot:ada');
+    expect(ordered(view)).toContain('conversation-row-channel:launch-team');
+    hostState.hostId = 'h1';
+    conversationFilter.set(computerEnvironmentKey('h1'));
+    await act(async () => root!.render(<HomeScreen />));
+    expect(ordered(view)).not.toContain('conversation-row-bot:ada');
+    expect(call).not.toHaveBeenCalled();
+  });
+
+  it.each(['ios', 'android'] as const)(
+    'keeps pinned row menu operations and native preview boundary on %s',
+    async (platform) => {
+      seed();
+      hostState.actions = true;
+      Platform.OS = platform;
+      const view = await home();
+      await rowMenuAction(view, 'unpin');
+      expect(call).toHaveBeenLastCalledWith('rosterBatch', {
+        action: 'unpin',
+        channelIds: ['dm-ada'],
+      });
+      await rowMenuAction(view, 'section');
+      expect(push).toHaveBeenLastCalledWith({
+        pathname: '/conversation-section',
+        params: { hostId: 'h1', channelId: 'dm-ada' },
+      });
+      expect(
+        view
+          .querySelector('[data-testid="conversation-row-bot:ada"]')
+          ?.parentElement?.querySelector('[data-testid="native-preview"]') != null,
+      ).toBe(platform === 'ios');
+      roster.arrangement = { ...roster.arrangement!, pins: [] };
+      await act(async () => root!.render(<HomeScreen />));
+      expect(ordered(view)).not.toContain('chat-section-pinned');
+      expect(ordered(view).slice(0, 3)).toEqual([
+        'chat-section-work',
+        'conversation-row-bot:ada',
+        'conversation-row-channel:launch-team',
+      ]);
+    },
+  );
 });

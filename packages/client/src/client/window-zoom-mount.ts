@@ -9,7 +9,7 @@ import { mountZoomTooltips } from './window-zoom-tooltips.js';
 
 export interface ZoomCompatibility {
   version: 1;
-  desktopVersion: '0.2.1-rc.2';
+  desktopVersion?: string;
   platform?: 'macos' | 'windows';
   acquire(): Promise<() => void>;
 }
@@ -61,7 +61,6 @@ export function mountWindowZoom(options: {
       shortcuts.runtime !== 'desktop' ||
       !['macos', 'windows'].includes(shortcuts.platform) ||
       compatibility?.version !== 1 ||
-      compatibility.desktopVersion !== '0.2.1-rc.2' ||
       (shortcuts.platform === 'windows' && compatibility.platform !== 'windows') ||
       (compatibility.platform !== undefined && compatibility.platform !== shortcuts.platform)
     )

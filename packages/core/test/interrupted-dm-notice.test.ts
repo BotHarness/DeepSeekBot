@@ -67,7 +67,7 @@ describe('interrupted Human DM notice', () => {
         `[Host: your earlier turn for Human DM ${dm.id}, message human-dm-interrupted, ended without a reply. It stays in that DM for the Human to retry; do not answer it in another Channel.]`,
       );
       expect(turns[0]!.message).toContain(
-        `[Human DM]\nChannel: ${dm.id}\nMessage ID: human-dm-interrupted\nWrite the history of bridges`,
+        `Channel: ${dm.id}\nMessage ID: human-dm-interrupted\nWrite the history of bridges`,
       );
       expect(turns[1]!.message).toContain('[Bot Inbox: direct Group mention from Human]');
       expect(turns[2]!.message).not.toContain('[Host: your earlier turn for Human DM');
@@ -145,9 +145,11 @@ describe('interrupted Human DM notice', () => {
     });
     try {
       await second.runtime.whenIdle();
-      expect(turns).toEqual([
-        `[Human DM]\nChannel: ${dm.id}\nMessage ID: human-interrupted\nRequest human-interrupted`,
-      ]);
+      expect(turns).toHaveLength(1);
+      expect(turns[0]).toMatch(/^\[Human DM\]\nSource Event ID: [^\n]+\n/);
+      expect(turns[0]).toContain(
+        `Channel: ${dm.id}\nMessage ID: human-interrupted\nRequest human-interrupted`,
+      );
       const states = attachOperationalModule(
         second.operationalDatabase,
         'interrupted-dm-test',

@@ -7,18 +7,11 @@ import { radius, space } from '../design/tokens';
 import { ActivitySearchIcon } from '../shell/icons';
 import { DrawerMaterial } from './drawer-material';
 
-export function SearchField({
-  trailing,
-  autoFocus,
-  onFocus,
-  onBlur,
-  value,
-  inset,
-  floating = false,
-  placeholder,
-  onChangeText,
-}: {
+export type SearchFieldProps = {
   trailing?: ReactNode;
+  testID?: string;
+  maxLength?: number;
+  onSubmitEditing?(text: string): void;
   autoFocus?: boolean;
   onFocus?(): void;
   onBlur?(): void;
@@ -27,7 +20,23 @@ export function SearchField({
   floating?: boolean;
   placeholder: string;
   onChangeText(text: string): void;
-}) {
+  onClose?(): void;
+};
+
+export function SearchField({
+  trailing,
+  testID,
+  maxLength,
+  onSubmitEditing,
+  autoFocus,
+  onFocus,
+  onBlur,
+  value,
+  inset,
+  floating = false,
+  placeholder,
+  onChangeText,
+}: SearchFieldProps) {
   const theme = useDesignTheme();
   return (
     <View
@@ -55,6 +64,9 @@ export function SearchField({
         {floating ? <DrawerMaterial /> : null}
         <ActivitySearchIcon color={theme.color.subtle} size={theme.type.body.size} />
         <TextInput
+          testID={testID}
+          maxLength={maxLength}
+          onSubmitEditing={({ nativeEvent }) => onSubmitEditing?.(nativeEvent.text)}
           autoFocus={autoFocus}
           onFocus={onFocus}
           onBlur={onBlur}

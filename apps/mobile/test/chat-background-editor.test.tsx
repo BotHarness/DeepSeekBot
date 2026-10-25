@@ -3,6 +3,8 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
+
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   PanResponder: { create: () => ({ panHandlers: {} }) },

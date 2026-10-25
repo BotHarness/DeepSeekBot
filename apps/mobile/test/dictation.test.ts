@@ -92,8 +92,10 @@ describe('composer actions', () => {
     expect(composerActions({ ...base, dictation: 'denied' })).toEqual(['mic']);
   });
 
-  it('hides the mic and Send while the conversation cannot send', () => {
-    expect(composerActions({ ...base, disabled: true, text: 'hello' })).toEqual([]);
+  it('keeps draft Send visible but hides the mic while unavailable', () => {
+    expect(composerActions({ ...base, disabled: true, text: 'hello' })).toEqual(['send']);
+    expect(composerActions({ ...base, disabled: true, files: 1 })).toEqual(['send']);
+    expect(composerActions({ ...base, disabled: true })).toEqual([]);
     expect(composerActions({ ...base, canDictate: false })).toEqual([]);
   });
 });

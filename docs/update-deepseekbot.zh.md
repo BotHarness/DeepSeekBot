@@ -57,7 +57,7 @@ DeepSeekBot 会在 **设置 → Bot 设置 → DeepSeekBot 版本** 里显示当
 dsh plugin --profile web add deepseekbot@<版本号>
 ```
 
-把 `<版本号>` 换成要安装的版本，例如 `deepseekbot@1.0.3`；设置页的卡片里会给出可以直接复制的完整命令。命令完成后重启 DSH：Web 版在终端按 Ctrl+C，再用原来的命令运行一次 `dsh web`（保留启动时带的参数，例如 `--port`）；桌面版完全退出后重新打开。
+把 `<版本号>` 换成要安装的版本；设置页的卡片里会给出可以直接复制的完整命令，[安装指南](https://tobs.app/docs/installation/)也提供当前已验证的安装包。命令完成后重启 DSH：Web 版在终端按 Ctrl+C，再用原来的命令运行一次 `dsh web`（保留启动时带的参数，例如 `--port`）；桌面版完全退出后重新打开。
 
 DSH 自带的插件页目前不能升级已经安装的插件。桌面版需要手动更新时，同样用上面的命令，把 `web` 换成桌面版使用的 Profile 名，也就是 DSH 数据目录（默认 `~/.dsh`）下 `profiles/` 里的文件夹名。
 

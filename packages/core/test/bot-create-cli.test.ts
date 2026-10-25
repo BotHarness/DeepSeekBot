@@ -125,7 +125,8 @@ describe('deepseekbot create', () => {
       stderr: () => {},
     });
     expect(code).toBe(0);
-    expect(out.join('\n')).toContain('deepseekbot create --name <name>');
+    expect(out.join('\n')).toContain('tobs create --name <name>');
+    expect(out.join('\n')).not.toContain('deepseekbot create');
   });
 
   it('creates a blank bot against a fresh home with zero clicks', async () => {

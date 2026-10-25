@@ -12,7 +12,7 @@ import { segmentCorners } from '../design/segment-corners';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
 import { CheckIcon } from './icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 
 export type ActivitySection = 'all' | InboxSection | InboxSetAside;
 export type ActivityFilter = {
@@ -78,6 +78,7 @@ function Selection({ selected }: { selected: boolean }) {
 }
 
 function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose }: Props) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const ios = Platform.OS === 'ios';
@@ -290,6 +291,7 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
 }
 
 function OptionsSurface({ children, onClose }: { children: ReactNode; onClose(): void }) {
+  const t = useStrings();
   if (Platform.OS === 'ios')
     return (
       <Modal

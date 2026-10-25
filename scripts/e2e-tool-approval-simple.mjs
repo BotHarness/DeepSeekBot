@@ -11,6 +11,7 @@ const flag = (name) => process.argv[process.argv.indexOf(name) + 1];
 const paths = verifyPaths(process.argv.includes('--name') ? flag('--name') : 'ax2080-simple');
 const captureOnly = process.argv.includes('--capture-report');
 const legacy = process.argv.includes('--expect-legacy');
+const managementAlways = !process.argv.includes('--expect-once-only-management');
 const prepared = captureOnly
   ? JSON.parse(readFileSync(flag('--capture-report'), 'utf8'))
   : undefined;
@@ -50,7 +51,9 @@ const report = {
   output,
   stage: 'create',
   botId: prepared?.botId,
-  botName: prepared?.botName ?? '2080 审批体验',
+  botName:
+    prepared?.botName ??
+    (process.argv.includes('--bot-name') ? flag('--bot-name') : '2080 审批体验'),
   console: [],
 };
 const persist = () => save('report.json', report);
@@ -99,16 +102,21 @@ const finished = async (before, marker) => {
   );
 };
 const shellPrompt = (marker, escalate = true) =>
-  `For this authorized synthetic approval UX test, first channel_send one short explanation. Then call native pwsh exactly once with description "Verify the approval action choices", command "Write-Output '${marker}'"${escalate ? ', sandbox_permissions "danger-full-access", justification "May I run this harmless marker to verify the approval buttons?"' : ', with no sandbox_permissions'}. ${escalate ? 'This tests native approval, so use the requested wider mode even though printing itself is harmless.' : ''} Do not delegate or request a folder. After the call settles, channel_send its actual tool output verbatim, then end the turn. Never retry after rejection.`;
+  `For this authorized synthetic approval UX test, first bot_send_message one short explanation. Then call native pwsh exactly once with description "Verify the approval action choices", command "Write-Output '${marker}'"${escalate ? ', sandbox_permissions "danger-full-access", justification "May I run this harmless marker to verify the approval buttons?"' : ', with no sandbox_permissions'}. ${escalate ? 'This tests native approval, so use the requested wider mode even though printing itself is harmless.' : ''} Do not delegate or request a folder. After the call settles, bot_send_message its actual tool output verbatim, then end the turn. Never retry after rejection.`;
 let browser, page;
-const click = (label) =>
-  page
-    .locator(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`)
-    .setTimeout(20000)
-    .click();
+const click = async (label) => {
+  const buttons = await page.$$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
+  for (const button of buttons) {
+    if (await button.isVisible()) {
+      await button.click();
+      return;
+    }
+  }
+  throw new Error('Visible button unavailable: ' + label);
+};
 const dismiss = async () => {
   for (let n = 0; n < 4; n++) {
-    for (const label of ['Continue', 'Configure later', 'Skip tutorial']) {
+    for (const label of ['Continue', 'Configure later', 'Skip tutorial', 'Skip']) {
       const button = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
       if (button && (await button.isVisible())) await button.click();
     }
@@ -146,9 +154,10 @@ const open = async () => {
   assert.ok(name, 'QA Bot sidebar entry');
   await click(name);
   await dismiss();
-  if (!(await page.$('.bh-tool-approval-card'))) await click('Messages · Ctrl + Alt + Shift + 2');
-  const closeHome = await page.$('::-p-aria([name="Close Home"][role="button"])');
-  if (closeHome && (await closeHome.isVisible())) await closeHome.click();
+  const card = await page
+    .waitForSelector('.bh-tool-approval-card[tabindex="0"]', { visible: true, timeout: 5000 })
+    .catch(() => null);
+  if (!card) await click('Messages · Ctrl + Alt + Shift + 2');
   await (await page.waitForSelector('.bh-tool-approval-card[tabindex="0"]')).scrollIntoView();
 };
 const capture = async (name) => {
@@ -179,10 +188,11 @@ try {
   if (!report.botId)
     report.botId = cli([
       'create',
+      ...(process.argv.includes('--preset') ? ['--preset', flag('--preset')] : []),
       '--name',
       report.botName,
       '--persona',
-      'Follow Human QA instructions exactly. Use the requested native tool once. Report real results with channel_send. Never retry rejected calls or delegate this QA.',
+      'Follow Human QA instructions exactly. Use the requested native tool once. Report real results with bot_send_message. Never retry rejected calls or delegate this QA.',
     ]).bot.id;
   persist();
   report.stage = 'first-request';
@@ -239,7 +249,7 @@ try {
     report.changedInputWithoutCard = true;
     report.stage = 'other-tool';
     const other = await send(
-      'This is a synthetic approval test. First channel_send a short explanation, then call bot_create exactly once with display_name "2080 Pending Creation" and description "Synthetic QA creation, reject this request". Wait for its real result; do not create it through Shell or retry after rejection. End the turn after channel_send reports the actual result.',
+      'This is a synthetic approval test. First bot_send_message a short explanation, then call bot_create exactly once with display_name "2080 Pending Creation" and description "Synthetic QA creation, reject this request". Wait for its real result; do not create it through Shell or retry after rejection. End the turn after bot_send_message reports the actual result.',
     );
     const otherRequest = await pending(other);
     assert.equal(otherRequest.toolApprovalRequest.toolName, 'bot_create');
@@ -277,11 +287,11 @@ try {
     report.fullAccessOrdinaryWithoutCard = true;
     report.stage = 'full-access-permission-change';
     const guard = await send(
-      'This is the authorized Human-only approval regression. First channel_send a short explanation, then use native pwsh once to run exactly "deepseekbot grant-write-set synthetic-unavailable --grant synthetic-unavailable --enabled", with a description. No sandbox_permissions. This tests the permission-management card under Full Access. Wait for the real result and report with channel_send; do not retry, edit settings another way, or choose another command. The Human will reject it, so no target authorization should change.',
+      'This is the authorized Human-only approval regression. First bot_send_message a short explanation, then use native pwsh once to run exactly "deepseekbot grant-write-set synthetic-unavailable --grant synthetic-unavailable --enabled", with a description. No sandbox_permissions. This tests the permission-management card under Full Access. Wait for the real result and report with bot_send_message; do not retry, edit settings another way, or choose another command. The Human will reject it, so no target authorization should change.',
     );
     const guardRequest = await pending(guard);
     assert.equal(guardRequest.toolApprovalRequest.toolName, 'pwsh');
-    assert.equal(guardRequest.toolApprovalRequest.allowAlways, false);
+    assert.equal(guardRequest.toolApprovalRequest.allowAlways, managementAlways);
     await open();
     await page.waitForSelector('.bh-tool-approval-card[tabindex="0"]', { visible: true });
     assert.equal(
@@ -289,7 +299,7 @@ try {
         '.bh-tool-approval-card[tabindex="0"] .bh-request-secondary',
         (button) => button.disabled,
       ),
-      true,
+      !managementAlways,
     );
     await capture('full-access-human-only');
     await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);

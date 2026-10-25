@@ -36,7 +36,7 @@ import { MENU_REACTIONS, reactedByMe } from '../../host/conversation';
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { rowSymbol } from '../primitives/row-icon';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   dismissQueue,
   menuGroups,
@@ -130,6 +130,7 @@ function SheetContent({
   onReact(emoji: string, active: boolean): void;
   onAction(action: MessageMenuAction): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { message } = target;
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));

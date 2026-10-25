@@ -5,7 +5,7 @@ import { Text } from '../primitives/text';
 import { hostColorInk, type HostLook } from '../design/host-look';
 import { HostGlyph } from '../shell/host-tile';
 import { CloudIcon, ComputerIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 export function SourceName({
   name,
   source,
@@ -15,6 +15,7 @@ export function SourceName({
   source: 'computer' | 'cloud';
   look?: HostLook | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const Icon = source === 'cloud' ? CloudIcon : ComputerIcon;
   const size = theme.type.meta.size * theme.fontScale;
@@ -23,17 +24,21 @@ export function SourceName({
       accessible
       accessibilityLabel={`${name}, ${source === 'cloud' ? t.cloudChannels.cloudChannel : t.computerChannel}`}
       style={{
-        ...(theme.largeText ? { alignSelf: 'stretch' as const } : { flex: 1 }),
+        flex: 1,
         minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
       }}
     >
-      <Text strong numberOfLines={theme.largeText ? 2 : 1} style={{ flexShrink: 1 }}>
+      <Text strong numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1 }}>
         {name}
       </Text>
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <View
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={{ flexShrink: 0 }}
+      >
         {source === 'computer' && look !== undefined ? (
           <HostGlyph
             icon={look.icon}

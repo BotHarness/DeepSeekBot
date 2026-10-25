@@ -4,7 +4,8 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', async () => await import('./react-native-shim'));
-vi.mock('@expo/ui/jetpack-compose', () => {
+vi.mock('@expo/ui/jetpack-compose', async () => {
+  const nativeMenu = (await import('./compose-menu-shim')).components;
   const pass = ({ children }: { children?: ReactNode }) => children ?? null;
   const DropdownMenu = ({ expanded, children }: { expanded: boolean; children: ReactNode }) =>
     createElement('div', { 'data-expanded': String(expanded) }, children);
@@ -22,6 +23,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
   }) => createElement('li', { onClick, 'data-color': elementColors?.textColor ?? '' }, children);
   DropdownMenuItem.Text = pass;
   return {
+    ...nativeMenu,
     Box: () => null,
     DropdownMenu,
     DropdownMenuItem,
@@ -32,7 +34,10 @@ vi.mock('@expo/ui/jetpack-compose', () => {
   };
 });
 vi.mock('../src/ui/shell/icons', () => ({ MoreIcon: () => null }));
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ fillMaxSize: () => ({}) }));
+vi.mock(
+  '@expo/ui/jetpack-compose/modifiers',
+  async () => (await import('./compose-menu-shim')).modifiers,
+);
 
 import { ActionMenuButton } from '../src/ui/primitives/action-menu-button.android';
 
@@ -69,8 +74,7 @@ describe('Android action menu', () => {
     expect(menu()?.getAttribute('data-expanded')).toBe('true');
     const items = [...(host?.querySelectorAll('li') ?? [])];
     expect(items.map((item) => item.textContent)).toEqual(['Customize', 'Unpair']);
-    expect(items[1]?.getAttribute('data-color')).not.toBe('');
-    expect(items[1]?.previousElementSibling?.tagName).toBe('HR');
+    expect(items.every((item) => item.querySelector('i[data-symbol]'))).toBe(true);
     act(() => items[1]?.click());
     expect(unpair).toHaveBeenCalledOnce();
     expect(customize).not.toHaveBeenCalled();
@@ -96,3 +100,8 @@ describe('Android action menu', () => {
     expect(compose?.nextElementSibling).toBe(trigger);
   });
 });
+
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ name }: { name: { android: string } }) =>
+    createElement('i', { 'data-symbol': name.android }),
+}));

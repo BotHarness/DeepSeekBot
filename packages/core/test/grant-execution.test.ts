@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
+import {
+  appendDelegatedPolicyOverrides,
+  captureDelegatedPolicyOverrides,
+} from '@deepseek-ai/dsh-subagent';
 
 import {
+  alignOrchestratorSubagentPermission,
   deviceToolAuthorization,
   grantExecutionDenial,
   isDshGovernedTool,
@@ -77,6 +82,125 @@ function fixture() {
 }
 
 describe('Workspace Grant execution boundary', () => {
+  it.each([
+    { fork: false, nested: false },
+    { fork: true, nested: false },
+    { fork: false, nested: true },
+  ])(
+    'does not block a delegated child under Full access (fork: $fork, nested: $nested)',
+    ({ fork, nested }) => {
+      const state = fixture();
+      const rootId = 'botharness-orchestrator';
+      const childId = 'dsh-full-access-child';
+      const parentId = nested ? 'dsh-parent-child' : rootId;
+      const core = {
+        ...(state.core as object),
+        ownership: {
+          resolve: (sessionId: string) =>
+            sessionId === childId
+              ? {
+                  sessionId,
+                  botSlug,
+                  rootRole: 'assignment',
+                  provenance: 'subagent',
+                  parentSessionId: parentId,
+                }
+              : nested && sessionId === parentId
+                ? {
+                    sessionId,
+                    botSlug,
+                    rootRole: 'assignment',
+                    provenance: 'subagent',
+                    parentSessionId: rootId,
+                  }
+                : sessionId === rootId
+                  ? { sessionId, botSlug, rootRole: 'orchestrator' }
+                  : undefined,
+        },
+        assignmentAccess: { get: () => ({ mode: 'danger-full-access', scope: 'chat' }) },
+      } as never;
+      const append = vi.fn((type: string, data: { mode?: string; policy?: string }) => {
+        if (type === 'sandbox/mode' && data.mode !== undefined)
+          state.resolvePolicy.mockReturnValue({ mode: data.mode });
+        if (type === 'approval/policy' && data.policy !== undefined)
+          state.overrideOf.mockReturnValue(data.policy);
+      });
+      const child = {
+        id: childId,
+        header: { cwd: '/tmp/memory', parentSession: parentId },
+        append,
+      } as never;
+      if (fork) {
+        append('sandbox/mode', { mode: 'workspace-write' });
+        append('approval/policy', { policy: 'ask' });
+      }
+      const parent = {
+        session: { id: rootId },
+        ctx: {
+          get: (name: string) =>
+            name === 'sandboxPolicy'
+              ? { overrideOf: () => 'danger-full-access' }
+              : name === 'approval'
+                ? {}
+                : undefined,
+        },
+      } as never;
+      appendDelegatedPolicyOverrides(child, captureDelegatedPolicyOverrides(parent));
+      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toContain(
+        'requires workspace-write',
+      );
+      append.mockClear();
+      alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
+      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toBeUndefined();
+      expect(append).toHaveBeenCalledExactlyOnceWith('sandbox/mode', { mode: 'workspace-write' });
+      expect(sessionHasFullAccess(core, childId)).toBe(false);
+      alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
+      expect(append).toHaveBeenCalledTimes(1);
+      state.overrideOf.mockReturnValue('ask');
+      alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
+      expect(append).toHaveBeenLastCalledWith('approval/policy', { policy: 'never' });
+      expect(append).toHaveBeenCalledTimes(2);
+      state.memoryDirFor.mockReturnValue('/another-memory');
+      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toContain(
+        'requires its Memory working directory',
+      );
+      state.getBot.mockReturnValue(undefined);
+      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toContain(
+        'identity is deleted',
+      );
+    },
+  );
+
+  it('does not change Assignment Subagents, independent roots or unowned native sessions', () => {
+    const state = fixture();
+    const append = vi.fn();
+    for (const id of [assignmentSessionId, 'botharness-orchestrator', 'native-session']) {
+      const session = { id, header: { cwd }, append } as never;
+      alignOrchestratorSubagentPermission(state.core, session, state.policy, state.approval);
+    }
+    const assignmentChildCore = {
+      ownership: {
+        resolve: (sessionId: string) =>
+          sessionId === 'assignment-child'
+            ? {
+                sessionId,
+                botSlug,
+                rootRole: 'assignment',
+                provenance: 'subagent',
+                parentSessionId: assignmentSessionId,
+              }
+            : { sessionId, botSlug, rootRole: 'assignment' },
+      },
+    } as never;
+    alignOrchestratorSubagentPermission(
+      assignmentChildCore,
+      { id: 'assignment-child', append } as never,
+      state.policy,
+      state.approval,
+    );
+    expect(append).toHaveBeenCalledTimes(0);
+  });
+
   it('recognizes full access from an Assignment snapshot or the chat-scoped preset only', () => {
     const state = fixture();
     const get = vi.fn((): { mode: string; scope: string } | undefined => undefined);
@@ -166,7 +290,7 @@ describe('Workspace Grant execution boundary', () => {
       'group_leave',
     ])
       expect(requiresHumanToolApproval(tool)).toBe(false);
-    expect(requiresHumanToolApproval('bot_dm_send')).toBe(false);
+    expect(requiresHumanToolApproval('bot_send_message')).toBe(false);
     for (const tool of [
       'bot_schedule_list',
       'bot_schedule_create',
@@ -186,7 +310,7 @@ describe('Workspace Grant execution boundary', () => {
       'bridge_sender_permissions',
       'bridge_directory',
       'bridge_attachment_save',
-      'bridge_reply_file',
+      'bot_send_message',
     ]) {
       expect(requiresHumanToolApproval(tool)).toBe(false);
       expect(isDshGovernedTool(tool)).toBe(false);

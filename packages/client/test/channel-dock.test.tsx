@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
   IconChevronDownOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
   Menu: ({

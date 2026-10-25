@@ -154,4 +154,8 @@ export const StyleSheet = {
     return style && typeof style === 'object' ? style : undefined;
   },
 };
-export const AccessibilityInfo = { announceForAccessibility: (_message: string) => {} };
+export const AccessibilityInfo = {
+  announceForAccessibility: (_message: string) => {},
+  isScreenReaderEnabled: async () => false,
+  addEventListener: (_event: string, _listener: (enabled: boolean) => void) => ({ remove() {} }),
+};

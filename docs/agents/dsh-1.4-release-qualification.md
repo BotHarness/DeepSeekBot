@@ -2,6 +2,8 @@
 
 Target release: **1.4.0**. This is a preparation plan, not a published release or a claim that unreleased DSH versions work. Tracking: [#2167](https://github.com/BotHarness/DeepSeekBot/issues/2167).
 
+> Historical 1.4.0 candidate record. The current admission policy supersedes the version bounds and npm peer declarations below: see [rc.3 / forward admission](dsh-rc3-upgrade.md) and [ADR-0087](../adr/0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md). Keep the original qualification evidence attached to its candidate.
+
 ## Admission and qualification are separate
 
 The product declares `>=0.2.0-rc.2 <0.3.0-0` in `engines.dsh`; Host-provided DSH peers follow the same admission policy, with an additional explicit 0.2.1 prerelease comparator for npm’s default SemVer matching. The development dependencies, lockfile and `productDsh` remain exactly `0.2.1-rc.2`. `productDshVersions` names concrete releases for artifact qualification; it must never be populated with invented future versions or inferred from a broad range.

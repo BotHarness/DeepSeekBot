@@ -15,13 +15,15 @@ import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
 import { CloseIcon, KeyboardIcon } from '../../src/ui/shell/icons';
 import { useMounted } from '../../src/ui/mounted';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 
 const idle: BrowserViewerState = { status: 'loading', takeover: false, switching: false };
 
 export default function BrowserScreen() {
+  const t = useStrings();
   const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
+
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();

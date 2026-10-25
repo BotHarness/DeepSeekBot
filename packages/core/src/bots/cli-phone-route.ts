@@ -9,6 +9,11 @@ export const PHONE_ROUTE_COMMANDS = [
     command: 'phone-route-publish',
     description: 'run tailscale serve so phones can reach this Host (needs --confirm)',
   },
+  {
+    command: 'phone-route-disable',
+    description:
+      'disable managed Tailscale publishing while keeping other routes (needs --confirm)',
+  },
 ] as const;
 
 export async function runPhoneRouteCommand(
@@ -20,15 +25,18 @@ export async function runPhoneRouteCommand(
   }>,
 ): Promise<unknown> {
   if (rest.length) throw new CliLiveError('usage', `${command} takes no arguments.`);
-  const publish = command === 'phone-route-publish';
+  const publish = command === 'phone-route-publish' || command === 'phone-route-disable';
   if (publish && values.confirm !== true)
     throw new CliLiveError(
       'confirm-required',
-      'phone-route-publish runs tailscale serve on the Host computer. Pass --confirm.',
+      `${command} changes Tailscale publishing on the Host computer. Pass --confirm.`,
     );
   const host = await connect();
   const { bytes } = publish
-    ? await host.http('/api/botharness/devices/serve', { confirm: true })
+    ? await host.http('/api/botharness/devices/serve', {
+        confirm: true,
+        ...(command === 'phone-route-disable' ? { action: 'disable' } : {}),
+      })
     : await host.http('/api/botharness/devices');
   const value = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
   return publish ? value : { routes: value['routes'] };

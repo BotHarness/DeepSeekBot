@@ -46,6 +46,7 @@ export function MemoryCommitLine({
   commit,
   bots,
   action,
+  compact = false,
   t,
   onOpen,
 }: {
@@ -53,6 +54,7 @@ export function MemoryCommitLine({
   commit: MemoryCommit;
   bots: readonly BotSummary[];
   action?: string | undefined;
+  compact?: boolean;
   t: BotHarnessTranslate;
   onOpen(): void;
 }): ReactElement {
@@ -66,9 +68,14 @@ export function MemoryCommitLine({
         type="button"
         className="bh-memory-commit-line"
         data-message-id={messageId}
-        title={[t('memoryCommit.author', { name: commit.authorName, sha: commit.sha }), detail]
-          .filter((part) => part !== undefined)
-          .join('\n')}
+        data-memory-display={compact ? 'compact' : undefined}
+        title={
+          compact
+            ? undefined
+            : [t('memoryCommit.author', { name: commit.authorName, sha: commit.sha }), detail]
+                .filter((part) => part !== undefined)
+                .join('\n')
+        }
         onClick={onOpen}
       >
         <GitCommitIcon size={14} />
@@ -88,10 +95,14 @@ export function MemoryCommitLine({
           </span>
           <span className="bh-bot-dm-action-name">{name}</span>
         </span>
-        <span>{action ?? t('memoryCommit.updated')}</span>
-        <span className="bh-memory-commit-subject">{commit.subject}</span>
-        <code className="bh-memory-commit-sha">{commit.sha.slice(0, 7)}</code>
-        {files === undefined ? null : <span className="bh-memory-commit-files">{files}</span>}
+        <span className="bh-memory-commit-action">{action ?? t('memoryCommit.updated')}</span>
+        {compact ? null : (
+          <>
+            <span className="bh-memory-commit-subject">{commit.subject}</span>
+            <code className="bh-memory-commit-sha">{commit.sha.slice(0, 7)}</code>
+            {files === undefined ? null : <span className="bh-memory-commit-files">{files}</span>}
+          </>
+        )}
       </button>
     </div>
   );

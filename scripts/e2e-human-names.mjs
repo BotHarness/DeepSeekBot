@@ -216,14 +216,14 @@ try {
             await rpc('create', {
               displayName: 'Navigator QA',
               persona:
-                'Follow the Human request precisely. First channel_list to discover humanMembers, then channel_send with mention_human_ids using the current stable Human ID. Never guess a Human ID or type a label for the trusted prefix. Do not create Assignments. Send exactly one requested Group message. After an acknowledgement, finish without sending.',
+                'Follow the Human request precisely. First channel_list to discover humanMembers, then bot_send_message with mention_human_ids using the current stable Human ID. Never guess a Human ID or type a label for the trusted prefix. Do not create Assignments. Send exactly one requested Group message. After an acknowledgement, finish without sending.',
             })
           ).bot;
           const group = (
             await rpc('channelCreate', { name: 'Roleplay names QA', members: [bot.slug] })
           ).channel;
           const sourceBody =
-            '@Navigator QA Use channel_list to discover humanMembers and channel_send to send one trusted Human mention. The body must be exactly "QA_NAME_TRUSTED: Please confirm Friday. Plain @Human stays ordinary." Use mention_human_ids; do not set reply_to.';
+            '@Navigator QA Use channel_list to discover humanMembers and bot_send_message to send one trusted Human mention. The body must be exactly "QA_NAME_TRUSTED: Please confirm Friday. Plain @Human stays ordinary." Use mention_human_ids; use explicit channel_id without source_event_id.';
           await rpc('channelSend', {
             channelId: group.id,
             messageId: 'human-' + crypto.randomUUID(),

@@ -1,4 +1,4 @@
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
@@ -7,9 +7,10 @@ import { Text } from '../primitives/text';
 import { ChevronDownIcon } from '../shell/icons';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { ComposerCircleButton, composerBar } from './composer-chrome';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): void }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const layer = theme.layer.raised;
   const badge = theme.type.meta.line;
@@ -36,12 +37,27 @@ export function JumpToLatest({ unseen, onPress }: { unseen: number; onPress(): v
         </Text>
       </View>
     ) : null;
-  if (glass)
+  if (Platform.OS === 'ios' || glass)
     return (
-      <ComposerCircleButton label={label} size={composerBar(theme) - space.x2} onPress={onPress}>
-        <ChevronDownIcon color={theme.color.fg} size={theme.type.body.line} />
-        {count}
-      </ComposerCircleButton>
+      <View>
+        <ComposerCircleButton
+          symbol="chevron.down"
+          testID="jump-to-latest"
+          label={label}
+          size={Math.max(theme.touch, composerBar(theme) - space.x2)}
+          onPress={onPress}
+        >
+          <ChevronDownIcon color={theme.color.fg} size={theme.type.body.line} />
+        </ComposerCircleButton>
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{ position: 'absolute', top: 0, right: 0 }}
+        >
+          {count}
+        </View>
+      </View>
     );
   return (
     <Pressable

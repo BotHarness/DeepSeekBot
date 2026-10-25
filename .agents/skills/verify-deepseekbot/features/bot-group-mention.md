@@ -4,8 +4,8 @@ A PersonaBot in a Group mentions a colleague, the colleague shows as a mention b
 
 ## Sub-features
 
-- `mention by ID`: `channel_send` with `mention_bot_ids`.
-- `mention by name`: `channel_send` whose body has `@` and a joined colleague's exact display name. The Host turns it into the same mention.
+- `mention by ID`: `bot_send_message` with `mention_bot_ids`.
+- `mention by name`: `bot_send_message` whose body has `@` and a joined colleague's exact display name. The Host turns it into the same mention.
 - `wake`: the mentioned Bot gets a `group-mention` Inbox Admission and a run, once per sender and recipient in one causation chain.
 
 ## How to get to it (user POV)

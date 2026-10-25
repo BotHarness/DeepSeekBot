@@ -1,3 +1,4 @@
+import { HostScope } from '../../src/host/host-scope';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { TextInput } from '../../src/ui/primitives/system-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -32,13 +33,25 @@ import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
 import { CloseIcon, HandBackIcon } from '../../src/ui/shell/icons';
 import { useMounted } from '../../src/ui/mounted';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
+import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';
 
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
 export default function ComputerScreen() {
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  return (
+    <HostScope value={hostId}>
+      <LocalComputerScreen Legacy={LegacyComputerScreen} />
+    </HostScope>
+  );
+}
+
+function LegacyComputerScreen() {
+  const t = useStrings();
   const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
+
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();

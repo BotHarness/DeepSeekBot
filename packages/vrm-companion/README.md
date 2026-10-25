@@ -4,7 +4,7 @@ A VRM companion Panel for [DeepSeekBot](https://github.com/BotHarness/DeepSeekBo
 
 ## Requirements
 
-- DeepSeek Harness (DSH) `>=0.2.0-rc.2 <0.3.0`.
+- DeepSeek Harness (DSH) `>=0.2.0-0` (including later prereleases; runtime qualification is separate).
 - DeepSeekBot newer than 1.4.1, installed in the same Profile. The Panel uses DeepSeekBot's `botPresentation` and `dockPanels` services, which 1.4.1 and earlier do not provide, and the DSH Client `locale` service for its Chinese and English text; the Panel does not load without them.
 
 ## Install

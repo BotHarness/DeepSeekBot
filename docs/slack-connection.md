@@ -153,7 +153,7 @@ Each channel appears in the app's conversation list after its first admitted mes
 
 In a Slack channel the app belongs to, send an actual @mention selected from Slack's mention picker, for example:
 
-> @YourAppName Please reply “SLACK-OK” in this Slack thread using bridge_reply. Do not send a local DM.
+> @YourAppName Please reply “SLACK-OK” in this Slack thread using bot_send_message. Do not send a local DM.
 
 Open **Bot Inbox** in the PersonaBot's sidebar (or the Activity Center), locate the new source and open its details. Check the Slack channel, original sender, receiving identity and message content. “Handled” means the Bot processed the source; it does not replace checking the actual external reply.
 

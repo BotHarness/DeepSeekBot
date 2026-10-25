@@ -49,7 +49,7 @@ describe('locked downstream theme composition', () => {
 });
 
 it.each(['darwin', 'win32', 'linux'])(
-  'leases native font keys only for the actual qualified boot release on %s',
+  'leases native font keys only for the actual adapter protocol independent of boot release on %s',
   async (platform) => {
     const adapted = adaptZoomTheme(readFileSync(path, 'utf8'));
     const start = adapted.indexOf('const installFontKeys =');
@@ -76,7 +76,7 @@ it.each(['darwin', 'win32', 'linux'])(
         install,
       );
       expect(install).toHaveBeenCalledOnce();
-      if (version !== '0.2.1-rc.2' || platform === 'linux') {
+      if (platform === 'linux') {
         expect(window.__botharnessWindowZoomCompatibility).toBeUndefined();
         expect(dispose).not.toHaveBeenCalled();
         continue;

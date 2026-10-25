@@ -1,17 +1,12 @@
-import {
-  Box,
-  DropdownMenu,
-  DropdownMenuItem,
-  HorizontalDivider,
-  Host,
-  Text,
-} from '@expo/ui/jetpack-compose';
-import { fillMaxSize } from '@expo/ui/jetpack-compose/modifiers';
-import { Fragment, useState } from 'react';
+import { Box, Column, DropdownMenu, Host } from '@expo/ui/jetpack-compose';
+import { fillMaxSize, width } from '@expo/ui/jetpack-compose/modifiers';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { materialMenu, radius, space } from '../design/tokens';
+import { MaterialMenuGroup } from './material-menu.android';
+import { MenuIcon } from './menu-icon';
 import type { ActionMenuButtonProps } from './action-menu-button';
 import { MoreIcon } from '../shell/icons';
 
@@ -28,29 +23,47 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
       >
-        <DropdownMenu expanded={open} onDismissRequest={() => setOpen(false)}>
+        <DropdownMenu
+          expanded={open}
+          onDismissRequest={() => setOpen(false)}
+          color="transparent"
+          shadowElevation={0}
+        >
           <DropdownMenu.Trigger>
             <Box modifiers={[fillMaxSize()]} />
           </DropdownMenu.Trigger>
           <DropdownMenu.Items>
-            {actions.map((action) => (
-              <Fragment key={action.label}>
-                {action.destructive === true ? <HorizontalDivider /> : null}
-                <DropdownMenuItem
-                  {...(action.destructive === true
-                    ? { elementColors: { textColor: theme.color.danger } }
-                    : {})}
-                  onClick={() => {
-                    setOpen(false);
-                    action.run();
-                  }}
-                >
-                  <DropdownMenuItem.Text>
-                    <Text>{action.label}</Text>
-                  </DropdownMenuItem.Text>
-                </DropdownMenuItem>
-              </Fragment>
-            ))}
+            <Column
+              modifiers={[width(materialMenu.width)]}
+              verticalArrangement={{ spacedBy: materialMenu.groupGap }}
+            >
+              {[false, true].map((destructive) => {
+                const group = actions.filter(
+                  (action) => (action.destructive === true) === destructive,
+                );
+                return group.length === 0 ? null : (
+                  <MaterialMenuGroup
+                    key={String(destructive)}
+                    items={group.map((action) => ({
+                      key: action.label,
+                      label: action.label,
+                      destructive,
+                      icon: (
+                        <MenuIcon
+                          icon={action.icon}
+                          color={destructive ? theme.color.danger : theme.color.muted}
+                          size={materialMenu.iconSize}
+                        />
+                      ),
+                      onPress: () => {
+                        setOpen(false);
+                        action.run();
+                      },
+                    }))}
+                  />
+                );
+              })}
+            </Column>
           </DropdownMenu.Items>
         </DropdownMenu>
       </Host>

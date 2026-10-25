@@ -17,7 +17,7 @@ import {
   PlusIcon,
   RecordingStopIcon,
 } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { activityPeer, activityText, type ActivityTarget } from './activity-text';
 import { bubbleRow } from './bubble-shape';
 import type { Rect } from './menu-placement';
@@ -40,6 +40,7 @@ export function ActivityRow({
   lifted?: boolean;
   onLongPress(anchor: Rect, label: string, target: ActivityTarget | undefined): void;
 }) {
+  const t = useStrings();
   const ref = useRef<ViewInstance>(null);
   const theme = useDesignTheme();
   const line = activityText(message, activity, roster, count);

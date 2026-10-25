@@ -47,7 +47,7 @@ describe('PersonaBot agent preset', () => {
         "      name: '@deepseek-ai/dsh-agent-preset'",
         '      config:',
         '        id: deepseekbot',
-        '        name: DeepSeekBot',
+        '        name: Tobs',
         `        description: '${BOT_PRESET_DESCRIPTION}'`,
         '        order: 5',
         '        plugins:',

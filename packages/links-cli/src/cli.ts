@@ -25,7 +25,7 @@ export interface CliIo {
   fetch?: typeof fetch;
 }
 
-export const HELP = `bh-links: manage go.botharness.ai Campaign short links
+export const HELP = `bh-links: manage go.tobs.app Campaign short links
 
 Usage:
   bh-links list [--campaign <slug>] [--all]          alias of links list
@@ -49,7 +49,7 @@ Options:
   --json   print the API response as JSON
   --all    include archived entries
 
-Configuration: BH_LINKS_TOKEN and BH_LINKS_URL (default https://go.botharness.ai) override
+Configuration: BH_LINKS_TOKEN and BH_LINKS_URL (default https://go.tobs.app) override
 ~/.config/botharness/links.json, which bh-links login writes with mode 0600.
 An empty --note or --description clears it.
 `;

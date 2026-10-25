@@ -337,7 +337,7 @@ describe('bridge methods', () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
       if (tool === 'create_assignment')
         throw new DirectBotToolError('tool-not-direct', 'create_assignment cannot run');
-      if (tool === 'channel_send') throw new Error('channel_send: no Channel');
+      if (tool === 'bot_send_message') throw new Error('bot_send_message: no Channel');
       return { tool, sessionId: 'direct' as const, result: { channels: [] } };
     });
     const runtime = {
@@ -375,9 +375,9 @@ describe('bridge methods', () => {
       ok: false,
       error: { code: 'tool-not-direct', message: 'create_assignment cannot run' },
     });
-    expect(await methods.botToolRun({ slug: 'ada', tool: 'channel_send' })).toEqual({
+    expect(await methods.botToolRun({ slug: 'ada', tool: 'bot_send_message' })).toEqual({
       ok: false,
-      error: { code: 'tool-failed', message: 'channel_send: no Channel' },
+      error: { code: 'tool-failed', message: 'bot_send_message: no Channel' },
     });
     expect((await methods.botToolRun({ slug: 'ada', tool: 'x', args: [] })).ok).toBe(false);
     expect((await methods.botToolRun({ slug: 'nobody', tool: 'channel_list' })).ok).toBe(false);

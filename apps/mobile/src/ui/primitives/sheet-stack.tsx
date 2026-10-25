@@ -4,7 +4,7 @@ import { Stack, useNavigation } from 'expo-router';
 import type { NativeStackHeaderProps } from 'expo-router/native-stack';
 import { Platform, View } from 'react-native';
 import { space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { DrawerHeader } from './drawer-header';
 
 import { useDesignTheme } from '../design/theme';
@@ -36,6 +36,7 @@ export function SheetStack({
   children: ReactNode;
   modalGrabber?: boolean;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const navigation = useNavigation('/');
   const insets = useSafeAreaInsets();

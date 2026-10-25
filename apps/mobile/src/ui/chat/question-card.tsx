@@ -20,7 +20,7 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { ActionCard, CardButtons, CardLine, type CardLineTone } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { DraftEditor } from './draft-editor';
@@ -88,6 +88,7 @@ function Option({
   disabled: boolean;
   onPress(): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const badge = theme.type.body.line * theme.fontScale + space.x2;
   return (
@@ -158,6 +159,7 @@ function QuestionFields({
   onChange(next: QuestionDraft): void;
   onPick?(label: string): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const multiple = question.multiSelect === true;
   const [editing, setEditing] = useState(false);
@@ -287,29 +289,43 @@ export function QuestionCard({
   answeredHere?: boolean;
   onSettled?(result: DecisionResult): void;
 }) {
+  const t = useStrings();
   const known = useRef(resolution !== undefined);
+  const current = useRef({ port, pending: false, active: false });
+  if (current.current.port !== port) {
+    current.current = { port, pending: false, active: false };
+    known.current = resolution !== undefined;
+  }
+  const submission = current.current;
   const [phase, setPhase] = useState<Phase>(
     known.current ? { kind: 'known' } : { kind: 'loading' },
   );
   const [drafts, setDrafts] = useState<Record<string, QuestionDraft>>({});
 
   const load = useCallback(async () => {
+    setDrafts({});
     setPhase({ kind: 'loading' });
     try {
       const request = await port.load();
+      if (!submission.active || current.current !== submission) return;
       setPhase(
         request.status === 'pending'
           ? { kind: 'pending', request }
           : { kind: 'settled', status: request.status, mine: false },
       );
     } catch {
+      if (!submission.active || current.current !== submission) return;
       setPhase({ kind: 'failed' });
     }
-  }, [port]);
+  }, [port, submission]);
 
   const mount = useMounted<ViewInstance>(() => {
+    submission.active = true;
     if (!known.current) void load();
-  }, [load]);
+    return () => {
+      submission.active = false;
+    };
+  }, [load, submission]);
 
   const first =
     phase.kind === 'pending' ? (phase.request.questions[0]?.question ?? '') : (subject ?? '');
@@ -351,11 +367,20 @@ export function QuestionCard({
   const instant = single !== undefined && single.multiSelect !== true;
   const typed = Object.values(drafts).some((draft) => draft.custom.trim() !== '');
   const submit = async (answer: QuestionAnswer | undefined) => {
-    if (answer === undefined) return;
-    haptic('submit');
+    if (
+      answer === undefined ||
+      submission.pending ||
+      !submission.active ||
+      current.current !== submission ||
+      resolution !== undefined
+    )
+      return;
+    submission.pending = true;
     setPhase({ kind: 'pending', request, busy: true });
     try {
       const result = await port.answer(answer);
+      if (!submission.active || current.current !== submission) return;
+      if (result === 'accepted') haptic('submit');
       setPhase({
         kind: 'settled',
         status: result === 'expired' ? 'expired' : 'decided',
@@ -363,6 +388,8 @@ export function QuestionCard({
       });
       onSettled?.(result);
     } catch (error) {
+      if (!submission.active || current.current !== submission) return;
+      submission.pending = false;
       setPhase({
         kind: 'pending',
         request,
@@ -376,6 +403,7 @@ export function QuestionCard({
         category={single?.header ?? category}
         status={t.needsYou}
         title={single?.question ?? t.asks(botName)}
+        busy={instant && phase.busy === true}
         focused={focused}
         wide={wide}
         {...(phase.error === undefined ? {} : { error: phase.error })}

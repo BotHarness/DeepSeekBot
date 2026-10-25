@@ -2,3 +2,5 @@ docs/assets/vps-source/terminal/*.typescript -text -diff
 docs/assets/vps-source/terminal/*.timing -text -diff
 apps/docs/public/guides/vps-source/terminal/*.typescript -text -diff
 apps/docs/public/guides/vps-source/terminal/*.timing -text -diff
+# Preserve the pinned upstream WebRTC notice material verbatim.
+apps/mobile/modules/local-computer-video/android/src/main/assets/local-computer-video/THIRD-PARTY-NOTICES.md -whitespace

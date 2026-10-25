@@ -6,9 +6,10 @@ import { nativeMemoryPreview } from '../../../src/host/native-memory-preview';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { MemoryFolderView } from '../../../src/ui/chat/memory-browser';
 import { MemoryFileView } from '../../../src/ui/chat/memory-file-view';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function MemoryScreen() {
+  const t = useStrings();
   const {
     slug,
     path = '',

@@ -2,7 +2,7 @@ import { Text } from './primitives/system-text';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { t } from './strings';
+import { useStrings } from './strings';
 import { useTheme } from './theme';
 import { LoadingIndicator } from './primitives/loading-indicator';
 
@@ -86,6 +86,7 @@ export function Loading() {
 }
 
 export function LoadFailed({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const t = useStrings();
   return (
     <View style={{ padding: 16, gap: 12 }}>
       <Notice tone="danger">{`${t.loadFailed} ${error}`}</Notice>

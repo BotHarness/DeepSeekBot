@@ -12,7 +12,7 @@ import { Button } from '../primitives/button';
 import { ConnectionNameField } from '../primitives/connection-name-field';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { confirmDestructive } from '../primitives/app-dialog';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
@@ -28,6 +28,7 @@ function errorMessage(code: string) {
   return `${t.cloud.error} ${code}`;
 }
 export function CloudServicesScreen() {
+  const t = useStrings();
   const snapshot = useCloudSnapshot();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();

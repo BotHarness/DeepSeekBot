@@ -1,3 +1,4 @@
+import { useMessageHost } from './message-host.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { FileTypeIcon, IconFolderOpenOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BotHarnessTranslate } from './locale.js';
@@ -23,9 +24,10 @@ export function BridgeFile({
   actions?: Pick<BridgeActions, 'bridgeFileCommands'> | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const host = useMessageHost();
   const resource = useMemo(
-    () => createBridgeFileResource(channelId, sourceEventId, attachmentId),
-    [channelId, sourceEventId, attachmentId],
+    () => createBridgeFileResource(channelId, sourceEventId, attachmentId, host),
+    [channelId, sourceEventId, attachmentId, host],
   );
   const state = useSyncExternalStore(
     resource.subscribe,

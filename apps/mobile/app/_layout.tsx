@@ -4,19 +4,36 @@ import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import '../src/host/native-haptic-feedback';
+
 import { usePushRouting } from '../src/host/push-routing';
 import { HostDrawer, WorkspaceButton } from '../src/ui/shell/host-drawer';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
+import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
+import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
+import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
-import { t } from '../src/ui/strings';
+import { useStrings } from '../src/ui/strings';
 import { useTheme } from '../src/ui/theme';
+import { useNativeInterfacePreferences } from '../src/ui/native-interface-preferences';
 
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
 export default function RootLayout() {
+  const preferences = useNativeInterfacePreferences();
+  if (!preferences.loaded) return null;
+  return (
+    <HostAccentProvider>
+      <RootNavigator />
+    </HostAccentProvider>
+  );
+}
+
+function RootNavigator() {
+  const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
   const routing = usePushRouting();
@@ -25,117 +42,138 @@ export default function RootLayout() {
       <KeyboardRoot>
         <SafeAreaProvider>
           <View ref={routing} style={{ flex: 1 }}>
-            <StatusBar style="auto" />
-            <Stack
-              screenOptions={{
-                headerStyle: { backgroundColor: theme.background },
-                headerTintColor: theme.ink,
-                headerShadowVisible: false,
-                headerBackButtonDisplayMode: 'minimal',
-                headerBackTitle: t.back,
-                contentStyle: { backgroundColor: theme.background },
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
-              <Stack.Screen name="channel/[id]" options={{ title: '' }} />
-              <Stack.Screen
-                name="bot/[slug]"
-                options={{
-                  title: t.profile,
-                  ...sheetScreenOptions(design, Platform.OS === 'android'),
+            <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
+            <View testID="app-stack-content" style={{ flex: 1 }}>
+              <Stack
+                screenOptions={{
+                  orientation: 'portrait',
+                  headerStyle: { backgroundColor: theme.background },
+                  headerTintColor: theme.ink,
+                  headerShadowVisible: false,
+                  headerBackButtonDisplayMode: 'minimal',
+                  headerBackTitle: t.back,
+                  contentStyle: { backgroundColor: theme.background },
                 }}
-              />
-              <Stack.Screen
-                name="group/[id]"
-                options={{
-                  title: t.groupInfo,
-                  ...sheetScreenOptions(design, Platform.OS === 'android'),
-                }}
-              />
-              <Stack.Screen
-                name="settings"
-                options={{
-                  title: t.settings,
-                  ...sheetScreenOptions(design, true),
-                  ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
-                }}
-              />
-              <Stack.Screen
-                name="pair"
-                options={{ title: t.pairTitle, ...sheetScreenOptions(design, true) }}
-              />
-              <Stack.Screen
-                name="share"
-                options={{ title: t.share.title, ...sheetScreenOptions(design, true) }}
-              />
-              <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
-              <Stack.Screen
-                name="cloud-join"
-                options={{ title: t.cloudJoin.title, headerRight: () => <WorkspaceButton /> }}
-              />
-              <Stack.Screen
-                name="cloud-services"
-                options={{ title: t.cloud.title, headerRight: () => <WorkspaceButton /> }}
-              />
-              <Stack.Screen
-                name="cloud-organizations"
-                options={{
-                  title: t.cloudOrganizations.title,
-                  headerRight: () => <WorkspaceButton />,
-                }}
-              />
-              <Stack.Screen
-                name="cloud-invitations"
-                options={{
-                  title: t.cloudInvitations.title,
-                  headerRight: () => <WorkspaceButton />,
-                }}
-              />
-              <Stack.Screen
-                name="cloud-agents"
-                options={{ title: t.cloudAgents.title, headerRight: () => <WorkspaceButton /> }}
-              />
-              <Stack.Screen
-                name="cloud-channels"
-                options={{ title: t.cloudChannels.title, headerRight: () => <WorkspaceButton /> }}
-              />
-              <Stack.Screen name="notifications" options={{ title: t.notifications }} />
-              <Stack.Screen
-                name="browser/[slug]"
-                options={{
-                  title: t.profileBrowser,
-                  presentation: 'fullScreenModal',
-                  headerShown: false,
-                  gestureEnabled: false,
-                }}
-              />
-              <Stack.Screen
-                name="computer/[slug]"
-                options={{
-                  title: t.profileComputer,
-                  presentation: 'fullScreenModal',
-                  headerShown: false,
-                  gestureEnabled: false,
-                }}
-              />
-              <Stack.Screen
-                name="host-look"
-                options={{
-                  title: t.hostLook,
-                  ...sheetScreenOptions(design, true),
-                }}
-              />
-              <Stack.Screen
-                name="full-client"
-                options={{
-                  title: t.fullClient,
-                  presentation: 'fullScreenModal',
-                  headerShown: false,
-                  gestureEnabled: false,
-                }}
-              />
-            </Stack>
+              >
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
+                <Stack.Screen name="channel/[id]" options={{ title: '' }} />
+                <Stack.Screen
+                  name="bot/[slug]"
+                  options={{
+                    title: t.profile,
+                    ...sheetScreenOptions(design, Platform.OS === 'android'),
+                  }}
+                />
+                <Stack.Screen
+                  name="group/[id]"
+                  options={{
+                    title: t.groupInfo,
+                    ...sheetScreenOptions(design, Platform.OS === 'android'),
+                  }}
+                />
+                <Stack.Screen
+                  name="settings"
+                  options={{
+                    title: t.settings,
+                    ...sheetScreenOptions(design, true),
+                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
+                  }}
+                />
+                <Stack.Screen
+                  name="pair"
+                  options={{
+                    title: t.pairTitle,
+                    ...sheetScreenOptions(design, true),
+                    ...(Platform.OS === 'ios' ? { presentation: 'modal' as const } : {}),
+                  }}
+                />
+                <Stack.Screen
+                  name="share"
+                  options={{ title: t.share.title, ...sheetScreenOptions(design, true) }}
+                />
+                <Stack.Screen
+                  name="private-input"
+                  options={{
+                    ...sheetScreenOptions(design, true),
+                    headerShown: true,
+                    title: t.privateInputOpen,
+                  }}
+                />
+                <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
+                <Stack.Screen
+                  name="conversation-section"
+                  options={{
+                    ...sheetScreenOptions(design, true),
+                    title: t.rowActions.section,
+                    headerShown: Platform.OS !== 'android',
+                  }}
+                />
+                <Stack.Screen
+                  name="cloud-join"
+                  options={{ title: t.cloudJoin.title, headerRight: () => <WorkspaceButton /> }}
+                />
+                <Stack.Screen
+                  name="cloud-services"
+                  options={{ title: t.cloud.title, headerRight: () => <WorkspaceButton /> }}
+                />
+                <Stack.Screen
+                  name="cloud-organizations"
+                  options={{
+                    title: t.cloudOrganizations.title,
+                    headerRight: () => <WorkspaceButton />,
+                  }}
+                />
+                <Stack.Screen
+                  name="cloud-invitations"
+                  options={{
+                    title: t.cloudInvitations.title,
+                    headerRight: () => <WorkspaceButton />,
+                  }}
+                />
+                <Stack.Screen
+                  name="cloud-agents"
+                  options={{ title: t.cloudAgents.title, headerRight: () => <WorkspaceButton /> }}
+                />
+                <Stack.Screen
+                  name="cloud-channels"
+                  options={{ title: t.cloudChannels.title, headerRight: () => <WorkspaceButton /> }}
+                />
+                <Stack.Screen name="notifications" options={{ title: t.notifications }} />
+                <Stack.Screen
+                  name="browser/[slug]"
+                  options={{
+                    title: t.profileBrowser,
+                    presentation: 'fullScreenModal',
+                    headerShown: false,
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="computer/[slug]"
+                  options={{
+                    title: t.profileComputer,
+                    orientation: Platform.OS === 'android' ? 'all' : 'portrait',
+                    presentation: Platform.OS === 'ios' ? 'card' : 'fullScreenModal',
+                    headerShown: false,
+                    gestureEnabled: false,
+                  }}
+                />
+                <Stack.Screen
+                  name="host-look"
+                  options={{
+                    title: t.hostLook,
+                    ...sheetScreenOptions(design, true),
+                  }}
+                />
+                <Stack.Screen
+                  name="host-connection"
+                  options={{ title: t.connectionRoutes.title, ...sheetScreenOptions(design, true) }}
+                />
+              </Stack>
+            </View>
+            <BotCreationNotice />
+            <ChannelCreationNotice />
             <StatisticsNotice />
             <HostDrawer />
             <AppDialogHost />

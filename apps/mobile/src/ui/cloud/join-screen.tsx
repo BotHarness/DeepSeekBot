@@ -13,10 +13,11 @@ import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { TextField } from '../primitives/text-field';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { CloudChannelName } from './channel-name';
 
 export function CloudJoinScreen() {
+  const t = useStrings();
   const params = useLocalSearchParams<{ link?: string }>();
   const snapshot = useCloudSnapshot(),
     theme = useDesignTheme();

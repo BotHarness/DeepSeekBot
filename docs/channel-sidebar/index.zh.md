@@ -2,7 +2,7 @@
 
 **Channel sidebar** 是 **Bot 模式**中的右侧栏。它跟随当前聊天：PersonaBot 私聊显示这个 Bot 的资源，本地群聊显示成员。聊天的配置在 **频道设置** 中。打开原生 DSH Session 后，你会进入另一套以会话为范围的界面。
 
-本章使用 DSH **0.2.0-rc.1** 与公共包 **deepseekbot**。请先完成[安装](/zh/docs/installation)和 [API 与 Bot 模型配置](/zh/docs/model-setup)。
+本章适用于 DSH **0.2.1-rc.2** 上的公共包 **deepseekbot**（截图拍摄于 DSH **0.2.0-rc.1**）。请先完成[安装](/zh/docs/installation)和 [API 与 Bot 模型配置](/zh/docs/model-setup)。
 
 ## 打开侧栏
 
@@ -44,4 +44,4 @@
 
 Bot 专属项目不出现在群聊中；群管理不出现在 Bot 私聊中。Bot 收件箱在已有记录或正在加载、发生错误时显示。**定时任务** 默认隐藏，可在 **+ 视图** 菜单中勾选显示。你也可能在该菜单中隐藏过某个标签页（或在窄窗口覆盖面板的 **编辑侧边栏** 中隐藏过某个项目）。模型、工作区授权、唤醒策略、外部身份、外部连接器和群管理在频道设置中，不在侧栏。
 
-可选插件可以增加其他项目。公共 npm 包不包含 Browser、Computer 包，所以没有对应入口是正常情况。安装并启用这些包后，分别按[分享浏览器标签页](/zh/docs/daily-browser)或 [Computer 导出与迁移](/zh/docs/computer-export)核对前提和操作。IM 应用连接另有独立的配置流程；连接后，由「外部身份」和「外部连接器」管理这个 Bot 如何使用它。
+可选插件（例如 `@botharness/vrm-companion`）可以增加其他项目。公共 npm 包 `deepseekbot` 已内置 Browser 与 Computer（`@botharness/browser` 与 `@botharness/computer`），但每个 Bot 的访问权限默认关闭；启用及扩展／容器前提见[分享浏览器标签页](/zh/docs/daily-browser)和 [Computer 导出与迁移](/zh/docs/computer-export)。IM 应用连接另有独立的配置流程；连接后，由「外部身份」和「外部连接器」管理这个 Bot 如何使用它。

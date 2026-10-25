@@ -1,0 +1,20 @@
+{
+  "name": "@botharness/tobs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Tobs — Team of bots. Compatible entry point for DeepSeekBot.",
+  "bin": {
+    "tobs": "./src/tobs.mjs"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "type": "module",
+  "dependencies": {
+    "deepseekbot": "link:../deepseekbot"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   desktopZoomPath,
@@ -19,8 +19,6 @@ import {
 } from './desktop-zoom-platform.mjs';
 
 const theme = '@deepseek-ai/dsh-client-ui-theme';
-const ownedLink = 'link:node_modules/deepseekbot/desktop-theme';
-const supported = '0.2.1-rc.2';
 function refuse(code) {
   throw Object.assign(Error(code), { code });
 }
@@ -75,10 +73,15 @@ function configureProfileZoom({
   const directory = profileDirectory(home, profile);
   const manifestPath = join(directory, 'package.json');
   const before = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  const bundles = before.dsh?.profile?.bundles ?? [];
+  const entry =
+    !bundles.includes('deepseekbot') && bundles.includes('tobs') ? 'tobs' : 'deepseekbot';
+  const product = join(directory, 'node_modules', entry);
+  const target = join(product, 'desktop-theme');
+  const ownedLink = `link:${relative(directory, target).replaceAll('\\', '/')}`;
   const current = before.dependencies?.[theme];
   if (current !== undefined && current !== ownedLink) refuse('desktop-zoom-setup-theme-conflict');
   const alias = join(directory, 'node_modules', theme);
-  const target = join(directory, 'node_modules/deepseekbot/desktop-theme');
   const linkState = () => {
     let stat;
     try {
@@ -105,7 +108,6 @@ function configureProfileZoom({
     stdio: ['ignore', 'pipe', 'pipe'],
   };
   let packageCommand;
-  let desktopVersion;
   let desktopExecutable;
   const checkStopped = () => {
     if (platform === 'win32') {
@@ -138,7 +140,6 @@ function configureProfileZoom({
     if (!['darwin', 'win32'].includes(platform)) refuse('desktop-zoom-setup-platform-unsupported');
     if (!desktopApp) refuse('desktop-zoom-setup-desktop-app-required');
     const runtime = inspectDesktopZoomApp({ desktopApp, platform, run, options });
-    desktopVersion = runtime.version;
     desktopExecutable = runtime.executable;
     checkStopped();
     packageCommand = { executable: process.execPath, args: [runtime.pnpm] };
@@ -146,17 +147,14 @@ function configureProfileZoom({
   if (action === 'enable') {
     if (platform !== 'darwin' && !(platform === 'win32' && packageCommand))
       refuse('desktop-zoom-setup-platform-unsupported');
-    const version = desktopVersion ?? String(run(dsh, ['--version'], options)).trim();
-    if (version !== supported) refuse('desktop-zoom-setup-version-unsupported');
-    const product = join(directory, 'node_modules/deepseekbot');
     const manifest = JSON.parse(readFileSync(join(product, 'package.json'), 'utf8'));
-    if (manifest.name !== 'deepseekbot' || !before.dsh?.profile?.bundles?.includes('deepseekbot'))
+    if (manifest.name !== entry || !bundles.some((name) => ['deepseekbot', 'tobs'].includes(name)))
       refuse('desktop-zoom-setup-product-not-enabled');
     const root = join(product, 'desktop-theme');
     const provenance = JSON.parse(readFileSync(join(root, 'botharness-zoom-compat.json'), 'utf8'));
     const client = readFileSync(join(root, 'lib/client.js'));
     if (
-      provenance.sourceVersion !== supported ||
+      provenance.adapterVersion !== 1 ||
       (platform === 'win32' && !provenance.platforms?.includes('windows')) ||
       createHash('sha256').update(client).digest('hex') !== provenance.clientAfter
     )

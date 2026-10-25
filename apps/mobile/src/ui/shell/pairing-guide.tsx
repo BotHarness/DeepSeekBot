@@ -5,10 +5,11 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { ChevronDownIcon } from './icons';
 
 export function PairingGuide({ initiallyOpen = false }: { initiallyOpen?: boolean }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [open, setOpen] = useState(initiallyOpen);
   const [linkError, setLinkError] = useState(false);

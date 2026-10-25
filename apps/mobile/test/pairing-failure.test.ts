@@ -7,6 +7,8 @@ describe('pairing failure text', () => {
   it('talks about the code when a scan fails', () => {
     expect(pairingFailureText('offer-expired', 'qr')).toBe(t.pairRefused['offer-expired']);
     expect(pairingFailureText('link-invalid', 'qr')).toBe(t.pairRefused['link-invalid']);
+    expect(pairingFailureText('offer-expired', 'image')).toBe(t.pairRefused['offer-expired']);
+    expect(pairingFailureText('link-invalid', 'image')).toBe(t.pairRefused['link-invalid']);
   });
 
   it('talks about the link when a pasted or opened link fails', () => {

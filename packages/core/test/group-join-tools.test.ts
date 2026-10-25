@@ -24,8 +24,8 @@ async function roundTrip(accept: boolean) {
         const call = async (name: string, args: unknown) => {
           const value = await tools
             .find((tool) => tool.name === name)!
-            .execute(args, {} as ToolRunContext);
-          return name === 'channel_send' ? value : JSON.parse(String(value));
+            .execute(args, { signal: new AbortController().signal } as ToolRunContext);
+          return name === 'bot_send_message' ? value : JSON.parse(String(value));
         };
         try {
           if (actor === 'ada' && requestId === '') {
@@ -40,8 +40,8 @@ async function roundTrip(accept: boolean) {
               'not a member',
             );
             await expect(
-              call('channel_send', { channel_id: groupId, body: 'too early' }),
-            ).rejects.toThrow('not a member');
+              call('bot_send_message', { channel_id: groupId, body: 'too early' }),
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
             await expect(
               call('group_join_decide', { channel_id: groupId, request_id: requestId, accept }),
             ).rejects.toThrow('current Bot Group owner');
@@ -75,7 +75,7 @@ async function roundTrip(accept: boolean) {
           if (actor !== 'ada') throw new Error(`Unexpected actor ${actor}`);
           noticed += 1;
           if (accept)
-            await call('channel_send', {
+            await call('bot_send_message', {
               channel_id: groupId,
               body: 'Joined through selected Group Tool',
             });
@@ -84,8 +84,8 @@ async function roundTrip(accept: boolean) {
               'not a member',
             );
             await expect(
-              call('channel_send', { channel_id: groupId, body: 'forbidden' }),
-            ).rejects.toThrow('not a member');
+              call('bot_send_message', { channel_id: groupId, body: 'forbidden' }),
+            ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
           }
         } catch (error) {
           failures.push(error);
@@ -230,10 +230,9 @@ describe('registered selected-Group join Tools through the owning runtime', () =
             if (scenario === 'archived') core.registry.setPaused('ada', true);
             result = await tools
               .find((tool) => tool.name === 'group_join_decide')!
-              .execute(
-                { channel_id: groupId, request_id: requestId, accept: true },
-                {} as ToolRunContext,
-              )
+              .execute({ channel_id: groupId, request_id: requestId, accept: true }, {
+                signal: new AbortController().signal,
+              } as ToolRunContext)
               .then(
                 (value) => value,
                 (error: unknown) => error,

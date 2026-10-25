@@ -23,7 +23,7 @@ The web client calls `/api/<endpoint>` over plain HTTP (`fetch` + auth cookie). 
 
 ## Dev loop (WSL, fnm node)
 
-Use the worktree's local `@deepseek-ai/dsh@0.2.1-rc.2`, not a global `dsh` binary. The launcher checks the installed version, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
+The reproducible build baseline is `@deepseek-ai/dsh@0.2.1-rc.3`. The launcher uses the installed local CLI or an isolated `--dsh-version <version>` installation, accepts DSH `>=0.2.0-0` including future prereleases, creates an isolated Web Profile, links all Bundle members as dependencies, enables only the `deepseekbot` umbrella, and probes the authenticated API.
 
 ```bash
 corepack pnpm build
@@ -34,6 +34,24 @@ corepack pnpm dev:client
 The launch summary includes the Host PID and local login URL. For Client edits, open the local Web tab with `?botharness-dev-reload=1`: tsdown rebuilds the linked Client bundle, and the opted-in development listener refreshes the page when the RC publishes a rebuilt frame. The Desktop Client HMR stream replaces the linked `@botharness/ui` Fiber; BotHarness hands off the active Bot/Channel selection during replacement. The Web development listener retains a full-page refresh fallback. For Host edits, build, stop that exact PID, then start the helper again with the same home and port; Host hot replacement is disabled in the pinned RC. Follow `docs/client-bridge.md` §7 for the complete steps and measured timings.
 
 The helper injects a shared machine-local DeepSeek key when available; `node scripts/dev-secret.mjs check` reports its source without a value. Existing Profile credentials are another DSH source. Confirm model access with a real DM reply. `node scripts/dev-secret.mjs adopt-profile --home <existing-DSH_HOME>` copies only the DeepSeek reference into a private local file for later isolated Profiles.
+
+Before launch and before finishing or handing off a run, follow
+[verification resource cleanup](../../../docs/agents/ax-resource-cleanup.md). The detached Host
+outlives the launcher: record its ownership, then verify process exit and port release before
+removing its Profile or worktree. Keep a running environment only under the documented handoff
+or shared QA lease.
+
+
+The launcher holds a Home-wide preparation lock and records the running Host before verification. A live owner prevents dependency/Profile changes, even on another port or Profile. After a launcher exits, its recorded lock can be recovered; a lock without ownership evidence is preserved for manual inspection. On Windows, an unrecorded legacy DSH process whose Home cannot be determined blocks preparation until it is stopped. Startup verification failures terminate the owned Host and observed descendants, wait for exit, and preserve the Profile/log; an incomplete shutdown retains ownership for recovery. Go adapters containing the exact reviewed native fix skip the local patch; unknown or ambiguous request shapes remain refusals.
+
+
+Preparation commands now wait for an IPC start signal after their independent process-group ownership has been persisted. This covers installs, builds and configuration exports. Reusing a Home checks recorded groups even after the launcher or successfully handed-off Host exits. Failure cleanup stops the parent and repeatedly rescans descendants until release or a bounded refusal. Windows permits CLI paths explicitly belonging to another managed Home; ambiguous legacy CLI ownership remains a refusal.
+
+Profile names accept only letters, digits, underscores and hyphens; missing option values and invalid ports refuse before preparation. The profiles directory, selected Profile, manifest, workspace settings and model patch must not be symbolic links.
+
+On macOS/Linux, each preparation command also inherits a unique ownership marker, persisted before its IPC start signal. Process scans use this marker to find descendants that create a new session and outlive their parents; preparation refuses and stops such leftovers, and interrupted runs block Home reuse until they exit. Environment output is never logged. This is cooperative lifecycle tracking, not OS containment: commands that deliberately clear the marker must manage and register their own resources. Windows retains parent-chain tracking; independently reparented Windows daemons are not qualified by the POSIX regression and require separate resource ownership.
+
+Restart only after both the Host process and its HTTP listener have stopped. A closed port alone does not prove shutdown. On Linux, an exited zombie may still answer a PID existence probe; lifecycle checks use its process state and still check live descendants.
 
 ## DSH 0.2.1 migration contracts
 
@@ -58,6 +76,12 @@ Use application adapters for both API generations rather than raising the instal
 A saved AX model id may disappear from the pinned native catalog. Preserve the launcher's refusal; do not misdiagnose it as a missing credential or silently rewrite the shared selection. For this task's launch only, set `BOTHARNESS_AX_MODEL` to the current catalog model (normally `deepseek-v4.1-flash`), then verify an actual DM reply. The launcher retains catalog validation and the existing private key source.
 
 ## Pitfall log
+
+In DSH 0.2.1-rc.3, a non-insert Patch `name` is a selector, not a rename operation. For the product theme, a final inserted `ui-theme` row selects one Fiber through the Loader’s last-row-per-id rule; later Profile settings still target that identity. Relative Plugin names must point to the entry file (`./desktop-theme/lib/index.js`), not its package directory: Node ESM refuses directory imports. Check the actual Host log and Client, not just a successful health request. Require a Desktop restart after changing Bundle composition; a minimal Loader without HMR does not prove hot replacement (#2775).
+
+Native `dsh plugin add` reconciles newly installed Bundle packages into `dsh.profile.bundles`. Installing a renamed product Bundle beside the old one is not command-only installation. For the Tobs coexistence qualification, explicitly restore the previous Bundle selection before booting; for replacement, remove the old product entry and enable Tobs. Keep the same Profile, canonical data and Patch identities, and verify composition plus writes after restart. Never infer that package installation leaves the enabled Bundle list unchanged (#2722).
+
+An AX launch pins `agent-default-model` through a command-line Patch. On DSH `0.2.1-rc.2`, changing that default through `onboardingModel` can therefore refuse with `Configuration for "agent-default-model" is overridden by a home patch or command-line overlay`. This is native configuration ownership, not a Remote Host transport failure. Preserve the refusal and unchanged default; verify preset writes separately. A no-op `home-model-set` does not prove the default can change. Qualify successful default changes on an unlocked isolated Profile, without editing another session's Patch or the shared AX selection (#2500).
 
 Native approval `never` means reject before the answerer waterfall, even under `danger-full-access`; it does not mean automatic approval. In #2080, combining that policy with a BotHarness Human-only permission-management exception swallowed the intended card. Top-level Bot Full Access now uses `ask` and answers ordinary requests automatically at its existing application responder; delegated Subagents keep their native policy. Verify both an ordinary action and a permission-management Human card on the real Host.
 
@@ -111,6 +135,7 @@ When a DSH-side bug or trap is diagnosed, **record it here (or in the playbook) 
 | 33 | Bot settings navigation stops matching its decorated button | The native settings dialog opens, but the Bot settings shortcut cannot select its section after the Bot icon is installed | The first-party icon adds a third child to the original two-child nav cell. Exclude only that owned icon when resolving the label; do not require the decorated button to keep its original child count or assume its first span is text. Verify repeated settings opening in the real shell (#621). Decoration must be idempotent: compare the requested markup with a per-element cache, because serialized innerHTML also contains the injected media styles and otherwise an observer can continually rewrite its own DOM. |
 | 34 | Isolated Provider registered but native Consumer activated in the same pending Fiber | Native tool-fs says its confining filesystem has no sandboxPolicy although `provide` ran; preset-only service lookup may also miss Host-provided fs/Shell | Cordis `get` exposes a Provider only after its Fiber activates. Await the isolated Provider Fiber, then mount native Consumers as child Plugins and await their activation. Resolve `agentPresets.serviceFor` first and fall back to public Host capabilities when inherited. Native tools capture Policy at registration, so isolation alone does not replace existing closures. Wrap the actual `tools/execute` body for per-call context: `tools/pre-execute` returns before body dispatch. Verified against pinned DSH 0.2.0 RC1 with actual native reads, writes and approved Shell outside Session cwd (#632). |
 | 51 | Packaged Profile install refuses ignored build scripts | `pnpm install` in the Profile fails `ERR_PNPM_IGNORED_BUILDS` for `agent-browser` once Browser joins the product | pnpm 12 requires explicit build approval per workspace. The packaged Profile installs the same tree the repo workspace adjudicated, so `packagedWorkspaceSettings` carries the root `allowBuilds` map (explicit Profile entries keep precedence; a drift test locks the copy to `pnpm-workspace.yaml`). Verified with a real `--product-artifacts` install into an isolated home (#1328). |
+| 52 | Mobile import recovery forwards create-only metadata | Marketplace import previews successfully but fails with `gateway/arguments-invalid` before mutation | The API Gateway rejects named arguments absent from the Remote method signature. `botImportLookup` does not accept `origin`, while `createFromGit` does. Send only lookup fields during recovery; preserve origin for creation. A direct `BridgeMethods` test skips this boundary, so cover the real Typert Gateway with the mobile transport (#2768). |
 
 
 | 28b | Rebooting an isolated Profile drops its optional IM Bundle | dsh-im settings and transport disappear after running the AX helper again | The helper used to replace all dependencies and bundles. It now retains non-BotHarness dependencies and extra Bundle entries while refreshing its own linked packages. Keep the same task-owned home and verify native plus BotHarness APIs after restart. |
@@ -415,3 +440,56 @@ it look newly qualified.
 The launcher and `verify-app` share a temporary cookie jar named from `basename(DSH_HOME)`. Two isolated homes named `home` in different parent folders overwrite that jar, so the second launch can make the first Host's doctor return 401 while its own browser still works. Give concurrent homes distinct basenames (`host-a`, `host-b`), preserve the first refusal and verify each Host separately. Do not treat this verification-cookie collision as a product authentication failure.
 
 The qualified workspace retains a hidden sidebar copy beside the visible Channels panel. The two Add remote buttons can have the same accessible name. A first-match selector can click or fill the hidden copy; choose visible elements as the two-Host journey requires, and wait for the submit button to become enabled after input. The real Windows Web baseline paired successfully after the driver selected visible controls and used keyboard input; no product change was required.
+
+### Connect route provenance in pinned DSH 0.2.1-rc.2 (#2541)
+
+Arbitrary HTTP route headers do not enter Typert invocation context, and cookie-authenticated
+browser calls share a Peer. The `connection/request` waterfall does not admit `remote.mux`
+opens. A header-only or unary-only guard therefore cannot restrict all Connect calls.
+BotHarness stamps its cloudflared-only origin with a process-local capability and owns both
+unary admission and a bounded mux adapter at the Device Gateway, before native dispatch.
+The shared client refuses before serializing secret arguments: a Host refusal cannot remove
+plaintext already sent through Cloudflare. Verify HTTP, mux and ordinary streams against the
+pinned Host; this adapter is not encryption or an upstream DSH API extension.
+
+### Device gateway forwarding and Fetch Metadata
+
+The pinned DSH `0.2.1-rc.2` browser admission guard rejects `Sec-Fetch-Site: cross-site` even when a Host-held cookie is valid. After the application-defined device gateway has checked the external Origin, refused ambient cookies and admitted the device credential, its own loopback request must discard the browser’s `Sec-Fetch-*` metadata along with Origin/Referer. These headers describe the external browser hop, not the gateway’s authenticated internal hop. Preserve all external admission checks and native DSH checks; do not relax either to repair remote tabs. A real two-Host desktop browser reproduced HTTP403 with the cross-site header and HTTP200 when only that metadata was omitted (#2584).
+
+### PersonaBot native question answerer precedence (#2590)
+
+The pinned DSH `0.2.1-rc.2` dispatches `user-questions/request` as a Cordis waterfall. A prior native Client answerer can wait without calling `next`, preventing a later application-defined Channel answerer from seeing the request. Register the existing Channel question owner with `prepend: true`, as Channel approvals already do. Retain its exact live-Agent and Session Ownership checks; unowned requests must still call `next`. A real two-Host browser must show the card in both the owning conversation and remote Activity, accept an answer and resume the same native tool call. A pending tool trace alone does not prove a Channel card was created.
+
+### DSH 0.2.1-rc.3 upgrade
+
+The development CLI and SDK pin is rc.3. Preserve the independently pinned rc.2
+`dsh-client-ui-theme` build input for reproducibility. The copied Desktop zoom adapter
+now checks protocol and content integrity instead of rejecting another rc label. Ordinary
+Hosts supply their own native theme unless the optional override is explicitly installed.
+Native Desktop qualification remains separate. Keep Provider build provenance unchanged.
+The rc.3 file-tool and Go Session patches retain the reviewed rc.2 implementation.
+
+### Forward-compatible launch admission (#2713)
+
+Build pins and historical qualification versions are evidence, not runtime allowlists. `--dsh-version <version>` selects an isolated CLI without editing workspace dependencies; otherwise use the installed CLI. Native Host metadata owns the API floor (`>=0.2.0-0`, prereleases included), and Host-provided DSH modules have no npm peer ranges that exclude future prerelease tuples. The Go runtime first installs the selected native adapter, locates the unique matching request shape, and stages the reviewed patch at its actual line number; changed or ambiguous code is refused with a concrete diagnostic. This avoids pnpm patch failures caused only by line-number drift between rc versions; catalog and authenticated API checks still fail on real incompatibility. The optional zoom adapter checks its protocol, platform and transformed bytes rather than a Desktop version label. Stop a task-owned Host before switching its Profile runtime; never mutate another task’s Profile. Forward admission is not proof of future runtime behavior.
+
+The verification wrapper also accepts `verify-app launch --dsh-version <version>`. Its doctor reads the recorded launched runtime and compares it with the recorded launch version, not the workspace SDK; older instance records without a runtime path must be relaunched before claiming version verification. Packaged artifact `dsh` records build provenance and does not need to equal the current SDK. Stage Go patches using the actual installed adapter package version, which can differ from the CLI version. Optional IM launch metadata is prepared before starting the detached Host.
+
+### Home ownership scan exceeds the default process-output buffer
+
+On a busy macOS development machine, `dev-instance.mjs` can refuse a fresh Home with
+`Cannot verify development Home process ownership` before launching a Host. Inspect the
+`spawnSync` result without printing process environments: `error.code === "ENOBUFS"`
+means the full `ps axeww` output exceeded Node's default buffer, not that the Home is owned
+by another task. Keep the complete scan and its fail-closed error handling; use the same
+bounded 32 MiB buffer as the child-process ownership scan. Do not truncate process rows,
+skip ownership checks, or print raw environments, which can contain credentials.
+
+### Native Subagent wake and prompt assembly (#2435)
+
+In DSH 0.2.1-rc.3, native child reports wake an idle parent independently of an application turn. Agent inbox claim notifications precede system-prompt assembly; assembly precedes agent/pre-step and snapshots installModelSelection. Establish the application-owned Bot turn before assembly, or the first resumed request can use a stale model. Observe trusted source metadata, validate Session Ownership, and join the existing Bot queue; never replay the report or borrow a prior Human source. Tie readiness to the actual Adapter tool context, not slower Runtime cleanup. Direct CLI calls are not live Orchestrator turns for stop/steer selection. Qualify this sequence against the running Host; an API send receipt alone is insufficient.
+
+
+## Additional verified pitfall — #2761 desktop ASAR filesystem
+
+The Electron desktop carrier patches Node filesystem APIs to interpret `.asar` archives as virtual directories. A downloaded capture-runtime archive must instead be inventoried, hashed and cleaned as physical files. In Electron, use its built-in `original-fs` for those installer operations; keep ordinary Node filesystem APIs in CLI Hosts. Do not toggle process-wide `noAsar`, which affects unrelated DSH modules. A valid cache can pass CLI verification but fail the desktop carrier, trigger another download and leave cleanup with `ENOTEMPTY`. Qualify both carriers: `BH_TEST_ELECTRON=<desktop executable> pnpm exec vitest run packages/computer/test/local-video-electron.test.ts` verifies two starts with zero downloads. Full archive installation, native UI readiness and mobile viewing remain separate acceptance steps.

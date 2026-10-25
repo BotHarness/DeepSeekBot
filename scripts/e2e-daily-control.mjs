@@ -114,12 +114,12 @@ if (mode === 'prepare') {
     );
   } else {
     const prompts = {
-      read: '只用 browser_observe 读取 Human 选定的日常 Chrome 页面。channel_send 回复登录名、余额和 Account note 当前内容，不输入或点击。',
-      edit: '先 browser_observe 获取最新 ref，再 browser_type 将 Account note 填为 BOT-SAVED-766，browser_click 点击 Save note，最后观察并 channel_send 回复保存结果。不导航。',
+      read: '只用 browser_observe 读取 Human 选定的日常 Chrome 页面。bot_send_message 回复登录名、余额和 Account note 当前内容，不输入或点击。',
+      edit: '先 browser_observe 获取最新 ref，再 browser_type 将 Account note 填为 BOT-SAVED-766，browser_click 点击 Save note，最后观察并 bot_send_message 回复保存结果。不导航。',
       resumed:
         '先 browser_observe 重新观察 Human 编辑，再 browser_type 输入 BOT-RESUMED-766，browser_click 点击 Save note，观察并回复保存结果。不导航。',
       returned:
-        '尝试 browser_observe 读取原页面；若拒绝，不重试、不绕过，channel_send 报告需要 Human 重新连接授权。',
+        '尝试 browser_observe 读取原页面；若拒绝，不重试、不绕过，bot_send_message 报告需要 Human 重新连接授权。',
       navigate:
         '用 browser_observe 获取最新 ref，browser_click 点击 Navigate to another document。若授权被撤销，停止并回复，不自动重连或用其他工具绕过。',
     };

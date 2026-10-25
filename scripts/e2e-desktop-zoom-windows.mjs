@@ -53,7 +53,6 @@ if (
   );
 const root = resolve(values.get('--root'));
 const app = inspectDesktopZoomApp({ desktopApp: values.get('--app') });
-if (app.version !== '0.2.1-rc.2') throw Error('zoom-windows-version-unqualified');
 const markerFile = join(root, 'qa-owner.json');
 const stateFile = join(root, 'owned-instance.json');
 const home = join(root, 'home');

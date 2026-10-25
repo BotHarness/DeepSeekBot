@@ -6,6 +6,7 @@ import type {
   TopOrderEntry,
 } from '../../host/client';
 import { approvalSummaryTool } from '../../host/requests';
+import { DEFAULT_ROSTER_SORTING } from '../../host/roster-sorting';
 import type { HumanAttentionItem } from '../../host/wire';
 import { t } from '../strings';
 
@@ -196,12 +197,36 @@ export function chatList(
   action: HumanAttentionItem[],
   collapsed: ReadonlySet<string> = new Set(),
   unread: UnreadCounts = {},
-  quietChannelIds: readonly string[] = [],
+  quiet: readonly string[] = [],
 ): ChatListItem[] {
-  const rows = conversations(roster, action, unread, quietChannelIds);
+  const rows = conversations(roster, action, unread, quiet);
   const arrangement = roster?.arrangement;
   const flat = rows.map((row): ChatListItem => ({ kind: 'row', key: row.key, row }));
   if (arrangement === undefined) return flat;
+  const sorting = roster?.sorting ?? DEFAULT_ROSTER_SORTING;
+  const channels = new Map(roster?.activityChannels?.map((channel) => [channel.id, channel]));
+  const recency = (row: Conversation): number => {
+    const channel = channels.get(channelIdOf(row) ?? '');
+    const at = Date.parse(channel?.latestMessage?.at ?? (row.at || channel?.updatedAt) ?? '');
+    return Number.isNaN(at) ? Number.NEGATIVE_INFINITY : at;
+  };
+  const byRecency = (a: Conversation, b: Conversation): number => {
+    const left = recency(a);
+    const right = recency(b);
+    const aId = channelIdOf(a) ?? a.key;
+    const bId = channelIdOf(b) ?? b.key;
+    return left !== right ? right - left : aId === bId ? 0 : aId < bId ? -1 : 1;
+  };
+  const orderScope = (scope: string, source: Conversation[], manual: readonly string[]) => {
+    if ((sorting.sortModes[scope] ?? sorting.sortMode) === 'updated') return source.sort(byRecency);
+    const positions = new Map(manual.map((id, index) => [id, index]));
+    const position = (row: Conversation) =>
+      positions.get(channelIdOf(row) ?? row.key) ??
+      (row.kind === 'bot' ? positions.get(row.bot.slug) : undefined) ??
+      manual.length;
+    return source.sort((a, b) => position(a) - position(b));
+  };
+
 
   const byId = new Map<string, Conversation>();
   for (const row of rows) byId.set(channelIdOf(row) ?? row.key, row);
@@ -220,21 +245,48 @@ export function chatList(
   const inSection = new Map(
     arrangement.sections.map((section) => [
       section.id,
-      rows.filter((row) => {
-        const id = channelIdOf(row);
-        return !taken.has(row.key) && id !== undefined && section.channelIds.includes(id);
-      }),
+      orderScope(
+        section.id,
+        rows.filter((row) => {
+          const id = channelIdOf(row);
+          return !taken.has(row.key) && id !== undefined && section.channelIds.includes(id);
+        }),
+        section.channelIds,
+      ),
     ]),
+  );
+  const sourceOrder = new Map(
+    [
+      ...new Set([
+        ...(roster?.activityChannels?.map((channel) => channel.id) ?? []),
+        ...(roster?.bots.map((bot) => bot.dmChannelId ?? `bot:${bot.slug}`) ?? []),
+        ...(roster?.channels.map((channel) => channel.id) ?? []),
+      ]),
+    ].map((id, index) => [id, index]),
   );
   const loose = rows
     .filter((row) => !taken.has(row.key) && !sectioned.has(channelIdOf(row) ?? ''))
+    .sort(
+      (a, b) =>
+        (sourceOrder.get(channelIdOf(a) ?? a.key) ?? 0) -
+        (sourceOrder.get(channelIdOf(b) ?? b.key) ?? 0),
+    )
     .map((row) => channelIdOf(row) ?? row.key);
   const names = new Map(arrangement.sections.map((section) => [section.id, section.name]));
 
   const items: ChatListItem[] =
     pinned.length === 0
       ? []
-      : sectionItem(PINNED_SECTION, undefined, pinned.sort(byLatest), collapsed);
+      : sectionItem(
+          PINNED_SECTION,
+          undefined,
+          orderScope(
+            PINNED_SECTION,
+            pinned,
+            pinned.map((row) => channelIdOf(row) ?? row.key),
+          ),
+          collapsed,
+        );
   for (const entry of topEntries(arrangement, loose)) {
     if (entry.kind === 'section')
       items.push(
@@ -245,14 +297,17 @@ export function chatList(
       if (row !== undefined) items.push({ kind: 'row', key: row.key, row });
     }
   }
-  return newestFirstWithinRuns(items);
+  return sorting.sortMode === 'manual' ? items : newestFirstWithinRuns(items, byRecency);
 }
 
-function newestFirstWithinRuns(items: ChatListItem[]): ChatListItem[] {
+function newestFirstWithinRuns(
+  items: ChatListItem[],
+  compare: (a: Conversation, b: Conversation) => number,
+): ChatListItem[] {
   const ordered: ChatListItem[] = [];
   let run: Conversation[] = [];
   const flush = (): void => {
-    for (const row of run.sort(byLatest)) ordered.push({ kind: 'row', key: row.key, row });
+    for (const row of run.sort(compare)) ordered.push({ kind: 'row', key: row.key, row });
     run = [];
   };
   for (const item of items) {

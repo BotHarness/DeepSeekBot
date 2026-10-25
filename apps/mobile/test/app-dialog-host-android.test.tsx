@@ -8,7 +8,8 @@ vi.mock('react-native', async () => ({
   Platform: { OS: 'android' },
   Keyboard: { dismiss() {} },
 }));
-vi.mock('@expo/ui/jetpack-compose', () => {
+vi.mock('@expo/ui/jetpack-compose', async () => {
+  const nativeMenu = (await import('./compose-menu-shim')).components;
   const pass = ({ children }: { children?: ReactNode }) => children ?? null;
   const slot =
     (name: string) =>
@@ -65,8 +66,10 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     );
   ListItem.HeadlineContent = pass;
   return {
+    ...nativeMenu,
     AlertDialog,
-    Column: pass,
+    Column: ({ children, modifiers }: { children?: ReactNode; modifiers?: { id?: string }[] }) =>
+      createElement('section', { 'data-testid': modifiers?.find((m) => m.id)?.id }, children),
     HorizontalDivider: () => createElement('hr'),
     Host: pass,
     ListItem,
@@ -75,7 +78,8 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     TextButton,
   };
 });
-vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({
+vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
+  ...(await import('./compose-menu-shim')).modifiers,
   clickable: (onClick: () => void) => ({ onClick }),
 }));
 
@@ -103,6 +107,29 @@ const buttons = (view: HTMLElement, slot: string) => [
 ];
 
 describe('Android dialogs use the Material 3 AlertDialog', () => {
+  it('places the conversation avatar and name in a separate header above three commands', () => {
+    const view = mount();
+    act(() =>
+      appDialogs.open(
+        'Launch team',
+        undefined,
+        [
+          { text: 'Pin', icon: 'pin' },
+          { text: 'Move to section', icon: 'folder' },
+          { text: 'Mute', icon: 'mute' },
+        ],
+        'menu',
+        createElement('img', { alt: 'Launch avatar' }),
+      ),
+    );
+    const header = view.querySelector('[data-testid="action-menu-header"]')!;
+    expect(header.textContent).toBe('Launch team');
+    expect(header.querySelector('img')?.alt).toBe('Launch avatar');
+    const items = [...view.querySelectorAll('[data-menu-item]')];
+    expect(items.map((item) => item.textContent)).toEqual(['Pin', 'Move to section', 'Mute']);
+    expect(items.every((item) => item.querySelector('i[data-symbol]'))).toBe(true);
+    expect(header.contains(items[0]!)).toBe(false);
+  });
   it('confirms with Cancel as the dismiss button and the destructive action as confirm', async () => {
     const unpair = vi.fn(async () => undefined);
     const view = mount();
@@ -123,23 +150,28 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('shows a menu as a Material bottom sheet list with a divider before the destructive item', () => {
+  it('shows icon and label rows with destructive commands grouped last', () => {
     const open = vi.fn();
     const remove = vi.fn();
     const view = mount();
     act(() =>
-      appDialogs.open('Ada', undefined, [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: remove },
-        { text: 'Open profile', onPress: open },
-      ]),
+      appDialogs.open(
+        'Ada',
+        undefined,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', icon: 'remove', style: 'destructive', onPress: remove },
+          { text: 'Open profile', icon: 'person', onPress: open },
+        ],
+        'menu',
+      ),
     );
     expect(view.querySelector('[role="dialog"]')).toBeNull();
     const items = [...view.querySelectorAll('[role="menu"] li')];
-    expect(items.map((item) => item.textContent)).toEqual(['Ada', 'Remove', 'Open profile']);
-    expect(view.querySelector('[role="menu"] hr')).not.toBeNull();
+    expect(items.map((item) => item.textContent)).toEqual(['Ada', 'Open profile', 'Remove']);
+    expect(items.slice(1).every((item) => item.querySelector('i[data-symbol]'))).toBe(true);
     expect(items[0]?.getAttribute('data-clickable')).toBe('false');
-    act(() => (items[2] as HTMLElement).click());
+    act(() => (items[1] as HTMLElement).click());
     expect(open).toHaveBeenCalledOnce();
     expect(remove).not.toHaveBeenCalled();
   });
@@ -165,3 +197,8 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     expect(view.querySelector('[role="dialog"]')).toBeNull();
   });
 });
+
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ name }: { name: { android: string } }) =>
+    createElement('i', { 'data-symbol': name.android }),
+}));
