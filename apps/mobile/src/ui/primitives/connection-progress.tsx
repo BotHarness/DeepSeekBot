@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { LoadingIndicator } from './loading-indicator';
 import type { ConnectionState } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { useStrings } from '../strings';
@@ -24,6 +25,7 @@ export function ConnectionProgress({ active, children }: { active: boolean; chil
           testID="connection-progress"
           pointerEvents="none"
           accessible={false}
+          accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
           style={[
             StyleSheet.absoluteFill,
@@ -33,7 +35,7 @@ export function ConnectionProgress({ active, children }: { active: boolean; chil
             },
           ]}
         >
-          <ActivityIndicator size="small" color={theme.color.fg} accessible={false} />
+          <LoadingIndicator size="control" color={theme.color.fg} />
         </View>
       ) : null}
     </View>
