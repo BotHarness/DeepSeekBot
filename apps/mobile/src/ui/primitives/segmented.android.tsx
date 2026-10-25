@@ -66,7 +66,8 @@ export function Segmented<T extends string>({
               testID={`button-group-${option.value}`}
               accessibilityRole="radio"
               accessibilityLabel={option.label}
-              accessibilityState={{ checked: selected }}
+              accessibilityState={{ checked: selected, disabled }}
+              disabled={disabled}
               onPress={() => select(option.value)}
               android_ripple={{ color: pressTint(theme.color.fg) }}
               style={{
