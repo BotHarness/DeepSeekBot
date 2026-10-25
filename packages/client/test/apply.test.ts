@@ -338,6 +338,7 @@ describe('client apply', () => {
       { id: 'im-apps', order: 25 },
       { id: 'companions', order: 40 },
       { id: 'devices', order: 45 },
+      { id: 'connect', order: 46 },
       { id: 'data-privacy', order: 50 },
       { id: 'advanced', order: 60 },
       { id: 'plugins', order: 65 },

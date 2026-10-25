@@ -106,6 +106,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
                   host.hostId === saved.hostId ? { ...host, routes } : host,
                 ),
               });
+              void pushSession.sync(stored.hosts);
             }),
         });
   if (client && saved) clientHosts.set(client, saved.hostId);
@@ -196,6 +197,7 @@ export const hostSession = {
         ...stored,
         hosts: stored.hosts.map((item) => (item.hostId === host.hostId ? replacement : item)),
       });
+      void pushSession.sync(stored.hosts);
       void revokePairing({ host: previous, carrier: nativeCarrier() });
     });
   },
@@ -207,6 +209,7 @@ export const hostSession = {
         ...stored,
         hosts: stored.hosts.map((host) => (host.hostId === hostId ? { ...host, routes } : host)),
       });
+      void pushSession.sync(stored.hosts);
     });
   },
   subscribe(listener: () => void): () => void {

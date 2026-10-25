@@ -42,7 +42,7 @@ const SECTION_ICONS: Readonly<Record<string, string>> = {
   browser: 'globe',
   [BOT_SETTINGS_SECTIONS.companions]: 'bot',
   [BOT_SETTINGS_SECTIONS.devices]: 'smartphone',
-  [BOT_SETTINGS_SECTIONS.connect]: 'globe',
+  [BOT_SETTINGS_SECTIONS.connect]: 'external-link',
   [BOT_SETTINGS_SECTIONS.dataPrivacy]: 'lock',
   [BOT_SETTINGS_SECTIONS.advanced]: 'sliders-horizontal',
   [BOT_SETTINGS_SECTIONS.plugins]: 'puzzle',
