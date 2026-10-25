@@ -41,3 +41,7 @@ Original recordings and exact-frame analysis are retained in the indexed local Q
 ## Q2 Channel identity connection progress
 
 `connection.png` captures the production Channel route during a bounded task-owned Host stall: the native spinner is over the # identity, cached history remains, and no transient banner row is shown. Because the directory is unavailable, the title falls back to the synthetic group identifier; this is disclosed rather than edited out. The bright gear on the right is developer tooling, not the connection indicator. This proves the Channel identity state only, not every environment selector, accessibility or geometry transition.
+
+## Q2 corrected placement — e84bdb7ba
+
+Human feedback moved connection progress after the name inside the identity chip. `connection.png` above is the superseded avatar-overlay placement. New `chip-loading.png` is the unedited 46s frame of the e84bdb7ba Simulator recording: the native iOS spinner follows the truncated synthetic Channel identifier while the # avatar stays uncovered and cached history remains. `chip-ready.png` is the 49s recovered state. Review found the rotating trailing indicator at about43–47.4s and recovery at about47.5s. Timed screenshots missed that short interval; exact decoded frames supply the evidence. Same device/binary/locale/light/large conditions as the prior run. Android uses the existing Compose Material3 circular control; Android visual acceptance remains pending.
