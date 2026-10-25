@@ -1,3 +1,4 @@
+import { useHostSession } from '../host/host-session';
 import { useRouter } from 'expo-router';
 import { Pressable } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
@@ -17,7 +18,9 @@ export function OpenFullClientButton({
   plain?: boolean;
 }) {
   const router = useRouter();
-  const open = () => router.push({ pathname: '/full-client', params: fullClientParams(target) });
+  const { saved } = useHostSession();
+  const open = () =>
+    router.push({ pathname: '/full-client', params: fullClientParams(target, saved?.hostId) });
   if (bar)
     return (
       <HeaderCircleButton label={t.openFullClient} onPress={open} plain={plain}>

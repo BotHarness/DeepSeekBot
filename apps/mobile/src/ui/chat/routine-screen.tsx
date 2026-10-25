@@ -82,7 +82,7 @@ export function RoutineScreen({ edit = false }: { edit?: boolean }) {
             onOpenFullClient={() =>
               router.push({
                 pathname: '/full-client',
-                params: fullClientParams({ kind: 'dm', slug }),
+                params: fullClientParams({ kind: 'dm', slug }, saved?.hostId),
               })
             }
           />

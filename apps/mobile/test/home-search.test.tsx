@@ -86,6 +86,19 @@ vi.mock('expo-router', () => {
   };
 });
 vi.mock('../src/host/host-session', () => ({
+  quietChannels: { get: () => [] },
+  useHostSessions: () => [
+    {
+      saved: { hostId: 'h1', hostName: 'studio' },
+      client: undefined,
+      inbox: undefined,
+      snapshot: {
+        connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
+        roster: hostState.connecting ? undefined : roster,
+      },
+      attention: { status: 'loading' },
+    },
+  ],
   useHostSession: () => ({
     saved: { hostId: 'h1', hostName: 'studio' },
     client: undefined,
@@ -105,6 +118,7 @@ vi.mock('../src/host/native-section-collapse', () => ({
 }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
+  hostLooks: { look: () => ({ icon: { kind: 'symbol', id: 'desktop' } }) },
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
 vi.mock('../src/ui/chat/section-header', () => ({ SectionHeader: () => null }));
@@ -317,9 +331,9 @@ describe('Search in the Chats header', () => {
     expect(rows(view)).toHaveLength(3);
 
     await type(view, 'ＡＤ');
-    expect(rows(view)).toEqual(['Ada, Done']);
+    expect(rows(view)).toEqual(['Ada, Done, studio']);
     await act(async () =>
-      view.querySelector<HTMLButtonElement>('button[aria-label="Ada, Done"]')!.click(),
+      view.querySelector<HTMLButtonElement>('button[aria-label="Ada, Done, studio"]')!.click(),
     );
     expect(push).toHaveBeenLastCalledWith({
       pathname: '/dm/[slug]',
@@ -327,7 +341,7 @@ describe('Search in the Chats header', () => {
     });
 
     await type(view, '小明');
-    expect(rows(view)).toEqual(['小明']);
+    expect(rows(view)).toEqual(['小明, studio']);
 
     await type(view, 'launch');
     await act(async () =>
@@ -377,7 +391,7 @@ describe('Search in the Chats header', () => {
     )!;
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     expect(field.isConnected).toBe(true);
-    expect(rows(view)).toEqual(['Ada, Done']);
+    expect(rows(view)).toEqual(['Ada, Done, studio']);
     await type(view, '');
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();

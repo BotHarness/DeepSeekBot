@@ -196,11 +196,12 @@ export function chatList(
   action: HumanAttentionItem[],
   collapsed: ReadonlySet<string> = new Set(),
   unread: UnreadCounts = {},
+  quietChannelIds: readonly string[] = [],
 ): ChatListItem[] {
-  const rows = conversations(roster, action, unread);
+  const rows = conversations(roster, action, unread, quietChannelIds);
   const arrangement = roster?.arrangement;
   const flat = rows.map((row): ChatListItem => ({ kind: 'row', key: row.key, row }));
-  if (arrangement === undefined || arrangement.sections.length === 0) return flat;
+  if (arrangement === undefined) return flat;
 
   const byId = new Map<string, Conversation>();
   for (const row of rows) byId.set(channelIdOf(row) ?? row.key, row);

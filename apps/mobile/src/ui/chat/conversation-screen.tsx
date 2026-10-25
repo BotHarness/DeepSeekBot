@@ -1,3 +1,4 @@
+import { HostScope } from '../../host/host-scope';
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
@@ -147,9 +148,11 @@ export function ConversationScreen({
   focus: string | undefined;
   latestWindowOnly?: boolean;
 }) {
-  const { client, saved } = useHostSession();
-  const [openedOn, setOpenedOn] = useState(saved?.hostId);
-  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
+  const initial = useHostSession();
+  const [openedOn, setOpenedOn] = useState(initial.saved?.hostId);
+  if (openedOn === undefined && initial.saved?.hostId !== undefined)
+    setOpenedOn(initial.saved.hostId);
+  const { client, saved } = useHostSession(expectedHostId ?? openedOn);
   const focused = useIsFocused();
   const roster = useHostSnapshot(client, focused).roster;
   const router = useRouter();
@@ -166,17 +169,19 @@ export function ConversationScreen({
   const shownHostId = expectedHostId ?? openedOn;
   if (shownHostId && saved?.hostId !== shownHostId) return <Text>{t.sourceChanged}</Text>;
   return (
-    <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
-      <MessageIdentities.Provider value={identities}>
-        <ChatConversation
-          key={JSON.stringify([saved?.hostId, place])}
-          place={place}
-          focus={focus}
-          latestWindowOnly={latestWindowOnly}
-          focused={focused}
-        />
-      </MessageIdentities.Provider>
-    </AccentProvider>
+    <HostScope value={saved?.hostId}>
+      <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
+        <MessageIdentities.Provider value={identities}>
+          <ChatConversation
+            key={JSON.stringify([saved?.hostId, place])}
+            place={place}
+            focus={focus}
+            latestWindowOnly={latestWindowOnly}
+            focused={focused}
+          />
+        </MessageIdentities.Provider>
+      </AccentProvider>
+    </HostScope>
   );
 }
 
@@ -236,6 +241,7 @@ const RequestCard = memo(function RequestCard({
     [client, inbox, ref],
   );
   const router = useRouter();
+  const { saved } = useHostSession();
   const subject = card.subject === undefined ? {} : { subject: card.subject };
   if (card.kind === 'private-input')
     return (
@@ -248,11 +254,14 @@ const RequestCard = memo(function RequestCard({
         onFill={() =>
           router.push({
             pathname: '/full-client',
-            params: fullClientParams({
-              kind: 'private-input',
-              channelId: card.channelId,
-              messageId: message.id,
-            }),
+            params: fullClientParams(
+              {
+                kind: 'private-input',
+                channelId: card.channelId,
+                messageId: message.id,
+              },
+              saved?.hostId,
+            ),
           })
         }
       />
@@ -714,7 +723,11 @@ function ChatConversation({
                             : item.message.activity?.kind === 'bot-create'
                               ? t.activityRow.openBot
                               : t.activityRow.openChat,
-                        onOpen: () => router.push(target),
+                        onOpen: () =>
+                          router.push({
+                            ...target,
+                            params: { ...target.params, hostId: saved?.hostId },
+                          }),
                       },
               })
             }
@@ -796,7 +809,12 @@ function ChatConversation({
     <ChatTitle
       bot={bot}
       fallback={slug ?? ''}
-      onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
+      onPress={() =>
+        router.push({
+          pathname: '/bot/[slug]',
+          params: { slug: bot?.slug ?? slug, hostId: saved?.hostId },
+        })
+      }
     />
   ) : botDm ? (
     <View
@@ -823,7 +841,10 @@ function ChatConversation({
       channel={channel}
       fallback={channelId ?? ''}
       onPress={() =>
-        router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
+        router.push({
+          pathname: '/group/[id]',
+          params: { id: channel?.id ?? channelId, hostId: saved?.hostId },
+        })
       }
     />
   );
@@ -928,7 +949,7 @@ function ChatConversation({
                             onPress: () =>
                               router.push({
                                 pathname: '/full-client',
-                                params: fullClientParams(fullClient),
+                                params: fullClientParams(fullClient, saved?.hostId),
                               }),
                           },
                         ],

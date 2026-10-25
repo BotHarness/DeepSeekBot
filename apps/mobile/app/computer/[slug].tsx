@@ -38,11 +38,11 @@ import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
 export default function ComputerScreen() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const { client } = useHostSession();
+  const { client } = useHostSession(hostId);
   const snapshot = useHostSnapshot(client);
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const viewer = useMemo(

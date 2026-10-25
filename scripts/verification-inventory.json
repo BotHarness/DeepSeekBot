@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.multiple-hosts.chats",
+      "label": "Combine online paired Hosts in All Chats with source-bound navigation and actions",
+      "source": "apps/mobile/src/host/host-session.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-multiple-hosts.md",
+      "task": 2782,
+      "gap": "Component and transport regression coverage only; Android/iOS native two-Host qualification pending. Activity aggregation is the subsequent tracer slice."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",

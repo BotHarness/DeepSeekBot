@@ -32,12 +32,18 @@ import {
   type CloudWorkspace,
   type WorkspaceDirectoryEntry,
 } from '../../cloud/workspace-directory';
-import { createHostClient } from '../../host/client';
+
 import type { ConnectHost } from '../../host/connect-account';
 import { connectAccount } from '../../host/native-connect-account';
-import { createHostGlances, liveGlance, type HostStatus } from '../../host/host-glance';
-import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../host/host-session';
-import { nativeCarrier } from '../../host/native-carrier';
+import { liveGlance, type HostStatus } from '../../host/host-glance';
+import {
+  hostSession,
+  useHostSession,
+  useHostSnapshot,
+  useInbox,
+  useHostSessions,
+} from '../../host/host-session';
+
 import { useHostLook } from '../../host/native-host-look';
 import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
@@ -75,10 +81,6 @@ export const hostDrawer = createHostDrawer({
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
 });
-
-const glances = createHostGlances((host) =>
-  createHostClient({ routes: host.routes, credential: host.credential, carrier: nativeCarrier() }),
-);
 
 const progress = makeMutable(0);
 const workspaceDirectory = createWorkspaceDirectory(cloudClient);
@@ -582,7 +584,25 @@ export function HostDrawer() {
   const { saved, hosts, client, inbox } = useHostSession();
   const connection = useHostSnapshot(client).connection;
   const list = useInbox(inbox);
-  const glanceMap = useSyncExternalStore(glances.subscribe, glances.getSnapshot);
+  const feeds = useHostSessions();
+  const glanceMap = useMemo(
+    () =>
+      Object.fromEntries(
+        feeds.map((host) => [
+          host.saved.hostId,
+          {
+            ...liveGlance(host.snapshot.connection, host.attention),
+            ...(host.attention.status === 'ready'
+              ? {
+                  unread: Object.values(host.attention.unread ?? {}).filter((count) => count > 0)
+                    .length,
+                }
+              : {}),
+          },
+        ]),
+      ),
+    [feeds],
+  );
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ instanceId?: string; organizationId?: string }>();
   const cloud = useCloudSnapshot();
@@ -651,14 +671,13 @@ export function HostDrawer() {
   const tabFocus = useMounted<ViewInstance>(
     (node) => {
       if (!state.open) return;
-      const stopWatching = glances.watch(hosts);
+
       const focus = setTimeout(() => focusOn(node), motion.drawer);
       const back = BackHandler.addEventListener('hardwareBackPress', () => {
         settle(false);
         return true;
       });
       return () => {
-        stopWatching();
         clearTimeout(focus);
         back.remove();
       };

@@ -36,10 +36,12 @@ export function ConversationRow({
   actions = [],
   onAction,
   look,
+  sourceLabel,
 }: {
   row: Conversation;
   now: Date;
   look?: HostLook | undefined;
+  sourceLabel?: string;
   onPress?: () => void;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -57,7 +59,8 @@ export function ConversationRow({
         : t.members(row.channel.memberCount);
   const badge = countBadge(row);
   const time = shortTime(row.at, now);
-  const label = rowLabel(row, title, status, preview);
+  const description = rowLabel(row, title, status, preview);
+  const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
   return (
     <ConversationSwipe actions={onAction ? actions : []} onAction={act}>
@@ -66,6 +69,7 @@ export function ConversationRow({
         actions={onAction ? actions : []}
         onAction={act}
         title={title}
+        sourceLabel={sourceLabel}
         source="computer"
         look={look}
         label={label}
@@ -114,6 +118,7 @@ export function ConversationGroupAvatar({ avatar }: { avatar?: string | undefine
 
 export function ConversationRowFrame({
   title,
+  sourceLabel,
   source,
   label,
   preview,
@@ -129,6 +134,7 @@ export function ConversationRowFrame({
   testID,
   look,
 }: {
+  sourceLabel?: string | undefined;
   look?: HostLook | undefined;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -202,6 +208,11 @@ export function ConversationRowFrame({
             </Text>
           )}
         </View>
+        {sourceLabel ? (
+          <Text variant="meta" tone="subtle" numberOfLines={1}>
+            {sourceLabel}
+          </Text>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"

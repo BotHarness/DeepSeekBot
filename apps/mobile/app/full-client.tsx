@@ -17,7 +17,7 @@ export default function FullClientScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<FullClientParams>();
-  const { saved, client } = useHostSession();
+  const { saved, client } = useHostSession(params.hostId);
   const snapshot = useHostSnapshot(client);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<'loading' | 'loaded' | 'refused' | 'unreachable'>('loading');

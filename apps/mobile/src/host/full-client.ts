@@ -36,7 +36,11 @@ export type FullClientParams = {
   messageId?: string;
 };
 
-export function fullClientParams(target: FullClientTarget): FullClientParams {
+export function fullClientParams(target: FullClientTarget, hostId?: string): FullClientParams {
+  return { ...targetParams(target), ...(hostId === undefined ? {} : { hostId }) };
+}
+
+function targetParams(target: FullClientTarget): FullClientParams {
   if (target.kind === 'dm') return { target: 'dm', slug: target.slug };
   if (target.kind === 'channel') return { target: 'channel', channelId: target.channelId };
   if (target.kind === 'new-bot' || target.kind === 'new-channel') return { target: target.kind };

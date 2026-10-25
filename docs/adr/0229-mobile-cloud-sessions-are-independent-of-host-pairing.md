@@ -57,3 +57,22 @@ The display scope also includes the stored session's user ID. This is a local ca
 The device-local conversation filter is shared with Activity as a browsing scope, not a Host switch or new grant. Chats alone owns its selector. The stable strip lists All, the active Computer, then enrolled sources' member/guest Organizations in directory order, including empty member Organizations. Account/configuration-qualified keys prevent colliding Organization IDs or names from sharing a page. The existing native pager used by Activity supplies gesture navigation; no native dependency or alternate navigation lifecycle is introduced.
 
 Activity preserves its category pager. Unsupported Cloud scope hides unrelated Computer data/actions and its badge; All explicitly discloses incomplete coverage. This does not supply Cloud attention contracts or concurrent multiple-Computer aggregation. Existing source-bound messages/drafts and explicit sends remain unchanged.
+
+## Concurrent paired Host Chats (#2782)
+
+The mobile session owner maintains one existing HostClient and Inbox per saved pairing.
+Changing the browsing scope or management selection retains other connections and
+subscriptions. The drawer consumes that same pool instead of creating probe clients.
+Removing a pairing or replacing its credentials disposes only that source session.
+This avoids a second connection lifecycle and keeps each Host as the message authority.
+
+All projects only online, loaded Host rosters into a source-qualified directory, retaining
+Cloud directory behavior. It flattens Host sections into recent-message order and one
+collapsible Pinned section; individual Host scopes retain their own sections and order.
+Routes, nested screens and full-client destinations carry the originating Host ID; identical
+local Bot or Channel IDs never authorize a fallback to the management Host. Open offline
+chats retain history and device-local drafts, disable sends and never replay drafts on recovery.
+
+This decision extends the Chats slice above. Activity aggregation follows after first-slice
+native QA and Human feedback. Android/iOS navigation, previews and background delivery still
+require separate runtime qualification; automated screen/transport tests do not establish it.

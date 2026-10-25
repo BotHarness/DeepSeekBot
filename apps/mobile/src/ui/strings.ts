@@ -15,6 +15,7 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  noOnlineChats: 'No online chats',
   createHere: 'Create or join',
   chooseCreationTarget: 'Choose where to create',
   noCreationTargets: 'No available actions for this environment.',
@@ -1307,6 +1308,7 @@ const en = {
 };
 
 const zh: typeof en = {
+  noOnlineChats: '暂无在线聊天',
   createHere: '创建或加入',
   chooseCreationTarget: '选择创建位置',
   noCreationTargets: '当前环境没有可用操作。',
