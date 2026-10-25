@@ -159,7 +159,8 @@ try {
   await click('Bot settings');
   await pause(500);
   await dismiss();
-  await click('Devices');
+  await click(before ? 'Devices' : 'Connections');
+  if (!before) await click('Manage');
   await page.waitForFunction(() => document.querySelector('[data-device-lan="listening"]'), {
     timeout: 30_000,
   });
@@ -174,7 +175,7 @@ try {
   await page.waitForFunction(() => !document.querySelector('[data-device-status="stale"]'));
   await pause(3500);
   failOffer = true;
-  await click('Pair a phone');
+  await click(before ? 'Pair a phone' : 'Connect a device');
   await pause(500);
   await capture('offer', '[data-pair-dialog]');
   if (!before) {

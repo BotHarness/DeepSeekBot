@@ -33,6 +33,7 @@ let routes: (typeof lan)[];
 let lanState: 'off' | 'listening' | 'error';
 let failEnable: boolean;
 let expiresAt: string;
+let offerState: string;
 let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 let posts: { url: string; body: unknown }[];
@@ -44,12 +45,14 @@ beforeEach(() => {
   failEnable = false;
   expiresAt = new Date(Date.now() + 600_000).toISOString();
   posts = [];
+  offerState = 'pending';
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, init?: RequestInit) => {
       if (init?.method === 'POST') {
         const body = JSON.parse(String(init.body));
         posts.push({ url, body });
+        if (url.endsWith('/offer-status')) return Response.json({ state: offerState });
         if (url.endsWith('/lan')) {
           if (failEnable) return Response.json({ code: 'lan-listen-failed' }, { status: 409 });
           lanState = body.action === 'enable' ? 'listening' : 'off';
@@ -58,6 +61,7 @@ beforeEach(() => {
         }
         if (url.endsWith('/offer'))
           return Response.json({
+            receipt: 'test-receipt',
             link: 'deepseekbot://pair?p=test',
             qr: { size: 1, path: 'M0 0h1v1h-1z' },
             expiresAt,
@@ -81,11 +85,30 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 const button = (label: string) =>
   [...host.querySelectorAll('button')].find((node) => node.textContent === label)!;
 const click = async (label: string) => act(async () => button(label).click());
-const render = async () => act(async () => root.render(<PairedDevicesSettings t={t} />));
+const render = async (manage = true) => {
+  await act(async () => root.render(<PairedDevicesSettings t={t} />));
+  if (manage) await click(t('connections.manage'));
+};
+
+it('prepares LAN only after choosing it in Add connection, then shows the invitation', async () => {
+  await render(false);
+  expect(button(t('devices.lan.enable'))).toBeUndefined();
+  await click('添加连接');
+  await click('让设备连接本机');
+  await click('局域网');
+  expect(posts).toEqual([]);
+  await click('开启并继续');
+  expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+  expect(posts.map((item) => item.url)).toEqual([
+    './api/botharness/devices/lan',
+    './api/botharness/devices/offer',
+  ]);
+});
 
 it('shows independent LAN and Tailscale choices without publishing or offering loopback', async () => {
   await render();
@@ -182,3 +205,18 @@ it('replaces an expired code with a fresh offer', async () => {
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.filter((post) => post.url.endsWith('/offer'))).toHaveLength(2);
 });
+
+it.each(['refused', 'unknown', 'superseded'])(
+  'withdraws an invitation when its owner reports %s',
+  async (state) => {
+    vi.useFakeTimers();
+    routes = [lan, loopback];
+    await render();
+    await click(t('devices.pair.open'));
+    expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
+    offerState = state;
+    await act(async () => vi.advanceTimersByTimeAsync(3100));
+    expect(host.querySelector('[data-pair-qr]')).toBeNull();
+    expect(host.textContent).toContain(t('connections.invitationInvalid'));
+  },
+);

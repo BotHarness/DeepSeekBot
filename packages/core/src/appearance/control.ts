@@ -9,6 +9,7 @@ interface Command {
   recovery?: unknown;
   notifications?: unknown;
   hostLook?: unknown;
+  connection?: unknown;
   expectedRevision?: string;
 }
 interface Client {
@@ -77,6 +78,7 @@ export function createAppearanceControl(now = Date.now) {
             input.recovery,
             input.notifications,
             input.hostLook,
+            input.connection,
           ].filter((v) => v !== undefined).length > 1
         )
           return refused('appearance-invalid-input', 400);
@@ -98,6 +100,7 @@ export function createAppearanceControl(now = Date.now) {
         const command: Command = {
           id: randomUUID(),
           expiresAt,
+          ...(input.connection === undefined ? {} : { connection: input.connection }),
           ...(input.hostLook === undefined
             ? {}
             : { hostLook: input.hostLook, expectedRevision: input.expectedRevision as string }),
