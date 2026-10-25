@@ -114,6 +114,7 @@ vi.mock('react-native', async () => {
   };
 });
 
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
@@ -286,7 +287,7 @@ describe('message states', () => {
     );
     expect(html).toContain('data-selectable="false"');
     expect(html).not.toContain('data-selectable="true"');
-    expect(html).toContain(`data-accessibilityhint="${t.copyHint}"`);
+    expect(html).toContain(`data-accessibilityhint="${t.messageActionsHint}"`);
     expect(html).toContain(
       'data-markdown="Use `pnpm test`:\n\n- one\n- [docs](https://botharness.ai)"',
     );

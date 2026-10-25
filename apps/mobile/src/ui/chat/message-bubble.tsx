@@ -97,7 +97,9 @@ export function BubbleBody({
   fill,
   streaming = false,
   deliveryAccessibility = true,
+  onImageReady,
 }: {
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
   group: BubbleGroup;
   onOpenImage?: (attachment: MessageAttachment) => void;
@@ -137,6 +139,7 @@ export function BubbleBody({
           human={human}
           onOpenImage={onOpenImage}
           onShare={onShare}
+          onImageReady={onImageReady}
         />
       ) : null}
       {message.card ? (
@@ -157,6 +160,7 @@ function PressableBubble({
   accessibilityHint,
   accessibilityActionLabel,
   pending = false,
+  ungrouped = false,
   onPress,
   onLongPress,
   onDoubleTap,
@@ -170,6 +174,7 @@ function PressableBubble({
   accessibilityHint?: string;
   accessibilityActionLabel?: string;
   pending?: boolean;
+  ungrouped?: boolean;
   onPress?: () => void;
   onLongPress?: (anchor: Rect) => void;
   onDoubleTap?: () => void;
@@ -210,6 +215,7 @@ function PressableBubble({
       ]}
     >
       <Pressable
+        {...(ungrouped ? { accessible: false } : {})}
         {...(pending
           ? { accessibilityState: { busy: true }, accessibilityValue: { text: t.sending } }
           : {})}
@@ -318,7 +324,9 @@ export const MessageBubble = memo(function MessageBubble({
       </View>
     );
   const copyable = message.body.trim() !== '';
-  const actionable = !streaming && (copyable || (onReact !== undefined && reactable(message)));
+  const actionable =
+    !streaming &&
+    (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
   const reactions = streaming ? [] : (message.reactions ?? []);
   const group = { first, last, avatar: speaker?.last === true };
   const bubble = (
@@ -327,7 +335,10 @@ export const MessageBubble = memo(function MessageBubble({
       group={group}
       onOpenImage={onOpenImage}
       onShare={onShare}
-      deliveryAccessibility={!(failed || actionable || streaming)}
+      deliveryAccessibility={
+        (human && message.delivery === 'pending' && message.attachments.length > 0) ||
+        !(failed || actionable || streaming)
+      }
       fill={failed || actionable || streaming ? { maxWidth: '100%' } : undefined}
       streaming={streaming}
     />
@@ -339,11 +350,12 @@ export const MessageBubble = memo(function MessageBubble({
         group={group}
         lifted={lifted}
         pending={human && message.delivery === 'pending'}
+        ungrouped={human && message.delivery === 'pending' && message.attachments.length > 0}
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
         {...(actionable
           ? {
-              accessibilityHint: onReact === undefined ? t.copyHint : t.messageActionsHint,
-              accessibilityActionLabel: onReact === undefined ? t.copy : t.messageActions,
+              accessibilityHint: t.messageActionsHint,
+              accessibilityActionLabel: t.messageActions,
               onLongPress: (anchor: Rect) => onLongPress(message, anchor, group),
             }
           : {})}

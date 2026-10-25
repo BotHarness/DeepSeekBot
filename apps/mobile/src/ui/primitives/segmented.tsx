@@ -13,6 +13,7 @@ export type SegmentedProps<T extends string> = {
   on?: LayerName;
   onChange(value: T): void;
   compact?: boolean;
+  disabled?: boolean;
 };
 
 export function Segmented<T extends string>({
@@ -21,6 +22,7 @@ export function Segmented<T extends string>({
   value,
   on = 'canvas',
   onChange,
+  disabled = false,
   compact = false,
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
@@ -45,7 +47,8 @@ export function Segmented<T extends string>({
             key={option.value}
             accessibilityRole="tab"
             accessibilityLabel={option.label}
-            accessibilityState={{ selected }}
+            accessibilityState={{ selected, disabled }}
+            disabled={disabled}
             hitSlop={{ top: space.x1, bottom: space.x1 }}
             onPress={() => select(option.value)}
             style={({ pressed }) => ({

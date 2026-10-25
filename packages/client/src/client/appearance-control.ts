@@ -7,16 +7,18 @@ import type { Wallpaper } from './wallpaper.js';
 import { createWallpaperControl } from './wallpaper-control.js';
 import { Appearance, AppearanceError, object } from './appearance.js';
 import { remoteHosts } from './remote-hosts.js';
+import { createConnectionControl } from './connection-control.js';
 
 export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper): () => void {
   const abort = new AbortController();
+  let connections: ReturnType<typeof createConnectionControl> | undefined;
   const media = wallpaper ? createWallpaperControl(wallpaper) : undefined;
   let registration: { clientId: string; token: string } | undefined;
-  const post = async (body: Record<string, unknown>) => {
+  const post = async (body: Record<string, unknown>, signal = abort.signal) => {
     const response = await fetch('./api/botharness/appearance-control', {
       method: 'POST',
       credentials: 'same-origin',
-      signal: abort.signal,
+      signal,
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
     });
@@ -39,10 +41,27 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
           if (raw === null) continue;
           const command = object(raw);
           let result: unknown;
+          let delivery:
+            | { abort: AbortController; timer: ReturnType<typeof setTimeout> }
+            | undefined;
           try {
             if (typeof command.expiresAt !== 'number' || Date.now() > command.expiresAt)
               throw new AppearanceError('appearance-request-stale');
-            if (command.hostLook !== undefined) {
+            if (command.connection !== undefined) {
+              connections ??= createConnectionControl(remoteHosts(), getThisHost);
+              const deliveryAbort = new AbortController();
+              delivery = {
+                abort: deliveryAbort,
+                timer: setTimeout(
+                  () => deliveryAbort.abort(),
+                  Math.max(0, command.expiresAt - Date.now()),
+                ),
+              };
+              result = connections.execute(command.connection, {
+                expiresAt: command.expiresAt,
+                signal: AbortSignal.any([abort.signal, deliveryAbort.signal]),
+              });
+            } else if (command.hostLook !== undefined) {
               const looks = hostLooks();
               await looks.ready;
               result = await controlHostLook(
@@ -116,16 +135,41 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
               },
             };
           }
-          if (abort.signal.aborted) return;
+          if (abort.signal.aborted) {
+            if (delivery) {
+              clearTimeout(delivery.timer);
+              delivery.abort.abort();
+            }
+            return;
+          }
           if (
-            (command.notifications !== undefined || command.hostLook !== undefined) &&
+            (command.notifications !== undefined ||
+              command.hostLook !== undefined ||
+              command.connection !== undefined) &&
             typeof command.expiresAt === 'number' &&
             Date.now() >= command.expiresAt
-          )
+          ) {
+            if (delivery) {
+              clearTimeout(delivery.timer);
+              delivery.abort.abort();
+            }
             continue;
-          await post({ action: 'reply', ...registration, requestId: command.id, result });
+          }
+          try {
+            await post(
+              { action: 'reply', ...registration, requestId: command.id, result },
+              delivery ? AbortSignal.any([abort.signal, delivery.abort.signal]) : abort.signal,
+            );
+          } catch (error) {
+            delivery?.abort.abort();
+            throw error;
+          } finally {
+            if (delivery) clearTimeout(delivery.timer);
+          }
         }
       } catch {
+        connections?.dispose();
+        connections = undefined;
         if (!abort.signal.aborted)
           await new Promise<void>((resolve) => {
             const done = () => {
@@ -142,6 +186,7 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
   void run();
   return () => {
     abort.abort();
+    connections?.dispose();
     media?.dispose();
     if (registration)
       void fetch('./api/botharness/appearance-control', {

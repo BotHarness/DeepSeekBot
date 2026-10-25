@@ -4,6 +4,7 @@ import { CliLiveError } from './cli-live-error.js';
 import { noiseFingerprint } from '../devices/noise/xk.js';
 
 export const DEVICES_COMMANDS = [
+  { command: 'device-requests', description: 'list pending exact-key device approval requests' },
   {
     command: 'device-lan',
     description: 'enable --confirm or disable encrypted phone access on the local network',
@@ -114,8 +115,10 @@ export async function runDevicesCommand(
     } catch {}
     throw new CliLiveError('host-protocol-error', 'The Host did not return a JSON object.');
   };
-  if (command === 'devices') {
-    const snapshot = decode((await host.http(DEVICES)).bytes);
+  if (command === 'devices' || command === 'device-requests') {
+    const snapshot = decode(
+      (await host.http(command === 'device-requests' ? `${DEVICES}/requests` : DEVICES)).bytes,
+    );
     const pending = snapshot['pendingKeys'];
     const pendingKeys = Array.isArray(pending)
       ? pending.map((entry: unknown) => {
@@ -130,6 +133,7 @@ export async function runDevicesCommand(
           return { ...entry, fingerprint: noiseFingerprint(Buffer.from(entry.publicKey, 'hex')) };
         })
       : pending;
+    if (command === 'device-requests') return { pendingKeys };
     return {
       host: snapshot['host'],
       devices: snapshot['devices'],

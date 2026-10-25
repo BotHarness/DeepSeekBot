@@ -4,6 +4,8 @@ import { useDesignTheme } from '../design/theme';
 import { SystemSymbol } from './system-symbol';
 
 const ROW_ICONS = {
+  feedback: { ios: 'bubble.left', android: 'feedback' },
+  select: { ios: 'checkmark.circle', android: 'check_circle' },
   language: { ios: 'globe', android: 'translate' },
   appearance: { ios: 'circle.lefthalf.filled', android: 'contrast' },
   system: { ios: 'iphone', android: 'smartphone' },

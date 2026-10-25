@@ -1,4 +1,6 @@
 import { useConnectionProgress } from '../primitives/connection-progress';
+import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
+import { selectionText, toggleMessageSelection } from './message-selection';
 import { HostScope } from '../../host/host-scope';
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
@@ -400,6 +402,28 @@ function ChatConversation({
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
+  const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
+  const [picked, setPicked] = useState<{ scope: string; ids: readonly string[] }>();
+  const selected = picked?.scope === selectionScope ? picked.ids : undefined;
+  const [imageSelection, setImageSelection] = useState<{
+    scope: string;
+    messages: ConversationMessage[];
+  }>();
+  useLayoutEffect(() => {
+    setPicked(undefined);
+    setImageSelection(undefined);
+    setActionsFor(undefined);
+  }, [selectionScope, focused]);
+  const togglePicked = useCallback(
+    (message: ConversationMessage) => {
+      setPicked((current) => ({
+        scope: selectionScope,
+        ids: toggleMessageSelection(current?.scope === selectionScope ? current.ids : [], message),
+      }));
+    },
+    [selectionScope],
+  );
+
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -716,10 +740,30 @@ function ChatConversation({
 
   const retry = useCallback((id: string) => conversation?.retry(id), [conversation]);
 
+  const reportingActions = useCallback(
+    (message: ConversationMessage) =>
+      activeChannel && saved
+        ? {
+            feedback: () =>
+              router.push({
+                pathname: '/message-feedback',
+                params: { hostId: saved.hostId, channelId: activeChannel, messageId: message.id },
+              }),
+            select: () => setPicked({ scope: selectionScope, ids: [message.id] }),
+          }
+        : undefined,
+    [activeChannel, saved, router, selectionScope],
+  );
   const openActions = useCallback(
-    (message: ConversationMessage, anchor: Rect, group: BubbleGroup) =>
-      setActionsFor({ message, anchor, group }),
-    [],
+    (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => {
+      if (selected !== undefined) {
+        togglePicked(message);
+        return;
+      }
+      const actions = reportingActions(message);
+      setActionsFor({ message, anchor, group, ...(actions ? { actions } : {}) });
+    },
+    [selected, togglePicked, reportingActions],
   );
 
   const react = useCallback(
@@ -760,8 +804,19 @@ function ChatConversation({
           />
         );
       if (item.kind === 'separator') return <TimeSeparator at={item.at} />;
+      const wrap = (children: React.ReactNode) => (
+        <MessageSelectionRow
+          message={item.message}
+          selected={selected === undefined ? undefined : selected.includes(item.message.id)}
+          onToggle={() => togglePicked(item.message)}
+          onOpen={item.message.card === undefined ? undefined : openActions}
+        >
+          {children}
+        </MessageSelectionRow>
+      );
+
       if (item.message.activity !== undefined)
-        return (
+        return wrap(
           <ActivityRow
             message={item.message}
             activity={item.message.activity}
@@ -772,6 +827,9 @@ function ChatConversation({
             onLongPress={(anchor, label, target) =>
               setActionsFor({
                 message: { ...item.message, body: label },
+                ...(reportingActions(item.message)
+                  ? { actions: reportingActions(item.message)! }
+                  : {}),
                 anchor,
                 group: { first: true, last: true },
                 activity:
@@ -806,7 +864,7 @@ function ChatConversation({
                       },
               })
             }
-          />
+          />,
         );
       const author = item.message.bot ?? slug;
       if (
@@ -817,7 +875,7 @@ function ChatConversation({
           item.message.card?.kind === 'grant' ||
           item.message.card?.kind === 'private-input')
       )
-        return (
+        return wrap(
           <RequestCard
             client={client}
             inbox={inbox}
@@ -830,9 +888,9 @@ function ChatConversation({
             replyInChat={dm}
             answeredHere={answered.has(item.message.id)}
             group={item}
-          />
+          />,
         );
-      return (
+      return wrap(
         <PlaybackBubble
           playback={playback}
           focused={focused}
@@ -850,7 +908,7 @@ function ChatConversation({
           speaker={
             !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
           }
-        />
+        />,
       );
     },
     [
@@ -867,6 +925,10 @@ function ChatConversation({
       answered,
       retry,
       openActions,
+      reportingActions,
+      selected,
+      togglePicked,
+      theme,
       actionsFor,
       share,
       react,
@@ -1070,7 +1132,19 @@ function ChatConversation({
         }
         onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
         composer={
-          botDm ? (
+          selected !== undefined ? (
+            <SelectionBar
+              count={selected.length}
+              onCancel={() => setPicked(undefined)}
+              onCopy={() => copyMessage(selectionText(selected, visible))}
+              onScreenshot={() =>
+                setImageSelection({
+                  scope: selectionScope,
+                  messages: visible.filter((m) => selected.includes(m.id)),
+                })
+              }
+            />
+          ) : botDm ? (
             <View style={{ padding: space.x5, alignItems: 'center' }}>
               <Text variant="meta" tone="muted">
                 {t.activityRow.botDm}
@@ -1388,6 +1462,33 @@ function ChatConversation({
           ) : null}
         </Animated.View>
       </KeyboardChatFrame>
+      {imageSelection?.scope === selectionScope ? (
+        <SelectionScreenshot
+          messages={imageSelection.messages}
+          renderCard={(message) => {
+            const author = message.bot ?? slug;
+            return client && author && message.card ? (
+              <RequestCard
+                client={client}
+                inbox={inbox}
+                message={message}
+                card={message.card}
+                botSlug={author}
+                botName={botName(author)}
+                resolution={resolutions.get(message.id)}
+                focused={false}
+                replyInChat={dm}
+                answeredHere={answered.has(message.id)}
+                group={{ first: true, last: true }}
+              />
+            ) : (
+              <Text>{message.body}</Text>
+            );
+          }}
+          botName={botName}
+          onClose={() => setImageSelection(undefined)}
+        />
+      ) : null}
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
       <MessageActions
         target={actionsFor}

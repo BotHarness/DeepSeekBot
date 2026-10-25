@@ -65,7 +65,16 @@ export interface RemoteHostsSnapshot {
 
 export type HostPairResult =
   | { ok: true; host: SavedHost }
-  | { ok: false; code: PairingRefusal | 'already-paired' | 'this-host' | 'storage-failure' };
+  | {
+      ok: false;
+      code:
+        | PairingRefusal
+        | 'already-paired'
+        | 'pairing-in-progress'
+        | 'this-host'
+        | 'storage-failure'
+        | 'cancelled';
+    };
 
 export interface RemotePairTrust {
   confirmFingerprint?: (fingerprint: string, hostName: string) => Promise<boolean>;
@@ -161,6 +170,7 @@ export function createRemoteHosts(options: {
   const { storage, carrier, loadImage, releaseImage } = options;
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
+  const pairing = new Set<string>();
   const activity = new Map<string, ReturnType<typeof observeInbox>>();
   const conversations = new Map<string, Conversation>();
   const images = new Map<string, string>();
@@ -356,37 +366,48 @@ export function createRemoteHosts(options: {
       };
     },
     async pair(link, deviceName, localHostId, trust) {
+      if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
       const parsed = parsePairingLink(link);
       if (!parsed.ok) return parsed;
       if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-host' };
       if (clients.has(parsed.payload.host.id)) return { ok: false, code: 'already-paired' };
-      const redeemed = await redeemPairing({
-        payload: parsed.payload,
-        deviceName,
-        carrier,
-        ...trust,
-      });
-      if (!redeemed.ok) return redeemed;
+      if (pairing.has(parsed.payload.host.id)) return { ok: false, code: 'pairing-in-progress' };
+      pairing.add(parsed.payload.host.id);
       try {
-        if (!storage) throw new Error('storage-unavailable');
-        storage.setItem(
-          REMOTE_HOSTS_STORAGE_KEY,
-          JSON.stringify(
-            [...[...clients.values()].map(({ host }) => host), redeemed.host].map(
-              serializeSavedHost,
+        const redeemed = await redeemPairing({
+          payload: parsed.payload,
+          deviceName,
+          carrier,
+          ...trust,
+        });
+        if (!redeemed.ok) return redeemed;
+        if (trust?.signal?.aborted) {
+          void revokePairing({ host: redeemed.host, carrier });
+          return { ok: false, code: 'cancelled' };
+        }
+        try {
+          if (!storage) throw new Error('storage-unavailable');
+          storage.setItem(
+            REMOTE_HOSTS_STORAGE_KEY,
+            JSON.stringify(
+              [...[...clients.values()].map(({ host }) => host), redeemed.host].map(
+                serializeSavedHost,
+              ),
             ),
-          ),
-        );
-      } catch {
-        return { ok: false, code: 'storage-failure' };
+          );
+        } catch {
+          return { ok: false, code: 'storage-failure' };
+        }
+        attach(redeemed.host);
+        tab = redeemed.host.hostId;
+        try {
+          storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
+        } catch {}
+        publish();
+        return redeemed;
+      } finally {
+        pairing.delete(parsed.payload.host.id);
       }
-      attach(redeemed.host);
-      tab = redeemed.host.hostId;
-      try {
-        storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
-      } catch {}
-      publish();
-      return redeemed;
     },
     async remove(hostId) {
       const entry = clients.get(hostId);
@@ -467,7 +488,7 @@ export function browserCarrier(): HostCarrier {
         const socket = new WebSocket(url);
         socket.onopen = () => events.open();
         socket.onmessage = (event) => events.message(String(event.data));
-        socket.onerror = () => events.closed('channel-unreachable');
+        socket.onerror = () => events.closed('channel-disconnected');
         socket.onclose = (event) => events.closed(event.reason);
         return {
           get bufferedAmount() {

@@ -13,6 +13,11 @@ let navigationHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
+vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 
 const state = vi.hoisted(() => ({
@@ -385,9 +390,11 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     );
   const visible = () => expect(native.list?.style).toMatchObject({ opacity: 1 });
   const rows = () =>
-    [...container.querySelectorAll('[data-testid="chat-list"] [data-testid]')].map((node) =>
-      node.getAttribute('data-testid'),
-    );
+    [
+      ...container.querySelectorAll(
+        '[data-testid="chat-list"] [data-testid]:not([data-testid^="select-message-"])',
+      ),
+    ].map((node) => node.getAttribute('data-testid'));
   const scrollEvent = (offset: number, content: number): NativeSyntheticEvent<NativeScrollEvent> =>
     ({
       nativeEvent: {

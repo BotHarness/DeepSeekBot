@@ -2370,9 +2370,9 @@
       "path": "scripts/e2e-phone-recovery.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing"],
-      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA.",
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA. #2793: re-audited Connections → Manage selectors and generic Connect a device label; fault-injection boundaries unchanged.",
       "task": 2731,
-      "sha256": "70e000a0d26b20f7658f88cad4cc3e33f01fb62afa201569ee8ca874c561171b"
+      "sha256": "df679869173191f5bd7381e2fbed2135c077bb191675786e62dc29a372d686d9"
     },
     {
       "path": "scripts/e2e-timeline-navigation.mjs",

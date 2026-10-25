@@ -1,0 +1,17 @@
+diff --git a/example-expo/package-lock.json b/example-expo/package-lock.json
+deleted file mode 100644
+index bd111b097ef17c42d7651e3dff1bda899e6cbeac..0000000000000000000000000000000000000000
+diff --git a/package.json b/package.json
+index e42f799471b5a811919f936a5d4fda7b5df5cc9b..4d7a7bc5ae90d2745bbfe4bb94795dc2e5e1a6b3 100644
+--- a/package.json
++++ b/package.json
+@@ -8,8 +8,8 @@
+   "react-native": "src/index.tsx",
+   "exports": {
+     ".": {
+-      "react-native": "./src/index.tsx",
+       "types": "./lib/index.d.ts",
++      "react-native": "./src/index.tsx",
+       "import": "./lib/index.js",
+       "default": "./lib/index.js"
+     },

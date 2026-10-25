@@ -59,7 +59,9 @@ export function MessageActions({
   if (target === undefined) return null;
   const { message } = target;
   const mine = new Set((message.reactions ?? []).filter(reactedByMe).map((r) => r.emoji));
-  const groups = menuGroups(messageMenuActions(message, target.activity));
+  const groups = menuGroups(
+    messageMenuActions(message, target.activity, target.actions !== undefined),
+  );
   const reactions = menuReactions(target, readOnly);
   return (
     <Host
@@ -138,6 +140,8 @@ export function MessageActions({
                   ),
                   onPress: () => {
                     runAction(action, message, {
+                      onFeedback: target.actions?.feedback,
+                      onSelect: target.actions?.select,
                       onCopy,
                       onShareText,
                       onOpen: () => target.activity?.onOpen?.(),

@@ -39,6 +39,7 @@ export function Segmented<T extends string>({
   value,
   on = 'canvas',
   onChange,
+  disabled = false,
 }: SegmentedProps<T>) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
@@ -65,7 +66,8 @@ export function Segmented<T extends string>({
               testID={`button-group-${option.value}`}
               accessibilityRole="radio"
               accessibilityLabel={option.label}
-              accessibilityState={{ checked: selected }}
+              accessibilityState={{ checked: selected, disabled }}
+              disabled={disabled}
               onPress={() => select(option.value)}
               android_ripple={{ color: pressTint(theme.color.fg) }}
               style={{
@@ -102,6 +104,7 @@ export function Segmented<T extends string>({
         >
           {options.map((option) => (
             <ToggleButton
+              enabled={!disabled}
               key={option.value}
               checked={option.value === value}
               onCheckedChange={(checked) => {

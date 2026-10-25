@@ -106,6 +106,8 @@ export function MessageActions({
             }}
             onAction={(action) => {
               runAction(action, shown.message, {
+                onFeedback: () => queue.after(() => shown.actions?.feedback()),
+                onSelect: () => queue.after(() => shown.actions?.select()),
                 onCopy,
                 onShareText: (text) => queue.after(() => onShareText(text)),
                 onOpen: () => queue.after(() => shown.activity?.onOpen?.()),
@@ -192,56 +194,60 @@ function SheetContent({
           <MessageSheetText body={message.body} />
         </RNHostView>
       )}
-      {menuGroups(messageMenuActions(message, target.activity)).map((group) => (
-        <VStack
-          key={group.map((action) => action.key).join()}
-          spacing={0}
-          modifiers={[
-            background(
-              theme.layer.raised.fill,
-              shapes.roundedRectangle({
-                cornerRadius: radius.lg,
-                roundedCornerStyle: 'continuous',
-              }),
-            ),
-          ]}
-        >
-          {group.map((action, index) => (
-            <Fragment key={action.key}>
-              {index === 0 ? null : (
-                <Divider modifiers={[padding({ leading: space.x5 + icon + space.x4 })]} />
-              )}
-              <Button
-                onPress={() => onAction(action)}
-                modifiers={[buttonStyle('plain'), accessibilityLabel(action.label)]}
-              >
-                <HStack
-                  spacing={space.x4}
-                  modifiers={[
-                    padding({ horizontal: space.x5, vertical: space.x4 }),
-                    frame({ minHeight: theme.touch }),
-                    contentShape(shapes.rectangle()),
-                  ]}
+      {menuGroups(messageMenuActions(message, target.activity, target.actions !== undefined)).map(
+        (group) => (
+          <VStack
+            key={group.map((action) => action.key).join()}
+            spacing={0}
+            modifiers={[
+              background(
+                theme.layer.raised.fill,
+                shapes.roundedRectangle({
+                  cornerRadius: radius.lg,
+                  roundedCornerStyle: 'continuous',
+                }),
+              ),
+            ]}
+          >
+            {group.map((action, index) => (
+              <Fragment key={action.key}>
+                {index === 0 ? null : (
+                  <Divider modifiers={[padding({ leading: space.x5 + icon + space.x4 })]} />
+                )}
+                <Button
+                  onPress={() => onAction(action)}
+                  modifiers={[buttonStyle('plain'), accessibilityLabel(action.label)]}
                 >
-                  <Image
-                    systemName={rowSymbol(action.key).ios}
+                  <HStack
+                    spacing={space.x4}
                     modifiers={[
-                      font({ textStyle: 'body' }),
-                      foregroundStyle(theme.color.fg),
-                      imageScale('medium'),
-                      frame({ minWidth: icon }),
+                      padding({ horizontal: space.x5, vertical: space.x4 }),
+                      frame({ minHeight: theme.touch }),
+                      contentShape(shapes.rectangle()),
                     ]}
-                  />
-                  <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.fg)]}>
-                    {action.label}
-                  </Text>
-                  <Spacer />
-                </HStack>
-              </Button>
-            </Fragment>
-          ))}
-        </VStack>
-      ))}
+                  >
+                    <Image
+                      systemName={rowSymbol(action.key).ios}
+                      modifiers={[
+                        font({ textStyle: 'body' }),
+                        foregroundStyle(theme.color.fg),
+                        imageScale('medium'),
+                        frame({ minWidth: icon }),
+                      ]}
+                    />
+                    <Text
+                      modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.fg)]}
+                    >
+                      {action.label}
+                    </Text>
+                    <Spacer />
+                  </HStack>
+                </Button>
+              </Fragment>
+            ))}
+          </VStack>
+        ),
+      )}
     </VStack>
   );
 }

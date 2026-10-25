@@ -64,12 +64,15 @@
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], ] as const",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], ] as const",
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
         "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
         "route:packages/core/src/devices/mount.ts:CONNECT_CHANNEL_PATH",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}"
       ],
       "commands": [
         "devices",
@@ -79,7 +82,10 @@
         "device-lan",
         "device-revoke",
         "connect-enable",
-        "connect-disable"
+        "connect-disable",
+        "device-requests",
+        "connection-clients",
+        "connection"
       ]
     },
     {
@@ -865,6 +871,15 @@
         "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
       ],
       "commands": ["appearance-clients", "host-look"]
+    },
+    {
+      "id": "message-feedback",
+      "description": "Single-message frozen evidence preview, local download and explicit private submission.",
+      "scope": "Host diagnostics",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
+      ],
+      "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
     }
   ]
 }

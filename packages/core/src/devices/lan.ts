@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage } from 'node:http';
 import { networkInterfaces } from 'node:os';
 import type { AddressInfo, Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import type { PhoneRoute } from './routes.js';
+import { phoneRoute, type PhoneRoute } from './routes.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
 import { isLanAddress } from './lan-address.js';
 
@@ -94,10 +94,15 @@ export function createDeviceLan(options: {
       socket.setTimeout(15_000, () => socket.destroy());
     });
     server.on('upgrade', (request, socket, head) => {
+      const origin = request.headers.origin;
+      const browserOrigin =
+        origin === undefined ||
+        origin === 'dsh-app://app' ||
+        (/^https?:\/\//u.test(origin) && phoneRoute(origin)?.url === origin);
       if (
         request.url !== CONNECT_CHANNEL_PATH ||
         request.method !== 'GET' ||
-        request.headers.origin ||
+        !browserOrigin ||
         request.headers.authorization ||
         request.headers.cookie ||
         request.headers['sec-websocket-protocol']
