@@ -50,6 +50,38 @@ afterEach(() => {
 });
 
 describe('Android action menu', () => {
+  it('exposes a stable file-menu identifier and disables its anchored trigger while stale', () => {
+    const share = vi.fn();
+    host = document.createElement('div');
+    root = createRoot(host);
+    const props = {
+      label: 'Actions for report.pdf',
+      testID: 'channel-file-actions-original',
+      onOpen: () => undefined,
+      actions: [
+        { label: 'Share', icon: 'share' as const, run: share },
+        { label: 'View message', icon: 'chat' as const, run: () => {} },
+      ],
+    };
+    act(() => root!.render(createElement(ActionMenuButton, { ...props, disabled: true })));
+    const trigger = () =>
+      host!.querySelector<HTMLButtonElement>('[data-testid="channel-file-actions-original"]')!;
+    expect(trigger().disabled).toBe(true);
+    act(() => trigger().click());
+    expect(host.querySelector('[data-expanded]')?.getAttribute('data-expanded')).toBe('false');
+    act(() => root!.render(createElement(ActionMenuButton, props)));
+    act(() => trigger().click());
+    expect(host.querySelector('[data-expanded]')?.getAttribute('data-expanded')).toBe('true');
+    act(() => root!.render(createElement(ActionMenuButton, { ...props, disabled: true })));
+    act(() => root!.render(createElement(ActionMenuButton, props)));
+    expect(host.querySelector('[data-expanded]')?.getAttribute('data-expanded')).toBe('false');
+    act(() => trigger().click());
+    expect(
+      [...host.querySelectorAll('[data-symbol]')].map((icon) => icon.getAttribute('data-symbol')),
+    ).toEqual(['share', 'chat']);
+    act(() => host!.querySelector<HTMLElement>('li')!.click());
+    expect(share).toHaveBeenCalledOnce();
+  });
   it('opens a native dropdown from ⋯ and runs the chosen action', () => {
     const customize = vi.fn();
     const unpair = vi.fn();

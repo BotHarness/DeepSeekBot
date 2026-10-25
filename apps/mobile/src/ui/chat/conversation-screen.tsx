@@ -80,7 +80,8 @@ import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
+import { EdgeFade, HeaderBackButton, HeaderCircleButton, titleChipFill } from './header-chrome';
+import { FolderIcon } from '../shell/icons';
 import {
   barLabelStyle,
   floatingHeader,
@@ -140,11 +141,13 @@ export function ConversationScreen({
   expectedHostId,
   place,
   focus,
+  focusRequest,
   latestWindowOnly = false,
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
   focus: string | undefined;
+  focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
 }) {
   const t = useStrings();
@@ -177,6 +180,7 @@ export function ConversationScreen({
           key={JSON.stringify([saved?.hostId, place])}
           place={place}
           focus={focus}
+          focusRequest={focusRequest}
           latestWindowOnly={latestWindowOnly}
           focused={focused}
         />
@@ -293,12 +297,14 @@ const RequestCard = memo(function RequestCard({
 function ChatConversation({
   place,
   focus,
+  focusRequest,
   latestWindowOnly,
   focused,
 }: {
   focused: boolean;
   place: ChatPlace;
   focus: string | undefined;
+  focusRequest: string | undefined;
   latestWindowOnly: boolean;
 }) {
   const t = useStrings();
@@ -391,6 +397,10 @@ function ChatConversation({
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const focusPage = useRef<string | undefined>(undefined);
+  const focusIntent = useRef<{ request: string | undefined; message: string | undefined }>({
+    request: undefined,
+    message: undefined,
+  });
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
 
   const resolutions = useMemo(
@@ -563,7 +573,7 @@ function ChatConversation({
     [shownDrafts, chronological],
   );
 
-  const firstMessageId = snapshot.messages[0]?.id;
+  const firstMessageId = snapshot.messages[0]?.id ?? '';
   const jump = useCallback(() => {
     if (!focused || focus === undefined || jumped.current === focus) return;
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
@@ -577,12 +587,12 @@ function ChatConversation({
       snapshot.status === 'live' &&
       snapshot.hasOlder &&
       !snapshot.loadingOlder &&
+      conversation !== undefined &&
       !snapshot.fromCache &&
-      firstMessageId !== undefined &&
       focusPage.current !== firstMessageId
     ) {
       focusPage.current = firstMessageId;
-      void conversation?.loadOlder();
+      void conversation.loadOlder();
     }
   }, [
     focused,
@@ -598,13 +608,17 @@ function ChatConversation({
     firstMessageId,
     conversation,
   ]);
+
   useLayoutEffect(() => {
-    jumped.current = undefined;
-    focusPage.current = undefined;
-  }, [focus, focused]);
-  useLayoutEffect(() => {
+    if (!focused) return;
+    const previous = focusIntent.current;
+    if (previous.message !== focus || previous.request !== focusRequest) {
+      focusIntent.current = { request: focusRequest, message: focus };
+      jumped.current = undefined;
+      focusPage.current = undefined;
+    }
     jump();
-  }, [jump]);
+  }, [focused, focus, focusRequest, jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
@@ -897,6 +911,18 @@ function ChatConversation({
     />
   );
   const ios = Platform.OS === 'ios';
+  const openFiles = () => {
+    if (activeChannel === undefined || !saved) return;
+    router.push({
+      pathname: '/channel-files',
+      params: {
+        channelId: activeChannel,
+        hostId: saved.hostId,
+        ...(slug === undefined ? {} : { botSlug: slug }),
+      },
+    });
+  };
+  const filesAvailable = activeChannel !== undefined && saved != null && !hostRefused && !missing;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
     <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}>{title}</View>
@@ -928,6 +954,7 @@ function ChatConversation({
                       : dictation.state.status === 'failed'
                         ? t.dictationFailed
                         : focus !== undefined &&
+                            !latestWindowOnly &&
                             snapshot.status === 'live' &&
                             !snapshot.hasOlder &&
                             !snapshot.loadingOlder &&
@@ -959,6 +986,17 @@ function ChatConversation({
                 title: '',
                 headerTitle: '',
                 headerBackVisible: canGoBack && !headerIslands,
+                unstable_headerRightItems: () =>
+                  filesAvailable
+                    ? [
+                        {
+                          type: 'button' as const,
+                          label: t.channelFiles.title,
+                          icon: { type: 'sfSymbol' as const, name: 'folder' as const },
+                          onPress: openFiles,
+                        },
+                      ]
+                    : [],
                 unstable_headerLeftItems: () => [
                   ...(headerIslands
                     ? [{ type: 'custom' as const, element: back }]
@@ -978,6 +1016,12 @@ function ChatConversation({
               }
             : {
                 headerTitleAlign: 'left' as const,
+                headerRight: () =>
+                  filesAvailable ? (
+                    <HeaderCircleButton label={t.channelFiles.title} plain onPress={openFiles}>
+                      <FolderIcon color={theme.color.fg} size={theme.type.title.line} />
+                    </HeaderCircleButton>
+                  ) : null,
                 headerTitle: () => (
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}

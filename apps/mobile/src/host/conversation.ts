@@ -36,6 +36,7 @@ export type CardResolution =
 
 export interface MessageAttachment {
   key: string;
+  identity?: string;
   kind: 'image' | 'file' | 'audio';
   name: string;
   mime?: string;
@@ -350,10 +351,10 @@ function attachmentPath(params: Record<string, string>): string {
   return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
 }
 
-function attachmentsOf(
+export function attachmentsOf(
   entry: JournalEntry,
   resolve: (path: string) => RemoteSource,
-  picked: readonly (OutgoingFile | undefined)[],
+  picked: readonly (OutgoingFile | undefined)[] = [],
 ): MessageAttachment[] {
   const message = entry.message;
   const owner = { channelId: entry.channelId, messageId: message.id };
@@ -361,6 +362,7 @@ function attachmentsOf(
     const file = picked[index];
     return {
       key: `${message.id}:${index}`,
+      ...((ref.fileId ?? ref.hash) === undefined ? {} : { identity: ref.fileId ?? ref.hash! }),
       kind: PREVIEWABLE.has(ref.mime) ? 'image' : 'file',
       name: ref.name,
       mime: ref.mime,
@@ -382,6 +384,7 @@ function attachmentsOf(
   const sourceEventId = message.bridgeOrigin?.sourceEventId;
   const bridged = (message.bridgeMedia?.items ?? []).map((item): MessageAttachment => ({
     key: `${message.id}:bridge:${item.id}`,
+    identity: `${sourceEventId ?? message.id}:bridge:${item.id}`,
     kind: item.kind,
     name: item.name,
     ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),

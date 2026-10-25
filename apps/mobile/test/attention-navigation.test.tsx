@@ -194,6 +194,22 @@ it('unwinds to the original Channel and updates focus instead of duplicating it'
     key: originalKey,
     params: { focus: 'original-message' },
   });
+  const params = state.routes[state.index]?.params;
+  const request = params && 'focusRequest' in params ? params.focusRequest : undefined;
+  expect(request).toEqual(expect.any(String));
+  navigation.dispatch({
+    type: 'PUSH',
+    payload: { name: 'inbox/[id]', params: { id: fixture.item.id } },
+  });
+  await act(async () =>
+    container!.querySelector<HTMLButtonElement>('[data-testid="repair-open"]')!.click(),
+  );
+  expect(state.routes).toHaveLength(2);
+  expect(state.routes[state.index]).toMatchObject({
+    key: originalKey,
+    params: { focus: 'original-message' },
+  });
+  expect(state.routes[state.index]?.params).not.toHaveProperty('focusRequest', request);
   navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes[state.index]?.name).toBe('(tabs)');
 });

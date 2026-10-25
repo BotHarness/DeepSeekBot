@@ -13,6 +13,8 @@ let navigationHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 
+vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
+
 const state = vi.hoisted(() => ({
   history: [] as string[],
   hostId: 'computer_a',
