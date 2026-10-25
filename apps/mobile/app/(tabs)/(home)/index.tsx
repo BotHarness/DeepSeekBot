@@ -1,5 +1,12 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
-import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import {
+  Redirect,
+  Stack,
+  useFocusEffect,
+  useIsFocused,
+  useRouter,
+  useNavigationContainerRef,
+} from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -16,6 +23,7 @@ import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
 import { cloudAvailable } from '../../../src/cloud/available';
 import { cloudConversations, useCloudConversations } from '../../../src/cloud/native-conversations';
 import { cloudViewScope } from '../../../src/cloud/workspace-directory';
+import { navigateCloudChannel } from '../../../src/ui/shell/cloud-channel-navigation';
 import { cloudError } from '../../../src/cloud/client';
 import type { CloudConversation } from '../../../src/cloud/conversations';
 import { ManagedConversationRow } from '../../../src/ui/chat/managed-conversation-row';
@@ -111,6 +119,7 @@ const HomeContent = memo(function HomeContent({
 }) {
   const t = useStrings();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
   useFocusEffect(
@@ -355,15 +364,12 @@ const HomeContent = memo(function HomeContent({
         ) !== target.scope
       )
         throw Error('changed source');
-      router.push({
-        pathname: '/cloud-channels',
-        params: {
-          instanceId: target.instanceId,
-          organizationId: target.organizationId,
-          channelId: target.channel.channelId,
-          guest: String(target.guest),
-          accountScope: target.scope,
-        },
+      navigateCloudChannel(navigation, {
+        instanceId: target.instanceId,
+        organizationId: target.organizationId,
+        channelId: target.channel.channelId,
+        guest: target.guest,
+        accountScope: target.scope,
       });
     } catch (e) {
       setError(cloudError(e));

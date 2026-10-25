@@ -14,6 +14,7 @@ import { HostDrawer, WorkspaceButton } from '../src/ui/shell/host-drawer';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
+import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
@@ -154,6 +155,7 @@ function RootNavigator() {
                 />
                 <Stack.Screen
                   name="cloud-channels"
+                  dangerouslySingular={cloudChannelRouteId}
                   options={{ title: t.cloudChannels.title, headerRight: () => <WorkspaceButton /> }}
                 />
                 <Stack.Screen name="notifications" options={{ title: t.notifications }} />
