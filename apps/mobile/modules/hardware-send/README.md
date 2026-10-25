@@ -19,10 +19,13 @@ draft and the send action stay in React Native, and the view only reports
   its original modifiers. Other input methods, including WeType on HyperOS,
   type a newline into the field instead of sending a key. The view watches the
   focused field inside it, and a single newline typed within 500 ms of a
-  hardware Enter that would send is removed and sends instead. When the input
-  method uses the Enter to confirm text it is composing, it types that text and
-  no newline, so nothing is sent. Like `stream-reveal`, the view keeps the size Yoga gives it and
-  leaves child layout to React Native.
+  hardware Enter that would send is removed and sends instead. The view records
+  whether the focused field is composing text before the input method handles
+  that Enter. A composition-confirming key cannot send, even if the input method
+  clears its composing span before echoing a key or inserting a newline. Changing
+  focus, canceling a key, releasing it or consuming a send clears the pending
+  echo. The next hardware key starts a fresh decision. Like `stream-reveal`, the
+  view keeps the size Yoga gives it and leaves child layout to React Native.
 
 When `enabled` is false the view does nothing, so an empty draft or a
 dictation in progress never sends. The binding lives in
