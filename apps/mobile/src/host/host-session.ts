@@ -197,7 +197,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
       previous?.credential !== saved?.credential ||
       JSON.stringify(previous?.encryption) !== JSON.stringify(saved?.encryption))
   )
-    sourceChangeRevision = selectionIntent;
+    sourceChangeRevision++;
   state = { saved, hosts: next.hosts, client: selected?.client, inbox: selected?.inbox };
   publishFeeds();
   for (const listener of listeners) listener();
@@ -294,7 +294,7 @@ export const hostSession = {
   getSourceChangeRevision: (): number => sourceChangeRevision,
   async pair(host: SavedHost): Promise<void> {
     selectionIntent++;
-    if (state.saved?.hostId !== host.hostId) sourceChangeRevision = selectionIntent;
+    if (state.saved?.hostId !== host.hostId) sourceChangeRevision++;
     return serialize(async () => {
       await commit(withHost(stored, host), 'pair');
       void pushSession.enable(stored.hosts);
@@ -305,13 +305,13 @@ export const hostSession = {
     const ownsSelection = () => current() && intent === selectionIntent;
     if (!ownsSelection()) return false;
     if (hostsLoaded && stored.current === hostId) return true;
-    if (stored.hosts.some((host) => host.hostId === hostId)) sourceChangeRevision = intent;
+    if (stored.hosts.some((host) => host.hostId === hostId)) sourceChangeRevision++;
     return serialize(async () => {
       if (!ownsSelection()) return false;
       if (stored.current === hostId) return true;
       const next = selectHost(stored, hostId);
       if (next === undefined) return false;
-      sourceChangeRevision = intent;
+      sourceChangeRevision++;
       return commit(next, 'switch', ownsSelection);
     });
   },

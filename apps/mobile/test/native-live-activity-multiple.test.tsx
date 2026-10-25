@@ -327,3 +327,34 @@ it.each(['same-selected-host', 'unrelated-removal'])(
     ]);
   },
 );
+
+it('ends a restored B display when the selected A pairing identity is replaced without navigation', async () => {
+  native.alive = true;
+  native.storage = {
+    target: {
+      ...target,
+      selectedHostId: 'a',
+      clientActivityId: 'native',
+      linkId: 'fixture-link',
+      expiresAt: Date.now() + 60_000,
+    },
+    tracking: true,
+    pendingStop: false,
+  };
+  await setup();
+  await owner.sync();
+  const selected = session.getState().saved;
+  if (!selected) throw new Error('missing-selected-host');
+  await session.replaceApprovedPairing(
+    { ...selected, deviceId: 'replacement-device-a', credential: 'replacement-credential-a' },
+    selected.credential,
+  );
+  await owner.sync();
+  expect(session.getState().saved?.hostId).toBe('a');
+  expect(owner.getSnapshot().tracking).toBe(false);
+  expect(native.end).toHaveBeenCalledOnce();
+  expect(native.remote.mock.calls.map(([host, operation]) => [host.hostId, operation])).toEqual([
+    ['b', 'register'],
+    ['b', 'stop'],
+  ]);
+});
