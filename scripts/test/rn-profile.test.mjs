@@ -276,10 +276,10 @@ it('stops a previous uncatchably terminated collector before the next capture', 
   expect(next.rescheduledFrames).toBe(0);
 });
 
-it.each([
+it.skipIf(process.platform === 'win32').each([
   ['SIGINT', 130],
   ['SIGTERM', 143],
-])('cleans up its JS frames on %s', async (interrupt, code) => {
+])('cleans up its JS frames on POSIX %s', async (interrupt, code) => {
   const result = await capture(['--no-react'], { interrupt, interruptAfterStart: true });
   expect(result.code).toBe(code);
   expect(result.commands.filter((method) => method === 'Profiler.stop')).toHaveLength(1);
@@ -296,10 +296,13 @@ it('bounds cleanup when the inspector stops answering and reports it as unconfir
   expect(result.rescheduledFrames).toBe(1);
 });
 
-it('does not stop an unacknowledged CPU profiler start on interruption', async () => {
-  const result = await capture(['--no-react'], { interrupt: 'SIGINT' });
-  expect(result.code).toBe(130);
-  expect(result.commands).not.toContain('Profiler.stop');
-  expect(result.stderr).toContain('CPU profiler start unconfirmed');
-  expect(result.rescheduledFrames).toBe(0);
-});
+it.skipIf(process.platform === 'win32')(
+  'does not stop an unacknowledged CPU profiler start on POSIX interruption',
+  async () => {
+    const result = await capture(['--no-react'], { interrupt: 'SIGINT' });
+    expect(result.code).toBe(130);
+    expect(result.commands).not.toContain('Profiler.stop');
+    expect(result.stderr).toContain('CPU profiler start unconfirmed');
+    expect(result.rescheduledFrames).toBe(0);
+  },
+);
