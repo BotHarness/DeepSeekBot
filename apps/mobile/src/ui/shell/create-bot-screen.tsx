@@ -14,6 +14,7 @@ import { useSheetContent } from '../primitives/sheet-content';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
+import { LoadingIndicator } from '../primitives/loading-indicator';
 import { CreationField as TextField } from '../primitives/creation-field';
 import { EnvironmentPicker } from '../primitives/environment-picker';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
@@ -304,7 +305,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                   />
                 </>
               ) : null}
-              <Text tone="muted">{copy.model}</Text>
+              {importing || details ? <Text tone="muted">{copy.model}</Text> : null}
               {state.transfer ? (
                 <Text accessibilityLiveRegion="polite">
                   {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
@@ -323,6 +324,9 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
             </>
           ) : submitted ? (
             <View style={{ gap: space.x5 }}>
+              {state.busy && !importing ? (
+                <LoadingIndicator accessibilityLabel={copy.creating} />
+              ) : null}
               <Text variant="title" strong>
                 {name}
               </Text>
@@ -356,11 +360,13 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
               {state.receipt ||
               (state.record.kind === 'submitted' && state.record.mutationStarted) ? (
                 <Text accessibilityLiveRegion="polite">
-                  {state.receipt?.status === 'created'
-                    ? copy.completed
-                    : state.receipt
-                      ? copy.accepted
-                      : copy.uncertain}
+                  {state.busy && !importing
+                    ? copy.creating
+                    : state.receipt?.status === 'created'
+                      ? copy.completed
+                      : state.receipt
+                        ? copy.accepted
+                        : copy.uncertain}
                 </Text>
               ) : null}
               {state.error === 'git-source-changed' ? (
@@ -395,7 +401,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                     onPress={() => void botCreation.another(targetId)}
                   />
                 </>
-              ) : (
+              ) : state.busy && !importing ? null : (
                 <Button
                   label={importing ? copy.import : copy.retry}
                   testID="create-bot-retry"

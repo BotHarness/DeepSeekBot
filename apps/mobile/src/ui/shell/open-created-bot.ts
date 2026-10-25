@@ -16,7 +16,7 @@ export async function openCreatedBot(stillHere: () => boolean = () => true): Pro
       switchHost: hostSession.switchTo,
       async open(hostId, slug) {
         conversationFilter.set(computerEnvironmentKey(hostId));
-        router.replace({ pathname: '/dm/[slug]', params: { slug, hostId, created: '1' } });
+        router.replace({ pathname: '/dm/[slug]', params: { slug, hostId } });
       },
       acknowledge: botCreation.acknowledge,
     },
