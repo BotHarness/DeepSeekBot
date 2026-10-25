@@ -7,12 +7,8 @@ export const sourceDrafts = createSourceDrafts({
     const f = file();
     return f.exists ? JSON.parse(await f.text()) : {};
   },
-  write(value, required) {
-    try {
-      file().writeSync(JSON.stringify(value));
-    } catch (error) {
-      if (required) throw error;
-    }
+  write(value) {
+    file().writeSync(JSON.stringify(value));
   },
 });
 export function useSourceDraft(key: string) {
@@ -21,5 +17,6 @@ export function useSourceDraft(key: string) {
     useCallback(() => sourceDrafts.get(key), [key]),
   );
   const setValue = useCallback((next: string) => sourceDrafts.set(key, next), [key]);
-  return [value, setValue] as const;
+  const persistence = useSyncExternalStore(sourceDrafts.subscribe, sourceDrafts.getPersistence);
+  return [value, setValue, { ...persistence, retry: sourceDrafts.retrySave }] as const;
 }

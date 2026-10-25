@@ -8,8 +8,12 @@ import type {
   NativeSyntheticEvent,
 } from 'react-native';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { channelNavigationHarness } from './channel-navigation-harness';
+let navigationHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
+
+vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 
 const state = vi.hoisted(() => ({
   history: [] as string[],
@@ -97,9 +101,15 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
 }));
 vi.mock('../src/host/native-source-drafts', async () => {
   const { useState } = await import('react');
-  return { useSourceDraft: () => useState('') };
+  return {
+    useSourceDraft: () => [
+      ...useState(''),
+      { loaded: true, failed: false, retry: async () => true },
+    ],
+  };
 });
 vi.mock('expo-router', () => ({
+  useNavigationContainerRef: () => navigationHistory.navigation,
   useIsFocused: () => true,
   Stack: {
     Screen: ({ options }: { options: { headerLeft?: () => ReactNode } }) => (
@@ -296,6 +306,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
 beforeEach(() => {
+  navigationHistory = channelNavigationHarness();
   frames = new Map();
   nextFrame = 0;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

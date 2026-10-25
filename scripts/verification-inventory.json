@@ -12,6 +12,14 @@
       "gap": "Controlled owner/transport tests do not establish iOS or Android layout, initial history position, accessibility or native creation acceptance; run the queued device journeys."
     },
     {
+      "id": "phone.workspace-navigation",
+      "label": "Reset explicit workspace history and prune invalid account routes while retaining tab roots",
+      "source": "apps/mobile/src/ui/shell/workspace-navigation.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-workspace-navigation.md",
+      "task": 2800,
+      "gap": "Mounted drawer and installed navigator regressions do not qualify native Back gestures or accessibility; shared-device acceptance remains pending."
+    },
+    {
       "id": "phone.bot-rename",
       "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
       "source": "apps/mobile/src/host/bot-name.ts",
@@ -814,6 +822,14 @@
       "source": "apps/mobile/src/ui/chat/composer.tsx",
       "task": 2566,
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.channel-files",
+      "label": "Browse Channel history files, preview/share and return to the original message",
+      "source": "apps/mobile/src/ui/chat/channel-files-screen.tsx",
+      "task": 2819,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-files.md",
+      "gap": "Transport and native-share boundary tests do not qualify iOS/Android rendering, system-sheet delivery or Human acceptance; both platforms need queued native checks."
     },
     {
       "id": "phone.haptic-feedback",

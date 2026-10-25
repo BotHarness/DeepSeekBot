@@ -19,6 +19,23 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  channelFiles: {
+    title: 'Channel files',
+    empty: 'No files in this conversation.',
+    noRecent: 'No files in recent messages.',
+    loadOlder: 'Load older files',
+    viewMessage: 'View message',
+    system: 'System',
+    pageFailed: 'Could not load older files. Try again.',
+    unavailable: 'This conversation is no longer available.',
+    disconnected: 'Connection lost. Reconnect to open files.',
+    fileUnavailable: 'This file is unavailable. It may have been removed, or access has changed.',
+    messageUnavailable: 'The original message is no longer available.',
+  },
+  messageFocusUnavailable: 'The linked message is no longer available in this conversation.',
+  channelOpening: 'Opening conversation…',
+  channelOpeningFailed: 'Could not open the conversation. Check the connection and try again.',
+  channelOpeningNotReady: 'Conversations are still loading. Try opening again.',
   deletion: {
     deleteBot: 'Delete Bot',
     dissolve: 'Dissolve group',
@@ -1111,6 +1128,7 @@ const en = {
     hint: 'Applies to new replies on this phone.',
     storageError: 'This choice could not be saved. Tap an option to retry.',
   },
+  draftSaveFailed: 'Draft not saved. Retry before leaving the app.',
   about: 'About',
   appVersion: 'Version',
   appVersionUnknown: 'Unknown',
@@ -1664,6 +1682,23 @@ const en = {
 };
 
 const zh: typeof en = {
+  channelFiles: {
+    title: '会话文件',
+    empty: '此会话暂无文件。',
+    noRecent: '最近的消息中没有文件。',
+    loadOlder: '加载更早的文件',
+    viewMessage: '查看原消息',
+    system: '系统',
+    pageFailed: '未能加载更早的文件，请重试。',
+    unavailable: '此会话已不可访问。',
+    disconnected: '连接已断开，重新连接后可打开文件。',
+    fileUnavailable: '文件不可用，可能已被移除或访问权限已变更。',
+    messageUnavailable: '原消息已不可访问。',
+  },
+  messageFocusUnavailable: '此会话中已找不到原消息。',
+  channelOpening: '正在打开会话…',
+  channelOpeningFailed: '无法打开会话，请检查连接后重试。',
+  channelOpeningNotReady: '会话还在加载，请稍后再点一次。',
   deletion: {
     deleteBot: '删除 Bot',
     dissolve: '解散群聊',
@@ -2679,6 +2714,7 @@ const zh: typeof en = {
     hint: '对这台手机上的新回复生效。',
     storageError: '未能保存此选择，请点击选项重试。',
   },
+  draftSaveFailed: '草稿未保存，请重试后再退出 App。',
   about: '关于',
   appVersion: '版本',
   appVersionUnknown: '未知',

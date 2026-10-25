@@ -10,6 +10,7 @@ import {
   DEFAULT_BOT_MODE_GROUP_AUTO_ACCEPT,
   BOT_MODE_MOTION_FIELD,
   BOT_MODE_SEND_KEY_FIELD,
+  BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
   BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
@@ -70,6 +71,7 @@ export interface BotModePrefsSnapshot {
   motionPreference: BotModeMotionPreference;
   botIcon: BotModeIcon;
   sendKey: BotModeSendKey;
+  autoCollapseMessages: boolean;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
@@ -94,6 +96,7 @@ export interface BotModePrefsFace {
   setMotionPreference: (preference: BotModeMotionPreference) => void;
   setBotIcon: (icon: BotModeIcon) => void;
   setSendKey: (sendKey: BotModeSendKey) => void;
+  setAutoCollapseMessages: (enabled: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
   setShowApprovalReviewSessions: (enabled: boolean) => void;
@@ -116,6 +119,7 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
     setSendKey: (sendKey) => {
       prefs.setSendKey(sendKey);
     },
+    setAutoCollapseMessages: (enabled) => prefs.setAutoCollapseMessages(enabled),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
     },
@@ -183,6 +187,7 @@ export class BotModePrefs {
       motionPreference: DEFAULT_BOT_MODE_MOTION,
       botIcon: DEFAULT_BOT_MODE_ICON,
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
+      autoCollapseMessages: false,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
       showApprovalReviewSessions: DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
@@ -261,6 +266,15 @@ export class BotModePrefs {
       draft.sendKey = sendKey;
     });
     if (this.host !== undefined) this.persist(this.host.set(BOT_MODE_SEND_KEY_FIELD, sendKey));
+  }
+
+  setAutoCollapseMessages(enabled: boolean): void {
+    if (this.source.getSnapshot().autoCollapseMessages === enabled) return;
+    this.source.update((draft) => {
+      draft.autoCollapseMessages = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD, enabled));
   }
 
   async setAssignmentConcurrencyLimit(limit: number): Promise<boolean> {
@@ -405,6 +419,7 @@ export class BotModePrefs {
           ? section.assignmentConcurrencyLimit
           : DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
         draft.developerMode = section.developerMode === true;
+        draft.autoCollapseMessages = section.autoCollapseMessages === true;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;
