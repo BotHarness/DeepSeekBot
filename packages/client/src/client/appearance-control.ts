@@ -11,7 +11,7 @@ import { createConnectionControl } from './connection-control.js';
 
 export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper): () => void {
   const abort = new AbortController();
-  let connections = createConnectionControl(remoteHosts(), getThisHost);
+  let connections: ReturnType<typeof createConnectionControl> | undefined;
   const media = wallpaper ? createWallpaperControl(wallpaper) : undefined;
   let registration: { clientId: string; token: string } | undefined;
   const post = async (body: Record<string, unknown>, signal = abort.signal) => {
@@ -48,6 +48,7 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
             if (typeof command.expiresAt !== 'number' || Date.now() > command.expiresAt)
               throw new AppearanceError('appearance-request-stale');
             if (command.connection !== undefined) {
+              connections ??= createConnectionControl(remoteHosts(), getThisHost);
               const deliveryAbort = new AbortController();
               delivery = {
                 abort: deliveryAbort,
@@ -167,9 +168,8 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
           }
         }
       } catch {
-        connections.dispose();
-        if (!abort.signal.aborted)
-          connections = createConnectionControl(remoteHosts(), getThisHost);
+        connections?.dispose();
+        connections = undefined;
         if (!abort.signal.aborted)
           await new Promise<void>((resolve) => {
             const done = () => {
@@ -186,7 +186,7 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
   void run();
   return () => {
     abort.abort();
-    connections.dispose();
+    connections?.dispose();
     media?.dispose();
     if (registration)
       void fetch('./api/botharness/appearance-control', {

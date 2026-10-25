@@ -5,7 +5,7 @@ Captured on Windows, 2026-10-26 (Asia/Tokyo), from two task-owned isolated DSH 0
 ## Source and capture conditions
 
 - Before Client: `8f4e20cf01d8e7c25541c391a5ad09076cf9f065` (implementation parent, containing main through `dd6da4645afcd17ab1a265c293d5928952deb016`). The exact separately built Client bundle was substituted into the matching served module, using the repository's existing baseline-capture technique. This compares Client layout on the same isolated Host; it is not a claim that the old Host accepted browser LAN pairing.
-- After behavior: `401a1787f`, plus the following commit's two identity-hint translations from Devices to Connections. The latter copy correction does not appear in the published screenshots. All captures are actual rendered app surfaces.
+- After behavior: `401a1787f`, plus the following commit's two identity-hint translations from Devices to Connections. The latter copy correction does not appear in the published screenshots. The subsequent lazy relay initialization changes resource creation timing, not these rendered surfaces, and has a selected-Client-to-Host-Feed regression. All captures are actual rendered app surfaces.
 - `b.png`, `a.png`, `m.png`: 1280 × 900, English, light, same empty paired-device list. Before/after show the old entry point and unified entry; methods is a new step.
 - `p.png`, `prepare.png`, `done.png`, `ui.png`: 1280 × 720, English, dark, Codex in-app browser. `p.png` is the reusable global approval modal; it never contains a QR or invitation URL. The fingerprints belong to disposable task identities.
 - `c.png`: 1280 × 720, English, dark, headless Chromium, actual CLI-selected Client after Host Feed enrollment.
@@ -24,8 +24,9 @@ Captured on Windows, 2026-10-26 (Asia/Tokyo), from two task-owned isolated DSH 0
 
 - Direct connection regression: 8 files / 49 tests passed.
 - Existing relay, RemoteHosts, Client registration and phone recovery seams: 5 files / 93 tests passed (some overlap with the direct group).
+- Relay isolation, selected-Client enrollment and mobile recovery-copy regressions: 4 files / 27 tests passed.
 - Build, lint, typecheck (including mobile), format, CLI parity, feature map and change-fragment checks passed before publishing the evidence.
-- The complete Windows suite is **not green**: the bounded-concurrency run reported timeouts in unchanged Group digest and Cloud connection tests. The first attempt was interrupted after a baseline-build dependency-sharing mistake; dependencies were restored with the unchanged lockfile before focused checks and the complete rerun. See the PR's latest status for the full-run outcome; do not infer a passing suite from these screenshots.
+- The complete Windows suite is **not green**: the bounded-concurrency run was stopped after 30.7 minutes with reported timeouts in unchanged Group digest, Cloud connection and scheduled-work tests. The first attempt was interrupted after a baseline-build dependency-sharing mistake; dependencies were restored with the unchanged lockfile before focused checks and the complete rerun. See the PR's latest complete CI status; do not infer a passing local suite from these screenshots.
 - No physical Android/iPhone, native desktop window, OS VPN transition, Tailscale/Connect end-to-end qualification or Human acceptance is claimed. These remain in #2793 and the shared platform QA lanes. A Web Origin contract test is not a native desktop run.
 - Tailscale/Tobs Connect orchestration and Tob-initiated setup remain subsequent slices. Existing preparation controls are retained, not newly qualified here.
 
