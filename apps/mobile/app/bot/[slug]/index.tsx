@@ -69,10 +69,14 @@ export default function BotProfileScreen() {
           router.push({ pathname: '/bot/[slug]/routine-new', params: { slug: bot.slug } }),
         onMessage: () => {
           if (saved)
-            navigateChannel(navigation, {
-              pathname: '/dm/[slug]',
-              params: { slug: bot.slug, hostId: saved.hostId },
-            });
+            navigateChannel(
+              navigation,
+              {
+                pathname: '/dm/[slug]',
+                params: { slug: bot.slug, hostId: saved.hostId },
+              },
+              'dismiss-profile',
+            );
         },
         ...(bot.browserAccess
           ? {
