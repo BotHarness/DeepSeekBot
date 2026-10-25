@@ -4,7 +4,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { HostSnapshot } from '../src/host/client';
-import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
+import {
+  channelRouteId,
+  channelStackRouter,
+  navigateChannel,
+} from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
 
 const fixture = vi.hoisted(() => {
@@ -60,7 +64,7 @@ vi.mock('../src/host/host-session', () => ({
   useHostSnapshot: () => fixture.snapshot,
 }));
 vi.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ slug: 'ada', hostId: 'host-a' }),
+  useLocalSearchParams: () => ({ slug: 'ada', id: 'group-a', hostId: 'host-a' }),
   useNavigationContainerRef: () => navigation,
   useNavigation: () => ({ addListener: () => () => {} }),
   useFocusEffect: (work: () => (() => void) | undefined) => useLayoutEffect(work, [work]),
@@ -75,6 +79,7 @@ vi.mock('expo-router', () => ({
   }),
 }));
 import BotProfileScreen from '../app/bot/[slug]/index';
+import GroupInfoScreen from '../app/group/[id]/index';
 
 const originalStack = StackRouter({ initialRouteName: '(tabs)' }) as Parameters<
   typeof channelStackRouter
@@ -224,5 +229,69 @@ it('an old Host Profile cannot open a same-named Bot after the source changes', 
   expect(
     [...node.querySelectorAll('button')].some((button) => button.textContent === t.profileMessage),
   ).toBe(false);
+  expect(state.routes[state.index]?.key).toBe('profile');
+});
+
+it('a notification opened over Profile preserves that Profile as its Back destination', () => {
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 2,
+    index: 1,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+    ],
+  };
+  navigateChannel(navigation, {
+    pathname: '/dm/[slug]',
+    params: { slug: 'bob', hostId: 'host-b' },
+  });
+  expect(state.routes.map((route) => route.name)).toEqual(['(tabs)', 'bot/[slug]', 'dm/[slug]']);
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('profile');
+});
+
+it('a retained Group Profile refuses a colliding group on a different Host', async () => {
+  fixture.snapshot.roster!.channels = [
+    { id: 'group-a', name: 'Other Host group', memberCount: 1, members: ['ada'] },
+  ];
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => root!.render(<GroupInfoScreen />));
+  expect(node.textContent).toContain('Other Host group');
+  fixture.hostId = 'host-b';
+  await act(async () => root!.render(<GroupInfoScreen />));
+  expect(node.textContent).toContain(t.sourceChanged);
+  expect(node.textContent).not.toContain('Other Host group');
+  expect(node.querySelector('button')).toBeNull();
+  fixture.snapshot.roster!.channels = [];
+});
+
+it('a native preview commit over Profile preserves the Profile origin', () => {
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 2,
+    index: 1,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+    ],
+  };
+  navigation.dispatch({
+    type: 'NAVIGATE',
+    payload: {
+      name: 'channel/[id]',
+      params: { id: 'team', hostId: 'host-a', __internal__PreviewKey: 'preview' },
+    },
+  });
+  expect(state.routes.map((route) => route.name)).toEqual(['(tabs)', 'bot/[slug]', 'channel/[id]']);
+  navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes[state.index]?.key).toBe('profile');
 });

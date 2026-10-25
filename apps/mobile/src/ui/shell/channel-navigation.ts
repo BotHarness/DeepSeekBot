@@ -50,7 +50,11 @@ export const channelStackRouter: NonNullable<ComponentProps<typeof Stack>['UNSTA
     const existing = state.routes
       .slice(0, state.index + 1)
       .some((route) => channelRouteId(route.name, { ...route.params }) === identity);
-    const dismissProfile = !existing && state.routes[state.index]?.name === 'bot/[slug]';
+    const dismissProfile =
+      !existing &&
+      'dismissProfile' in payload &&
+      payload.dismissProfile === true &&
+      state.routes[state.index]?.name === 'bot/[slug]';
     return original.getStateForAction(
       state,
       {
@@ -72,12 +76,18 @@ export type ChannelNavigation = {
 export function navigateChannel(
   navigation: ChannelNavigation,
   destination: ChannelDestination,
+  intent?: 'dismiss-profile',
 ): boolean {
   if (!navigation.isReady()) return false;
   navigation.dispatch({
     type: 'NAVIGATE',
     target: navigation.getRootState().key,
-    payload: { name: destination.pathname.slice(1), params: destination.params, pop: true },
+    payload: {
+      name: destination.pathname.slice(1),
+      params: destination.params,
+      pop: true,
+      ...(intent === 'dismiss-profile' ? { dismissProfile: true } : {}),
+    },
   });
   return true;
 }
