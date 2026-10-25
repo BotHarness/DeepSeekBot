@@ -26,6 +26,32 @@ const styles = stylex.create({
     lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
+  header: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.x3,
+    alignSelf: 'stretch',
+  },
+  muted: { color: color.muted },
+  details: { alignSelf: 'stretch' },
+  summary: { cursor: 'pointer', color: color.muted },
+  facts: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: space.x5,
+    margin: 0,
+    paddingBlock: space.x2,
+  },
+  fact: { display: 'flex', flexDirection: 'column-reverse', gap: space.x1 },
+  value: { margin: 0, fontWeight: text.strong },
+  detailBody: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    paddingTop: space.x3,
+  },
   text: { margin: 0, overflowWrap: 'anywhere' },
   actions: {
     display: 'flex',
@@ -39,6 +65,7 @@ const styles = stylex.create({
     alignItems: 'flex-start',
     gap: space.x2,
     paddingBlock: space.x3,
+    alignSelf: 'stretch',
   },
   pre: {
     alignSelf: 'stretch',
@@ -92,6 +119,41 @@ async function result<T>(response: Response): Promise<T> {
   return value as T;
 }
 export type ProfileBackupSettingsProps = PropsLocale<'botharness'>;
+function BackupCounts({
+  bots,
+  files,
+  bytes,
+  estimated = false,
+  t,
+}: {
+  bots: number;
+  files: number;
+  bytes: number;
+  estimated?: boolean;
+  t: ProfileBackupSettingsProps['t'];
+}): ReactElement {
+  return (
+    <dl {...stylex.props(styles.facts)}>
+      {[
+        [t('backup.countBots'), bots.toLocaleString()],
+        [t('backup.countFiles'), files.toLocaleString()],
+        [
+          t(estimated ? 'backup.estimatedSize' : 'backup.size'),
+          bytes < 1024
+            ? `${bytes} B`
+            : bytes < 1024 * 1024
+              ? `${(bytes / 1024).toFixed(1)} KiB`
+              : `${(bytes / (1024 * 1024)).toFixed(1)} MiB`,
+        ],
+      ].map(([label, value]) => (
+        <div key={label} {...stylex.props(styles.fact)}>
+          <dt {...stylex.props(styles.muted)}>{label}</dt>
+          <dd {...stylex.props(styles.value)}>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 type BackupArea = 'export' | 'import' | 'recovery';
 function failureText(code: string, t: ProfileBackupSettingsProps['t']): string {
   switch (code) {
@@ -250,28 +312,33 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
           closeLabel={t('backup.close')}
           data={{ 'data-profile-backup': '' }}
         >
-          <p {...stylex.props(styles.text)}>{t('backup.identity')}</p>
           <section aria-label={t('backup.export')} {...stylex.props(styles.section)}>
-            <h3 {...stylex.props(styles.heading)}>{t('backup.export')}</h3>
-            <p {...stylex.props(styles.text)}>{t('backup.sensitive')}</p>
-            <p {...stylex.props(styles.text)}>{t('backup.excluded')}</p>
-            <p {...stylex.props(styles.text)}>{t('backup.sessions')}</p>
-            <p {...stylex.props(styles.text)}>{t('backup.purge')}</p>
-            <div {...stylex.props(styles.actions)}>
+            <div {...stylex.props(styles.header)}>
+              <h3 {...stylex.props(styles.heading)}>{t('backup.export')}</h3>
               <Button variant="outline" size="sm" disabled={busy} onClick={() => void prepare()}>
                 {t('backup.prepare')}
               </Button>
             </div>
+            <p {...stylex.props(styles.text, styles.muted)}>{t('backup.sensitive')}</p>
+            <details {...stylex.props(styles.details)}>
+              <summary {...stylex.props(styles.summary)}>{t('backup.contents')}</summary>
+              <div {...stylex.props(styles.detailBody)}>
+                <p {...stylex.props(styles.text)}>{t('backup.identity')}</p>
+                <p {...stylex.props(styles.text)}>{t('backup.excluded')}</p>
+                <p {...stylex.props(styles.text)}>{t('backup.sessions')}</p>
+                <p {...stylex.props(styles.text)}>{t('backup.limits')}</p>
+              </div>
+            </details>
             {preview ? (
               <div data-backup-preview {...stylex.props(styles.stack)}>
-                <p {...stylex.props(styles.text)}>
-                  {t('backup.counts', {
-                    bots: String(preview.bots),
-                    files: String(preview.files),
-                    bytes: String(preview.estimatedBytes),
-                    sessions: String(preview.sessions.count),
-                  })}
-                </p>
+                <BackupCounts
+                  bots={preview.bots}
+                  files={preview.files}
+                  bytes={preview.estimatedBytes}
+                  estimated
+                  t={t}
+                />
+                <p {...stylex.props(styles.text, styles.muted)}>{t('backup.purge')}</p>
                 <Button variant="outline" size="sm" disabled={busy} onClick={() => void download()}>
                   {t('backup.download')}
                 </Button>
@@ -287,8 +354,6 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
             ) : null}
           </section>
           <section aria-label={t('backup.import')} {...stylex.props(styles.section)}>
-            <h3 {...stylex.props(styles.heading)}>{t('backup.import')}</h3>
-            <p {...stylex.props(styles.text)}>{t('backup.localRestore')}</p>
             <input
               ref={file}
               hidden
@@ -301,32 +366,44 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                 event.currentTarget.value = '';
               }}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => file.current?.click()}
-            >
-              {t('backup.select')}
-            </Button>
+            <div {...stylex.props(styles.header)}>
+              <h3 {...stylex.props(styles.heading)}>{t('backup.import')}</h3>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => file.current?.click()}
+              >
+                {t('backup.select')}
+              </Button>
+            </div>
+            <p {...stylex.props(styles.text, styles.muted)}>{t('backup.localRestore')}</p>
             {inspection ? (
               <div data-backup-inspection {...stylex.props(styles.stack)}>
-                <p {...stylex.props(styles.text)}>
-                  {t('backup.inspected', {
-                    bots: String(inspection.manifest.counts.bots),
-                    files: String(inspection.manifest.counts.files),
-                    bytes: String(inspection.bytes),
-                  })}
+                <p role="status" {...stylex.props(styles.text)}>
+                  {t('backup.inspected')}
                 </p>
+                <BackupCounts
+                  bots={inspection.manifest.counts.bots}
+                  files={inspection.manifest.counts.files}
+                  bytes={inspection.bytes}
+                  t={t}
+                />
                 <p {...stylex.props(styles.text)}>{t('backup.restoreCommand')}</p>
                 <pre {...stylex.props(styles.pre)}>
                   tobs profile-backup-restore --file "environment.botharness-backup" --new-home
                   "new-environment" --confirm
                 </pre>
-                <p {...stylex.props(styles.text)}>{t('backup.launch')}</p>
                 <p {...stylex.props(styles.text)}>{t('backup.restorePosture')}</p>
-                <details>
-                  <summary>{t('backup.integrity')}</summary>
+                <details {...stylex.props(styles.details)}>
+                  <summary {...stylex.props(styles.summary)}>{t('backup.nextSteps')}</summary>
+                  <div {...stylex.props(styles.detailBody)}>
+                    <p {...stylex.props(styles.text)}>{t('backup.launch')}</p>
+                    <p {...stylex.props(styles.text)}>{t('backup.restoreDetails')}</p>
+                  </div>
+                </details>
+                <details {...stylex.props(styles.details)}>
+                  <summary {...stylex.props(styles.summary)}>{t('backup.integrity')}</summary>
                   <code {...stylex.props(styles.code)}>{inspection.sha256}</code>
                 </details>
               </div>
@@ -341,15 +418,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
               data-backup-recovery
               {...stylex.props(styles.section)}
             >
-              <h3 {...stylex.props(styles.heading)}>{t('backup.recovery')}</h3>
-              <p {...stylex.props(styles.text)}>{t('backup.repair')}</p>
-              <p {...stylex.props(styles.text)}>{t('backup.restorePosture')}</p>
-              <Checkbox
-                checked={acknowledged}
-                onChange={setAcknowledged}
-                label={t('backup.acknowledge')}
-              />
-              <div {...stylex.props(styles.actions)}>
+              <div {...stylex.props(styles.header)}>
+                <h3 {...stylex.props(styles.heading)}>{t('backup.recovery')}</h3>
                 <Button
                   variant="outline"
                   size="sm"
@@ -359,29 +429,39 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                   {t('backup.refresh')}
                 </Button>
               </div>
+              <p {...stylex.props(styles.text, styles.muted)}>{t('backup.restorePosture')}</p>
+              <details {...stylex.props(styles.details)}>
+                <summary {...stylex.props(styles.summary)}>{t('backup.nextSteps')}</summary>
+                <div {...stylex.props(styles.detailBody)}>
+                  <p {...stylex.props(styles.text)}>{t('backup.repair')}</p>
+                  <p {...stylex.props(styles.text)}>{t('backup.restoreDetails')}</p>
+                </div>
+              </details>
+              <Checkbox
+                checked={acknowledged}
+                onChange={setAcknowledged}
+                label={t('backup.acknowledge')}
+              />
               {recovery.bots.map((bot) => (
                 <div key={bot.slug} {...stylex.props(styles.bot)}>
-                  <strong>{bot.displayName}</strong>
-                  <div>
-                    {bot.slug} ·{' '}
+                  <div {...stylex.props(styles.header)}>
+                    <strong>{bot.displayName}</strong>
+                    <span>{bot.activated ? t('backup.active') : t('backup.cold')}</span>
+                  </div>
+                  <div {...stylex.props(styles.muted)}>
                     {bot.route ? bot.route.provider + '/' + bot.route.model : t('backup.noModel')}
                   </div>
-                  <p {...stylex.props(styles.text)}>
-                    {bot.activated ? t('backup.active') : t('backup.cold')}
-                    {bot.reason
-                      ? ' · ' +
-                        t('backup.blocked', {
-                          reason:
-                            bot.reason === 'model-plan-required'
-                              ? t('backup.reason.plan')
-                              : bot.reason === 'model-unavailable'
-                                ? t('backup.reason.unavailable')
-                                : bot.reason === 'model-authorization-required'
-                                  ? t('backup.reason.authorization')
-                                  : bot.reason,
-                        })
-                      : ''}
-                  </p>
+                  {bot.reason ? (
+                    <p {...stylex.props(styles.text)}>
+                      {bot.reason === 'model-plan-required'
+                        ? t('backup.reason.plan')
+                        : bot.reason === 'model-unavailable'
+                          ? t('backup.reason.unavailable')
+                          : bot.reason === 'model-authorization-required'
+                            ? t('backup.reason.authorization')
+                            : t('backup.reason.other')}
+                    </p>
+                  ) : null}
                   <div {...stylex.props(styles.actions)}>
                     <Button
                       variant="outline"
