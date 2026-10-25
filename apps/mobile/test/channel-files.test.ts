@@ -10,13 +10,13 @@ afterEach(() => {
   client?.stop();
 });
 
-function open(host: FakeHost) {
+function open(host: FakeHost, timeoutMs = 200) {
   client = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
     credential: host.credential,
     carrier: host.carrier,
     backoff: () => 5,
-    timeoutMs: 200,
+    timeoutMs,
   });
   client.start();
   files = createChannelFiles({ host: client, channelId: 'files', pageSize: 2 });
@@ -209,4 +209,72 @@ it('shows a recoverable initial offline state and reads the current baseline aft
   client!.retryNow();
   await until(() => subject.getSnapshot().status === 'ready');
   expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(['m5', 'm4']);
+});
+
+it('retains loaded files throughout a same-source retry and applies refreshed redactions', async () => {
+  const host = new FakeHost();
+  seed(host);
+  const subject = open(host);
+  await until(() => subject.getSnapshot().status === 'ready');
+  await subject.loadOlder();
+  const ids = subject.getSnapshot().files.map((file) => file.messageId);
+  subject.retry();
+  expect(subject.getSnapshot()).toMatchObject({ status: 'opening', loadingOlder: false });
+  expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(ids);
+  await until(() => subject.getSnapshot().status === 'ready');
+  expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(ids);
+  host.push('botharness/followRoster', {
+    type: 'purged',
+    placements: [{ channelId: 'files', messageId: 'm3', sourceEventId: 's3' }],
+  });
+  expect(subject.getSnapshot().files.map((file) => file.messageId)).toEqual(['m5', 'm4', 'm2']);
+});
+
+it('settles paging when only the roster follower ends and allows another page after reattach', async () => {
+  const host = new FakeHost();
+  seed(host);
+  const subject = open(host);
+  await until(() => subject.getSnapshot().status === 'ready');
+  let finish: ((page: unknown) => void) | undefined;
+  host.methods.set(
+    'channelJournalPage',
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const first = subject.loadOlder();
+  await until(() => finish !== undefined);
+  host.endFollower('botharness/followRoster');
+  expect(subject.getSnapshot()).toMatchObject({ status: 'interrupted', loadingOlder: false });
+  finish!(host.channel('files').page(5, 4, 2));
+  await first;
+  await until(() => subject.getSnapshot().status === 'ready');
+  host.methods.delete('channelJournalPage');
+  await subject.loadOlder();
+  expect(subject.getSnapshot()).toMatchObject({ loadingOlder: false, pageFailed: false });
+  expect(subject.getSnapshot().files).toHaveLength(4);
+});
+
+it('does not let a stale interrupted page clear a new page loading state', async () => {
+  const host = new FakeHost();
+  seed(host);
+  const subject = open(host, 3000);
+  await until(() => subject.getSnapshot().status === 'ready');
+  const pending: Array<(page: unknown) => void> = [];
+  host.methods.set('channelJournalPage', () => new Promise((resolve) => pending.push(resolve)));
+  const old = subject.loadOlder();
+  await until(() => pending.length === 1);
+  host.endFollower('botharness/followRoster');
+  await until(() => subject.getSnapshot().status === 'ready');
+  const current = subject.loadOlder();
+  await until(() => pending.length === 2);
+  pending[0]!(host.channel('files').page(5, 4, 2));
+  await old;
+  expect(subject.getSnapshot().loadingOlder).toBe(true);
+  expect(subject.getSnapshot().files).toHaveLength(2);
+  pending[1]!(host.channel('files').page(5, 4, 2));
+  await current;
+  expect(subject.getSnapshot().loadingOlder).toBe(false);
+  expect(subject.getSnapshot().files).toHaveLength(4);
 });
