@@ -1,4 +1,4 @@
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
@@ -8,6 +8,8 @@ import type { ChannelMessage } from './store.js';
 
 export const MESSAGE_FOLD_THRESHOLD_PX = 480;
 export const MESSAGE_FOLD_HEIGHT_PX = 300;
+
+export const AutoCollapseMessages = createContext(false);
 
 const expanded = new Set<string>();
 
@@ -84,7 +86,7 @@ const styles = stylex.create({
 
 export function MessageFold({
   messageId,
-  enabled,
+  enabled: eligible,
   t,
   children,
 }: {
@@ -93,6 +95,7 @@ export function MessageFold({
   t: BotHarnessTranslate;
   children: ReactNode;
 }): ReactElement {
+  const enabled = useContext(AutoCollapseMessages) && eligible;
   const [long, setLong] = useState(false);
   const [open, setOpen] = useState(() => expanded.has(messageId));
   const measure = useMountedResource<HTMLDivElement>(

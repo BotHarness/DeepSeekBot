@@ -275,6 +275,27 @@ export function SendKeySetting({
   );
 }
 
+export function AutoCollapseMessagesSetting({
+  t,
+  useBotModePrefs,
+  setAutoCollapseMessages,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.autoCollapseMessages);
+  return (
+    <SettingsRow
+      title={t('messageFold.row.title')}
+      description={t('messageFold.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setAutoCollapseMessages}
+          label={t('messageFold.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeveloperModeSetting({
   t,
   useBotModePrefs,

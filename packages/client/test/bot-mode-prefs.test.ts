@@ -90,6 +90,7 @@ describe('BOT-mode policy store', () => {
     const prefs = new BotModePrefs();
 
     expect(prefs.source.getSnapshot()).toEqual({
+      autoCollapseMessages: false,
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
@@ -104,6 +105,22 @@ describe('BOT-mode policy store', () => {
       mode: 'memory',
       status: 'loading',
     });
+  });
+
+  it('keeps long messages expanded unless the Host stores an explicit folding choice', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().autoCollapseMessages).toBe(false);
+    botModePrefsFace(prefs).setAutoCollapseMessages(true);
+    expect(scope.set).toHaveBeenCalledWith('autoCollapseMessages', true);
+    scope.push({ value: { ...scope.host.getSnapshot().value!, autoCollapseMessages: true } });
+    const reloaded = new BotModePrefs();
+    reloaded.attach(scope.host);
+    expect(reloaded.source.getSnapshot().autoCollapseMessages).toBe(true);
+    botModePrefsFace(reloaded).setAutoCollapseMessages(false);
+    expect(scope.set).toHaveBeenLastCalledWith('autoCollapseMessages', false);
+    expect(reloaded.source.getSnapshot().autoCollapseMessages).toBe(false);
   });
 
   it('shows Bot Sessions unless the Host holds an explicit choice to hide them', () => {
@@ -144,6 +161,7 @@ describe('BOT-mode policy store', () => {
     expect(prefs.source.getSnapshot()).toEqual({
       motionPreference: 'reduce',
       botIcon: 'mascot' as const,
+      autoCollapseMessages: false,
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
@@ -290,6 +308,7 @@ describe('BOT-mode policy store', () => {
       motionPreference: 'system' as const,
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
+      autoCollapseMessages: false,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
       developerMode: false,

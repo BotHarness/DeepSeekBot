@@ -1653,6 +1653,8 @@ export const zh = {
   'messages.unseenOne': '{count} 条新消息 · 跳到最新',
   'messages.newDivider': '以下为新消息',
   'message.fold.expand': '展开全部',
+  'messageFold.row.title': '自动折叠长消息',
+  'messageFold.row.description': '长消息先显示部分内容，点击“展开全部”查看完整内容',
   'message.fold.collapse': '收起',
   'message.image.open': '查看图片 {name}',
   'message.image.preview': '图片预览：{name}',
@@ -5995,6 +5997,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'messages.unseenOne': '{count} new message · Jump to latest',
   'messages.newDivider': 'New messages',
   'message.fold.expand': 'Show all',
+  'messageFold.row.title': 'Auto-collapse long messages',
+  'messageFold.row.description':
+    'Show a shortened preview of long messages; click Show all to read more',
   'message.fold.collapse': 'Show less',
   'message.image.open': 'View image {name}',
   'message.image.preview': 'Image preview: {name}',

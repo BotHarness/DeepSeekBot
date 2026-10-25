@@ -3,6 +3,7 @@
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
 | Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
+| Phone long-press Bot/group/section deletion | no | `scripts/e2e-mobile-deletion-web.mjs` | [phone-deletion.md](phone-deletion.md) |
 | Native Subagent presets, live-parent CLI and background wake lifecycle | yes for child results | `verify-app` Bot DM and direct CLI | [subagent-presets.md](subagent-presets.md) |
 | Local Computer video: Windows to physical Android | no | Windows testing-center native journey | [local-computer-video.md](local-computer-video.md) |
 | Bot Marketplace cards, filters, remembered sorting and upload/import | no | `verify-app` Bot mode path | [marketplace.md](marketplace.md) |
