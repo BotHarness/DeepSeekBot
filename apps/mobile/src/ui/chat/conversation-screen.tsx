@@ -1,3 +1,4 @@
+import { useConnectionProgress } from '../primitives/connection-progress';
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
@@ -782,6 +783,10 @@ function ChatConversation({
   );
 
   const hostRefused = host.connection.status === 'refused';
+  const connectionLabel = useConnectionProgress(
+    host.connection.status,
+    snapshot.status === 'interrupted',
+  );
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
@@ -789,6 +794,7 @@ function ChatConversation({
   const title = dm ? (
     <ChatTitle
       bot={bot}
+      connectionLabel={connectionLabel}
       fallback={slug ?? ''}
       onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
     />
@@ -815,6 +821,7 @@ function ChatConversation({
   ) : (
     <ChannelTitle
       channel={channel}
+      connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
       onPress={() =>
         router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
@@ -836,9 +843,10 @@ function ChatConversation({
         ? dm
           ? t.noBot
           : t.noChannel
-        : snapshot.fromCache && host.connection.status !== 'connected'
+        : host.connection.status === 'unreachable' ||
+            (snapshot.fromCache && host.connection.status === 'stopped')
           ? t.offline
-          : snapshot.status === 'interrupted'
+          : snapshot.status === 'interrupted' && connectionLabel === undefined
             ? t.liveInterrupted
             : attachError
               ? t.attachFailed
@@ -1010,6 +1018,16 @@ function ChatConversation({
               >
                 <Text variant="meta" tone="accent" strong>
                   {t.pairAgain}
+                </Text>
+              </Pressable>
+            ) : host.connection.status === 'unreachable' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => client?.retryNow()}
+                hitSlop={space.x3}
+              >
+                <Text variant="meta" tone="accent" strong>
+                  {t.retry}
                 </Text>
               </Pressable>
             ) : notice === t.noBot || notice === t.noChannel ? (

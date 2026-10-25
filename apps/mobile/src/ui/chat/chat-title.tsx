@@ -1,4 +1,5 @@
-import { Pressable } from 'react-native';
+import { ConnectionProgress } from '../primitives/connection-progress';
+import { Pressable, View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
@@ -14,10 +15,12 @@ const AVATAR = 28;
 export function ChatTitle({
   bot,
   fallback,
+  connectionLabel,
   onPress,
 }: {
   bot: RosterBot | undefined;
   fallback: string;
+  connectionLabel?: string | undefined;
   onPress(): void;
 }) {
   const t = useStrings();
@@ -27,7 +30,8 @@ export function ChatTitle({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={status === undefined ? name : `${name}, ${status}`}
+      accessibilityLabel={[name, status, connectionLabel].filter(Boolean).join(', ')}
+      accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
       onPress={onPress}
@@ -37,13 +41,19 @@ export function ChatTitle({
         alignItems: 'center',
         gap: space.x3,
         minHeight: Math.max(theme.touch, theme.type.body.line * theme.fontScale + space.x3),
-        paddingLeft: bot === undefined ? theme.touch / 2 : (theme.touch - AVATAR) / 2,
+        paddingLeft: (theme.touch - AVATAR) / 2,
         paddingRight: theme.touch / 2,
         borderRadius: radius.round,
         ...titleChipFill(theme, pressed),
       })}
     >
-      {bot === undefined ? null : <BotAvatar bot={bot} size={AVATAR} ring={false} />}
+      <ConnectionProgress active={connectionLabel !== undefined}>
+        {bot ? (
+          <BotAvatar bot={bot} size={AVATAR} ring={false} />
+        ) : (
+          <View style={{ width: AVATAR, height: AVATAR }} />
+        )}
+      </ConnectionProgress>
       <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {name}
       </Text>

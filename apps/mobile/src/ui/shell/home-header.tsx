@@ -1,3 +1,5 @@
+import type { ConnectionState } from '../../host/client';
+import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
@@ -19,16 +21,19 @@ import { CollapsingToolbar, useChromeProgress } from './scroll-chrome';
 
 export function HomeHeader({
   environment,
+  connection,
   actions,
   search,
   children,
 }: {
   environment: ConversationEnvironment;
+  connection?: ConnectionState | undefined;
   actions?: ReactNode;
   search?: ReactNode;
   children: ReactNode | ((headerTravel: number) => ReactNode);
 }) {
   const t = useStrings();
+  const connectionLabel = useConnectionProgress(connection?.status);
   const theme = useDesignTheme();
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();
@@ -68,8 +73,14 @@ export function HomeHeader({
             testID="chats-view-button"
             onPress={openHostDrawer}
             accessibilityRole="button"
-            accessibilityLabel={`${t.workspaces}, ${environment.accessibilityLabel ?? environment.title}`}
-            accessibilityState={{ expanded: drawerOpen }}
+            accessibilityLabel={[
+              t.workspaces,
+              environment.accessibilityLabel ?? environment.title,
+              connectionLabel,
+            ]
+              .filter(Boolean)
+              .join(', ')}
+            accessibilityState={{ expanded: drawerOpen, busy: connectionLabel !== undefined }}
             style={({ pressed }) => ({
               flex: 1,
               minWidth: 0,
@@ -80,23 +91,25 @@ export function HomeHeader({
               opacity: pressed ? 0.7 : 1,
             })}
           >
-            {environment.kind === 'computer' && environment.hostIcon ? (
-              <HostGlyph
-                icon={environment.hostIcon}
-                size={theme.type.title.line * theme.fontScale}
-                color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
-              />
-            ) : environment.kind === 'cloud' ? (
-              <CloudIcon
-                color={theme.color.accent}
-                size={theme.type.title.line * theme.fontScale}
-              />
-            ) : (
-              <ChatsIcon
-                color={theme.color.accent}
-                size={theme.type.title.line * theme.fontScale}
-              />
-            )}
+            <ConnectionProgress active={connectionLabel !== undefined}>
+              {environment.kind === 'computer' && environment.hostIcon ? (
+                <HostGlyph
+                  icon={environment.hostIcon}
+                  size={theme.type.title.line * theme.fontScale}
+                  color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
+                />
+              ) : environment.kind === 'cloud' ? (
+                <CloudIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              ) : (
+                <ChatsIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              )}
+            </ConnectionProgress>
             <Text
               variant="title"
               strong

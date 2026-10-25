@@ -392,6 +392,7 @@ const HomeContent = memo(function HomeContent({
       <HostDrawerEdge>
         <HomeHeader
           environment={environment}
+          connection={environment.kind === 'computer' ? snapshot.connection : undefined}
           search={
             searching ? (
               <HeaderSearch
@@ -451,15 +452,13 @@ const HomeContent = memo(function HomeContent({
                           {t.rowActions.failed}
                         </Text>
                       ) : null}
-                      {saved &&
-                        (environment.key === 'all' ||
-                          environment.key === computerEnvironmentKey(saved.hostId)) && (
-                          <ConnectionBanner
-                            connection={snapshot.connection}
-                            onRetry={() => client?.retryNow()}
-                            onPairAgain={() => router.push('/pair')}
-                          />
-                        )}
+                      {saved && environment.key === computerEnvironmentKey(saved.hostId) && (
+                        <ConnectionBanner
+                          connection={snapshot.connection}
+                          onRetry={() => client?.retryNow()}
+                          onPairAgain={() => router.push('/pair')}
+                        />
+                      )}
                       {saved &&
                       refreshFailedHost === saved.hostId &&
                       (environment.key === 'all' ||

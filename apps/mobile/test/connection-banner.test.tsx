@@ -192,3 +192,12 @@ it.each([
     expect(pairAgain).not.toHaveBeenCalled();
   },
 );
+
+it.each(['connecting', 'reconnecting'] as const)(
+  'does not add a banner or alert while %s',
+  async (status) => {
+    const { view } = await render({ status, route: 'https://example.test', attempt: 1 }, 'en-US');
+    expect(view.textContent).toBe('');
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+  },
+);

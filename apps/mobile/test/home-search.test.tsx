@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { act, useLayoutEffect, type ReactNode, type Ref } from 'react';
+import { act, useLayoutEffect, useSyncExternalStore, type ReactNode, type Ref } from 'react';
+import { createHostClient, type HostClient } from '../src/host/client';
+import { FakeHost } from './fake-host';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,6 +43,7 @@ const {
     actions: false,
     unread: false,
     hostId: 'h1',
+    live: undefined as HostClient | undefined,
   },
   cloudState: {
     error: undefined as string | undefined,
@@ -213,13 +216,16 @@ vi.mock('expo-router', () => {
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({
     saved: hostState.removed ? null : { hostId: hostState.hostId, hostName: 'studio' },
-    client: hostState.actions ? { call, refresh } : undefined,
+    client: hostState.live ?? (hostState.actions ? { call, refresh } : undefined),
     inbox: undefined,
   }),
-  useHostSnapshot: () => ({
-    connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
-    roster: hostState.connecting ? undefined : roster,
-  }),
+  useHostSnapshot: () =>
+    hostState.live
+      ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
+      : {
+          connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
+          roster: hostState.connecting ? undefined : roster,
+        },
   useInbox: () =>
     hostState.unread
       ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
@@ -251,7 +257,6 @@ vi.mock('../src/ui/shell/host-drawer', () => ({
   useHostDrawerOpen: () => false,
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
-vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
@@ -278,6 +283,8 @@ afterEach(() => {
   root = undefined;
   push.mockReset();
   vi.unstubAllGlobals();
+  hostState.live?.stop();
+  hostState.live = undefined;
   hostState.connecting = false;
   hostState.removed = false;
   hostState.color = undefined;
@@ -366,6 +373,48 @@ const rows = (view: HTMLElement) =>
     .map((node) => node.getAttribute('aria-label'));
 
 describe('Search in the Chats header', () => {
+  it('keeps actual Host connection progress at the selected identity through recovery', async () => {
+    const transport = new FakeHost();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: {
+        ...transport.carrier,
+        openSocket: (...args) => {
+          let socket: ReturnType<typeof transport.carrier.openSocket> | undefined;
+          void held.then(() => {
+            socket = transport.carrier.openSocket(...args);
+          });
+          return { send: (text) => socket?.send(text), close: () => socket?.close() };
+        },
+      },
+      backoff: () => 60_000,
+    });
+    hostState.live = client;
+    client.start();
+    conversationFilter.set(computerEnvironmentKey('h1'));
+    const view = await home();
+    expect(client.getSnapshot().connection.status).toBe('connecting');
+    const identity = () => view.querySelector('[data-testid="chats-view-button"]')!;
+    expect(identity().getAttribute('aria-label')).toContain(t.connecting);
+    expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+    await act(async () => {
+      release();
+    });
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => {
+      transport.kill();
+    });
+    expect(identity().getAttribute('aria-label')).toContain(t.reconnecting);
+    expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+  });
   it('keeps the Computer usable when Cloud local state cannot load', async () => {
     cloudState.ready = false;
     cloudState.error = 'STORAGE_UNAVAILABLE';
