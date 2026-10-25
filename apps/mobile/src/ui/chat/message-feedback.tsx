@@ -114,7 +114,7 @@ export function MessageFeedbackForm({
     updateBusy(true);
     setError(false);
     try {
-      await shareFeedbackArchive(await api.download(preview.token));
+      await shareFeedbackArchive(await api.download(preview.token), preview.token);
     } catch {
       if (alive.current) setError(true);
     } finally {
@@ -146,7 +146,15 @@ export function MessageFeedbackForm({
         <Text selectable testID="feedback-receipt">
           {receipt.reportId}
         </Text>
-        <Button label={t.close} onPress={onClose} testID="feedback-close" />
+        <Button
+          label={f.download}
+          busy={busy}
+          disabled={!fresh}
+          onPress={() => void download()}
+          testID="feedback-download"
+        />
+        {error ? <Text accessibilityRole="alert">{f.failed}</Text> : null}
+        <Button label={t.close} disabled={busy} onPress={onClose} testID="feedback-close" />
       </View>
     );
   const header = (

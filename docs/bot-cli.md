@@ -1446,8 +1446,6 @@ optional fixed categories and comment accepts up to 500 Unicode characters. Secr
 belong on stdin/files, never command arguments. Preview tokens expire after 30 minutes, are scoped
 to this Host connection, and only the last four snapshots remain. `preview-stale` requires a new
 preview. A failed submission freezes its rating and snapshot; retry that same request to retain the
-same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId` and `expiresAt`.
+same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId`. Only rating/tags/comment, reference and version are sent to PostHog; diagnostic archives remain local downloads.
 
-The Host must opt in with `BOTHARNESS_FEEDBACK_ENDPOINT`; otherwise preview/download work but
-submit returns `feedback-unavailable`. Only `https://feedback.botharness.ai/feedback` and loopback
-HTTP `/feedback` are accepted; redirects are refused. See [receiver operations](message-feedback.md).
+Submission uses the existing PostHog ingest path without extra configuration. No dedicated receiver or private archive storage is deployed. See [feedback and local diagnostics](message-feedback.md).

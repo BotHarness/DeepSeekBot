@@ -183,7 +183,7 @@ describe('message feedback through the Host HTTP interface', () => {
     const f = fixture(async (report) => {
       expect(feedbackRatingSchema.safeParse(report.feedback).success).toBe(true);
       expect(report.feedback.comment.includes('a@b.co')).toBe(false);
-      return { reportId: report.reportId, expiresAt: '2026-11-25T00:00:00.000Z' };
+      return { reportId: report.reportId };
     });
     const preview = await (await f.post('preview', { channelId: 'dm', messageId: 'm30' })).json();
     expect(
@@ -250,14 +250,14 @@ describe('message feedback through the Host HTTP interface', () => {
       Buffer.from(await (await f.post('download', { token: preview.token })).arrayBuffer()),
     ).toEqual(bytes);
   });
-  it('retains the same report across a lost response and sends the rating privately', async () => {
+  it('retains the same rating across a lost response while keeping diagnostic content local', async () => {
     const received: Array<
       Parameters<NonNullable<Parameters<typeof createMessageFeedbackHttp>[0]['submit']>>[0]
     > = [];
     const f = fixture(async (report) => {
       received.push(report);
       if (received.length === 1) throw new Error('lost response');
-      return { reportId: report.reportId, expiresAt: '2026-11-25T00:00:00.000Z' };
+      return { reportId: report.reportId };
     });
     const preview = await (await f.post('preview', { channelId: 'dm', messageId: 'm30' })).json();
     const input = {
@@ -268,8 +268,10 @@ describe('message feedback through the Host HTTP interface', () => {
     expect((await f.post('submit', input)).status).toBe(200);
     expect(received[0]?.reportId).toBe(received[1]?.reportId);
     expect(received[1]?.feedback).toEqual(input.feedback);
-    expect(received[1]?.archive).toEqual(
-      Buffer.from(await (await f.post('download', { token: preview.token })).arrayBuffer()),
-    );
+    expect(Object.keys(received[1]!).sort()).toEqual(['feedback', 'reportId', 'version']);
+    expect(JSON.stringify(received)).not.toContain('Message 30');
+    const download = await f.post('download', { token: preview.token });
+    expect(download.status).toBe(200);
+    expect((await download.arrayBuffer()).byteLength).toBeGreaterThan(0);
   });
 });
