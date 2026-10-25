@@ -13,6 +13,8 @@ it('updates bilingual package install instructions without renaming CLI commands
     'enter `deepseekbot@1.4.1`',
     '@botharness/tobs@1.5.0',
     'deepseekbot list --json',
+    'exact `@botharness/tobs@1.5.0` package',
+    '安装的是 `@botharness/tobs@1.5.0`。',
   ].join('\n');
   const result = renderInstallGuidance(source, '1.5.1', '@botharness/tobs');
   expect(result).toBe(
@@ -23,6 +25,8 @@ it('updates bilingual package install instructions without renaming CLI commands
       'enter `@botharness/tobs@1.5.1`',
       '@botharness/tobs@1.5.1',
       'deepseekbot list --json',
+      'exact `@botharness/tobs@1.5.1` package',
+      '安装的是 `@botharness/tobs@1.5.1`。',
     ].join('\n'),
   );
   expect(renderInstallGuidance(result, '1.5.1', '@botharness/tobs')).toBe(result);

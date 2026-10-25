@@ -32,7 +32,7 @@ Computer 与 Browser 随发布流程打包并默认纳入 `deepseekbot`（ADR-01
 
 ## 发布一个版本
 
-当前正式版本是 `deepseekbot@1.4.1`（记录于 `scripts/install-release.json`）。发布由在 main 上推送 SemVer tag 触发；分支、PR 和手动
+当前已验证的正式包记录于 `scripts/install-release.json`，具体命令见[安装指南](https://tobs.app/docs/installation/)。发布由在 main 上推送 SemVer tag 触发；分支、PR 和手动
 dispatch 都不会发布。
 
 1. 在双语 Release Ledger 中把 `Unreleased` 归档到新版本（[发布规则](agents/changelog.md)），

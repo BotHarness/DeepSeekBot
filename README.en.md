@@ -45,7 +45,7 @@ Bots use the model providers and quota you set up in DSH, and the machine runnin
 
 Tobs was formerly named **DeepSeekBot**. The `deepseekbot` npm package and command remain supported for existing users; new installations use `@botharness/tobs`, with the `tobs` command.
 
-In the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `deepseekbot@1.4.1`, install and enable it, and **Bot mode** appears in the sidebar. No DSH yet? [Get the desktop app](https://www.deepseek.com/en/harness/).
+Follow the [installation guide](https://tobs.app/en/docs/installation/) for the current verified installation command; install and enable it in DeepSeek Harness, and **Bot mode** appears in the sidebar. No DSH yet? [Get the desktop app](https://www.deepseek.com/en/harness/).
 
 For command-line install, version notes and troubleshooting, see the [installation guide](https://tobs.app/en/docs/installation/).
 
