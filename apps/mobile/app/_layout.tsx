@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useMounted } from '../src/ui/mounted';
+import { watchRequestActivity } from '../src/host/native-live-activity';
+import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
 import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { Platform, View } from 'react-native';
+import { Platform, View, type ViewInstance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
@@ -44,6 +46,14 @@ function RootNavigator() {
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
+  const activity = useMounted(watchRequestActivity, []);
+  const stack = useCallback(
+    (node: ViewInstance | null) => {
+      workspace(node);
+      activity(node);
+    },
+    [workspace, activity],
+  );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
@@ -55,7 +65,7 @@ function RootNavigator() {
                 <Notice tone="warning">{t.channelOpening}</Notice>
               </SafeAreaView>
             ) : null}
-            <View ref={workspace} testID="app-stack-content" style={{ flex: 1 }}>
+            <View ref={stack} testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
                 UNSTABLE_router={channelStackRouter}
                 screenOptions={{

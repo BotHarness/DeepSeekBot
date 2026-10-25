@@ -43,6 +43,13 @@ describe('conversation navigation', () => {
     expect(openConversation(history.navigation, bot)).toBe(false);
     expect(history.state.routes).toHaveLength(1);
   });
+  it('limits the activity dismissal intent to its own intermediate route', () => {
+    const history = channelNavigationHarness();
+    history.push('settings');
+    navigateChannel(history.navigation, conversationHref(bot, 'h1'), 'dismiss-activity');
+    history.back();
+    expect(history.state.routes.at(-1)?.name).toBe('settings');
+  });
   it('leaves explicit PUSH presentation semantics unchanged', () => {
     const history = channelNavigationHarness();
     history.push('bot/[slug]', { slug: 'ada', hostId: 'h1' });

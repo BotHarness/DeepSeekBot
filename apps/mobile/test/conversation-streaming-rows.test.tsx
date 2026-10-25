@@ -12,6 +12,8 @@ import { channelNavigationHarness } from './channel-navigation-harness';
 let navigationHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
+import type { ActivityTarget } from '../src/host/live-activity-session';
+import type { DialogAction } from '../src/ui/primitives/dialog-state';
 
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -28,6 +30,26 @@ const state = vi.hoisted(() => ({
     roster: { bots: [] as RosterBot[], channels: [] },
   },
   display: { mode: 'streaming', loaded: true },
+  os: 'web',
+  clientEnabled: false,
+}));
+const requestActivity = vi.hoisted(() => ({
+  start: vi.fn<(target: ActivityTarget) => Promise<void>>(),
+  actions: [] as readonly DialogAction[],
+  client: {
+    call: vi.fn(async () => {
+      throw new Error('request unavailable');
+    }),
+  },
+}));
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => ({ ready: true, busy: false, tracking: false }),
+  requestActivitySession: { start: requestActivity.start, stop: async () => {} },
+}));
+vi.mock('../src/ui/primitives/app-dialog', () => ({
+  showAppDialog: (_title: string, _body: string, actions: readonly DialogAction[]) => {
+    requestActivity.actions = actions;
+  },
 }));
 
 const counts = vi.hoisted(() => ({ renderItem: 0, rows: new Map<string, number>() }));
@@ -117,8 +139,26 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => navigationHistory.navigation,
   useIsFocused: () => true,
   Stack: {
-    Screen: ({ options }: { options: { headerLeft?: () => ReactNode } }) => (
-      <header>{options.headerLeft?.() ?? null}</header>
+    Screen: ({
+      options,
+    }: {
+      options: {
+        headerLeft?: () => ReactNode;
+        unstable_headerRightItems?: () => Array<{
+          label: string;
+          disabled: boolean;
+          onPress(): void;
+        }>;
+      };
+    }) => (
+      <header>
+        {options.headerLeft?.() ?? null}
+        {options.unstable_headerRightItems?.().map((item) => (
+          <button key={item.label} disabled={item.disabled} onClick={item.onPress}>
+            {item.label}
+          </button>
+        ))}
+      </header>
     ),
   },
   useRouter: () => ({
@@ -134,7 +174,16 @@ vi.mock('expo-router', () => ({
 }));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
-  return { ...shim, KeyboardAvoidingView: shim.View };
+  return {
+    ...shim,
+    Platform: {
+      ...shim.Platform,
+      get OS() {
+        return state.os;
+      },
+    },
+    KeyboardAvoidingView: shim.View,
+  };
 });
 vi.mock('react-native-reanimated', async () => {
   const shim = await import('./reanimated-shim');
@@ -178,7 +227,7 @@ vi.mock('../src/host/host-session', async () => {
   const { useSyncExternalStore } = await import('react');
   return {
     useHostSession: () => ({
-      client: undefined,
+      client: state.clientEnabled ? requestActivity.client : undefined,
       inbox: undefined,
       saved: { hostId: state.hostId },
     }),
@@ -311,6 +360,11 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
 beforeEach(() => {
+  state.os = 'web';
+  state.clientEnabled = false;
+  state.hostId = 'computer_a';
+  requestActivity.start.mockReset().mockResolvedValue(undefined);
+  requestActivity.actions = [];
   navigationHistory = channelNavigationHarness();
   frames = new Map();
   nextFrame = 0;
@@ -327,6 +381,72 @@ beforeEach(() => {
   counts.rows.clear();
   counts.renderItem = 0;
 });
+
+it.each(['ordinary send', 'question fallback'])(
+  'tracks the exact first-DM receipt after %s commits its newly created Channel',
+  async (path) => {
+    state.os = 'ios';
+    state.clientEnabled = path === 'question fallback';
+    stream.conversation.send.mockReturnValue('first-local-request');
+    const historical = stream.history('historical-human', 'earlier', 'human');
+    const question = {
+      ...stream.history('question', 'Question', 'bot'),
+      card: { kind: 'user-question' as const, channelId: 'question-channel' },
+    };
+    stream.publish({
+      messages: path === 'question fallback' ? [historical, question] : [historical],
+      drafts: [],
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const render = () =>
+      root.render(<ConversationScreen place={{ kind: 'dm', slug: 'ada' }} focus={undefined} />);
+    const button = (label: string) =>
+      [...container.querySelectorAll('button')].find((node) => node.textContent === label)!;
+    try {
+      await act(async () => render());
+      expect(button('Track latest request').disabled).toBe(true);
+      await act(async () => button('Write question').click());
+      await act(async () => button('Send question').click());
+      expect(stream.conversation.send).toHaveBeenCalledOnce();
+      expect(button('Track latest request').disabled).toBe(true);
+      const accepted = stream.history('first-local-request', 'What is six times seven?', 'human');
+      accepted.source = {
+        channelId: 'new-dm',
+        revision: 1,
+        message: {
+          id: accepted.id,
+          at: accepted.at,
+          body: accepted.body,
+          author: { kind: 'human' },
+        },
+      };
+      await act(async () => stream.publish({ messages: [historical, accepted] }));
+      expect(button('Track latest request').disabled).toBe(false);
+      await act(async () => {
+        button('Track latest request').click();
+        await requestActivity.actions
+          .find((action) => action.text === 'Track latest request')
+          ?.onPress?.();
+      });
+      expect(requestActivity.start).toHaveBeenCalledWith({
+        hostId: 'computer_a',
+        botSlug: 'ada',
+        messageId: 'first-local-request',
+        channelId: 'new-dm',
+      });
+      state.hostId = 'another-computer';
+      await act(async () => render());
+      await act(async () => stream.publish({ messages: [historical, accepted] }));
+      expect(button('Track latest request')?.disabled ?? true).toBe(true);
+      expect(requestActivity.start).toHaveBeenCalledOnce();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
+  },
+);
 afterEach(() => vi.unstubAllGlobals());
 
 const flushFrames = () =>

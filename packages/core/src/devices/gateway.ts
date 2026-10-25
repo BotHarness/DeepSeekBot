@@ -21,6 +21,7 @@ export const DEVICE_CONNECT_OFFER_PATH = `${DEVICE_GATEWAY_PREFIX}/connect/offer
 export const DEVICE_STREAM_TICKET_PATH = `${DEVICE_GATEWAY_PREFIX}/stream-ticket`;
 export const RELAY_SIGNATURE_HEADER = 'x-botharness-relay-signature';
 export const DEVICE_MUX_PATH = `${DEVICE_GATEWAY_PREFIX}/api/remote.mux`;
+export const DEVICE_ACTIVITY_PREFIX = `${DEVICE_GATEWAY_PREFIX}/activity`;
 export const DEVICE_PUSH_PREFIX = `${DEVICE_GATEWAY_PREFIX}/push`;
 export const DEVICE_SIGNALING_PATHS = [
   `${DEVICE_GATEWAY_PREFIX}/api/computer/webrtc/signaling`,
@@ -83,6 +84,12 @@ export interface DeviceGatewayOptions {
     command: unknown;
     signal: AbortSignal;
   }) => Promise<LocalVideoResult>;
+  activity?: (request: {
+    method: string;
+    path: string;
+    deviceId: string;
+    body: Record<string, unknown>;
+  }) => Promise<{ status: number; body: unknown }>;
   push?: (request: {
     method: string;
     path: string;
@@ -314,6 +321,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     request: IncomingMessage,
     response: ServerResponse,
     path: string,
+    handler = options.push!,
   ): Promise<void> => {
     const admission = pairing.admit(header(request, 'authorization'));
     if (!admission.ok) return refuse(response, 401, admission.code);
@@ -325,7 +333,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         if (typeof value === 'object' && value !== null) body = value as Record<string, unknown>;
       } catch {}
     }
-    const answer = await options.push!({
+    const answer = await handler({
       method: request.method ?? 'GET',
       path,
       deviceId: admission.device.id,
@@ -552,6 +560,11 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       if (path === DEVICE_REMOVE_PATH) return remove(request, response);
       if (options.connectOffer !== undefined && path === DEVICE_CONNECT_OFFER_PATH)
         return connectOffer(request, response);
+      if (
+        options.activity !== undefined &&
+        (path === DEVICE_ACTIVITY_PREFIX || path.startsWith(`${DEVICE_ACTIVITY_PREFIX}/`))
+      )
+        return devicePush(request, response, path, options.activity);
       if (
         options.push !== undefined &&
         (path === DEVICE_PUSH_PREFIX || path.startsWith(`${DEVICE_PUSH_PREFIX}/`))

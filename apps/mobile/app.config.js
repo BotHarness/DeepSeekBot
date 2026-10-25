@@ -56,6 +56,10 @@ module.exports = ({ config }) => {
     plugins: [
       ...config.plugins,
       './modules/local-computer-video/app.plugin.js',
+      [
+        'expo-widgets',
+        { enablePushNotifications: true, groupIdentifier: `group.${bundleIdentifier}` },
+      ],
       ['expo-dev-client', { addGeneratedScheme: !store }],
     ],
     owner: 'deepseekbots-team',

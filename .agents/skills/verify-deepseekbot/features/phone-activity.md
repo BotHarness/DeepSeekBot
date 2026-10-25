@@ -104,3 +104,27 @@ For navigation responsiveness (#2111), time Chats → Activity separately from t
 The earlier PR #1928 evidence remains specific to its own commit and limitations. Native iOS and Android acceptance are separate; this map does not requalify earlier evidence.
 
 Load a second Activity page, switch away and return, then wait for refresh: both loaded pages remain when Host data is unchanged. Repeat with a cached refresh error and delay the next read; Retry must queue a fresh read through the current query instance. Changed Host data may still move rows; this check does not establish scroll anchoring across arbitrary inserts or deletions.
+
+
+## Explicit iPhone Lock Screen request tracking (#2815)
+
+This native addition requires a rebuilt SDK 58 app with Expo Widgets and an explicitly
+configured Connect ActivityKit provider. The existing shared client is stale for this
+feature. Source/API checks are not evidence of native or background delivery. Reserve
+the real iPhone lane; do not configure/deploy the provider under source-work authorization.
+
+Send one request from the current phone in its Computer DM. After canonical acceptance,
+use **Track latest request / 跟踪最新请求** in the DM header. Request text must not appear on
+the Lock Screen. Stop must only stop the display. Another request requires an explicit
+switch; a desktop-created history message must not become this phone's tracking target.
+
+Correlate the exact `send-status` Source Event and explicit Inbox resolution with a recording
+of foreground start, backgrounding, locking, remote update and tap back to that same
+Computer/Channel/message. Verify cold start, identical Bot names on two Computers,
+old links, token rotation, system dismissal, account sign-out, pairing revocation and
+source switch. Drop connectivity long enough to see the OS stale presentation. Disabled
+Live Activities, an old native binary and an unconfigured/LAN-only Computer must refuse
+clearly without a foreground-only substitute. Verify both languages, light/dark, Dynamic
+Type and VoiceOver. Measure visible start, remote update latency and added energy on the
+real device; leave those fields UNTESTED until measured. Current retry/repair facts stay
+unknown/nonterminal; no terminal request failure authority is implemented in this slice.

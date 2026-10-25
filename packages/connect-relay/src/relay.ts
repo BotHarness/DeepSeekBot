@@ -1,8 +1,10 @@
+import { createActivityRegistry, type ActivitySender } from './live-activity.js';
 import type { AccessTokenVerifier } from './auth.js';
 import type { TunnelApi } from './cloudflare.js';
 import type { D1Database } from './d1.js';
 
 export interface RelayOptions {
+  activitySender?: ActivitySender;
   db: D1Database;
   verifier: AccessTokenVerifier;
   tunnels: TunnelApi;
@@ -105,6 +107,7 @@ export function createRelay(options: RelayOptions) {
   const { db, tunnels } = options;
   const now = options.now ?? (() => new Date());
   const nextHostId = options.hostId ?? randomHostId;
+  const activity = createActivityRegistry(db, options.activitySender, now);
   const allowAll = options.allowedUsers.length === 0 || options.allowedUsers.includes('*');
   const hostname = (id: string) => `${id}.${options.zone}`;
   const view = (row: HostRow) => ({
@@ -179,6 +182,7 @@ export function createRelay(options: RelayOptions) {
   const unlink = async (row: HostRow) => {
     if (row.tunnel_id !== null) await tunnels.deleteTunnel(row.tunnel_id);
     if (row.dns_record_id !== null) await tunnels.deleteRecord(row.dns_record_id);
+    await db.prepare('DELETE FROM live_activities WHERE host_id = ?').bind(row.id).run();
     await db.prepare('DELETE FROM hosts WHERE id = ?').bind(row.id).run();
   };
 
@@ -282,7 +286,9 @@ export function createRelay(options: RelayOptions) {
         zone: options.zone,
       });
     }
-    const hostMatch = /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer)?$/u.exec(url.pathname);
+    const hostMatch = /^\/v1\/hosts\/([^/]+)(\/tunnel|\/offer|\/live-activity)?$/u.exec(
+      url.pathname,
+    );
     if (url.pathname !== '/v1/hosts' && url.pathname !== '/v1/account' && hostMatch === null)
       return failure(404, 'not-found');
     const account = await authorized(request);
@@ -330,6 +336,8 @@ export function createRelay(options: RelayOptions) {
     const row = HOST_ID.test(id) ? await owned(id, account) : null;
     if (row === null) return failure(404, 'host-not-found');
 
+    if (hostMatch?.[2] === '/live-activity') return activity(id, row.name, request);
+
     if (hostMatch?.[2] === '/tunnel') {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
       const port = (await readBody(request))?.['originPort'];
@@ -359,6 +367,10 @@ export function createRelay(options: RelayOptions) {
   };
 
   const reclaim = async (): Promise<{ reclaimed: string[] }> => {
+    await db
+      .prepare('DELETE FROM live_activities WHERE expires_at <= ?')
+      .bind(now().getTime())
+      .run();
     const { results } = await db
       .prepare('SELECT * FROM hosts WHERE tunnel_id IS NOT NULL ORDER BY tunnel_created_at')
       .all<HostRow>();

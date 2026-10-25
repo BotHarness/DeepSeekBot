@@ -43,6 +43,12 @@ function pathAllowed(path: string): boolean {
   return (
     (name.startsWith('/botharness-device/api/') &&
       !/\/(?:webrtc|web|browser|computer)(?:\/|$)/u.test(name)) ||
+    [
+      '/botharness-device/activity',
+      '/botharness-device/activity/prepare',
+      '/botharness-device/activity/register',
+      '/botharness-device/activity/stop',
+    ].includes(name) ||
     name === '/botharness-device/push' ||
     name.startsWith('/botharness-device/push/') ||
     name === '/botharness-device/unpair' ||

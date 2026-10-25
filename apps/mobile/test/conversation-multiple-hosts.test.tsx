@@ -7,8 +7,26 @@ import { expect, it, vi } from 'vitest';
 import type { RosterBot } from '../src/host/client';
 import { secure, remotes } from './host-session-fixture';
 import { FakeHost } from './fake-host';
+import type { ActivityTarget } from '../src/host/live-activity-session';
 
 const push = vi.hoisted(() => vi.fn());
+const activity = vi.hoisted(() => ({
+  start: vi.fn(async (_target: ActivityTarget) => {}),
+  confirm: undefined as (() => Promise<void> | void) | undefined,
+}));
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => ({ ready: true, busy: false, tracking: false }),
+  requestActivitySession: { start: activity.start, stop: async () => {} },
+}));
+vi.mock('../src/ui/primitives/app-dialog', () => ({
+  showAppDialog: (
+    _title: string,
+    _body: string,
+    buttons: { onPress?(): void | Promise<void> }[],
+  ) => {
+    activity.confirm = buttons.at(-1)?.onPress;
+  },
+}));
 const state = vi.hoisted(() => ({
   history: [] as string[],
   display: { mode: 'streaming', loaded: true },
@@ -38,6 +56,11 @@ vi.mock('expo-router', () => ({
         headerLeft?: () => ReactNode;
         headerBackVisible?: boolean;
         headerBlurEffect?: string;
+        unstable_headerRightItems?: () => Array<{
+          label: string;
+          onPress(): void;
+          disabled?: boolean;
+        }>;
         unstable_headerLeftItems?: () => Array<{
           type: string;
           element?: ReactNode;
@@ -63,8 +86,12 @@ vi.mock('expo-router', () => ({
         )) ??
           options.headerLeft?.() ??
           null}
-        {options.headerTitle?.()}
-        {options.headerRight?.()}
+        {typeof options.headerTitle === 'function' ? options.headerTitle() : null}
+        {options.unstable_headerRightItems?.().map((item) => (
+          <button key={item.label} type="button" disabled={item.disabled} onClick={item.onPress}>
+            {item.label}
+          </button>
+        )) ?? options.headerRight?.()}
       </header>
     ),
   },
@@ -85,6 +112,10 @@ vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
     ...shim,
+    Platform: {
+      OS: 'ios',
+      select: (options: Record<string, unknown>) => options['ios'] ?? options['default'],
+    },
     KeyboardAvoidingView: shim.View,
     AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
     Keyboard: { dismiss() {} },
@@ -289,6 +320,20 @@ it('opens B with A selected, sends through its real composer, and retains an off
     });
     expect(a.channel('dm-same').messages).toEqual([]);
     expect(hostSession.getState().saved?.hostId).toBe('a');
+    await act(async () => {
+      const track = [...view.querySelectorAll<HTMLButtonElement>('button')].find(
+        (node) => node.textContent === t.lockScreen.track,
+      );
+      expect(track?.disabled).toBe(false);
+      track?.click();
+      await activity.confirm?.();
+    });
+    expect(activity.start).toHaveBeenCalledWith({
+      hostId: 'b',
+      botSlug: 'same',
+      channelId: 'dm-same',
+      messageId: b.channel('dm-same').messages[0]!.id,
+    });
     await type('Unsent B draft');
     await act(async () => b.kill());
     expect(field().value).toBe('Unsent B draft');

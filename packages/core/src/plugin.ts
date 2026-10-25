@@ -1394,6 +1394,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: attachment sweep',
   );
   mountDevicePairing(ctx, {
+    requestStatus: (channelId, messageId) => core.channels.humanSendStatus?.(channelId, messageId),
     database: core.operationalDatabase,
     dshHome,
     packageAnchors: releaseAnchors,

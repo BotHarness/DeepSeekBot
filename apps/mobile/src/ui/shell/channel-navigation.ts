@@ -57,11 +57,16 @@ export const channelStackRouter: NonNullable<ComponentProps<typeof Stack>['UNSTA
       'dismissProfile' in payload &&
       payload.dismissProfile === true &&
       state.routes[state.index]?.name === 'bot/[slug]';
+    const dismissActivity =
+      !existing &&
+      'dismissActivity' in payload &&
+      payload.dismissActivity === true &&
+      state.routes[state.index]?.name === 'request-activity';
     return original.getStateForAction(
       state,
       {
         ...action,
-        type: dismissProfile ? 'REPLACE' : 'NAVIGATE',
+        type: dismissProfile || dismissActivity ? 'REPLACE' : 'NAVIGATE',
         payload: { ...payload, pop: true },
       },
       options,
@@ -86,7 +91,7 @@ export function appStackState(
 export function navigateChannel(
   navigation: ChannelNavigation,
   destination: ChannelDestination,
-  intent?: 'dismiss-profile',
+  intent?: 'dismiss-profile' | 'dismiss-activity',
 ): boolean {
   if (!navigation.isReady()) return false;
   const state = appStackState(navigation.getRootState());
@@ -106,6 +111,7 @@ export function navigateChannel(
       params,
       pop: true,
       ...(intent === 'dismiss-profile' ? { dismissProfile: true } : {}),
+      ...(intent === 'dismiss-activity' ? { dismissActivity: true } : {}),
     },
   });
   return true;
