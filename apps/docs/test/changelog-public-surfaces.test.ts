@@ -86,8 +86,8 @@ describe("built release and Development status surfaces", () => {
       expect(built("changelog/development/index.md")).toContain(
         "Added durable PersonaBot identity",
       );
-      expect(built("index.html")).toContain('href="/changelog/v140"');
-      expect(built("zh/index.html")).toContain('href="/zh/changelog/v140"');
+      expect(built("index.html")).toContain('href="/changelog/v151"');
+      expect(built("zh/index.html")).toContain('href="/zh/changelog/v151"');
 
       expect(
         statSync(resolve(DIST, "og/changelog/development.png")).size,
