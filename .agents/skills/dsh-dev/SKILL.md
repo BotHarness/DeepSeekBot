@@ -481,3 +481,7 @@ means the full `ps axeww` output exceeded Node's default buffer, not that the Ho
 by another task. Keep the complete scan and its fail-closed error handling; use the same
 bounded 32 MiB buffer as the child-process ownership scan. Do not truncate process rows,
 skip ownership checks, or print raw environments, which can contain credentials.
+
+### Native Subagent wake and prompt assembly (#2435)
+
+In DSH 0.2.1-rc.3, native child reports wake an idle parent independently of an application turn. Agent inbox claim notifications precede system-prompt assembly; assembly precedes agent/pre-step and snapshots installModelSelection. Establish the application-owned Bot turn before assembly, or the first resumed request can use a stale model. Observe trusted source metadata, validate Session Ownership, and join the existing Bot queue; never replay the report or borrow a prior Human source. Tie readiness to the actual Adapter tool context, not slower Runtime cleanup. Direct CLI calls are not live Orchestrator turns for stop/steer selection. Qualify this sequence against the running Host; an API send receipt alone is insufficient.
