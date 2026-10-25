@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { channelNavigationHarness } from './channel-navigation-harness';
 let channelHistory = channelNavigationHarness();
-
+const whoami = vi.fn(async (_id: string) => {});
 import type { HumanAttentionItem } from '../src/host/wire';
 import type { CloudRow } from '../src/cloud/client';
 import type { CloudConversation, ConversationWorkspace } from '../src/cloud/conversations';
@@ -18,6 +18,7 @@ import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { HomeHeader } from '../src/ui/shell/home-header';
 import { DesignThemeProvider, resolveTheme, useDesignTheme } from '../src/ui/design/theme';
 import type { RosterView } from '../src/host/client';
+import { hostDrawer } from '../src/ui/shell/host-drawer';
 import { EDGE_WIDTH } from '../src/ui/shell/host-drawer-model';
 
 const {
@@ -155,7 +156,7 @@ vi.mock('../src/host/native-conversation-filter', async () => {
 });
 vi.mock('../src/cloud/native', () => ({
   useCloudSnapshot: () => cloudState,
-  cloudClient: { getSnapshot: () => cloudState },
+  cloudClient: { getSnapshot: () => cloudState, whoami: (...args: [string]) => whoami(...args) },
 }));
 vi.mock('../src/cloud/native-conversations', () => ({
   useCloudConversations: () => directoryState,
@@ -256,13 +257,21 @@ vi.mock('expo-symbols', () => ({
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
-vi.mock('../src/ui/shell/host-drawer', () => ({
-  HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
-  hostDrawer: { setReturnFocus: () => {} },
-  focusOn: () => {},
-  openHostDrawer: () => {},
-  useHostDrawerOpen: () => false,
-}));
+vi.mock('../src/ui/shell/host-drawer', async () => {
+  const { createHostDrawer } = await import('../src/ui/shell/host-drawer-model');
+  return {
+    HostDrawerEdge: ({ children }: { children: ReactNode }) => children,
+    hostDrawer: createHostDrawer({
+      switchTo: async () => true,
+      showView: () => {},
+      pair: () => {},
+      notifications: () => {},
+    }),
+    focusOn: () => {},
+    openHostDrawer: () => {},
+    useHostDrawerOpen: () => false,
+  };
+});
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
@@ -280,6 +289,8 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 beforeEach(() => {
+  channelHistory = channelNavigationHarness();
+  whoami.mockReset();
   vi.stubGlobal(
     'requestIdleCallback',
     vi.fn(() => 1),
@@ -291,7 +302,6 @@ afterEach(() => {
   host?.remove();
   root = undefined;
   push.mockReset();
-  channelHistory = channelNavigationHarness();
   vi.unstubAllGlobals();
   hostState.connecting = false;
   hostState.removed = false;
@@ -389,108 +399,146 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).toContain('Ada');
     expect(view.textContent).toContain(t.cloudListUnavailable);
   });
-  it('opens a cloud row with its account and organization while leaving the paired Computer selected', async () => {
-    const config = publicInstance({
-      instanceId: 'uat',
-      environment: 'uat',
-      server: 'https://uat.example.test',
-      clientId: 'client_test',
-      issuer: 'https://api.workos.com/user_management/client_test',
-      authkitDomain: 'test-staging.authkit.app',
-      mobileRedirectUri: MOBILE_REDIRECT_URI,
-    });
-    const cloudRow: CloudRow = {
-      config,
-      hasSession: true,
-      sessionUserId: 'user_a',
-      identity: { instanceId: 'uat', userId: 'user_a', instanceRole: 'user' },
-      organization: {
-        organizationId: 'org_a',
-        name: 'Cloud team',
-        description: '',
-        version: 1,
-        role: 'member',
-      },
-    };
-    const scope = cloudViewScope(cloudRow);
-    cloudState.rows = [cloudRow];
-    directoryState.rows = [
-      {
-        key: 'cloud-one',
-        scope,
+  it.each(['none', 'reset', 'workspace-intent'])(
+    'opens Cloud only while the originating navigation intent is current (reset=%s)',
+    async (reset) => {
+      const config = publicInstance({
         instanceId: 'uat',
-        organizationId: 'org_a',
-        organizationName: 'Cloud team',
-        guest: false,
-        channel: {
-          channelId: 'ch_' + 'a'.repeat(64),
-          name: 'Cloud general',
-          creatorId: 'user_a',
-          creatorType: 'human',
-          createdAt: '2026-10-18T00:00:00Z',
+        environment: 'uat',
+        server: 'https://uat.example.test',
+        clientId: 'client_test',
+        issuer: 'https://api.workos.com/user_management/client_test',
+        authkitDomain: 'test-staging.authkit.app',
+        mobileRedirectUri: MOBILE_REDIRECT_URI,
+      });
+      const cloudRow: CloudRow = {
+        config,
+        hasSession: true,
+        sessionUserId: 'user_a',
+        identity: { instanceId: 'uat', userId: 'user_a', instanceRole: 'user' },
+        organization: {
+          organizationId: 'org_a',
+          name: 'Cloud team',
+          description: '',
+          version: 1,
+          role: 'member',
         },
-      },
-    ];
-    directoryState.workspaces = [
-      ...directoryState.rows.map((r) => ({ ...r, server: config.server })),
-      {
-        ...directoryState.rows[0]!,
-        server: config.server,
-        organizationId: 'empty',
-        organizationName: 'Empty workspace',
-      },
-    ];
-    directoryState.workspaces.push({
-      ...directoryState.workspaces[0]!,
-      organizationId: 'same-name-empty',
-    });
-    roster.arrangement = {
-      pins: ['dm-ada'],
-      hidden: [],
-      sectionOrder: ['work'],
-      sections: [{ id: 'work', name: 'Work', channelIds: ['launch-team'] }],
-    };
-    const view = await home();
-    expect(view.querySelector('[data-testid="conversation-row-bot:ada"]')).not.toBeNull();
-    expect(view.querySelector('[data-testid="chat-section-work"]')).not.toBeNull();
-    expect(view.querySelector('[role="tab"]')).toBeNull();
-    expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
-    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
-    expect(rows(view).join(' ')).not.toContain('Cloud general');
-    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('Cloud team');
-    await act(async () => conversationFilter.set('all'));
-    expect(view.textContent).toContain('Cloud general');
-    expect(view.textContent).toContain('Ada');
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>(
-          `button[aria-label="Cloud general, ${t.cloudChannels.cloudChannel}"]`,
-        )!
-        .click(),
-    );
-    expect(push).toHaveBeenLastCalledWith({
-      pathname: '/cloud-channels',
-      params: {
-        instanceId: 'uat',
-        organizationId: 'org_a',
-        channelId: 'ch_' + 'a'.repeat(64),
-        guest: 'false',
-        accountScope: scope,
-      },
-    });
-    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
-    expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('studio');
-    expect(rows(view).join(' ')).not.toContain('Cloud general');
-    expect(view.textContent).toContain('Ada');
-    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
-    expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
-    expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
-    expect(rows(view).join(' ')).not.toContain('Ada, Done');
-    expect(rows(view).join(' ')).toContain('Cloud general');
-    hostState.connecting = true;
-    await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'empty')));
-    expect(view.textContent).toContain(t.cloudChannels.empty);
-  });
+      };
+      const scope = cloudViewScope(cloudRow);
+      cloudState.rows = [cloudRow];
+      directoryState.rows = [
+        {
+          key: 'cloud-one',
+          scope,
+          instanceId: 'uat',
+          organizationId: 'org_a',
+          organizationName: 'Cloud team',
+          guest: false,
+          channel: {
+            channelId: 'ch_' + 'a'.repeat(64),
+            name: 'Cloud general',
+            creatorId: 'user_a',
+            creatorType: 'human',
+            createdAt: '2026-10-18T00:00:00Z',
+          },
+        },
+      ];
+      directoryState.workspaces = [
+        ...directoryState.rows.map((r) => ({ ...r, server: config.server })),
+        {
+          ...directoryState.rows[0]!,
+          server: config.server,
+          organizationId: 'empty',
+          organizationName: 'Empty workspace',
+        },
+      ];
+      directoryState.workspaces.push({
+        ...directoryState.workspaces[0]!,
+        organizationId: 'same-name-empty',
+      });
+      roster.arrangement = {
+        pins: ['dm-ada'],
+        hidden: [],
+        sectionOrder: ['work'],
+        sections: [{ id: 'work', name: 'Work', channelIds: ['launch-team'] }],
+      };
+      let finishIdentity: (() => void) | undefined;
+      if (reset !== 'none') {
+        cloudRow.identity = undefined;
+        whoami.mockImplementation(
+          () =>
+            new Promise<void>((resolve) => {
+              finishIdentity = resolve;
+            }),
+        );
+      }
+      const view = await home();
+      expect(view.querySelector('[data-testid="conversation-row-bot:ada"]')).not.toBeNull();
+      expect(view.querySelector('[data-testid="chat-section-work"]')).not.toBeNull();
+      expect(view.querySelector('[role="tab"]')).toBeNull();
+      expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
+      await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
+      expect(rows(view).join(' ')).not.toContain('Cloud general');
+      expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe(
+        'Cloud team',
+      );
+      await act(async () => conversationFilter.set('all'));
+      expect(view.textContent).toContain('Cloud general');
+      expect(view.textContent).toContain('Ada');
+      await act(async () =>
+        view
+          .querySelector<HTMLButtonElement>(
+            `button[aria-label="Cloud general, ${t.cloudChannels.cloudChannel}"]`,
+          )!
+          .click(),
+      );
+      if (reset !== 'none') {
+        expect(whoami).toHaveBeenCalledOnce();
+        const state = channelHistory.state;
+        if (reset === 'workspace-intent') {
+          hostDrawer.beginWorkspaceSelection();
+          expect(channelHistory.state).toBe(state);
+        } else {
+          channelHistory.navigation.dispatch({
+            type: 'RESET',
+            payload: {
+              ...state,
+              index: 0,
+              routes: [{ key: 'replacement-tabs', name: '(tabs)' }],
+            },
+          });
+        }
+        const replacement = channelHistory.state;
+        await act(async () => finishIdentity?.());
+        expect(channelHistory.state).toBe(replacement);
+        if (reset === 'workspace-intent') expect(channelHistory.state).toBe(state);
+        expect(channelHistory.state.routes.map((r) => r.name)).toEqual(['(tabs)']);
+      } else {
+        expect(channelHistory.state.routes.at(-1)).toMatchObject({
+          name: 'cloud-channels',
+          params: {
+            instanceId: 'uat',
+            organizationId: 'org_a',
+            channelId: 'ch_' + 'a'.repeat(64),
+            guest: 'false',
+            accountScope: scope,
+          },
+        });
+      }
+      await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+      expect(view.querySelector('[data-testid="chats-view-button"]')?.textContent).toBe('studio');
+      expect(rows(view).join(' ')).not.toContain('Cloud general');
+      expect(view.textContent).toContain('Ada');
+      await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
+      expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
+      expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
+      expect(rows(view).join(' ')).not.toContain('Ada, Done');
+      expect(rows(view).join(' ')).toContain('Cloud general');
+      hostState.connecting = true;
+      await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'empty')));
+      expect(view.textContent).toContain(t.cloudChannels.empty);
+    },
+  );
 
   it('falls back to All when its selected Host is no longer available', async () => {
     const view = await home();

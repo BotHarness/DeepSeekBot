@@ -1314,6 +1314,10 @@ Under ADR-0245, `scroll-motion` travels through the existing Local Computer vide
 
 后台 Subagent 的原生回报在 prompt assembly 前进入现有 BotRuntime 队列，以实际 Adapter 工具上下文就绪为准恢复父 Agent；与普通用户输入竞争时共用已准备的回合，清理间隙则等待。新回合不继承上一条用户消息的 Source Event 或 Channel，消息仍由模型按需显式发送。CLI direct 调用单独标记，停止与追加只选择真实 Orchestrator 回合（ADR-0252）。
 
+### Mobile Cloud Channel route ownership
+
+Cloud Channel list and detail locations use the existing Expo root Stack, with `channelId` in the compatible `/cloud-channels` route as the location authority. `apps/mobile/src/ui/shell/cloud-channel-navigation.ts` scopes route identity by instance, account, Organization, guest access and Channel, unwinds repeated targets, and supplies a missing list parent for direct entry. The screen's Channel value is loaded content only. Existing Cloud admission, message-cache refusal handling and source drafts remain unchanged owners; returning to a list revalidates its content. See [ADR-0229](../adr/0229-mobile-cloud-sessions-are-independent-of-host-pairing.md) and [#2801](https://github.com/BotHarness/DeepSeekBot/issues/2801).
+
 ### Mobile explicit workspace transitions
 
 `apps/mobile/src/ui/shell/workspace-navigation.ts` applies explicit workspace selection to the existing Expo root stack, preserving its tab route identity and root pages while removing old details and presentations. `native-workspace-navigation.ts` binds that adapter to the root lifetime and subscribes to existing Host/Cloud authorities to remove invalid scoped routes on pairing/account replacement. Ordinary Channel/notification entry does not trigger a reset. Drawer Host, All and Cloud selection share cancellation ownership; cache and draft stores retain their existing lifetimes. See the [ADR-0211 amendment](../adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md), [#2800](https://github.com/BotHarness/DeepSeekBot/issues/2800), and the independent wider [#2186 acceptance matrix](https://github.com/BotHarness/DeepSeekBot/issues/2186).

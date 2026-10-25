@@ -57,3 +57,9 @@ The display scope also includes the stored session's user ID. This is a local ca
 The device-local conversation filter is shared with Activity as a browsing scope, not a Host switch or new grant. Chats alone owns its selector. The stable strip lists All, the active Computer, then enrolled sources' member/guest Organizations in directory order, including empty member Organizations. Account/configuration-qualified keys prevent colliding Organization IDs or names from sharing a page. The existing native pager used by Activity supplies gesture navigation; no native dependency or alternate navigation lifecycle is introduced.
 
 Activity preserves its category pager. Unsupported Cloud scope hides unrelated Computer data/actions and its badge; All explicitly discloses incomplete coverage. This does not supply Cloud attention contracts or concurrent multiple-Computer aggregation. Existing source-bound messages/drafts and explicit sends remain unchanged.
+
+## Amendment: Cloud Channel navigation state (2026-10-26)
+
+For #2791 / #2801, Cloud list and detail locations belong to the existing Expo root Stack. The compatible `/cloud-channels` URL uses a scoped `channelId` parameter to distinguish detail from list. Root route identity contains instance, account scope, Organization, guest access and Channel ID. Local Channel objects are content only and cannot change the current location.
+
+New list entries push a detail; matching scoped details unwind to the retained route. Direct detail links establish a reachable scoped list parent when absent. Parent synthesis verifies the active route's scope and cannot restore a route after an incompatible root reset. Native, header and in-page Back use the same navigation authority. The existing Cloud client owns admission and authorization; message caches and source drafts retain their keys and invalidation behavior. No Host identity or alternate Cloud session store is introduced.

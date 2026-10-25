@@ -1,5 +1,12 @@
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
-import { Redirect, Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
+import {
+  Redirect,
+  Stack,
+  useFocusEffect,
+  useIsFocused,
+  useRouter,
+  useNavigationContainerRef,
+} from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -16,6 +23,7 @@ import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
 import { cloudAvailable } from '../../../src/cloud/available';
 import { cloudConversations, useCloudConversations } from '../../../src/cloud/native-conversations';
 import { cloudViewScope } from '../../../src/cloud/workspace-directory';
+import { navigateCloudChannel } from '../../../src/ui/shell/cloud-channel-navigation';
 import { cloudError } from '../../../src/cloud/client';
 import type { CloudConversation } from '../../../src/cloud/conversations';
 import { ManagedConversationRow } from '../../../src/ui/chat/managed-conversation-row';
@@ -47,7 +55,7 @@ import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
-import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
+import { HostDrawerEdge, hostDrawer } from '../../../src/ui/shell/host-drawer';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
@@ -111,6 +119,7 @@ const HomeContent = memo(function HomeContent({
 }) {
   const t = useStrings();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
   useFocusEffect(
@@ -142,6 +151,18 @@ const HomeContent = memo(function HomeContent({
   const [filter, setFilter] = useConversationFilter();
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
+  const cloudIntent = useRef(0);
+  const cloudEntryFocused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      cloudEntryFocused.current = true;
+      setOpening(false);
+      return () => {
+        cloudEntryFocused.current = false;
+        cloudIntent.current += 1;
+      };
+    }, []),
+  );
   const [error, setError] = useState<string>();
   const [deleting, setDeleting] = useState<{ hostId: string; target: DeletionTarget }>();
   const [actionError, setActionError] = useState(false);
@@ -336,39 +357,47 @@ const HomeContent = memo(function HomeContent({
   };
   const openCloud = async (target: CloudConversation) => {
     if (opening || cloud.busy || directory.busy) return;
+    const intent = ++cloudIntent.current;
+    const origin = navigation.getRootState();
+    const workspaceCurrent = hostDrawer.captureWorkspaceSelection();
+    const isCurrent = () =>
+      workspaceCurrent() &&
+      cloudEntryFocused.current &&
+      cloudIntent.current === intent &&
+      navigation.getRootState() === origin;
     setOpening(true);
     setError(undefined);
     try {
+      if (!isCurrent()) return;
       let current = cloudClient
         .getSnapshot()
         .rows.find((r) => r.config.instanceId === target.instanceId);
       if (cloudViewScope(current) !== target.scope) throw Error('changed source');
       if (!current?.identity) await cloudClient.whoami(target.instanceId);
+      if (!isCurrent()) return;
       current = cloudClient
         .getSnapshot()
         .rows.find((r) => r.config.instanceId === target.instanceId);
       if (!target.guest && current?.organization?.organizationId !== target.organizationId)
         await cloudClient.useOrganization(target.instanceId, target.organizationId);
+      if (!isCurrent()) return;
       if (
         cloudViewScope(
           cloudClient.getSnapshot().rows.find((r) => r.config.instanceId === target.instanceId),
         ) !== target.scope
       )
         throw Error('changed source');
-      router.push({
-        pathname: '/cloud-channels',
-        params: {
-          instanceId: target.instanceId,
-          organizationId: target.organizationId,
-          channelId: target.channel.channelId,
-          guest: String(target.guest),
-          accountScope: target.scope,
-        },
+      navigateCloudChannel(navigation, {
+        instanceId: target.instanceId,
+        organizationId: target.organizationId,
+        channelId: target.channel.channelId,
+        guest: target.guest,
+        accountScope: target.scope,
       });
     } catch (e) {
-      setError(cloudError(e));
+      if (isCurrent()) setError(cloudError(e));
     } finally {
-      setOpening(false);
+      if (cloudEntryFocused.current && cloudIntent.current === intent) setOpening(false);
     }
   };
   const renderHostConversation = (conversation: Conversation, pinned: boolean) => (
