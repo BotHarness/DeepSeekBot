@@ -27,7 +27,7 @@ Date: 2026-10-26
 
 ## Ownership and lifecycle
 
-The accepted boundary decision is recorded in [ADR-0249](../adr/0249-message-feedback-separates-private-evidence-from-telemetry.md). It changes the local-only restriction of ADR-0185 only for deliberate Message Feedback; automatic Telemetry remains content-free.
+The accepted boundary decision is recorded in [ADR-0253](../adr/0253-message-feedback-separates-private-evidence-from-telemetry.md). It changes the local-only restriction of ADR-0185 only for deliberate Message Feedback; automatic Telemetry remains content-free.
 
 The application-defined Host diagnostics owner reads canonical Channel, Source Event, Bot Inbox Admission, Outbox and DSH Session Persistence facts under existing access checks. The preview and downloadable/submittable evidence share one frozen, redacted snapshot. This is a diagnostic copy, not a new conversation or execution authority. Existing history remains unchanged.
 
