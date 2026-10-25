@@ -76,7 +76,6 @@ import {
   CompanionsSection,
   DataPrivacySection,
   DevicesSection,
-  ConnectSection,
   GeneralSection,
   MessagingSection,
   ModelsSection,
@@ -971,19 +970,6 @@ export function apply(ctx: ClientContext): void {
           inject: () => ({}),
         },
         DevicesSection,
-      ),
-    );
-    settingsCtx.slots.inject('botharness.settings.section', () =>
-      settingsCtx.slots.register(
-        {
-          name: 'botharness.settings.section',
-          id: BOT_SETTINGS_SECTIONS.connect,
-          order: 46,
-          label: () => t('botSettings.section.connect'),
-          locale: LOCALE_NS,
-          inject: () => ({}),
-        },
-        ConnectSection,
       ),
     );
     settingsCtx.slots.inject('botharness.settings.section', () =>

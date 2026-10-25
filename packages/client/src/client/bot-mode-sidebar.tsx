@@ -7,6 +7,7 @@ import {
   isDarwinDesktop,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
+import { DeviceRequestsNotice } from './device-requests-notice.js';
 
 import type { BotModeSortMode } from '../bot-mode-settings.js';
 import type { BridgeActions } from './actions.js';
@@ -210,6 +211,12 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
         />
       </div>
       <div {...stylex.props(styles.list, styles.foot, collapsed && styles.listCollapsed)}>
+        <DeviceRequestsNotice
+          t={t}
+          trigger={(open) =>
+            row(t('connections.pending'), <InboxIcon size={wide ? 16 : 18} />, open, { dot: true })
+          }
+        />
         {row(
           t('panel.settings'),
           <IconSettingsOutlineRegular size={wide ? 16 : 18} />,

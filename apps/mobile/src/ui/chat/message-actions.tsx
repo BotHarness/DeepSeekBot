@@ -1,3 +1,4 @@
+import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
@@ -129,7 +130,9 @@ function ActionIcon({
   color: string;
   size: number;
 }) {
-  return action.key === 'open' ? (
+  return action.key === 'feedback' || action.key === 'select' ? (
+    <RowIcon name={action.key} color={color} size={size} />
+  ) : action.key === 'open' ? (
     <ChevronRightIcon color={color} size={size} />
   ) : action.key === 'copy' ? (
     <CopyIcon color={color} size={size} />
@@ -201,7 +204,7 @@ function MessageMenu({
     ? { ...anchor, x: space.x4, width: screen - space.x4 * 2, height: previewHeight }
     : anchor;
   const human = message.author === 'human';
-  const actions = messageMenuActions(message, target.activity);
+  const actions = messageMenuActions(message, target.activity, target.actions !== undefined);
   const reactions = menuReactions(target, readOnly);
   const sizes = menuSizes(theme, actions.length, reactions);
   const place = placeMenu({
@@ -325,7 +328,13 @@ function MessageMenu({
                   accessibilityRole="button"
                   accessibilityLabel={action.label}
                   onPress={() => {
-                    runAction(action, message, { onCopy, onShareText, onOpen });
+                    runAction(action, message, {
+                      onCopy,
+                      onShareText,
+                      onOpen,
+                      onFeedback: target.actions?.feedback,
+                      onSelect: target.actions?.select,
+                    });
                     onClose();
                   }}
                   style={({ pressed }) => ({

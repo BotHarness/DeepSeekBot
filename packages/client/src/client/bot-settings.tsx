@@ -20,7 +20,6 @@ export const BOT_SETTINGS_SECTIONS = {
   imApps: 'im-apps',
   companions: 'companions',
   devices: 'devices',
-  connect: 'connect',
   dataPrivacy: 'data-privacy',
   advanced: 'advanced',
   plugins: 'plugins',
@@ -42,7 +41,6 @@ const SECTION_ICONS: Readonly<Record<string, string>> = {
   browser: 'globe',
   [BOT_SETTINGS_SECTIONS.companions]: 'bot',
   [BOT_SETTINGS_SECTIONS.devices]: 'smartphone',
-  [BOT_SETTINGS_SECTIONS.connect]: 'external-link',
   [BOT_SETTINGS_SECTIONS.dataPrivacy]: 'lock',
   [BOT_SETTINGS_SECTIONS.advanced]: 'sliders-horizontal',
   [BOT_SETTINGS_SECTIONS.plugins]: 'puzzle',
@@ -94,7 +92,10 @@ export class BotSettings {
   readonly open = (sectionId?: string, target?: string): void => {
     this.#set({
       open: true,
-      sectionId: sectionId ?? this.#snapshot.sectionId,
+      sectionId:
+        sectionId === 'connect'
+          ? BOT_SETTINGS_SECTIONS.devices
+          : (sectionId ?? this.#snapshot.sectionId),
       target: this.#target(target),
     });
   };

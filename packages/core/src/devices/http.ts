@@ -115,6 +115,8 @@ export function createDevicesHttp(options: {
   const { pairing, connect, account } = options;
   return async (request) => {
     const path = new URL(request.url).pathname;
+    if (request.method === 'GET' && path === `${DEVICES_PATH}/requests`)
+      return json({ pendingKeys: pairing.pendingKeys() });
     if (request.method === 'GET' && path === DEVICES_PATH) {
       const snapshot: DevicesSnapshot = {
         ...(options.lan ? { lan: options.lan.status() } : {}),

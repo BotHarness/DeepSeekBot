@@ -7,6 +7,11 @@ let profileHistory = channelNavigationHarness();
 import type { RosterBot, RosterChannel } from '../src/host/client';
 import type { ConversationSnapshot } from '../src/host/conversation';
 
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
+vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 
 const state = vi.hoisted(() => ({

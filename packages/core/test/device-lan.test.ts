@@ -69,129 +69,170 @@ it('opens only after opt-in, never serves operator HTTP, persists its port and r
   }
 });
 
-it('pairs a scanned LAN offer with exact key approval, encrypts a phone request, then enforces revocation', async () => {
-  const owner = trackTestOwner(
-    mountOperationalDatabase({
-      dshHome: createTempRoot('lan-pair-'),
-      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
-    }),
-  );
-  const pairing = createDevicePairing({
-    database: attachOperationalModule(owner, 'device-pairing'),
-    hostName: 'LAN Host',
-  });
-  const key = randomBytes(32);
-  const upstream = createServer((req, res) => {
-    expect(req.url).toBe('/botharness-device/api/botharness/list');
-    expect(pairing.admit(req.headers.authorization).ok).toBe(true);
-    res.end('private-host-feed');
-  });
-  await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+it.each([undefined, 'http://127.0.0.1:4100', 'https://desktop.example.ts.net', 'dsh-app://app'])(
+  'pairs a LAN offer from %s with exact key approval, encrypted Feed and revocation',
+  async (origin) => {
+    const owner = trackTestOwner(
+      mountOperationalDatabase({
+        dshHome: createTempRoot('lan-pair-'),
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
+    );
+    const pairing = createDevicePairing({
+      database: attachOperationalModule(owner, 'device-pairing'),
+      hostName: 'LAN Host',
+    });
+    const key = randomBytes(32);
+    const upstream = createServer((req, res) => {
+      expect(req.url).toBe('/botharness-device/api/botharness/list');
+      expect(pairing.admit(req.headers.authorization).ok).toBe(true);
+      res.end('private-host-feed');
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, '127.0.0.1', resolve));
+    const lan = createDeviceLan({
+      read: async () => undefined,
+      write: async () => {},
+      addresses: () => ['192.168.1.21', '192.168.1.20'],
+      gateway: () =>
+        createEncryptedGateway({
+          pairing,
+          key: async () => Uint8Array.from(key),
+          port: () => (upstream.address() as AddressInfo).port,
+          route: 'lan',
+        }),
+    });
+    const http = createDevicesHttp({
+      pairing,
+      lan,
+      encryption: async () => ({
+        protocol: 'connect-noise-xk-v1',
+        noise: 'Noise_XK_25519_ChaChaPoly_SHA256',
+        required: true,
+        publicKey: Buffer.from(noisePublicKey(key)).toString('hex'),
+        fingerprint: 'test',
+        state: 'disconnected',
+      }),
+      routes: async () => ({ routes: lan.routes(), tailscale: 'missing', serveCommand: '' }),
+    });
+    const wire: string[] = [];
+    let saved: SavedHost | undefined;
+    let carrier: HostCarrier | undefined;
+    const post = (path: string, body: object) =>
+      http(
+        new Request(`http://localhost/api/botharness/devices/${path}`, {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }),
+      );
+    try {
+      expect((await post('lan', { action: 'enable' })).status).toBe(400);
+      expect(lan.status().state).toBe('off');
+      expect((await post('lan', { action: 'enable', confirm: true })).status).toBe(200);
+      const raw: HostCarrier = {
+        request: async () => {
+          throw new Error('plaintext forbidden');
+        },
+        openSocket: (url, events, headers) => {
+          expect(headers).toBeUndefined();
+          if (url.startsWith('ws://192.168.1.21:')) {
+            queueMicrotask(() => events.closed('channel-send-failed'));
+            return { send: () => {}, close: () => {} };
+          }
+          const ws = new WebSocket(
+            `ws://127.0.0.1:${lan.status().port}/botharness-device/channel`,
+            origin ? { origin } : {},
+          );
+          ws.on('open', events.open);
+          ws.on('message', (data) => {
+            wire.push(data.toString());
+            events.message(data.toString());
+          });
+          ws.on('close', () => events.closed('closed'));
+          ws.on('error', () => events.closed('error'));
+          return {
+            send: (text) => {
+              wire.push(text);
+              ws.send(text);
+            },
+            close: () => ws.terminate(),
+          };
+        },
+      };
+      const offer = await (await post('offer', {})).json();
+      expect(offer.reachable).toBe(true);
+      const result = await pairHost({
+        text: offer.link,
+        method: 'qr',
+        deviceName: 'Test phone',
+        carrier: raw,
+        telemetry: { pairing: () => ({ finish: () => {} }) },
+        onPending: () => {
+          const pending = pairing.pendingKeys()[0]!;
+          expect(pairing.approveKey(pending.receipt, 'ff'.repeat(32))).toBe(false);
+          expect(pairing.approveKey(pending.receipt, pending.publicKey)).toBe(true);
+        },
+        save: async (host) => {
+          saved = host;
+        },
+      });
+      expect(result).toEqual({ ok: true });
+      expect(saved?.routes[0]).toContain('192.168.1.20');
+      expect(saved?.encryption).toBeDefined();
+      carrier = encryptedCarrier({ raw, ...saved! });
+      const read = () =>
+        carrier!.request(`${saved!.routes[0]}/botharness-device/api/botharness/list`, {
+          method: 'POST',
+          body: 'private-phone-input',
+          signal: new AbortController().signal,
+        });
+      expect(await (await read()).text()).toBe('private-host-feed');
+      expect(wire.join('')).not.toContain('private-host-feed');
+      expect(wire.join('')).not.toContain('private-phone-input');
+      expect(wire.join('')).not.toContain(saved!.credential);
+      pairing.revoke(saved!.deviceId);
+      await expect(read()).rejects.toThrow();
+      await post('lan', { action: 'disable' });
+      expect(lan.status()).toEqual({ state: 'off' });
+    } finally {
+      carrier?.close?.();
+      await lan.close();
+      await new Promise<void>((resolve) => upstream.close(() => resolve()));
+    }
+  },
+);
+
+it('refuses unrelated browser origins and ambient credentials before the encrypted gateway', async () => {
+  const upgrade = vi.fn((_request, socket) => socket.destroy());
   const lan = createDeviceLan({
     read: async () => undefined,
     write: async () => {},
-    addresses: () => ['192.168.1.21', '192.168.1.20'],
-    gateway: () =>
-      createEncryptedGateway({
-        pairing,
-        key: async () => Uint8Array.from(key),
-        port: () => (upstream.address() as AddressInfo).port,
-        route: 'lan',
-      }),
+    gateway: () => ({ upgrade, close: () => {} }),
   });
-  const http = createDevicesHttp({
-    pairing,
-    lan,
-    encryption: async () => ({
-      protocol: 'connect-noise-xk-v1',
-      noise: 'Noise_XK_25519_ChaChaPoly_SHA256',
-      required: true,
-      publicKey: Buffer.from(noisePublicKey(key)).toString('hex'),
-      fingerprint: 'test',
-      state: 'disconnected',
-    }),
-    routes: async () => ({ routes: lan.routes(), tailscale: 'missing', serveCommand: '' }),
-  });
-  const wire: string[] = [];
-  let saved: SavedHost | undefined;
-  let carrier: HostCarrier | undefined;
-  const post = (path: string, body: object) =>
-    http(
-      new Request(`http://localhost/api/botharness/devices/${path}`, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      }),
-    );
   try {
-    expect((await post('lan', { action: 'enable' })).status).toBe(400);
-    expect(lan.status().state).toBe('off');
-    expect((await post('lan', { action: 'enable', confirm: true })).status).toBe(200);
-    const raw: HostCarrier = {
-      request: async () => {
-        throw new Error('plaintext forbidden');
-      },
-      openSocket: (url, events, headers) => {
-        expect(headers).toBeUndefined();
-        if (url.startsWith('ws://192.168.1.21:')) {
-          queueMicrotask(() => events.closed('channel-send-failed'));
-          return { send: () => {}, close: () => {} };
-        }
-        const ws = new WebSocket(`ws://127.0.0.1:${lan.status().port}/botharness-device/channel`);
-        ws.on('open', events.open);
-        ws.on('message', (data) => {
-          wire.push(data.toString());
-          events.message(data.toString());
+    await lan.enable();
+    for (const headers of [
+      { origin: 'https://unrelated.example' },
+      { origin: 'null' },
+      { origin: 'dsh-app://other' },
+      { origin: 'http://127.0.0.1:4100/path' },
+      { origin: 'http://127.0.0.1:4100', cookie: 'operator=test' },
+      { origin: 'http://127.0.0.1:4100', authorization: 'Bearer test' },
+    ]) {
+      await new Promise<void>((resolve, reject) => {
+        const socket = new WebSocket(
+          `ws://127.0.0.1:${lan.status().port}/botharness-device/channel`,
+          { headers },
+        );
+        socket.once('error', () => resolve());
+        socket.once('open', () => {
+          socket.close();
+          reject(new Error('Forbidden upgrade accepted'));
         });
-        ws.on('close', () => events.closed('closed'));
-        ws.on('error', () => events.closed('error'));
-        return {
-          send: (text) => {
-            wire.push(text);
-            ws.send(text);
-          },
-          close: () => ws.terminate(),
-        };
-      },
-    };
-    const offer = await (await post('offer', {})).json();
-    expect(offer.reachable).toBe(true);
-    const result = await pairHost({
-      text: offer.link,
-      method: 'qr',
-      deviceName: 'Test phone',
-      carrier: raw,
-      telemetry: { pairing: () => ({ finish: () => {} }) },
-      onPending: () => {
-        const pending = pairing.pendingKeys()[0]!;
-        expect(pairing.approveKey(pending.receipt, 'ff'.repeat(32))).toBe(false);
-        expect(pairing.approveKey(pending.receipt, pending.publicKey)).toBe(true);
-      },
-      save: async (host) => {
-        saved = host;
-      },
-    });
-    expect(result).toEqual({ ok: true });
-    expect(saved?.routes[0]).toContain('192.168.1.20');
-    expect(saved?.encryption).toBeDefined();
-    carrier = encryptedCarrier({ raw, ...saved! });
-    const read = () =>
-      carrier!.request(`${saved!.routes[0]}/botharness-device/api/botharness/list`, {
-        method: 'POST',
-        body: 'private-phone-input',
-        signal: new AbortController().signal,
       });
-    expect(await (await read()).text()).toBe('private-host-feed');
-    expect(wire.join('')).not.toContain('private-host-feed');
-    expect(wire.join('')).not.toContain('private-phone-input');
-    expect(wire.join('')).not.toContain(saved!.credential);
-    pairing.revoke(saved!.deviceId);
-    await expect(read()).rejects.toThrow();
-    await post('lan', { action: 'disable' });
-    expect(lan.status()).toEqual({ state: 'off' });
+    }
+    expect(upgrade).not.toHaveBeenCalled();
   } finally {
-    carrier?.close?.();
     await lan.close();
-    await new Promise<void>((resolve) => upstream.close(() => resolve()));
   }
 });
 

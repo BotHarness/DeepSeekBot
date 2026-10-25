@@ -675,6 +675,7 @@ Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤�
 
 ```bash
 deepseekbot devices
+deepseekbot device-requests
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
@@ -683,6 +684,22 @@ deepseekbot device-revoke <device-id> --confirm
 ```
 
 `devices` 返回 `{host, devices, routes}`：本 Host 的配对身份，每台已配对设备的 `id`、`name`、`pairedAt`、`lastSeenAt` 以及撤销后的 `revokedAt`，和 `phone-route` 相同的手机路由。设备凭据不会出现在列表里。`device-offer` 打开一个 10 分钟有效的一次性配对邀请，只把它的 `deepseekbot://pair?…` 链接写入 `--out`：一个以 0600 权限新建的文件（文件已存在时在打开邀请前以 `output-exists` 拒绝）；标准输出只有 `{receipt, expiresAt, routes, reachable, link: {path}}`。在手机上打开这个链接，或改用设备页里的二维码配对；没有 `--out` 时 `device-offer` 以 `out-required` 拒绝。回执能指代邀请，但不能用来兑换。`device-offer-status` 返回 `state`：`pending`（带 `expiresAt`）、`redeemed`（带新设备的 `deviceId`）、`expired`、`refused`（用错误的验证值兑换而作废）、`superseded`（同时打开了超过 16 个邀请）或 `unknown`；邀请只保存在 Host 内存中，Host 重启后所有回执都是 `unknown`。`device-revoke` 返回 `{revoked, closedStreams, device: {id, name}}`；该设备的下一个请求会以 `device-revoked` 被拒绝，已打开的连接立即关闭。拒绝码：`confirm-required`、`device-unknown`、`device-already-revoked`、`receipt-required` 和 `usage`。
+
+### 接入指定浏览器客户端
+
+保持目标浏览器打开。`connection-clients` 列出当前 Host 上已登记的 Client，必须明确选择目标 `id`。在远端 Host 用 `device-offer --out <私有文件>` 生成邀请，再安全传输文件到 CLI 所在电脑；链接不能进入命令参数、聊天或标准输出。
+
+```bash
+deepseekbot connection-clients
+deepseekbot connection start --client-id <id> --connection-id <attempt> --link-file /absolute/private-link
+deepseekbot connection status --client-id <id> --connection-id <attempt>
+deepseekbot connection confirm --client-id <id> --connection-id <attempt> --fingerprint '<完整 Host 指纹>' --confirm
+deepseekbot connection cancel --client-id <id> --connection-id <attempt>
+```
+
+`--link-file -` 从 stdin 读取。确认前独立核对完整 Host 指纹。状态到达 `approve-device` 后，在远端核对设备指纹，并用 `device-approve-key` 批准对应的准确 receipt/public key。继续查询直到 `connected`：只有 `saved: true` 不代表完成，目标 Client 必须实际读到 Host Feed；频道列表为空可以成功。凭据只保存在目标浏览器的 origin-local 存储，不会接入其他 Client。
+
+状态包括 `connecting`、`verify-host`、`approve-device`、`connected`、`failed` 和 `cancelled`，失败带有 `code`。同一操作 ID 和链接返回原操作状态，换链接则拒绝；每个挂载的 Client 控制会话最多保留 16 次操作。已接受操作最长等待五分钟；关闭或刷新页面、控制登记丢失都会取消未完成接入。过期命令不能启动操作。`saved: true` 后取消会保留已经保存的 Remote Host，需要时应明确移除。离线或失效目标直接拒绝，不回退到 CLI 或 Host 保存。该命令不授予 Tob 判断身份或批准设备的权限。
 
 ### 模型、用量与活动
 
@@ -1361,3 +1378,25 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` 在本机 Computer 所在的 macOS Host 上打开指定隐私设置页，不会自动授权。用户在系统设置里开启权限，必要时重启运行 DSH 的应用，再重新检查。`computer-status` 返回稳定的安装失败原因与各项缺失的 macOS 权限；技术细节保留在诊断信息中。
+### 消息反馈（#2811）
+
+单条消息反馈独立于匿名遥测。Host 生成冻结并脱敏的材料，默认选择锚点前后各 20 条消息，
+各侧可设为 0–100。`conversation`、`sessions`、`inbox`、`deliveries`、`relatedChats` 默认开启，
+`wholeSessions` 默认关闭。提交前检查 `files`、类别选择与 `summary.omissions`。
+即使关闭 `conversation`，执行记录仍可能包含重复的聊天文本。
+
+```bash
+printf '%s' '{"channelId":"<channel>","messageId":"<message>","before":20,"after":20}' | deepseekbot feedback-preview
+printf '%s' '{"token":"<preview-token>"}' | deepseekbot feedback-download --out evidence.zip
+printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-response"],"comment":"合成测试"}}' | deepseekbot feedback-submit --confirm
+```
+
+命令沿用在线 Host 鉴权，stdout 只输出一个 JSON。下载不覆盖已有文件。提交必须带 `--confirm`，
+评分为 `good` 或 `bad`，固定标签可选，评价最多 500 个 Unicode 字符。内容通过 stdin 或文件输入，
+不要放在命令参数中。预览令牌属于当前 Host 连接，30 分钟后失效，最多保留最近四份。
+`preview-stale` 需要重新预览。提交失败后材料与评分被冻结，重试原请求沿用同一反馈编号；
+修改内容时请主动刷新预览。成功返回 `reportId` 和 `expiresAt`。
+
+Host 通过 `BOTHARNESS_FEEDBACK_ENDPOINT` 显式启用提交，否则仍可预览和下载，提交返回
+`feedback-unavailable`。只接受 `https://feedback.botharness.ai/feedback` 与回环 HTTP `/feedback`，
+拒绝重定向。接收服务配置见[运维说明](message-feedback.md)。

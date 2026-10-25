@@ -17,6 +17,7 @@ import {
   BROWSER_NOTIFICATION_COMMANDS,
   runBrowserNotifications,
 } from './cli-browser-notifications.js';
+import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -27,6 +28,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { dmChannelId } from '../channels/channel.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
   channelOperationKey,
@@ -134,6 +136,8 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'connection-id': { type: 'string' },
+  fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
@@ -236,8 +240,10 @@ const CONTROL_COMMANDS = [
 
 export const LIVE_COMMANDS = [
   ...BROWSER_NOTIFICATION_COMMANDS,
+  ...CONNECTION_COMMANDS,
   ...HOST_LOOK_COMMANDS,
   ...DEVICE_NOTIFICATION_COMMANDS,
+  ...FEEDBACK_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -442,6 +448,8 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'connection-id'?: string;
+  fingerprint?: string;
   'remote-host-id'?: string;
   'host-id'?: string;
   'preferences-stdin'?: boolean;
@@ -762,6 +770,22 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (CONNECTION_COMMANDS.some((entry) => entry.command === command))
+    return runConnectionCommand(
+      command,
+      rest,
+      {
+        ...(values['client-id'] === undefined ? {} : { 'client-id': values['client-id'] }),
+        ...(values['connection-id'] === undefined
+          ? {}
+          : { 'connection-id': values['connection-id'] }),
+        ...(values['link-file'] === undefined ? {} : { 'link-file': values['link-file'] }),
+        ...(values.fingerprint === undefined ? {} : { fingerprint: values.fingerprint }),
+        ...(values.confirm === undefined ? {} : { confirm: values.confirm }),
+      },
+      io,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (command === 'host-look') {
     const duration = timeoutMs(values.timeout);
     const expiresAt = Date.now() + duration;
@@ -772,6 +796,10 @@ export async function runLiveCli(
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (FEEDBACK_COMMANDS.some((entry) => entry.command === command))
+    return runFeedbackCommand(command, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (IM_COMMANDS.some((entry) => entry.command === command)) {

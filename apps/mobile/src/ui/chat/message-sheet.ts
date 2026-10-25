@@ -10,9 +10,13 @@ export type MessageMenuTarget = {
   anchor: Rect;
   group: BubbleGroup;
   activity?: ActivityMenuLink;
+  actions?: { feedback(): void; select(): void };
 };
 
-export type MessageMenuAction = { key: 'copy' | 'share' | 'open'; label: string };
+export type MessageMenuAction = {
+  key: 'copy' | 'share' | 'open' | 'feedback' | 'select';
+  label: string;
+};
 
 export type MessageActionsProps = {
   target: MessageMenuTarget | undefined;
@@ -26,14 +30,23 @@ export type MessageActionsProps = {
 export function messageMenuActions(
   message: ConversationMessage,
   activity?: ActivityMenuLink,
+  reporting = false,
 ): MessageMenuAction[] {
-  if (message.body.trim() === '') return [];
+  const extra: MessageMenuAction[] =
+    reporting && message.delivery === 'committed'
+      ? [
+          { key: 'feedback', label: t.feedback.title },
+          { key: 'select', label: t.feedback.select },
+        ]
+      : [];
+  if (message.body.trim() === '') return extra;
   return [
     ...(activity?.onOpen === undefined || activity.label === undefined
       ? []
       : [{ key: 'open' as const, label: activity.label }]),
     { key: 'copy', label: t.copy },
     { key: 'share', label: t.shareText },
+    ...extra,
   ];
 }
 
@@ -79,9 +92,17 @@ export function dismissQueue(os: string) {
 export function runAction(
   action: MessageMenuAction,
   message: ConversationMessage,
-  handlers: { onCopy(text: string): void; onShareText(text: string): void; onOpen(): void },
+  handlers: {
+    onCopy(text: string): void;
+    onShareText(text: string): void;
+    onOpen(): void;
+    onFeedback?: (() => void) | undefined;
+    onSelect?: (() => void) | undefined;
+  },
 ): void {
   if (action.key === 'open') handlers.onOpen();
   else if (action.key === 'copy') handlers.onCopy(message.body);
+  else if (action.key === 'feedback') handlers.onFeedback?.();
+  else if (action.key === 'select') handlers.onSelect?.();
   else handlers.onShareText(message.body);
 }
