@@ -39,3 +39,26 @@ After Expo prebuild, run the Android unit tests from the repository root:
 pnpm --filter @botharness/mobile exec expo prebuild --platform android --no-install
 bash apps/mobile/android/gradlew -p apps/mobile/android :hardware-send:testDebugUnitTest
 ```
+
+## iOS composition regression target
+
+`ios/Tests/HardwareSendViewTests.swift` drives a real `UITextView` in a window,
+then dispatches the view's `UIKeyCommand` and observes Expo's `onSend` event.
+It includes an ordinary-send positive control, marked text with a cached command,
+and a cached command after focus leaves the composer. These tests are prepared
+for the reserved Mac QA batch; their Swift compilation and execution remain
+unverified. The iOS production implementation has not yet changed.
+
+The normal app excludes `Tests/**/*`. Only the task-specific, non-public
+`BOTHARNESS_HARDWARE_SEND_IOS_TESTS=1` environment flag enables the local config
+plugin. During CNG it declares the `HardwareSend/Tests` test specification before
+Expo autolinking, without changing app identity, signing or permissions. The
+plugin's configuration-to-Podfile boundary is covered by
+`apps/mobile/test/hardware-send-plugin.test.ts`.
+
+In an assigned Mac QA window, the runner sets that flag for iOS prebuild, installs
+the generated Podfile, then enumerates the actual generated Xcode schemes and
+checks the test target and Debug testability before running XCTest. Do not edit
+the generated Podfile or guess a scheme name. Record the exact commit, generated
+scheme, destination and pass/fail results, including the ordinary-send control.
+A source or configuration check is not an iOS keyboard result.
