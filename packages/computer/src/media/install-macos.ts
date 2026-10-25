@@ -1,6 +1,18 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import {
+import { createReadStream as nodeCreateReadStream } from 'node:fs';
+import { createRequire } from 'node:module';
+import * as nodePromises from 'node:fs/promises';
+
+import { homedir } from 'node:os';
+import { dirname, join, resolve, sep } from 'node:path';
+import type { ComputerProgress, ComputerRuntimeRunner } from '../provider.js';
+import { LocalVideoError } from '../local-video-contract.js';
+
+const physicalFs: typeof import('node:fs') | undefined = process.versions.electron
+  ? createRequire(import.meta.url)('original-fs')
+  : undefined;
+const createReadStream = physicalFs?.createReadStream ?? nodeCreateReadStream;
+const {
   lstat,
   mkdir,
   mkdtemp,
@@ -12,11 +24,7 @@ import {
   rename,
   rm,
   writeFile,
-} from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
-import type { ComputerProgress, ComputerRuntimeRunner } from '../provider.js';
-import { LocalVideoError } from '../local-video-contract.js';
+} = physicalFs?.promises ?? nodePromises;
 
 const VERSION = '44.9.3';
 const BUILDS = {
@@ -160,10 +168,12 @@ export async function ensureMacVideoHelper(options: {
       await file.close();
     }
     stage = 'verify';
+    options.onProgress?.({ text: 'video-verifying' });
     if (bytes !== build.bytes || hash.digest('hex') !== build.sha256)
       throw new Error('Runtime checksum mismatch');
     options.signal?.throwIfAborted();
     stage = 'extract';
+    options.onProgress?.({ text: 'video-extracting' });
     options.onEvent?.('phase=media-extract platform=darwin command=ditto timeoutMs=60000');
     const extracted = join(staging, 'runtime');
     await mkdir(extracted, { mode: 0o700 });
@@ -175,6 +185,7 @@ export async function ensureMacVideoHelper(options: {
     options.onEvent?.(`phase=media-extract-exit platform=darwin exitCode=${result.code}`);
     if (result.code !== 0) throw new Error('Runtime extraction failed');
     stage = 'verify';
+    options.onProgress?.({ text: 'video-verifying' });
     const files = await inventory(await realpath(extracted));
     await writeFile(
       join(extracted, MANIFEST),
@@ -185,6 +196,7 @@ export async function ensureMacVideoHelper(options: {
       throw new Error('Runtime verification failed');
     options.signal?.throwIfAborted();
     stage = 'install';
+    options.onProgress?.({ text: 'video-installing' });
     try {
       await lstat(directory);
       previous = `${directory}.invalid-${randomUUID()}`;

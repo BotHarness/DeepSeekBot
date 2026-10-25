@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 补充 Electron 桌面环境的 ASAR 文件系统行为，以及运行时复用所需的真实文件安装验证（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
 - 更新下游审批指南与验收路径，说明管理与设备操作的显式持久授权；DSH/Cordis Context 与 Skill 行为不变（[#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)）。
 
 - 补充 Profile 路径及参数检查、macOS/Linux 独立后台准备进程追踪，并明确 Windows 与环境继承的验证边界 ([#2713](https://github.com/BotHarness/DeepSeekBot/issues/2713)).
