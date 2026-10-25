@@ -3,6 +3,8 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'selection.copy': '复制',
+  'selection.screenshot': '截图',
   'remoteViewer.browser': '浏览器',
   'remoteViewer.computer': '电脑',
   'remoteViewer.live': '实时',
@@ -4297,6 +4299,8 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'selection.copy': 'Copy',
+  'selection.screenshot': 'Screenshot',
   'remoteViewer.browser': 'Browser',
   'remoteViewer.computer': 'Computer',
   'remoteViewer.live': 'Live',

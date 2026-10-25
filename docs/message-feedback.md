@@ -49,5 +49,17 @@ records are deselected. Review all expanded files before submitting. Redaction i
 Previews expire after 30 minutes and only four are held per connection. Refresh explicitly to collect
 newer facts; ordinary retry preserves the same frozen evidence and report ID.
 
-Desktop single-message feedback is the first delivery slice. Native mobile feedback and the agreed
-multi-selection/menu changes follow Human feedback on this path.
+Desktop and mobile offer feedback from one saved message. The mobile client uses its existing
+paired-device gateway and the same Host preview, download and submit owner; evidence never goes
+directly from the phone to the receiver. Mobile downloads use a temporary ZIP and the system share
+sheet, then remove the temporary file.
+
+Message multi-selection is separate: copy selected messages or preview/share a long image, then
+cancel. Selection is scoped to the current Host and Channel and clears on navigation. Mobile
+selection is bounded to 50 messages and image capture refuses content above 16,000 layout points.
+Desktop no longer offers diagnostic export or “Locate this message” in the message menu;
+clicking a quoted reply retains its jump behavior.
+
+Expo Web provides layout and implemented browser-interaction evidence. Native image capture,
+system share sheets, keyboard behavior and device accessibility remain separate iOS/Android
+checks. The added view-shot module requires an updated native development build.

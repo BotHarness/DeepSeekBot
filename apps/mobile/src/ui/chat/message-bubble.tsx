@@ -267,7 +267,9 @@ export const MessageBubble = memo(function MessageBubble({
       </View>
     );
   const copyable = message.body.trim() !== '';
-  const actionable = !streaming && (copyable || (onReact !== undefined && reactable(message)));
+  const actionable =
+    !streaming &&
+    (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
   const reactions = streaming ? [] : (message.reactions ?? []);
   const group = { first, last, avatar: speaker?.last === true };
   const bubble = (

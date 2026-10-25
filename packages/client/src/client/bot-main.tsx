@@ -44,7 +44,6 @@ import {
   IconChevronDownOutlineRegular,
   IconChecklistOutlineRegular,
   IconCopyOutlineRegular,
-  IconGoalOutlineRegular,
   IconNewChatOutlineRegular,
   IconPanelLeftOutlineRegular,
   IconUserOutlineRegular,
@@ -163,7 +162,6 @@ import {
   type ChannelSummary,
   type ClientState,
 } from './store.js';
-import { DiagnosticBundleDialog } from './diagnostic-bundle.js';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import {
   MessageSelectionBar,
@@ -878,7 +876,6 @@ function MessageGroupView({
 }
 
 function MessageActionMenu({
-  onLocate,
   onReply,
   onFeedback,
   onSelect,
@@ -887,7 +884,6 @@ function MessageActionMenu({
   onClose,
   t,
 }: {
-  onLocate(messageId: string): void;
   onReply(message: ChannelMessage): void;
   onFeedback?(message: ChannelMessage): void;
   onSelect?(message: ChannelMessage): void;
@@ -923,7 +919,6 @@ function MessageActionMenu({
           ...(onReact === undefined
             ? []
             : [{ id: 'react', label: t('message.react'), icon: <ReactionIcon /> }]),
-          { id: 'locate', label: t('message.locate'), icon: <IconGoalOutlineRegular /> },
           { id: 'copy', label: t('message.copy'), icon: <IconCopyOutlineRegular /> },
           ...(onSelect === undefined || !selectableMessage(request.message)
             ? []
@@ -941,7 +936,6 @@ function MessageActionMenu({
         onSelect={(id) => {
           if (id === 'reply') onReply(request.message);
           else if (id === 'react') onReact?.(request);
-          else if (id === 'locate') onLocate(request.message.id);
           else if (id === 'feedback') onFeedback?.(request.message);
           else if (id === 'copy') {
             void navigator.clipboard?.writeText(request.message.body);
@@ -1303,10 +1297,6 @@ function ConversationView({
   const [reactionMenu, setReactionMenu] = useScopedState<MessageMenuRequest | undefined>(scopeKey);
   const [feedbackMessage, setFeedbackMessage] = useScopedState<string | undefined>(scopeKey);
   const [avatarMenu, setAvatarMenu] = useScopedState<AvatarMenuRequest | undefined>(scopeKey);
-  const [diagnosticsTarget, setDiagnosticsTarget] = useScopedState<
-    | { channelId: string; fromMessageId: string; toMessageId?: string; messageIds: string[] }
-    | undefined
-  >(scopeKey);
   const [selectedMessages, setSelectedMessages] = useScopedState<
     { channelId: string; ids: readonly string[] } | undefined
   >(scopeKey);
@@ -3051,10 +3041,7 @@ function ConversationView({
               t={t}
               onCancel={cancelSelection}
               onExport={(kind) => {
-                if (kind === 'diagnostics') {
-                  const range = selectionRange(selectedIds, messages);
-                  if (range !== undefined) setDiagnosticsTarget({ channelId, ...range });
-                } else if (kind === 'conversation') {
+                if (kind === 'conversation') {
                   void copySelection(selectedIds);
                 } else void exportSelectionImage(selectedIds);
               }}
@@ -3257,9 +3244,6 @@ function ConversationView({
               {...(reactToMessage === undefined || !reactableMessage(messageMenu.message)
                 ? {}
                 : { onReact: setReactionMenu })}
-              onLocate={(messageId) => {
-                if (channelId !== undefined) void actions.openAround(channelId, messageId);
-              }}
               onReply={(message) => setReplyTarget(message)}
               onFeedback={(message) => setFeedbackMessage(message.id)}
               {...(messageSelection === undefined ? {} : { onSelect: messageSelection.begin })}
@@ -3307,14 +3291,6 @@ function ConversationView({
               messageId={feedbackMessage}
               t={t}
               onClose={() => setFeedbackMessage(undefined)}
-            />
-          )}
-          {diagnosticsTarget === undefined ? null : (
-            <DiagnosticBundleDialog
-              selection={diagnosticsTarget}
-              t={t}
-              onClose={() => setDiagnosticsTarget(undefined)}
-              onDownloaded={cancelSelection}
             />
           )}
         </>

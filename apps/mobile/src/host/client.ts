@@ -141,6 +141,7 @@ export interface HostClient {
 }
 
 export interface HostApiInit {
+  response?: 'bytes';
   body?: Record<string, unknown>;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -600,6 +601,11 @@ export function createHostClient(options: HostClientOptions): HostClient {
           headers: authorization,
           signal: controller.signal,
         });
+        if (init.response === 'bytes' && response.status < 400) {
+          if (response.bytes === undefined)
+            throw new Unreachable('The connection cannot download files.');
+          return { status: response.status, body: await response.bytes() };
+        }
         const text = await response.text();
         if (response.status === 401) {
           const code = refusalOf(text);

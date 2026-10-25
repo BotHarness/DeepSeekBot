@@ -1080,11 +1080,11 @@ Pages contain at most 50 items and 300 Unicode characters per snippet. Literal s
 
 每页最多 50 条、摘要最多 300 个 Unicode 字符，字面文本搜索至少需要三个 Unicode 字符。时间排序按时间／id 翻页，并固定首次读取的 Source Event rowid 上界；相关性排序以进程内、有界的 id 快照保留首次 FTS 次序，每次重新联接当前权威内容，移除已清除、已撤回或不再匹配的项。相关性游标十分钟或 Host 重启后失效，最多缓存 64 次搜索，每次最多 10,000 个匹配，超过时要求缩小筛选范围。快照不保存正文、不成为第二份记录或工作队列。新自我记录保存实际起因 id；旧记录缺少 id 时不推测起因。
 
-### Message Feedback（桌面首个交付切片）
+### Message Feedback
 
 [消息反馈设计](../proposals/message-feedback.md) 与 [ADR-0249](../adr/0249-message-feedback-separates-private-evidence-from-telemetry.md) 记录主动上报的目标边界。Human 从单条消息进入反馈，选择好／不好、可选分类和短评；Host 的 application-defined diagnostics owner 在现有权限下读取 Channel、Source Event、Bot Inbox Admission、Outbox 和 DSH Session Persistence，准备可查看、可取消类别的冻结脱敏快照。默认包含前后各 20 条消息、关联完整执行轮次与 Assignment／Subagent 记录；整个长寿命 Session 需要明确选择。下载和提交使用同一快照，不修改源事实，也不形成新的执行历史权威。
 
-Application-defined feedback service 拥有持久接收结果、幂等反馈编号、私有诊断包与删除生命周期。PostHog 只存评分、标签、版本和不含正文的索引概况；消息、执行内容和短评仅供授权维护者查看，30 天后删除，可按反馈编号申请提前删除。详情入口需鉴权，不暴露公开包链接。诊断包可靠保存后才返回提交成功，统计索引失败不要求 Human 再上传；匿名 Telemetry 关闭时仍可主动反馈且不会重新开启统计。多选只保留复制和截图，本地诊断下载移入反馈面板。桌面单消息反馈、CLI 与私有接收服务现已接线；接收地址需显式配置，正式服务尚未部署。当前关联通过 Source Event、输出来源、Assignment 与持久化执行输入解析；无法关联的执行材料明确列为缺失。接收服务首次尝试 PostHog 索引，失败记录诊断日志且不撤销回执。原生手机反馈与两端多选交互仍待桌面首个切片的 Human 反馈后推进，现有多选导出暂保留。
+Application-defined feedback service 拥有持久接收结果、幂等反馈编号、私有诊断包与删除生命周期。PostHog 只存评分、标签、版本和不含正文的索引概况；消息、执行内容和短评仅供授权维护者查看，30 天后删除，可按反馈编号申请提前删除。详情入口需鉴权，不暴露公开包链接。诊断包可靠保存后才返回提交成功，统计索引失败不要求 Human 再上传；匿名 Telemetry 关闭时仍可主动反馈且不会重新开启统计。多选只保留复制和截图，本地诊断下载移入反馈面板。桌面、手机单消息反馈、CLI 与私有接收服务现已接线；手机沿用已配对设备的 API Gateway 转发，读取同一个 Host diagnostics owner 的冻结材料。多选状态只在当前 Host／Channel 的 Client 中保留，切换时清空；复制与截图不生成诊断记录。接收地址需显式配置，正式服务尚未部署。当前关联通过 Source Event、输出来源、Assignment 与持久化执行输入解析；无法关联的执行材料明确列为缺失。接收服务首次尝试 PostHog 索引，失败记录诊断日志且不撤销回执。原生手机反馈与两端多选交互仍待桌面首个切片的 Human 反馈后推进，现有多选导出暂保留。
 
 ### AX Client 启动证据
 
