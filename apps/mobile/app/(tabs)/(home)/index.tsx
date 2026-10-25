@@ -51,7 +51,7 @@ import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
-import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
+import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 
 type Row =
@@ -237,13 +237,16 @@ const HomeContent = memo(function HomeContent({
           ...(conversation.at ? { at: conversation.at } : {}),
         }))
       : [];
-    const cloudRows: Row[] = directory.rows.map((conversation) => ({
-      key: conversation.key,
-      environment: cloudEnvironmentKey(conversation.scope, conversation.organizationId),
-      type: 'cloud',
-      conversation,
-      pinned: false,
-    }));
+    const scopes = new Set(cloud.rows.filter((row) => row.hasSession).map(cloudViewScope));
+    const cloudRows: Row[] = directory.rows
+      .filter((row) => scopes.has(row.scope))
+      .map((conversation) => ({
+        key: conversation.key,
+        environment: cloudEnvironmentKey(conversation.scope, conversation.organizationId),
+        type: 'cloud',
+        conversation,
+        pinned: false,
+      }));
     const needle = searchKey(query);
     const title = (r: Row) =>
       searchKey(
@@ -264,7 +267,7 @@ const HomeContent = memo(function HomeContent({
           (Date.parse(b.at ?? '') || 0) - (Date.parse(a.at ?? '') || 0) ||
           a.key.localeCompare(b.key),
       );
-  }, [snapshot.roster, list, directory.rows, saved, query, quiet]);
+  }, [snapshot.roster, list, directory.rows, cloud.rows, saved, query, quiet]);
   const displayed = useMemo((): ListRow[] => {
     const visible = (row: { environment: string }) =>
       effectiveFilter === 'all' || row.environment === effectiveFilter;
@@ -290,12 +293,21 @@ const HomeContent = memo(function HomeContent({
       : [];
     return [...grouped, ...rows.filter((row) => row.type === 'cloud')].filter(visible);
   }, [rows, effectiveFilter, query, saved, snapshot.roster, list, collapsed, quiet]);
-  if (saved === undefined || (!cloud.ready && !cloud.error))
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <LoadingIndicator />
-      </View>
-    );
+  const includesHost = Boolean(
+    saved && (effectiveFilter === 'all' || environment.kind === 'computer'),
+  );
+  const includesCloud = environment.kind !== 'computer';
+  const hostFailed =
+    includesHost &&
+    (snapshot.connection.status === 'unreachable' ||
+      snapshot.connection.status === 'refused' ||
+      snapshot.connection.status === 'stopped');
+  const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
+  const coldLoading =
+    (includesHost && !snapshot.roster && !hostFailed) ||
+    (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
+  if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
+    return <ListSkeleton />;
   if (saved === null && cloud.rows.length === 0)
     return cloudAvailable ? (
       <Redirect href="/cloud-join" />
@@ -430,10 +442,7 @@ const HomeContent = memo(function HomeContent({
           }
         >
           {(headerTravel) => (
-            <PullToRefresh
-              refreshing={refreshing || directory.busy}
-              onRefresh={() => void refresh()}
-            >
+            <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
               {(pull) => (
                 <Animated.FlatList<ListRow>
                   {...pull}
@@ -460,7 +469,8 @@ const HomeContent = memo(function HomeContent({
                         />
                       )}
                       {saved &&
-                      refreshFailedHost === saved.hostId &&
+                      (refreshFailedHost === saved.hostId ||
+                        (hostFailed && environment.kind === 'all')) &&
                       (environment.key === 'all' ||
                         environment.key === computerEnvironmentKey(saved.hostId)) ? (
                         <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
@@ -474,25 +484,27 @@ const HomeContent = memo(function HomeContent({
                           />
                         </View>
                       ) : null}
-                      {(directory.errors.length > 0 || cloud.error || error) && (
-                        <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                          {t.cloudListUnavailable}
-                          {error ? ` (${error})` : ''}
-                        </Text>
+                      {(cloudFailed || error) && (
+                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                          <Text tone="muted" accessibilityRole="alert">
+                            {t.cloudListUnavailable}
+                            {error ? ` (${error})` : ''}
+                          </Text>
+                          <Button
+                            testID="cloud-list-retry"
+                            label={t.retry}
+                            on="canvas"
+                            onPress={() => void refresh()}
+                            disabled={refreshing}
+                          />
+                        </View>
                       )}
                     </>
                   }
                   ListEmptyComponent={
-                    directory.busy ||
-                    (saved &&
-                      (environment.key === 'all' ||
-                        environment.key === computerEnvironmentKey(saved.hostId)) &&
-                      !snapshot.roster &&
-                      snapshot.connection.status === 'connecting') ? (
-                      <View style={{ padding: space.x6, alignItems: 'center' }}>
-                        <LoadingIndicator />
-                      </View>
-                    ) : (
+                    coldLoading ? (
+                      <ListSkeleton />
+                    ) : hostFailed || cloudFailed ? undefined : (
                       <Text tone="muted" style={{ padding: space.x6 }}>
                         {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
                       </Text>

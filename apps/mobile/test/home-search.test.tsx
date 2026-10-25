@@ -6,7 +6,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CloudRow } from '../src/cloud/client';
-import type { CloudConversation, ConversationWorkspace } from '../src/cloud/conversations';
+import {
+  createCloudConversations,
+  type CloudConversation,
+  type ConversationWorkspace,
+} from '../src/cloud/conversations';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
 import { cloudViewScope } from '../src/cloud/workspace-directory';
 import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/conversation-environments';
@@ -52,6 +56,7 @@ const {
     rows: [] as CloudRow[],
   },
   directoryState: {
+    live: undefined as ReturnType<typeof createCloudConversations> | undefined,
     busy: false,
     ready: true,
     rows: [] as CloudConversation[],
@@ -156,8 +161,15 @@ vi.mock('../src/cloud/native', () => ({
   cloudClient: { getSnapshot: () => cloudState },
 }));
 vi.mock('../src/cloud/native-conversations', () => ({
-  useCloudConversations: () => directoryState,
-  cloudConversations: { refresh: async () => {} },
+  useCloudConversations: () =>
+    directoryState.live
+      ? useSyncExternalStore(directoryState.live.subscribe, directoryState.live.getSnapshot)
+      : directoryState,
+  cloudConversations: {
+    refresh: async () => {
+      await directoryState.live?.refresh();
+    },
+  },
 }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
@@ -309,6 +321,10 @@ afterEach(() => {
   cloudState.error = undefined;
   directoryState.rows = [];
   directoryState.workspaces = [];
+  directoryState.live = undefined;
+  directoryState.busy = false;
+  directoryState.ready = true;
+  directoryState.errors = [];
 });
 
 async function home(): Promise<HTMLElement> {
@@ -372,6 +388,32 @@ const rows = (view: HTMLElement) =>
     )
     .map((node) => node.getAttribute('aria-label'));
 
+function cloudFixture(): CloudRow {
+  const config = publicInstance({
+    instanceId: 'uat',
+    environment: 'uat',
+    server: 'https://uat.example.test',
+    clientId: 'client_test',
+    issuer: 'https://api.workos.com/user_management/client_test',
+    authkitDomain: 'test-staging.authkit.app',
+    mobileRedirectUri: MOBILE_REDIRECT_URI,
+  });
+  const cloudRow: CloudRow = {
+    config,
+    hasSession: true,
+    sessionUserId: 'user_a',
+    identity: { instanceId: 'uat', userId: 'user_a', instanceRole: 'user' },
+    organization: {
+      organizationId: 'org_a',
+      name: 'Cloud team',
+      description: '',
+      version: 1,
+      role: 'member',
+    },
+  };
+  return cloudRow;
+}
+
 describe('Search in the Chats header', () => {
   it('keeps actual Host connection progress at the selected identity through recovery', async () => {
     const transport = new FakeHost();
@@ -401,6 +443,7 @@ describe('Search in the Chats header', () => {
     expect(client.getSnapshot().connection.status).toBe('connecting');
     const identity = () => view.querySelector('[data-testid="chats-view-button"]')!;
     expect(identity().getAttribute('aria-label')).toContain(t.connecting);
+    expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
     expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
     expect(view.querySelector('[role="alert"]')).toBeNull();
     await act(async () => {
@@ -422,29 +465,99 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).toContain('Ada');
     expect(view.textContent).toContain(t.cloudListUnavailable);
   });
-  it('opens a cloud row with its account and organization while leaving the paired Computer selected', async () => {
-    const config = publicInstance({
-      instanceId: 'uat',
-      environment: 'uat',
-      server: 'https://uat.example.test',
-      clientId: 'client_test',
-      issuer: 'https://api.workos.com/user_management/client_test',
-      authkitDomain: 'test-staging.authkit.app',
-      mobileRedirectUri: MOBILE_REDIRECT_URI,
+  it('shows cold skeleton, actionable failure, retry and empty through the cloud directory owner', async () => {
+    const source = cloudFixture();
+    cloudState.rows = [source];
+    hostState.removed = true;
+    let fail = true;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
     });
-    const cloudRow: CloudRow = {
-      config,
-      hasSession: true,
-      sessionUserId: 'user_a',
-      identity: { instanceId: 'uat', userId: 'user_a', instanceRole: 'user' },
-      organization: {
-        organizationId: 'org_a',
-        name: 'Cloud team',
-        description: '',
-        version: 1,
-        role: 'member',
+    const directory = createCloudConversations({
+      listOrganizations: async () => {
+        await held;
+        if (fail) throw new Error('offline');
+        return { organizations: [], nextCursor: null };
       },
-    };
+      listConversationChannels: async () => ({ channels: [], nextCursor: null }),
+    });
+    directory.enroll([source]);
+    directoryState.live = directory;
+    const view = await home();
+    expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    await act(async () => {
+      release();
+      await directory.refresh();
+    });
+    expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    expect(view.textContent).toContain(t.cloudListUnavailable);
+    fail = false;
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="cloud-list-retry"]')!.click(),
+    );
+    expect(view.textContent).not.toContain(t.cloudListUnavailable);
+    expect(view.textContent).toContain(t.cloudChannels.empty);
+  });
+  it('retains same-account rows during refresh failure and drops them when the directory enrolls a new account', async () => {
+    const source = cloudFixture();
+    cloudState.rows = [source];
+    hostState.removed = true;
+    let offline = false;
+    let gate: Promise<void> | undefined;
+    let release!: () => void;
+    const directory = createCloudConversations({
+      listOrganizations: async () => {
+        await gate;
+        if (offline) throw new Error('offline');
+        return { organizations: [source.organization!], nextCursor: null };
+      },
+      listConversationChannels: async (_instance, _org, _after, guest) => ({
+        channels: guest
+          ? []
+          : [
+              {
+                channelId: 'ch_' + 'a'.repeat(64),
+                name: 'Cached cloud',
+                creatorId: 'user_a',
+                creatorType: 'human',
+                createdAt: '2026-10-18T00:00:00Z',
+              },
+            ],
+        nextCursor: null,
+      }),
+    });
+    directory.enroll([source]);
+    await directory.refresh();
+    directoryState.live = directory;
+    const view = await home();
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = directory.refresh();
+    });
+    expect(view.textContent).toContain('Cached cloud');
+    expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
+    offline = true;
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(view.textContent).toContain('Cached cloud');
+    expect(view.textContent).toContain(t.cloudListUnavailable);
+    await act(async () => {
+      cloudState.rows = [{ ...source, sessionUserId: 'user_b', identity: undefined }];
+      directory.enroll(cloudState.rows);
+    });
+    expect(view.textContent).not.toContain('Cached cloud');
+  });
+  it('opens a cloud row with its account and organization while leaving the paired Computer selected', async () => {
+    const cloudRow = cloudFixture();
+    const config = cloudRow.config;
     const scope = cloudViewScope(cloudRow);
     cloudState.rows = [cloudRow];
     directoryState.rows = [
