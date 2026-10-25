@@ -3,6 +3,8 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientError, publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
+import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
+import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
 const state = vi.hoisted(() => ({
   initialChannelId: 'channel_a' as string | undefined,
   userId: 'user_a',
@@ -21,15 +23,18 @@ vi.mock('react-native-keyboard-controller', () => import('./keyboard-controller-
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (fn: () => void) => fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-router', async () => {
-  const { useEffect } = await import('react');
+  const { useEffect, useSyncExternalStore } = await import('react');
   return {
     router: { push: vi.fn() },
+    useNavigationContainerRef: () => navigation,
     useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
-    useLocalSearchParams: () => ({
-      instanceId: 'uat',
-      organizationId: 'org_a',
-      channelId: state.initialChannelId,
-    }),
+    useLocalSearchParams: () => {
+      const current = useSyncExternalStore((listener) => {
+        routeListeners.add(listener);
+        return () => routeListeners.delete(listener);
+      }, navigation.getRootState);
+      return current.routes[current.index]?.params ?? {};
+    },
   };
 });
 vi.mock('../src/host/native-source-drafts', async () => {
@@ -73,21 +78,76 @@ import { cloudViewScope } from '../src/cloud/workspace-directory';
 import { useCloudSnapshot } from '../src/cloud/native';
 import { CloudChannelsScreen } from '../src/ui/cloud/channels-screen';
 import { interfacePreferences } from '../src/ui/interface-preferences';
+const stack = StackRouter({ initialRouteName: '(tabs)' });
+const routeOptions = {
+  routeNames: ['(tabs)', 'cloud-channels'],
+  routeParamList: {},
+  routeGetIdList: {
+    'cloud-channels': ({ params }: { params?: object }) =>
+      cloudChannelRouteId('cloud-channels', { ...params }),
+  },
+};
+let routeState: Parameters<typeof stack.getStateForAction>[0] | undefined;
+const routeListeners = new Set<() => void>();
+const navigation = {
+  isReady: () => true,
+  getRootState: () =>
+    (routeState ??= {
+      stale: false,
+      type: 'stack',
+      key: 'root',
+      routeKeySeq: 0,
+      index: 1,
+      routeNames: routeOptions.routeNames,
+      routes: [
+        { name: '(tabs)', key: 'tabs' },
+        {
+          name: 'cloud-channels',
+          key: 'cloud',
+          params: {
+            instanceId: 'uat',
+            organizationId: 'org_a',
+            ...(state.initialChannelId ? { channelId: state.initialChannelId } : {}),
+          },
+        },
+      ],
+    }),
+  dispatch(action: Parameters<typeof stack.getStateForAction>[1]) {
+    const next = stack.getStateForAction(navigation.getRootState(), action, routeOptions);
+    if (typeof next === 'object') {
+      routeState = next.state;
+      for (const listener of routeListeners) listener();
+    }
+  },
+};
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+const mountedRoots: Array<ReturnType<typeof createRoot>> = [];
 const cached = {
   channel: { channelId: 'channel_a', name: 'Private channel' },
   messages: [{ sequence: 1, text: 'Cached private text', authorId: 'a', authorType: 'human' }],
   hasMore: false,
 };
 beforeEach(() => {
+  routeState = undefined;
   interfacePreferences.setLanguage('en');
   state.userId = 'user_a';
+  state.open
+    .mockReset()
+    .mockImplementation(async (_instance: string, _organization: string, channelId: string) => ({
+      channelId,
+      name: channelId === 'channel_b' ? 'B' : 'Private channel',
+    }));
+  state.read.mockReset().mockResolvedValue(null);
+  state.messages.mockReset().mockResolvedValue({ messages: [], nextCursor: 0, hasMore: false });
   state.list.mockReset().mockResolvedValue({
     channels: [{ channelId: 'channel_b', name: 'B' }],
     nextCursor: null,
   });
 });
 afterEach(() => {
+  act(() => {
+    for (const root of mountedRoots.splice(0)) root.unmount();
+  });
   interfacePreferences.setLanguage('system');
   state.initialChannelId = 'channel_a';
 });
@@ -102,6 +162,7 @@ describe('cloud channel cached access', () => {
       });
       const node = document.createElement('div');
       const root = createRoot(node);
+      mountedRoots.push(root);
       await act(async () => root.render(<CloudChannelsScreen />));
       const buttons = () => [...node.querySelectorAll('button')];
       expect(buttons().some((b) => b.textContent === 'Open channel: B')).toBe(true);
@@ -137,6 +198,7 @@ describe('cloud channel cached access', () => {
     });
     const node = document.createElement('div');
     const root = createRoot(node);
+    mountedRoots.push(root);
     await act(async () => root.render(<CloudChannelsScreen />));
     const button = (label: string) =>
       [...node.querySelectorAll('button')].find((b) => b.textContent === label);
@@ -164,6 +226,7 @@ describe('cloud channel cached access', () => {
       );
       const node = document.createElement('div');
       const root = createRoot(node);
+      mountedRoots.push(root);
       await act(async () => root.render(<CloudChannelsScreen />));
       expect(node.textContent).toContain('Cached private text');
       await act(async () => reject(new ClientError(code)));
@@ -183,6 +246,7 @@ describe('cloud channel cached access', () => {
     state.messages.mockRejectedValue(new ClientError('CHANNEL_ACCESS_DENIED'));
     const node = document.createElement('div');
     const root = createRoot(node);
+    mountedRoots.push(root);
     await act(async () => root.render(<CloudChannelsScreen />));
     const button = [...node.querySelectorAll('button')].find((entry) =>
       entry.textContent?.endsWith(': B'),
@@ -207,6 +271,7 @@ describe('cloud channel cached access', () => {
       state.open.mockRejectedValue(new ClientError(code));
       const node = document.createElement('div');
       const root = createRoot(node);
+      mountedRoots.push(root);
       await act(async () => root.render(<CloudChannelsScreen />));
       await act(async () => release(cached));
       expect(node.textContent).not.toContain('Cached private text');
@@ -219,6 +284,7 @@ it('removes the previous account channel rows while the replacement directory is
   state.initialChannelId = undefined;
   const node = document.createElement('div');
   const root = createRoot(node);
+  mountedRoots.push(root);
   await act(async () => root.render(<CloudChannelsScreen />));
   expect(node.textContent).toContain('Open channel: B');
   state.userId = 'user_b';
@@ -239,6 +305,7 @@ it('does not hydrate old account cached history after the account is replaced', 
   state.messages.mockResolvedValue({ messages: [], hasMore: false });
   const node = document.createElement('div');
   const root = createRoot(node);
+  mountedRoots.push(root);
   await act(async () => root.render(<CloudChannelsScreen />));
   state.userId = 'user_b';
   state.read.mockResolvedValueOnce(null);

@@ -1,7 +1,7 @@
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
-import { Stack, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -78,6 +78,7 @@ import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
+import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
 import { EdgeFade, HeaderBackButton, HeaderCircleButton, titleChipFill } from './header-chrome';
 import { FolderIcon } from '../shell/icons';
@@ -119,6 +120,7 @@ import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
+import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
@@ -154,14 +156,18 @@ export function ConversationScreen({
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const focused = useIsFocused();
   const roster = useHostSnapshot(client, focused).roster;
-  const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const identities = useMemo(
     () => ({
       bots: roster?.bots ?? [],
       openBot: (slug: string) =>
-        router.push({ pathname: '/dm/[slug]', params: { slug, hostId: saved?.hostId } }),
+        saved &&
+        navigateChannel(navigation, {
+          pathname: '/dm/[slug]',
+          params: { slug, hostId: saved.hostId },
+        }),
     }),
-    [roster?.bots, router, saved?.hostId],
+    [roster?.bots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -304,6 +310,7 @@ function ChatConversation({
   const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const headerPadding = useHeaderPadding();
   const { width: windowWidth } = useWindowDimensions();
@@ -356,7 +363,20 @@ function ChatConversation({
     place.kind,
     (place.kind === 'dm' ? place.slug : place.channelId) ?? '',
   );
-  const [draft, setDraft] = useSourceDraft(draftKey);
+  const [draft, setDraft, draftPersistence] = useSourceDraft(draftKey);
+  const [retryingDraft, setRetryingDraft] = useState(false);
+  const draftRetryPending = useRef(false);
+  const retryDraft = async () => {
+    if (draftRetryPending.current) return;
+    draftRetryPending.current = true;
+    setRetryingDraft(true);
+    try {
+      await draftPersistence.retry();
+    } finally {
+      draftRetryPending.current = false;
+      setRetryingDraft(false);
+    }
+  };
   const [mentions, setMentions] = useState<SelectedMention[]>([]);
   const [caret, setCaret] = useState(0);
   const [selection, setSelection] = useState<{ start: number; end: number }>();
@@ -553,11 +573,12 @@ function ChatConversation({
     [shownDrafts, chronological],
   );
 
+  const firstMessageId = snapshot.messages[0]?.id ?? '';
   const jump = useCallback(() => {
     if (!focused || focus === undefined || jumped.current === focus) return;
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
     if (index >= 0) {
-      if (list.current === null) return;
+      if (!list.current) return;
       jumped.current = focus;
       latest.hold();
       list.current.scrollToIndex({ index, viewPosition: 0.5, animated: true });
@@ -566,11 +587,11 @@ function ChatConversation({
       snapshot.status === 'live' &&
       snapshot.hasOlder &&
       !snapshot.loadingOlder &&
-      conversation !== undefined
+      conversation !== undefined &&
+      !snapshot.fromCache &&
+      focusPage.current !== firstMessageId
     ) {
-      const boundary = snapshot.messages[0]?.id ?? '';
-      if (focusPage.current === boundary) return;
-      focusPage.current = boundary;
+      focusPage.current = firstMessageId;
       void conversation.loadOlder();
     }
   }, [
@@ -583,7 +604,8 @@ function ChatConversation({
     snapshot.status,
     snapshot.hasOlder,
     snapshot.loadingOlder,
-    snapshot.messages,
+    snapshot.fromCache,
+    firstMessageId,
     conversation,
   ]);
 
@@ -632,6 +654,7 @@ function ChatConversation({
 
   const send = () => {
     if (host.connection.status !== 'connected') return;
+    if (!draftPersistence.loaded || draftPersistence.failed) return;
     const { body, tags } = submittedMessage(draft, mentions);
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
@@ -749,7 +772,21 @@ function ChatConversation({
                             : item.message.activity?.kind === 'bot-create'
                               ? t.activityRow.openBot
                               : t.activityRow.openChat,
-                        onOpen: () => router.push(target),
+                        onOpen: () => {
+                          if (target.pathname === '/dm/[slug]') {
+                            if (saved)
+                              navigateChannel(navigation, {
+                                ...target,
+                                params: { ...target.params, hostId: saved.hostId },
+                              });
+                          } else if (target.pathname === '/channel/[id]') {
+                            if (saved)
+                              navigateChannel(navigation, {
+                                ...target,
+                                params: { ...target.params, hostId: saved.hostId },
+                              });
+                          } else router.push(target);
+                        },
                       },
               })
             }
@@ -834,7 +871,12 @@ function ChatConversation({
     <ChatTitle
       bot={bot}
       fallback={slug ?? ''}
-      onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
+      onPress={() =>
+        router.push({
+          pathname: '/bot/[slug]',
+          params: { slug: bot?.slug ?? slug, hostId: saved?.hostId },
+        })
+      }
     />
   ) : botDm ? (
     <View
@@ -861,7 +903,10 @@ function ChatConversation({
       channel={channel}
       fallback={channelId ?? ''}
       onPress={() =>
-        router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
+        router.push({
+          pathname: '/group/[id]',
+          params: { id: channel?.id ?? channelId, hostId: saved?.hostId },
+        })
       }
     />
   );
@@ -900,20 +945,21 @@ function ChatConversation({
               ? t.attachFailed
               : shareError
                 ? t.shareFailed
-                : focus !== undefined &&
-                    !latestWindowOnly &&
-                    snapshot.status === 'live' &&
-                    !snapshot.hasOlder &&
-                    !rows.some((row) => row.kind === 'message' && row.message.id === focus)
-                  ? t.channelFiles.messageUnavailable
-                  : reactError
-                    ? t.reactFailed
-                    : dictation.state.status === 'denied'
-                      ? t.dictationDenied
-                      : dictation.state.status === 'unavailable'
-                        ? t.dictationUnavailable
-                        : dictation.state.status === 'failed'
-                          ? t.dictationFailed
+                : reactError
+                  ? t.reactFailed
+                  : dictation.state.status === 'denied'
+                    ? t.dictationDenied
+                    : dictation.state.status === 'unavailable'
+                      ? t.dictationUnavailable
+                      : dictation.state.status === 'failed'
+                        ? t.dictationFailed
+                        : focus !== undefined &&
+                            !latestWindowOnly &&
+                            snapshot.status === 'live' &&
+                            !snapshot.hasOlder &&
+                            !snapshot.loadingOlder &&
+                            !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                          ? t.messageFocusUnavailable
                           : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
@@ -1017,7 +1063,12 @@ function ChatConversation({
                     ? t.messageBot(`#${channel.name}`)
                     : t.messagePlaceholder
               }
-              disabled={conversation === undefined || host.connection.status !== 'connected'}
+              disabled={
+                conversation === undefined ||
+                host.connection.status !== 'connected' ||
+                !draftPersistence.loaded ||
+                draftPersistence.failed
+              }
               files={files}
               canAttach={files.length < MAX_PICKED}
               dictation={dictation.state.status}
@@ -1028,24 +1079,27 @@ function ChatConversation({
                 setSelection(undefined);
                 setCaret(next);
               }}
-              {...(candidates.length > 0
-                ? { above: <MentionSuggestions candidates={candidates} onChoose={mention} /> }
-                : clipboard.offered
-                  ? {
-                      above: (
-                        <ClipboardImageOffer
-                          onUnreadable={clipboard.used}
-                          onPaste={(data) => {
-                            clipboard.used();
-                            setAttachError(false);
-                            setFiles((current) =>
-                              [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                            );
-                          }}
-                        />
-                      ),
-                    }
-                  : {})}
+              above={
+                <>
+                  {draftPersistence.failed ? (
+                    <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
+                  ) : null}
+                  {candidates.length > 0 ? (
+                    <MentionSuggestions candidates={candidates} onChoose={mention} />
+                  ) : clipboard.offered ? (
+                    <ClipboardImageOffer
+                      onUnreadable={clipboard.used}
+                      onPaste={(data) => {
+                        clipboard.used();
+                        setAttachError(false);
+                        setFiles((current) =>
+                          [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                        );
+                      }}
+                    />
+                  ) : null}
+                </>
+              }
               onSend={send}
               onPick={pick}
               onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}

@@ -1,5 +1,4 @@
-import { Stack, useFocusEffect, useIsFocused, useRouter } from 'expo-router';
-import { randomUUID } from 'expo-crypto';
+import { Stack, useFocusEffect, useIsFocused, useNavigationContainerRef } from 'expo-router';
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
@@ -17,6 +16,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { FileIcon, PhotoIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
+import { navigateChannel } from '../shell/channel-navigation';
 import { useStrings } from '../strings';
 import { ImageViewer } from './image-viewer';
 import { fileSize } from './message-attachments';
@@ -33,7 +33,7 @@ export function ChannelFilesScreen(place: FilesPlace) {
 function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: HostClient }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const focused = useIsFocused();
   const host = useHostSnapshot(client, focused);
   const files = useMemo(() => createChannelFiles({ host: client, channelId }), [client, channelId]);
@@ -111,16 +111,17 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
       setSourceUnavailable(true);
       return;
     }
-    router.dismissTo(
+    const opened = navigateChannel(
+      navigation,
       conversationHref(
         botSlug === undefined
           ? { kind: 'channel', channel: { id: channelId } }
           : { kind: 'bot', bot: { slug: botSlug } },
         hostId,
         file.messageId,
-        randomUUID(),
       ),
     );
+    if (!opened) setSourceUnavailable(true);
   };
   const author = ({ author: sender }: ChannelFile) =>
     sender.kind === 'human'

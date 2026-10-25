@@ -1,6 +1,9 @@
-import type { Href, useRouter } from 'expo-router';
-
 import type { Conversation } from '../chat/conversations';
+import {
+  navigateChannel,
+  type ChannelDestination,
+  type ChannelNavigation,
+} from './channel-navigation';
 
 type ConversationTarget =
   | { kind: 'bot'; bot: { slug: string } }
@@ -8,10 +11,10 @@ type ConversationTarget =
 
 export function conversationHref(
   row: ConversationTarget,
-  hostId?: string,
+  hostId: string,
   focus?: string,
   focusRequest?: string,
-): Href {
+): ChannelDestination {
   const target =
     focus === undefined ? {} : { focus, ...(focusRequest === undefined ? {} : { focusRequest }) };
   return row.kind === 'bot'
@@ -20,9 +23,9 @@ export function conversationHref(
 }
 
 export function openConversation(
-  router: Pick<ReturnType<typeof useRouter>, 'push'>,
+  navigation: ChannelNavigation,
   row: Conversation,
   hostId?: string,
-): void {
-  router.push(conversationHref(row, hostId));
+): boolean {
+  return hostId !== undefined && navigateChannel(navigation, conversationHref(row, hostId));
 }
