@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { channelNavigationHarness } from './channel-navigation-harness';
+const channelHistory = channelNavigationHarness();
 import { expect, it, vi } from 'vitest';
 
 import { secure, remotes } from './host-session-fixture';
@@ -20,6 +22,7 @@ vi.mock('expo-router', () => {
     Stack,
     router: { push },
     useIsFocused: () => true,
+    useNavigationContainerRef: () => channelHistory.navigation,
     useFocusEffect: (work: () => void) => useLayoutEffect(work, [work]),
     useRouter: () => ({ push, prefetch: () => undefined }),
   };
@@ -173,10 +176,18 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
       node.textContent?.includes('Bot b'),
     );
     expect(row).toBeDefined();
+    channelHistory.push('dm/[slug]', { slug: 'same', hostId: 'a' });
+    const originalRoute = channelHistory.state.routes.at(-1)?.key;
     await act(async () => row?.click());
-    expect(push).toHaveBeenLastCalledWith({
-      pathname: '/dm/[slug]',
+    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+      name: 'dm/[slug]',
       params: { slug: 'same', hostId: 'b' },
+    });
+    expect(channelHistory.state.routes).toHaveLength(3);
+    channelHistory.back();
+    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+      key: originalRoute,
+      params: { slug: 'same', hostId: 'a' },
     });
     expect(hostSession.getState().saved?.hostId).toBe('a');
     const { t } = await import('../src/ui/strings');

@@ -122,7 +122,7 @@ describe('Host drawer', () => {
     drawer.open();
 
     await expect(drawer.select('laptop')).resolves.toBe(true);
-    expect(switchTo).toHaveBeenCalledWith('laptop');
+    expect(switchTo).toHaveBeenCalledWith('laptop', expect.any(Function));
     expect(drawer.getSnapshot().open).toBe(false);
   });
 
@@ -213,7 +213,7 @@ describe('Host drawer', () => {
     const drawer = createHostDrawer({ switchTo, showView, pair: vi.fn(), notifications: vi.fn() });
     const failed = drawer.select('laptop');
     const next = drawer.select('tower');
-    await expect(failed).rejects.toBe(error);
+    await expect(failed).resolves.toBe(false);
     await expect(next).resolves.toBe(true);
     expect(showView.mock.calls).toEqual([['tower']]);
   });

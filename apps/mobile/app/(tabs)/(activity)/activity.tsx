@@ -1,4 +1,4 @@
-import { Stack, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
@@ -9,7 +9,7 @@ import { useConversationFilter } from '../../../src/host/native-conversation-fil
 import { useHostSessions } from '../../../src/host/host-session';
 import { useActivitySources } from '../../../src/host/native-activity-sources';
 import { activitySelection, type ActivityItem } from '../../../src/host/activity-sources';
-import { cardHref, unreadHref } from '../../../src/host/push';
+import { channelDestination, navigateChannel } from '../../../src/ui/shell/channel-navigation';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { ActivityFeed } from '../../../src/ui/shell/activity-feed';
 import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
@@ -18,6 +18,7 @@ import { useStrings } from '../../../src/ui/strings';
 export default function ActivityScreen() {
   const t = useStrings();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const focused = useIsFocused();
   const theme = useDesignTheme();
   const sources = useActivitySources();
@@ -68,12 +69,16 @@ export default function ActivityScreen() {
     (item: ActivityItem) => {
       const source = sources.find((source) => source.client === item.activitySource?.client);
       if (!source) return;
-      const dm = (slug: string) =>
-        source.roster?.bots.find((bot) => bot.slug === slug)?.dmChannelId;
-      const group = (id: string) =>
-        source.roster?.channels.some((channel) => channel.id === id) ?? false;
-      const href = unreadHref(item, dm, group) ?? cardHref(item, dm, group);
-      if (href) return router.push({ ...href, params: { ...href.params, hostId: source.hostId } });
+      const opensChannel = [
+        'channel-unread',
+        'tool-approval',
+        'user-question',
+        'workspace-grant-request',
+      ].includes(item.kind);
+      const destination = opensChannel
+        ? channelDestination(source.hostId, item, source.roster)
+        : undefined;
+      if (destination && navigateChannel(navigation, destination)) return;
       router.push({
         pathname: '/inbox/[id]',
         params: {
@@ -87,7 +92,7 @@ export default function ActivityScreen() {
         },
       });
     },
-    [sources, router],
+    [sources, router, navigation],
   );
   return (
     <>

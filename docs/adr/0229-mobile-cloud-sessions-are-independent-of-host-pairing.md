@@ -78,3 +78,9 @@ Inbox observer and paginated count reader. Source-qualified filters, records and
 retain their Host owner. Counts preserve category preferences; notification routes retain
 the originating Host. Foreground return reconciles every pairing independently. Android/iOS navigation, previews and background delivery still
 require separate runtime qualification; automated screen/transport tests do not establish it.
+
+## Amendment: Cloud Channel navigation state (2026-10-26)
+
+For #2791 / #2801, Cloud list and detail locations belong to the existing Expo root Stack. The compatible `/cloud-channels` URL uses a scoped `channelId` parameter to distinguish detail from list. Root route identity contains instance, account scope, Organization, guest access and Channel ID. Local Channel objects are content only and cannot change the current location.
+
+New list entries push a detail; matching scoped details unwind to the retained route. Direct detail links establish a reachable scoped list parent when absent. Parent synthesis verifies the active route's scope and cannot restore a route after an incompatible root reset. Native, header and in-page Back use the same navigation authority. The existing Cloud client owns admission and authorization; message caches and source drafts retain their keys and invalidation behavior. No Host identity or alternate Cloud session store is introduced.

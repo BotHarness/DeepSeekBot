@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { channelNavigationHarness } from './channel-navigation-harness';
+const channelHistory = channelNavigationHarness();
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
@@ -8,10 +10,14 @@ import { View } from 'react-native';
 vi.mock('react-native', () => import('./react-native-shim'));
 const push = vi.fn();
 const router = { push, navigate: vi.fn() };
-vi.mock('expo-router', () => ({ useRouter: () => router, useFocusEffect: () => {} }));
+vi.mock('expo-router', () => ({
+  useRouter: () => router,
+  useFocusEffect: () => {},
+  useNavigationContainerRef: () => ({ ...channelHistory.navigation, addListener: () => () => {} }),
+}));
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-it('a B badge notification selects B Activity without switching management or losing A', async () => {
+it('a B badge notification selects B Activity with native navigation while retaining A connection', async () => {
   const a = new FakeHost('a'),
     b = new FakeHost('b');
   remotes.set('a.tailnet.ts.net', a);
@@ -49,9 +55,9 @@ it('a B badge notification selects B Activity without switching management or lo
       for (const tap of notificationTaps) tap({ v: 1, hostId: 'b', test: true });
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
-    expect(push).toHaveBeenCalledWith({ pathname: '/activity', params: { hostId: 'b' } });
+    expect(router.navigate).toHaveBeenCalledWith('/activity');
     expect(conversationFilter.getSnapshot()).toBe(computerEnvironmentKey('b'));
-    expect(hostSession.getState().saved?.hostId).toBe('a');
+    expect(hostSession.getState().saved?.hostId).toBe('b');
     expect(hostSession.getHost('a')?.client.getSnapshot().connection.status).toBe('connected');
   } finally {
     await act(async () => {

@@ -2,7 +2,7 @@ import { HostScope } from '../../host/host-scope';
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
-import { Stack, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -119,6 +119,7 @@ import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
+import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
@@ -155,14 +156,18 @@ export function ConversationScreen({
 
   const focused = useIsFocused();
   const roster = useHostSnapshot(client, focused).roster;
-  const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const identities = useMemo(
     () => ({
       bots: roster?.bots ?? [],
       openBot: (slug: string) =>
-        router.push({ pathname: '/dm/[slug]', params: { slug, hostId: saved?.hostId } }),
+        saved &&
+        navigateChannel(navigation, {
+          pathname: '/dm/[slug]',
+          params: { slug, hostId: saved.hostId },
+        }),
     }),
-    [roster?.bots, router, saved?.hostId],
+    [roster?.bots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -305,6 +310,7 @@ function ChatConversation({
   const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const headerPadding = useHeaderPadding();
   const { width: windowWidth } = useWindowDimensions();
@@ -377,6 +383,7 @@ function ChatConversation({
   const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
+  const focusPage = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
 
   const resolutions = useMemo(
@@ -549,17 +556,48 @@ function ChatConversation({
     [shownDrafts, chronological],
   );
 
-  const jump = () => {
-    if (focus === undefined || jumped.current === focus) return;
+  const firstMessageId = snapshot.messages[0]?.id;
+  const jump = useCallback(() => {
+    if (!focused || focus === undefined || jumped.current === focus) return;
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
     if (index >= 0) {
+      if (!list.current) return;
       jumped.current = focus;
       latest.hold();
-      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+      list.current.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
-    else if (snapshot.status === 'live' && snapshot.hasOlder && !snapshot.loadingOlder)
+    else if (
+      snapshot.status === 'live' &&
+      snapshot.hasOlder &&
+      !snapshot.loadingOlder &&
+      !snapshot.fromCache &&
+      firstMessageId !== undefined &&
+      focusPage.current !== firstMessageId
+    ) {
+      focusPage.current = firstMessageId;
       void conversation?.loadOlder();
-  };
+    }
+  }, [
+    focused,
+    focus,
+    rows,
+    list,
+    latest.hold,
+    latestWindowOnly,
+    snapshot.status,
+    snapshot.hasOlder,
+    snapshot.loadingOlder,
+    snapshot.fromCache,
+    firstMessageId,
+    conversation,
+  ]);
+  useLayoutEffect(() => {
+    jumped.current = undefined;
+    focusPage.current = undefined;
+  }, [focus, focused]);
+  useLayoutEffect(() => {
+    jump();
+  }, [jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
@@ -712,11 +750,25 @@ function ChatConversation({
                             : item.message.activity?.kind === 'bot-create'
                               ? t.activityRow.openBot
                               : t.activityRow.openChat,
-                        onOpen: () =>
-                          router.push({
-                            ...target,
-                            params: { ...target.params, hostId: saved?.hostId },
-                          }),
+                        onOpen: () => {
+                          if (target.pathname === '/dm/[slug]') {
+                            if (saved)
+                              navigateChannel(navigation, {
+                                ...target,
+                                params: { ...target.params, hostId: saved.hostId },
+                              });
+                          } else if (target.pathname === '/channel/[id]') {
+                            if (saved)
+                              navigateChannel(navigation, {
+                                ...target,
+                                params: { ...target.params, hostId: saved.hostId },
+                              });
+                          } else
+                            router.push({
+                              ...target,
+                              params: { ...target.params, hostId: saved?.hostId },
+                            });
+                        },
                       },
               })
             }
@@ -871,7 +923,13 @@ function ChatConversation({
                       ? t.dictationUnavailable
                       : dictation.state.status === 'failed'
                         ? t.dictationFailed
-                        : undefined;
+                        : focus !== undefined &&
+                            snapshot.status === 'live' &&
+                            !snapshot.hasOlder &&
+                            !snapshot.loadingOlder &&
+                            !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                          ? t.messageFocusUnavailable
+                          : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
   const topFade =

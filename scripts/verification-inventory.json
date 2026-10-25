@@ -12,6 +12,14 @@
       "gap": "Screen and transport regression coverage; Android/iOS native two-Host, background notification and visual qualification pending."
     },
     {
+      "id": "phone.workspace-navigation",
+      "label": "Reset explicit workspace history and prune invalid account routes while retaining tab roots",
+      "source": "apps/mobile/src/ui/shell/workspace-navigation.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-workspace-navigation.md",
+      "task": 2800,
+      "gap": "Mounted drawer and installed navigator regressions do not qualify native Back gestures or accessibility; shared-device acceptance remains pending."
+    },
+    {
       "id": "phone.bot-rename",
       "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
       "source": "apps/mobile/src/host/bot-name.ts",

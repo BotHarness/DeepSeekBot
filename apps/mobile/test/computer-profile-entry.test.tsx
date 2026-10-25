@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const state = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ vi.mock('react-native', () => ({
   View: 'div',
 }));
 vi.mock('expo-router', () => ({
+  useNavigationContainerRef: () => channelNavigationHarness().navigation,
   useLocalSearchParams: () => ({ slug: 'test' }),
   useRouter: () => ({ push: state.push }),
 }));

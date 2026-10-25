@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { channelNavigationHarness } from './channel-navigation-harness';
+const channelHistory = channelNavigationHarness();
 import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
@@ -25,6 +27,7 @@ vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('expo-router', () => ({
   useRouter: () => ({ push }),
   useIsFocused: () => true,
+  useNavigationContainerRef: () => channelHistory.navigation,
   useFocusEffect: (work: () => void) => useLayoutEffect(work, [work]),
   Stack: { Screen: () => null },
 }));

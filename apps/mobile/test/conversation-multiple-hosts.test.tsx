@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { channelNavigationHarness } from './channel-navigation-harness';
+const channelHistory = channelNavigationHarness();
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
@@ -20,6 +22,7 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
 }));
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
+  useNavigationContainerRef: () => channelHistory.navigation,
   useFocusEffect: () => {},
   usePreventRemove: () => {},
   Stack: {

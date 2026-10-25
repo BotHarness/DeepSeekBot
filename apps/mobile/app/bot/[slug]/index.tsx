@@ -1,5 +1,5 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useLocalSearchParams, useNavigationContainerRef, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
@@ -12,13 +12,17 @@ import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
 import { useStrings } from '../../../src/ui/strings';
+import { navigateChannel } from '../../../src/ui/shell/channel-navigation';
 
 export default function BotProfileScreen() {
   const t = useStrings();
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const theme = useDesignTheme();
   const { client, saved } = useHostSession();
+  const [openedOn, setOpenedOn] = useState(saved?.hostId);
+  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const snapshot = useHostSnapshot(client);
   const roster = snapshot.roster;
   const bot = roster?.bots.find((entry) => entry.slug === slug);
@@ -28,7 +32,8 @@ export default function BotProfileScreen() {
     [client, bot?.slug, bot?.dmChannelId],
   );
 
-  if (bot === undefined || profile === undefined || client === undefined)
+  const sourceChanged = (hostId ?? openedOn) !== saved?.hostId;
+  if (sourceChanged || bot === undefined || profile === undefined || client === undefined)
     return (
       <View
         style={{
@@ -37,7 +42,11 @@ export default function BotProfileScreen() {
           backgroundColor: theme.color.surface,
         }}
       >
-        {roster === undefined ? null : <Text tone="muted">{t.noBot}</Text>}
+        {sourceChanged ? (
+          <Text tone="muted">{t.sourceChanged}</Text>
+        ) : roster === undefined ? null : (
+          <Text tone="muted">{t.noBot}</Text>
+        )}
       </View>
     );
 
@@ -61,13 +70,17 @@ export default function BotProfileScreen() {
             pathname: '/bot/[slug]/routine-new',
             params: { slug: bot.slug, hostId: saved?.hostId },
           }),
-        onMessage: () =>
-          router.canGoBack()
-            ? router.back()
-            : router.replace({
+        onMessage: () => {
+          if (saved)
+            navigateChannel(
+              navigation,
+              {
                 pathname: '/dm/[slug]',
-                params: { slug: bot.slug, hostId: saved?.hostId },
-              }),
+                params: { slug: bot.slug, hostId: saved.hostId },
+              },
+              'dismiss-profile',
+            );
+        },
         ...(bot.browserAccess
           ? {
               onBrowser: () =>

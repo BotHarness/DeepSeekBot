@@ -1258,6 +1258,10 @@ window zoom. It keeps the native Menu renderer and keyboard owner inside the own
 converts viewport anchor coordinates through effective CSS zoom, clamps to the safe viewport
 and returns focus after dismissal. No second shortcut router or Panel state is introduced.
 
+### Mobile notification and interruption conversation entry
+
+The mobile Channel navigation owner (`apps/mobile/src/ui/shell/channel-navigation.ts`) resolves notification and interrupted-processing destinations from the Host Roster, including Bot-to-Bot DMs. It dispatches into the existing Expo root stack: new destinations preserve their origin, while an existing Host-scoped destination unwinds to its retained route. Message focus does not create a second page. Notification routing owns serialized Host switching, cancellable readiness and latest-intent selection; the screen owns unavailable-message feedback. Opening does not mutate the Human Inbox or retry interrupted execution. See the [ADR-0211 amendment](../adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md) and [#2798](https://github.com/BotHarness/DeepSeekBot/issues/2798). Remaining entry and reset migrations are separate work.
+
 ### Local Computer video first slice (#2558)
 
 The Windows-to-Android source implementation narrows the ADR-0245 target above to one primary display and one viewer. It uses a Computer-owned Electron/VP8 helper supervised by a Windows Job launcher and an Android WebRTC/EGL surface. The Computer owner persists pause before draining Bot work and granting input; input generations, caller identity and runtime/display geometry are checked at execution. A stalled viewer retains its own grant for Release while input stays disabled. Reconnect closes the prior attempt before observing again. This source state is not native compilation, performance or Human acceptance evidence.
@@ -1309,3 +1313,11 @@ Under ADR-0245, `scroll-motion` travels through the existing Local Computer vide
 独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用复用存活 Orchestrator 的原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。
 
 后台 Subagent 的原生回报在 prompt assembly 前进入现有 BotRuntime 队列，以实际 Adapter 工具上下文就绪为准恢复父 Agent；与普通用户输入竞争时共用已准备的回合，清理间隙则等待。新回合不继承上一条用户消息的 Source Event 或 Channel，消息仍由模型按需显式发送。CLI direct 调用单独标记，停止与追加只选择真实 Orchestrator 回合（ADR-0252）。
+
+### Mobile Cloud Channel route ownership
+
+Cloud Channel list and detail locations use the existing Expo root Stack, with `channelId` in the compatible `/cloud-channels` route as the location authority. `apps/mobile/src/ui/shell/cloud-channel-navigation.ts` scopes route identity by instance, account, Organization, guest access and Channel, unwinds repeated targets, and supplies a missing list parent for direct entry. The screen's Channel value is loaded content only. Existing Cloud admission, message-cache refusal handling and source drafts remain unchanged owners; returning to a list revalidates its content. See [ADR-0229](../adr/0229-mobile-cloud-sessions-are-independent-of-host-pairing.md) and [#2801](https://github.com/BotHarness/DeepSeekBot/issues/2801).
+
+### Mobile explicit workspace transitions
+
+`apps/mobile/src/ui/shell/workspace-navigation.ts` applies explicit workspace selection to the existing Expo root stack, preserving its tab route identity and root pages while removing old details and presentations. `native-workspace-navigation.ts` binds that adapter to the root lifetime and subscribes to existing Host/Cloud authorities to remove invalid scoped routes on pairing/account replacement. Ordinary Channel/notification entry does not trigger a reset. Drawer Host, All and Cloud selection share cancellation ownership; cache and draft stores retain their existing lifetimes. See the [ADR-0211 amendment](../adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md), [#2800](https://github.com/BotHarness/DeepSeekBot/issues/2800), and the independent wider [#2186 acceptance matrix](https://github.com/BotHarness/DeepSeekBot/issues/2186).

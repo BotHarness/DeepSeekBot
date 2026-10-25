@@ -19,6 +19,10 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  messageFocusUnavailable: 'The linked message is no longer available in this conversation.',
+  channelOpening: 'Opening conversation…',
+  channelOpeningFailed: 'Could not open the conversation. Check the connection and try again.',
+  channelOpeningNotReady: 'Conversations are still loading. Try opening again.',
   deletion: {
     deleteBot: 'Delete Bot',
     dissolve: 'Dissolve group',
@@ -1660,6 +1664,10 @@ const en = {
 };
 
 const zh: typeof en = {
+  messageFocusUnavailable: '此会话中已找不到原消息。',
+  channelOpening: '正在打开会话…',
+  channelOpeningFailed: '无法打开会话，请检查连接后重试。',
+  channelOpeningNotReady: '会话还在加载，请稍后再点一次。',
   deletion: {
     deleteBot: '删除 Bot',
     dissolve: '解散群聊',

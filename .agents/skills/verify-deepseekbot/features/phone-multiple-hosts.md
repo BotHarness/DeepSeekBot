@@ -27,6 +27,9 @@ required to verify routing; a real reply additionally needs a working model.
 3. Open the same-ID conversation on B while A is the management Host. Send a unique
    QA marker and read it back from B with the CLI; verify A has no marker. Repeat for
    group chat, profile/group settings and Browser/Computer routes. Check iOS preview.
+   Keep A's same-ID chat in the navigation history, open B from All, then go Back:
+   A's original route must remain distinct. Reopening an existing source-qualified
+   chat from Activity should unwind to that route rather than duplicate it.
 4. Disconnect B: All omits its rows without an offline notice. Its drawer shows the
    state. An already open B chat retains history and a typed draft; send is disabled.
    Reconnect B: it reappears, the draft remains, and nothing was sent automatically.
@@ -43,6 +46,9 @@ required to verify routing; a real reply additionally needs a working model.
 8. Background the app, generate messages on both Hosts and tap a B notification while
    A is selected. Verify the destination and all actions stay on B. Return foreground
    with A offline: B catches up independently; restore A and verify its missed state.
+   A notification may select B as the management Host through the native navigation
+   flow, but must retain A's connection. A badge-only notification selects B Activity.
+   A newer workspace selection or navigation reset must cancel a pending older tap.
 
 Capture source/integrated SHAs, light/dark screenshots, actual A/B message readback,
 and connection transitions. Redact credentials and unrelated conversations.
