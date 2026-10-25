@@ -23,10 +23,16 @@ const state = vi.hoisted(() => ({
     fromCache: false,
   } as ConversationSnapshot,
   active: false,
+  focused: true,
   display: { mode: 'streaming', loaded: true },
   glassHeader: true,
 }));
-const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
+const nativeList = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  scrollToOffset: vi.fn(),
+  rows: [] as Array<{ key: string; kind?: string; message?: { id: string } }>,
+}));
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
@@ -34,7 +40,7 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
 }));
 vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
 vi.mock('expo-router', () => ({
-  useIsFocused: () => true,
+  useIsFocused: () => state.focused,
   usePreventRemove: () => {},
   Stack: {
     Screen: ({
@@ -95,12 +101,47 @@ vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return { ...shim, KeyboardAvoidingView: shim.View };
 });
-vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-reanimated', async () => {
+  const shim = await import('./reanimated-shim');
+  const React = await import('react');
+  return {
+    ...shim,
+    useAnimatedRef: () =>
+      React.useMemo(() => {
+        const ref = Object.assign(
+          (node: unknown) => {
+            ref.current = node;
+          },
+          { current: null as unknown },
+        );
+        return ref;
+      }, []),
+    default: {
+      ...shim.default,
+      FlatList: ({
+        ref,
+        ...props
+      }: Parameters<typeof shim.default.FlatList>[0] & { ref: React.Ref<unknown> }) => {
+        nativeList.rows = props.data;
+        React.useImperativeHandle(
+          ref,
+          () => ({
+            scrollToIndex: nativeList.scrollToIndex,
+            scrollToOffset: nativeList.scrollToOffset,
+            getNativeScrollRef: () => null,
+          }),
+          [],
+        );
+        return React.createElement(shim.default.FlatList, props);
+      },
+    },
+  };
+});
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ client: undefined, inbox: undefined, saved: { hostId: state.hostId } }),
   useHostSnapshot: () => state.host,
-  useConversation: () => (state.active ? {} : undefined),
+  useConversation: () => (state.active ? { loadOlder: navigation.loadOlder } : undefined),
   useChannelConversation: () => undefined,
   useConversationTimelineSnapshot: () => state.conversation,
   useStreamPlayback: () => undefined,
@@ -218,16 +259,83 @@ let container: HTMLElement | undefined;
 
 beforeEach(() => {
   navigation.push.mockClear();
+  navigation.loadOlder.mockClear();
+  nativeList.scrollToIndex.mockClear();
+  nativeList.scrollToOffset.mockClear();
   state.hostId = 'computer_a';
   state.host.connection.status = 'connected';
   state.conversation.status = 'live';
   state.conversation.messages = [];
   state.conversation.drafts = [];
+  state.conversation.hasOlder = false;
+  state.conversation.loadingOlder = false;
   state.host.roster.bots = [];
   state.host.roster.channels = [];
   state.active = false;
+  state.focused = true;
   state.display = { mode: 'streaming', loaded: true };
   state.glassHeader = true;
+});
+
+it('positions a new focus and a repeated source-message visit without a content-size event', async () => {
+  state.active = true;
+  state.conversation.messages = ['first', 'second'].map((id) => ({
+    id,
+    at: '2026-10-25T01:00:00Z',
+    author: 'human',
+    body: id,
+    attachments: [],
+    delivery: 'committed',
+  }));
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  const index = nativeList.scrollToIndex.mock.calls[0]![0].index as number;
+  expect(nativeList.rows[index]?.message?.id).toBe('first');
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  state.focused = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+});
+
+it('asks the existing history owner for an uncached focus and positions it when the page arrives', async () => {
+  state.active = true;
+  state.conversation.hasOlder = true;
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledOnce();
+  state.conversation.hasOlder = false;
+  state.conversation.messages = [
+    {
+      id: 'older',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'older',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  expect(nativeList.rows[nativeList.scrollToIndex.mock.calls[0]![0].index]?.message?.id).toBe(
+    'older',
+  );
+});
+
+it('does not repeatedly request a failed source page without a new history boundary or visit', async () => {
+  state.active = true;
+  state.conversation.hasOlder = true;
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.conversation.loadingOlder = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.conversation.loadingOlder = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledOnce();
 });
 
 it.each(['ios', 'android'])(

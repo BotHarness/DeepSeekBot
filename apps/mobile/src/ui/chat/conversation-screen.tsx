@@ -371,6 +371,11 @@ function ChatConversation({
   const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
+  const focusPage = useRef<string | undefined>(undefined);
+  const focusVisit = useRef<{ active: boolean; message: string | undefined }>({
+    active: false,
+    message: undefined,
+  });
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
 
   const resolutions = useMemo(
@@ -543,17 +548,50 @@ function ChatConversation({
     [shownDrafts, chronological],
   );
 
-  const jump = () => {
-    if (focus === undefined || jumped.current === focus) return;
+  const jump = useCallback(() => {
+    if (!focused || focus === undefined || jumped.current === focus) return;
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
     if (index >= 0) {
+      if (list.current === null) return;
       jumped.current = focus;
       latest.hold();
-      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+      list.current.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
-    else if (snapshot.status === 'live' && snapshot.hasOlder && !snapshot.loadingOlder)
-      void conversation?.loadOlder();
-  };
+    else if (
+      snapshot.status === 'live' &&
+      snapshot.hasOlder &&
+      !snapshot.loadingOlder &&
+      conversation !== undefined
+    ) {
+      const boundary = snapshot.messages[0]?.id ?? '';
+      if (focusPage.current === boundary) return;
+      focusPage.current = boundary;
+      void conversation.loadOlder();
+    }
+  }, [
+    focused,
+    focus,
+    rows,
+    list,
+    latest.hold,
+    latestWindowOnly,
+    snapshot.status,
+    snapshot.hasOlder,
+    snapshot.loadingOlder,
+    snapshot.messages,
+    conversation,
+  ]);
+
+  useLayoutEffect(() => {
+    const previous = focusVisit.current;
+    focusVisit.current = { active: focused, message: focus };
+    if (!focused) return;
+    if (!previous.active || previous.message !== focus) {
+      jumped.current = undefined;
+      focusPage.current = undefined;
+    }
+    jump();
+  }, [focused, focus, jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);

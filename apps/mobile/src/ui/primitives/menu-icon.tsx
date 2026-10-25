@@ -12,6 +12,7 @@ const symbols = {
   person: { ios: 'person.crop.circle', android: 'account_circle' },
   remove: { ios: 'person.badge.minus', android: 'person_remove' },
   chat: { ios: 'bubble.left', android: 'chat' },
+  share: { ios: 'square.and.arrow.up', android: 'share' },
   clock: { ios: 'clock', android: 'schedule' },
   photo: { ios: 'photo', android: 'photo' },
   camera: { ios: 'camera', android: 'photo_camera' },

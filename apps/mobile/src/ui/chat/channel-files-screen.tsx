@@ -10,10 +10,11 @@ import { shareAttachment } from '../../host/share-attachment';
 import { edge, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
-import { ItemMenu } from '../primitives/item-menu';
+import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
+import { showActionMenu } from '../primitives/app-dialog';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
-import { FileIcon, MoreIcon, PhotoIcon, ShareIcon } from '../shell/icons';
+import { FileIcon, PhotoIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
 import { useStrings } from '../strings';
 import { ImageViewer } from './image-viewer';
@@ -94,7 +95,13 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
     }
   };
   const viewMessage = (file: ChannelFile) => {
-    if (!available || !files.getSnapshot().files.some((current) => current.key === file.key))
+    if (
+      !available ||
+      !active.current ||
+      client.getSnapshot().connection.status !== 'connected' ||
+      files.getSnapshot().status !== 'ready' ||
+      !files.getSnapshot().files.some((current) => current.key === file.key)
+    )
       return;
     if (
       botSlug !== undefined &&
@@ -153,6 +160,7 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
               </Text>
               {snapshot.status === 'interrupted' ? (
                 <Button
+                  testID="channel-files-reconnect"
                   label={t.retry}
                   onPress={() => {
                     client.retryNow();
@@ -180,6 +188,29 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
           const busy = sharing === attachment.key;
           const date = new Date(item.at).toLocaleString();
           const Icon = attachment.kind === 'image' ? PhotoIcon : FileIcon;
+          const rowId = item.key.toLowerCase().replace(/[^a-z0-9-]/gu, '-');
+          const actions: MenuAction[] = [
+            ...(disabled || sharing !== undefined
+              ? []
+              : [
+                  {
+                    label: t.shareFile(attachment.name),
+                    icon: 'share' as const,
+                    run: () => {
+                      void share(attachment);
+                    },
+                  },
+                ]),
+            ...(available
+              ? [
+                  {
+                    label: t.channelFiles.viewMessage,
+                    icon: 'chat' as const,
+                    run: () => viewMessage(item),
+                  },
+                ]
+              : []),
+          ];
           return (
             <View
               style={{
@@ -191,10 +222,12 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
               }}
             >
               <Pressable
+                testID={`channel-file-row-${rowId}`}
                 accessibilityRole="button"
                 accessibilityLabel={`${attachment.name}, ${author(item)}, ${date}`}
                 accessibilityState={{ disabled, busy }}
                 disabled={disabled || sharing !== undefined}
+                android_ripple={{ color: theme.layer.raised.pressed }}
                 onPress={() =>
                   attachment.kind === 'image' ? setPreviewKey(item.key) : void share(attachment)
                 }
@@ -234,52 +267,22 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
                   </Text>
                 </View>
               </Pressable>
-              <ItemMenu
-                title={attachment.name}
-                actions={[
-                  ...(disabled || sharing !== undefined
-                    ? []
-                    : [
-                        {
-                          key: 'share',
-                          label: t.shareFile(attachment.name),
-                          glyph: ShareIcon,
-                          icon: 'square.and.arrow.up' as const,
-                          run: () => {
-                            void share(attachment);
-                          },
-                        },
-                      ]),
-                  ...(available
-                    ? [
-                        {
-                          key: 'message',
-                          label: t.channelFiles.viewMessage,
-                          glyph: 'chat' as const,
-                          icon: 'bubble.left' as const,
-                          run: () => viewMessage(item),
-                        },
-                      ]
-                    : []),
-                ]}
-              >
-                {(open) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={t.conversationActions(attachment.name)}
-                    disabled={!available}
-                    onPress={open}
-                    style={{
-                      minHeight: theme.touch,
-                      minWidth: theme.touch,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <MoreIcon color={theme.color.muted} size={theme.type.title.line} />
-                  </Pressable>
-                )}
-              </ItemMenu>
+              <ActionMenuButton
+                testID={`channel-file-actions-${rowId}`}
+                label={t.conversationActions(attachment.name)}
+                disabled={!available}
+                actions={actions}
+                onOpen={() =>
+                  showActionMenu(
+                    attachment.name,
+                    actions.map((action) => ({
+                      text: action.label,
+                      icon: action.icon,
+                      onPress: action.run,
+                    })),
+                  )
+                }
+              />
             </View>
           );
         }}
@@ -292,6 +295,9 @@ function Files({ client, channelId, hostId, botSlug }: FilesPlace & { client: Ho
                 </Text>
               ) : null}
               <Button
+                testID={
+                  snapshot.pageFailed ? 'channel-files-page-retry' : 'channel-files-load-older'
+                }
                 label={snapshot.pageFailed ? t.retry : t.channelFiles.loadOlder}
                 disabled={!available}
                 busy={snapshot.loadingOlder}

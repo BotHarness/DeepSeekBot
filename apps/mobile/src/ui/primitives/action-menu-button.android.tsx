@@ -12,9 +12,15 @@ import { MoreIcon } from '../shell/icons';
 
 export type { MenuAction } from './action-menu-button';
 
-export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
+export function ActionMenuButton({
+  label,
+  actions,
+  testID = 'action-menu-trigger',
+  disabled = false,
+}: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   const [open, setOpen] = useState(false);
+  if (disabled && open) setOpen(false);
   return (
     <View style={{ width: theme.touch, height: theme.touch }}>
       <Host
@@ -24,7 +30,7 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
         style={StyleSheet.absoluteFill}
       >
         <DropdownMenu
-          expanded={open}
+          expanded={open && !disabled}
           onDismissRequest={() => setOpen(false)}
           color="transparent"
           shadowElevation={0}
@@ -68,11 +74,12 @@ export function ActionMenuButton({ label, actions }: ActionMenuButtonProps) {
         </DropdownMenu>
       </Host>
       <Pressable
-        testID="action-menu-trigger"
+        testID={testID}
+        disabled={disabled}
         onPress={() => setOpen(true)}
         accessibilityRole="button"
         accessibilityLabel={label}
-        accessibilityState={{ expanded: open }}
+        accessibilityState={{ expanded: open && !disabled, disabled }}
         hitSlop={space.x2}
         android_ripple={{
           borderless: true,

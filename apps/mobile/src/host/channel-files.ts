@@ -114,11 +114,10 @@ export function createChannelFiles({
     offChannel?.();
     const epoch = ++generation;
     channelReady = false;
-    entries.clear();
     live.clear();
     through = 0;
     before = 0;
-    publish({ status: 'opening', hasOlder: false, loadingOlder: false, pageFailed: false });
+    publish({ status: 'opening', loadingOlder: false, pageFailed: false });
     offChannel = host.follow(
       'botharness/followChannel',
       { channelId, limit: pageSize },
@@ -129,10 +128,12 @@ export function createChannelFiles({
           if (frame.type === 'opened') {
             historyGeneration++;
             channelReady = true;
-            entries.clear();
             live.clear();
             through = frame.cursor;
             before = frame.page?.entries[0]?.revision ?? 0;
+            for (const [id, entry] of entries)
+              if (before === 0 || entry.revision >= before || entry.revision > through)
+                entries.delete(id);
             accept(frame.page?.entries ?? [], 'history');
             publish({
               status: rosterReady ? 'ready' : 'opening',
@@ -165,7 +166,7 @@ export function createChannelFiles({
     );
   };
 
-  const stop = () => {
+  const detach = () => {
     running = false;
     generation++;
     channelReady = rosterReady = false;
@@ -173,6 +174,10 @@ export function createChannelFiles({
     offRoster?.();
     offHost?.();
     offChannel = offRoster = offHost = undefined;
+  };
+
+  const stop = () => {
+    detach();
     entries.clear();
     live.clear();
     purged.clear();
@@ -230,7 +235,8 @@ export function createChannelFiles({
         interrupted() {
           if (running) {
             rosterReady = false;
-            publish({ status: 'interrupted' });
+            historyGeneration++;
+            publish({ status: 'interrupted', loadingOlder: false });
           }
         },
         refused() {
@@ -255,7 +261,7 @@ export function createChannelFiles({
     start,
     stop,
     retry() {
-      stop();
+      detach();
       start();
     },
     async loadOlder() {
