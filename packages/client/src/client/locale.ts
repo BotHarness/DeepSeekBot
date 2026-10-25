@@ -4328,8 +4328,7 @@ export const en = {
   'connections.tailscaleDescription': 'Connect securely across networks using your tailnet.',
   'connections.tailscaleDetail':
     'Both ends must join your Tailscale network. Traffic goes directly when possible, or through an encrypted relay that cannot read its content. In addition to Tailscale network encryption, the pairing channel is end-to-end encrypted between your device and this computer. Compare fingerprints and approve each new device.',
-  'connections.connectDescription':
-    'Sign in to Tobs to connect remotely through an encrypted tunnel.',
+  'connections.connectDescription': 'Connect remotely through an encrypted Tobs tunnel.',
   'connections.connectDetail':
     'Your Tobs account helps find this computer; traffic travels through a Cloudflare tunnel. The pairing channel is end-to-end encrypted between your device and this computer. Relay services cannot read its content, but can see connection addresses, timing and traffic size. Compare fingerprints and approve each new device.',
   'connections.enableContinue': 'Enable and continue',
