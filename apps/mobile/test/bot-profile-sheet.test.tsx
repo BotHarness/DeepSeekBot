@@ -154,10 +154,66 @@ const headers = (view: HTMLElement) =>
   [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
 
 describe('Bot profile sheet', () => {
+  it('lets the Human change the Bot avatar from its portrait and the settings row', async () => {
+    const avatar = {
+      pick: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
+      save: vi.fn(async () => undefined),
+    };
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => empty}
+        actions={actions()}
+        avatar={avatar}
+      />,
+    );
+    const portrait = view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-change"]');
+    expect(portrait !== null).toBe(true);
+    await act(async () => portrait!.click());
+    expect(avatar.save).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
+    const row = view.querySelector<HTMLButtonElement>(
+      '[data-testid="bot-avatar-settings-change"]',
+    )!;
+    await act(async () => row.click());
+    expect(avatar.pick).toHaveBeenCalledTimes(2);
+    expect(avatar.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('can remove a custom Bot avatar and recover from a failed save', async () => {
+    const avatar = {
+      pick: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
+      save: vi
+        .fn<(_avatar: string | null) => Promise<void>>()
+        .mockRejectedValueOnce(new Error('save refused'))
+        .mockResolvedValueOnce(undefined),
+    };
+    const view = await render(
+      <BotProfileSheet
+        bot={{ ...bot, avatarUrl: 'https://example.test/avatar.jpg' }}
+        channels={[]}
+        load={async () => empty}
+        actions={actions()}
+        avatar={avatar}
+      />,
+    );
+    const portrait = view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-change"]');
+    expect(portrait !== null).toBe(true);
+    await act(async () => portrait!.click());
+    expect(view.querySelector('[role="alert"]')?.textContent).toContain('save refused');
+    const remove = view.querySelector<HTMLButtonElement>(
+      '[data-testid="bot-avatar-settings-remove"]',
+    )!;
+    await act(async () => remove.click());
+    expect(avatar.save).toHaveBeenLastCalledWith(null);
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {
     const request = Promise.withResolvers<BotProfile>();
     const view = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={bot}
         channels={[]}
         initialProfile={full}
@@ -182,6 +238,7 @@ describe('Bot profile sheet', () => {
   it('shows the identity, persona, memory, routines, Channels and folders', async () => {
     const view = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={bot}
         channels={[
           {
@@ -197,6 +254,7 @@ describe('Bot profile sheet', () => {
     );
     expect(headers(view)).toEqual([
       bot.displayName,
+      t.avatarTitle,
       t.profileSection.activity,
       t.profileSection.identity,
       t.profileSection.memory,
@@ -220,7 +278,13 @@ describe('Bot profile sheet', () => {
 
   it('says so when a section is empty, and offers Browser and Computer only when the Bot has them', async () => {
     const view = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => empty} actions={actions()} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => empty}
+        actions={actions()}
+      />,
     );
     const text = view.textContent ?? '';
     for (const note of Object.values(t.profileEmpty)) expect(text).toContain(note);
@@ -231,6 +295,7 @@ describe('Bot profile sheet', () => {
     const onComputer = vi.fn();
     const withComputer = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={{ ...bot, computerAccess: true }}
         channels={[]}
         load={async () => empty}
@@ -244,6 +309,7 @@ describe('Bot profile sheet', () => {
     const onBrowser = vi.fn();
     const withBrowser = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={{ ...bot, browserAccess: true }}
         channels={[]}
         load={async () => empty}
@@ -257,7 +323,13 @@ describe('Bot profile sheet', () => {
   it('reveals cached sections when an initial entry has no opening transition event', async () => {
     vi.useFakeTimers();
     const view = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => full} actions={actions()} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={actions()}
+      />,
       false,
     );
     expect(view.textContent).not.toContain('Morning digest');
@@ -270,6 +342,7 @@ describe('Bot profile sheet', () => {
     let attempt = 0;
     const view = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={bot}
         channels={[]}
         load={async () =>
@@ -300,7 +373,13 @@ describe('Bot profile sheet', () => {
   it('lists the top of the Memory tree and opens a folder or a file', async () => {
     const handlers = actions();
     const view = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => full} actions={handlers} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={handlers}
+      />,
     );
     const memory = [...view.querySelectorAll('section')][2]!;
     expect(
@@ -325,6 +404,7 @@ describe('Bot profile sheet', () => {
     const onNewRoutine = vi.fn();
     const view = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={bot}
         channels={[]}
         load={async () => full}
@@ -343,7 +423,13 @@ describe('Bot profile sheet', () => {
 
   it('keeps routines read-only without a Host to change them', async () => {
     const view = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => full} actions={actions()} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={actions()}
+      />,
     );
     expect(button(view, t.routineNew)).toBeNull();
     expect(view.textContent).toContain('Morning digest');
@@ -352,7 +438,13 @@ describe('Bot profile sheet', () => {
   it('shows the last 7 days and opens the Activity screen', async () => {
     const handlers = actions();
     const view = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => full} actions={handlers} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={handlers}
+      />,
     );
     const glance = view.querySelector<HTMLButtonElement>(
       `button[aria-label^="${t.activityHeading}"]`,
@@ -377,7 +469,13 @@ describe('Bot profile sheet', () => {
       },
     };
     const view = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => partial} actions={actions()} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => partial}
+        actions={actions()}
+      />,
     );
     const glance = view.querySelector<HTMLButtonElement>(
       `button[aria-label^="${t.activityHeading}"]`,
@@ -388,7 +486,13 @@ describe('Bot profile sheet', () => {
 
   it('shows a quiet week for a Bot with no activity, and Try again when the call fails', async () => {
     const quiet = await render(
-      <BotProfileSheet bot={bot} channels={[]} load={async () => empty} actions={actions()} />,
+      <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
+        bot={bot}
+        channels={[]}
+        load={async () => empty}
+        actions={actions()}
+      />,
     );
     expect(quiet.textContent).toContain(t.activityTokens('0'));
     expect(quiet.textContent).toContain(t.activityQuiet);
@@ -397,6 +501,7 @@ describe('Bot profile sheet', () => {
     let attempt = 0;
     const failed = await render(
       <BotProfileSheet
+        avatar={{ pick: async () => undefined, save: async () => undefined }}
         bot={bot}
         channels={[]}
         load={async () =>
