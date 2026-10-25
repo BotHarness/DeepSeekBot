@@ -8,6 +8,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
+import { Tooltip } from './ds/tooltip.js';
 import { AddRemoteHostDialog } from './host-tabs.js';
 import { ConnectionProgress } from './connection-progress.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -116,6 +117,14 @@ const styles = stylex.create({
   },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
   choice: { width: '100%', justifyContent: 'space-between', paddingBlock: space.x4 },
+  method: { height: 'auto', whiteSpace: 'normal', textAlign: 'start', gap: space.x4 },
+  methodCopy: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0, flexGrow: 1 },
+  methodDescription: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: text.regular,
+  },
   email: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -125,6 +134,38 @@ const styles = stylex.create({
   notYou: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   switchAccount: { marginBlock: space.x3 },
 });
+
+function ConnectionMethod({
+  title,
+  description,
+  detail,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  detail: string;
+  disabled: boolean;
+  onClick(): void;
+}): ReactElement {
+  return (
+    <Tooltip label={detail} side="right" portal delayMs={0} focusDelayMs={0} maxWidth={360}>
+      <Button
+        variant="outline"
+        aria-label={title}
+        disabled={disabled}
+        onClick={onClick}
+        {...stylex.props(styles.choice, styles.method)}
+      >
+        <span {...stylex.props(styles.methodCopy)}>
+          <span>{title}</span>
+          <span {...stylex.props(styles.methodDescription)}>{description}</span>
+        </span>
+        <ChannelSidebarIcon name="chevron-right" />
+      </Button>
+    </Tooltip>
+  );
+}
 
 async function json<T>(response: Response): Promise<T> {
   if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
@@ -723,48 +764,42 @@ export function PairedDevicesSettings({
               </>
             ) : setup === 'method' ? (
               <>
-                <Button
-                  variant="outline"
+                <ConnectionMethod
+                  title={t('connections.lan')}
+                  description={t('connections.lanDescription')}
+                  detail={t('connections.lanDetail')}
                   disabled={!freshSnapshot}
-                  {...stylex.props(styles.choice)}
                   onClick={() => {
                     if (lanReady) {
                       setSetup('closed');
                       open();
                     } else setSetup('lan');
                   }}
-                >
-                  {t('connections.lan')}
-                  <ChannelSidebarIcon name="chevron-right" />
-                </Button>
-                <Button
-                  variant="outline"
+                />
+                <ConnectionMethod
+                  title="Tailscale"
+                  description={t('connections.tailscaleDescription')}
+                  detail={t('connections.tailscaleDetail')}
                   disabled={!freshSnapshot}
-                  {...stylex.props(styles.choice)}
                   onClick={() => {
                     if (tailscaleReady) {
                       setSetup('closed');
                       open();
                     } else setSetup('tailscale');
                   }}
-                >
-                  Tailscale
-                  <ChannelSidebarIcon name="chevron-right" />
-                </Button>
-                <Button
-                  variant="outline"
+                />
+                <ConnectionMethod
+                  title="Tobs Connect"
+                  description={t('connections.connectDescription')}
+                  detail={t('connections.connectDetail')}
                   disabled={!freshSnapshot}
-                  {...stylex.props(styles.choice)}
                   onClick={() => {
                     if (routes?.routes.some((route) => route.kind === 'connect' && route.ready)) {
                       setSetup('closed');
                       open();
                     } else setSetup('connect');
                   }}
-                >
-                  Tobs Connect
-                  <ChannelSidebarIcon name="chevron-right" />
-                </Button>
+                />
               </>
             ) : setup === 'lan' ? (
               <>

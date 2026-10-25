@@ -30,6 +30,15 @@ export const zh = {
   'connections.invite': '让设备连接本机',
   'connections.join': '连接远端',
   'connections.lan': '局域网',
+  'connections.lanDescription': '在同一 Wi-Fi 或局域网内加密直连。',
+  'connections.lanDetail':
+    '设备与本机通过同一局域网直接通信，无需云端中转。配对通道在两端之间加密，首次连接需核对指纹并批准设备。离开这个网络后，需要其他可用线路。',
+  'connections.tailscaleDescription': '通过你的 Tailscale 网络跨网络加密连接。',
+  'connections.tailscaleDetail':
+    '两端需要接入你的 Tailscale 网络。数据优先直接传输，无法直连时经过加密中转；中转节点无法读取内容。Tailscale 网络加密之外，配对通道也在设备与本机之间端到端加密，首次连接仍需核对指纹并批准。',
+  'connections.connectDescription': '登录 Tobs，通过加密隧道从外网连接。',
+  'connections.connectDetail':
+    'Tobs 账号用于发现本机，数据经 Cloudflare 隧道转发。配对通道在设备与本机之间端到端加密，中转服务无法读取通道内容，但仍可见连接地址、时间和流量大小。首次连接仍需核对指纹并批准设备。',
   'connections.enableContinue': '开启并继续',
   'connections.continue': '继续',
   'connections.back': '返回',
@@ -4313,6 +4322,16 @@ export const en = {
   'connections.invite': 'Connect a device to this Host',
   'connections.join': 'Connect to a Remote Host',
   'connections.lan': 'Local network',
+  'connections.lanDescription': 'Connect directly and securely on the same Wi-Fi or LAN.',
+  'connections.lanDetail':
+    'Your device talks directly to this computer on the same network, without a cloud relay. The pairing channel is encrypted between the two ends. Compare fingerprints and approve each new device. Away from this network, you need another available route.',
+  'connections.tailscaleDescription': 'Connect securely across networks using your tailnet.',
+  'connections.tailscaleDetail':
+    'Both ends must join your Tailscale network. Traffic goes directly when possible, or through an encrypted relay that cannot read its content. In addition to Tailscale network encryption, the pairing channel is end-to-end encrypted between your device and this computer. Compare fingerprints and approve each new device.',
+  'connections.connectDescription':
+    'Sign in to Tobs to connect remotely through an encrypted tunnel.',
+  'connections.connectDetail':
+    'Your Tobs account helps find this computer; traffic travels through a Cloudflare tunnel. The pairing channel is end-to-end encrypted between your device and this computer. Relay services cannot read its content, but can see connection addresses, timing and traffic size. Compare fingerprints and approve each new device.',
   'connections.enableContinue': 'Enable and continue',
   'connections.continue': 'Continue',
   'connections.back': 'Back',
