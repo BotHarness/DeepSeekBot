@@ -93,7 +93,7 @@ describe('Human Computer profile entry', () => {
     state.actions?.onComputer?.();
     expect(state.push).toHaveBeenCalledWith({
       pathname: '/computer/[slug]',
-      params: { slug: 'test' },
+      params: { slug: 'test', hostId: 'qa' },
     });
     expect(state.bot.computerAccess).toBe(false);
   });
