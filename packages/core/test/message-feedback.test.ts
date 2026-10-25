@@ -241,6 +241,10 @@ describe('message feedback through the Host HTTP interface', () => {
     expect(download.status).toBe(200);
     const bytes = Buffer.from(await download.arrayBuffer());
     const files = readZip(bytes, { maxEntries: 100, maxTotalBytes: 1 << 24 });
+    const readme = files.find((entry) => entry.path === 'README.md')?.data.toString();
+    expect(readme).toContain('never attached to feedback submission');
+    expect(readme).toContain('Only your rating, tags and short comment are sent to PostHog');
+    expect(readme).not.toContain('30 days');
     const conversation = files.find((entry) => entry.path === 'channels/dm.jsonl')?.data.toString();
     expect(conversation).toContain('"id":"m10"');
     expect(conversation).toContain('"id":"m50"');
