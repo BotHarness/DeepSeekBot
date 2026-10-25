@@ -13,6 +13,7 @@ import {
   DeveloperModeSetting,
   GroupAutoAcceptSetting,
   SendKeySetting,
+  AutoCollapseMessagesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { buildLabel, clientBuild } from './build-id.js';
@@ -102,6 +103,7 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
         t={props.t}
       />
       <SendKeySetting {...props} />
+      <AutoCollapseMessagesSetting {...props} />
       <SettingsSection>
         <GroupAutoAcceptSetting {...props} />
       </SettingsSection>
