@@ -2,8 +2,9 @@ import { Segmented } from '../primitives/segmented';
 import { Chip } from '../primitives/chip';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { shareFeedbackArchive } from '../../host/share-feedback';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { useMounted } from '../mounted';
+import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
 import type { HostClient } from '../../host/client';
 import {
   createMessageFeedback,
@@ -69,9 +70,10 @@ export function MessageFeedbackForm({
   const [receipt, setReceipt] = useState<FeedbackReceipt>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
-  useEffect(() => {
-    onBusyChange?.(busy);
-  }, [busy, onBusyChange]);
+  const updateBusy = (value: boolean) => {
+    setBusy(value);
+    onBusyChange?.(value);
+  };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const frozen = useRef<{ token: string; feedback: FeedbackRating } | undefined>(undefined);
   const pending = useRef(false);
@@ -83,7 +85,7 @@ export function MessageFeedbackForm({
   const refresh = async () => {
     if (pending.current) return;
     pending.current = true;
-    setBusy(true);
+    updateBusy(true);
     setError(false);
     try {
       const next = await api.preview(scope);
@@ -96,10 +98,10 @@ export function MessageFeedbackForm({
       if (alive.current) setError(true);
     } finally {
       pending.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) updateBusy(false);
     }
   };
-  useEffect(() => {
+  const mount = useMounted<ViewInstance>(() => {
     alive.current = true;
     void refresh();
     return () => {
@@ -109,7 +111,7 @@ export function MessageFeedbackForm({
   const download = async () => {
     if (!fresh || pending.current) return;
     pending.current = true;
-    setBusy(true);
+    updateBusy(true);
     setError(false);
     try {
       await shareFeedbackArchive(await api.download(preview.token));
@@ -117,7 +119,7 @@ export function MessageFeedbackForm({
       if (alive.current) setError(true);
     } finally {
       pending.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) updateBusy(false);
     }
   };
   const submit = async () => {
@@ -125,7 +127,7 @@ export function MessageFeedbackForm({
     frozen.current ??= { token: preview.token, feedback: { rating, tags, comment } };
     setLocked(true);
     pending.current = true;
-    setBusy(true);
+    updateBusy(true);
     setError(false);
     try {
       const next = await api.submit(frozen.current);
@@ -134,12 +136,12 @@ export function MessageFeedbackForm({
       if (alive.current) setError(true);
     } finally {
       pending.current = false;
-      if (alive.current) setBusy(false);
+      if (alive.current) updateBusy(false);
     }
   };
   if (receipt !== undefined)
     return (
-      <View style={{ padding: space.x5, gap: space.x5 }}>
+      <View ref={mount} style={{ padding: space.x5, gap: space.x5 }}>
         <Text variant="title">{f.receipt}</Text>
         <Text selectable testID="feedback-receipt">
           {receipt.reportId}
@@ -271,7 +273,7 @@ export function MessageFeedbackForm({
     </View>
   );
   return (
-    <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+    <View ref={mount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
       <FlatList
         data={preview?.files ?? []}
         keyExtractor={(item) => item.path}
@@ -322,7 +324,13 @@ export function MessageFeedbackForm({
             onPress={() => void download()}
             testID="feedback-download"
           />
-          <Button variant="text" label={t.close} onPress={onClose} testID="feedback-close" />
+          <Button
+            variant="text"
+            label={t.close}
+            disabled={busy}
+            onPress={onClose}
+            testID="feedback-close"
+          />
         </View>
       </View>
     </View>
