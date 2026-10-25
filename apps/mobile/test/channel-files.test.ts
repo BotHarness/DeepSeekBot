@@ -169,7 +169,9 @@ it('deduplicates exact references and reads across pages containing no attachmen
   const host = new FakeHost();
   seed(host);
   const channel = host.channel('files');
-  channel.append({ id: 'duplicate', attachments: channel.messages[0]!.attachments }, false);
+  const attachments = channel.messages[0]?.attachments;
+  if (attachments === undefined) throw new Error('Seeded file attachment is missing');
+  channel.append({ id: 'duplicate', attachments }, false);
   channel.append({ id: 'text-only-1' }, false);
   channel.append({ id: 'text-only-2' }, false);
   const subject = open(host);
