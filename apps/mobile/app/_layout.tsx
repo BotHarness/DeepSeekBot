@@ -161,6 +161,10 @@ function RootNavigator() {
                   dangerouslySingular={cloudChannelRouteId}
                   options={{ title: t.cloudChannels.title, headerRight: () => <WorkspaceButton /> }}
                 />
+                <Stack.Screen
+                  name="message-feedback"
+                  options={{ title: t.feedback.title, presentation: 'modal' }}
+                />
                 <Stack.Screen name="notifications" options={{ title: t.notifications }} />
                 <Stack.Screen
                   name="browser/[slug]"

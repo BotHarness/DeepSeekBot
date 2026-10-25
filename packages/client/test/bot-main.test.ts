@@ -1203,7 +1203,6 @@ describe('Bot main Sessions pane', () => {
     expect(menu?.items?.map((item) => item.id)).toEqual([
       'reply',
       'react',
-      'locate',
       'copy',
       'select',
       'feedback',

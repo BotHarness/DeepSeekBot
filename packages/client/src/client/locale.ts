@@ -3,6 +3,9 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots';
 export const LOCALE_NS = 'botharness';
 
 export const zh = {
+  'selection.saveImage': '保存图片',
+  'selection.copy': '复制',
+  'selection.screenshot': '截图',
   'connections.savedOffline': '已保存「{name}」，暂时无法读取频道。可从侧栏重新打开。',
   'connections.invitationInvalid': '邀请已失效，请生成新的邀请。',
   'connections.progress': '连接进度',
@@ -42,6 +45,7 @@ export const zh = {
   'connections.enableContinue': '开启并继续',
   'connections.continue': '继续',
   'connections.back': '返回',
+
   'remoteViewer.browser': '浏览器',
   'remoteViewer.computer': '电脑',
   'remoteViewer.live': '实时',
@@ -4336,6 +4340,9 @@ export function zhTranslate(key: BotHarnessKey | string, params?: Record<string,
 }
 
 export const en = {
+  'selection.saveImage': 'Save image',
+  'selection.copy': 'Copy',
+  'selection.screenshot': 'Screenshot',
   'connections.savedOffline':
     'Saved {name}, but channels are unavailable. Reopen it from the sidebar.',
   'connections.invitationInvalid': 'This invitation is no longer valid. Create a new one.',
@@ -4376,6 +4383,7 @@ export const en = {
   'connections.enableContinue': 'Enable and continue',
   'connections.continue': 'Continue',
   'connections.back': 'Back',
+
   'remoteViewer.browser': 'Browser',
   'remoteViewer.computer': 'Computer',
   'remoteViewer.live': 'Live',

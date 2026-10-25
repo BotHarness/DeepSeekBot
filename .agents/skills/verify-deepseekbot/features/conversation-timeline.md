@@ -58,7 +58,17 @@ Unauthorized GET must refuse. Retry a lost response with the same ID; deletion/e
 resurrection. `packages/core/test/message-feedback.test.ts`,
 `packages/ingest/test/message-feedback.test.ts` and `packages/client/test/message-feedback.test.ts`
 cover these seams. A model failure is a valid no-response case but does not prove normal Bot replies.
-Mobile feedback and selection/menu cleanup are the next slice after Human feedback.
+Mobile: pair the Expo Web export with this isolated Host, open the synthetic DM, long-press the
+saved message and choose **Give feedback**. Change evidence scope, verify stale material cannot
+submit, refresh, rate and submit; inspect the receipt. Long-press → **Select messages**, toggle
+another saved message, copy, open **Screenshot** and inspect the preview, then cancel. Switch
+Channels and verify selection clears. Web previews are layout/browser evidence only; native
+capture/share, keyboard and accessibility checks remain tracked in #2811 for both device lanes.
+Desktop: right-click has **Select messages** and **Give feedback**, no **Locate this message**;
+the selection toolbar directly offers Copy/Screenshot/Cancel and quoted replies still jump.
+Automated seams: apps/mobile/test/message-feedback.test.ts,
+apps/mobile/test/message-feedback-form.test.tsx, apps/mobile/test/message-menu-feedback.test.ts,
+apps/mobile/test/message-selection.test.ts, packages/client/test/message-selection-bar.test.ts.
 
 ## Gotchas
 

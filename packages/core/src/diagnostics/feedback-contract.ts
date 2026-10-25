@@ -51,3 +51,22 @@ export interface FeedbackReceipt {
   reportId: string;
   expiresAt: string;
 }
+
+export const feedbackPreviewSchema = z.object({
+  token: z.string(),
+  canSubmit: z.boolean(),
+  bytes: z.number(),
+  files: z.array(z.object({ path: z.string(), content: z.string() })),
+  summary: z.object({
+    channels: z.array(z.object({ name: z.string(), messages: z.number(), role: z.string() })),
+    sessions: z.array(z.unknown()),
+    admissions: z.number(),
+    omissions: z.array(z.object({ kind: z.string(), detail: z.string() })),
+  }),
+});
+export const feedbackReceiptSchema = z.object({ reportId: z.string(), expiresAt: z.string() });
+export const feedbackErrorSchema = z.object({ error: z.object({ code: z.string() }) });
+
+export type FeedbackPreview = z.infer<typeof feedbackPreviewSchema>;
+export type FeedbackSelectionInput = z.input<typeof feedbackSelectionSchema>;
+export type FeedbackRatingInput = z.input<typeof feedbackRatingSchema>;
