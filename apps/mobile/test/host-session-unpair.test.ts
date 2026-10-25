@@ -10,6 +10,7 @@ const forgotten = vi.hoisted(() => [] as string[]);
 const clearCache = vi.hoisted(() => vi.fn((hostId: string) => void clearedCaches.push(hostId)));
 const clearDrafts = vi.hoisted(() => vi.fn(async () => {}));
 const clientStops = vi.hoisted(() => vi.fn());
+const syncPush = vi.hoisted(() => vi.fn(async (_hosts: unknown) => {}));
 let beforeRead: ((key: string) => Promise<void>) | undefined;
 let beforeSave: ((key: string, value: string) => Promise<void>) | undefined;
 let savedFilter = 'all';
@@ -107,7 +108,7 @@ vi.mock('../src/host/inbox', () => ({
 }));
 vi.mock('../src/host/push-session', () => ({
   createPushSession: () => ({
-    sync: async () => undefined,
+    sync: syncPush,
     forget: async (host: { hostId: string }) => void forgotten.push(host.hostId),
     retryFailed: async () => undefined,
     reflect() {},
@@ -149,6 +150,7 @@ const savedIds = () =>
   ).hosts.map((entry) => entry.hostId);
 
 beforeEach(() => {
+  syncPush.mockClear();
   clearCache.mockClear();
   clearDrafts.mockClear();
   secure.clear();
@@ -159,6 +161,23 @@ beforeEach(() => {
   beforeRead = undefined;
   savedFilter = 'all';
   vi.resetModules();
+});
+
+it('refreshes push credentials after approved replacement without changing the selected Computer', async () => {
+  const { hostSession } = await session('new');
+  syncPush.mockClear();
+  const replacement = { ...host('old'), deviceId: 'replacement', credential: 'replacement-secret' };
+  await hostSession.replaceApprovedPairing(replacement, 'cred-old');
+  expect(syncPush).toHaveBeenLastCalledWith([replacement, host('new')]);
+  expect(hostSession.getState().saved?.hostId).toBe('new');
+});
+
+it('refreshes push routes after authenticated address recovery', async () => {
+  const { hostSession } = await session('new');
+  syncPush.mockClear();
+  const routes = ['https://replacement.example.ts.net:8443'];
+  await hostSession.updateRoutes('old', 'cred-old', routes);
+  expect(syncPush).toHaveBeenLastCalledWith([{ ...host('old'), routes }, host('new')]);
 });
 
 describe('unpairing a Computer', () => {

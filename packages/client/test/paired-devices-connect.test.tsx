@@ -33,10 +33,10 @@ function devices(connect?: Record<string, unknown>) {
   };
 }
 
-const render = async () => {
+const render = async (section: 'devices' | 'connect' = 'connect') => {
   await act(async () => root.unmount());
   root = createRoot(host);
-  await act(async () => root.render(<PairedDevicesSettings t={zhTranslate} />));
+  await act(async () => root.render(<PairedDevicesSettings t={zhTranslate} section={section} />));
   await act(async () => new Promise((done) => setTimeout(done, 0)));
 };
 const button = (label: string) =>
@@ -67,7 +67,7 @@ afterEach(async () => {
 
 it('hides the Connect section when the Host has no account support', async () => {
   snapshot = devices();
-  await render();
+  await render('devices');
   expect(host.querySelector('[data-connect]')).toBeNull();
   expect(host.querySelector('[data-pair-route-steps]')).toBeNull();
   await act(async () => button(zhTranslate('devices.tailscale.setup'))?.click());
@@ -80,6 +80,7 @@ it('signs in, shows the code to confirm, then the connected address', async () =
   expect(host.querySelector('[data-connect-account]')?.getAttribute('data-connect-account')).toBe(
     'signed-out',
   );
+  expect(host.querySelector('[data-pair-phone]')).toBeNull();
   await act(async () => button('登录')?.click());
   expect(posts).toEqual([{ action: 'sign-in' }]);
 
@@ -144,6 +145,7 @@ it('marks a device paired in the last day so a stranger stands out', async () =>
     ],
   };
   await render();
+  await render('devices');
   const row = (id: string) => host.querySelector(`[data-paired-device="${id}"]`);
   expect(row('new')?.hasAttribute('data-new-device')).toBe(true);
   expect(row('new')?.textContent).toContain('新配对，不是你的设备请移除');

@@ -3940,6 +3940,9 @@ export const zh = {
   'telemetry.notice.done': '知道了',
   'telemetry.notice.close': '关闭',
   'botSettings.section.devices': '设备',
+  'botSettings.section.connect': 'Connect',
+  'devices.tailscale.disable': '关闭自动发布',
+  'devices.tailscale.manage': '开启自动恢复',
   'remoteHosts.tabs': '本机与远程',
   'remoteHosts.all': '全部',
   'remoteHosts.this': '本机',
@@ -4038,7 +4041,8 @@ export const zh = {
   'remoteHosts.error.unreachable': '连不上这个远端，请检查 Host 和它的连接是否正在运行。',
   'remoteHosts.error.already-paired': '这个远程已经添加过了',
   'remoteHosts.error.this-host': '这是本机的链接',
-  'devices.connection.title': '连接手机',
+  'devices.connection.title': '1. 准备连接方式',
+  'devices.connection.pairStep': '2. 配对手机',
   'devices.connection.prepare': '先开启局域网连接，或设置 Tailscale。',
   'devices.connection.available': '此配对码包含：{routes}。手机仍需接入对应网络。',
   'devices.tailscale.title': '通过 Tailscale',
@@ -4065,7 +4069,8 @@ export const zh = {
   'devices.lan.enable': '开启局域网连接',
   'devices.lan.disable': '关闭局域网连接',
   'devices.pair.title': '配对手机',
-  'devices.pair.description': '扫码、从相册识别或复制配对链接。配对码只能用一次，10 分钟后失效。',
+  'devices.pair.description':
+    '任一方式就绪后即可扫码。新增连接方式会自动同步，无需重复配对。配对码 10 分钟后失效。',
   'devices.pair.open': '配对手机',
   'devices.pair.dialogTitle': '配对手机',
   'devices.pair.dialogDescription': '在手机 App 中扫码、从相册选择二维码，或粘贴下方配对链接。',
@@ -4100,11 +4105,10 @@ export const zh = {
   'devices.route.manualOnly': '确认后在终端运行：',
   'devices.route.copy': '复制',
   'devices.route.copyCommand': '复制命令',
-  'devices.route.otherTarget':
-    '这个地址已经用 tailscale serve 发布了别的服务。自动运行会覆盖它，所以这一步需要你自己决定。',
+  'devices.route.otherTarget': '可用的发布端口已被占用。请在 Tailscale 中释放一个端口后重试。',
   'devices.route.confirm.title': '运行 tailscale serve？',
   'devices.route.confirm.description':
-    'Tobs 会在这台电脑上运行下面的命令，用 HTTPS 把本机 {port} 端口发布到你的 tailnet。只有你 tailnet 里的设备能访问，随时可以运行 tailscale serve --https=443 off 撤销，不影响其他 Serve 配置。',
+    '将本机 {port} 端口通过 HTTPS 发布到你的 tailnet，并在重启后恢复。端口占用时会选择其他发布端口。你可以在此关闭自动发布。',
   'devices.route.confirm.action': '运行',
   'devices.route.enableAction': '打开 Tailscale 后台',
   'devices.route.failure.needsEnable':
@@ -8406,6 +8410,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'telemetry.notice.done': 'Got it',
   'telemetry.notice.close': 'Close',
   'botSettings.section.devices': 'Devices',
+  'botSettings.section.connect': 'Connect',
+  'devices.tailscale.disable': 'Turn off automatic publishing',
+  'devices.tailscale.manage': 'Enable automatic recovery',
   'remoteHosts.tabs': 'This host and remotes',
   'remoteHosts.all': 'All',
   'remoteHosts.this': 'This host',
@@ -8507,7 +8514,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
     "Can't reach that remote. Check that the Host and its connection are running.",
   'remoteHosts.error.already-paired': 'That remote is already added.',
   'remoteHosts.error.this-host': 'That link is for this host.',
-  'devices.connection.title': 'Connect your phone',
+  'devices.connection.title': '1. Prepare a connection',
+  'devices.connection.pairStep': '2. Pair your phone',
   'devices.connection.prepare': 'Enable local access or set up Tailscale first.',
   'devices.connection.available':
     'This code includes: {routes}. Your phone must join the corresponding network.',
@@ -8540,7 +8548,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.lan.disable': 'Disable local access',
   'devices.pair.title': 'Pair a phone',
   'devices.pair.description':
-    'Scan a code, choose a QR image or copy the pairing link. The code works once and expires after 10 minutes.',
+    'Scan when any connection is ready. New routes sync without pairing again. The code works once and expires after 10 minutes.',
   'devices.pair.open': 'Pair a phone',
   'devices.pair.dialogTitle': 'Pair a phone',
   'devices.pair.dialogDescription':
@@ -8578,10 +8586,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'devices.route.copy': 'Copy',
   'devices.route.copyCommand': 'Copy command',
   'devices.route.otherTarget':
-    'tailscale serve already publishes another service at this address. Running it automatically would replace that, so this step is your call.',
+    'The available publishing ports are occupied. Free a port in Tailscale and retry.',
   'devices.route.confirm.title': 'Run tailscale serve?',
   'devices.route.confirm.description':
-    'Tobs will run the command below on this computer to publish local port {port} over HTTPS on your tailnet. Only devices on your tailnet can reach it; run tailscale serve --https=443 off to undo; other Serve entries stay.',
+    'Publish local port {port} over HTTPS on your tailnet and restore it after restart. If the publishing port is occupied, another will be selected. You can turn off automatic publishing here.',
   'devices.route.confirm.action': 'Run',
   'devices.route.enableAction': 'Open Tailscale admin',
   'devices.route.failure.needsEnable':

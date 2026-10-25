@@ -201,6 +201,14 @@ function confirmUnpair(row: HostDrawerRow, name: string): void {
 function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
   return [
     {
+      label: t.connectionRoutes.title,
+      icon: 'computer',
+      run: () =>
+        closeThen(() =>
+          router.push({ pathname: '/host-connection', params: { hostId: row.hostId } }),
+        ),
+    },
+    {
       label: t.hostCustomize,
       icon: 'settings',
       run: () =>

@@ -79,6 +79,7 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
     previous?.credential === saved?.credential
   ) {
     state = { ...state, saved, hosts: next.hosts };
+    if (saved) state.client?.updateRoutes?.(saved.routes);
     for (const listener of listeners) listener();
     return;
   }
@@ -95,6 +96,18 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
           credential: saved.credential,
           carrier: nativeCarrier(),
           telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
+          onRoutesChanged: (routes) =>
+            serialize(async () => {
+              const existing = stored.hosts.find((host) => host.hostId === saved.hostId);
+              if (!existing || existing.credential !== saved.credential) return;
+              await commit({
+                ...stored,
+                hosts: stored.hosts.map((host) =>
+                  host.hostId === saved.hostId ? { ...host, routes } : host,
+                ),
+              });
+              void pushSession.sync(stored.hosts);
+            }),
         });
   if (client && saved) clientHosts.set(client, saved.hostId);
   const inbox = client === undefined ? undefined : createInbox(client);
@@ -167,6 +180,38 @@ function serialize<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export const hostSession = {
+  async replaceApprovedPairing(host: SavedHost, previousCredential: string): Promise<void> {
+    return serialize(async () => {
+      const previous = stored.hosts.find((item) => item.hostId === host.hostId);
+      if (
+        !previous ||
+        previous.credential !== previousCredential ||
+        (previous.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
+      )
+        throw new Error('pairing-changed');
+      const replacement = {
+        ...host,
+        ...(previous.accountOwner ? { accountOwner: previous.accountOwner } : {}),
+      };
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((item) => (item.hostId === host.hostId ? replacement : item)),
+      });
+      void pushSession.sync(stored.hosts);
+      void revokePairing({ host: previous, carrier: nativeCarrier() });
+    });
+  },
+  async updateRoutes(hostId: string, credential: string, routes: string[]): Promise<void> {
+    return serialize(async () => {
+      const existing = stored.hosts.find((host) => host.hostId === hostId);
+      if (!existing || existing.credential !== credential) throw new Error('pairing-changed');
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((host) => (host.hostId === hostId ? { ...host, routes } : host)),
+      });
+      void pushSession.sync(stored.hosts);
+    });
+  },
   subscribe(listener: () => void): () => void {
     listeners.add(listener);
     return () => listeners.delete(listener);

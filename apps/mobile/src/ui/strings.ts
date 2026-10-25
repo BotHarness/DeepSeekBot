@@ -1604,6 +1604,23 @@ const en = {
   },
   hostLookReset: 'Reset to default',
   hostLookMissing: 'This computer is no longer paired.',
+  connectionRoutes: {
+    scan: 'Scan to update addresses',
+    scanHint: 'Open a fresh pairing code on this computer. Your existing pairing is kept.',
+    title: 'Connections',
+    automatic:
+      'Uses LAN first, then Tailscale, then Connect. Addresses update from your paired computer.',
+    lan: 'Local network',
+    local: 'This device',
+    current: 'In use',
+    verified: 'Verified',
+    unchecked: 'Not tested',
+    unreachable: 'Unreachable',
+    copy: 'Copy address',
+    copied: 'Address copied',
+    test: 'Test connection',
+    testing: 'Testing…',
+  },
 };
 
 const zh: typeof en = {
@@ -3102,6 +3119,22 @@ const zh: typeof en = {
   },
   hostLookReset: '恢复默认',
   hostLookMissing: '这台电脑已不再配对。',
+  connectionRoutes: {
+    scan: '扫码更新地址',
+    scanHint: '在这台电脑打开新的配对码。原有配对会保留。',
+    title: '连接详情',
+    automatic: '优先使用局域网，其次是 Tailscale 和 Connect。地址会从已配对电脑自动更新。',
+    lan: '局域网',
+    local: '本机',
+    current: '正在使用',
+    verified: '已验证',
+    unchecked: '尚未测试',
+    unreachable: '无法连接',
+    copy: '复制地址',
+    copied: '已复制地址',
+    test: '测试连接',
+    testing: '正在测试…',
+  },
 };
 
 export let locale = interfacePreferences.getSnapshot().locale;

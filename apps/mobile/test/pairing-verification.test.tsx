@@ -60,6 +60,7 @@ afterEach(() => {
   pairingOptions = {};
 });
 async function setup() {
+  mocks.getState.mockReturnValue({ hosts: [] });
   view = document.createElement('div');
   document.body.append(view);
   root = createRoot(view);
@@ -159,13 +160,15 @@ it('refuses an alternate registration of an already saved Host before opening a 
     ok: true,
     value: { host: { id: 'already-saved', name: 'Same name' } },
   });
-  mocks.getState.mockReturnValue({ hosts: [{ hostId: 'already-saved' }] });
+  mocks.getState.mockReturnValue({
+    hosts: [{ hostId: 'already-saved', encryption: { hostKey: '11'.repeat(32) } }],
+  });
   const actual = await vi.importActual<typeof import('../src/host/pairing')>('../src/host/pairing');
   mocks.pairHost.mockImplementation(actual.pairHost);
   await act(async () => {
     expect(
       await pairing.pair('account:new-registration', 'account', true, 'new-registration'),
-    ).toBe('already-paired');
+    ).toBe('channel-authentication-failed');
   });
   expect(pairing.verification).toBeUndefined();
   expect(mocks.save).not.toHaveBeenCalled();

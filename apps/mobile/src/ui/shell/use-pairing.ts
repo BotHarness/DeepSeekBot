@@ -52,7 +52,9 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     setBusy(true);
     setError(undefined);
     let accountPair: { accountOwner: AccountOwner; sessionKey: string } | undefined;
+    const startingHosts = hostSession.getState().hosts;
     const result = await pairHost({
+      existing: (id) => startingHosts.find((host) => host.hostId === id),
       text:
         hostId === undefined
           ? text
@@ -60,11 +62,6 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
               const offer = await connectAccount.offer(hostId, deviceName());
               if (!offer.ok) return offer;
               accountPair = offer.value;
-              if (
-                options.preventDuplicates &&
-                hostSession.getState().hosts.some((host) => host.hostId === offer.value.host.id)
-              )
-                return { ok: false, code: 'already-paired' };
               return { ok: true, payload: offer.value };
             },
       method,
@@ -91,9 +88,23 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
         }),
       onPending: setFingerprint,
       save: async (host) => {
+        const original = startingHosts.find((saved) => saved.hostId === host.hostId);
+        if (original && original.credential !== host.credential) {
+          await hostSession.replaceApprovedPairing(host, original.credential);
+          return;
+        }
+        const existing = hostSession.getState().hosts.find((saved) => saved.hostId === host.hostId);
+        if (existing?.credential === host.credential) {
+          await hostSession.updateRoutes(host.hostId, host.credential, host.routes);
+          return;
+        }
         if (
           options.preventDuplicates &&
-          hostSession.getState().hosts.some((saved) => saved.hostId === host.hostId)
+          hostSession
+            .getState()
+            .hosts.some(
+              (saved) => saved.hostId === host.hostId && saved.credential !== host.credential,
+            )
         )
           throw new Error('already-paired');
         if (accountPair) {

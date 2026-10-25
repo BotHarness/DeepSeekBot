@@ -67,6 +67,25 @@ it('refuses image pairing when no confirmation handler is provided', async () =>
   expect(options.save).not.toHaveBeenCalled();
 });
 
+it('keeps a legacy pairing until its explicitly approved replacement succeeds', async () => {
+  const options = setup();
+  const previous = {
+    hostId: 'qa-host',
+    hostName: 'QA computer',
+    deviceId: 'legacy',
+    credential: 'legacy.secret',
+    routes: ['https://old.ts.net'],
+  };
+  const confirmFingerprint = vi.fn(async () => false);
+  expect(await pairHost({ ...options, existing: () => previous, confirmFingerprint })).toEqual({
+    ok: false,
+    code: 'host-key-confirmation-required',
+  });
+  expect(confirmFingerprint).toHaveBeenCalledOnce();
+  expect(options.save).not.toHaveBeenCalled();
+  expect(previous.credential).toBe('legacy.secret');
+});
+
 it('cancels while comparing the image fingerprint without enrolling even if confirmation arrives later', async () => {
   const options = setup();
   const controller = new AbortController();

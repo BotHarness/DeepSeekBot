@@ -65,6 +65,103 @@ it('selects another saved route after a network switch and returns after it reco
   expect(host.requests.some((request) => request.includes(SECONDARY))).toBe(true);
 });
 
+it('returns to the preferred saved route while the fallback is still healthy', async () => {
+  const host = new FakeHost();
+  host.unreachable.add(PRIMARY);
+  const target = await connect(host, [PRIMARY, SECONDARY]);
+  expect(target.getSnapshot().connection.route).toBe(SECONDARY);
+  host.unreachable.delete(PRIMARY);
+  target.retryNow('resume');
+  await until(
+    (state) => state.connection.status === 'connected' && state.connection.route === PRIMARY,
+  );
+  expect(host.revoked).toBe(false);
+});
+
+it('does not optimize routes while an accepted request is still in flight', async () => {
+  const host = new FakeHost();
+  host.unreachable.add(PRIMARY);
+  const target = await connect(host, [PRIMARY, SECONDARY]);
+  let complete: (() => void) | undefined;
+  host.methods.set(
+    'pending-write',
+    () =>
+      new Promise<void>((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const pending = target.call('pending-write');
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  host.unreachable.delete(PRIMARY);
+  target.retryNow('resume');
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  expect(target.getSnapshot().connection).toMatchObject({ status: 'connected', route: SECONDARY });
+  complete?.();
+  await pending;
+  target.retryNow('resume');
+  await until(
+    (state) => state.connection.status === 'connected' && state.connection.route === PRIMARY,
+  );
+  expect(host.calls.filter((entry) => entry.method === 'pending-write')).toHaveLength(1);
+});
+
+it('recovers preference even when background route discovery is slower than the health read', async () => {
+  const host = new FakeHost();
+  host.unreachable.add(PRIMARY);
+  client = createHostClient({
+    hostId: host.hostId,
+    routes: [PRIMARY, SECONDARY],
+    credential: host.credential,
+    carrier: {
+      ...host.carrier,
+      request: async (url, init) => {
+        if (url.endsWith('/devices')) await new Promise((resolve) => setTimeout(resolve, 80));
+        return host.carrier.request(url, init);
+      },
+    },
+    backoff: () => 5,
+    timeoutMs: 200,
+  });
+  client.start();
+  await until((state) => state.connection.status === 'connected');
+  host.unreachable.delete(PRIMARY);
+  client.retryNow('resume');
+  await until(
+    (state) => state.connection.status === 'connected' && state.connection.route === PRIMARY,
+  );
+});
+
+it('learns a newly published address through the paired Host without enrolling again', async () => {
+  const host = new FakeHost();
+  host.deviceSnapshot = {
+    host: { id: host.hostId },
+    routes: { routes: [{ url: SECONDARY, kind: 'tailscale', ready: true }] },
+  };
+  const persist = vi.fn(async () => {});
+  client = createHostClient({
+    hostId: host.hostId,
+    routes: [PRIMARY],
+    credential: host.credential,
+    carrier: host.carrier,
+    onRoutesChanged: persist,
+    backoff: () => 5,
+    timeoutMs: 100,
+  });
+  client.start();
+  await until(
+    (state) =>
+      state.connection.status === 'connected' &&
+      state.routes?.some((entry) => entry.url === SECONDARY) === true,
+  );
+  expect(persist).toHaveBeenCalledWith([SECONDARY, PRIMARY]);
+  host.unreachable.add(PRIMARY);
+  client.retryNow('resume');
+  await until(
+    (state) => state.connection.status === 'connected' && state.connection.route === SECONDARY,
+  );
+  expect(host.requests.some((entry) => entry.endsWith('/pair'))).toBe(false);
+});
+
 it('detects silent loss with a bounded health probe without a foreground event', async () => {
   vi.useFakeTimers();
   const host = new FakeHost();

@@ -100,6 +100,7 @@ export class FakeHost {
   revoked = false;
   up = true;
   olderHost = false;
+  deviceSnapshot: unknown;
   private sockets = new Set<Socket>();
   readonly requests: string[] = [];
   readonly unreachable = new Set<string>();
@@ -169,6 +170,11 @@ export class FakeHost {
         );
       }
       if (parsed.pathname === '/botharness-device/api/computer/status') return response(404, '{}');
+      if (parsed.pathname === '/botharness-device/api/botharness/devices')
+        return response(
+          this.deviceSnapshot === undefined ? 404 : 200,
+          JSON.stringify(this.deviceSnapshot ?? {}),
+        );
       const method = parsed.pathname.replace(
         /^\/botharness-device\/api\/(?:botharness\/)?/u,
         '',

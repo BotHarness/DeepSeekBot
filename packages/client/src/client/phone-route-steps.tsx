@@ -12,6 +12,7 @@ export const TAILSCALE_DOWNLOAD_URL = 'https://tailscale.com/download';
 const SIGN_IN_COMMAND = 'tailscale up';
 
 export interface PhoneRouteStatus {
+  managed?: { enabled: boolean; owned: boolean };
   routes: {
     url: string;
     kind: 'lan' | 'tailscale' | 'connect' | 'loopback';
