@@ -8,6 +8,8 @@ import type {
   NativeSyntheticEvent,
 } from 'react-native';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { channelNavigationHarness } from './channel-navigation-harness';
+let navigationHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationTimelineSnapshot } from '../src/host/conversation';
 
@@ -100,6 +102,7 @@ vi.mock('../src/host/native-source-drafts', async () => {
   return { useSourceDraft: () => useState('') };
 });
 vi.mock('expo-router', () => ({
+  useNavigationContainerRef: () => navigationHistory.navigation,
   useIsFocused: () => true,
   Stack: {
     Screen: ({ options }: { options: { headerLeft?: () => ReactNode } }) => (
@@ -296,6 +299,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
 beforeEach(() => {
+  navigationHistory = channelNavigationHarness();
   frames = new Map();
   nextFrame = 0;
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {

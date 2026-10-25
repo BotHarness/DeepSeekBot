@@ -3,6 +3,10 @@ import { act, useLayoutEffect, type ReactNode, type Ref } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { channelNavigationHarness } from './channel-navigation-harness';
+let channelHistory = channelNavigationHarness();
+
+import type { HumanAttentionItem } from '../src/host/wire';
 import type { CloudRow } from '../src/cloud/client';
 import type { CloudConversation, ConversationWorkspace } from '../src/cloud/conversations';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
@@ -41,6 +45,7 @@ const {
     actions: false,
     unread: false,
     hostId: 'h1',
+    activityItems: [] as HumanAttentionItem[],
   },
   cloudState: {
     error: undefined as string | undefined,
@@ -156,6 +161,8 @@ vi.mock('../src/cloud/native-conversations', () => ({
   useCloudConversations: () => directoryState,
   cloudConversations: { refresh: async () => {} },
 }));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 vi.mock('react-native', async () => {
@@ -208,6 +215,7 @@ vi.mock('expo-router', () => {
     useIsFocused: () => true,
     useFocusEffect: (work: () => void) => useLayoutEffect(work, [work]),
     useRouter: () => ({ push, prefetch: () => undefined }),
+    useNavigationContainerRef: () => channelHistory.navigation,
   };
 });
 vi.mock('../src/host/host-session', () => ({
@@ -221,9 +229,14 @@ vi.mock('../src/host/host-session', () => ({
     roster: hostState.connecting ? undefined : roster,
   }),
   useInbox: () =>
-    hostState.unread
-      ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
-      : { status: 'loading' },
+    hostState.activityItems.length
+      ? {
+          status: 'ready',
+          sections: { action: hostState.activityItems, replies: [], unread: [], handled: [] },
+        }
+      : hostState.unread
+        ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
+        : { status: 'loading' },
   useQuietChannels: () => [],
   refreshQuietChannels: () => {},
 }));
@@ -259,6 +272,7 @@ vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { sectionCollapse } from '../src/host/native-section-collapse';
 import HomeScreen from '../app/(tabs)/(home)/index';
+import ActivityScreen from '../app/(tabs)/(activity)/activity';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -277,6 +291,7 @@ afterEach(() => {
   host?.remove();
   root = undefined;
   push.mockReset();
+  channelHistory = channelNavigationHarness();
   vi.unstubAllGlobals();
   hostState.connecting = false;
   hostState.removed = false;
@@ -284,6 +299,7 @@ afterEach(() => {
   hostState.fontScale = 1;
   hostState.actions = false;
   hostState.unread = false;
+  hostState.activityItems = [];
   hostState.hostId = 'h1';
   delete roster.bots[0]!.latestMessageId;
   delete roster.arrangement;
@@ -495,8 +511,8 @@ describe('Search in the Chats header', () => {
     await act(async () =>
       view.querySelector<HTMLButtonElement>('button[aria-label="Ada, Done"]')!.click(),
     );
-    expect(push).toHaveBeenLastCalledWith({
-      pathname: '/dm/[slug]',
+    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+      name: 'dm/[slug]',
       params: { slug: 'ada', hostId: 'h1' },
     });
 
@@ -509,8 +525,8 @@ describe('Search in the Chats header', () => {
         .find((node) => node.getAttribute('aria-label')?.startsWith('Launch team'))!
         .click(),
     );
-    expect(push).toHaveBeenLastCalledWith({
-      pathname: '/channel/[id]',
+    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+      name: 'channel/[id]',
       params: { id: 'launch-team', hostId: 'h1' },
     });
   });
@@ -980,4 +996,61 @@ describe('Remote Host section and Pinned presentation', () => {
       ]);
     },
   );
+});
+
+describe('scoped conversation history', () => {
+  it('reopening a Chats row unwinds to the original DM and preserves Back', async () => {
+    const view = await home();
+    const tapAda = () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="conversation-row-bot:ada"]')!.click();
+    await act(async () => tapAda());
+    const original = channelHistory.state.routes[channelHistory.state.index]?.key;
+    channelHistory.push('channel/[id]', { id: 'another', hostId: 'h1' });
+    await act(async () => tapAda());
+    expect(channelHistory.state.routes[channelHistory.state.index]).toMatchObject({
+      key: original,
+      name: 'dm/[slug]',
+      params: { hostId: 'h1', slug: 'ada' },
+    });
+    expect(channelHistory.state.routes).toHaveLength(2);
+    channelHistory.back();
+    expect(channelHistory.state.routes[channelHistory.state.index]?.name).toBe('(tabs)');
+  });
+});
+
+describe('Activity Channel navigation', () => {
+  it('opens a card in its scoped conversation and keeps the original route for Back', async () => {
+    hostState.activityItems = [
+      {
+        id: 'approval',
+        kind: 'workspace-grant-request',
+        category: 'action',
+        createdAt: '2026-10-25T00:00:00Z',
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'card',
+        summary: 'Check deployment',
+      },
+    ];
+    channelHistory.push('dm/[slug]', { slug: 'ada', hostId: 'h1' });
+    const key = channelHistory.state.routes.at(-1)!.key;
+    channelHistory.push('channel/[id]', { id: 'other', hostId: 'h1' });
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => root!.render(<ActivityScreen />));
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 100)));
+    const row = host.querySelector<HTMLButtonElement>('[data-testid="inbox-row-approval"]');
+    expect(host.textContent).toContain('Check deployment');
+    expect(row).not.toBeNull();
+    await act(async () => row!.click());
+    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+      key,
+      name: 'dm/[slug]',
+      params: { slug: 'ada', hostId: 'h1', focus: 'card' },
+    });
+    expect(channelHistory.state.routes).toHaveLength(2);
+    channelHistory.back();
+    expect(channelHistory.state.routes.at(-1)!.name).toBe('(tabs)');
+  });
 });

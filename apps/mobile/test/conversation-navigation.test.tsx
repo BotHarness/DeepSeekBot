@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+let profileHistory = channelNavigationHarness();
 import type { RosterBot } from '../src/host/client';
 import type { ConversationSnapshot } from '../src/host/conversation';
 
@@ -32,6 +34,7 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
 }));
 vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
 vi.mock('expo-router', () => ({
+  useNavigationContainerRef: () => profileHistory.navigation,
   useIsFocused: () => state.focused,
   usePreventRemove: () => {},
   Stack: {
@@ -71,6 +74,8 @@ vi.mock('expo-router', () => ({
     ),
   },
   useRouter: () => ({
+    push: (href: { pathname: string; params?: object }) =>
+      profileHistory.push(href.pathname.slice(1), href.params),
     canGoBack: () => state.history.length > 1,
     back: () => state.history.pop(),
     replace: (href: string) => state.history.splice(-1, 1, href),
@@ -172,7 +177,7 @@ vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => nu
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
-vi.mock('../src/ui/chat/chat-title', () => ({ ChatTitle: () => null }));
+vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
@@ -551,7 +556,7 @@ describe('missing conversation navigation', () => {
         state.history = ['/activity', route];
         const stacked = (await render(place)).querySelector('header')!;
         expect(stacked.dataset['backVisible']).toBe('true');
-        expect(stacked.querySelector('button')).toBeNull();
+        expect(stacked.querySelector('[data-item="button"]')).toBeNull();
         expect([...stacked.children].map((item) => (item as HTMLElement).dataset['item'])).toEqual([
           'spacing',
           'custom',
@@ -592,4 +597,39 @@ describe('chat list chrome', () => {
       Object.assign(Platform, { OS: os });
     }
   });
+});
+
+it('the real conversation title opens a source-scoped Bot Profile', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    profileHistory = channelNavigationHarness();
+    profileHistory.push('dm/[slug]', { slug: 'ada', hostId: 'computer_a' });
+    state.history = ['/', '/dm/ada'];
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        state: 'idle',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    const view = await render({ kind: 'dm', slug: 'ada' });
+    const title = [...view.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Ada',
+    );
+    expect(title).toBeDefined();
+    await act(async () => title!.click());
+    expect(profileHistory.state.routes.at(-1)).toMatchObject({
+      name: 'bot/[slug]',
+      params: { slug: 'ada', hostId: 'computer_a' },
+    });
+    profileHistory.back();
+    expect(profileHistory.state.routes.at(-1)!.name).toBe('dm/[slug]');
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
 });
