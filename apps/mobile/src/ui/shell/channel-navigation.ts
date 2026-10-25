@@ -1,4 +1,6 @@
 import type { NavigationAction, NavigationState } from 'expo-router/react-navigation';
+import type { Stack } from 'expo-router';
+import type { ComponentProps } from 'react';
 
 import type { RosterView } from '../../host/client';
 import type { ChatHref } from '../../host/push';
@@ -26,6 +28,40 @@ export function channelDestination(
 export function channelRouteId(name: string, params: Record<string, unknown>): string {
   return JSON.stringify([params['hostId'], name, params['slug'] ?? params['id']]);
 }
+
+export const channelStackRouter: NonNullable<ComponentProps<typeof Stack>['UNSTABLE_router']> = (
+  original,
+) => ({
+  getStateForAction(state, action, options) {
+    const payload = action.payload;
+    if (
+      action.type !== 'NAVIGATE' ||
+      !payload ||
+      !('name' in payload) ||
+      (payload.name !== 'dm/[slug]' && payload.name !== 'channel/[id]') ||
+      !('params' in payload) ||
+      typeof payload.params !== 'object' ||
+      !payload.params ||
+      !('hostId' in payload.params) ||
+      typeof payload.params.hostId !== 'string'
+    )
+      return original.getStateForAction(state, action, options);
+    const identity = channelRouteId(payload.name, { ...payload.params });
+    const existing = state.routes
+      .slice(0, state.index + 1)
+      .some((route) => channelRouteId(route.name, { ...route.params }) === identity);
+    const dismissProfile = !existing && state.routes[state.index]?.name === 'bot/[slug]';
+    return original.getStateForAction(
+      state,
+      {
+        ...action,
+        type: dismissProfile ? 'REPLACE' : 'NAVIGATE',
+        payload: { ...payload, pop: true },
+      },
+      options,
+    );
+  },
+});
 
 export type ChannelNavigation = {
   isReady(): boolean;
