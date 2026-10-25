@@ -29,7 +29,7 @@ The phone command explicitly settles JavaScript Promises through the inspector; 
 
 `deepseekbot device-notifications --device-file <private-pairing.json>` reads the admitted device's send-preference copy from a live Host. Add `--preferences-stdin` and pipe `{"approval":true,"question":true,"private-input":true,"reply":false}` to replace its four kinds, even before a push token is registered. The private file has the saved pairing shape (`hostId`, `hostName`, `routes`, `deviceId`, `credential`); never put its credential in arguments or publish the file. Output is one JSON document without credentials; revoked pairings return `device-revoked`. This edits that Host's delivery copy only; the phone's persisted preference is authoritative and overwrites it on the next sync. Browser notification choices remain local to that browser and do not change Host attention.
 
-`deepseekbot device-activity capability --device-file <private-pairing.json>` checks this Computer's configured Lock Screen service. `prepare`, `register` and `stop` use `--activity-stdin`: prepare receives `channelId`, `messageId`, `bundleIdentifier`; register also receives the actual iOS `clientActivityId`, per-activity `token` and `locale` (`en`/`zh`); stop receives only `clientActivityId`. Device identity always comes from the saved pairing, never stdin. A token is secret: pipe it privately, never put it in arguments or publish it. The CLI invokes the same authenticated/encrypted Device routes as the phone and prints only a JSON result or coded refusal. `activity-provider-unconfigured`, `activity-app-unsupported`, `activity-ended` and `device-revoked` refuse unavailable or stale operations. `activity-cleanup-pending` reports a temporary stop failure; only cleanup is retried until acknowledgement or registration expiry. Stopping display never stops the underlying request. `send-status <bot> --message-id <id>` now includes `progress` with explicit Inbox resolution; a handled turn is not completion. CLI tests cover these contracts; the live Host and real iPhone remote-delivery run remain separate QA gates. See [ADR-0254](adr/0254-live-activities-project-one-admitted-dm-request.md).
+`deepseekbot device-activity capability --device-file <private-pairing.json>` checks this Computer's configured Lock Screen service. `prepare`, `register` and `stop` use `--activity-stdin`: prepare receives `channelId`, `messageId`, `bundleIdentifier`; register also receives the actual iOS `clientActivityId`, per-activity `token` and `locale` (`en`/`zh`); stop receives only `clientActivityId`. Device identity always comes from the saved pairing, never stdin. A token is secret: pipe it privately, never put it in arguments or publish it. The CLI invokes the same authenticated/encrypted Device routes as the phone and prints only a JSON result or coded refusal. `activity-provider-unconfigured`, `activity-app-unsupported`, `activity-ended` and `device-revoked` refuse unavailable or stale operations. `activity-cleanup-pending` reports a temporary stop failure; only cleanup is retried until acknowledgement or registration expiry. Stopping display never stops the underlying request. `send-status <bot> --message-id <id>` now includes `progress` with explicit Inbox resolution; a handled turn is not completion. CLI tests cover these contracts; the live Host and real iPhone remote-delivery run remain separate QA gates. See [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md).
 
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
@@ -1425,3 +1425,29 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.
+
+### Message feedback (#2811)
+
+Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,
+redacted snapshot. Preview defaults to 20 messages before and after the anchor; each count accepts
+0–100. `conversation`, `sessions`, `inbox`, `deliveries`, and `relatedChats` default to true;
+`wholeSessions` defaults to false. Inspect `files`, category choices and `summary.omissions` before
+submitting. Execution records can contain repeated chat text even with `conversation: false`.
+
+```bash
+printf '%s' '{"channelId":"<channel>","messageId":"<message>","before":20,"after":20}' | deepseekbot feedback-preview
+printf '%s' '{"token":"<preview-token>"}' | deepseekbot feedback-download --out evidence.zip
+printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-response"],"comment":"Synthetic QA"}}' | deepseekbot feedback-submit --confirm
+```
+
+Each command uses the normal live Host authentication and emits one JSON document. Download
+creates a new file exclusively. Submit requires `--confirm`; rating is `good` or `bad`, tags are
+optional fixed categories and comment accepts up to 500 Unicode characters. Secrets and content
+belong on stdin/files, never command arguments. Preview tokens expire after 30 minutes, are scoped
+to this Host connection, and only the last four snapshots remain. `preview-stale` requires a new
+preview. A failed submission freezes its rating and snapshot; retry that same request to retain the
+same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId` and `expiresAt`.
+
+The Host must opt in with `BOTHARNESS_FEEDBACK_ENDPOINT`; otherwise preview/download work but
+submit returns `feedback-unavailable`. Only `https://feedback.botharness.ai/feedback` and loopback
+HTTP `/feedback` are accepted; redirects are refused. See [receiver operations](message-feedback.md).

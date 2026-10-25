@@ -33,6 +33,9 @@ const state = vi.hoisted(() => ({
   glassHeader: true,
 }));
 
+vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
+vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
+
 vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
   forgetRecentChats: async () => {},

@@ -1,4 +1,4 @@
-# ADR-0254: Live Activities project one admitted DM request
+# ADR-0255: Live Activities project one admitted DM request
 
 Status: Accepted for the source slice; provider deployment and native qualification pending
 

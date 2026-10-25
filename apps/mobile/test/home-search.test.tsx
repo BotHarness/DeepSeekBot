@@ -1,14 +1,21 @@
 // @vitest-environment jsdom
-import { act, useLayoutEffect, type ReactNode, type Ref } from 'react';
+import { act, useLayoutEffect, useSyncExternalStore, type ReactNode, type Ref } from 'react';
+import { createHostClient, type HostClient } from '../src/host/client';
+import { FakeHost } from './fake-host';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CloudClient, type CloudRow } from '../src/cloud/client';
+import { createHash } from 'node:crypto';
+import {
+  createCloudConversations,
+  type CloudConversation,
+  type ConversationWorkspace,
+} from '../src/cloud/conversations';
 import { channelNavigationHarness } from './channel-navigation-harness';
 let channelHistory = channelNavigationHarness();
 const whoami = vi.fn(async (_id: string) => {});
 import type { HumanAttentionItem } from '../src/host/wire';
-import type { CloudRow } from '../src/cloud/client';
-import type { CloudConversation, ConversationWorkspace } from '../src/cloud/conversations';
 import { publicInstance, MOBILE_REDIRECT_URI } from '../src/cloud/instance-contract';
 import { cloudViewScope } from '../src/cloud/workspace-directory';
 import { computerEnvironmentKey, cloudEnvironmentKey } from '../src/host/conversation-environments';
@@ -46,15 +53,18 @@ const {
     actions: false,
     unread: false,
     hostId: 'h1',
+    live: undefined as HostClient | undefined,
     activityItems: [] as HumanAttentionItem[],
   },
   cloudState: {
+    live: undefined as CloudClient | undefined,
     error: undefined as string | undefined,
     ready: true,
     busy: false,
     rows: [] as CloudRow[],
   },
   directoryState: {
+    live: undefined as ReturnType<typeof createCloudConversations> | undefined,
     busy: false,
     ready: true,
     rows: [] as CloudConversation[],
@@ -168,12 +178,27 @@ vi.mock('../src/host/native-conversation-filter', async () => {
   };
 });
 vi.mock('../src/cloud/native', () => ({
-  useCloudSnapshot: () => cloudState,
-  cloudClient: { getSnapshot: () => cloudState, whoami: (...args: [string]) => whoami(...args) },
+  useCloudSnapshot: () =>
+    cloudState.live
+      ? useSyncExternalStore(cloudState.live.subscribe, cloudState.live.getSnapshot)
+      : cloudState,
+  cloudClient: {
+    getSnapshot: () => cloudState.live?.getSnapshot() ?? cloudState,
+    whoami: (id: string) => (cloudState.live ? cloudState.live.whoami(id) : whoami(id)),
+    useOrganization: (id: string, organizationId: string) =>
+      cloudState.live!.useOrganization(id, organizationId),
+  },
 }));
 vi.mock('../src/cloud/native-conversations', () => ({
-  useCloudConversations: () => directoryState,
-  cloudConversations: { refresh: async () => {} },
+  useCloudConversations: () =>
+    directoryState.live
+      ? useSyncExternalStore(directoryState.live.subscribe, directoryState.live.getSnapshot)
+      : directoryState,
+  cloudConversations: {
+    refresh: async () => {
+      await directoryState.live?.refresh();
+    },
+  },
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
@@ -239,12 +264,17 @@ vi.mock('../src/host/host-session', () => ({
       : [
           {
             saved: { hostId: hostState.hostId, hostName: 'studio' },
-            client: activityClient,
+            client: hostState.live ?? activityClient,
             inbox: { refresh: async () => {} },
-            snapshot: {
-              connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
-              roster: hostState.connecting ? undefined : roster,
-            },
+            snapshot: hostState.live
+              ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
+              : {
+                  connection: {
+                    status: hostState.connecting ? 'connecting' : 'connected',
+                    route: '',
+                  },
+                  roster: hostState.connecting ? undefined : roster,
+                },
             attention: hostState.unread
               ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
               : { status: 'loading' },
@@ -253,13 +283,16 @@ vi.mock('../src/host/host-session', () => ({
   quietChannels: { get: () => [] },
   useHostSession: () => ({
     saved: hostState.removed ? null : { hostId: hostState.hostId, hostName: 'studio' },
-    client: hostState.actions ? { call, refresh } : undefined,
+    client: hostState.live ?? (hostState.actions ? { call, refresh } : undefined),
     inbox: undefined,
   }),
-  useHostSnapshot: () => ({
-    connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
-    roster: hostState.connecting ? undefined : roster,
-  }),
+  useHostSnapshot: () =>
+    hostState.live
+      ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
+      : {
+          connection: { status: hostState.connecting ? 'connecting' : 'connected', route: '' },
+          roster: hostState.connecting ? undefined : roster,
+        },
   useInbox: () =>
     hostState.activityItems.length
       ? {
@@ -308,7 +341,6 @@ vi.mock('../src/ui/shell/host-drawer', async () => {
   };
 });
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
-vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
@@ -338,6 +370,8 @@ afterEach(() => {
   root = undefined;
   push.mockReset();
   vi.unstubAllGlobals();
+  hostState.live?.stop();
+  hostState.live = undefined;
   hostState.connecting = false;
   hostState.removed = false;
   hostState.color = undefined;
@@ -358,11 +392,16 @@ afterEach(() => {
   rowProps.clear();
   Platform.OS = 'web';
   conversationFilter.set('all');
+  cloudState.live = undefined;
   cloudState.rows = [];
   cloudState.ready = true;
   cloudState.error = undefined;
   directoryState.rows = [];
   directoryState.workspaces = [];
+  directoryState.live = undefined;
+  directoryState.busy = false;
+  directoryState.ready = true;
+  directoryState.errors = [];
 });
 
 async function home(): Promise<HTMLElement> {
@@ -426,7 +465,154 @@ const rows = (view: HTMLElement) =>
     )
     .map((node) => node.getAttribute('aria-label'));
 
+function cloudFixture(): CloudRow {
+  const config = publicInstance({
+    instanceId: 'uat',
+    environment: 'uat',
+    server: 'https://uat.example.test',
+    clientId: 'client_test',
+    issuer: 'https://api.workos.com/user_management/client_test',
+    authkitDomain: 'test-staging.authkit.app',
+    mobileRedirectUri: MOBILE_REDIRECT_URI,
+  });
+  const cloudRow: CloudRow = {
+    config,
+    hasSession: true,
+    sessionUserId: 'user_a',
+    identity: { instanceId: 'uat', userId: 'user_a', instanceRole: 'user' },
+    organization: {
+      organizationId: 'org_a',
+      name: 'Cloud team',
+      description: '',
+      version: 1,
+      role: 'member',
+    },
+  };
+  return cloudRow;
+}
+
+async function openingFixture() {
+  const config = cloudFixture().config;
+  let storage: string | null = null;
+  const access: string[] = [];
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const state = { denied: false, userId: 'user_a' };
+  const response = (value: unknown, status = 200) =>
+    new Response(JSON.stringify(value), { status });
+  const client = new CloudClient({
+    read: async () => storage,
+    write: async (value) => {
+      storage = value;
+    },
+    now: () => 1_000_000,
+    random: () => 'random-verifier-or-state-43-characters-00000000',
+    challenge: async () => 's256-challenge',
+    digest: async (value) => createHash('sha256').update(value).digest('hex'),
+    authorize: async (url) =>
+      MOBILE_REDIRECT_URI + '?code=fixture&state=' + new URL(url).searchParams.get('state'),
+    request: async (url) => {
+      if (url.endsWith('/.well-known/open-cloud-groups')) return response(config);
+      if (url === config.auth.tokenEndpoint)
+        return response({
+          access_token: 'header.' + btoa(JSON.stringify({ exp: 4_000_000_000 })) + '.signature',
+          refresh_token: 'fixture-refresh',
+        });
+      if (url.endsWith('/api/me'))
+        return response({
+          userId: state.userId,
+          instanceId: config.instanceId,
+          instanceRole: 'user',
+        });
+      if (url.endsWith('/api/onboarding')) return response({ organizationId: 'org_a' });
+      if (url.endsWith('/access')) {
+        access.push(url);
+        await gate;
+        return state.denied
+          ? response({ error: { code: 'ACCESS_DENIED' } }, 403)
+          : response({ allowed: true });
+      }
+      if (url.includes('/api/organizations/'))
+        return response({
+          organizationId: url.split('/').at(-1),
+          name: 'Cloud team',
+          description: '',
+          version: 1,
+          role: 'member',
+        });
+      throw Error('Unexpected cloud fixture request');
+    },
+  });
+  await client.importConfig(JSON.stringify(config));
+  await client.login(config.instanceId);
+  cloudState.live = client;
+  const source = client.getSnapshot().rows[0]!;
+  directoryState.rows = ['a', 'b'].map((id) => ({
+    key: 'cloud-' + id,
+    scope: cloudViewScope(source),
+    instanceId: config.instanceId,
+    organizationId: 'org_' + id,
+    organizationName: 'Cloud team',
+    guest: false,
+    channel: {
+      channelId: 'ch_' + id.repeat(64),
+      name: 'Cloud ' + id,
+      creatorId: 'user_a',
+      creatorType: 'human',
+      createdAt: '2026-10-18T00:00:00Z',
+    },
+  }));
+  directoryState.workspaces = directoryState.rows.map((row) => ({ ...row, server: config.server }));
+  return { client, access, release, state };
+}
+
 describe('Search in the Chats header', () => {
+  it('keeps actual Host connection progress at the selected identity through recovery', async () => {
+    const transport = new FakeHost();
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: {
+        ...transport.carrier,
+        openSocket: (...args) => {
+          let socket: ReturnType<typeof transport.carrier.openSocket> | undefined;
+          void held.then(() => {
+            socket = transport.carrier.openSocket(...args);
+          });
+          return { send: (text) => socket?.send(text), close: () => socket?.close() };
+        },
+      },
+      backoff: () => 60_000,
+    });
+    hostState.live = client;
+    client.start();
+    conversationFilter.set(computerEnvironmentKey('h1'));
+    const view = await home();
+    expect(client.getSnapshot().connection.status).toBe('connecting');
+    const identity = () => view.querySelector('[data-testid="chats-view-button"]')!;
+    expect(identity().getAttribute('aria-label')).toContain(t.connecting);
+    expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
+    expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+    await act(async () => {
+      release();
+    });
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    expect(identity().querySelector('[data-testid="connection-progress"]')).toBeNull();
+    await act(async () => {
+      transport.kill();
+    });
+    expect(identity().getAttribute('aria-label')).toContain(t.reconnecting);
+    expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
+    expect(identity().querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(view.querySelector('[role="alert"]')).toBeNull();
+  });
   it('keeps the Computer usable when Cloud local state cannot load', async () => {
     cloudState.ready = false;
     cloudState.error = 'STORAGE_UNAVAILABLE';
@@ -434,6 +620,217 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).toContain('Ada');
     expect(view.textContent).toContain(t.cloudListUnavailable);
   });
+  it('keeps All quiet and retries an initially unreachable selected Computer', async () => {
+    const transport = new FakeHost();
+    transport.kill();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: () => 60_000,
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    const view = await home();
+    expect(view.textContent).toContain(t.noOnlineChats);
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.querySelector('[data-testid="chat-list-retry"]')).toBeNull();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+    expect(view.textContent).toContain(t.hostListLoadFailed);
+    expect(view.textContent).not.toContain(t.hostListUnavailable);
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    transport.restart();
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="chat-list-retry"]')!.click(),
+    );
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'), {
+      timeout: 200,
+    });
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+  });
+  it('uses refresh copy only when the failed Computer still has a loaded list', async () => {
+    const transport = new FakeHost();
+    const client = createHostClient({
+      routes: ['https://studio.tailnet-example.ts.net'],
+      credential: transport.credential,
+      carrier: transport.carrier,
+      backoff: () => 5,
+    });
+    hostState.live = client;
+    client.start();
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    conversationFilter.set(computerEnvironmentKey('h1'));
+    const view = await home();
+    const loadedRoster = client.getSnapshot().roster;
+    expect(loadedRoster?.bots.length).toBeGreaterThan(0);
+    await act(async () => {
+      transport.kill();
+      await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
+    });
+    expect(client.getSnapshot().roster).toEqual(loadedRoster);
+    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.textContent).toContain(loadedRoster!.bots[0]!.displayName);
+  });
+  it('shows cold skeleton, actionable failure, retry and empty through the cloud directory owner', async () => {
+    const source = cloudFixture();
+    cloudState.rows = [source];
+    hostState.removed = true;
+    let fail = true;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const directory = createCloudConversations({
+      listOrganizations: async () => {
+        await held;
+        if (fail) throw new Error('offline');
+        return { organizations: [], nextCursor: null };
+      },
+      listConversationChannels: async () => ({ channels: [], nextCursor: null }),
+    });
+    directory.enroll([source]);
+    directoryState.live = directory;
+    const view = await home();
+    expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    await act(async () => {
+      release();
+      await directory.refresh();
+    });
+    expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
+    expect(view.textContent).not.toContain(t.cloudChannels.empty);
+    expect(view.textContent).toContain(t.cloudListUnavailable);
+    fail = false;
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="cloud-list-retry"]')!.click(),
+    );
+    expect(view.textContent).not.toContain(t.cloudListUnavailable);
+    expect(view.textContent).toContain(t.cloudChannels.empty);
+  });
+  it('retains same-account rows during refresh failure and drops them when the directory enrolls a new account', async () => {
+    const source = cloudFixture();
+    cloudState.rows = [source];
+    hostState.removed = true;
+    let offline = false;
+    let gate: Promise<void> | undefined;
+    let release!: () => void;
+    const directory = createCloudConversations({
+      listOrganizations: async () => {
+        await gate;
+        if (offline) throw new Error('offline');
+        return { organizations: [source.organization!], nextCursor: null };
+      },
+      listConversationChannels: async (_instance, _org, _after, guest) => ({
+        channels: guest
+          ? []
+          : [
+              {
+                channelId: 'ch_' + 'a'.repeat(64),
+                name: 'Cached cloud',
+                creatorId: 'user_a',
+                creatorType: 'human',
+                createdAt: '2026-10-18T00:00:00Z',
+              },
+            ],
+        nextCursor: null,
+      }),
+    });
+    directory.enroll([source]);
+    await directory.refresh();
+    directoryState.live = directory;
+    const view = await home();
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let pending!: Promise<void>;
+    await act(async () => {
+      pending = directory.refresh();
+    });
+    expect(view.textContent).toContain('Cached cloud');
+    expect(view.querySelector('[data-testid="list-skeleton"]')).toBeNull();
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="conversation-row-cloud:ch_' + 'a'.repeat(64) + '"]',
+        )!
+        .click(),
+    );
+    expect(channelHistory.state.routes.at(-1)?.name).toBe('cloud-channels');
+    offline = true;
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(view.textContent).toContain('Cached cloud');
+    expect(view.textContent).toContain(t.cloudListUnavailable);
+    await act(async () => {
+      cloudState.rows = [{ ...source, sessionUserId: 'user_b', identity: undefined }];
+      directory.enroll(cloudState.rows);
+    });
+    expect(view.textContent).not.toContain('Cached cloud');
+  });
+  it('shows immediate target feedback, deduplicates taps and opens only the newer target after real access checks', async () => {
+    const fixture = await openingFixture();
+    const view = await home();
+    const button = (id: string) =>
+      view.querySelector<HTMLButtonElement>(
+        '[data-testid="conversation-row-cloud:ch_' + id.repeat(64) + '"]',
+      )!;
+    await act(async () => {
+      button('a').click();
+      button('a').click();
+    });
+    expect(fixture.access).toHaveLength(1);
+    expect(button('a').getAttribute('aria-label')).toContain(t.loading);
+    expect(button('a').querySelector('[data-testid="connection-progress"]')).not.toBeNull();
+    expect(button('b').disabled).toBe(false);
+    await act(async () => button('b').click());
+    expect(button('b').getAttribute('aria-label')).toContain(t.loading);
+    expect(fixture.access).toHaveLength(1);
+    await act(async () => fixture.release());
+    await vi.waitFor(() => expect(channelHistory.state.routes.at(-1)?.name).toBe('cloud-channels'));
+    expect(channelHistory.state.routes.at(-1)).toMatchObject({
+      name: 'cloud-channels',
+      params: { organizationId: 'org_b' },
+    });
+    expect(channelHistory.state.routes).toHaveLength(2);
+    expect(fixture.access).toHaveLength(2);
+  });
+  it.each(['refusal', 'account change', 'leaving'] as const)(
+    'does not navigate after %s during access',
+    async (reason) => {
+      const fixture = await openingFixture();
+      const view = await home();
+      await act(async () =>
+        view
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="conversation-row-cloud:ch_' + 'a'.repeat(64) + '"]',
+          )!
+          .click(),
+      );
+      if (reason === 'refusal') fixture.state.denied = true;
+      if (reason === 'account change') fixture.state.userId = 'user_b';
+      if (reason === 'leaving')
+        await act(async () => {
+          root?.unmount();
+          root = undefined;
+        });
+      await act(async () => fixture.release());
+      await vi.waitFor(() => expect(fixture.client.getSnapshot().busy).toBe(false));
+      expect(channelHistory.state.routes.map((route) => route.name)).toEqual(['(tabs)']);
+      if (reason === 'refusal') {
+        expect(view.textContent).toContain(t.cloudListUnavailable);
+        expect(view.querySelector('[data-testid="cloud-list-retry"]')).not.toBeNull();
+        fixture.state.denied = false;
+        await act(async () =>
+          view.querySelector<HTMLButtonElement>('[data-testid="cloud-list-retry"]')!.click(),
+        );
+        expect(channelHistory.state.routes.at(-1)?.name).toBe('cloud-channels');
+      }
+    },
+  );
   it.each(['none', 'reset', 'workspace-intent'])(
     'opens Cloud only while the originating navigation intent is current (reset=%s)',
     async (reset) => {
@@ -547,6 +944,7 @@ describe('Search in the Chats header', () => {
         await act(async () => finishIdentity?.());
         expect(channelHistory.state).toBe(replacement);
         if (reset === 'workspace-intent') expect(channelHistory.state).toBe(state);
+        expect(view.querySelector('[data-testid="connection-progress"]')).toBeNull();
         expect(channelHistory.state.routes.map((r) => r.name)).toEqual(['(tabs)']);
       } else {
         expect(channelHistory.state.routes.at(-1)).toMatchObject({

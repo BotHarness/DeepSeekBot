@@ -1,12 +1,6 @@
-import { Menu } from './appearance-primitives.js';
-import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
-import {
-  Button,
-  IconCopyOutlineRegular,
-  IconDownloadOutlineRegular,
-  IconInspectOutlineRegular,
-  IconShareOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { FormDialog } from './ds/form-dialog.js';
+import { createContext, useContext, useState, type ReactElement } from 'react';
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MessageSelection } from './message-selection-state.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -18,7 +12,7 @@ export function useMessageSelection(): MessageSelection | undefined {
   return useContext(MessageSelectionContext);
 }
 
-export type MessageSelectionExport = 'image' | 'diagnostics' | 'conversation';
+export type MessageSelectionExport = 'image' | 'conversation';
 
 export function MessageSelectionBar({
   count,
@@ -35,12 +29,9 @@ export function MessageSelectionBar({
   onCancel(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuOpenRef = useRef(false);
-  menuOpenRef.current = menuOpen;
   const mount = useMountedResource<HTMLDivElement>(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !event.defaultPrevented && !menuOpenRef.current) onCancel();
+      if (event.key === 'Escape' && !event.defaultPrevented) onCancel();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -61,49 +52,63 @@ export function MessageSelectionBar({
         <Button variant="outline" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Menu
-          open={menuOpen}
-          portal
-          align="end"
-          side="top"
-          items={[
-            {
-              id: 'image',
-              label: t('selection.export.image'),
-              icon: <IconDownloadOutlineRegular />,
-            },
-            {
-              id: 'conversation',
-              label: t('selection.export.conversation'),
-              icon: <IconCopyOutlineRegular />,
-            },
-            {
-              id: 'diagnostics',
-              label: t('selection.export.diagnostics'),
-              icon: <IconInspectOutlineRegular />,
-            },
-          ]}
-          onSelect={(id) => {
-            setMenuOpen(false);
-            if (id === 'image' || id === 'diagnostics' || id === 'conversation') onExport(id);
-          }}
-          onClose={() => setMenuOpen(false)}
-          anchor={
-            <Button
-              variant="primary"
-              disabled={count === 0 || busy}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((value) => !value)}
-            >
-              <span className="bh-selection-export">
-                <IconShareOutlineRegular size={16} />
-                {t('selection.export')}
-              </span>
-            </Button>
-          }
-        />
+        <Button
+          variant="outline"
+          disabled={count === 0 || busy}
+          onClick={() => onExport('conversation')}
+        >
+          {t('selection.copy')}
+        </Button>
+        <Button variant="primary" disabled={count === 0 || busy} onClick={() => onExport('image')}>
+          {t('selection.screenshot')}
+        </Button>
       </div>
     </div>
+  );
+}
+
+export function MessageImagePreview({
+  blob,
+  t,
+  onClose,
+}: {
+  blob: Blob;
+  t: BotHarnessTranslate;
+  onClose(): void;
+}): ReactElement {
+  const [url, setUrl] = useState<string>();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const value = URL.createObjectURL(blob);
+    setUrl(value);
+    return () => URL.revokeObjectURL(value);
+  }, [blob]);
+  return (
+    <FormDialog
+      title={t('selection.screenshot')}
+      size="wide"
+      scroll
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('selection.saveImage')}
+      submitDisabled={url === undefined}
+      onCancel={onClose}
+      onClose={onClose}
+      onSubmit={() => {
+        if (url === undefined) return;
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'messages.png';
+        anchor.click();
+      }}
+    >
+      <div ref={mount}>
+        {url === undefined ? null : (
+          <img
+            src={url}
+            alt={t('selection.screenshot')}
+            style={{ width: '100%', height: 'auto' }}
+          />
+        )}
+      </div>
+    </FormDialog>
   );
 }

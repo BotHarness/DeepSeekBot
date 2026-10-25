@@ -37,15 +37,17 @@ vi.mock('../src/ui/shell/home-header', () => ({
     actions,
     search,
     children,
+    connection,
   }: {
+    connection?: { status: string };
     actions?: ReactNode;
     search?: ReactNode;
     children: ReactNode | ((height: number) => ReactNode);
   }) => (
-    <>
+    <div data-connection={connection?.status}>
       {search ?? actions}
       {typeof children === 'function' ? children(0) : children}
-    </>
+    </div>
   ),
 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
@@ -254,6 +256,32 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     expect(visible().some((node) => node.textContent?.includes('Bot b'))).toBe(false);
     expect(visible().some((node) => node.textContent?.includes('Bot a'))).toBe(true);
     expect(hostSession.getHost('b')?.client).toBe(bClient);
+    expect(view.textContent).not.toContain(t.hostListUnavailable);
+    expect(view.querySelector('[data-testid="chat-list-retry"]')).toBeNull();
+    await act(async () => {
+      conversationFilter.set(JSON.stringify(['computer', 'b']));
+      bClient?.retryNow();
+      await vi.waitFor(() => expect(bClient?.getSnapshot().connection.status).toBe('unreachable'));
+    });
+    expect(hostSession.getState().saved?.hostId).toBe('a');
+    expect(view.querySelector('[data-connection="unreachable"]')).not.toBeNull();
+    expect(view.textContent).toContain(t.hostListUnavailable);
+    expect(view.textContent).toContain('Bot b');
+    expect(view.textContent).not.toContain('Bot a');
+    const refreshA = vi.spyOn(hostSession.getHost('a')!.client, 'refresh');
+    b.restart();
+    await act(async () => {
+      view.querySelector<HTMLButtonElement>('[data-testid="chat-list-retry"]')!.click();
+      await vi.waitFor(() => expect(bClient?.getSnapshot().connection.status).toBe('connected'));
+    });
+    expect(refreshA).not.toHaveBeenCalled();
+    refreshA.mockRestore();
+    expect(view.textContent).not.toContain(t.hostListUnavailable);
+    await act(async () => {
+      conversationFilter.set('all');
+      b.kill();
+    });
+
     await act(async () => a.kill());
     expect(view.textContent).toContain(t.noOnlineChats);
     await act(async () => {

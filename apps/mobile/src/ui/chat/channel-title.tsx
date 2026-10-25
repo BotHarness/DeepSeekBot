@@ -1,3 +1,4 @@
+import { ConnectionProgress } from '../primitives/connection-progress';
 import { Pressable } from 'react-native';
 
 import type { RosterChannel } from '../../host/client';
@@ -14,10 +15,12 @@ const MARK = 28;
 export function ChannelTitle({
   channel,
   fallback,
+  connectionLabel,
   onPress,
 }: {
   channel: RosterChannel | undefined;
   fallback: string;
+  connectionLabel?: string | undefined;
   onPress(): void;
 }) {
   const t = useStrings();
@@ -27,7 +30,8 @@ export function ChannelTitle({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={members === undefined ? name : `${name}, ${members}`}
+      accessibilityLabel={[name, members, connectionLabel].filter(Boolean).join(', ')}
+      accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.groupInfoHint}
       disabled={channel === undefined}
       onPress={onPress}
@@ -47,6 +51,7 @@ export function ChannelTitle({
       <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {name}
       </Text>
+      <ConnectionProgress active={connectionLabel !== undefined} />
     </Pressable>
   );
 }

@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { act, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
 import type { RosterBot, RosterChannel } from '../src/host/client';
-import type { ConversationSnapshot } from '../src/host/conversation';
+import type { Conversation, ConversationSnapshot } from '../src/host/conversation';
 
+vi.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
+vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 
 const state = vi.hoisted(() => ({
@@ -25,6 +30,7 @@ const state = vi.hoisted(() => ({
     fromCache: false,
   } as ConversationSnapshot,
   active: false,
+  target: undefined as Conversation | undefined,
   focused: true,
   display: { mode: 'streaming', loaded: true },
   glassHeader: true,
@@ -150,12 +156,17 @@ vi.mock('react-native-reanimated', async () => {
   };
 });
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('../src/host/host-session', () => ({
+vi.mock('../src/host/host-session', async () => ({
   useHostSession: () => ({ client: undefined, inbox: undefined, saved: { hostId: state.hostId } }),
   useHostSnapshot: () => state.host,
-  useConversation: () => (state.active ? { loadOlder: navigation.loadOlder } : undefined),
+  useConversation: () =>
+    state.target ?? (state.active ? { loadOlder: navigation.loadOlder } : undefined),
   useChannelConversation: () => undefined,
-  useConversationTimelineSnapshot: () => state.conversation,
+  useConversationTimelineSnapshot: (() => {
+    const subscribe = (listener: () => void) => state.target?.subscribe(listener) ?? (() => {});
+    const read = () => state.target?.getTimelineSnapshot() ?? state.conversation;
+    return () => useSyncExternalStore(subscribe, read);
+  })(),
   useStreamPlayback: () => undefined,
 }));
 vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
@@ -286,6 +297,8 @@ beforeEach(() => {
   state.host.roster.bots = [];
   state.host.roster.channels = [];
   state.active = false;
+  state.target = undefined;
+  delete state.conversation.olderError;
   state.focused = true;
   state.display = { mode: 'streaming', loaded: true };
   state.glassHeader = true;
@@ -462,6 +475,60 @@ it('refuses a retained route after switching Computers even when its Bot slug co
   );
   expect(view.textContent).toContain(t.sourceChanged);
   expect(view.querySelector('[data-testid="chat-controls"]')).toBeNull();
+});
+
+it('shows a message-shaped skeleton only while an empty history is opening', async () => {
+  state.conversation.status = 'opening';
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  const view = await render(place);
+  expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
+  state.conversation.status = 'live';
+  await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+  expect(view.querySelector('[data-testid="message-skeleton"]')).toBeNull();
+});
+
+it('retries a failed earlier page through the Conversation owner without replacing loaded history', async () => {
+  const { createConversation } = await import('../src/host/conversation');
+  const { createHostClient } = await import('../src/host/client');
+  const { FakeHost } = await import('./fake-host');
+  const host = new FakeHost();
+  for (let index = 1; index <= 4; index += 1)
+    host.channel('dm-ada').append({ id: `history-${index}`, body: `Earlier ${index}` }, false);
+  const client = createHostClient({
+    routes: ['https://studio.tailnet-example.ts.net'],
+    credential: host.credential,
+    carrier: host.carrier,
+  });
+  const target = createConversation({
+    host: client,
+    channelId: 'dm-ada',
+    pageSize: 2,
+    olderPageSize: 2,
+  });
+  client.start();
+  target.start();
+  try {
+    await vi.waitFor(() => expect(target.getSnapshot().status).toBe('live'));
+    state.target = target;
+    const view = await render({ kind: 'dm', slug: 'ada' });
+    host.failing.add('channelJournalPage');
+    await act(async () => target.loadOlder());
+    expect(view.textContent).toContain(t.olderLoadFailed);
+    expect(view.textContent).toContain('Earlier 4');
+    host.failing.delete('channelJournalPage');
+    const retry = view.querySelector('[data-testid="history-retry"]') as HTMLButtonElement;
+    expect(retry).not.toBeNull();
+    await act(async () => {
+      retry.click();
+      await vi.waitFor(() => expect(target.getSnapshot().messages).toHaveLength(4));
+    });
+    expect(view.textContent).not.toContain(t.olderLoadFailed);
+    expect(view.textContent).toContain('Earlier 1');
+    expect(view.textContent).toContain('Earlier 4');
+  } finally {
+    target.stop();
+    client.stop();
+  }
 });
 
 it('keeps the bottom fade at the message viewport edge beneath the composer controls', async () => {

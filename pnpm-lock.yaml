@@ -173,6 +173,7 @@ patchedDependencies:
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.3': 4b2e510cb0df4904b95b99936edd4cdaec5b19438561254906b3abf0d2c3b204
   dockview-core@8.4.1: 6d5f9165424be95472edbb4e667b16cf9abd150f139d3524cc1ca9a6b7863b86
   expo-quick-actions@6.0.2: 2d9cefa269045271145e1989e004232aac3c206249494311d39f49c13293dddb
+  react-native-view-shot@6.1.1: 1a309afc15955797ee9174234ae2514e981ea99e97527650b1d0ed0ebe6ee9ca
 
 importers:
 
@@ -479,6 +480,9 @@ importers:
       react-native-tab-view:
         specifier: ^4.3.4
         version: 4.3.4(react-native-pager-view@9.0.7(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
+      react-native-view-shot:
+        specifier: 6.1.1
+        version: 6.1.1(patch_hash=1a309afc15955797ee9174234ae2514e981ea99e97527650b1d0ed0ebe6ee9ca)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       react-native-web:
         specifier: ~0.21.4
         version: 0.21.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -11811,6 +11815,19 @@ packages:
       react: '>= 18.2.0'
       react-native: '*'
       react-native-pager-view: '>= 6.0.0'
+
+  react-native-view-shot@6.1.1:
+    resolution: {integrity: sha512-eMoNXNgADlcMT5mbquHqueE55bUuJA6vpUj650ZiresuorgdRrhDCfaxI2QGL6TN1UT+76EgQMjDO6Vx/H0ZLA==}
+    engines: {node: '>=20.19.4', npm: '>=10'}
+    peerDependencies:
+      html2canvas-pro: ^2.0.0
+      react: '>=18.0.0'
+      react-native: '>=0.80.0'
+    peerDependenciesMeta:
+      html2canvas-pro:
+        optional: true
+      react-native:
+        optional: true
 
   react-native-web@0.21.4:
     resolution: {integrity: sha512-77B6KlalB4osNIck91TNFixPkYPsTbuNEvw8P7IV+4v4/5wZSBRKZnw0Zhx6YjuauDTz71gc8IW+fVhcBMjr5A==}
@@ -25685,6 +25702,12 @@ snapshots:
       react-native: 0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2)
       react-native-pager-view: 9.0.7(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       use-latest-callback: 0.2.6(react@19.3.0)
+
+  react-native-view-shot@6.1.1(patch_hash=1a309afc15955797ee9174234ae2514e981ea99e97527650b1d0ed0ebe6ee9ca)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
+    dependencies:
+      react: 19.3.0
+    optionalDependencies:
+      react-native: 0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2)
 
   react-native-web@0.21.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
