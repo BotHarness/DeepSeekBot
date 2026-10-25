@@ -15,7 +15,9 @@ export function SectionHeader({
   unread,
   collapsed,
   onToggle,
-  testID,
+  testID = 'section-header',
+  onLongPress,
+  onMenu,
 }: {
   name: string;
   count: number;
@@ -24,6 +26,8 @@ export function SectionHeader({
   collapsed: boolean;
   onToggle(): void;
   testID?: string;
+  onLongPress?: (() => void) | undefined;
+  onMenu?: (() => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -33,6 +37,9 @@ export function SectionHeader({
     <Pressable
       testID={testID}
       onPress={onToggle}
+      onLongPress={onLongPress}
+      accessibilityActions={onMenu ? [{ name: 'actions', label: t.deletion.actions(name) }] : []}
+      onAccessibilityAction={() => onMenu?.()}
       android_ripple={{ color: theme.layer.canvas.pressed }}
       accessibilityRole="button"
       accessibilityState={{ expanded: !collapsed }}

@@ -19,6 +19,35 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  deletion: {
+    deleteBot: 'Delete Bot',
+    dissolve: 'Dissolve group',
+    deleteSection: 'Delete section',
+    scope: (host: string) => `This changes ${host} on all connected devices.`,
+    botBody:
+      'Permanently stop this Bot and delete its credentials. Sessions stop; access and bindings are revoked. Chat history and workspace files stay.',
+    groupBody: 'Bots will leave this group. Chat history stays on the computer.',
+    sectionBody:
+      'Conversations move out of this section and stay in your list. No Bots or conversations are deleted.',
+    memory: 'Memory folder',
+    erase: 'Also delete Memory files',
+    eraseBody:
+      'Removes this folder and its local Git history. Remote repositories and backups stay.',
+    eraseUnavailable:
+      'Memory erasure is unavailable: the computer could not verify exclusive ownership of this folder. You can still delete the Bot and keep its Memory.',
+    retained: 'Memory will be retained.',
+    eraseChosen: 'Memory erasure was included in your confirmation.',
+    dependencies: (sessions: number, grants: number, channels: number) =>
+      `${sessions} sessions stop · ${grants} access grants or identities are revoked · history in ${channels} conversations stays.`,
+    previewFailed: 'Could not load the deletion details. Try again.',
+    failed: 'Could not finish deletion. Review the current details and try again.',
+    incomplete: 'Deletion has not finished. Retry to finish the confirmed operation.',
+    retry: 'Finish deletion',
+    move: 'Move to section',
+    unsectioned: 'No section',
+    actions: (name: string) => `Actions for ${name}`,
+  },
+
   interfacePreferences: {
     language: 'Language',
     appearance: 'Appearance',
@@ -1630,6 +1659,32 @@ const en = {
 };
 
 const zh: typeof en = {
+  deletion: {
+    deleteBot: '删除 Bot',
+    dissolve: '解散群聊',
+    deleteSection: '删除分区',
+    scope: (host: string) => `此操作会更改 ${host}，并影响所有已连接设备。`,
+    botBody:
+      '永久停止这个 Bot 并删除其凭据。会话将停止，授权和绑定将撤销。聊天历史和工作区文件保留。',
+    groupBody: 'Bot 将退出群聊，历史仍保留在电脑上。',
+    sectionBody: '分区内的会话将移回未分区列表。不会删除 Bot 或会话。',
+    memory: '记忆文件夹',
+    erase: '同时删除记忆文件',
+    eraseBody: '删除此文件夹及其本地 Git 历史。远程仓库和备份保留。',
+    eraseUnavailable: '电脑无法确认此文件夹由该 Bot 独占，不能清理记忆。仍可删除 Bot 并保留记忆。',
+    retained: '记忆将保留。',
+    eraseChosen: '你确认的操作包括清理记忆。',
+    dependencies: (sessions: number, grants: number, channels: number) =>
+      `停止 ${sessions} 个会话，撤销 ${grants} 项授权或身份，保留 ${channels} 个聊天的历史。`,
+    previewFailed: '无法读取删除详情，请重试。',
+    failed: '删除未完成，请查看最新详情后重试。',
+    incomplete: '删除尚未完成，请重试以完成已确认的操作。',
+    retry: '继续完成删除',
+    move: '移至分区',
+    unsectioned: '不分区',
+    actions: (name: string) => `${name} 的操作`,
+  },
+
   interfacePreferences: {
     language: '语言',
     appearance: '外观',
