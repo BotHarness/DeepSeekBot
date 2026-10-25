@@ -14,7 +14,6 @@ import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
   useHostSession,
-  useHostSnapshot,
   useQuietChannels,
   useHostSessions,
   quietChannels,
@@ -52,7 +51,7 @@ import { HostDrawerEdge, hostDrawer } from '../../../src/ui/shell/host-drawer';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
-import { LoadingIndicator } from '../../../src/ui/primitives/loading-indicator';
+import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 
 import {
@@ -67,21 +66,18 @@ import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-
 export default function HomeScreen() {
   const focused = useIsFocused();
   const { saved, client } = useHostSession();
-  const snapshot = useHostSnapshot(client, focused);
 
   const hosts = useHostSessions(focused);
-  return <HomeContent saved={saved} client={client} snapshot={snapshot} hosts={hosts} />;
+  return <HomeContent saved={saved} client={client} hosts={hosts} />;
 }
 
 const HomeContent = memo(function HomeContent({
   saved,
   client,
-  snapshot,
   hosts,
 }: {
   saved: ReturnType<typeof useHostSession>['saved'];
   client: ReturnType<typeof useHostSession>['client'];
-  snapshot: ReturnType<typeof useHostSnapshot>;
   hosts: readonly ConnectedHost[];
 }) {
   const t = useStrings();
@@ -117,24 +113,17 @@ const HomeContent = memo(function HomeContent({
   const directory = useCloudConversations();
   const [filter, setFilter] = useConversationFilter();
   const [refreshing, setRefreshing] = useState(false);
-  const [opening, setOpening] = useState(false);
-  const cloudIntent = useRef(0);
+  const [opening, setOpening] = useState<string>();
+  const openTarget = useRef<string | undefined>(undefined);
+  const openSequence = useRef(0);
+  const openTail = useRef(Promise.resolve());
   const cloudEntryFocused = useRef(false);
-  useFocusEffect(
-    useCallback(() => {
-      cloudEntryFocused.current = true;
-      setOpening(false);
-      return () => {
-        cloudEntryFocused.current = false;
-        cloudIntent.current += 1;
-      };
-    }, []),
-  );
   const [error, setError] = useState<string>();
+  const [failedOpen, setFailedOpen] = useState<CloudConversation>();
   const [deleting, setDeleting] = useState<{ host: ConnectedHost; target: DeletionTarget }>();
   const [actionError, setActionError] = useState(false);
   const deletionLook = useHostLook(deleting?.host.saved.hostId);
-  const [refreshFailedHost, setRefreshFailedHost] = useState<string>();
+  const [refreshFailedHosts, setRefreshFailedHosts] = useState<string[]>([]);
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
   const unpaired =
     !cloudAvailable &&
@@ -173,6 +162,22 @@ const HomeContent = memo(function HomeContent({
   );
   const environment = filters.find((f) => f.key === filter) ?? filters[0]!;
   const effectiveFilter = environment.key;
+  const selectedHost = hosts.find(
+    (host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter,
+  );
+  useFocusEffect(
+    useCallback(() => {
+      cloudEntryFocused.current = true;
+      return () => {
+        cloudEntryFocused.current = false;
+        openSequence.current++;
+        openTarget.current = undefined;
+        setOpening(undefined);
+        setFailedOpen(undefined);
+        setError(undefined);
+      };
+    }, [enrollment, effectiveFilter]),
+  );
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -208,7 +213,7 @@ const HomeContent = memo(function HomeContent({
   );
   const rows = useMemo(() => {
     const hostRows: Row[] = hosts.flatMap((host) => {
-      if (host.snapshot.connection.status !== 'connected') return [];
+      if (host.snapshot.connection.status !== 'connected' && host !== selectedHost) return [];
       const pins = new Set(host.snapshot.roster?.arrangement?.pins);
       const list = host.attention;
       return conversations(
@@ -232,13 +237,16 @@ const HomeContent = memo(function HomeContent({
         ...(conversation.at ? { at: conversation.at } : {}),
       }));
     });
-    const cloudRows: Row[] = directory.rows.map((conversation) => ({
-      key: conversation.key,
-      environment: cloudEnvironmentKey(conversation.scope, conversation.organizationId),
-      type: 'cloud',
-      conversation,
-      pinned: false,
-    }));
+    const scopes = new Set(cloud.rows.filter((row) => row.hasSession).map(cloudViewScope));
+    const cloudRows: Row[] = directory.rows
+      .filter((row) => scopes.has(row.scope))
+      .map((conversation) => ({
+        key: conversation.key,
+        environment: cloudEnvironmentKey(conversation.scope, conversation.organizationId),
+        type: 'cloud',
+        conversation,
+        pinned: false,
+      }));
     const needle = searchKey(query);
     const title = (r: Row) =>
       searchKey(
@@ -259,14 +267,29 @@ const HomeContent = memo(function HomeContent({
           (Date.parse(b.at ?? '') || 0) - (Date.parse(a.at ?? '') || 0) ||
           a.key.localeCompare(b.key),
       );
-  }, [hosts, directory.rows, saved, query, quiet]);
-
-  if (saved === undefined || (!cloud.ready && !cloud.error))
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <LoadingIndicator />
-      </View>
-    );
+  }, [hosts, directory.rows, cloud.rows, selectedHost, query, quiet]);
+  const displayed = environmentChatList(
+    rows,
+    effectiveFilter,
+    hosts,
+    collapsed,
+    query.trim() !== '',
+  );
+  const includesCloud = environment.kind !== 'computer';
+  const hostFailed =
+    selectedHost !== undefined &&
+    ['unreachable', 'refused', 'stopped'].includes(selectedHost.snapshot.connection.status);
+  const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
+  const loadingHosts = selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [];
+  const coldLoading =
+    loadingHosts.some(
+      (host) =>
+        !host.snapshot.roster &&
+        ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
+    ) ||
+    (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
+  if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
+    return <ListSkeleton />;
   if (saved === null && cloud.rows.length === 0)
     return cloudAvailable ? (
       <Redirect href="/cloud-join" />
@@ -295,60 +318,78 @@ const HomeContent = memo(function HomeContent({
         />
       </View>
     );
-  const refresh = async () => {
+  const refresh = async (target?: ConnectedHost) => {
     setRefreshing(true);
+    const targets = target ? [target] : hosts;
     const results = await Promise.allSettled([
-      ...hosts.flatMap((host) => [host.client.refresh(), host.inbox.refresh()]),
-      cloudConversations.refresh(),
+      ...targets.map((host) => Promise.all([host.client.refresh(), host.inbox.refresh()])),
+      ...(target ? [] : [cloudConversations.refresh()]),
     ]);
-    setRefreshFailedHost(results.some((r) => r.status === 'rejected') ? saved?.hostId : undefined);
-
+    setRefreshFailedHosts((previous) => [
+      ...previous.filter((id) => !targets.some((host) => host.saved.hostId === id)),
+      ...targets.flatMap((host, index) =>
+        results[index]?.status === 'rejected' ? [host.saved.hostId] : [],
+      ),
+    ]);
     setRefreshing(false);
   };
-  const openCloud = async (target: CloudConversation) => {
-    if (opening || cloud.busy || directory.busy) return;
-    const intent = ++cloudIntent.current;
+  const openCloud = (target: CloudConversation) => {
+    if (openTarget.current === target.key) return;
+    const sequence = ++openSequence.current;
+    openTarget.current = target.key;
+    setOpening(target.key);
+    setError(undefined);
+    setFailedOpen(undefined);
+    const currentRow = () =>
+      cloudClient.getSnapshot().rows.find((row) => row.config.instanceId === target.instanceId);
     const origin = navigation.getRootState();
     const workspaceCurrent = hostDrawer.captureWorkspaceSelection();
     const isCurrent = () =>
       workspaceCurrent() &&
       cloudEntryFocused.current &&
-      cloudIntent.current === intent &&
+      sequence === openSequence.current &&
       navigation.getRootState() === origin;
-    setOpening(true);
-    setError(undefined);
-    try {
-      if (!isCurrent()) return;
-      let current = cloudClient
-        .getSnapshot()
-        .rows.find((r) => r.config.instanceId === target.instanceId);
-      if (cloudViewScope(current) !== target.scope) throw Error('changed source');
-      if (!current?.identity) await cloudClient.whoami(target.instanceId);
-      if (!isCurrent()) return;
-      current = cloudClient
-        .getSnapshot()
-        .rows.find((r) => r.config.instanceId === target.instanceId);
-      if (!target.guest && current?.organization?.organizationId !== target.organizationId)
-        await cloudClient.useOrganization(target.instanceId, target.organizationId);
-      if (!isCurrent()) return;
-      if (
-        cloudViewScope(
-          cloudClient.getSnapshot().rows.find((r) => r.config.instanceId === target.instanceId),
-        ) !== target.scope
-      )
+    const requireScope = () => {
+      const current = currentRow();
+      if (!current?.hasSession || cloudViewScope(current) !== target.scope)
         throw Error('changed source');
-      navigateCloudChannel(navigation, {
-        instanceId: target.instanceId,
-        organizationId: target.organizationId,
-        channelId: target.channel.channelId,
-        guest: target.guest,
-        accountScope: target.scope,
-      });
-    } catch (e) {
-      if (isCurrent()) setError(cloudError(e));
-    } finally {
-      if (cloudEntryFocused.current && cloudIntent.current === intent) setOpening(false);
-    }
+      return current;
+    };
+    const open = async () => {
+      try {
+        if (!isCurrent()) return;
+        let current = requireScope();
+        if (!current.identity) {
+          await cloudClient.whoami(target.instanceId);
+          if (!isCurrent()) return;
+          current = requireScope();
+        }
+        if (!target.guest && current.organization?.organizationId !== target.organizationId) {
+          await cloudClient.useOrganization(target.instanceId, target.organizationId);
+          if (!isCurrent()) return;
+          requireScope();
+        }
+        if (!isCurrent()) return;
+        navigateCloudChannel(navigation, {
+          instanceId: target.instanceId,
+          organizationId: target.organizationId,
+          channelId: target.channel.channelId,
+          guest: target.guest,
+          accountScope: target.scope,
+        });
+      } catch (error) {
+        if (isCurrent()) {
+          setError(cloudError(error));
+          setFailedOpen(target);
+        }
+      } finally {
+        if (cloudEntryFocused.current && sequence === openSequence.current) {
+          openTarget.current = undefined;
+          setOpening(undefined);
+        }
+      }
+    };
+    openTail.current = openTail.current.then(open, open);
   };
   return (
     <>
@@ -356,6 +397,7 @@ const HomeContent = memo(function HomeContent({
       <HostDrawerEdge>
         <HomeHeader
           environment={environment}
+          connection={selectedHost?.snapshot.connection}
           search={
             searching ? (
               <HeaderSearch
@@ -393,10 +435,7 @@ const HomeContent = memo(function HomeContent({
           }
         >
           {(headerTravel) => (
-            <PullToRefresh
-              refreshing={refreshing || directory.busy}
-              onRefresh={() => void refresh()}
-            >
+            <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
               {(pull) => (
                 <Animated.FlatList<EnvironmentChatItem>
                   {...pull}
@@ -406,13 +445,7 @@ const HomeContent = memo(function HomeContent({
                   contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
-                  data={environmentChatList(
-                    rows,
-                    effectiveFilter,
-                    hosts,
-                    collapsed,
-                    query.trim() !== '',
-                  )}
+                  data={displayed}
                   keyExtractor={(r) => r.key}
                   ListHeaderComponent={
                     <>
@@ -421,48 +454,54 @@ const HomeContent = memo(function HomeContent({
                           {t.rowActions.failed}
                         </Text>
                       ) : null}
-                      {saved && environment.key === computerEnvironmentKey(saved.hostId) && (
-                        <ConnectionBanner
-                          connection={snapshot.connection}
-                          onRetry={() => client?.retryNow()}
-                          onPairAgain={() => router.push('/pair')}
-                        />
-                      )}
-                      {saved &&
-                      refreshFailedHost === saved.hostId &&
-                      environment.key === computerEnvironmentKey(saved.hostId) ? (
+                      {selectedHost &&
+                        selectedHost.snapshot.connection.status !== 'unreachable' && (
+                          <ConnectionBanner
+                            connection={selectedHost.snapshot.connection}
+                            onRetry={() => selectedHost.client.retryNow()}
+                            onPairAgain={() => router.push('/pair')}
+                          />
+                        )}
+                      {selectedHost &&
+                      ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
+                        selectedHost.snapshot.connection.status === 'unreachable' ||
+                        selectedHost.snapshot.connection.status === 'stopped') ? (
                         <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                          <Text tone="muted">{t.hostListUnavailable}</Text>
+                          <Text tone="muted">
+                            {selectedHost.snapshot.roster === undefined
+                              ? t.hostListLoadFailed
+                              : t.hostListUnavailable}
+                          </Text>
                           <Button
                             testID="chat-list-retry"
                             label={t.retry}
                             on="canvas"
-                            onPress={() => void refresh()}
+                            onPress={() => void refresh(selectedHost)}
                             disabled={refreshing}
                           />
                         </View>
                       ) : null}
-                      {(directory.errors.length > 0 || cloud.error || error) && (
-                        <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-                          {t.cloudListUnavailable}
-                          {error ? ` (${error})` : ''}
-                        </Text>
+                      {(cloudFailed || error) && (
+                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                          <Text tone="muted" accessibilityRole="alert">
+                            {t.cloudListUnavailable}
+                            {error ? ` (${error})` : ''}
+                          </Text>
+                          <Button
+                            testID="cloud-list-retry"
+                            label={t.retry}
+                            on="canvas"
+                            onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
+                            disabled={refreshing}
+                          />
+                        </View>
                       )}
                     </>
                   }
                   ListEmptyComponent={
-                    directory.busy ||
-                    hosts.some(
-                      (host) =>
-                        (effectiveFilter === 'all' ||
-                          effectiveFilter === computerEnvironmentKey(host.saved.hostId)) &&
-                        !host.snapshot.roster &&
-                        host.snapshot.connection.status === 'connecting',
-                    ) ? (
-                      <View style={{ padding: space.x6, alignItems: 'center' }}>
-                        <LoadingIndicator />
-                      </View>
-                    ) : (
+                    coldLoading ? (
+                      <ListSkeleton />
+                    ) : hostFailed || cloudFailed ? undefined : (
                       <Text tone="muted" style={{ padding: space.x6 }}>
                         {query
                           ? t.searchNoMatch(query.trim())
@@ -524,7 +563,7 @@ const HomeContent = memo(function HomeContent({
                     ) : (
                       <CloudConversationRow
                         row={item.conversation}
-                        disabled={opening || cloud.busy || directory.busy}
+                        pending={opening === item.conversation.key}
                         onPress={() => void openCloud(item.conversation)}
                       />
                     )

@@ -90,7 +90,7 @@ afterEach(async () => {
 });
 const button = (label: string) =>
   [...host.querySelectorAll('button')].find(
-    (node) => (node.getAttribute('aria-label') ?? node.textContent) === label,
+    (node) => node.getAttribute('aria-label') === label || node.textContent === label,
   )!;
 const click = async (label: string) => act(async () => button(label).click());
 const render = async (manage = true) => {

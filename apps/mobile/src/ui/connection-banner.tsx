@@ -17,16 +17,8 @@ export function ConnectionBanner({
 }) {
   const t = useStrings();
   const theme = useTheme();
-  if (connection.status === 'connected' || connection.status === 'stopped') return null;
-  const severe = connection.status === 'refused' || connection.status === 'unreachable';
-  const title =
-    connection.status === 'connecting'
-      ? t.connecting
-      : connection.status === 'reconnecting'
-        ? t.reconnecting
-        : connection.status === 'unreachable'
-          ? t.unreachable
-          : t.refused;
+  if (connection.status !== 'refused' && connection.status !== 'unreachable') return null;
+  const title = connection.status === 'unreachable' ? t.unreachable : t.refused;
   const detail =
     connection.status === 'refused'
       ? t.deviceRefusal[connection.code]
@@ -42,11 +34,7 @@ export function ConnectionBanner({
         padding: 12,
         borderRadius: 12,
         backgroundColor:
-          connection.status === 'refused'
-            ? theme.dangerSurface
-            : severe
-              ? theme.warningSurface
-              : theme.surface,
+          connection.status === 'refused' ? theme.dangerSurface : theme.warningSurface,
         borderWidth: 1,
         borderColor: theme.border,
         gap: 4,
@@ -61,17 +49,15 @@ export function ConnectionBanner({
           {t.tried}: {connection.route}
         </Text>
       ) : null}
-      {severe ? (
-        <Pressable
-          onPress={connection.status === 'refused' ? onPairAgain : onRetry}
-          accessibilityRole="button"
-          style={{ alignSelf: 'flex-start', paddingVertical: 6 }}
-        >
-          <Text style={{ color: theme.accent, fontSize: 15, fontWeight: '600' }}>
-            {connection.status === 'refused' ? t.pairAgain : t.retry}
-          </Text>
-        </Pressable>
-      ) : null}
+      <Pressable
+        onPress={connection.status === 'refused' ? onPairAgain : onRetry}
+        accessibilityRole="button"
+        style={{ alignSelf: 'flex-start', paddingVertical: 6 }}
+      >
+        <Text style={{ color: theme.accent, fontSize: 15, fontWeight: '600' }}>
+          {connection.status === 'refused' ? t.pairAgain : t.retry}
+        </Text>
+      </Pressable>
     </View>
   );
 }

@@ -1,3 +1,4 @@
+import { useConnectionProgress } from '../primitives/connection-progress';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
 import { selectionText, toggleMessageSelection } from './message-selection';
 import { HostScope } from '../../host/host-scope';
@@ -130,6 +131,8 @@ import { MarkdownViewportContext } from '../markdown-viewport';
 import { KeyboardChatFrame, useListBottomSafeArea } from '../primitives/keyboard-frame';
 import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { ListSkeleton } from '../primitives/list-skeleton';
+import { Button } from '../primitives/button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
@@ -618,6 +621,7 @@ function ChatConversation({
       snapshot.status === 'live' &&
       snapshot.hasOlder &&
       !snapshot.loadingOlder &&
+      !snapshot.olderError &&
       conversation !== undefined &&
       !snapshot.fromCache &&
       focusPage.current !== firstMessageId
@@ -635,6 +639,7 @@ function ChatConversation({
     snapshot.status,
     snapshot.hasOlder,
     snapshot.loadingOlder,
+    snapshot.olderError,
     snapshot.fromCache,
     firstMessageId,
     conversation,
@@ -936,6 +941,10 @@ function ChatConversation({
   );
 
   const hostRefused = host.connection.status === 'refused';
+  const connectionLabel = useConnectionProgress(
+    host.connection.status,
+    snapshot.status === 'interrupted',
+  );
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
@@ -943,6 +952,7 @@ function ChatConversation({
   const title = dm ? (
     <ChatTitle
       bot={bot}
+      connectionLabel={connectionLabel}
       fallback={slug ?? ''}
       onPress={() =>
         router.push({
@@ -974,6 +984,7 @@ function ChatConversation({
   ) : (
     <ChannelTitle
       channel={channel}
+      connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
       onPress={() =>
         router.push({
@@ -1010,9 +1021,10 @@ function ChatConversation({
         ? dm
           ? t.noBot
           : t.noChannel
-        : snapshot.fromCache && host.connection.status !== 'connected'
+        : host.connection.status === 'unreachable' ||
+            (snapshot.fromCache && host.connection.status === 'stopped')
           ? t.offline
-          : snapshot.status === 'interrupted'
+          : snapshot.status === 'interrupted' && connectionLabel === undefined
             ? t.liveInterrupted
             : attachError
               ? t.attachFailed
@@ -1230,6 +1242,18 @@ function ChatConversation({
                   {t.pairAgain}
                 </Text>
               </Pressable>
+            ) : host.connection.status === 'unreachable' ? (
+              <Pressable
+                testID="chat-connection-retry"
+                accessibilityRole="button"
+                accessibilityLabel={t.retry}
+                onPress={() => client?.retryNow()}
+                hitSlop={space.x3}
+              >
+                <Text variant="meta" tone="accent" strong>
+                  {t.retry}
+                </Text>
+              </Pressable>
             ) : notice === t.noBot || notice === t.noChannel ? (
               <Pressable
                 accessibilityRole="button"
@@ -1258,6 +1282,11 @@ function ChatConversation({
                 ref={attachList}
                 removeClippedSubviews={false}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
+                pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                importantForAccessibility={
+                  !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
+                }
                 contentInsetAdjustmentBehavior="automatic"
                 contentInset={{ bottom: -listSafeArea }}
                 automaticallyAdjustsScrollIndicatorInsets
@@ -1291,7 +1320,7 @@ function ChatConversation({
                     100,
                   );
                 }}
-                {...(latest.ready && latest.browsed
+                {...(latest.ready && latest.browsed && !snapshot.olderError
                   ? { onStartReached: () => void conversation?.loadOlder() }
                   : {})}
                 onStartReachedThreshold={0.5}
@@ -1329,6 +1358,18 @@ function ChatConversation({
                         {t.olderLoading}
                       </Text>
                     </View>
+                  ) : snapshot.olderError ? (
+                    <View style={{ padding: space.x4, gap: space.x2 }}>
+                      <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+                        {t.olderLoadFailed}
+                      </Text>
+                      <Button
+                        label={t.retry}
+                        variant="text"
+                        testID="history-retry"
+                        onPress={() => void conversation?.loadOlder()}
+                      />
+                    </View>
                   ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
                     <Text
                       variant="meta"
@@ -1339,16 +1380,33 @@ function ChatConversation({
                     </Text>
                   ) : undefined
                 }
-                ListEmptyComponent={
-                  snapshot.status === 'opening' ? (
-                    <View style={{ padding: space.x6, alignItems: 'center' }}>
-                      <LoadingIndicator />
-                    </View>
-                  ) : undefined
-                }
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
+          {(!latest.ready && rows.length > 0) ||
+          (snapshot.status === 'opening' && rows.length === 0) ? (
+            <View
+              pointerEvents={latest.canRetry ? 'auto' : 'none'}
+              style={{
+                position: 'absolute',
+                top: listTop,
+                bottom: composerHeight + edgeFade.bottom + workingReserve,
+                left: 0,
+                right: 0,
+                justifyContent: 'flex-end',
+              }}
+            >
+              <ListSkeleton layout="messages" />
+              {latest.canRetry ? (
+                <Button
+                  label={t.retry}
+                  variant="text"
+                  testID="history-loading-retry"
+                  onPress={latest.retry}
+                />
+              ) : null}
+            </View>
+          ) : null}
           {working.length > 0 ? (
             <Animated.View
               pointerEvents="none"
