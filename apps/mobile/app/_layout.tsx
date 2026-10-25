@@ -1,8 +1,11 @@
+import { useState } from 'react';
+import { Notice } from '../src/ui/request-parts';
+import { channelRouteId } from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import '../src/host/native-haptic-feedback';
 
@@ -36,13 +39,19 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
-  const routing = usePushRouting();
+  const [routingPending, setRoutingPending] = useState(false);
+  const routing = usePushRouting(setRoutingPending);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
         <SafeAreaProvider>
           <View ref={routing} style={{ flex: 1 }}>
             <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
+            {routingPending ? (
+              <SafeAreaView edges={['top']}>
+                <Notice tone="warning">{t.channelOpening}</Notice>
+              </SafeAreaView>
+            ) : null}
             <View testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
                 screenOptions={{
@@ -56,8 +65,16 @@ function RootNavigator() {
                 }}
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="dm/[slug]" options={{ title: '' }} />
-                <Stack.Screen name="channel/[id]" options={{ title: '' }} />
+                <Stack.Screen
+                  name="dm/[slug]"
+                  dangerouslySingular={channelRouteId}
+                  options={{ title: '' }}
+                />
+                <Stack.Screen
+                  name="channel/[id]"
+                  dangerouslySingular={channelRouteId}
+                  options={{ title: '' }}
+                />
                 <Stack.Screen
                   name="bot/[slug]"
                   options={{

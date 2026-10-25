@@ -370,6 +370,7 @@ function ChatConversation({
   const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
+  const focusPage = useRef<string | undefined>(undefined);
   const [answered, setAnswered] = useState<ReadonlySet<string>>(new Set());
 
   const resolutions = useMemo(
@@ -542,17 +543,48 @@ function ChatConversation({
     [shownDrafts, chronological],
   );
 
-  const jump = () => {
-    if (focus === undefined || jumped.current === focus) return;
+  const firstMessageId = snapshot.messages[0]?.id;
+  const jump = useCallback(() => {
+    if (!focused || focus === undefined || jumped.current === focus) return;
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
     if (index >= 0) {
+      if (!list.current) return;
       jumped.current = focus;
       latest.hold();
-      list.current?.scrollToIndex({ index, viewPosition: 0.5, animated: true });
+      list.current.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
-    else if (snapshot.status === 'live' && snapshot.hasOlder && !snapshot.loadingOlder)
+    else if (
+      snapshot.status === 'live' &&
+      snapshot.hasOlder &&
+      !snapshot.loadingOlder &&
+      !snapshot.fromCache &&
+      firstMessageId !== undefined &&
+      focusPage.current !== firstMessageId
+    ) {
+      focusPage.current = firstMessageId;
       void conversation?.loadOlder();
-  };
+    }
+  }, [
+    focused,
+    focus,
+    rows,
+    list,
+    latest.hold,
+    latestWindowOnly,
+    snapshot.status,
+    snapshot.hasOlder,
+    snapshot.loadingOlder,
+    snapshot.fromCache,
+    firstMessageId,
+    conversation,
+  ]);
+  useLayoutEffect(() => {
+    jumped.current = undefined;
+    focusPage.current = undefined;
+  }, [focus, focused]);
+  useLayoutEffect(() => {
+    jump();
+  }, [jump]);
 
   const membersKey = channel === undefined ? undefined : `${channel.id}:${channel.members.join()}`;
   const mentionQuery = dm ? undefined : activeMentionQuery(draft, caret, mentions);
@@ -852,7 +884,13 @@ function ChatConversation({
                       ? t.dictationUnavailable
                       : dictation.state.status === 'failed'
                         ? t.dictationFailed
-                        : undefined;
+                        : focus !== undefined &&
+                            snapshot.status === 'live' &&
+                            !snapshot.hasOlder &&
+                            !snapshot.loadingOlder &&
+                            !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                          ? t.messageFocusUnavailable
+                          : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
   const topFade =

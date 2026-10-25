@@ -506,6 +506,13 @@ Material is a decorative background only: text, focus, hit testing and navigatio
 
 For same-name Organization tabs, show a collision-only secondary source label (Organization identifier suffix plus service host), with full source/Organization identity in the accessible name. Expand the suffix when needed to distinguish same-service identifiers. Routing and ordering continue to use stable source keys. Unique names stay compact.
 
+### Notification and interruption conversation entry (#2798)
+
+`src/ui/shell/channel-navigation.ts` resolves Human/Bot DMs, Bot-to-Bot DMs and Group Channels from the active Host Roster. Notification taps and interrupted-processing **Open conversation** use this owner. A new target pushes above the origin; a matching Host and route identity unwinds to the retained route key. Message focus is a parameter, not page identity. An unavailable original message leaves the correct conversation open with a notice.
+
+Notification routing serializes Host switches, waits for the navigator and required Roster with a bounded cancellable wait, and lets the latest navigation intent win. Pending entry has immediate visible feedback; missing data or targets never silently disappear. Opening an interruption does not retry execution or clear its Human Inbox item. Other entry migrations and workspace resets remain tracked in #2799 and #2800; this change does not claim app-wide migration.
+
+Notification resolution is a scoped exception to shell-before-data: the payload has a Channel ID but does not establish whether the destination is a Human/Bot DM, a Bot-to-Bot DM or a Group. Until the target Host Roster resolves that identity, retain the current page with an immediate pending banner rather than guessing a page. This wait is bounded to 15 seconds after Host selection, cancelled by a newer notification or owner unmount, and fails visibly. Once identity is known, dispatch immediately; message history never gates opening. Ordinary known-destination navigation keeps the shell-before-data rule.
 The native section chooser always places **Unsectioned** first, followed by a native divider and custom sections. Titles remain neutral; only the checkmark for the Host-confirmed current membership uses the primary/accent color. Do not mark Unsectioned selected before the roster loads. Selecting the current destination closes without writes; selecting Unsectioned clears membership through the existing Host command and does not delete the chat.
 
 Marketplace topic filtering opts into glass Close on iOS, per the Human design update in #2648. Its header supplies the same horizontal inset as sheet content and a top inset below the native rounded corner. Other DrawerHeader callers retain their established material and dismissal policy.
