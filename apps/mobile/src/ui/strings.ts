@@ -19,6 +19,19 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  channelFiles: {
+    title: 'Channel files',
+    empty: 'No files in this conversation.',
+    noRecent: 'No files in recent messages.',
+    loadOlder: 'Load older files',
+    viewMessage: 'View message',
+    system: 'System',
+    pageFailed: 'Could not load older files. Try again.',
+    unavailable: 'This conversation is no longer available.',
+    disconnected: 'Connection lost. Reconnect to open files.',
+    fileUnavailable: 'This file is unavailable. It may have been removed, or access has changed.',
+    messageUnavailable: 'The original message is no longer available.',
+  },
   deletion: {
     deleteBot: 'Delete Bot',
     dissolve: 'Dissolve group',
@@ -1659,6 +1672,19 @@ const en = {
 };
 
 const zh: typeof en = {
+  channelFiles: {
+    title: '会话文件',
+    empty: '此会话暂无文件。',
+    noRecent: '最近的消息中没有文件。',
+    loadOlder: '加载更早的文件',
+    viewMessage: '查看原消息',
+    system: '系统',
+    pageFailed: '未能加载更早的文件，请重试。',
+    unavailable: '此会话已不可访问。',
+    disconnected: '连接已断开，重新连接后可打开文件。',
+    fileUnavailable: '文件不可用，可能已被移除或访问权限已变更。',
+    messageUnavailable: '原消息已不可访问。',
+  },
   deletion: {
     deleteBot: '删除 Bot',
     dissolve: '解散群聊',

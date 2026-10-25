@@ -2,10 +2,15 @@ import type { Href, useRouter } from 'expo-router';
 
 import type { Conversation } from '../chat/conversations';
 
-export function conversationHref(row: Conversation, hostId?: string): Href {
+type ConversationTarget =
+  | { kind: 'bot'; bot: { slug: string } }
+  | { kind: 'channel'; channel: { id: string } };
+
+export function conversationHref(row: ConversationTarget, hostId?: string, focus?: string): Href {
+  const target = focus === undefined ? {} : { focus };
   return row.kind === 'bot'
-    ? { pathname: '/dm/[slug]', params: { slug: row.bot.slug, hostId } }
-    : { pathname: '/channel/[id]', params: { id: row.channel.id, hostId } };
+    ? { pathname: '/dm/[slug]', params: { slug: row.bot.slug, hostId, ...target } }
+    : { pathname: '/channel/[id]', params: { id: row.channel.id, hostId, ...target } };
 }
 
 export function openConversation(
