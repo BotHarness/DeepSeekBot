@@ -1,14 +1,21 @@
 // @vitest-environment jsdom
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RosterBot } from '../src/host/client';
+let profileHistory = channelNavigationHarness();
+import type { RosterBot, RosterChannel } from '../src/host/client';
 import type { ConversationSnapshot } from '../src/host/conversation';
+
+vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 
 const state = vi.hoisted(() => ({
   history: [] as string[],
   hostId: 'computer_a',
-  host: { connection: { status: 'connected' }, roster: { bots: [] as RosterBot[], channels: [] } },
+  host: {
+    connection: { status: 'connected' },
+    roster: { bots: [] as RosterBot[], channels: [] as RosterChannel[] },
+  },
   conversation: {
     status: 'live',
     messages: [],
@@ -18,17 +25,27 @@ const state = vi.hoisted(() => ({
     fromCache: false,
   } as ConversationSnapshot,
   active: false,
+  focused: true,
   display: { mode: 'streaming', loaded: true },
   glassHeader: true,
+}));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
+const nativeList = vi.hoisted(() => ({
+  scrollToIndex: vi.fn(),
+  scrollToOffset: vi.fn(),
+  rows: [] as Array<{ key: string; kind?: string; message?: { id: string } }>,
 }));
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
   useRecentChat: () => () => {},
 }));
-vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
+vi.mock('../src/host/native-source-drafts', () => ({
+  useSourceDraft: () => ['', () => {}, { loaded: true, failed: false, retry: async () => true }],
+}));
 vi.mock('expo-router', () => ({
-  useIsFocused: () => true,
+  useNavigationContainerRef: () => profileHistory.navigation,
+  useIsFocused: () => state.focused,
   usePreventRemove: () => {},
   Stack: {
     Screen: ({
@@ -36,6 +53,7 @@ vi.mock('expo-router', () => ({
     }: {
       options: {
         headerLeft?: () => ReactNode;
+        headerRight?: () => ReactNode;
         headerBackVisible?: boolean;
         headerBlurEffect?: string;
         unstable_headerLeftItems?: () => Array<{
@@ -44,6 +62,7 @@ vi.mock('expo-router', () => ({
           label?: string;
           onPress?: () => void;
         }>;
+        unstable_headerRightItems?: () => Array<{ label: string; onPress(): void }>;
       };
     }) => (
       <header
@@ -63,10 +82,19 @@ vi.mock('expo-router', () => ({
         )) ??
           options.headerLeft?.() ??
           null}
+        {options.unstable_headerRightItems?.().map((item) => (
+          <button key={item.label} type="button" onClick={item.onPress}>
+            {item.label}
+          </button>
+        )) ?? options.headerRight?.()}
       </header>
     ),
   },
   useRouter: () => ({
+    push: (href: { pathname: string; params?: object }) => {
+      navigation.push(href);
+      profileHistory.push(href.pathname.slice(1), href.params);
+    },
     canGoBack: () => state.history.length > 1,
     back: () => state.history.pop(),
     replace: (href: string) => state.history.splice(-1, 1, href),
@@ -81,12 +109,47 @@ vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return { ...shim, KeyboardAvoidingView: shim.View };
 });
-vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-reanimated', async () => {
+  const shim = await import('./reanimated-shim');
+  const React = await import('react');
+  return {
+    ...shim,
+    useAnimatedRef: () =>
+      React.useMemo(() => {
+        const ref = Object.assign(
+          (node: unknown) => {
+            ref.current = node;
+          },
+          { current: null as unknown },
+        );
+        return ref;
+      }, []),
+    default: {
+      ...shim.default,
+      FlatList: ({
+        ref,
+        ...props
+      }: Parameters<typeof shim.default.FlatList>[0] & { ref: React.Ref<unknown> }) => {
+        nativeList.rows = props.data;
+        React.useImperativeHandle(
+          ref,
+          () => ({
+            scrollToIndex: nativeList.scrollToIndex,
+            scrollToOffset: nativeList.scrollToOffset,
+            getNativeScrollRef: () => null,
+          }),
+          [],
+        );
+        return React.createElement(shim.default.FlatList, props);
+      },
+    },
+  };
+});
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ client: undefined, inbox: undefined, saved: { hostId: state.hostId } }),
   useHostSnapshot: () => state.host,
-  useConversation: () => (state.active ? {} : undefined),
+  useConversation: () => (state.active ? { loadOlder: navigation.loadOlder } : undefined),
   useChannelConversation: () => undefined,
   useConversationTimelineSnapshot: () => state.conversation,
   useStreamPlayback: () => undefined,
@@ -120,6 +183,11 @@ vi.mock('../src/ui/chat/native-header', () => ({
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
+  HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
+    <button type="button" onClick={onPress}>
+      {label}
+    </button>
+  ),
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (
     <button type="button" onClick={onPress}>
       Header back
@@ -160,7 +228,7 @@ vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => nu
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
-vi.mock('../src/ui/chat/chat-title', () => ({ ChatTitle: () => null }));
+vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
@@ -198,15 +266,179 @@ let root: Root | undefined;
 let container: HTMLElement | undefined;
 
 beforeEach(() => {
+  profileHistory = channelNavigationHarness();
+  navigation.push.mockClear();
+  navigation.loadOlder.mockClear();
+  nativeList.scrollToIndex.mockClear();
+  nativeList.scrollToOffset.mockClear();
   state.hostId = 'computer_a';
   state.host.connection.status = 'connected';
   state.conversation.status = 'live';
   state.conversation.messages = [];
   state.conversation.drafts = [];
+  state.conversation.hasOlder = false;
+  state.conversation.loadingOlder = false;
+  state.conversation.fromCache = false;
   state.host.roster.bots = [];
+  state.host.roster.channels = [];
   state.active = false;
+  state.focused = true;
   state.display = { mode: 'streaming', loaded: true };
   state.glassHeader = true;
+});
+
+it('preserves the reading position on ordinary Back and repositions the same message only for a fresh request', async () => {
+  state.active = true;
+  state.conversation.messages = ['first', 'second'].map((id) => ({
+    id,
+    at: '2026-10-25T01:00:00Z',
+    author: 'human',
+    body: id,
+    attachments: [],
+    delivery: 'committed',
+  }));
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  const index = nativeList.scrollToIndex.mock.calls[0]![0].index as number;
+  expect(nativeList.rows[index]?.message?.id).toBe('first');
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  state.focused = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  state.focused = true;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+  state.focused = false;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  state.focused = true;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="view-message-again" />,
+    ),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+});
+
+it('asks the existing history owner for an uncached focus and positions it when the page arrives', async () => {
+  state.active = true;
+  state.conversation.hasOlder = true;
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledOnce();
+  state.conversation.hasOlder = false;
+  state.conversation.messages = [
+    {
+      id: 'older',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'older',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  expect(nativeList.rows[nativeList.scrollToIndex.mock.calls[0]![0].index]?.message?.id).toBe(
+    'older',
+  );
+});
+
+it('retries source paging only after a new history boundary or an explicit repeated request', async () => {
+  state.active = true;
+  state.conversation.hasOlder = true;
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.conversation.loadingOlder = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.conversation.loadingOlder = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledOnce();
+  state.conversation.messages = [
+    {
+      id: 'middle',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'middle',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(2);
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.focused = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(2);
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="older" focusRequest="retry-source" />),
+  );
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(3);
+});
+
+it.each(['ios', 'android'])(
+  'opens Channel files from the %s header with the exact Computer and DM',
+  async (os) => {
+    const previousOS = Platform.OS;
+    Object.assign(Platform, { OS: os });
+    try {
+      state.host.roster.bots = [
+        {
+          slug: 'ada',
+          displayName: 'Ada',
+          dmChannelId: 'dm-a',
+          state: 'idle',
+          description: '',
+          roles: [],
+          computerAccess: false,
+          browserAccess: false,
+          paused: false,
+        },
+      ];
+      const view = await render({ kind: 'dm', slug: 'ada' });
+      const button = [...view.querySelectorAll('button')].find(
+        (item) => item.textContent === t.channelFiles.title,
+      )!;
+      expect(button).toBeDefined();
+      await act(async () => button.click());
+      expect(navigation.push).toHaveBeenCalledWith({
+        pathname: '/channel-files',
+        params: { hostId: 'computer_a', channelId: 'dm-a', botSlug: 'ada' },
+      });
+    } finally {
+      Object.assign(Platform, { OS: previousOS });
+    }
+  },
+);
+
+it('shows a missing source message after the existing history owner reaches the beginning', async () => {
+  const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
+  const view = await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="gone" />));
+  state.host.roster.channels = [{ id: 'group-a', name: 'Group', members: [], memberCount: 0 }];
+  await act(async () => root!.render(<ConversationScreen place={place} focus="gone" />));
+  expect(view.textContent).toContain(t.messageFocusUnavailable);
 });
 
 it('refuses a retained route after switching Computers even when its Bot slug collides', async () => {
@@ -351,13 +583,130 @@ afterEach(() => {
   root = undefined;
 });
 
-async function render(place: ChatPlace) {
+async function render(place: ChatPlace, focus?: string) {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+  await act(async () => root!.render(<ConversationScreen place={place} focus={focus} />));
   return container;
 }
+
+function focusConversation(): ChatPlace {
+  state.active = true;
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  state.conversation.messages = ['first', 'second'].map((id) => ({
+    id,
+    at: '',
+    author: 'bot',
+    bot: 'ada',
+    body: id,
+    attachments: [],
+    delivery: 'committed',
+  }));
+  return { kind: 'dm', slug: 'ada' };
+}
+
+it('scrolls a retained conversation to a new message focus without a content resize', async () => {
+  const place = focusConversation();
+  const view = await render(place);
+  const list = view.querySelector('[data-testid="chat-list"]');
+  await act(async () => root!.render(<ConversationScreen place={place} focus="second" />));
+  expect(view.querySelector('[data-testid="chat-list"]')).toBe(list);
+  expect(nativeList.scrollToIndex).toHaveBeenLastCalledWith({
+    index: 2,
+    viewPosition: 0.5,
+    animated: true,
+  });
+});
+
+it('loads older history for a new focus on a retained conversation', async () => {
+  const place = focusConversation();
+  state.conversation.hasOlder = true;
+  await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(1);
+  state.conversation.messages = [
+    {
+      id: 'older',
+      at: '',
+      author: 'bot',
+      bot: 'ada',
+      body: 'older',
+      attachments: [],
+      delivery: 'committed',
+    },
+    ...state.conversation.messages,
+  ];
+  state.conversation.hasOlder = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(nativeList.scrollToIndex).toHaveBeenLastCalledWith({
+    index: 1,
+    viewPosition: 0.5,
+    animated: true,
+  });
+});
+
+it('reapplies the same message only for a fresh explicit request on its retained screen', async () => {
+  const place = focusConversation();
+  await render(place, 'first');
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(1);
+  state.focused = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="first" />));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(1);
+  state.focused = true;
+  await act(async () =>
+    root!.render(
+      <ConversationScreen place={place} focus="first" focusRequest="explicit-revisit" />,
+    ),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+  expect(nativeList.scrollToIndex).toHaveBeenLastCalledWith({
+    index: 1,
+    viewPosition: 0.5,
+    animated: true,
+  });
+});
+
+it('does not loop older-history requests when a page fails to advance', async () => {
+  const place = focusConversation();
+  state.conversation.hasOlder = true;
+  await render(place, 'older');
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(1);
+  state.conversation.loadingOlder = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  state.conversation.loadingOlder = false;
+  await act(async () => root!.render(<ConversationScreen place={place} focus="older" />));
+  expect(navigation.loadOlder).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the correct DM open and explains when the linked message is unavailable', async () => {
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  state.history = ['/', '/dm/ada'];
+  const view = await render({ kind: 'dm', slug: 'ada' }, 'removed-message');
+  expect(view.textContent).toContain(t.messageFocusUnavailable);
+  expect(view.querySelector('[data-testid="chat-controls"]')).not.toBeNull();
+  expect(state.history).toEqual(['/', '/dm/ada']);
+});
 
 async function press(view: HTMLElement, label: string) {
   const button = [...view.querySelectorAll('button')].find((node) => node.textContent === label);
@@ -420,7 +769,7 @@ describe('missing conversation navigation', () => {
         state.history = ['/activity', route];
         const stacked = (await render(place)).querySelector('header')!;
         expect(stacked.dataset['backVisible']).toBe('true');
-        expect(stacked.querySelector('button')).toBeNull();
+        expect(stacked.querySelector('[data-item="button"]')).toBeNull();
         expect([...stacked.children].map((item) => (item as HTMLElement).dataset['item'])).toEqual([
           'spacing',
           'custom',
@@ -461,4 +810,39 @@ describe('chat list chrome', () => {
       Object.assign(Platform, { OS: os });
     }
   });
+});
+
+it('the real conversation title opens a source-scoped Bot Profile', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    profileHistory = channelNavigationHarness();
+    profileHistory.push('dm/[slug]', { slug: 'ada', hostId: 'computer_a' });
+    state.history = ['/', '/dm/ada'];
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        state: 'idle',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    const view = await render({ kind: 'dm', slug: 'ada' });
+    const title = [...view.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Ada',
+    );
+    expect(title).toBeDefined();
+    await act(async () => title!.click());
+    expect(profileHistory.state.routes.at(-1)).toMatchObject({
+      name: 'bot/[slug]',
+      params: { slug: 'ada', hostId: 'computer_a' },
+    });
+    profileHistory.back();
+    expect(profileHistory.state.routes.at(-1)!.name).toBe('dm/[slug]');
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
 });

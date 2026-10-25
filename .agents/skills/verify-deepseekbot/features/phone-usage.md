@@ -23,3 +23,9 @@ Preconditions: a model credential, so two Bots can answer a DM and spend tokens.
 - The Host counts days in its own time zone, so the weekday labels follow the computer, not the phone.
 - The web export is layout evidence. Native acceptance: Settings → Usage → back → App icon → back keeps one handle and the same drawer surface. Expand it, scroll content first, then drag the handle to dismiss. Alternate-icon mutation is a separate platform capability.
 - Profile usage must agree with `bot-activity-history` reported totals: a model with known and unknown calls retains its reported lower bound and uses the same compact count/`+` format as Settings, without a “partially known” prefix. All-unknown usage is not zero.
+
+## Profile Message and scoped Channel entry (#2799)
+
+Use the shared device queue and record Android and iOS separately. From Usage, open a Bot Profile and tap Message: the Bot DM replaces the Profile presentation, and Back returns to Usage. Repeat from Group Profile. From the Bot's existing DM, open its Profile and tap Message: return to that same DM without a duplicate; Close remains presentation dismissal. Use a nested Profile settings page before returning to Profile to exercise the root navigator boundary.
+
+From Chats and Activity, open a DM/group, move to another Channel, then reopen the original. Verify the original route and Back history are retained. On iOS verify both ordinary row tap and native preview commit; long-press menus remain available. Use two Hosts with the same Bot slug, switch source while a Profile is open and verify stale source refuses rather than opening the new Host's Bot. Preserve drafts and list state. Capture default/intermediate/maximum text in light/dark, TalkBack/VoiceOver and native header/system/gesture Back. Source tests do not replace native qualification.

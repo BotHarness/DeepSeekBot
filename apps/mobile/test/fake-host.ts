@@ -94,7 +94,7 @@ export class FakeChannel {
 }
 
 export class FakeHost {
-  readonly hostId = 'host-1';
+  constructor(readonly hostId = 'host-1') {}
   readonly credential = 'device-1.secret-1';
   offer = 'offer-1';
   revoked = false;
@@ -365,6 +365,13 @@ export class FakeHost {
     for (const entry of this.sockets) {
       const streamId = entry.streams.get(endpoint);
       if (streamId !== undefined) this.emit(entry, streamId, value);
+    }
+  }
+
+  endFollower(endpoint: 'botharness/followRoster' | 'botharness/followChannel'): void {
+    for (const entry of this.sockets) {
+      const streamId = entry.streams.get(endpoint);
+      if (streamId !== undefined) entry.events.message(JSON.stringify({ type: 'end', streamId }));
     }
   }
 

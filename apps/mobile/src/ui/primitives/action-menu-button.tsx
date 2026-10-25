@@ -15,7 +15,9 @@ export type MenuAction = {
     | 'pin'
     | 'mute'
     | 'check'
-    | 'folder';
+    | 'folder'
+    | 'chat'
+    | 'share';
   run(): void;
   destructive?: boolean;
 };
@@ -24,13 +26,22 @@ export type ActionMenuButtonProps = {
   label: string;
   actions: MenuAction[];
   onOpen(): void;
+  testID?: string;
+  disabled?: boolean;
 };
 
-export function ActionMenuButton({ label, onOpen }: ActionMenuButtonProps) {
+export function ActionMenuButton({
+  label,
+  onOpen,
+  testID = 'action-menu-trigger',
+  disabled = false,
+}: ActionMenuButtonProps) {
   const theme = useDesignTheme();
   return (
     <Pressable
-      testID="action-menu-trigger"
+      testID={testID}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       onPress={onOpen}
       accessibilityRole="button"
       accessibilityLabel={label}

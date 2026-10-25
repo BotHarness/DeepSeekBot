@@ -34,12 +34,18 @@ import {
 } from '../../cloud/workspace-directory';
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { conversationFilter, useConversationFilter } from '../../host/native-conversation-filter';
-import { createHostClient } from '../../host/client';
+
 import type { ConnectHost } from '../../host/connect-account';
 import { connectAccount } from '../../host/native-connect-account';
-import { createHostGlances, liveGlance, type HostStatus } from '../../host/host-glance';
-import { hostSession, useHostSession, useHostSnapshot, useInbox } from '../../host/host-session';
-import { nativeCarrier } from '../../host/native-carrier';
+import { liveGlance, type HostStatus } from '../../host/host-glance';
+import {
+  hostSession,
+  useHostSession,
+  useHostSnapshot,
+  useInbox,
+  useHostSessions,
+} from '../../host/host-session';
+
 import { useHostLook } from '../../host/native-host-look';
 import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
@@ -67,25 +73,19 @@ import {
 } from './host-drawer-model';
 import { ActivityIcon, ChatsIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
 import { noticeHostKept } from '../unpair-notice';
+import { chooseCloudWorkspace, showWorkspaceRoot } from './native-workspace-navigation';
 
 export const hostDrawer = createHostDrawer({
-  switchTo: (hostId) => hostSession.switchTo(hostId),
+  switchTo: (hostId, current) => hostSession.switchTo(hostId, current),
   showView: (hostId) => {
     conversationFilter.set(hostId === undefined ? 'all' : computerEnvironmentKey(hostId));
-    router.replace('/');
+    if (!showWorkspaceRoot())
+      showAppDialog(t.channelOpeningNotReady, undefined, [{ text: t.done }]);
   },
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
+  failed: () => showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
 });
-
-const glances = createHostGlances((host) =>
-  createHostClient({
-    ...host,
-    routes: host.routes,
-    credential: host.credential,
-    carrier: nativeCarrier(),
-  }),
-);
 
 const progress = makeMutable(0);
 const workspaceDirectory = createWorkspaceDirectory(cloudClient);
@@ -615,7 +615,25 @@ export function HostDrawer() {
   const [filter] = useConversationFilter();
   const connection = useHostSnapshot(client).connection;
   const list = useInbox(inbox);
-  const glanceMap = useSyncExternalStore(glances.subscribe, glances.getSnapshot);
+  const feeds = useHostSessions();
+  const glanceMap = useMemo(
+    () =>
+      Object.fromEntries(
+        feeds.map((host) => [
+          host.saved.hostId,
+          {
+            ...liveGlance(host.snapshot.connection, host.attention),
+            ...(host.attention.status === 'ready'
+              ? {
+                  unread: Object.values(host.attention.unread ?? {}).filter((count) => count > 0)
+                    .length,
+                }
+              : {}),
+          },
+        ]),
+      ),
+    [feeds],
+  );
   const pathname = usePathname();
   const params = useGlobalSearchParams<{ instanceId?: string; organizationId?: string }>();
   const cloud = useCloudSnapshot();
@@ -653,23 +671,13 @@ export function HostDrawer() {
   }, [state.open, tab, cloud.ready, cloudKey]);
   const choose = async (workspace: CloudWorkspace) => {
     if (selecting || cloud.busy || directory.busy) return;
+    const current = hostDrawer.beginWorkspaceSelection();
     setSelecting(true);
     setSelectionError(undefined);
     try {
-      if (workspace.role === 'guest') await cloudClient.whoami(workspace.instanceId);
-      else await cloudClient.useOrganization(workspace.instanceId, workspace.organizationId);
-      closeThen(() =>
-        router.push({
-          pathname: '/cloud-channels',
-          params: {
-            instanceId: workspace.instanceId,
-            organizationId: workspace.organizationId,
-            guest: workspace.role === 'guest' ? 'true' : 'false',
-          },
-        }),
-      );
+      if (await chooseCloudWorkspace(workspace, current)) settle(false);
     } catch (error) {
-      setSelectionError(cloudError(error));
+      if (current()) setSelectionError(cloudError(error));
     } finally {
       setSelecting(false);
     }
@@ -684,14 +692,13 @@ export function HostDrawer() {
   const tabFocus = useMounted<ViewInstance>(
     (node) => {
       if (!state.open) return;
-      const stopWatching = glances.watch(hosts);
+
       const focus = setTimeout(() => focusOn(node), motion.drawer);
       const back = BackHandler.addEventListener('hardwareBackPress', () => {
         settle(false);
         return true;
       });
       return () => {
-        stopWatching();
         clearTimeout(focus);
         back.remove();
       };

@@ -1,7 +1,8 @@
 import type { AccountOwner } from './account-owner';
 import { removeAccountConnections } from './account-connections';
 import { sourceDrafts } from './native-source-drafts';
-import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { HostScope } from './host-scope';
 import { useFocusEffect } from 'expo-router';
 import { AppState, Platform } from 'react-native';
 
@@ -37,12 +38,31 @@ export interface HostSessionState {
   inbox: Inbox | undefined;
 }
 
+export interface ConnectedHost {
+  saved: SavedHost;
+  client: HostClient;
+  inbox: Inbox;
+  snapshot: HostSnapshot;
+  attention: InboxSnapshot;
+}
+
+const sessions = new Map<string, { host: ConnectedHost; dispose(): void }>();
+const feedListeners = new Set<() => void>();
+let feeds: readonly ConnectedHost[] = [];
+function publishFeeds(): void {
+  feeds = [...sessions.values()].map(({ host }) => ({
+    ...host,
+    snapshot: host.client.getSnapshot(),
+    attention: host.inbox.getSnapshot(),
+  }));
+  for (const listener of feedListeners) listener();
+}
+
 const clientHosts = new WeakMap<HostClient, string>();
 const listeners = new Set<() => void>();
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
 let stored: SavedHosts = { hosts: [] };
-let offInbox: (() => void) | undefined;
-let offConnection: (() => void) | undefined;
+let selectionIntent = 0;
 
 export const hostPush = createHostPush(nativeCarrier());
 export const pushSession = createPushSession({
@@ -66,59 +86,37 @@ function reflectInbox(hostId: string, inbox: Inbox): void {
   pushSession.reflect(hostId, unresolved, unresolved.size);
 }
 
-function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
-  mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
-  notificationPreferences.setForeground(AppState.currentState === 'active');
-  const previous = state.saved;
-  stored = next;
-  void notificationPreferences.sync(next.hosts).catch(() => undefined);
-  const saved = currentHost(next) ?? null;
-  if (
-    previous !== undefined &&
-    previous?.hostId === saved?.hostId &&
-    previous?.credential === saved?.credential
-  ) {
-    state = { ...state, saved, hosts: next.hosts };
-    if (saved) state.client?.updateRoutes?.(saved.routes);
-    for (const listener of listeners) listener();
-    return;
-  }
-  offInbox?.();
-  offConnection?.();
-  state.inbox?.stop();
-  state.client?.stop();
-  const client =
-    saved === null
-      ? undefined
-      : createHostClient({
-          ...saved,
-          routes: saved.routes,
-          credential: saved.credential,
-          carrier: nativeCarrier(),
-          telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
-          onRoutesChanged: (routes) =>
-            serialize(async () => {
-              const existing = stored.hosts.find((host) => host.hostId === saved.hostId);
-              if (!existing || existing.credential !== saved.credential) return;
-              await commit({
-                ...stored,
-                hosts: stored.hosts.map((host) =>
-                  host.hostId === saved.hostId ? { ...host, routes } : host,
-                ),
-              });
-              void pushSession.sync(stored.hosts);
-            }),
+function connect(saved: SavedHost, trigger: ConnectionTrigger) {
+  const client = createHostClient({
+    ...saved,
+    onRoutesChanged: (routes) =>
+      serialize(async () => {
+        const existing = stored.hosts.find((host) => host.hostId === saved.hostId);
+        if (!existing || existing.credential !== saved.credential) return;
+        await commit({
+          ...stored,
+          hosts: stored.hosts.map((host) =>
+            host.hostId === saved.hostId ? { ...host, routes } : host,
+          ),
         });
-  if (client && saved) clientHosts.set(client, saved.hostId);
-  const inbox = client === undefined ? undefined : createInbox(client);
-  offInbox =
-    saved === null || inbox === undefined
-      ? undefined
-      : inbox.subscribe(() => reflectInbox(saved.hostId, inbox));
+        void pushSession.sync(stored.hosts);
+      }),
+    routes: saved.routes,
+    credential: saved.credential,
+    carrier: nativeCarrier(),
+    telemetry: createConnectionTelemetry(mobileTelemetry, trigger),
+  });
+  clientHosts.set(client, saved.hostId);
+  const inbox = createInbox(client);
+  const offInbox = inbox.subscribe(() => {
+    reflectInbox(saved.hostId, inbox);
+    publishFeeds();
+  });
+
   let connected = false;
   let avatars: string | undefined;
   let avatarRetryAt = Infinity;
-  offConnection = client?.subscribe(() => {
+  const offConnection = client.subscribe(() => {
     const snapshot = client.getSnapshot();
     const now = snapshot.connection.status === 'connected';
     if (now && !connected) {
@@ -138,15 +136,66 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
         if (!complete && avatars === inputs) avatarRetryAt = Date.now() + 60_000;
       });
     }
+    publishFeeds();
   });
-  state = { saved, hosts: next.hosts, client, inbox };
-  client?.start();
+  return {
+    host: { saved, client, inbox, snapshot: client.getSnapshot(), attention: inbox.getSnapshot() },
+    dispose() {
+      offInbox();
+      offConnection();
+      inbox.stop();
+      client.stop();
+    },
+  };
+}
+
+function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
+  mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
+  notificationPreferences.setForeground(AppState.currentState === 'active');
+  stored = next;
+  void notificationPreferences.sync(next.hosts).catch(() => undefined);
+  for (const [id, session] of sessions) {
+    const saved = next.hosts.find((host) => host.hostId === id);
+    if (
+      !saved ||
+      saved.credential !== session.host.saved.credential ||
+      JSON.stringify(saved.encryption) !== JSON.stringify(session.host.saved.encryption)
+    ) {
+      sessions.delete(id);
+      session.dispose();
+    }
+  }
+  for (const saved of next.hosts) {
+    const existing = sessions.get(saved.hostId);
+    if (existing) {
+      existing.host.saved = saved;
+      existing.host.client.updateRoutes?.(saved.routes);
+      continue;
+    }
+    const session = connect(saved, trigger);
+    sessions.set(saved.hostId, session);
+    session.host.client.start();
+  }
+  const saved = currentHost(next) ?? null;
+  const selected = saved ? sessions.get(saved.hostId)?.host : undefined;
+  state = { saved, hosts: next.hosts, client: selected?.client, inbox: selected?.inbox };
+  publishFeeds();
   for (const listener of listeners) listener();
 }
 
-async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): Promise<void> {
+async function commit(
+  next: SavedHosts,
+  trigger: ConnectionTrigger = 'switch',
+  current: () => boolean = () => true,
+): Promise<boolean> {
+  if (!current()) return false;
   await saveHosts(next);
+  if (!current()) {
+    await saveHosts(stored);
+    return false;
+  }
   adopt(next, trigger);
+  return true;
 }
 
 let hostsLoaded = false;
@@ -164,8 +213,10 @@ AppState.addEventListener('change', (next) => {
   void notificationPreferences.retry().catch(() => undefined);
   pushSession.reflectAgain();
   void pushSession.retryFailed();
-  state.client?.retryNow('resume');
-  if (state.client?.getSnapshot().connection.status === 'connected') void state.inbox?.refresh();
+  for (const { host } of sessions.values()) {
+    host.client.retryNow('resume');
+    if (host.client.getSnapshot().connection.status === 'connected') void host.inbox.refresh();
+  }
 });
 
 let mutation: Promise<unknown> = Promise.resolve();
@@ -217,22 +268,31 @@ export const hostSession = {
     return () => listeners.delete(listener);
   },
   getState: (): HostSessionState => state,
+  getHost: (hostId: string): ConnectedHost | undefined =>
+    feeds.find((host) => host.saved.hostId === hostId),
+  getSelectionRevision: (): number => selectionIntent,
   async pair(host: SavedHost): Promise<void> {
+    selectionIntent++;
     return serialize(async () => {
       await commit(withHost(stored, host), 'pair');
       void pushSession.enable(stored.hosts);
     });
   },
-  async switchTo(hostId: string): Promise<boolean> {
+  async switchTo(hostId: string, current: () => boolean = () => true): Promise<boolean> {
+    const intent = ++selectionIntent;
+    const ownsSelection = () => current() && intent === selectionIntent;
+    if (!ownsSelection()) return false;
+    if (hostsLoaded && stored.current === hostId) return true;
     return serialize(async () => {
+      if (!ownsSelection()) return false;
       if (stored.current === hostId) return true;
       const next = selectHost(stored, hostId);
       if (next === undefined) return false;
-      await commit(next);
-      return true;
+      return commit(next, 'switch', ownsSelection);
     });
   },
   async removeAccount(owner: AccountOwner): Promise<void> {
+    selectionIntent++;
     return serialize(async () => {
       await sourceDrafts.ready;
       await removeAccountConnections({
@@ -260,6 +320,7 @@ export const hostSession = {
   async unpair(
     hostId?: string,
   ): Promise<{ current: boolean; revoked: Promise<boolean> } | undefined> {
+    selectionIntent++;
     return serialize(async () => {
       const host =
         hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
@@ -292,8 +353,34 @@ export const hostSession = {
   },
 };
 
-export function useHostSession(): HostSessionState {
-  return useSyncExternalStore(hostSession.subscribe, hostSession.getState);
+export function useHostSession(hostId?: string): HostSessionState {
+  const scope = use(HostScope);
+  const selected = useSyncExternalStore(hostSession.subscribe, hostSession.getState);
+  const id = hostId ?? scope;
+  return useMemo(() => {
+    if (id === undefined) return selected;
+    const host = sessions.get(id)?.host;
+    return {
+      hosts: selected.hosts,
+      saved: selected.saved === undefined ? undefined : (host?.saved ?? null),
+      client: host?.client,
+      inbox: host?.inbox,
+    };
+  }, [selected, id]);
+}
+
+const feedSource = {
+  subscribe(listener: () => void) {
+    feedListeners.add(listener);
+    return () => {
+      feedListeners.delete(listener);
+    };
+  },
+  getSnapshot: () => feeds,
+};
+
+export function useHostSessions(visible = true): readonly ConnectedHost[] {
+  return useVisibleSnapshot(feedSource, visible);
 }
 
 export function usePushStatus(): PushStatus {
@@ -301,6 +388,7 @@ export function usePushStatus(): PushStatus {
 }
 
 export const quietChannels = createQuietChannels();
+quietChannels.subscribe(publishFeeds);
 
 export function refreshQuietChannels(saved: SavedHost): void {
   if (pushSession.getSnapshot().status !== 'on') return;

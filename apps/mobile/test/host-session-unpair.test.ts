@@ -181,6 +181,47 @@ it('refreshes push routes after authenticated address recovery', async () => {
 });
 
 describe('unpairing a Computer', () => {
+  it('does not adopt or persist an obsolete notification switch after its owner unmounts', async () => {
+    const { hostSession } = await session('old');
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let saving = false;
+    beforeSave = async () => {
+      saving = true;
+      await gate;
+    };
+    let mounted = true;
+    const switching = hostSession.switchTo('new', () => mounted);
+    await vi.waitFor(() => expect(saving).toBe(true));
+    mounted = false;
+    release();
+    expect(await switching).toBe(false);
+    expect(hostSession.getState().saved?.hostId).toBe('old');
+    expect(JSON.parse(secure.get('deepseekbot.hosts.v3')!).current).toBe('old');
+  });
+
+  it('a manual selection supersedes a notification even when selecting the current Host', async () => {
+    const { hostSession } = await session('old');
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let saving = false;
+    beforeSave = async () => {
+      saving = true;
+      await gate;
+    };
+    const switching = hostSession.switchTo('new');
+    await vi.waitFor(() => expect(saving).toBe(true));
+    expect(await hostSession.switchTo('old')).toBe(true);
+    release();
+    expect(await switching).toBe(false);
+    expect(hostSession.getState().saved?.hostId).toBe('old');
+    expect(JSON.parse(secure.get('deepseekbot.hosts.v3')!).current).toBe('old');
+  });
+
   it('drops an older Computer from the list, storage and everything it left on the phone', async () => {
     const { hostSession, conversationFilter } = await session('new');
     const result = await hostSession.unpair('old');
@@ -287,20 +328,21 @@ describe('drawer selection through the real Host Session', () => {
         await b;
         gates.c.resolve();
       }
-      await Promise.all([b, c]);
+      expect(await Promise.all([b, c])).toEqual([false, true]);
       await expectSelection('c');
-      expect(writes).toEqual(['b', 'c']);
+      expect(writes).toEqual(['b', 'a', 'c']);
     },
   );
 
-  it('keeps All after the pending Host is saved and adopted', async () => {
+  it('keeps All and the previous Host when an obsolete pending save is rolled back', async () => {
     const { drawer, writes, gates, expectSelection } = await switchingSession();
     const b = drawer.select('b');
     await vi.waitFor(() => expect(writes).toEqual(['b']));
     drawer.selectAll();
     gates.b.resolve();
-    await b;
-    await expectSelection('b', 'all');
+    expect(await b).toBe(false);
+    await expectSelection('a', 'all');
+    expect(writes).toEqual(['b', 'a']);
   });
 });
 

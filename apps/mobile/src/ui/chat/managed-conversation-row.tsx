@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { showActionMenu } from '../primitives/app-dialog';
 import { useStrings } from '../strings';
-import { useRouter } from 'expo-router';
+import { useNavigationContainerRef, useRouter } from 'expo-router';
 import type { HostClient, RosterArrangement } from '../../host/client';
 import type { DeletionTarget } from '../../host/deletion';
 import type { Inbox } from '../../host/inbox';
@@ -25,6 +25,7 @@ export function ManagedConversationRow({
   inbox,
   hostId,
   look,
+  sourceLabel,
   arrangement,
   onDelete,
   onError,
@@ -35,12 +36,17 @@ export function ManagedConversationRow({
   inbox: Inbox | undefined;
   hostId: string | undefined;
   look: HostLook;
+  sourceLabel?: string;
   arrangement: RosterArrangement | undefined;
   onDelete(target: DeletionTarget): void;
   onError(): void;
 }) {
   useStrings();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
+  const openChannel = () => {
+    if (!openConversation(navigation, row, hostId)) onError();
+  };
   const channelId = conversationChannelId(row);
   const state = { pinned, hostMuted: arrangement?.muted?.includes(channelId ?? '') === true };
   const onAction = (key: Parameters<typeof runConversationAction>[3]) => {
@@ -66,7 +72,14 @@ export function ManagedConversationRow({
         },
       })
     : [];
-  const common = { row, now: new Date(), look, actions: conversationActions(row, state), onAction };
+  const common = {
+    row,
+    now: new Date(),
+    look,
+    sourceLabel,
+    actions: conversationActions(row, state),
+    onAction,
+  };
   const openMenu = () =>
     showActionMenu(
       titleOf(row),
@@ -81,22 +94,17 @@ export function ManagedConversationRow({
     return (
       <ConversationRow
         {...common}
-        previewHref={conversationPeek ? conversationHref(row, hostId) : undefined}
+        previewHref={conversationPeek && hostId ? conversationHref(row, hostId) : undefined}
         menuActions={actions}
         onLongPress={conversationPeek ? undefined : openMenu}
         onMenu={openMenu}
-        onPress={() => openConversation(router, row, hostId)}
+        onPress={openChannel}
       />
     );
   return (
     <ItemMenu title={titleOf(row)} actions={actions}>
       {(open) => (
-        <ConversationRow
-          {...common}
-          onLongPress={open}
-          onMenu={open}
-          onPress={() => openConversation(router, row, hostId)}
-        />
+        <ConversationRow {...common} onLongPress={open} onMenu={open} onPress={openChannel} />
       )}
     </ItemMenu>
   );
