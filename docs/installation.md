@@ -90,7 +90,7 @@ To import the same precompiled archive, download the public npm tarball with `np
 
 | What you see                              | Next check                                                                                                                |
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| deepseekbot is incompatible with this DSH | Use qualified DSH 0.2.0-rc.2, 0.2.1-rc.2 or 0.2.1-rc.3 and confirm the exact @botharness/tobs@1.5.1 package.              |
+| deepseekbot is incompatible with this DSH | Use qualified DSH 0.2.0-rc.2, 0.2.1-rc.2 or 0.2.1-rc.3 and confirm the exact `@botharness/tobs@1.5.1` package.            |
 | Package or version not found              | Check the exact package spelling and version, choose npm official registry and retry once registry metadata is available. |
 | Installed but no Bot mode                 | Enable @botharness/tobs in the current Profile; follow any DSH restart notice, then reload the Web page.                  |
 | Bot mode works but the Bot cannot reply   | Check the selected model and DSH credentials; installation and model access are separate.                                 |
