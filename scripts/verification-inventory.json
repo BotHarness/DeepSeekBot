@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.quiet-qol",
+      "label": "Quiet send and connection feedback, stable chat loading, native Bot creation and Cloud opening",
+      "source": "apps/mobile/src/ui/chat/conversation-screen.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-qol.md",
+      "task": 2802,
+      "gap": "Controlled owner/transport tests do not establish iOS or Android layout, initial history position, accessibility or native creation acceptance; run the queued device journeys."
+    },
+    {
       "id": "phone.bot-rename",
       "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
       "source": "apps/mobile/src/host/bot-name.ts",
