@@ -144,7 +144,9 @@ describe('reviewed npm prerelease', () => {
   it('pins the published product Provider separately from historical standalone publication', () => {
     expect(publishedProductProvider).toMatchObject({
       name: productImProvider.name,
-      distTag: 'next',
+      version: productImProvider.version,
+      providerSource: productImProvider.upstream.source,
+      distTag: 'latest',
     });
     expect(publishedProductProvider.version).toMatch(/^\d+\.\d+\.\d+-botharness\.\d+$/);
     expect(publishedProductProvider.providerSource).toMatch(/^[a-f0-9]{40}$/);

@@ -23,7 +23,7 @@ export function verifyProviderArchive(archive, plan) {
     archive.provenance.source !== plan.providerSource ||
     archive.provenance.compiledOutput?.runtimeFiles !== plan.runtimeFiles ||
     archive.provenance.compiledOutput?.runtimeSha256 !== plan.runtimeSha256 ||
-    plan.distTag !== 'next'
+    !['next', 'latest'].includes(plan.distTag)
   )
     throw new Error('Provider identity or qualification differs from the reviewed plan');
 }
@@ -47,6 +47,8 @@ export async function publishQualifiedProvider({
   sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
 }) {
   verifyProviderArchive(archive, plan);
+  if (plan.distTag !== 'next')
+    throw new Error('Standalone Provider publication requires the reviewed next plan');
   let remote = await readVersion();
   let publicationError;
   let attempted = false;
