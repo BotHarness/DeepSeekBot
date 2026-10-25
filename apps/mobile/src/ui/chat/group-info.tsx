@@ -1,6 +1,6 @@
 import { TextField } from '../primitives/text-field';
-import { useRef, useState, type ReactNode } from 'react';
-import { Pressable, SectionList, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { SectionList, View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { confirmDestructive, showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -16,8 +16,8 @@ import {
 } from '../../host/group-channel';
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
-import { pressTint, useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import {
   SettingsGroupItem,
@@ -29,6 +29,7 @@ import { Text } from '../primitives/text';
 import { ChevronRightIcon, PlusIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
+import { AvatarSettings, EditableAvatar, useAvatarEditor } from './avatar-editor';
 import { InviteSheet } from './invite-sheet';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
@@ -197,7 +198,7 @@ export function GroupInfoSheet({
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
-  const avatarPending = useRef(false);
+  const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
   const { channel } = info;
   const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
 
@@ -211,26 +212,6 @@ export function GroupInfoSheet({
       setError(`${t.groupFailed} ${errorText(failure)}`);
       return false;
     } finally {
-      setBusy(undefined);
-    }
-  };
-
-  const chooseAvatar = async () => {
-    if (avatarPending.current) return;
-    avatarPending.current = true;
-    setBusy('avatar');
-    setError(undefined);
-    try {
-      let avatar: string | undefined;
-      try {
-        avatar = await pickAvatar();
-      } catch {
-        setError(t.groupAvatarFailed);
-        return;
-      }
-      if (avatar !== undefined) await run('avatar', () => actions.setAvatar(avatar));
-    } finally {
-      avatarPending.current = false;
       setBusy(undefined);
     }
   };
@@ -278,22 +259,9 @@ export function GroupInfoSheet({
   const header = (
     <View style={{ gap: space.x5, paddingBottom: space.x3, paddingHorizontal: space.x5 }}>
       <View style={{ alignItems: 'center', gap: space.x3 }}>
-        <Pressable
-          testID="group-avatar-change"
-          accessibilityRole="button"
-          accessibilityLabel={t.groupAvatarChange}
-          accessibilityState={{ disabled: busy === 'avatar', busy: busy === 'avatar' }}
-          disabled={busy === 'avatar'}
-          onPress={() => void chooseAvatar()}
-          android_ripple={{ color: pressTint(theme.color.fg) }}
-          style={({ pressed }) => ({
-            borderRadius: radius.lg,
-            overflow: 'hidden',
-            opacity: pressed || busy === 'avatar' ? 0.7 : 1,
-          })}
-        >
+        <EditableAvatar editor={avatar} corner={radius.lg} testID="group-avatar-change">
           <GroupMark avatar={channel.avatar} size={MARK} corner={radius.lg} variant="display" />
-        </Pressable>
+        </EditableAvatar>
         <View style={{ alignItems: 'center', gap: space.x1 }}>
           <Text accessibilityRole="header" variant="display" numberOfLines={2}>
             {channel.name}
@@ -308,6 +276,12 @@ export function GroupInfoSheet({
           <SheetCallout tone="danger">{error}</SheetCallout>
         </View>
       )}
+      <AvatarSettings
+        editor={avatar}
+        hasAvatar={channel.avatar !== undefined}
+        portrait={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
+        testID="group-avatar-settings"
+      />
       {background}
       <SettingsSection title={t.groupSettingsSection}>
         <SettingsRow
@@ -320,26 +294,6 @@ export function GroupInfoSheet({
             setSheet('rename');
           }}
         />
-        <Divider />
-        <SettingsRow
-          title={t.groupAvatarChange}
-          leading={<GroupMark avatar={channel.avatar} size={MEMBER_AVATAR} corner={radius.sm} />}
-          trailing={busy === 'avatar' ? undefined : chevron}
-          onPress={busy === 'avatar' ? undefined : () => void chooseAvatar()}
-        />
-        {channel.avatar === undefined ? null : (
-          <>
-            <Divider />
-            <SettingsRow
-              title={t.groupAvatarRemove}
-              onPress={
-                busy === 'avatar'
-                  ? undefined
-                  : () => void run('avatar', () => actions.setAvatar(null))
-              }
-            />
-          </>
-        )}
       </SettingsSection>
     </View>
   );
@@ -413,19 +367,6 @@ export function GroupInfoSheet({
         onClose={() => setSheet(undefined)}
       />
     </>
-  );
-}
-
-function Divider() {
-  const theme = useDesignTheme();
-  return (
-    <View
-      style={{
-        height: 0,
-        borderTopWidth: edge.hairline,
-        borderTopColor: theme.layer.raised.divider,
-      }}
-    />
   );
 }
 

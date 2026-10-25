@@ -109,4 +109,4 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 
 | Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |
 
-| Mobile Channel avatars | no | none (Expo and shared-device user path) | [phone-channel-avatars.md](phone-channel-avatars.md) |
+| Mobile group/Bot avatars and separate chat backgrounds | no | none (Expo and shared-device user path) | [phone-channel-avatars.md](phone-channel-avatars.md) |

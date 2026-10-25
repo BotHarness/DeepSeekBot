@@ -4,8 +4,16 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.bot-avatar",
+      "label": "Edit a Bot portrait from its DM profile and resolve a new DM for background settings",
+      "source": "apps/mobile/src/host/bot-avatar.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-avatars.md",
+      "task": 2780,
+      "gap": "Expo screenshots and Host persistence do not qualify native photo selection/crop, local background storage, Back or large text."
+    },
+    {
       "id": "phone.channel-avatar",
-      "label": "Choose and save a Channel avatar from its large settings image",
+      "label": "Choose group/Bot avatars separately from phone-local chat backgrounds",
       "source": "apps/mobile/src/ui/chat/group-info.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-channel-avatars.md",
       "task": 2780,

@@ -139,7 +139,7 @@ describe('Group info', () => {
     const view = await render(<GroupInfoSheet {...props} />);
     const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]');
     expect(avatar).not.toBeNull();
-    expect(avatar?.getAttribute('aria-label')).toBe(t.groupAvatarChange);
+    expect(avatar?.getAttribute('aria-label')).toBe(t.avatarChange);
     await act(async () => avatar!.click());
     expect(props.pickAvatar).toHaveBeenCalledOnce();
     expect(props.actions.setAvatar).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
@@ -188,7 +188,7 @@ describe('Group info', () => {
     const view = await render(<GroupInfoSheet {...props} />);
     const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!;
     await act(async () => avatar.click());
-    expect(view.querySelector('[role="alert"]')?.textContent).toBe(t.groupAvatarFailed);
+    expect(view.querySelector('[role="alert"]')?.textContent).toBe(t.avatarPickFailed);
     expect(props.actions.setAvatar).toHaveBeenCalledTimes(0);
     await act(async () => avatar.click());
     expect(view.querySelector('[role="alert"]')).toBeNull();
@@ -207,7 +207,9 @@ describe('Group info', () => {
     const view = await render(<GroupInfoSheet {...props} />);
     const avatar = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-change"]')!;
     await act(async () => avatar.click());
-    expect(view.querySelector('[role="alert"]')?.textContent).toBe(`${t.groupFailed} save failed`);
+    expect(view.querySelector('[role="alert"]')?.textContent).toBe(
+      `${t.avatarSaveFailed} save failed`,
+    );
     expect(avatar.disabled).toBe(false);
   });
 
@@ -222,6 +224,7 @@ describe('Group info', () => {
     const headers = [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
     expect(headers).toEqual([
       'Launch',
+      t.avatarTitle,
       t.groupSettingsSection,
       t.groupJoinsSection,
       t.groupMembersSection,
@@ -310,11 +313,11 @@ describe('Group info', () => {
     expect(props.actions.rename).toHaveBeenCalledWith('Launch crew');
 
     const photoRow = view.querySelectorAll<HTMLButtonElement>(
-      `button[aria-label="${t.groupAvatarChange}"]`,
+      `button[aria-label="${t.avatarChange}"]`,
     )[1]!;
     await act(async () => photoRow.click());
     expect(props.actions.setAvatar).toHaveBeenCalledWith('data:image/jpeg;base64,/9j/AA==');
-    expect(button(view, t.groupAvatarRemove)).toBeNull();
+    expect(button(view, t.avatarRemove)).toBeNull();
   });
 
   it('shows the Host refusal as a notice and keeps the page', async () => {

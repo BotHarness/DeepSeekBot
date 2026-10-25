@@ -3,7 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 const AVATAR_PIXELS = 256;
 
-export async function pickGroupAvatar(): Promise<string | undefined> {
+export async function pickAvatarImage(): Promise<string | undefined> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsEditing: true,

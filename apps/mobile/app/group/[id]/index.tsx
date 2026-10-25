@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { groupActions, groupInfo } from '../../../src/host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
-import { pickGroupAvatar } from '../../../src/host/pick-group-avatar';
+import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { SettingsRow, SettingsSection } from '../../../src/ui/primitives/settings-row';
 import { GroupInfoSheet } from '../../../src/ui/chat/group-info';
 import { useDesignTheme } from '../../../src/ui/design/theme';
@@ -63,7 +63,7 @@ export default function GroupInfoScreen() {
         ) : null
       }
       actions={actions}
-      pickAvatar={pickGroupAvatar}
+      pickAvatar={pickAvatarImage}
       onOpenBot={(slug) => router.push({ pathname: '/bot/[slug]', params: { slug } })}
       onDisbanded={() => router.dismissAll()}
     />
