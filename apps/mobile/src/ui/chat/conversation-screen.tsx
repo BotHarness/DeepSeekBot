@@ -80,7 +80,8 @@ import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
+import { EdgeFade, HeaderBackButton, HeaderCircleButton, titleChipFill } from './header-chrome';
+import { FolderIcon } from '../shell/icons';
 import {
   barLabelStyle,
   floatingHeader,
@@ -837,6 +838,18 @@ function ChatConversation({
     />
   );
   const ios = Platform.OS === 'ios';
+  const openFiles = () => {
+    if (activeChannel === undefined || !saved) return;
+    router.push({
+      pathname: '/channel-files',
+      params: {
+        channelId: activeChannel,
+        hostId: saved.hostId,
+        ...(slug === undefined ? {} : { botSlug: slug }),
+      },
+    });
+  };
+  const filesAvailable = activeChannel !== undefined && saved != null && !hostRefused && !missing;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
     <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}>{title}</View>
@@ -859,15 +872,21 @@ function ChatConversation({
               ? t.attachFailed
               : shareError
                 ? t.shareFailed
-                : reactError
-                  ? t.reactFailed
-                  : dictation.state.status === 'denied'
-                    ? t.dictationDenied
-                    : dictation.state.status === 'unavailable'
-                      ? t.dictationUnavailable
-                      : dictation.state.status === 'failed'
-                        ? t.dictationFailed
-                        : undefined;
+                : focus !== undefined &&
+                    !latestWindowOnly &&
+                    snapshot.status === 'live' &&
+                    !snapshot.hasOlder &&
+                    !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                  ? t.channelFiles.messageUnavailable
+                  : reactError
+                    ? t.reactFailed
+                    : dictation.state.status === 'denied'
+                      ? t.dictationDenied
+                      : dictation.state.status === 'unavailable'
+                        ? t.dictationUnavailable
+                        : dictation.state.status === 'failed'
+                          ? t.dictationFailed
+                          : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
   const topFade =
@@ -893,6 +912,17 @@ function ChatConversation({
                 title: '',
                 headerTitle: '',
                 headerBackVisible: canGoBack && !headerIslands,
+                unstable_headerRightItems: () =>
+                  filesAvailable
+                    ? [
+                        {
+                          type: 'button' as const,
+                          label: t.channelFiles.title,
+                          icon: { type: 'sfSymbol' as const, name: 'folder' as const },
+                          onPress: openFiles,
+                        },
+                      ]
+                    : [],
                 unstable_headerLeftItems: () => [
                   ...(headerIslands
                     ? [{ type: 'custom' as const, element: back }]
@@ -912,6 +942,12 @@ function ChatConversation({
               }
             : {
                 headerTitleAlign: 'left' as const,
+                headerRight: () =>
+                  filesAvailable ? (
+                    <HeaderCircleButton label={t.channelFiles.title} plain onPress={openFiles}>
+                      <FolderIcon color={theme.color.fg} size={theme.type.title.line} />
+                    </HeaderCircleButton>
+                  ) : null,
                 headerTitle: () => (
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}

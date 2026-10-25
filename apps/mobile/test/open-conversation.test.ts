@@ -23,4 +23,15 @@ describe('conversation links', () => {
     openConversation({ push }, bot, 'h1');
     expect(push).toHaveBeenCalledWith(conversationHref(bot, 'h1'));
   });
+
+  it('returns to the exact source message without dropping its Computer or DM identity', () => {
+    expect(conversationHref(bot, 'computer-a', 'message-older')).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'ada', hostId: 'computer-a', focus: 'message-older' },
+    });
+    expect(conversationHref(channel, 'computer-b', 'message-group')).toEqual({
+      pathname: '/channel/[id]',
+      params: { id: 'c1', hostId: 'computer-b', focus: 'message-group' },
+    });
+  });
 });

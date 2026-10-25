@@ -2,13 +2,18 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot, RosterChannel } from '../src/host/client';
 import type { ConversationSnapshot } from '../src/host/conversation';
+
+vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
 
 const state = vi.hoisted(() => ({
   history: [] as string[],
   hostId: 'computer_a',
-  host: { connection: { status: 'connected' }, roster: { bots: [] as RosterBot[], channels: [] } },
+  host: {
+    connection: { status: 'connected' },
+    roster: { bots: [] as RosterBot[], channels: [] as RosterChannel[] },
+  },
   conversation: {
     status: 'live',
     messages: [],
@@ -21,6 +26,7 @@ const state = vi.hoisted(() => ({
   display: { mode: 'streaming', loaded: true },
   glassHeader: true,
 }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
@@ -38,6 +44,7 @@ vi.mock('expo-router', () => ({
     }: {
       options: {
         headerLeft?: () => ReactNode;
+        headerRight?: () => ReactNode;
         headerBackVisible?: boolean;
         headerBlurEffect?: string;
         unstable_headerLeftItems?: () => Array<{
@@ -46,6 +53,7 @@ vi.mock('expo-router', () => ({
           label?: string;
           onPress?: () => void;
         }>;
+        unstable_headerRightItems?: () => Array<{ label: string; onPress(): void }>;
       };
     }) => (
       <header
@@ -65,10 +73,16 @@ vi.mock('expo-router', () => ({
         )) ??
           options.headerLeft?.() ??
           null}
+        {options.unstable_headerRightItems?.().map((item) => (
+          <button key={item.label} type="button" onClick={item.onPress}>
+            {item.label}
+          </button>
+        )) ?? options.headerRight?.()}
       </header>
     ),
   },
   useRouter: () => ({
+    push: navigation.push,
     canGoBack: () => state.history.length > 1,
     back: () => state.history.pop(),
     replace: (href: string) => state.history.splice(-1, 1, href),
@@ -122,6 +136,11 @@ vi.mock('../src/ui/chat/native-header', () => ({
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
+  HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
+    <button type="button" onClick={onPress}>
+      {label}
+    </button>
+  ),
   HeaderBackButton: ({ onPress }: { onPress(): void }) => (
     <button type="button" onClick={onPress}>
       Header back
@@ -200,15 +219,61 @@ let root: Root | undefined;
 let container: HTMLElement | undefined;
 
 beforeEach(() => {
+  navigation.push.mockClear();
   state.hostId = 'computer_a';
   state.host.connection.status = 'connected';
   state.conversation.status = 'live';
   state.conversation.messages = [];
   state.conversation.drafts = [];
   state.host.roster.bots = [];
+  state.host.roster.channels = [];
   state.active = false;
   state.display = { mode: 'streaming', loaded: true };
   state.glassHeader = true;
+});
+
+it.each(['ios', 'android'])(
+  'opens Channel files from the %s header with the exact Computer and DM',
+  async (os) => {
+    const previousOS = Platform.OS;
+    Object.assign(Platform, { OS: os });
+    try {
+      state.host.roster.bots = [
+        {
+          slug: 'ada',
+          displayName: 'Ada',
+          dmChannelId: 'dm-a',
+          state: 'idle',
+          description: '',
+          roles: [],
+          computerAccess: false,
+          browserAccess: false,
+          paused: false,
+        },
+      ];
+      const view = await render({ kind: 'dm', slug: 'ada' });
+      const button = [...view.querySelectorAll('button')].find(
+        (item) => item.textContent === t.channelFiles.title,
+      )!;
+      expect(button).toBeDefined();
+      await act(async () => button.click());
+      expect(navigation.push).toHaveBeenCalledWith({
+        pathname: '/channel-files',
+        params: { hostId: 'computer_a', channelId: 'dm-a', botSlug: 'ada' },
+      });
+    } finally {
+      Object.assign(Platform, { OS: previousOS });
+    }
+  },
+);
+
+it('shows a missing source message after the existing history owner reaches the beginning', async () => {
+  const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
+  const view = await render(place);
+  await act(async () => root!.render(<ConversationScreen place={place} focus="gone" />));
+  state.host.roster.channels = [{ id: 'group-a', name: 'Group', members: [], memberCount: 0 }];
+  await act(async () => root!.render(<ConversationScreen place={place} focus="gone" />));
+  expect(view.textContent).toContain(t.channelFiles.messageUnavailable);
 });
 
 it('refuses a retained route after switching Computers even when its Bot slug collides', async () => {
