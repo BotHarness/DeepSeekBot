@@ -1,5 +1,5 @@
 {
-  "name": "tobs",
+  "name": "@botharness/tobs",
   "version": "0.0.0",
   "private": true,
   "description": "Tobs — Team of bots. Compatible entry point for DeepSeekBot.",

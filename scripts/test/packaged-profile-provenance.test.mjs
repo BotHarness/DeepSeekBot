@@ -17,7 +17,7 @@ it('checks Provider provenance against its immutable input pin independently of 
     const version = '0.0.0-qa.2270.1';
     const names = [
       'deepseekbot',
-      'tobs',
+      '@botharness/tobs',
       '@botharness/core',
       '@botharness/ui',
       '@botharness/browser',

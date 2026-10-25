@@ -35,7 +35,7 @@ export const publicationOrder = [
   '@botharness/computer',
   ...cloudflaredPackages.map((entry) => entry.name),
   'deepseekbot',
-  'tobs',
+  '@botharness/tobs',
 ];
 const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
 const registry = 'https://registry.npmjs.org';
@@ -133,7 +133,7 @@ export function checkPackage(manifest, artifact, files, inventory) {
   if (manifest.name === 'deepseekbot' && manifest.bin?.deepseekbot !== './dist/deepseekbot.mjs')
     throw new Error('The product package must provide its bundled deepseekbot executable');
   if (
-    manifest.name === 'tobs' &&
+    manifest.name === '@botharness/tobs' &&
     (manifest.bin?.tobs !== './src/tobs.mjs' ||
       Object.keys(manifest.bin).length !== 1 ||
       manifest.dependencies?.deepseekbot !== manifest.version)
@@ -198,13 +198,15 @@ export function verifyRelease(directory, expected = {}) {
     return { artifact, manifest };
   });
   const product = packages.find((p) => p.artifact.name === 'deepseekbot');
-  const tobs = packages.find((p) => p.artifact.name === 'tobs');
+  const tobs = packages.find((p) => p.artifact.name === '@botharness/tobs');
   if (
     tarText(directory, tobs.artifact, 'cordis.im.patch.yml') !==
     tarText(directory, product.artifact, 'cordis.im.patch.yml')
   )
     throw new Error('Tobs and DeepSeekBot must compose the same product Patch');
-  for (const name of publicationOrder.filter((name) => !['deepseekbot', 'tobs'].includes(name))) {
+  for (const name of publicationOrder.filter(
+    (name) => !['deepseekbot', '@botharness/tobs'].includes(name),
+  )) {
     const declared = platformPackages.has(name)
       ? product.manifest.optionalDependencies?.[name]
       : product.manifest.dependencies?.[name];
@@ -238,7 +240,7 @@ export function verifyPackedCli(
   const temporary = mkdtempSync(join(tmpdir(), 'botharness-packed-cli-'));
   try {
     const modules = join(temporary, 'node_modules');
-    for (const name of ['@botharness/core', 'deepseekbot', 'tobs']) {
+    for (const name of ['@botharness/core', 'deepseekbot', '@botharness/tobs']) {
       const entry = packages.find(({ artifact }) => artifact.name === name);
       if (!entry) throw new Error(`Missing CLI package: ${name}`);
       const destination = join(modules, name);
@@ -282,7 +284,7 @@ export function verifyPackedCli(
     if (!output.includes('tobs:')) throw new Error('Packed CLI did not return its help');
     const aliasOutput = execFileSync(
       process.execPath,
-      [join(modules, 'tobs/src/tobs.mjs'), '--help'],
+      [join(modules, '@botharness/tobs/src/tobs.mjs'), '--help'],
       {
         cwd: temporary,
         env: {
@@ -418,9 +420,9 @@ export async function awaitPublished(
 
 export function publicationWaves(packages) {
   return [
-    packages.filter(({ artifact }) => !['deepseekbot', 'tobs'].includes(artifact.name)),
+    packages.filter(({ artifact }) => !['deepseekbot', '@botharness/tobs'].includes(artifact.name)),
     packages.filter(({ artifact }) => artifact.name === 'deepseekbot'),
-    packages.filter(({ artifact }) => artifact.name === 'tobs'),
+    packages.filter(({ artifact }) => artifact.name === '@botharness/tobs'),
   ].filter((wave) => wave.length);
 }
 

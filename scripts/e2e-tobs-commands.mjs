@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { verifiedProductArtifacts } from './packaged-profile.mjs';
@@ -81,7 +81,7 @@ for (const key of Object.keys(env)) {
   if (/TOKEN|SECRET|PASSWORD|NODE_AUTH|NODE_PATH|DEEPSEEKBOT_HOST/iu.test(key)) delete env[key];
 }
 writeFileSync(env.npm_config_userconfig, '');
-async function run(command, args, expected = 0) {
+async function run(command, args, expected = 0, commandEnv = env) {
   const windows = process.platform === 'win32';
   const shim = windows && command !== 'npm';
   if (shim) assert.ok(args.every((arg) => /^[a-z-]+$/u.test(arg)));
@@ -97,7 +97,7 @@ async function run(command, args, expected = 0) {
     : args;
   const child = spawn(executable, parameters, {
     cwd: temporary,
-    env: shim ? { ...env, TOBS_QA_COMMAND: command } : env,
+    env: shim ? { ...commandEnv, TOBS_QA_COMMAND: command } : commandEnv,
     windowsVerbatimArguments: shim,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -127,7 +127,22 @@ async function help(name) {
 }
 try {
   const version = artifacts.productVersion;
-  await run('npm', ['install', '-g', `tobs@${version}`]);
+  for (const [name, command, absent] of [
+    ['@botharness/tobs', 'tobs', 'deepseekbot'],
+    ['deepseekbot', 'deepseekbot', 'tobs'],
+  ]) {
+    const singlePrefix = join(temporary, `only-${command}`);
+    const singleEnv = { ...env, npm_config_prefix: singlePrefix };
+    const singleBin = (value) =>
+      join(singlePrefix, process.platform === 'win32' ? `${value}.cmd` : `bin/${value}`);
+    await run('npm', ['install', '-g', `${name}@${version}`], 0, singleEnv);
+    assert.equal(existsSync(singleBin(absent)), false);
+    const result = await run(singleBin(command), ['--help'], 0, singleEnv);
+    assert.match(result.stdout, /tobs: manage your Bots/u);
+    await run(singleBin(command), ['not-a-command'], 2, singleEnv);
+    report.checks.push(`isolated ${name} exposes only ${command}`);
+  }
+  await run('npm', ['install', '-g', `@botharness/tobs@${version}`]);
   const baseline = await help('tobs');
   report.checks.push('new global Tobs installation');
   await run('npm', ['install', '-g', 'deepseekbot@1.4.1', '--registry=https://registry.npmjs.org']);
@@ -147,16 +162,19 @@ try {
   assert.equal(await help('tobs'), baseline);
   report.checks.push('uninstall legacy preserves Tobs');
   await run('npm', ['install', '-g', `deepseekbot@${version}`]);
-  await run('npm', ['uninstall', '-g', 'tobs']);
+  await run('npm', ['uninstall', '-g', '@botharness/tobs']);
   assert.equal(await help('deepseekbot'), baseline);
   report.checks.push('uninstall Tobs preserves legacy');
-  for (const name of ['deepseekbot', 'tobs']) {
+  for (const [name, command] of [
+    ['deepseekbot', 'deepseekbot'],
+    ['@botharness/tobs', 'tobs'],
+  ]) {
     const { stdout: output } = await run('npm', [
       'exec',
       '--yes',
       `--package=${name}@${version}`,
       '--',
-      name,
+      command,
       '--help',
     ]);
     assert.ok(output.endsWith(baseline));
