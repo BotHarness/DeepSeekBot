@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useLayoutEffect } from 'react';
+import { act, use, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
@@ -10,6 +10,7 @@ import {
   navigateChannel,
 } from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
+import { HostScope } from '../src/host/host-scope';
 
 const fixture = vi.hoisted(() => {
   const snapshot: HostSnapshot = {
@@ -33,7 +34,9 @@ const fixture = vi.hoisted(() => {
   return {
     snapshot,
     hostId: 'host-a',
+    pairedSourceAvailable: false,
     client: { call: async () => ({}), subscribe: () => () => {} },
+    otherClient: { call: async () => ({}), subscribe: () => () => {} },
   };
 });
 vi.mock('expo-image', () => ({ Image: () => null }));
@@ -60,8 +63,34 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: async () => undefined }));
 vi.mock('../src/host/host-session', () => ({
-  useHostSession: () => ({ saved: { hostId: fixture.hostId }, client: fixture.client }),
-  useHostSnapshot: () => fixture.snapshot,
+  useHostSession: (hostId?: string) => {
+    const scope = use(HostScope);
+    const source = fixture.pairedSourceAvailable
+      ? (hostId ?? scope ?? fixture.hostId)
+      : fixture.hostId;
+    return {
+      saved: { hostId: source },
+      client:
+        fixture.pairedSourceAvailable && source === 'host-b' ? fixture.otherClient : fixture.client,
+    };
+  },
+  useHostSnapshot: (client: unknown) =>
+    client === fixture.otherClient
+      ? {
+          ...fixture.snapshot,
+          roster: {
+            bots: [],
+            channels: [{ id: 'group-a', name: 'Wrong B group', memberCount: 0, members: [] }],
+          },
+        }
+      : fixture.snapshot,
+}));
+vi.mock('../src/ui/shell/channel-notification-screen', () => ({
+  default: ({ channelId }: { channelId: string }) => (
+    <span>
+      {use(HostScope)}:{channelId}
+    </span>
+  ),
 }));
 vi.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ slug: 'ada', id: 'group-a', hostId: 'host-a' }),
@@ -80,13 +109,22 @@ vi.mock('expo-router', () => ({
 }));
 import BotProfileScreen from '../app/bot/[slug]/index';
 import GroupInfoScreen from '../app/group/[id]/index';
+import GroupNotificationsScreen from '../app/group/[id]/notifications';
 
 const originalStack = StackRouter({ initialRouteName: '(tabs)' }) as Parameters<
   typeof channelStackRouter
 >[0];
 const stack = { ...originalStack, ...channelStackRouter(originalStack) };
 const options = {
-  routeNames: ['(tabs)', 'settings', 'group/[id]', 'bot/[slug]', 'dm/[slug]', 'channel/[id]'],
+  routeNames: [
+    '(tabs)',
+    'settings',
+    'group/[id]',
+    'group/[id]/notifications',
+    'bot/[slug]',
+    'dm/[slug]',
+    'channel/[id]',
+  ],
   routeParamList: {},
   routeGetIdList: {
     'dm/[slug]': ({ params }: { params?: object }) => channelRouteId('dm/[slug]', { ...params }),
@@ -110,6 +148,8 @@ afterEach(() => {
   act(() => root?.unmount());
   node?.remove();
   fixture.hostId = 'host-a';
+  fixture.pairedSourceAvailable = false;
+  fixture.snapshot.roster!.channels = [];
 });
 
 it('Profile Message from Usage opens its DM and Back returns to Usage', async () => {
@@ -269,6 +309,96 @@ it('a retained Group Profile refuses a colliding group on a different Host', asy
   expect(node.textContent).not.toContain('Other Host group');
   expect(node.querySelector('button')).toBeNull();
   fixture.snapshot.roster!.channels = [];
+});
+
+it('All opens the routed Group Profile even when the enclosing sheet still has another Host scope', async () => {
+  fixture.hostId = 'host-b';
+  fixture.pairedSourceAvailable = true;
+  fixture.snapshot.roster!.channels = [
+    { id: 'group-a', name: 'QA Planning A', memberCount: 1, members: ['ada'] },
+  ];
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () =>
+    root!.render(
+      <HostScope value="host-b">
+        <GroupInfoScreen />
+      </HostScope>,
+    ),
+  );
+  expect(node.textContent).not.toContain(t.sourceChanged);
+  expect(node.textContent).toContain('QA Planning A');
+  expect(node.textContent).not.toContain('Wrong B group');
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 2,
+    index: 1,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      { key: 'group', name: 'group/[id]', params: { id: 'group-a', hostId: 'host-a' } },
+    ],
+  };
+  const notifications = [...node.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
+    button.textContent?.includes(t.notifications),
+  );
+  expect(notifications).toBeDefined();
+  await act(async () => notifications!.click());
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'group/[id]/notifications',
+    params: { id: 'group-a', hostId: 'host-a' },
+  });
+  await act(async () =>
+    root!.render(
+      <HostScope value="host-b">
+        <GroupNotificationsScreen />
+      </HostScope>,
+    ),
+  );
+  expect(node.textContent).toBe('host-a:group-a');
+});
+
+it('a routed member Profile can open its own DM from another enclosing Host scope', async () => {
+  fixture.hostId = 'host-b';
+  fixture.pairedSourceAvailable = true;
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 3,
+    index: 2,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      { key: 'group', name: 'group/[id]', params: { id: 'group-a', hostId: 'host-a' } },
+      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+    ],
+  };
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () =>
+    root!.render(
+      <HostScope value="host-b">
+        <BotProfileScreen />
+      </HostScope>,
+    ),
+  );
+  expect(node.textContent).not.toContain(t.sourceChanged);
+  const message = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === t.profileMessage,
+  );
+  expect(message).toBeDefined();
+  await act(async () => message!.click());
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'dm/[slug]',
+    params: { slug: 'ada', hostId: 'host-a' },
+  });
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('group');
 });
 
 it('a native preview commit over Profile preserves the Profile origin', () => {

@@ -69,6 +69,13 @@ both must open the originating Host conversation through Expo's outer root stack
 
 ## Gotchas
 
+Profile regression: with two connected Hosts using the same group ID, start in All,
+visit B's DM/Profile and return, then open A's group header. The Group Profile must
+show A's members without a cross-computer refusal. Open a member Profile, Message,
+then Back to the group Profile; verify the DM belongs to A and B is unchanged. Open
+group notification settings and verify only A is targeted. Repeat after removing
+the source: a retained Profile must not fall back to the other Host's same-ID group.
+
 The selected management Host is not the routing authority of an open conversation.
 Identical local IDs on different Hosts are distinct. Do not substitute a mock send
 for native source-routing evidence. All collapse state must not change Host sections.

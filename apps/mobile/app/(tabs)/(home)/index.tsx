@@ -541,7 +541,10 @@ const HomeContent = memo(function HomeContent({
                       >
                         {(open, nativeContextMenu) => (
                           <SectionHeader
-                            {...item}
+                            count={item.count}
+                            needsYou={item.needsYou}
+                            unread={item.unread}
+                            collapsed={item.collapsed}
                             testID={`chat-section-${item.id}`}
                             name={item.name ?? t.pinnedSection}
                             onLongPress={

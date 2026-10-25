@@ -20,7 +20,7 @@ export default function BotProfileScreen() {
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const theme = useDesignTheme();
-  const { client, saved } = useHostSession();
+  const { client, saved } = useHostSession(hostId);
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const snapshot = useHostSnapshot(client);
