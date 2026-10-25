@@ -1,29 +1,52 @@
 import * as stylex from '@stylexjs/stylex';
-import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
   list: {
     display: 'flex',
-    gap: space.x2,
+    alignItems: 'center',
+    gap: space.x3,
     padding: 0,
     margin: 0,
     width: '100%',
     listStyleType: 'none',
   },
   step: {
-    flex: 1,
+    flexGrow: { default: 1, ':last-child': 0 },
+    minWidth: 0,
     display: 'flex',
-    flexDirection: 'column',
-    gap: space.x2,
+    alignItems: 'center',
+    gap: space.x3,
     color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    fontSize: text.bodySize,
+    lineHeight: text.bodyLine,
     textAlign: 'start',
   },
   active: { color: color.fg, fontWeight: text.strong },
-  bar: { height: space.x1, borderRadius: radius.round, backgroundColor: color.well },
-  reached: { backgroundColor: color.accent },
+  dot: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    width: size.inlineIcon,
+    height: size.inlineIcon,
+    borderRadius: radius.round,
+    cornerShape: 'round',
+    backgroundColor: color.surface,
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontWeight: text.strong,
+  },
+  reached: { backgroundColor: color.accent, color: color.onAccent },
+  line: {
+    flexGrow: 1,
+    minWidth: space.x4,
+    height: border.hairline,
+    backgroundColor: color.border,
+  },
 });
 
 export function ConnectionProgress({
@@ -46,10 +69,13 @@ export function ConnectionProgress({
           aria-current={index === step ? 'step' : undefined}
           {...stylex.props(styles.step, index === step && styles.active)}
         >
-          <span aria-hidden="true" {...stylex.props(styles.bar, index <= step && styles.reached)} />
-          <span>
-            {index + 1}. {t(label)}
+          <span aria-hidden="true" {...stylex.props(styles.dot, index <= step && styles.reached)}>
+            {index < step ? <ChannelSidebarIcon name="check" size={14} /> : index + 1}
           </span>
+          <span>{t(label)}</span>
+          {index < labels.length - 1 ? (
+            <span aria-hidden="true" {...stylex.props(styles.line)} />
+          ) : null}
         </li>
       ))}
     </ol>
