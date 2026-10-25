@@ -82,7 +82,7 @@ export const requestActivitySession = createActivitySession({
     const saved = hostSession.getState().saved;
     return saved === undefined ? undefined : (saved?.hostId ?? '');
   },
-  selectionRevision: () => hostSession.getSelectionRevision(),
+  sourceChangeRevision: () => hostSession.getSourceChangeRevision(),
   sourceAvailable: (id) => {
     const source = hostSession.getHost(id);
     return source !== undefined && source.client.getSnapshot().connection.status !== 'refused';
@@ -115,7 +115,7 @@ export function watchRequestActivity(): () => void {
     const target = source();
     const scope = JSON.stringify([
       state.saved === undefined ? 'loading' : state.saved?.hostId,
-      hostSession.getSelectionRevision(),
+      hostSession.getSourceChangeRevision(),
       target.saved?.hostId,
       target.saved?.deviceId,
       target.saved?.credential,

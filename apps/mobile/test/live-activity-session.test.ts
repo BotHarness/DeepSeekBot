@@ -78,7 +78,7 @@ function fixture() {
     },
     host: (id) => (id === host.hostId ? host : undefined),
     currentHostId: () => current,
-    selectionRevision: () => revision,
+    sourceChangeRevision: () => revision,
     sourceAvailable: (id) => id === host.hostId,
     bundleIdentifier: 'app.deepseekbot.mobile',
     url: (id) => `deepseekbot://request-activity?id=${id}`,

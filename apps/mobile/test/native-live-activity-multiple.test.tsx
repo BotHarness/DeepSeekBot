@@ -7,6 +7,7 @@ const native = vi.hoisted(() => ({
   alive: false,
   storage: undefined as unknown,
   prepare: undefined as (() => Promise<void>) | undefined,
+  register: undefined as (() => Promise<void>) | undefined,
   token: undefined as (() => Promise<void>) | undefined,
   listeners: new Set<(event: { pushToken: string }) => void>(),
   end: vi.fn(async () => {}),
@@ -84,12 +85,14 @@ beforeEach(() => {
   native.alive = false;
   native.storage = undefined;
   native.prepare = undefined;
+  native.register = undefined;
   native.token = undefined;
   native.listeners.clear();
   native.start.mockClear();
   native.end.mockClear();
   native.remote.mockReset();
   native.remote.mockImplementation(async (_host, operation) => {
+    if (operation === 'register') await native.register?.();
     if (operation === 'prepare') {
       await native.prepare?.();
       return {
@@ -245,5 +248,82 @@ it.each([
       ['b', tracking ? 'register' : 'stop'],
     ]);
     expect(native.start).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  { change: 'selection', rejected: false },
+  { change: 'refusal', rejected: false },
+  { change: 'selection', rejected: true },
+  { change: 'refusal', rejected: true },
+])(
+  'cleans a restored display when its source changes during registration: %j',
+  async ({ change, rejected }) => {
+    native.alive = true;
+    native.storage = {
+      target: {
+        ...target,
+        selectedHostId: 'a',
+        clientActivityId: 'native',
+        linkId: 'fixture-link',
+        expiresAt: Date.now() + 60_000,
+      },
+      tracking: true,
+      pendingStop: false,
+    };
+    let release!: () => void;
+    let entered!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    native.register = async () => {
+      entered();
+      await gate;
+      if (rejected) throw new Error('temporary-provider-failure');
+    };
+    const { b } = await setup();
+    await pending;
+    try {
+      if (change === 'selection') await session.switchTo('c');
+      else {
+        b.revoke();
+        session.getHost('b')?.client.retryNow();
+        await vi.waitFor(() =>
+          expect(session.getHost('b')?.snapshot.connection.status).toBe('refused'),
+        );
+      }
+    } finally {
+      release();
+    }
+    await owner.settled();
+    await vi.waitFor(() => expect(owner.getSnapshot().tracking).toBe(false));
+    expect(owner.getSnapshot().pendingStop).toBe(false);
+    expect(native.end).toHaveBeenCalledOnce();
+    expect(native.start).not.toHaveBeenCalled();
+    expect(native.remote.mock.calls.map(([host, operation]) => [host.hostId, operation])).toEqual([
+      ['b', 'register'],
+      ['b', 'stop'],
+    ]);
+  },
+);
+
+it.each(['same-selected-host', 'unrelated-removal'])(
+  'preserves B tracking when the selected source is unchanged: %s',
+  async (change) => {
+    await setup();
+    await owner.start(target);
+    if (change === 'same-selected-host') await session.switchTo('a');
+    else await session.unpair('c');
+    await owner.sync();
+    expect(session.getState().saved?.hostId).toBe('a');
+    expect(owner.getSnapshot().tracking).toBe(true);
+    expect(native.end).not.toHaveBeenCalled();
+    expect(native.remote.mock.calls.map(([host, operation]) => [host.hostId, operation])).toEqual([
+      ['b', 'prepare'],
+      ['b', 'register'],
+    ]);
   },
 );

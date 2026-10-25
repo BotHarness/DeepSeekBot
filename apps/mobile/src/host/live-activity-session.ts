@@ -66,7 +66,7 @@ export function createActivitySession(options: {
   storage: { read(): Promise<unknown>; write(value: unknown): Promise<void> };
   host(hostId: string): SavedHost | undefined;
   currentHostId(): string | undefined;
-  selectionRevision(): number;
+  sourceChangeRevision(): number;
   sourceAvailable(hostId: string): boolean;
   bundleIdentifier: string;
   locale(): 'en' | 'zh';
@@ -95,7 +95,7 @@ export function createActivitySession(options: {
   let boundId: string | undefined;
   let stopRetries = 0;
   let nextStopRetry = 0;
-  let selectionRevision = options.selectionRevision();
+  let sourceChangeRevision = options.sourceChangeRevision();
   let boundHost: SavedHost | undefined;
   const serial = <T>(work: () => Promise<T>): Promise<T> => {
     const next = queue.then(work, work);
@@ -126,7 +126,7 @@ export function createActivitySession(options: {
       !host ||
       !options.sourceAvailable(target.hostId) ||
       options.currentHostId() !== selectedHostId ||
-      options.selectionRevision() !== selectionRevision ||
+      options.sourceChangeRevision() !== sourceChangeRevision ||
       (boundHost !== undefined &&
         (host.deviceId !== boundHost.deviceId ||
           host.credential !== boundHost.credential ||
@@ -197,6 +197,7 @@ export function createActivitySession(options: {
         if (!state.tracking || state.target?.clientActivityId !== target.clientActivityId) return;
         try {
           await register(target, token);
+          scopedHost(target, target.selectedHostId);
         } catch (error) {
           await registrationFailed(error);
         }
@@ -204,6 +205,7 @@ export function createActivitySession(options: {
     });
   };
   let syncing: Promise<void> | undefined;
+  let syncRequested = false;
   const owner = {
     ready,
     getSnapshot: () => state,
@@ -221,7 +223,7 @@ export function createActivitySession(options: {
     },
     start: async (target: ActivityTarget) => {
       const selectedHostId = options.currentHostId();
-      const initiatingRevision = options.selectionRevision();
+      const initiatingRevision = options.sourceChangeRevision();
       await ready;
       return serial(async () => {
         if (!options.native.supported())
@@ -230,7 +232,7 @@ export function createActivitySession(options: {
         publish({ ...state, busy: true });
         try {
           if (state.pendingStop) await stop();
-          selectionRevision = initiatingRevision;
+          sourceChangeRevision = initiatingRevision;
           boundHost = undefined;
           const host = scopedHost(target, selectedHostId);
           if (selectedHostId === undefined)
@@ -309,49 +311,56 @@ export function createActivitySession(options: {
       });
     },
     sync(): Promise<void> {
+      syncRequested = true;
       if (syncing) return syncing;
       syncing = ready
-        .then(() =>
-          serial(async () => {
-            if (options.currentHostId() === undefined) return;
-            const target = state.target;
-            const instances = await options.native.instances();
-            if (!state.tracking || !target) {
-              for (const activity of instances) await activity.end().catch(() => undefined);
-              if (state.pendingStop && stopRetries < 3 && Date.now() >= nextStopRetry) await stop();
-              return;
-            }
-            const activity = instances.find((item) => item.id === target.clientActivityId);
-            if (
-              !activity ||
-              target.expiresAt <= Date.now() ||
-              options.currentHostId() !== target.selectedHostId ||
-              options.selectionRevision() !== selectionRevision ||
-              !options.sourceAvailable(target.hostId) ||
-              !options.host(target.hostId)
-            ) {
-              await stop();
-              return;
-            }
-            try {
-              boundHost ??= scopedHost(target, target.selectedHostId);
-              scopedHost(target, target.selectedHostId);
-            } catch {
-              await stop();
-              return;
-            }
-            if (boundId !== activity.id) {
-              bind(activity, target);
-              try {
-                await register(target, await activity.token());
-              } catch (error) {
-                await registrationFailed(error);
+        .then(async () => {
+          do {
+            syncRequested = false;
+            await serial(async () => {
+              if (options.currentHostId() === undefined) return;
+              const target = state.target;
+              const instances = await options.native.instances();
+              if (!state.tracking || !target) {
+                for (const activity of instances) await activity.end().catch(() => undefined);
+                if (state.pendingStop && stopRetries < 3 && Date.now() >= nextStopRetry)
+                  await stop();
+                return;
               }
-            }
-          }),
-        )
+              const activity = instances.find((item) => item.id === target.clientActivityId);
+              if (
+                !activity ||
+                target.expiresAt <= Date.now() ||
+                options.currentHostId() !== target.selectedHostId ||
+                options.sourceChangeRevision() !== sourceChangeRevision ||
+                !options.sourceAvailable(target.hostId) ||
+                !options.host(target.hostId)
+              ) {
+                await stop();
+                return;
+              }
+              try {
+                boundHost ??= scopedHost(target, target.selectedHostId);
+                scopedHost(target, target.selectedHostId);
+              } catch {
+                await stop();
+                return;
+              }
+              if (boundId !== activity.id) {
+                bind(activity, target);
+                try {
+                  await register(target, await activity.token());
+                  scopedHost(target, target.selectedHostId);
+                } catch (error) {
+                  await registrationFailed(error);
+                }
+              }
+            });
+          } while (syncRequested);
+        })
         .finally(() => {
           syncing = undefined;
+          if (syncRequested) return owner.sync();
         });
       return syncing;
     },

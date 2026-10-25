@@ -73,6 +73,7 @@ const clearPresentations = async (host: SavedHost) => {
 let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, inbox: undefined };
 let stored: SavedHosts = { hosts: [] };
 let selectionIntent = 0;
+let sourceChangeRevision = 0;
 
 export const hostPush = createHostPush(nativeCarrier());
 export const pushSession = createPushSession({
@@ -160,6 +161,7 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
 }
 
 function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
+  const previous = state.saved;
   mobileTelemetry.foreground(AppState.currentState === 'active', next.hosts.length);
   notificationPreferences.setForeground(AppState.currentState === 'active');
   stored = next;
@@ -188,6 +190,14 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   }
   const saved = currentHost(next) ?? null;
   const selected = saved ? sessions.get(saved.hostId)?.host : undefined;
+  if (
+    previous !== undefined &&
+    (previous?.hostId !== saved?.hostId ||
+      previous?.deviceId !== saved?.deviceId ||
+      previous?.credential !== saved?.credential ||
+      JSON.stringify(previous?.encryption) !== JSON.stringify(saved?.encryption))
+  )
+    sourceChangeRevision = selectionIntent;
   state = { saved, hosts: next.hosts, client: selected?.client, inbox: selected?.inbox };
   publishFeeds();
   for (const listener of listeners) listener();
@@ -281,8 +291,10 @@ export const hostSession = {
   getHost: (hostId: string): ConnectedHost | undefined =>
     feeds.find((host) => host.saved.hostId === hostId),
   getSelectionRevision: (): number => selectionIntent,
+  getSourceChangeRevision: (): number => sourceChangeRevision,
   async pair(host: SavedHost): Promise<void> {
     selectionIntent++;
+    if (state.saved?.hostId !== host.hostId) sourceChangeRevision = selectionIntent;
     return serialize(async () => {
       await commit(withHost(stored, host), 'pair');
       void pushSession.enable(stored.hosts);
@@ -293,11 +305,13 @@ export const hostSession = {
     const ownsSelection = () => current() && intent === selectionIntent;
     if (!ownsSelection()) return false;
     if (hostsLoaded && stored.current === hostId) return true;
+    if (stored.hosts.some((host) => host.hostId === hostId)) sourceChangeRevision = intent;
     return serialize(async () => {
       if (!ownsSelection()) return false;
       if (stored.current === hostId) return true;
       const next = selectHost(stored, hostId);
       if (next === undefined) return false;
+      sourceChangeRevision = intent;
       return commit(next, 'switch', ownsSelection);
     });
   },
