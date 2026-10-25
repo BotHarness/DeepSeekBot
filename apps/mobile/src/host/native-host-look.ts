@@ -13,11 +13,9 @@ export const hostLooks = createHostLooks({
     return JSON.parse(await stored.text()) as unknown;
   },
   write(value) {
-    try {
-      const stored = file();
-      if (!stored.exists) stored.create();
-      stored.writeSync(JSON.stringify(value));
-    } catch {}
+    const stored = file();
+    if (!stored.exists) stored.create();
+    stored.writeSync(JSON.stringify(value));
   },
   forgetLegacyImages() {
     try {

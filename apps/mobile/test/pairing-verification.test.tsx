@@ -2,6 +2,8 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import { channelNavigationHarness } from './channel-navigation-harness';
+const history = channelNavigationHarness(true);
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
@@ -21,20 +23,30 @@ const mocks = vi.hoisted(() => ({
   offer: vi.fn(),
   getState: vi.fn(),
   save: vi.fn(),
+  initialize: vi.fn(),
+  filter: vi.fn(),
 }));
-vi.mock('expo-router', () => ({ useRouter: () => ({ dismissTo: mocks.dismissTo }) }));
+vi.mock('expo-router', () => ({
+  useRouter: () => ({ dismissTo: mocks.dismissTo }),
+  useNavigationContainerRef: () => history.navigation,
+}));
 vi.mock('../src/host/host-session', () => ({
   hostSession: { pair: mocks.save, getState: mocks.getState },
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
 vi.mock('../src/host/native-connect-account', () => ({ connectAccount: { offer: mocks.offer } }));
-vi.mock('../src/host/native-host-look', () => ({ hostLooks: {} }));
+vi.mock('../src/host/native-host-look', () => ({ hostLooks: { initialize: mocks.initialize } }));
+vi.mock('../src/host/native-conversation-filter', () => ({
+  conversationFilter: { set: mocks.filter },
+}));
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: { pairing: () => ({ finish: () => {} }) },
 }));
 vi.mock('../src/host/pairing', () => ({ pairHost: mocks.pairHost }));
 
 import type { pairHost } from '../src/host/pairing';
+import type { SavedHost } from '../src/host/hosts';
+import { computerEnvironmentKey } from '../src/host/conversation-environments';
 import { PairingVerification } from '../src/ui/shell/pairing-verification';
 import { usePairing } from '../src/ui/shell/use-pairing';
 import { t } from '../src/ui/strings';
@@ -150,6 +162,48 @@ it('keeps the account list open after a successful single ceremony', async () =>
   expect(pairing.busy).toBe(false);
   expect(mocks.dismissTo).not.toHaveBeenCalled();
 });
+
+it.each([false, true])(
+  'opens the new environment setup after successful pairing (batch: %s)',
+  async (batch) => {
+    pairingOptions = { stayOnPage: batch };
+    const { approve } = await setup();
+    await click('pairing-fingerprint-match');
+    await approve();
+    mocks.dismissTo.mockClear();
+    const saved: SavedHost = {
+      hostId: 'new-b',
+      hostName: 'Studio',
+      routes: ['https://studio.example'],
+      deviceId: 'phone',
+      credential: 'test',
+    };
+    mocks.save.mockImplementation(async () =>
+      mocks.getState.mockReturnValue({ hosts: [saved], saved }),
+    );
+    mocks.pairHost.mockImplementation(async (options: Parameters<typeof pairHost>[0]) => {
+      await options.save(saved);
+      return { ok: true };
+    });
+    await act(async () => {
+      await pairing.pair('new-link', 'paste');
+    });
+    expect(mocks.initialize).toHaveBeenCalledWith('new-b', ['new-b'], undefined);
+    if (batch) {
+      expect(mocks.filter).not.toHaveBeenCalled();
+      act(() => {
+        pairing.finishSetup();
+      });
+    }
+    expect(mocks.filter).toHaveBeenLastCalledWith(computerEnvironmentKey('new-b'));
+    expect(history.state.routes.map((route) => route.name)).toEqual(['(tabs)', 'host-look']);
+    expect(history.state.routes.at(-1)?.params).toEqual({ hostId: 'new-b' });
+    expect(mocks.dismissTo).not.toHaveBeenCalled();
+    history.back();
+    expect(history.state.routes.map((route) => route.name)).toEqual(['(tabs)']);
+    expect(pairing.finishSetup()).toBe(false);
+  },
+);
 it('refuses an alternate registration of an already saved Host before opening a channel', async () => {
   pairingOptions = { stayOnPage: true, preventDuplicates: true };
   view = document.createElement('div');

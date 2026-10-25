@@ -29,6 +29,7 @@ export async function selectCloudWorkspace(
 export function resetWorkspaceRoot(
   navigation: ChannelNavigation,
   cloud?: CloudWorkspaceRoot,
+  setupHostId?: string,
 ): boolean {
   if (!navigation.isReady()) return false;
   const state = appStackState(navigation.getRootState());
@@ -73,8 +74,12 @@ export function resetWorkspaceRoot(
     target: state.key,
     payload: {
       ...state,
-      index: cloud ? 1 : 0,
-      routes: cloud ? [tabs, { ...existing, name: 'cloud-channels', params: cloud }] : [tabs],
+      index: cloud || setupHostId ? 1 : 0,
+      routes: cloud
+        ? [tabs, { ...existing, name: 'cloud-channels', params: cloud }]
+        : setupHostId
+          ? [tabs, { name: 'host-look', params: { hostId: setupHostId } }]
+          : [tabs],
     },
   });
   return true;
