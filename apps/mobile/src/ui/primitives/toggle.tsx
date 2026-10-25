@@ -6,17 +6,26 @@ import { useDesignTheme } from '../design/theme';
 
 export type ToggleProps = {
   label: string;
+  testID?: string;
   value: boolean;
   disabled?: boolean;
   on?: LayerName;
   onChange(value: boolean): void;
 };
 
-export function Toggle({ label, value, disabled = false, on = 'sheet', onChange }: ToggleProps) {
+export function Toggle({
+  label,
+  testID,
+  value,
+  disabled = false,
+  on = 'sheet',
+  onChange,
+}: ToggleProps) {
   const theme = useDesignTheme();
   const colors = switchColors(theme, on);
   return (
     <Switch
+      testID={testID}
       accessibilityLabel={label}
       value={value}
       disabled={disabled}

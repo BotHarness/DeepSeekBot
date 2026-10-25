@@ -136,6 +136,7 @@ export function DeletionSheet({
                 <View style={{ gap: space.x2 }}>
                   <Text>{t.deletion.erase}</Text>
                   <Toggle
+                    testID="deletion-erase-memory"
                     label={t.deletion.erase}
                     value={erase}
                     disabled={busy || !preview.eraseAvailable}
@@ -157,6 +158,7 @@ export function DeletionSheet({
         ) : null}
         {!completed && target.kind === 'bot' && !preview && error ? (
           <Button
+            testID="deletion-preview-retry"
             label={t.retry}
             onPress={() => {
               setErase(false);

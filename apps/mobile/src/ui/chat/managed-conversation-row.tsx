@@ -1,3 +1,4 @@
+import { showActionMenu } from '../primitives/app-dialog';
 import { useRouter } from 'expo-router';
 import type { HostClient, RosterArrangement } from '../../host/client';
 import type { DeletionTarget } from '../../host/deletion';
@@ -61,7 +62,19 @@ export function ManagedConversationRow({
   if (conversationPeek)
     return (
       <ConversationPeek href={conversationHref(row, hostId)} actions={actions}>
-        <ConversationRow {...common} />
+        <ConversationRow
+          {...common}
+          onMenu={() =>
+            showActionMenu(
+              titleOf(row),
+              actions.map((action) => ({
+                text: action.label,
+                style: action.destructive ? 'destructive' : 'default',
+                onPress: action.run,
+              })),
+            )
+          }
+        />
       </ConversationPeek>
     );
   return (

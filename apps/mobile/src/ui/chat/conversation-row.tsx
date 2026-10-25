@@ -36,6 +36,7 @@ export function ConversationRow({
   actions = [],
   onAction,
   onLongPress,
+  onMenu,
   look,
 }: {
   row: Conversation;
@@ -45,6 +46,7 @@ export function ConversationRow({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
   onLongPress?: () => void;
+  onMenu?: (() => void) | undefined;
 }) {
   const title = titleOf(row);
   const status = rowStatus(row, now);
@@ -78,6 +80,7 @@ export function ConversationRow({
         badge={badge}
         onPress={onPress}
         onLongPress={onLongPress}
+        onMenu={onMenu}
         avatar={
           row.kind === 'bot' ? (
             <AvatarSlot>
@@ -130,6 +133,7 @@ export function ConversationRowFrame({
   actions = [],
   onAction,
   onLongPress,
+  onMenu,
   testID,
   look,
 }: {
@@ -137,6 +141,7 @@ export function ConversationRowFrame({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
   onLongPress?: (() => void) | undefined;
+  onMenu?: (() => void) | undefined;
   title: string;
   source: 'computer' | 'cloud';
   label: string;
@@ -161,10 +166,10 @@ export function ConversationRowFrame({
       accessibilityLabel={label}
       accessibilityActions={[
         ...actions.map((action) => ({ name: action.key, label: action.label })),
-        ...(onLongPress ? [{ name: 'actions', label: t.deletion.actions(title) }] : []),
+        ...((onMenu ?? onLongPress) ? [{ name: 'actions', label: t.deletion.actions(title) }] : []),
       ]}
       onAccessibilityAction={(event) => {
-        if (event.nativeEvent.actionName === 'actions') onLongPress?.();
+        if (event.nativeEvent.actionName === 'actions') (onMenu ?? onLongPress)?.();
         else {
           const action = actions.find((entry) => entry.key === event.nativeEvent.actionName);
           if (action) onAction?.(action.key);

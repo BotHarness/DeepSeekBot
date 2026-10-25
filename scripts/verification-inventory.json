@@ -688,6 +688,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/private-input-origin.md",
       "task": 2290,
       "gap": "Controlled Provider; real external delivery and GitHub authentication are not qualified."
+    },
+    {
+      "id": "phone.deletion",
+      "label": "Review and delete Bots, dissolve groups and remove sections from mobile long press",
+      "source": "apps/mobile/src/ui/chat/deletion-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-deletion.md",
+      "task": 2783,
+      "gap": "Expo Web with an isolated Host; iOS/Android native menus and large-text acceptance pending."
     }
   ],
   "scripts": [
@@ -2156,6 +2164,14 @@
       "reason": "Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
       "task": 2270,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-mobile-deletion-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.deletion"],
+      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks retention, erasure, Tob and sections. Native acceptance remains separate.",
+      "task": 2783,
+      "sha256": "440be52734528fcd7af6cfe78f1cb7a26c6bcdc9ad816c0c6c9b8f119670890a"
     }
   ],
   "native": [
