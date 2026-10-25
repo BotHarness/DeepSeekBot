@@ -16,7 +16,7 @@ Captured 2026-10-26 (Asia/Tokyo) on the same iPhone 18 Pro Max / iOS 27 Simulato
 
 `dm-before.png` / `dm-after.png`: each revision completed blank Bot creation through the native UI and automatically opened its resulting DM. The baseline model hint overlaps the status bar/header; the candidate opens normal DM chrome without that hint. Separate fixture identities share the same synthetic name and presentation.
 
-These captures establish this Simulator creation path and the observed top-overlap removal. They do not qualify delayed-send timing, first-frame long-history placement, reconnect/skeleton transitions, Cloud opening, imports, dark appearance, other text sizes, screen readers, physical iPhone, Android or Human acceptance. Those remain pending in #2802–#2809.
+These four creation captures establish this Simulator creation path and the observed top-overlap removal. They do not qualify delayed-send timing, first-frame long-history placement, reconnect/skeleton transitions, Cloud opening, imports, dark appearance, other text sizes, screen readers, physical iPhone, Android or Human acceptance. Those remain pending in #2802–#2809.
 
 ## File integrity
 
@@ -24,3 +24,16 @@ These captures establish this Simulator creation path and the observed top-overl
 - `dm-before.png`: SHA-256 `e1afd5b0db9bd62877961a3ac157795b8954fc4ac8ab4493cc3e5e5a606d9fd3`
 - `form-after.png`: SHA-256 `9c69a39e4d70b2c06cc3fead7571a2afb98a5bac6fa7f0fe9f4b65f4626c3b78`
 - `form-before.png`: SHA-256 `ff92ef02fc45dd86a98869092d2fae3c2dcc2d9eee9c093dfd973a6ff27752d1`
+
+## Q1 and Q4 native recordings, same candidate
+
+Production candidate JavaScript remains `c7bfddc3193b`; same Simulator, native binary, language, appearance and content size as above. Synthetic memberless Channel with 120 real canonical messages. These are unedited video frames, not mocked states.
+
+- Q1 `send-normal.png` (recording PTS 17s), `send-muted.png` (20s), `send-restored.png` (25s). New bubble appears about 15.6s; first muted frame at 18.551667s (about 3 seconds later); solid again at 23.598333s. No visible Sending text. A bounded pause of only the task-owned Host delayed real delivery while native clocks kept running. This demonstrates delayed visual state, not failure/retry or unique canonical commit.
+- Q4 `history-loading.png` at 5.796667s is the last skeleton; `history-first.png` at 5.820000s is the first readable history frame, already showing LATEST 120 immediately above the composer. All 49 actual video frames were reviewed; remaining readable frames stay at the bottom. This single run demonstrates initial placement, not prior-version reproduction, pagination retries, late images or Android.
+
+Original recordings and exact-frame analysis are retained in the indexed local QA archive for this task. The failed first navigation attempt is excluded. Other acceptance gaps listed above remain open.
+
+## Q3 Chats cold loading
+
+`chats-loading.png` is the exact decoded 8s frame of the real cold-start recording, showing three native row skeletons. `chats-loaded.png` is the 22s frame with the real synthetic roster after transport recovery. The intervening 15s frame is an actionable failure, not uninterrupted skeleton-to-content: it exposed misleading cold-failure wording claiming a cached list existed. No successful Retry tap or avatar-spinner proof is inferred from this recording.
