@@ -41,6 +41,10 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
 vi.mock('../src/host/native-source-drafts', () => ({
   useSourceDraft: () => ['', () => {}, { loaded: true, failed: false, retry: async () => true }],
 }));
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => ({ ready: true, busy: false, tracking: false }),
+  requestActivitySession: { start: async () => {}, stop: async () => {} },
+}));
 vi.mock('expo-router', () => ({
   useIsFocused: () => state.focused,
   usePreventRemove: () => {},
@@ -413,6 +417,8 @@ it.each(['ios', 'android'])(
         (item) => item.textContent === t.channelFiles.title,
       )!;
       expect(button).toBeDefined();
+      const labels = [...view.querySelectorAll('header button')].map((item) => item.textContent);
+      expect(labels.includes(t.lockScreen.track)).toBe(os === 'ios');
       await act(async () => button.click());
       expect(navigation.push).toHaveBeenCalledWith({
         pathname: '/channel-files',
@@ -633,22 +639,23 @@ describe('missing conversation navigation', () => {
         const alone = await render(place);
         const header = alone.querySelector('header')!;
         expect(header.dataset['backVisible']).toBe('false');
-        expect([...header.children].map((item) => (item as HTMLElement).dataset['item'])).toEqual([
-          'button',
-          'spacing',
-          'custom',
-        ]);
+        expect(
+          [...header.querySelectorAll('[data-item]')].map(
+            (item) => (item as HTMLElement).dataset['item'],
+          ),
+        ).toEqual(['button', 'spacing', 'custom']);
         await press(alone, t.back);
         expect(state.history).toEqual(['/']);
         act(() => root?.unmount());
         state.history = ['/activity', route];
         const stacked = (await render(place)).querySelector('header')!;
         expect(stacked.dataset['backVisible']).toBe('true');
-        expect(stacked.querySelector('button')).toBeNull();
-        expect([...stacked.children].map((item) => (item as HTMLElement).dataset['item'])).toEqual([
-          'spacing',
-          'custom',
-        ]);
+        expect(stacked.querySelector('[data-item] button')).toBeNull();
+        expect(
+          [...stacked.querySelectorAll('[data-item]')].map(
+            (item) => (item as HTMLElement).dataset['item'],
+          ),
+        ).toEqual(['spacing', 'custom']);
       } finally {
         Object.assign(Platform, { OS: os });
       }

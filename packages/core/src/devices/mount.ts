@@ -1,3 +1,5 @@
+import { createActivityDelivery, type ActivityDelivery } from '../live-activity/delivery.js';
+import type { ChannelSendStatus } from '../channels/store.js';
 import { createNoiseIdentity } from './noise-identity.js';
 import { createEncryptedGateway } from './encrypted-gateway.js';
 import { CONNECT_CHANNEL_PATH } from './noise/channel.js';
@@ -89,6 +91,7 @@ export function mountDevicePairing(
     database: OperationalDatabaseOwner;
     dshHome: string;
     push?: DevicePushOptions;
+    requestStatus?: (channelId: string, messageId: string) => ChannelSendStatus | undefined;
     credentials?: () => CredentialProvider | undefined;
     packageAnchors?: readonly string[];
   },
@@ -108,6 +111,7 @@ export function mountDevicePairing(
     } catch {}
   };
   let push: PushDelivery | undefined;
+  let activity: ActivityDelivery | undefined;
   const videoOwner = (): LocalVideoOwner | undefined =>
     (ctx.get('botharnessComputer') as { localVideo?: LocalVideoOwner } | undefined)?.localVideo;
   const pairing = createDevicePairing({
@@ -116,6 +120,16 @@ export function mountDevicePairing(
     record: (event) => write('device-pairing', event.phase, `device-pairing ${detail(event)}`),
     onRevoked: (deviceId) => {
       push?.unregister(deviceId);
+      const activityStarted = Date.now();
+      void activity
+        ?.revoke(deviceId)
+        .catch(() =>
+          write(
+            'live-activity',
+            'revoke-failed',
+            `live-activity phase=revoke-failed initiator=host code=delivery-error durationMs=${Date.now() - activityStarted}`,
+          ),
+        );
 
       void videoOwner()
         ?.revoke(deviceId)
@@ -264,6 +278,50 @@ export function mountDevicePairing(
       record: (phase, info) =>
         write('device-connect', phase, `device-connect phase=${phase}${info ? ` ${info}` : ''}`),
     });
+    if (options.requestStatus) {
+      activity = createActivityDelivery({
+        database: attachOperationalModule(options.database, 'live-activity'),
+        provider: account.activity,
+        request: options.requestStatus,
+        deviceActive: (deviceId) =>
+          pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
+        record: (phase, detail) =>
+          write(
+            'live-activity',
+            phase,
+            `live-activity phase=${phase} initiator=${detail.initiator} code=${detail.code} durationMs=${detail.durationMs}`,
+          ),
+      });
+      const delivery = activity;
+      webCtx.effect(() => {
+        let settle: ReturnType<typeof setTimeout> | undefined;
+        const reconcile = () => {
+          const started = Date.now();
+          void delivery
+            .reconcile()
+            .catch(() =>
+              write(
+                'live-activity',
+                'reconcile-failed',
+                `live-activity phase=reconcile-failed initiator=host code=delivery-error durationMs=${Date.now() - started}`,
+              ),
+            );
+        };
+        const off = options.database.subscribe(({ module }) => {
+          if (module === 'live-activity') return;
+          clearTimeout(settle);
+          settle = setTimeout(reconcile, 500);
+        });
+        const sweep = setInterval(reconcile, 60_000);
+        return () => {
+          off();
+          clearTimeout(settle);
+          clearInterval(sweep);
+          delivery.dispose();
+          activity = undefined;
+        };
+      }, 'botharness: Live Activity delivery');
+    }
     webCtx.effect(() => {
       void connect.start().then(() => account.start());
       return () => {
@@ -357,6 +415,7 @@ export function mountDevicePairing(
       localVideo: ({ deviceId, command, signal }) =>
         localVideoCommand(videoOwner(), { deviceId }, command, signal),
       ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
+      ...(activity === undefined ? {} : { activity: activity.handle }),
       connectOffer: (body, signature) => account.verifyOffer(body, signature),
     });
     webCtx.effect(

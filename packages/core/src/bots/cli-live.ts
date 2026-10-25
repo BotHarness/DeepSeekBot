@@ -1,3 +1,4 @@
+import { runDeviceActivity } from './cli-live-activity.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
@@ -138,6 +139,7 @@ export const LIVE_OPTIONS = {
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
+  'activity-stdin': { type: 'boolean' },
   ...WINDOW_ZOOM_OPTIONS,
   ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
@@ -238,6 +240,11 @@ export const LIVE_COMMANDS = [
   ...BROWSER_NOTIFICATION_COMMANDS,
   ...HOST_LOOK_COMMANDS,
   ...DEVICE_NOTIFICATION_COMMANDS,
+  {
+    command: 'device-activity',
+    description:
+      'read capability or prepare/register/stop one device Lock Screen status (--device-file, --activity-stdin)',
+  },
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -768,6 +775,7 @@ export async function runLiveCli(
     const signal = AbortSignal.timeout(duration);
     return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
   }
+  if (command === 'device-activity') return runDeviceActivity(rest, values, io);
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))

@@ -1,9 +1,15 @@
+import { createActivityApns } from './activity-apns.js';
 import { createAccessTokenVerifier, workosKeys } from './auth.js';
 import { createCloudflareApi } from './cloudflare.js';
 import type { D1Database } from './d1.js';
 import { createRelay, hmac } from './relay.js';
 
 export interface ConnectRelayEnv {
+  ACTIVITY_APNS_TEAM_ID?: string;
+  ACTIVITY_APNS_KEY_ID?: string;
+  ACTIVITY_APNS_PRIVATE_KEY?: string;
+  ACTIVITY_APNS_BUNDLE_IDENTIFIER?: string;
+  ACTIVITY_APNS_ENVIRONMENT?: string;
   CONNECT_DB: D1Database;
   WORKOS_CLIENT_ID?: string;
   CLOUDFLARE_API_TOKEN?: string;
@@ -48,6 +54,15 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
   const apiKey = env.WORKOS_API_KEY;
   const relay = createRelay({
     db: env.CONNECT_DB,
+    activitySender: createActivityApns({
+      ...(env.ACTIVITY_APNS_TEAM_ID ? { teamId: env.ACTIVITY_APNS_TEAM_ID } : {}),
+      ...(env.ACTIVITY_APNS_KEY_ID ? { keyId: env.ACTIVITY_APNS_KEY_ID } : {}),
+      ...(env.ACTIVITY_APNS_PRIVATE_KEY ? { privateKey: env.ACTIVITY_APNS_PRIVATE_KEY } : {}),
+      ...(env.ACTIVITY_APNS_BUNDLE_IDENTIFIER
+        ? { bundleIdentifier: env.ACTIVITY_APNS_BUNDLE_IDENTIFIER }
+        : {}),
+      ...(env.ACTIVITY_APNS_ENVIRONMENT ? { environment: env.ACTIVITY_APNS_ENVIRONMENT } : {}),
+    }),
     verifier: createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }),
     tunnels: createCloudflareApi({ token, accountId, zoneId }),
     clientId,

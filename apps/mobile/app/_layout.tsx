@@ -1,3 +1,5 @@
+import { useMounted } from '../src/ui/mounted';
+import { watchRequestActivity } from '../src/host/native-live-activity';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View } from 'react-native';
@@ -37,13 +39,14 @@ function RootNavigator() {
   const theme = useTheme();
   const design = useDesignTheme();
   const routing = usePushRouting();
+  const activity = useMounted(watchRequestActivity, []);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
         <SafeAreaProvider>
           <View ref={routing} style={{ flex: 1 }}>
             <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
-            <View testID="app-stack-content" style={{ flex: 1 }}>
+            <View ref={activity} testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
                 screenOptions={{
                   orientation: 'portrait',

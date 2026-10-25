@@ -1,3 +1,8 @@
+import {
+  activityStartTarget,
+  type InitiatedActivityRequest,
+} from '../../host/live-activity-routing';
+import { useRequestActivityAction } from './request-activity-action';
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
@@ -384,6 +389,23 @@ function ChatConversation({
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
+  const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
+  const lockTarget = useMemo(() => {
+    if (!dm || !initiatedRequest || initiatedRequest.botSlug !== slug) return undefined;
+    const committed = snapshot.messages.find(
+      (message) =>
+        message.id === initiatedRequest.messageId &&
+        message.author === 'human' &&
+        message.delivery === 'committed',
+    );
+    return activityStartTarget(
+      initiatedRequest,
+      saved?.hostId,
+      committed?.source?.channelId,
+      committed ? [initiatedRequest.messageId] : [],
+    );
+  }, [dm, initiatedRequest, saved?.hostId, slug, snapshot.messages]);
+  const lockScreen = useRequestActivityAction(lockTarget);
   const [reactError, setReactError] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -662,7 +684,14 @@ function ChatConversation({
       slug === undefined ||
       files.length > 0
     ) {
-      conversation.send(body, files, tags);
+      const messageId = conversation.send(body, files, tags);
+      if (dm && saved && slug)
+        setInitiatedRequest({
+          hostId: saved.hostId,
+          ...(activeChannel === undefined ? {} : { channelId: activeChannel }),
+          messageId,
+          botSlug: slug,
+        });
       return;
     }
     const ref = {
@@ -674,7 +703,14 @@ function ChatConversation({
       .catch(() => false)
       .then((done) => {
         if (!done) {
-          conversation.send(body, files);
+          const messageId = conversation.send(body, files);
+          if (saved && slug)
+            setInitiatedRequest({
+              hostId: saved.hostId,
+              ...(activeChannel === undefined ? {} : { channelId: activeChannel }),
+              messageId,
+              botSlug: slug,
+            });
           return;
         }
         setAnswered((current) => new Set([...current, asking.id]));
@@ -955,8 +991,8 @@ function ChatConversation({
                 title: '',
                 headerTitle: '',
                 headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () =>
-                  filesAvailable
+                unstable_headerRightItems: () => [
+                  ...(filesAvailable
                     ? [
                         {
                           type: 'button' as const,
@@ -965,7 +1001,28 @@ function ChatConversation({
                           onPress: openFiles,
                         },
                       ]
-                    : [],
+                    : []),
+                  ...(dm
+                    ? [
+                        {
+                          type: 'button' as const,
+                          label: lockScreen.label,
+                          accessibilityLabel: lockScreen.label,
+                          identifier: 'request-activity',
+                          ...(lockScreen.busy
+                            ? {}
+                            : {
+                                icon: {
+                                  type: 'sfSymbol' as const,
+                                  name: 'lock.rectangle' as const,
+                                },
+                              }),
+                          disabled: lockScreen.disabled,
+                          onPress: lockScreen.onPress,
+                        },
+                      ]
+                    : []),
+                ],
                 unstable_headerLeftItems: () => [
                   ...(headerIslands
                     ? [{ type: 'custom' as const, element: back }]
