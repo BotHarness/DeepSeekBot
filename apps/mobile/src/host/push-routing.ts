@@ -14,6 +14,8 @@ import { removeDevice } from './pairing';
 import { t } from '../ui/strings';
 import { decideApproval } from './requests';
 
+class RoutingFailure extends Error {}
+
 const noop = () => {};
 const channelKinds = new Set([
   'channel-reply',
@@ -40,7 +42,7 @@ function readyDestination(
       offSession();
       offNavigation();
       signal.removeEventListener('abort', cancel);
-      if (error) reject(new Error(error));
+      if (error) reject(new RoutingFailure(error));
       else resolve(roster);
     };
     const cancel = () => finish(undefined, t.channelOpeningFailed);
@@ -67,7 +69,12 @@ export function usePushRouting(
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   return useMounted<ViewInstance>(() => {
-    const queue: Array<{ target: PushTarget; action: string | undefined; version: number }> = [];
+    const queue: Array<{
+      target: PushTarget;
+      action: string | undefined;
+      version: number;
+      selection: number;
+    }> = [];
     let version = 0;
     let running = false;
     let disposed = false;
@@ -110,40 +117,34 @@ export function usePushRouting(
                   ),
               );
             if (!current(next.version)) continue;
-            if (!(await hostSession.switchTo(target.hostId))) throw new Error(t.sourceChanged);
+            if (next.selection !== hostSession.getSelectionRevision()) continue;
+            if (!(await hostSession.switchTo(target.hostId, () => current(next.version))))
+              throw new RoutingFailure(t.sourceChanged);
             if (!current(next.version)) continue;
             const client = hostSession.getState().client;
-            if (!client) throw new Error(t.channelOpeningFailed);
+            if (!client) throw new RoutingFailure(t.channelOpeningFailed);
             waiting = new AbortController();
-            const needsRoster = Boolean(
-              target.kind && channelKinds.has(target.kind) && target.channelId && target.botSlug,
-            );
+            const channel =
+              target.kind && channelKinds.has(target.kind) && target.channelId && target.botSlug
+                ? {
+                    channelId: target.channelId,
+                    botSlug: target.botSlug,
+                    ...(target.messageId ? { messageId: target.messageId } : {}),
+                  }
+                : undefined;
             const roster = await readyDestination(
               client,
               target.hostId,
               waiting.signal,
               navigation,
-              needsRoster,
+              channel !== undefined,
             );
             if (!current(next.version)) continue;
-            if (
-              target.kind &&
-              channelKinds.has(target.kind) &&
-              target.channelId &&
-              target.botSlug
-            ) {
-              const destination = channelDestination(
-                target.hostId,
-                {
-                  channelId: target.channelId,
-                  botSlug: target.botSlug,
-                  ...(target.messageId ? { messageId: target.messageId } : {}),
-                },
-                roster,
-              );
-              if (!destination) throw new Error(t.noChannel);
+            if (channel) {
+              const destination = channelDestination(target.hostId, channel, roster);
+              if (!destination) throw new RoutingFailure(t.noChannel);
               if (!navigateChannel(navigation, destination))
-                throw new Error(t.channelOpeningFailed);
+                throw new RoutingFailure(t.channelOpeningFailed);
             } else {
               const href = pushHref(
                 target,
@@ -156,7 +157,7 @@ export function usePushRouting(
             }
           } catch (error) {
             if (current(next.version))
-              Alert.alert(error instanceof Error ? error.message : t.channelOpeningFailed);
+              Alert.alert(error instanceof RoutingFailure ? error.message : t.channelOpeningFailed);
           }
         }
       } finally {
@@ -169,7 +170,7 @@ export function usePushRouting(
       if (target === undefined) return;
       version++;
       waiting?.abort();
-      queue.push({ target, action, version });
+      queue.push({ target, action, version, selection: hostSession.getSelectionRevision() });
       onPending(true);
       void drain();
     });

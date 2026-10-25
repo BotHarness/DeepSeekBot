@@ -4,11 +4,15 @@ const secure = new Map<string, string>();
 const quickActions = vi.hoisted(() => ({ items: [] as Array<{ id: string }> }));
 const clearedCaches = vi.hoisted(() => [] as string[]);
 const forgotten = vi.hoisted(() => [] as string[]);
+let beforeSave: () => Promise<void> = async () => {};
 
 vi.mock('expo-secure-store', () => ({
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: 0,
   getItemAsync: async (key: string) => secure.get(key) ?? null,
-  setItemAsync: async (key: string, value: string) => void secure.set(key, value),
+  setItemAsync: async (key: string, value: string) => {
+    if (key === 'deepseekbot.hosts.v3') await beforeSave();
+    secure.set(key, value);
+  },
   deleteItemAsync: async (key: string) => void secure.delete(key),
 }));
 vi.mock('expo-quick-actions', () => ({
@@ -123,10 +127,52 @@ const savedIds = () =>
 describe('unpairing a Computer', () => {
   beforeEach(() => {
     secure.clear();
+    beforeSave = async () => {};
     quickActions.items = [];
     clearedCaches.length = 0;
     forgotten.length = 0;
     vi.resetModules();
+  });
+
+  it('does not adopt or persist an obsolete notification switch after its owner unmounts', async () => {
+    const { hostSession } = await session('old');
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let saving = false;
+    beforeSave = async () => {
+      saving = true;
+      await gate;
+    };
+    let mounted = true;
+    const switching = hostSession.switchTo('new', () => mounted);
+    await vi.waitFor(() => expect(saving).toBe(true));
+    mounted = false;
+    release();
+    expect(await switching).toBe(false);
+    expect(hostSession.getState().saved?.hostId).toBe('old');
+    expect(JSON.parse(secure.get('deepseekbot.hosts.v3')!).current).toBe('old');
+  });
+
+  it('a manual selection supersedes a notification even when selecting the current Host', async () => {
+    const { hostSession } = await session('old');
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let saving = false;
+    beforeSave = async () => {
+      saving = true;
+      await gate;
+    };
+    const switching = hostSession.switchTo('new');
+    await vi.waitFor(() => expect(saving).toBe(true));
+    expect(await hostSession.switchTo('old')).toBe(true);
+    release();
+    expect(await switching).toBe(false);
+    expect(hostSession.getState().saved?.hostId).toBe('old');
+    expect(JSON.parse(secure.get('deepseekbot.hosts.v3')!).current).toBe('old');
   });
 
   it('drops an older Computer from the list, storage and everything it left on the phone', async () => {

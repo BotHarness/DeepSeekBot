@@ -40,6 +40,8 @@ let state: HostSessionState = { saved: undefined, hosts: [], client: undefined, 
 let stored: SavedHosts = { hosts: [] };
 let offInbox: (() => void) | undefined;
 let offConnection: (() => void) | undefined;
+let selectionIntent = 0;
+let persistence: Promise<unknown> = Promise.resolve();
 
 export const hostPush = createHostPush(nativeCarrier());
 export const pushSession = createPushSession({
@@ -120,9 +122,25 @@ function adopt(next: SavedHosts, trigger: ConnectionTrigger = 'open'): void {
   for (const listener of listeners) listener();
 }
 
-async function commit(next: SavedHosts, trigger: ConnectionTrigger = 'switch'): Promise<void> {
-  await saveHosts(next);
-  adopt(next, trigger);
+function commit(
+  update: (current: SavedHosts) => SavedHosts | undefined,
+  trigger: ConnectionTrigger = 'switch',
+  current: () => boolean = () => true,
+): Promise<boolean> {
+  const operation = persistence.then(async () => {
+    if (!current()) return false;
+    const next = update(stored);
+    if (!next) return false;
+    await saveHosts(next);
+    if (!current()) {
+      await saveHosts(stored);
+      return false;
+    }
+    adopt(next, trigger);
+    return true;
+  });
+  persistence = operation.catch(() => undefined);
+  return operation;
 }
 
 void loadSavedHosts().then(
@@ -148,16 +166,21 @@ export const hostSession = {
     return () => listeners.delete(listener);
   },
   getState: (): HostSessionState => state,
+  getSelectionRevision: (): number => selectionIntent,
   async pair(host: SavedHost): Promise<void> {
-    await commit(withHost(stored, host), 'pair');
+    selectionIntent++;
+    await commit((hosts) => withHost(hosts, host), 'pair');
     void pushSession.enable(stored.hosts);
   },
-  async switchTo(hostId: string): Promise<boolean> {
+  async switchTo(hostId: string, current: () => boolean = () => true): Promise<boolean> {
+    const intent = ++selectionIntent;
+    if (!current()) return false;
     if (stored.current === hostId) return true;
-    const next = selectHost(stored, hostId);
-    if (next === undefined) return false;
-    await commit(next);
-    return true;
+    return commit(
+      (hosts) => selectHost(hosts, hostId),
+      'switch',
+      () => current() && intent === selectionIntent,
+    );
   },
   async unpair(
     hostId?: string,
@@ -165,6 +188,7 @@ export const hostSession = {
     const host =
       hostId === undefined ? state.saved : stored.hosts.find((entry) => entry.hostId === hostId);
     if (host === null || host === undefined) return undefined;
+    selectionIntent++;
     const current = host.hostId === state.saved?.hostId;
     await sourceDrafts.ready;
     sourceDrafts.removeWhere((key) => {
@@ -175,7 +199,7 @@ export const hostSession = {
         return false;
       }
     });
-    await commit(withoutHost(stored, host.hostId));
+    await commit((hosts) => withoutHost(hosts, host.hostId));
     try {
       clearHostConversationCache(host.hostId);
     } catch {}

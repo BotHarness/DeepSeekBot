@@ -6,6 +6,7 @@ import { View } from 'react-native';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { HostSnapshot } from '../src/host/client';
 import { channelRouteId } from '../src/ui/shell/channel-navigation';
+import { t } from '../src/ui/strings';
 
 const fixture = vi.hoisted(() => {
   const snapshot: HostSnapshot = {
@@ -26,6 +27,9 @@ const fixture = vi.hoisted(() => {
     navigationReady: true,
     navigationListeners: new Set<() => void>(),
     switchGate: Promise.resolve(),
+    selection: 0,
+    approvalGate: Promise.resolve(),
+    approvals: 0,
   };
 });
 vi.mock('react-native', async () => ({
@@ -41,11 +45,28 @@ vi.mock('../src/host/native-notifications', () => ({
   },
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
+vi.mock('../src/host/client', () => ({
+  createHostClient: () => ({
+    call: async () => {
+      fixture.approvals++;
+      await fixture.approvalGate;
+    },
+  }),
+}));
 vi.mock('../src/host/host-session', () => ({
   hostSession: {
+    getSelectionRevision: () => fixture.selection,
     getState: () => ({
       saved: fixture.ready ? { hostId: fixture.hostId } : undefined,
-      hosts: [],
+      hosts: [
+        {
+          hostId: 'host-a',
+          hostName: 'A',
+          deviceId: 'qa',
+          credential: 'qa',
+          routes: ['https://host.test'],
+        },
+      ],
       client: {
         getSnapshot: () => fixture.snapshot,
         subscribe: (listener: () => void) => {
@@ -54,8 +75,10 @@ vi.mock('../src/host/host-session', () => ({
         },
       },
     }),
-    switchTo: async (hostId: string) => {
+    switchTo: async (hostId: string, current: () => boolean = () => true) => {
+      fixture.selection++;
       await fixture.switchGate;
+      if (!current()) return false;
       fixture.hostId = hostId;
       for (const listener of fixture.sessionListeners) listener();
       return true;
@@ -128,6 +151,9 @@ afterEach(() => {
 const originalRoster = fixture.snapshot.roster;
 if (!originalRoster) throw new Error('Missing test Roster');
 beforeEach(() => {
+  fixture.selection = 0;
+  fixture.approvals = 0;
+  fixture.approvalGate = Promise.resolve();
   vi.useFakeTimers();
   state = initialState();
   fixture.hostId = 'host-a';
@@ -300,4 +326,55 @@ it('a later notification wins a pending Host switch without conflating same-name
   });
   expect(state.routes).toHaveLength(3);
   expect(state.routes[state.index]).toMatchObject({ params: { hostId: 'host-a', id: 'group-a' } });
+});
+
+it('cancels Host adoption as well as navigation when the notification owner unmounts', async () => {
+  let release = () => {};
+  fixture.switchGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () => fixture.tap?.(notification('host-b')));
+  await act(async () => {
+    root!.unmount();
+    root = undefined;
+  });
+  await act(async () => {
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(fixture.hostId).toBe('host-a');
+  expect(state.routes).toHaveLength(1);
+  expect(fixture.alerts).toEqual([]);
+});
+
+it('maps unexpected persistence failures to localized feedback', async () => {
+  await mount();
+  await act(async () => {
+    fixture.switchGate = Promise.reject(new Error('native diagnostic'));
+    fixture.tap?.(notification());
+  });
+  expect(fixture.alerts).toEqual([t.channelOpeningFailed]);
+  expect(state.routes).toHaveLength(1);
+});
+
+it('finishes an authorized notification action without overriding a newer manual Host selection', async () => {
+  let release = () => {};
+  fixture.approvalGate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await mount();
+  await act(async () =>
+    fixture.tap?.({ ...notification(), kind: 'tool-approval', messageId: 'approval' }, 'approve'),
+  );
+  expect(fixture.approvals).toBe(1);
+  fixture.hostId = 'host-b';
+  fixture.selection++;
+  await act(async () => {
+    release();
+    await vi.runAllTimersAsync();
+  });
+  expect(fixture.hostId).toBe('host-b');
+  expect(state.routes).toHaveLength(1);
+  expect(fixture.alerts).toEqual([]);
 });
