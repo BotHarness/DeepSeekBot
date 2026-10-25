@@ -5,11 +5,13 @@
   "behaviors": [
     {
       "id": "phone.multiple-hosts.chats",
-      "label": "Combine online paired Hosts in All Chats with source-bound navigation and actions",
+      "label": "Combine online paired Hosts in Chats and Activity with source-bound actions",
       "source": "apps/mobile/src/host/host-session.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-multiple-hosts.md",
       "task": 2782,
-      "gap": "Component and transport regression coverage only; Android/iOS native two-Host qualification pending. Activity aggregation is the subsequent tracer slice."
+      "gap": "Screen and transport regression coverage; Android/iOS native two-Host, background notification and visual qualification pending."
+    },
+    {
       "id": "phone.bot-rename",
       "label": "Rename a Bot from its mobile profile while retaining its stable identity and appearance",
       "source": "apps/mobile/src/host/bot-name.ts",
@@ -111,7 +113,6 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
       "task": 2518,
       "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
-
     },
     {
       "id": "browser.remote-hosts",

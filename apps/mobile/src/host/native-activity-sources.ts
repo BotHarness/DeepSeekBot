@@ -24,18 +24,15 @@ export function useActivitySources(): readonly ActivitySource[] {
       label: shownHostName(hostLooks.look(host.saved.hostId), host.saved.hostName),
       client: host.client,
       inbox: host.inbox,
-      roster: host.snapshot.roster,
+      get roster() {
+        return host.client.getSnapshot().roster;
+      },
     }));
   if (
     next.length !== previous.current.length ||
     next.some((source, index) => {
       const old = previous.current[index];
-      return (
-        !old ||
-        source.client !== old.client ||
-        source.roster !== old.roster ||
-        source.label !== old.label
-      );
+      return !old || source.client !== old.client || source.label !== old.label;
     })
   )
     previous.current = next;

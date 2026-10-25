@@ -6,6 +6,7 @@ import { useCloudSnapshot } from '../../../src/cloud/native';
 import { Text } from '../../../src/ui/primitives/text';
 import { space } from '../../../src/ui/design/tokens';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
+import { useHostSessions } from '../../../src/host/host-session';
 import { useActivitySources } from '../../../src/host/native-activity-sources';
 import { activitySelection, type ActivityItem } from '../../../src/host/activity-sources';
 import { cardHref, unreadHref } from '../../../src/host/push';
@@ -20,6 +21,7 @@ export default function ActivityScreen() {
   const focused = useIsFocused();
   const theme = useDesignTheme();
   const sources = useActivitySources();
+  const hosts = useHostSessions();
   const [scope] = useConversationFilter();
   const cloud = useCloudSnapshot();
   const partial = scope === 'all' && cloud.rows.some((row) => row.hasSession);
@@ -40,7 +42,7 @@ export default function ActivityScreen() {
             ) ?? [],
         ),
       ),
-    [sources],
+    [sources, hosts],
   );
   const channels = useMemo(
     () =>
@@ -60,7 +62,7 @@ export default function ActivityScreen() {
           name: `${channel.name} · ${source.label}`,
         })) ?? []),
       ]),
-    [sources],
+    [sources, hosts],
   );
   const open = useCallback(
     (item: ActivityItem) => {

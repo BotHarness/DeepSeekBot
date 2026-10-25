@@ -691,7 +691,13 @@ const ActivityPage = memo(function ActivityPage({
   const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, scrollActive);
   const visible = scoped === undefined ? snapshot : scopedSnapshot;
   const currentInbox = () => (scoped === undefined ? inbox : scoped.getInbox());
-  const rows = feedRows(visible, gone, held, filter, search, hidden);
+  const retained =
+    sources === undefined
+      ? held
+      : held.filter((item) =>
+          sources.some((source) => source.client === item.activitySource?.client),
+        );
+  const rows = feedRows(visible, gone, retained, filter, search, hidden);
   const hide = (item: HumanAttentionItem, on: boolean) =>
     setHidden((current) => {
       const next = new Map(current);

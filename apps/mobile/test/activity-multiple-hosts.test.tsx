@@ -124,6 +124,23 @@ it('real Activity screen combines both Hosts and resolves a colliding approval o
     expect(posts()).toHaveLength(4);
     expect(view.textContent).toContain(' · a');
     expect(view.textContent).toContain(' · b');
+    const aQuestion = posts().find(
+      (el) => el.getAttribute('data-testid') === `inbox-post-${JSON.stringify(['a', question.id])}`,
+    )!;
+    const option = [...aQuestion.querySelectorAll<HTMLButtonElement>('button')].find(
+      (el) => el.getAttribute('aria-label') === t.option('A', 'Teal'),
+    )!;
+    await act(async () => option.click());
+    const roster = hostSession.getHost('b')!.client.getSnapshot().roster!;
+    await act(async () => b.push('botharness/followRoster', { type: 'latest', ...roster }));
+    await settle();
+    expect(
+      posts().find(
+        (el) => el.getAttribute('data-testid') === aQuestion.getAttribute('data-testid'),
+      ),
+    ).toBe(aQuestion);
+    expect(option.getAttribute('aria-checked')).toBe('true');
+
     const sourcePost = posts().find(
       (el) => el.getAttribute('data-testid') === `inbox-post-${JSON.stringify(['b', approval.id])}`,
     )!;

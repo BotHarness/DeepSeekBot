@@ -152,6 +152,7 @@ export function observeActivitySources(sources: readonly ActivitySource[], query
       if (!listeners.size) inbox.stop();
     };
   }
+  update();
   return { getSnapshot: () => snapshot, getInbox: () => inbox, subscribe };
 }
 
