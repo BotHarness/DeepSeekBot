@@ -230,3 +230,38 @@ Open Cloud channels → choose an owned channel → Channel agents. Create a nam
 ### Memory file previews
 
 Open a Bot profile, expand Memory and choose a file. PNG/JPEG/GIF/WebP and safe static SVG open in the reader and tap to enlarge; Share uses the displayed temporary bytes. Markdown opens as a readable GFM document with Preview/Source controls. Local image references follow the observed document version and the same repository-relative rules as Web; pull to refresh when a document changes. External HTTPS images require an explicit tap and only load when visible. Static SVG shares the Host XML/CSS, size and expansion checks before native decoding. Native Git diff navigation, editor and attachment previews remain future #2214 slices. Native acceptance is scheduled through the shared device QA queue; component shims and bundle exports are separate checks.
+
+## Profiling production JavaScript
+
+Use the assigned native QA window and its existing Metro inspector. The default
+`apps/mobile/scripts/rn-profile.mjs` mode requires a React DevTools hook and fails
+if it is missing. For production JavaScript on a Debug native binary, explicitly
+select CPU and JS-frame sampling without React:
+
+```sh
+node /path/to/tool-checkout/apps/mobile/scripts/rn-profile.mjs \
+  --no-react --metro "$QA_METRO_PORT" --out "$QA_RUN_DIR/profile" \
+  --max 20 --quiet 3 --run 'sh "$QA_ACTION_DRIVER"'
+```
+
+The tool can run from a separate checkout with its existing dependencies; it does
+not modify the app checkout. Verify the intended inspector target first: it picks
+the first eligible target. Without `--run`, JS-only mode records until `--max`;
+with a driver, it stops after the driver exits and the quiet tail, or at the cap.
+Check driver exit, completed actions and owned child cleanup separately: profiler
+success alone does not prove the scenario succeeded.
+
+In this mode, `summary.json` reports `mode: "js-only"`, `react: null` and the reason;
+`js-frames.json` contains the actual JS capture boundaries and rAF samples, while
+`profile.cpuprofile` retains the Hermes samples. Use a fresh output directory per
+capture. Default React mode still writes `react.json` and uses the first-to-last
+commit window for its frame metrics. The `capture` fields label JS monotonic and
+CPU-profile time spans separately; legacy `recordedSeconds` also includes result
+processing and must not be used as an exact capture denominator.
+
+JS-only frame metrics use the full JS capture window, including idle time. They
+measure JavaScript scheduling, assume a 60 Hz frame budget, and do not measure
+native presentation, physical touch latency or 120 FPS. Hermes attribution is
+sampled; it does not count or time individual draft writes. Keep tool version,
+mode, binary, workload and duration fixed across comparisons. Missing React data
+requires a separate development-JS React profile; do not report it as zero work.
