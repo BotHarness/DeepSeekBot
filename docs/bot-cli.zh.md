@@ -1129,9 +1129,13 @@ deepseekbot memory-image <bot-id> --path notes/guide.md --image-source <document
 
 ## 桌面整页缩放（S1 受控切片）
 
-产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
+新版 Tobs Bundle 默认加载 macOS/Windows 原生桌面窗口缩放，无需另行 enable。下面的启用/停用命令用于历史手动配置；日常操作进入 Bot 设置 → 通用 → 窗口缩放。浏览器缩放不变，原生验收单独记录于 #2775。
+
+### 旧版手动启用方式
+
+早期产品附带独立的显式启用命令。普通安装产品后，先退出目标 macOS 桌面，再明确指定应用 Bundle
 和 Profile。命令使用所选应用附带的 pnpm，禁用安装脚本，并持有与原生插件管理器相同的 Profile
-写锁。桌面 Host 仍在运行、存在其他主题覆盖、产品仍采用旧组合或应用版本不是 0.2.1-rc.2 时拒绝。
+写锁。桌面 Host 仍在运行、存在其他主题覆盖或产品仍采用旧组合时拒绝；准入检查依据协议、平台及包内容完整性。
 只改变一个 Profile 依赖，不修改已安装应用：
 
 ```sh
@@ -1144,7 +1148,7 @@ deepseekbot-zoom-setup disable --home <绝对路径-DSH_HOME> --profile desktop 
 DSH CLI 明确拒绝管理 `desktop` Profile；原生插件管理器会优先解析应用自带的同名主题，因此也拒绝
 这一普通库替换。两条路径的无窗口测试结果不能作为桌面启用验收。
 
-卸载产品前先 `disable`，并重启以恢复原生包解析。手动字体偏好仍由原生 `ui-theme` Patch 保存。
+历史手动启用的 Profile 应在卸载产品前先 `disable`，并重启以恢复原生包解析。此命令清理旧链接；新版 Bundle 仍安装时不会关闭缩放。手动字体偏好仍由原生 `ui-theme` Patch 保存。
 JSON 标准输出包含 `restartRequired:true`、`runtimeVerified:false`；包配置成功不表示原生窗口已加载。
 包操作结果不确定时不会自动重试。
 

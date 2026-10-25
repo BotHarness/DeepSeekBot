@@ -1158,11 +1158,15 @@ Use the exact metadata from the selected file/diff side. The authenticated Host 
 
 ## Desktop window zoom (controlled S1)
 
-The product includes a separate opt-in configuration command. Install the product normally,
+New Tobs Bundles load native macOS/Windows window zoom by default; the setup commands below apply only to legacy manually enabled Profiles. Use Bot Settings → General → Window zoom. Browser zoom is unchanged. Native qualification is tracked in #2775.
+
+### Legacy manual setup
+
+Earlier product versions included a separate opt-in configuration command. Install the product normally,
 quit the target macOS Desktop, then point setup at that application's bundle and explicit
 Profile. Setup uses the selected application's bundled pnpm with scripts disabled, under the
 same Profile writer lock as the native plugin manager. It refuses a running Desktop Host,
-other theme overrides, stale product composition and an app version other than 0.2.1-rc.2.
+other theme overrides and stale product composition; protocol, platform and payload integrity checks control admission.
 It changes one Profile dependency and never edits the installed application:
 
 ```sh
@@ -1177,7 +1181,7 @@ the managed `desktop` Profile; the native plugin manager also refuses this plain
 replacement, because it resolves the installation-owned theme before Profile Bundle metadata.
 Those two paths do not establish Desktop activation.
 
-Run `disable` before uninstalling the product and restart to restore native package resolution.
+For a legacy manually enabled Profile, run `disable` before uninstalling the product and restart to restore native package resolution. This cleans up the legacy link; it does not turn off zoom while the new Bundle remains installed.
 Manual font preferences remain in the same native `ui-theme` Patch. JSON stdout reports
 `restartRequired:true` and `runtimeVerified:false`; a successful package change does not prove
 the native window has loaded it. An uncertain package operation is not retried automatically.

@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented downstream default desktop zoom activation and legacy opt-in cleanup; DSH/Cordis Context and Skill behavior are unchanged ([#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)).
+
 - Documented Electron desktop ASAR filesystem behavior and the separate physical-file installer verification required for runtime reuse ([#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)).
 
 - Synchronized downstream installation guides with the verified Tobs 1.5.1 packages and distinguished the new command from its compatibility entry; DSH/Cordis Context and Skill behavior are unchanged ([#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)).
