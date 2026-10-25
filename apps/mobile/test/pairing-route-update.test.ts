@@ -63,7 +63,7 @@ it('updates scanned Tailscale addresses over pinned encryption with the existing
                 JSON.stringify({
                   host: payload.host,
                   connect: { encryption: payload.encryption },
-                  routes: { routes: [{ url: payload.routes[0], ready: true }] },
+                  routes: { routes: [] },
                 }),
               ),
             });

@@ -36,3 +36,10 @@ it('never silently upgrades legacy pairing to an encrypted route', () => {
     'https://studio.ts.net',
   ]);
 });
+
+it('retains an advertised fallback when stale LAN history exceeds the retention limit', () => {
+  const routes = Array.from({ length: 12 }, (_, i) => `http://192.168.1.${i + 1}:18000`);
+  const result = learnedRoutes({ ...host, routes }, advertisement());
+  expect(result).toHaveLength(12);
+  expect(result).toContain('https://studio.ts.net:8443');
+});

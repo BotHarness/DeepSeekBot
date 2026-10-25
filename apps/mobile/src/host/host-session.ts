@@ -179,6 +179,26 @@ function serialize<T>(work: () => Promise<T>): Promise<T> {
 }
 
 export const hostSession = {
+  async replaceApprovedPairing(host: SavedHost, previousCredential: string): Promise<void> {
+    return serialize(async () => {
+      const previous = stored.hosts.find((item) => item.hostId === host.hostId);
+      if (
+        !previous ||
+        previous.credential !== previousCredential ||
+        (previous.encryption && previous.encryption.hostKey !== host.encryption?.hostKey)
+      )
+        throw new Error('pairing-changed');
+      const replacement = {
+        ...host,
+        ...(previous.accountOwner ? { accountOwner: previous.accountOwner } : {}),
+      };
+      await commit({
+        ...stored,
+        hosts: stored.hosts.map((item) => (item.hostId === host.hostId ? replacement : item)),
+      });
+      void revokePairing({ host: previous, carrier: nativeCarrier() });
+    });
+  },
   async updateRoutes(hostId: string, credential: string, routes: string[]): Promise<void> {
     return serialize(async () => {
       const existing = stored.hosts.find((host) => host.hostId === hostId);

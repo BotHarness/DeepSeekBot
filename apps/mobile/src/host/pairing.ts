@@ -311,20 +311,24 @@ export async function pairHost(options: {
       return parsed;
     }
     const existing = options.existing?.(parsed.payload.host.id);
-    const redeemed = existing
+    const updated = existing?.encryption
       ? await updatePairedRoutes(existing, parsed.payload, options.carrier, options.signal)
-      : await redeemPairing({
-          payload: parsed.payload,
-          deviceName: options.deviceName,
-          carrier: options.carrier,
-          ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
-          ...(options.method === 'qr'
-            ? { confirmFingerprint: async () => true }
-            : options.confirmFingerprint === undefined
-              ? {}
-              : { confirmFingerprint: options.confirmFingerprint }),
-          ...(options.signal === undefined ? {} : { signal: options.signal }),
-        });
+      : undefined;
+    const redeemed =
+      updated && (updated.ok || updated.code !== 'reapproval-required')
+        ? updated
+        : await redeemPairing({
+            payload: parsed.payload,
+            deviceName: options.deviceName,
+            carrier: options.carrier,
+            ...(options.onPending === undefined ? {} : { onPending: options.onPending }),
+            ...(options.method === 'qr'
+              ? { confirmFingerprint: async () => true }
+              : options.confirmFingerprint === undefined
+                ? {}
+                : { confirmFingerprint: options.confirmFingerprint }),
+            ...(options.signal === undefined ? {} : { signal: options.signal }),
+          });
     if (options.signal?.aborted) return { ok: false, code: 'cancelled' };
     if (!redeemed.ok) {
       observation.finish(redeemed.code === 'unreachable' ? 'failed' : 'refused', redeemed.code);
@@ -355,7 +359,7 @@ export async function updatePairedRoutes(
   payload: PairingPayload,
   raw: HostCarrier,
   signal?: AbortSignal,
-): Promise<Redemption> {
+): Promise<Redemption | { ok: false; code: 'reapproval-required' }> {
   if (!host.encryption) return { ok: false, code: 'host-key-required' };
   if (payload.host.id !== host.hostId || payload.encryption?.publicKey !== host.encryption.hostKey)
     return { ok: false, code: 'channel-authentication-failed' };
@@ -383,9 +387,15 @@ export async function updatePairedRoutes(
           record(record(snapshot['connect'])['encryption'])['publicKey'] !== host.encryption.hostKey
         )
           continue;
-        const routes = learnedRoutes(host, snapshot);
+        const routes = learnedRoutes({ ...host, routes: [route, ...host.routes] }, snapshot);
         return { ok: true, host: { ...host, routes } };
-      } catch {}
+      } catch (error) {
+        if (
+          error instanceof ConnectRefused &&
+          (error.code === 'device-revoked' || error.code === 'device-unknown')
+        )
+          return { ok: false, code: 'reapproval-required' };
+      }
     }
     return { ok: false, code: 'unreachable' };
   } finally {
