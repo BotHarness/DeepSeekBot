@@ -75,11 +75,13 @@ async function capture(
     state = inspectorRuntime(reactHook),
     rejectStart = false,
     interrupt,
+    interruptAfterStart = false,
     ignoreCleanup = false,
   } = {},
 ) {
   const out = mkdtempSync(join(tmpdir(), 'rn-profile-cli-'));
   let startRequested = false;
+  const commands = [];
   const { runtime } = state;
   const server = createServer((request, response) => {
     if (request.url !== '/json/list') {
@@ -100,6 +102,7 @@ async function capture(
   sockets.on('connection', (socket) => {
     socket.on('message', (raw) => {
       const { id, method, params } = JSON.parse(String(raw));
+      commands.push(method);
       let result = {};
       if (method === 'Runtime.evaluate') {
         if (ignoreCleanup && startRequested) return;
@@ -110,7 +113,7 @@ async function capture(
         }
       } else if (method === 'Profiler.start') {
         startRequested = true;
-        if (interrupt) {
+        if (interrupt && !interruptAfterStart) {
           child.kill(interrupt);
           return;
         }
@@ -140,13 +143,24 @@ async function capture(
   try {
     child = spawn(
       process.execPath,
-      [script, '--metro', String(server.address().port), '--out', out, '--max', '0.1', ...args],
+      [
+        script,
+        '--metro',
+        String(server.address().port),
+        '--out',
+        out,
+        '--max',
+        '0.1',
+        ...(interruptAfterStart ? ['--run', 'printf profile-started'] : []),
+        ...args,
+      ],
       { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     let stdout = '',
       stderr = '';
     child.stdout.on('data', (chunk) => {
       stdout += chunk;
+      if (interruptAfterStart && String(chunk).includes('profile-started')) child.kill(interrupt);
     });
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
@@ -164,6 +178,7 @@ async function capture(
       existsSync(join(out, name)) ? JSON.parse(readFileSync(join(out, name), 'utf8')) : undefined;
     return {
       code,
+      commands,
       timedOut,
       rescheduledFrames: state.advance(state.now() + 16),
       stdout,
@@ -186,6 +201,7 @@ it('captures production JS without a React hook only when explicitly opted in', 
   const result = await capture(['--no-react']);
   expect(result.code, result.stderr).toBe(0);
   expect(result.cpu).toEqual(profile);
+  expect(result.commands.filter((method) => method === 'Profiler.stop')).toHaveLength(1);
   expect(result.summary).toMatchObject({
     mode: 'js-only',
     react: null,
@@ -247,6 +263,7 @@ it('stops JS frame callbacks when Profiler.start rejects before collection', asy
   const result = await capture(['--no-react'], { rejectStart: true });
   expect(result.code).toBe(1);
   expect(result.stderr).toContain('synthetic Profiler.start refusal');
+  expect(result.commands).not.toContain('Profiler.stop');
   expect(result.rescheduledFrames).toBe(0);
 });
 
@@ -263,8 +280,9 @@ it.each([
   ['SIGINT', 130],
   ['SIGTERM', 143],
 ])('cleans up its JS frames on %s', async (interrupt, code) => {
-  const result = await capture(['--no-react'], { interrupt });
+  const result = await capture(['--no-react'], { interrupt, interruptAfterStart: true });
   expect(result.code).toBe(code);
+  expect(result.commands.filter((method) => method === 'Profiler.stop')).toHaveLength(1);
   expect(result.rescheduledFrames).toBe(0);
   expect(result.summary).toBeUndefined();
 });
@@ -276,4 +294,12 @@ it('bounds cleanup when the inspector stops answering and reports it as unconfir
   expect(result.stderr).toContain('JS-only cleanup unconfirmed');
   expect(result.summary).toBeUndefined();
   expect(result.rescheduledFrames).toBe(1);
+});
+
+it('does not stop an unacknowledged CPU profiler start on interruption', async () => {
+  const result = await capture(['--no-react'], { interrupt: 'SIGINT' });
+  expect(result.code).toBe(130);
+  expect(result.commands).not.toContain('Profiler.stop');
+  expect(result.stderr).toContain('CPU profiler start unconfirmed');
+  expect(result.rescheduledFrames).toBe(0);
 });

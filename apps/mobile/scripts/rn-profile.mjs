@@ -50,7 +50,7 @@ ws.on('message', (data) => {
   if (msg.id && pending.has(msg.id)) {
     const { ok, fail } = pending.get(msg.id);
     pending.delete(msg.id);
-    if (msg.error) fail(new Error(`${msg.error.message}`));
+    if (msg.error) fail(new Error(`${msg.error.message}`, { cause: 'inspector-command-refused' }));
     else ok(msg.result);
   }
 });
@@ -148,7 +148,7 @@ const collectFrames = `(() => {
 })()`;
 
 let child, react, profile, t0;
-let profilerRequested = false;
+let profilerState = 'not-started';
 let cleanup;
 const stopFrames = `(() => {
   const p = globalThis.__agentJsFrames;
@@ -165,12 +165,18 @@ const cleanupJsCapture = () => {
         'JS-only cleanup unconfirmed; retry with a fresh capture after checking the inspector.',
       );
     let deadline;
+    if (profilerState === 'pending')
+      console.error(
+        'CPU profiler start unconfirmed; no stop was sent without ownership confirmation.',
+      );
     try {
       if (ws.readyState !== WebSocket.OPEN) unconfirmed();
       else
         await Promise.race([
           evaluate(stopFrames)
-            .then((owned) => (owned && profilerRequested ? send('Profiler.stop') : undefined))
+            .then((owned) =>
+              owned && profilerState === 'started' ? send('Profiler.stop') : undefined,
+            )
             .catch(unconfirmed),
           new Promise((resolve) => {
             deadline = setTimeout(() => {
@@ -200,8 +206,14 @@ try {
   await send('Profiler.setSamplingInterval', { interval: 1000 }).catch(() => {});
   const installed = await evaluate(noReact ? installFrames : install);
   if (installed !== 'ok') throw new Error(installed);
-  profilerRequested = true;
-  await send('Profiler.start');
+  profilerState = 'pending';
+  try {
+    await send('Profiler.start');
+    profilerState = 'started';
+  } catch (error) {
+    if (error.cause === 'inspector-command-refused') profilerState = 'not-started';
+    throw error;
+  }
   t0 = Date.now();
   if (typeof args.run === 'string') child = spawn('sh', ['-c', args.run], { stdio: 'inherit' });
 
@@ -231,7 +243,7 @@ try {
   }
   react = JSON.parse(await evaluate(noReact ? collectFrames : collect));
   ({ profile } = await send('Profiler.stop'));
-  profilerRequested = false;
+  profilerState = 'not-started';
 } finally {
   if (noReact) {
     await cleanupJsCapture();
