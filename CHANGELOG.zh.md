@@ -32,6 +32,8 @@ Tobs 使用带作用域的 npm 包并保留兼容的 deepseekbot 入口，统一
 
 ### Fixed
 
+- Mac 桌面组件临时目录清理失败时，保留原始安装错误或取消结果；对暂时性清理故障有限重试，并单独记录诊断（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
 - 后台 Subagent 回报可恢复空闲 Bot，使用当前模型显式发送结果；长时间运行的直接 Subagent 调用不再遮蔽后续用户回合的停止与追加指令（[#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)）。
 
 - npm 拒绝无作用域包名后，Tobs 改用 `@botharness/tobs` 发布，保留 `tobs` 命令和继续支持的 `deepseekbot` 兼容包；npm README 与 GitHub 产品介绍保持一致（[#2744](https://github.com/BotHarness/DeepSeekBot/issues/2744)）。

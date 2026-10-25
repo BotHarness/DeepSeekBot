@@ -219,9 +219,23 @@ export async function ensureMacVideoHelper(options: {
               : 'Mac video runtime installation failed. Check available disk space and folder permissions, then start Local Computer again.';
     throw new LocalVideoError('helper-missing', message);
   } finally {
-    if (staging) await rm(staging, { recursive: true, force: true });
+    const cleanup = async (path: string, target: 'staging' | 'previous'): Promise<void> => {
+      try {
+        await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      } catch (error) {
+        const code =
+          error !== null && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+        const reason = ['ENOTEMPTY', 'EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE'].includes(code)
+          ? code
+          : 'cleanup-failed';
+        options.onEvent?.(
+          `phase=media-cleanup-refused platform=darwin target=${target} code=${reason}`,
+        );
+      }
+    };
+    if (staging) await cleanup(staging, 'staging');
     if (previous) {
-      if (installed) await rm(previous, { recursive: true, force: true });
+      if (installed) await cleanup(previous, 'previous');
       else await rename(previous, directory);
     }
   }

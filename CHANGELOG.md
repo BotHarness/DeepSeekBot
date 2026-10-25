@@ -32,6 +32,8 @@ Mobile entries describe source and artwork changes for the independently version
 
 ### Fixed
 
+- Preserve the original Mac desktop setup error or cancellation when temporary video-component cleanup fails, and retry transient cleanup failures before recording a separate diagnostic ([#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)).
+
 - Background Subagent reports can resume an idle Bot and explicitly deliver their results using its current model; long-running direct Subagent calls no longer hide a later Human turn from stop and steering controls ([#2435](https://github.com/BotHarness/DeepSeekBot/issues/2435)).
 
 - Publish Tobs through `@botharness/tobs`, retaining the `tobs` command and the supported `deepseekbot` compatibility package after npm refused the unscoped name; the npm README follows the GitHub product introduction ([#2744](https://github.com/BotHarness/DeepSeekBot/issues/2744)).
