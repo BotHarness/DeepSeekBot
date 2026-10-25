@@ -6,7 +6,31 @@ Unreleased entries arrive as [change fragments](changes/README.md) and are folde
 
 ## [Unreleased]
 
-No changes since 1.5.1 yet.
+No changes since 1.5.2 yet.
+
+## [1.5.2] - 2026-10-25
+
+Tobs enables native desktop window zoom by default and improves Computer runtime reuse and setup recovery on Windows and macOS.
+
+Mobile entries describe independently versioned app changes; this npm release does not publish or qualify Android/iOS binaries.
+
+### Documentation
+
+- Updated installation guides to the verified Tobs 1.5.1 packages and clarified the new `tobs` command and retained `deepseekbot` compatibility entry ([#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)).
+
+### Fixed
+
+- Fixed macOS Computer setup in the DSH desktop app treating capture-runtime archives as virtual folders, so verified installations can be reused instead of downloading again; download progress now clears during verification and installation, and localized setup errors guide users to missing macOS permissions ([#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)).
+
+- Fixed mobile Marketplace Bot imports refused before creation, combined source checking and importing into one action, and removed the continuation footer below Home navigation on iOS and Android ([#2768](https://github.com/BotHarness/DeepSeekBot/issues/2768)).
+
+- Fixed Windows Computer setup in the desktop app rejecting verified capture runtimes and exposing ASAR cleanup errors; installed components are reused, completed download progress clears, and setup failures use localized guidance ([#2771](https://github.com/BotHarness/DeepSeekBot/issues/2771)).
+
+- Restored the Android section sheet's title and Close, New section, Back and Create actions, so a chat can be added to a newly created section ([#2773](https://github.com/BotHarness/DeepSeekBot/issues/2773)).
+
+### Changed
+
+- Native macOS and Windows Desktop loads whole-window zoom with the Tobs Bundle, without a separate setup command; browser zoom and native font preferences remain separate ([#2775](https://github.com/BotHarness/DeepSeekBot/issues/2775)).
 
 ## [1.5.1] - 2026-10-25
 
