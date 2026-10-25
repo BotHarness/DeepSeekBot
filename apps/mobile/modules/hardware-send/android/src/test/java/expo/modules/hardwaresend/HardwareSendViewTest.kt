@@ -166,4 +166,37 @@ class HardwareSendViewTest {
     assertEquals(0, SendEventBridge.sent.count { it === view })
     assertEquals("\n", second.text.toString())
   }
+
+  @Test fun anInputMethodThatConsumesKeyUpCannotReplayTheReleasedSend() {
+    val (view, field) = editor()
+    val input = field.onCreateInputConnection(EditorInfo())!!
+    val down = enter()
+    view.dispatchKeyEventPreIme(down)
+    view.dispatchKeyEventPreIme(KeyEvent.changeAction(down, KeyEvent.ACTION_UP))
+    assertTrue(input.commitText("\n", 1))
+    assertEquals(0, SendEventBridge.sent.count { it === view })
+    assertEquals("\n", field.text.toString())
+    val next = enter()
+    view.dispatchKeyEventPreIme(next)
+    view.dispatchKeyEvent(next)
+    release(view, next)
+    assertEquals(1, SendEventBridge.sent.count { it === view })
+  }
+
+  @Test fun aCanceledHardwareKeyCannotSendItsLateNewline() {
+    val (view, field) = editor()
+    val input = field.onCreateInputConnection(EditorInfo())!!
+    val down = enter()
+    view.dispatchKeyEventPreIme(down)
+    val up = KeyEvent.changeAction(down, KeyEvent.ACTION_UP)
+    view.dispatchKeyEventPreIme(KeyEvent.changeFlags(up, up.flags or KeyEvent.FLAG_CANCELED))
+    assertTrue(input.commitText("\n", 1))
+    assertEquals(0, SendEventBridge.sent.count { it === view })
+    assertEquals("\n", field.text.toString())
+    val next = enter()
+    view.dispatchKeyEventPreIme(next)
+    view.dispatchKeyEvent(next)
+    release(view, next)
+    assertEquals(1, SendEventBridge.sent.count { it === view })
+  }
 }
