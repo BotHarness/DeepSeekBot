@@ -91,25 +91,23 @@ export function HomeHeader({
               opacity: pressed ? 0.7 : 1,
             })}
           >
-            <ConnectionProgress active={connectionLabel !== undefined}>
-              {environment.kind === 'computer' && environment.hostIcon ? (
-                <HostGlyph
-                  icon={environment.hostIcon}
-                  size={theme.type.title.line * theme.fontScale}
-                  color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
-                />
-              ) : environment.kind === 'cloud' ? (
-                <CloudIcon
-                  color={theme.color.accent}
-                  size={theme.type.title.line * theme.fontScale}
-                />
-              ) : (
-                <ChatsIcon
-                  color={theme.color.accent}
-                  size={theme.type.title.line * theme.fontScale}
-                />
-              )}
-            </ConnectionProgress>
+            {environment.kind === 'computer' && environment.hostIcon ? (
+              <HostGlyph
+                icon={environment.hostIcon}
+                size={theme.type.title.line * theme.fontScale}
+                color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
+              />
+            ) : environment.kind === 'cloud' ? (
+              <CloudIcon
+                color={theme.color.accent}
+                size={theme.type.title.line * theme.fontScale}
+              />
+            ) : (
+              <ChatsIcon
+                color={theme.color.accent}
+                size={theme.type.title.line * theme.fontScale}
+              />
+            )}
             <Text
               variant="title"
               strong
@@ -119,6 +117,7 @@ export function HomeHeader({
             >
               {environment.title}
             </Text>
+            <ConnectionProgress active={connectionLabel !== undefined} />
             <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
           </Pressable>
           {actions}

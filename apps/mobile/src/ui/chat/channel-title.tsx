@@ -47,12 +47,11 @@ export function ChannelTitle({
         ...titleChipFill(theme, pressed),
       })}
     >
-      <ConnectionProgress active={connectionLabel !== undefined}>
-        <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
-      </ConnectionProgress>
+      <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
       <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {name}
       </Text>
+      <ConnectionProgress active={connectionLabel !== undefined} />
     </Pressable>
   );
 }

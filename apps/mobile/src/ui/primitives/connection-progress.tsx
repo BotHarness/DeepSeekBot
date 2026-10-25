@@ -15,10 +15,17 @@ export function useConnectionProgress(
   return undefined;
 }
 
-export function ConnectionProgress({ active, children }: { active: boolean; children: ReactNode }) {
+export function ConnectionProgress({
+  active,
+  children,
+}: {
+  active: boolean;
+  children?: ReactNode;
+}) {
   const theme = useDesignTheme();
+  if (!active && children === undefined) return null;
   return (
-    <View>
+    <View style={{ flexShrink: 0 }}>
       {children}
       {active ? (
         <View
@@ -28,7 +35,7 @@ export function ConnectionProgress({ active, children }: { active: boolean; chil
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
           style={[
-            StyleSheet.absoluteFill,
+            children === undefined ? { flexShrink: 0 } : StyleSheet.absoluteFill,
             {
               alignItems: 'center',
               justifyContent: 'center',

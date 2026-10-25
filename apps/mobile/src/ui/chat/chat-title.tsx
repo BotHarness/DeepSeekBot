@@ -47,16 +47,15 @@ export function ChatTitle({
         ...titleChipFill(theme, pressed),
       })}
     >
-      <ConnectionProgress active={connectionLabel !== undefined}>
-        {bot ? (
-          <BotAvatar bot={bot} size={AVATAR} ring={false} />
-        ) : (
-          <View style={{ width: AVATAR, height: AVATAR }} />
-        )}
-      </ConnectionProgress>
+      {bot ? (
+        <BotAvatar bot={bot} size={AVATAR} ring={false} />
+      ) : (
+        <View style={{ width: AVATAR, height: AVATAR }} />
+      )}
       <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
         {name}
       </Text>
+      <ConnectionProgress active={connectionLabel !== undefined} />
     </Pressable>
   );
 }
