@@ -92,8 +92,6 @@ vi.mock('react-native', async () => {
   };
 });
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
-vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
-vi.mock('expo-sharing', () => ({ shareAsync: vi.fn() }));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
