@@ -57,7 +57,7 @@ If there is no **Update now** button, or the one-click update fails, run this in
 dsh plugin --profile web add deepseekbot@<version>
 ```
 
-Replace `<version>` with the version to install, for example `deepseekbot@1.0.3`. The update card in Settings shows the full command ready to copy. Then restart DSH: for the web app, press Ctrl+C in its terminal and run the same `dsh web` command again, keeping any options you started it with, such as `--port`; for the desktop app, quit it completely and open it again.
+Replace `<version>` with the version to install. The update card in Settings shows the full command ready to copy; the [installation guide](https://tobs.app/en/docs/installation/) also provides the current verified package. Then restart DSH: for the web app, press Ctrl+C in its terminal and run the same `dsh web` command again, keeping any options you started it with, such as `--port`; for the desktop app, quit it completely and open it again.
 
 The DSH Plugins page cannot upgrade an installed plugin yet. To update the desktop app by hand, use the same command with `web` replaced by the desktop profile name: the folder name under `profiles/` in the DSH data directory (`~/.dsh` by default).
 

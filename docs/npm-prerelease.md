@@ -37,7 +37,7 @@ account, credential, Binding or Service Grant is shipped in a package.
 
 ## Releasing a version
 
-`deepseekbot@1.4.1` is the current stable release (tracked in `scripts/install-release.json`). A release is triggered by pushing a
+The current verified stable package is tracked in `scripts/install-release.json` and shown in the [installation guide](https://tobs.app/en/docs/installation/). A release is triggered by pushing a
 SemVer tag on main; nothing publishes from a branch, a PR or a manual dispatch.
 
 1. Archive `Unreleased` in the bilingual Release Ledger under the new version

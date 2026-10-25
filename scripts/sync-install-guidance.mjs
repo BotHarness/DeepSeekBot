@@ -22,7 +22,7 @@ export function renderInstallGuidance(text, version, packageName = 'deepseekbot'
   const spec = installSpec(version, packageName);
   return text
     .replace(
-      /(\badd |\bnpm pack |输入 `|enter `|package \*\*`|正式包 \*\*`|安装的是 |exact )(?:deepseekbot|@botharness\/tobs)(?:@[0-9A-Za-z.*^~+-]+)?(?=[\s`",.)*。]|$)/gm,
+      /(\badd |\bnpm pack |输入 `|enter `|package \*\*`|正式包 \*\*`|安装的是 `?|exact `?)(?:deepseekbot|@botharness\/tobs)(?:@[0-9A-Za-z.*^~+-]+)?(?=[\s`",.)*。]|$)/gm,
       `$1${spec}`,
     )
     .replace(/^(?:deepseekbot|@botharness\/tobs)(?:@[^\s]+)?$/gm, spec);

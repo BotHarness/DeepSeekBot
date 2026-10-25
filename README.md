@@ -45,7 +45,7 @@ Tobs（托布）是 BotHarness 开发的 MIT 开源 GrokBot 平替，作为插�
 
 Tobs（托布）原名 **DeepSeekBot**。已有用户仍可使用 `deepseekbot` npm 包和命令；新用户请安装 `@botharness/tobs`，使用 `tobs` 命令。
 
-在 DeepSeek Harness 桌面端点「插件 → 添加插件」，输入 `deepseekbot@1.4.1`，安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
+按[安装指南](https://tobs.app/docs/installation/)复制当前已验证的安装命令，在 DeepSeek Harness 桌面端安装并启用，侧栏就会出现「Bot 模式」。还没装 DSH？先[下载桌面端](https://www.deepseek.com/en/harness/)。
 
 命令行安装、版本说明和常见问题见[官网安装指南](https://tobs.app/docs/installation/)。
 

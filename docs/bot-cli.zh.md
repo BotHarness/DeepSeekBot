@@ -1,5 +1,8 @@
 # 用命令行创建 Bot
 
+安装 `@botharness/tobs` 后使用 `tobs` 命令；安装兼容包 `deepseekbot` 后使用 `deepseekbot` 命令。本页保留 `deepseekbot` 示例，使用新包时将命令名替换为 `tobs`，其余参数相同。
+安装命令见[安装指南](https://tobs.app/docs/installation/)。
+
 `list` 返回的 Bot 摘要在有记录时包含 `lastActivityAt`（毫秒时间戳），来自本地用户可见的 Bot 消息或 Assignment 汇报。后续频道消息和重启不会覆盖它；缺省表示没有记录到活动，不会用创建时间或频道访问时间代替。
 
 `deepseekbot create` 无需点击即可创建新的 PersonaBot：空白创建、从 Bot 包导入（目录或 zip，与[ Bot 打包导出](docs/bot-zip.md)形状相同）、或从 GitHub 导入。它为驱动 DSH 的外部编程智能体而建，因此输出以机器读取优先。
