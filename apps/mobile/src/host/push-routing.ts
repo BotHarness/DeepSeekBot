@@ -5,6 +5,8 @@ import { Alert, type ViewInstance } from 'react-native';
 import { useMounted } from '../ui/mounted';
 import { createHostClient } from './client';
 import { hostSession } from './host-session';
+import { conversationFilter } from './native-conversation-filter';
+import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { parsePushData, pushHref, type PushTarget } from './push';
@@ -59,6 +61,8 @@ export function usePushRouting(): RefCallback<ViewInstance> {
       );
       setTimeout(() => {
         if (hostSession.getHost(target.hostId)?.client !== source.client) return;
+        if (href.pathname === '/activity')
+          conversationFilter.set(computerEnvironmentKey(target.hostId));
         router.push({
           ...href,
           params: { ...('params' in href ? href.params : {}), hostId: target.hostId },

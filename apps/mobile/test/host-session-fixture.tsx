@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+export const notificationTaps = new Set<(data: unknown, action?: string) => void>();
 export const secure = new Map<string, string>();
 
 vi.mock('expo-secure-store', () => ({
@@ -42,6 +43,10 @@ vi.mock('../src/host/native-conversation-filter', async () => {
 });
 vi.mock('../src/host/native-notifications', () => ({
   nativeNotifications: () => ({}),
+  onNotificationTap: (listener: (data: unknown, action?: string) => void) => {
+    notificationTaps.add(listener);
+    return () => notificationTaps.delete(listener);
+  },
 }));
 vi.mock('../src/host/native-notification-avatars', () => ({
   notificationAvatars: { sync: async () => true },
