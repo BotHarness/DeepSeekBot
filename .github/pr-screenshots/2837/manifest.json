@@ -1,0 +1,36 @@
+{
+  "source": "e2cee221af78e1c1a0d90395757c0cdd4c3a9d01",
+  "platform": "iOS Simulator",
+  "device": "iPhone 18 Pro Max",
+  "os": "iOS 27",
+  "locale": "Chinese",
+  "resolution": [
+    1320,
+    2868
+  ],
+  "binarySha256": "d0b5331e8f35cc0361e0ca121ea51208a0fffd4cab0d2f1ff57a431abdd985a0",
+  "build": "0.0.1 (1), local Debug Simulator ad-hoc",
+  "images": {
+    "send-normal.png": "1fdf32979d5ccd449df23fbb4f1602f27de05ba3825d003cd93facd3fc57beaa",
+    "send-muted.png": "6394b07d94ef3d814f6afa04e4dc5184d90ee1157339d21ec4a0c8f8184fb9d6",
+    "send-failed.png": "929fa5208fe550cad81ee1c0ca6b8e309dc7697d70594a1babb92ffc4f1ba6c9",
+    "send-restored.png": "b27bc84214fcf4ed7d58f00e0ff995d8763b05ee368146bc664938fab85f7208",
+    "history-loading.png": "9deb49ab219c3194d291da97b83488653a472f8ee872abb4671fa07309418e38",
+    "history-first.png": "551dc66b3ebeaa0004fb9a0251b7bc955d599d03540e3370258979e09a74b93d",
+    "empty.png": "f1dab2f8800326943288cbbd5053d1aff3c38e2f2d562e85d7d2e6a98e0aefac",
+    "short.png": "a3f4d9d55da67d82419b6996137d356bb694392f985394fa55a9f2aab2a20e15",
+    "search.png": "775cd5ec32ddcf4c56b24744538b8c79c831059de6a97f5556dd60e409238e90",
+    "cold-error.png": "289beeff2bc6e2c6be02915a7755d9dba22924037f3477d36b2965116b3ec377",
+    "list-restored.png": "b7368cf815d8182ce18d7db282f5a37681e990501b2d730d06cd5ae1a4a46cc2",
+    "cold-loading.png": "97fe0c78cfa31f7b9135bde9b46115f4f7eb472b7591e9f6b1def2071349d1d8",
+    "created.png": "605d37b9cf530c551cfcfec930de22adec975e6602da1ab5857d0703ea0a500d",
+    "text-mid-dark.png": "7b305288a40ccfdac83ddde477f637d801b0c0ac3230e6cd930739a19750b410",
+    "text-max-light.png": "bce5c3b78401806eec4f19efdcab60bbd00329be5316dcf19c294ca427d4ab27",
+    "text-max-dark.png": "664429364260af05f7ca9accb924feb02933b2f932af575cb968e0ba7e1834d6",
+    "model-entry.png": "da5789b8d2f84ffe9173e907e9e3148ead2e470c43fcf39bbc7101a87698b407",
+    "text-max-dark-stable.png": "66efe6d423b43fd10a92b06e425e4f6ba2e610e52f827e055f43da4b765f31ed",
+    "create-back.png": "956d884f88fccfb998a34c6cae372a80bdf3fe8a3ca1e11aef47f152d6afe32a"
+  },
+  "privacy": "Reviewed synthetic fixtures only. Original pixels, no edits. Earlier frames retain developer overlay. Live theme-transition keyboard mismatch is disclosed, not a full dark-mode pass.",
+  "podfileLockSha256": "92c18b72a890ea700be840ff09f7f1e2fc9a0f3f70cfb0a412cc422bba19a648"
+}
