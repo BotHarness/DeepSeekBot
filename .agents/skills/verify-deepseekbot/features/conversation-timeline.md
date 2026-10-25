@@ -9,7 +9,7 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - `return-latest` shows an opaque icon-only return button above the composer at its right edge whenever the timeline is away from the latest messages; new live messages add a numeric badge. Hover and press change colour without transparency. It hides at the bottom and follows multiline composer height.
 - `bidirectional-pages` opens a bounded window around the read anchor, then loads cursor pages at the top/bottom while preserving the reading anchor. Holding an edge must not start an unbounded loading loop.
 - `keep-place` puts a Channel back at the message you were reading when you switch away and back within the same page.
-- `fold` folds a settled message taller than 480px to 300px behind `Show all`.
+- `fold` leaves messages expanded by default; with Auto-collapse long messages enabled, a settled message taller than 480px folds to 300px behind `Show all`.
 - `message-time` shows each grouped message's own HH:mm next to its hover actions.
 - `file-layout` keeps attachment names and sizes readable while Open and download controls wrap inside narrow message bubbles. Bubbles fit the larger of their prose and attachments; prose stays left-aligned with `text-wrap: pretty`.
 - `image-preview` opens a thumbnail in an in-page preview that steps through every image loaded in the Channel.
@@ -18,6 +18,8 @@ Reading a Bot DM or group: where the timeline opens, how it keeps your place, an
 - `member-mention` offers icon + label actions in the Channel sidebar member menu. Right-click, Shift+F10, and the member's ellipsis button all offer Mention, which appends one structured Bot mention to the current draft and focuses the composer without opening a DM.
 
 ## How to get to it (user POV)
+
+- Open Bot settings → Messaging to enable Auto-collapse long messages. Long messages start expanded; when folding is enabled, Show all reveals the full body.
 
 - In a Bot DM with Memory updates from another conversation, open its Channel menu → Show what this Bot did elsewhere → Memory display: Compact / Detailed. The same choice is under Channel settings → Show what this Bot did elsewhere → Memory display. Hide Memory updates to disable the choice; show them again to restore it.
 - Enter Bot mode and open a DM that has messages after your last read position: the divider sits about a quarter down the view.
