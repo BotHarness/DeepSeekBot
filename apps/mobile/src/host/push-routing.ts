@@ -17,6 +17,7 @@ import { decideApproval } from './requests';
 class RoutingFailure extends Error {}
 
 const noop = () => {};
+const activeWorkspace = () => () => true;
 const channelKinds = new Set([
   'channel-reply',
   'channel-mention',
@@ -65,6 +66,7 @@ function readyDestination(
 
 export function usePushRouting(
   onPending: (pending: boolean) => void = noop,
+  captureWorkspaceSelection: () => () => boolean = activeWorkspace,
 ): RefCallback<ViewInstance> {
   const router = useRouter();
   const navigation = useNavigationContainerRef();
@@ -74,6 +76,8 @@ export function usePushRouting(
       action: string | undefined;
       version: number;
       selection: number;
+      workspaceCurrent: () => boolean;
+      routeState: ReturnType<typeof navigation.getRootState> | undefined;
     }> = [];
     let version = 0;
     let running = false;
@@ -88,6 +92,13 @@ export function usePushRouting(
           const next = queue.shift();
           if (!next) break;
           const { target, action } = next;
+          const isCurrent = () => {
+            if (!current(next.version) || !next.workspaceCurrent()) return false;
+            if (!navigation.isReady()) return true;
+            const state = navigation.getRootState();
+            if (!next.routeState) next.routeState = state;
+            return state === next.routeState;
+          };
           try {
             const removed = await removeFromPush(
               hostSession.getState().hosts,
@@ -118,11 +129,11 @@ export function usePushRouting(
                   }
                 },
               );
-            if (!current(next.version)) continue;
+            if (!isCurrent()) continue;
             if (next.selection !== hostSession.getSelectionRevision()) continue;
-            if (!(await hostSession.switchTo(target.hostId, () => current(next.version))))
+            if (!(await hostSession.switchTo(target.hostId, () => isCurrent())))
               throw new RoutingFailure(t.sourceChanged);
-            if (!current(next.version)) continue;
+            if (!isCurrent()) continue;
             const client = hostSession.getState().client;
             if (!client) throw new RoutingFailure(t.channelOpeningFailed);
             waiting = new AbortController();
@@ -141,7 +152,7 @@ export function usePushRouting(
               navigation,
               channel !== undefined,
             );
-            if (!current(next.version)) continue;
+            if (!isCurrent()) continue;
             if (channel) {
               const destination = channelDestination(target.hostId, channel, roster);
               if (!destination) throw new RoutingFailure(t.noChannel);
@@ -158,7 +169,7 @@ export function usePushRouting(
               else router.push({ ...href, params: { ...href.params, hostId: target.hostId } });
             }
           } catch (error) {
-            if (current(next.version))
+            if (isCurrent())
               Alert.alert(error instanceof RoutingFailure ? error.message : t.channelOpeningFailed);
           }
         }
@@ -172,7 +183,14 @@ export function usePushRouting(
       if (target === undefined) return;
       version++;
       waiting?.abort();
-      queue.push({ target, action, version, selection: hostSession.getSelectionRevision() });
+      queue.push({
+        target,
+        action,
+        version,
+        selection: hostSession.getSelectionRevision(),
+        workspaceCurrent: captureWorkspaceSelection(),
+        routeState: navigation.isReady() ? navigation.getRootState() : undefined,
+      });
       onPending(true);
       void drain();
     });
@@ -183,5 +201,5 @@ export function usePushRouting(
       offTap();
       offSession();
     };
-  }, [router, navigation, onPending]);
+  }, [router, navigation, onPending, captureWorkspaceSelection]);
 }

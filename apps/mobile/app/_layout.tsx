@@ -41,7 +41,7 @@ function RootNavigator() {
   const theme = useTheme();
   const design = useDesignTheme();
   const [routingPending, setRoutingPending] = useState(false);
-  const routing = usePushRouting(setRoutingPending);
+  const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
