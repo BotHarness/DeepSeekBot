@@ -41,13 +41,18 @@ export function ConversationRow({
   look,
   sourceLabel,
   previewHref,
+  menuActions: suppliedMenuActions,
+  onLongPress,
+  onMenu,
 }: {
   row: Conversation;
   now: Date;
   look?: HostLook | undefined;
-  sourceLabel?: string;
+  sourceLabel?: string | undefined;
   previewHref?: Href | undefined;
-
+  menuActions?: readonly ConversationPeekAction[];
+  onLongPress?: (() => void) | undefined;
+  onMenu?: (() => void) | undefined;
   onPress?: () => void;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -70,21 +75,23 @@ export function ConversationRow({
   const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
   const availableActions = onAction ? actions : [];
-  const menuActions: ConversationPeekAction[] = availableActions.map((action) => ({
-    key: action.key,
-    label: action.label,
-    icon:
-      action.key === 'section'
-        ? 'folder'
-        : action.key === 'read'
-          ? 'checkmark'
-          : action.key === 'pin' || action.key === 'unpin'
-            ? 'pin'
-            : action.key === 'mute'
-              ? 'bell.slash'
-              : 'bell',
-    run: () => act(action.key),
-  }));
+  const menuActions: readonly ConversationPeekAction[] =
+    suppliedMenuActions ??
+    availableActions.map((action) => ({
+      key: action.key,
+      label: action.label,
+      icon:
+        action.key === 'section'
+          ? 'folder'
+          : action.key === 'read'
+            ? 'checkmark'
+            : action.key === 'pin' || action.key === 'unpin'
+              ? 'pin'
+              : action.key === 'mute'
+                ? 'bell.slash'
+                : 'bell',
+      run: () => act(action.key),
+    }));
   const avatar =
     row.kind === 'bot' ? (
       <AvatarSlot>
@@ -110,7 +117,8 @@ export function ConversationRow({
       badge={badge}
       onPress={previewHref ? undefined : onPress}
       onLongPress={
-        Platform.OS === 'android' && availableActions.length > 0
+        onLongPress ??
+        (Platform.OS === 'android' && availableActions.length > 0
           ? () =>
               showActionMenu(
                 title,
@@ -128,8 +136,9 @@ export function ConversationRow({
                   })),
                 avatar,
               )
-          : undefined
+          : undefined)
       }
+      onMenu={onMenu}
       avatar={avatar}
     />
   );
@@ -189,6 +198,7 @@ export function ConversationRowFrame({
   actions = [],
   onAction,
   testID,
+  onMenu,
   look,
   ref,
 }: {
@@ -211,7 +221,9 @@ export function ConversationRowFrame({
   onLongPress?: (() => void) | undefined;
   disabled?: boolean;
   testID?: string;
+  onMenu?: (() => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <Pressable
@@ -222,8 +234,15 @@ export function ConversationRowFrame({
       disabled={disabled || onPress === undefined}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={label}
-      accessibilityActions={actions.map((action) => ({ name: action.key, label: action.label }))}
+      accessibilityActions={[
+        ...actions.map((action) => ({ name: action.key, label: action.label })),
+        ...(onMenu ? [{ name: 'actions', label: t.deletion.actions(title) }] : []),
+      ]}
       onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === 'actions') {
+          onMenu?.();
+          return;
+        }
         const action = actions.find((item) => item.key === event.nativeEvent.actionName);
         if (action) onAction?.(action.key);
       }}

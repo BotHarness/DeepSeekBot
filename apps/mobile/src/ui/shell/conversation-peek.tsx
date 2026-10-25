@@ -7,7 +7,8 @@ export const conversationPeek = Platform.OS === 'ios';
 export type ConversationPeekAction = {
   key: string;
   label: string;
-  icon: NonNullable<LinkMenuActionProps['icon']>;
+  icon?: NonNullable<LinkMenuActionProps['icon']>;
+  destructive?: boolean;
   run(): void;
 };
 
@@ -27,7 +28,12 @@ export function ConversationPeek({
       {actions.length > 0 ? (
         <Link.Menu>
           {actions.map((action) => (
-            <Link.MenuAction key={action.key} icon={action.icon} onPress={action.run}>
+            <Link.MenuAction
+              key={action.key}
+              {...(action.icon ? { icon: action.icon } : {})}
+              destructive={action.destructive === true}
+              onPress={action.run}
+            >
               {action.label}
             </Link.MenuAction>
           ))}

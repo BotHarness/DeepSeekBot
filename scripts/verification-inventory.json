@@ -844,6 +844,14 @@
       "source": "packages/core/src/runtime/subagent-model-tools.ts",
       "task": 2435,
       "guide": ".agents/skills/verify-deepseekbot/features/subagent-presets.md"
+    },
+    {
+      "id": "phone.deletion",
+      "label": "Review and delete Bots, dissolve groups and remove sections from mobile long press",
+      "source": "apps/mobile/src/ui/chat/deletion-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-deletion.md",
+      "task": 2783,
+      "gap": "Expo Web with an isolated Host; iOS/Android native menus and large-text acceptance pending."
     }
   ],
   "scripts": [
@@ -2349,6 +2357,14 @@
       "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2748,
       "sha256": "ee8785b8e2b9d8631d9aebf9d209af76c1d762e101f88363785fe3b65670bf24"
+    },
+    {
+      "path": "scripts/e2e-mobile-deletion-web.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.deletion"],
+      "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks retention, erasure, Tob and sections. Native acceptance remains separate.",
+      "task": 2783,
+      "sha256": "6dea0c5c116ad31febe69cae9d14f5bffa458a3f355a682f2830a6f7a673e6f7"
     }
   ],
   "native": [

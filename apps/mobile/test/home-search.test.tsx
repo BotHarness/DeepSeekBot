@@ -703,12 +703,13 @@ describe('Chats row actions share the Host path', () => {
       expect(view.querySelector('[data-testid="action-menu-trigger"]')).toBeNull();
       const props = rowProps.get('conversation-row-bot:ada')!;
       expect(typeof props.onLongPress).toBe(platform === 'android' ? 'function' : 'undefined');
-      expect(props.accessibilityActions).toEqual(
-        ['pin', 'section', 'mute', 'read'].map((key) => ({
+      expect(props.accessibilityActions).toEqual([
+        ...['pin', 'section', 'mute', 'read'].map((key) => ({
           name: key,
           label: t.rowActions[key as keyof typeof t.rowActions],
         })),
-      );
+        { name: 'actions', label: t.deletion.actions('Ada') },
+      ]);
       const invoke = props.onAccessibilityAction as (event: {
         nativeEvent: { actionName: string };
       }) => void;
@@ -735,18 +736,27 @@ describe('Chats row actions share the Host path', () => {
       call.mockClear();
       await act(async () => invoke({ nativeEvent: { actionName: 'unknown' } }));
       expect(call).not.toHaveBeenCalled();
-      expect(rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBeUndefined();
-      expect(rowProps.get('conversation-row-bot:xiaoming')!.accessibilityActions).toEqual([]);
+      expect(typeof rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBe(
+        platform === 'android' ? 'function' : 'undefined',
+      );
+      expect(rowProps.get('conversation-row-bot:xiaoming')!.accessibilityActions).toEqual([
+        {
+          name: 'actions',
+          label: t.deletion.actions(
+            roster.bots.find((bot) => bot.slug === 'xiaoming')!.displayName,
+          ),
+        },
+      ]);
       if (platform === 'ios') {
         const preview = view.querySelector(
           '[data-testid="conversation-row-bot:ada"]',
         )!.parentElement!;
         expect(preview.querySelector('[data-testid="native-preview"]')).not.toBeNull();
-        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(4);
+        expect(preview.querySelectorAll('[data-menu-title]')).toHaveLength(5);
       }
     },
   );
-  it('Android scrolling has no row swipe recognizer; long press retains three actions', async () => {
+  it('Android scrolling has no row swipe recognizer; long press retains organization actions and adds deletion', async () => {
     Platform.OS = 'android';
     hostState.actions = true;
     hostState.unread = true;
@@ -759,6 +769,8 @@ describe('Chats row actions share the Host path', () => {
       t.rowActions.pin,
       t.rowActions.section,
       t.rowActions.mute,
+      t.rowActions.read,
+      t.deletion.deleteBot,
     ]);
     expect(call).toHaveBeenLastCalledWith('rosterBatch', { action: 'pin', channelIds: ['dm-ada'] });
     await rowMenuAction(view, 'mute');

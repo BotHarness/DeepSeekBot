@@ -1,52 +1,32 @@
-import { useRouter } from 'expo-router';
 import { useHostLook } from '../../host/native-host-look';
-import { ConversationRow } from './conversation-row';
-import {
-  conversationActions,
-  conversationChannelId,
-  runConversationAction,
-} from './conversation-actions';
+import type { DeletionTarget } from '../../host/deletion';
+import { ManagedConversationRow } from './managed-conversation-row';
 import { shownHostName } from '../design/host-look';
-import { showAppDialog } from '../primitives/app-dialog';
-import { conversationHref, openConversation } from '../shell/open-conversation';
-import { conversationPeek } from '../shell/conversation-peek';
-import { useStrings } from '../strings';
 import type { EnvironmentChatRow as Row } from './environment-chat-list';
-export function HostRow({ item }: { item: Extract<Row, { type: 'computer' }> }) {
-  const router = useRouter();
-  const t = useStrings();
+
+export function HostRow({
+  item,
+  onDelete,
+  onError,
+}: {
+  item: Extract<Row, { type: 'computer' }>;
+  onDelete(target: DeletionTarget): void;
+  onError(): void;
+}) {
   const { saved, client, inbox, snapshot } = item.host;
   const look = useHostLook(saved.hostId);
-  const row = (
-    <ConversationRow
+  return (
+    <ManagedConversationRow
       row={item.conversation}
-      now={new Date()}
+      pinned={item.pinned}
+      client={client}
+      inbox={inbox}
+      hostId={saved.hostId}
       look={look}
       sourceLabel={shownHostName(look, saved.hostName)}
-      previewHref={conversationPeek ? conversationHref(item.conversation, saved.hostId) : undefined}
-      onPress={() => openConversation(router, item.conversation, saved.hostId)}
-      actions={conversationActions(item.conversation, {
-        pinned: item.pinned,
-        hostMuted:
-          snapshot.roster?.arrangement?.muted?.includes(
-            conversationChannelId(item.conversation) ?? '',
-          ) === true,
-      })}
-      onAction={(key) => {
-        if (key === 'section') {
-          const channelId = conversationChannelId(item.conversation);
-          if (channelId)
-            router.push({
-              pathname: '/conversation-section',
-              params: { hostId: saved.hostId, channelId },
-            });
-          return;
-        }
-        runConversationAction(client, inbox, item.conversation, key).catch(() =>
-          showAppDialog(t.rowActions.failed, undefined, [{ text: t.done }]),
-        );
-      }}
+      arrangement={snapshot.roster?.arrangement}
+      onDelete={onDelete}
+      onError={onError}
     />
   );
-  return row;
 }

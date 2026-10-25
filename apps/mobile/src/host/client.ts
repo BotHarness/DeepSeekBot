@@ -37,6 +37,7 @@ export type ConnectionState =
   | { status: 'stopped'; route: string };
 
 export interface RosterBot {
+  tob?: boolean;
   slug: string;
   displayName: string;
   avatarUrl?: string;
@@ -369,7 +370,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
           return {
             slug: bot.slug,
             displayName: bot.displayName,
+            tob: bot.tob !== undefined,
             ...(bot.avatar === undefined ? {} : avatar(bot.avatar)),
+
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),

@@ -50,6 +50,26 @@ vi.mock('../src/ui/shell/host-drawer', () => ({
     typeof children === 'function' ? children(0) : children,
 }));
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
+vi.mock('../src/ui/primitives/item-menu', () => ({
+  ItemMenu: ({
+    title,
+    actions,
+    children,
+  }: {
+    title: string;
+    actions: Array<{ key: string; run(): void }>;
+    children(open: () => void): ReactNode;
+  }) => (
+    <div data-menu={title}>
+      {children(() => {})}
+      {actions.map((action) => (
+        <button key={action.key} data-menu-action={action.key} onClick={action.run}>
+          {action.key}
+        </button>
+      ))}
+    </div>
+  ),
+}));
 vi.mock('../src/ui/connection-banner', () => ({ ConnectionBanner: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 
@@ -232,6 +252,19 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
     });
     expect(visible().some((node) => node.textContent?.includes('Bot b'))).toBe(true);
     expect(b.channel('dm-same').messages).toHaveLength(1);
+    b.methods.set('channelGroupDelete', () => ({ deleted: true }));
+    const remove = view.querySelector<HTMLButtonElement>(
+      '[data-menu="Group b"] [data-menu-action="delete"]',
+    )!;
+    await act(async () => remove.click());
+    expect(view.textContent).toContain(t.deletion.scope('b'));
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="deletion-confirm"]')!.click(),
+    );
+    expect(b.calls.filter((call) => call.method === 'channelGroupDelete')).toEqual([
+      { method: 'channelGroupDelete', args: { channelId: 'group' } },
+    ]);
+    expect(a.calls.some((call) => call.method === 'channelGroupDelete')).toBe(false);
   } finally {
     await act(async () => {
       root.unmount();

@@ -4,6 +4,7 @@ import type { ColorValue } from 'react-native';
 import { SystemSymbol } from './system-symbol';
 
 const symbols = {
+  delete: { ios: 'trash', android: 'delete' },
   settings: { ios: 'gearshape', android: 'settings' },
   computer: { ios: 'desktopcomputer', android: 'computer' },
   cloud: { ios: 'cloud', android: 'cloud' },

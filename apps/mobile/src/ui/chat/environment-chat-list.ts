@@ -23,7 +23,10 @@ export type EnvironmentChatRow =
       at?: string;
     };
 
-type Section = Extract<ChatListItem, { kind: 'section' }> & { type: 'section' };
+type Section = Extract<ChatListItem, { kind: 'section' }> & {
+  type: 'section';
+  host?: ConnectedHost;
+};
 export type EnvironmentChatItem = EnvironmentChatRow | Section;
 export const ALL_HOSTS_COLLAPSE = JSON.stringify(['view', 'all']);
 
@@ -80,7 +83,7 @@ export function environmentChatList(
       return id ? [id] : [];
     }),
   ).flatMap((item): EnvironmentChatItem[] => {
-    if (item.kind === 'section') return [{ ...item, type: 'section' }];
+    if (item.kind === 'section') return [{ ...item, type: 'section', host }];
     const row = byKey.get(item.row.key);
     return row ? [row] : [];
   });

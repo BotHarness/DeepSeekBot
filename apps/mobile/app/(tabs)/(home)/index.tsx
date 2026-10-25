@@ -21,8 +21,10 @@ import { cloudConversations, useCloudConversations } from '../../../src/cloud/na
 import { cloudViewScope } from '../../../src/cloud/workspace-directory';
 import { cloudError } from '../../../src/cloud/client';
 import type { CloudConversation } from '../../../src/cloud/conversations';
-import { conversations, searchKey } from '../../../src/ui/chat/conversations';
-
+import { DeletionSheet } from '../../../src/ui/chat/deletion-sheet';
+import type { DeletionTarget } from '../../../src/host/deletion';
+import { ItemMenu } from '../../../src/ui/primitives/item-menu';
+import { conversations, searchKey, PINNED_SECTION } from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
@@ -108,6 +110,9 @@ const HomeContent = memo(function HomeContent({
   const [refreshing, setRefreshing] = useState(false);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string>();
+  const [deleting, setDeleting] = useState<{ host: ConnectedHost; target: DeletionTarget }>();
+  const [actionError, setActionError] = useState(false);
+  const deletionLook = useHostLook(deleting?.host.saved.hostId);
   const [refreshFailedHost, setRefreshFailedHost] = useState<string>();
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
   const unpaired =
@@ -382,6 +387,11 @@ const HomeContent = memo(function HomeContent({
                   keyExtractor={(r) => r.key}
                   ListHeaderComponent={
                     <>
+                      {actionError ? (
+                        <Text accessibilityRole="alert" tone="danger">
+                          {t.rowActions.failed}
+                        </Text>
+                      ) : null}
                       {saved && environment.key === computerEnvironmentKey(saved.hostId) && (
                         <ConnectionBanner
                           connection={snapshot.connection}
@@ -437,19 +447,51 @@ const HomeContent = memo(function HomeContent({
                   }
                   renderItem={({ item }) =>
                     item.type === 'section' ? (
-                      <SectionHeader
-                        testID={`chat-section-${item.id}`}
-                        name={item.name ?? t.pinnedSection}
-                        count={item.count}
-                        needsYou={item.needsYou}
-                        unread={item.unread}
-                        collapsed={item.collapsed}
-                        onToggle={() => {
-                          sectionCollapse.toggle(collapseScope, item.id);
-                        }}
-                      />
+                      <ItemMenu
+                        title={item.name ?? t.pinnedSection}
+                        actions={
+                          item.id === PINNED_SECTION || !item.host
+                            ? []
+                            : [
+                                {
+                                  key: 'delete-section',
+                                  glyph: 'delete',
+                                  label: t.deletion.deleteSection,
+                                  destructive: true,
+                                  run: () =>
+                                    setDeleting({
+                                      host: item.host!,
+                                      target: {
+                                        kind: 'section',
+                                        id: item.id,
+                                        name: item.name ?? '',
+                                      },
+                                    }),
+                                },
+                              ]
+                        }
+                      >
+                        {(open, nativeContextMenu) => (
+                          <SectionHeader
+                            {...item}
+                            testID={`chat-section-${item.id}`}
+                            name={item.name ?? t.pinnedSection}
+                            onLongPress={
+                              nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
+                            }
+                            onMenu={item.id === PINNED_SECTION ? undefined : open}
+                            onToggle={() => {
+                              sectionCollapse.toggle(collapseScope, item.id);
+                            }}
+                          />
+                        )}
+                      </ItemMenu>
                     ) : item.type === 'computer' ? (
-                      <HostRow item={item} />
+                      <HostRow
+                        item={item}
+                        onError={() => setActionError(true)}
+                        onDelete={(target) => setDeleting({ host: item.host, target })}
+                      />
                     ) : (
                       <CloudConversationRow
                         row={item.conversation}
@@ -464,6 +506,19 @@ const HomeContent = memo(function HomeContent({
           )}
         </HomeHeader>
       </HostDrawerEdge>
+      {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
+        <DeletionSheet
+          key={`${deleting.host.saved.hostId}:${deleting.target.kind}:${deleting.target.id}`}
+          target={deleting.target}
+          client={deleting.host.client}
+          hostName={shownHostName(deletionLook, deleting.host.saved.hostName)}
+          onClose={() => setDeleting(undefined)}
+          onDeleted={() => {
+            setDeleting(undefined);
+            void deleting.host.inbox.refresh();
+          }}
+        />
+      ) : null}
     </>
   );
 });
