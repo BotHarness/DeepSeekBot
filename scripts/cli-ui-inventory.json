@@ -865,6 +865,15 @@
         "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
       ],
       "commands": ["appearance-clients", "host-look"]
+    },
+    {
+      "id": "message-feedback",
+      "description": "Single-message frozen evidence preview, local download and explicit private submission.",
+      "scope": "Host diagnostics",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
+      ],
+      "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
     }
   ]
 }

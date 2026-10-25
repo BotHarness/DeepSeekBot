@@ -1406,3 +1406,28 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 ```
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.
+### Message feedback (#2811)
+
+Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,
+redacted snapshot. Preview defaults to 20 messages before and after the anchor; each count accepts
+0–100. `conversation`, `sessions`, `inbox`, `deliveries`, and `relatedChats` default to true;
+`wholeSessions` defaults to false. Inspect `files`, category choices and `summary.omissions` before
+submitting. Execution records can contain repeated chat text even with `conversation: false`.
+
+```bash
+printf '%s' '{"channelId":"<channel>","messageId":"<message>","before":20,"after":20}' | deepseekbot feedback-preview
+printf '%s' '{"token":"<preview-token>"}' | deepseekbot feedback-download --out evidence.zip
+printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-response"],"comment":"Synthetic QA"}}' | deepseekbot feedback-submit --confirm
+```
+
+Each command uses the normal live Host authentication and emits one JSON document. Download
+creates a new file exclusively. Submit requires `--confirm`; rating is `good` or `bad`, tags are
+optional fixed categories and comment accepts up to 500 Unicode characters. Secrets and content
+belong on stdin/files, never command arguments. Preview tokens expire after 30 minutes, are scoped
+to this Host connection, and only the last four snapshots remain. `preview-stale` requires a new
+preview. A failed submission freezes its rating and snapshot; retry that same request to retain the
+same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId` and `expiresAt`.
+
+The Host must opt in with `BOTHARNESS_FEEDBACK_ENDPOINT`; otherwise preview/download work but
+submit returns `feedback-unavailable`. Only `https://feedback.botharness.ai/feedback` and loopback
+HTTP `/feedback` are accepted; redirects are refused. See [receiver operations](message-feedback.md).

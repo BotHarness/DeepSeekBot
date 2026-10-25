@@ -74,6 +74,7 @@ export const RULES = [
   ),
   related('packages/*/*.yml', 'Product patches'),
   related('packages/*/wrangler.jsonc', 'Worker configs'),
+  related('packages/*/wrangler.*.jsonc', 'Named Worker configs'),
   none(
     'packages/*/{README.md,THIRD_PARTY_NOTICES.md,LICENSE,.gitignore}',
     'Package prose and ignores',
