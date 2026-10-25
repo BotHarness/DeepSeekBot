@@ -64,7 +64,9 @@ export default function GroupInfoScreen() {
       }
       actions={actions}
       pickAvatar={pickAvatarImage}
-      onOpenBot={(slug) => router.push({ pathname: '/bot/[slug]', params: { slug } })}
+      onOpenBot={(slug) =>
+        router.push({ pathname: '/bot/[slug]', params: { slug, hostId: saved?.hostId } })
+      }
       onDisbanded={() => router.dismissAll()}
     />
   );

@@ -1,10 +1,12 @@
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { NavigationAction } from 'expo-router/react-navigation';
-import { channelRouteId } from '../src/ui/shell/channel-navigation';
+import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 
 export function channelNavigationHarness() {
-  const original = StackRouter({ initialRouteName: '(tabs)' });
-  const reduce = original.getStateForAction!;
+  const original = StackRouter({ initialRouteName: '(tabs)' }) as Parameters<
+    typeof channelStackRouter
+  >[0];
+  const reduce = channelStackRouter(original).getStateForAction!;
   const options = {
     routeNames: [
       '(tabs)',
@@ -37,7 +39,7 @@ export function channelNavigationHarness() {
     isReady: () => true,
     getRootState: () => state,
     dispatch(action: NavigationAction) {
-      const next = reduce(state, action as Parameters<typeof reduce>[1], options);
+      const next = reduce(state, action, options);
       if (next && typeof next === 'object') state = next.state;
     },
   };
