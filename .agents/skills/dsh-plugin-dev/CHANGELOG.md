@@ -10,6 +10,8 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented Electron desktop ASAR filesystem behavior and the separate physical-file installer verification required for runtime reuse ([#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)).
+
 - Synchronized downstream installation guides with the verified Tobs 1.5.1 packages and distinguished the new command from its compatibility entry; DSH/Cordis Context and Skill behavior are unchanged ([#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)).
 
 - Updated the downstream approval guide and verification journey for explicit standing management/device authorizations; DSH/Cordis Context and Skill behavior are unchanged ([#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)).

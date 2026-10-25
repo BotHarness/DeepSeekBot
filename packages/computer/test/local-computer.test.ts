@@ -106,7 +106,11 @@ describe('macOS Local Computer', () => {
     const driver = fakeDriver({ accessibility: false, screen_recording: true });
     const provider = createLocalComputerProvider({ driver, runner: runner(), platform: 'darwin' });
     await expect(provider.start()).rejects.toThrow('Accessibility and Screen Recording');
-    expect(await provider.status()).toMatchObject({ state: 'failed' });
+    expect(await provider.status()).toMatchObject({
+      state: 'failed',
+      refusal: 'permissions-required',
+      permissions: { accessibility: false, screenRecording: true },
+    });
     expect(driver.call).toHaveBeenCalledTimes(1);
     expect(driver.close).toHaveBeenCalledTimes(1);
     vi.mocked(driver.call).mockResolvedValue({

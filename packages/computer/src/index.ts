@@ -1,3 +1,4 @@
+import { openComputerPermissionSettings } from './permission-settings.js';
 import { spawn } from 'node:child_process';
 import ComputerUseRegistry from './native-registry.js';
 import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
@@ -979,6 +980,30 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
         { ok: false, code: 'authorize-required', error: 'explicit authorization required' },
         400,
       );
+
+    const permissionSettingsRoute = {
+      path: '/api/computer/open-permission-settings',
+      methods: ['POST'] as const,
+      requestBody: 'buffered' as const,
+      fetch: async (request: Request): Promise<Response> => {
+        const body = await parseBody(request);
+        const result = await openComputerPermissionSettings({
+          permission: body.permission,
+          authorize: body.authorize,
+          target: target(),
+          runner,
+        });
+        diagnostics.record(
+          'lifecycle',
+          `phase=permission-settings result=${result.ok ? 'opened' : result.code}`,
+        );
+        return json(result, result.ok ? 200 : 400);
+      },
+    };
+    connectionCtx.effect(
+      () => connection.fetch.register(permissionSettingsRoute),
+      'botharness-computer: permission settings route',
+    );
 
     const exportRoute = {
       path: '/api/computer/export',

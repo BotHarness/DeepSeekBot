@@ -57,6 +57,8 @@ export interface ComputerStatus {
   readonly phase?: ComputerPhase;
   readonly detail?: string;
   readonly progress?: ComputerProgress;
+  readonly refusal?: string;
+  readonly permissions?: { readonly accessibility: boolean; readonly screenRecording: boolean };
   readonly storage?: ComputerStorage;
   readonly missing?: ComputerMissingPackages;
 }

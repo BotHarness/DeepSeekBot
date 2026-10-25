@@ -485,3 +485,8 @@ skip ownership checks, or print raw environments, which can contain credentials.
 ### Native Subagent wake and prompt assembly (#2435)
 
 In DSH 0.2.1-rc.3, native child reports wake an idle parent independently of an application turn. Agent inbox claim notifications precede system-prompt assembly; assembly precedes agent/pre-step and snapshots installModelSelection. Establish the application-owned Bot turn before assembly, or the first resumed request can use a stale model. Observe trusted source metadata, validate Session Ownership, and join the existing Bot queue; never replay the report or borrow a prior Human source. Tie readiness to the actual Adapter tool context, not slower Runtime cleanup. Direct CLI calls are not live Orchestrator turns for stop/steer selection. Qualify this sequence against the running Host; an API send receipt alone is insufficient.
+
+
+## Additional verified pitfall — #2761 desktop ASAR filesystem
+
+The Electron desktop carrier patches Node filesystem APIs to interpret `.asar` archives as virtual directories. A downloaded capture-runtime archive must instead be inventoried, hashed and cleaned as physical files. In Electron, use its built-in `original-fs` for those installer operations; keep ordinary Node filesystem APIs in CLI Hosts. Do not toggle process-wide `noAsar`, which affects unrelated DSH modules. A valid cache can pass CLI verification but fail the desktop carrier, trigger another download and leave cleanup with `ENOTEMPTY`. Qualify both carriers: `BH_TEST_ELECTRON=<desktop executable> pnpm exec vitest run packages/computer/test/local-video-electron.test.ts` verifies two starts with zero downloads. Full archive installation, native UI readiness and mobile viewing remain separate acceptance steps.
