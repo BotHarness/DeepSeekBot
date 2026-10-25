@@ -26,7 +26,9 @@ vi.mock('../src/ui/shell/recent-chats', () => ({
   chatHref: () => '',
   useRecentChat: () => () => {},
 }));
-vi.mock('../src/host/native-source-drafts', () => ({ useSourceDraft: () => ['', () => {}] }));
+vi.mock('../src/host/native-source-drafts', () => ({
+  useSourceDraft: () => ['', () => {}, { loaded: true, failed: false, retry: async () => true }],
+}));
 vi.mock('expo-router', () => ({
   useIsFocused: () => true,
   usePreventRemove: () => {},
