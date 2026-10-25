@@ -58,6 +58,27 @@ The device-local conversation filter is shared with Activity as a browsing scope
 
 Activity preserves its category pager. Unsupported Cloud scope hides unrelated Computer data/actions and its badge; All explicitly discloses incomplete coverage. This does not supply Cloud attention contracts or concurrent multiple-Computer aggregation. Existing source-bound messages/drafts and explicit sends remain unchanged.
 
+## Concurrent paired Host Chats (#2782)
+
+The mobile session owner maintains one existing HostClient and Inbox per saved pairing.
+Changing the browsing scope or management selection retains other connections and
+subscriptions. The drawer consumes that same pool instead of creating probe clients.
+Removing a pairing or replacing its credentials disposes only that source session.
+This avoids a second connection lifecycle and keeps each Host as the message authority.
+
+All projects only online, loaded Host rosters into a source-qualified directory, retaining
+Cloud directory behavior. It flattens Host sections into recent-message order and one
+collapsible Pinned section; individual Host scopes retain their own sections and order.
+Routes and nested screens carry the originating Host ID; identical
+local Bot or Channel IDs never authorize a fallback to the management Host. Open offline
+chats retain history and device-local drafts, disable sends and never replay drafts on recovery.
+
+This decision extends the Chats slice above. Activity composes each online Host's existing
+Inbox observer and paginated count reader. Source-qualified filters, records and mutations
+retain their Host owner. Counts preserve category preferences; notification routes retain
+the originating Host. Foreground return reconciles every pairing independently. Android/iOS navigation, previews and background delivery still
+require separate runtime qualification; automated screen/transport tests do not establish it.
+
 ## Amendment: Cloud Channel navigation state (2026-10-26)
 
 For #2791 / #2801, Cloud list and detail locations belong to the existing Expo root Stack. The compatible `/cloud-channels` URL uses a scoped `channelId` parameter to distinguish detail from list. Root route identity contains instance, account scope, Organization, guest access and Channel ID. Local Channel objects are content only and cannot change the current location.

@@ -66,7 +66,10 @@ export default function BotProfileScreen() {
             params: { slug: bot.slug, id: routine.id },
           }),
         onNewRoutine: () =>
-          router.push({ pathname: '/bot/[slug]/routine-new', params: { slug: bot.slug } }),
+          router.push({
+            pathname: '/bot/[slug]/routine-new',
+            params: { slug: bot.slug, hostId: saved?.hostId },
+          }),
         onMessage: () => {
           if (saved)
             navigateChannel(
@@ -83,7 +86,7 @@ export default function BotProfileScreen() {
               onBrowser: () =>
                 router.push({
                   pathname: '/browser/[slug]',
-                  params: { slug: bot.slug },
+                  params: { slug: bot.slug, hostId: saved?.hostId },
                 }),
             }
           : {}),
@@ -94,14 +97,20 @@ export default function BotProfileScreen() {
               onComputer: () =>
                 router.push({
                   pathname: '/computer/[slug]',
-                  params: { slug: bot.slug },
+                  params: { slug: bot.slug, hostId: saved?.hostId },
                 }),
             }
           : {}),
         onNotifications: () =>
-          router.push({ pathname: '/bot/[slug]/notifications', params: { slug: bot.slug } }),
+          router.push({
+            pathname: '/bot/[slug]/notifications',
+            params: { slug: bot.slug, hostId: saved?.hostId },
+          }),
         onOpenActivity: () =>
-          router.push({ pathname: '/bot/[slug]/activity', params: { slug: bot.slug } }),
+          router.push({
+            pathname: '/bot/[slug]/activity',
+            params: { slug: bot.slug, hostId: saved?.hostId },
+          }),
         onOpenMemory: (entry) =>
           router.push({
             pathname: '/bot/[slug]/memory',

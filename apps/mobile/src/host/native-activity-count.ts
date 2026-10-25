@@ -1,10 +1,9 @@
 import { File, Paths } from 'expo-file-system';
 import { useMemo, useSyncExternalStore } from 'react';
 
-import { createActivityCountPreferences, observeActivityCount } from './activity-count';
-import { useConversationFilter } from './native-conversation-filter';
-import { includesComputerActivity } from './conversation-environments';
-import { useHostSession } from './host-session';
+import { createActivityCountPreferences } from './activity-count';
+import { useActivitySources } from './native-activity-sources';
+import { observeActivitySourceCount } from './activity-sources';
 
 const file = () => new File(Paths.document, 'deepseekbot-activity-count.json');
 
@@ -27,21 +26,11 @@ export function useActivityCountPreferences() {
   );
 }
 
-const empty = { count: undefined, stale: false };
-
 export function useActivityCount() {
-  const { saved, client, inbox } = useHostSession();
-  const [scope] = useConversationFilter();
-  const available = includesComputerActivity(scope, saved?.hostId);
+  const sources = useActivitySources();
   const observer = useMemo(
-    () =>
-      available && client && inbox
-        ? observeActivityCount(client, inbox, activityCountPreferences)
-        : undefined,
-    [available, client, inbox],
+    () => observeActivitySourceCount(sources, activityCountPreferences),
+    [sources],
   );
-  return useSyncExternalStore(
-    observer?.subscribe ?? (() => () => {}),
-    observer?.getSnapshot ?? (() => empty),
-  );
+  return useSyncExternalStore(observer.subscribe, observer.getSnapshot);
 }

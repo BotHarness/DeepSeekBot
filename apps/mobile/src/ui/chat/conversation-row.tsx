@@ -39,6 +39,7 @@ export function ConversationRow({
   actions = [],
   onAction,
   look,
+  sourceLabel,
   previewHref,
   menuActions: suppliedMenuActions,
   onLongPress,
@@ -47,6 +48,7 @@ export function ConversationRow({
   row: Conversation;
   now: Date;
   look?: HostLook | undefined;
+  sourceLabel?: string | undefined;
   previewHref?: Href | undefined;
   menuActions?: readonly ConversationPeekAction[];
   onLongPress?: (() => void) | undefined;
@@ -69,7 +71,8 @@ export function ConversationRow({
         : t.members(row.channel.memberCount);
   const badge = countBadge(row);
   const time = shortTime(row.at, now);
-  const label = rowLabel(row, title, status, preview);
+  const description = rowLabel(row, title, status, preview);
+  const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
   const availableActions = onAction ? actions : [];
   const menuActions: readonly ConversationPeekAction[] =
@@ -103,6 +106,7 @@ export function ConversationRow({
       actions={onAction ? actions : []}
       onAction={act}
       title={title}
+      sourceLabel={sourceLabel}
       source="computer"
       look={look}
       label={label}
@@ -179,6 +183,7 @@ export function ConversationGroupAvatar({ avatar }: { avatar?: string | undefine
 
 export function ConversationRowFrame({
   title,
+  sourceLabel,
   source,
   label,
   preview,
@@ -197,7 +202,9 @@ export function ConversationRowFrame({
   look,
   ref,
 }: {
+  sourceLabel?: string | undefined;
   ref?: Ref<ViewInstance>;
+
   look?: HostLook | undefined;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
@@ -285,6 +292,11 @@ export function ConversationRowFrame({
             </Text>
           )}
         </View>
+        {sourceLabel ? (
+          <Text variant="meta" tone="subtle" numberOfLines={1}>
+            {sourceLabel}
+          </Text>
+        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"

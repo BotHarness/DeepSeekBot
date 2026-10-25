@@ -47,6 +47,12 @@ vi.mock('../src/host/native-notifications', () => ({
   },
 }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
+vi.mock('../src/host/native-conversation-filter', async () => {
+  const { createConversationFilter } = await import('../src/host/conversation-filter');
+  return {
+    conversationFilter: createConversationFilter({ read: async () => undefined, write() {} }),
+  };
+});
 vi.mock('../src/host/client', () => ({
   createHostClient: () => ({
     stop() {},

@@ -1,3 +1,4 @@
+import { HostScope } from '../../src/host/host-scope';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { TextInput } from '../../src/ui/primitives/system-text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -39,16 +40,22 @@ import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';
 const idle: ComputerViewerState = { status: 'loading', control: false };
 
 export default function ComputerScreen() {
-  return <LocalComputerScreen Legacy={LegacyComputerScreen} />;
+  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  return (
+    <HostScope value={hostId}>
+      <LocalComputerScreen Legacy={LegacyComputerScreen} />
+    </HostScope>
+  );
 }
 
 function LegacyComputerScreen() {
   const t = useStrings();
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
+
   const router = useRouter();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const { client } = useHostSession();
+  const { client } = useHostSession(hostId);
   const snapshot = useHostSnapshot(client);
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const viewer = useMemo(
