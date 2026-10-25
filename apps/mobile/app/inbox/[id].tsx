@@ -24,13 +24,13 @@ import { useStrings } from '../../src/ui/strings';
 import { useTheme } from '../../src/ui/theme';
 
 type Params = {
+  hostId?: string;
   id: string;
   kind: string;
   botSlug: string;
   summary?: string;
   channelId?: string;
   messageId?: string;
-  hostId?: string;
 };
 
 export default function InboxItemScreen() {
@@ -38,10 +38,12 @@ export default function InboxItemScreen() {
   const theme = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<Params>();
-  const { saved, client, inbox } = useHostSession();
-  const [openedOn, setOpenedOn] = useState(saved?.hostId);
-  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
+  const initial = useHostSession();
+  const [openedOn, setOpenedOn] = useState(initial.saved?.hostId);
+  if (openedOn === undefined && initial.saved?.hostId !== undefined)
+    setOpenedOn(initial.saved.hostId);
   const expectedHostId = params.hostId ?? openedOn;
+  const { saved, client, inbox } = useHostSession(expectedHostId);
   const navigation = useNavigationContainerRef();
   const [openNotice, setOpenNotice] = useState<string>();
   const snapshot = useHostSnapshot(client);

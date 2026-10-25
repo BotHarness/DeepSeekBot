@@ -40,7 +40,7 @@ const {
   rowProps,
 } = vi.hoisted(() => ({
   push: vi.fn(),
-  call: vi.fn(async () => ({})),
+  call: vi.fn(async (..._args: unknown[]) => ({})),
   refresh: vi.fn(async () => undefined),
   menus: [] as Array<{ text: string; onPress?: () => unknown }[]>,
   swipeConfigs: [] as Array<Record<string, unknown>>,
@@ -149,6 +149,19 @@ const roster: RosterView = {
   channels: [{ id: 'launch-team', name: 'Launch team', memberCount: 3, members: [] }],
 };
 
+const activityClient = {
+  getSnapshot: () => ({ connection: { status: 'connected' }, roster }),
+  subscribe: () => () => {},
+  onLive: () => () => {},
+  refresh,
+  call: async (method: string, args?: { category?: string }) => {
+    if (method === 'humanAttention')
+      return { queryVersion: 1, items: args?.category === 'action' ? hostState.activityItems : [] };
+    if (method === 'channelUnreadCounts') return { channels: [] };
+    return call(method, args);
+  },
+};
+
 vi.mock('../src/host/native-conversation-filter', async () => {
   const { useSyncExternalStore } = await import('react');
   const { createConversationFilter } = await import('../src/host/conversation-filter');
@@ -245,6 +258,29 @@ vi.mock('expo-router', () => {
   };
 });
 vi.mock('../src/host/host-session', () => ({
+  useHostSessions: () =>
+    hostState.removed
+      ? []
+      : [
+          {
+            saved: { hostId: hostState.hostId, hostName: 'studio' },
+            client: hostState.live ?? activityClient,
+            inbox: { refresh: async () => {} },
+            snapshot: hostState.live
+              ? useSyncExternalStore(hostState.live.subscribe, hostState.live.getSnapshot)
+              : {
+                  connection: {
+                    status: hostState.connecting ? 'connecting' : 'connected',
+                    route: '',
+                  },
+                  roster: hostState.connecting ? undefined : roster,
+                },
+            attention: hostState.unread
+              ? { status: 'ready', sections: { action: [] }, unread: { 'dm-ada': 2 } }
+              : { status: 'loading' },
+          },
+        ],
+  quietChannels: { get: () => [] },
   useHostSession: () => ({
     saved: hostState.removed ? null : { hostId: hostState.hostId, hostName: 'studio' },
     client: hostState.live ?? (hostState.actions ? { call, refresh } : undefined),
@@ -283,6 +319,10 @@ vi.mock('expo-symbols', () => ({
   SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
 }));
 vi.mock('../src/host/native-host-look', () => ({
+  hostLooks: {
+    look: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
+    subscribe: () => () => {},
+  },
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' }, color: hostState.color }),
 }));
 vi.mock('../src/ui/shell/host-drawer', async () => {
@@ -343,7 +383,7 @@ afterEach(() => {
   delete roster.bots[0]!.latestMessageId;
   delete roster.arrangement;
   delete roster.sorting;
-  for (const id of ['h1', 'h2'])
+  for (const id of ['h1', 'h2', JSON.stringify(['view', 'all'])])
     for (const section of sectionCollapse.collapsed(id)) sectionCollapse.toggle(id, section);
   call.mockClear();
   refresh.mockClear();
@@ -580,7 +620,7 @@ describe('Search in the Chats header', () => {
     expect(view.textContent).toContain('Ada');
     expect(view.textContent).toContain(t.cloudListUnavailable);
   });
-  it('retries an initially unreachable Computer from All without showing a successful empty list', async () => {
+  it('keeps All quiet and retries an initially unreachable selected Computer', async () => {
     const transport = new FakeHost();
     transport.kill();
     const client = createHostClient({
@@ -593,6 +633,10 @@ describe('Search in the Chats header', () => {
     client.start();
     await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('unreachable'));
     const view = await home();
+    expect(view.textContent).toContain(t.noOnlineChats);
+    expect(view.textContent).not.toContain(t.hostListLoadFailed);
+    expect(view.querySelector('[data-testid="chat-list-retry"]')).toBeNull();
+    await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
     expect(view.textContent).toContain(t.hostListLoadFailed);
     expect(view.textContent).not.toContain(t.hostListUnavailable);
     expect(view.textContent).not.toContain(t.cloudChannels.empty);
@@ -616,6 +660,7 @@ describe('Search in the Chats header', () => {
     hostState.live = client;
     client.start();
     await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    conversationFilter.set(computerEnvironmentKey('h1'));
     const view = await home();
     const loadedRoster = client.getSnapshot().roster;
     expect(loadedRoster?.bots.length).toBeGreaterThan(0);
@@ -861,7 +906,7 @@ describe('Search in the Chats header', () => {
       }
       const view = await home();
       expect(view.querySelector('[data-testid="conversation-row-bot:ada"]')).not.toBeNull();
-      expect(view.querySelector('[data-testid="chat-section-work"]')).not.toBeNull();
+      expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
       expect(view.querySelector('[role="tab"]')).toBeNull();
       expect(view.querySelector('[data-testid="pager-next"]')).toBeNull();
       await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'same-name-empty')));
@@ -920,7 +965,7 @@ describe('Search in the Chats header', () => {
       await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'org_a')));
       expect(view.querySelector('[data-testid="chat-section-work"]')).toBeNull();
       expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
-      expect(rows(view).join(' ')).not.toContain('Ada, Done');
+      expect(rows(view).join(' ')).not.toContain('Ada, Done, studio');
       expect(rows(view).join(' ')).toContain('Cloud general');
       hostState.connecting = true;
       await act(async () => conversationFilter.set(cloudEnvironmentKey(scope, 'empty')));
@@ -943,9 +988,9 @@ describe('Search in the Chats header', () => {
     expect(rows(view)).toHaveLength(3);
 
     await type(view, 'ＡＤ');
-    expect(rows(view)).toEqual(['Ada, Done']);
+    expect(rows(view)).toEqual(['Ada, Done, studio']);
     await act(async () =>
-      view.querySelector<HTMLButtonElement>('button[aria-label="Ada, Done"]')!.click(),
+      view.querySelector<HTMLButtonElement>('button[aria-label="Ada, Done, studio"]')!.click(),
     );
     expect(channelHistory.state.routes.at(-1)).toMatchObject({
       name: 'dm/[slug]',
@@ -953,7 +998,7 @@ describe('Search in the Chats header', () => {
     });
 
     await type(view, '小明');
-    expect(rows(view)).toEqual(['小明']);
+    expect(rows(view)).toEqual(['小明, studio']);
 
     await type(view, 'launch');
     await act(async () =>
@@ -1003,7 +1048,7 @@ describe('Search in the Chats header', () => {
     )!;
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     expect(field.isConnected).toBe(true);
-    expect(rows(view)).toEqual(['Ada, Done']);
+    expect(rows(view)).toEqual(['Ada, Done, studio']);
     await type(view, '');
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
     expect(view.querySelector(`textarea[aria-label="${t.searchPlaceholder}"]`)).toBeNull();
@@ -1323,11 +1368,12 @@ describe('Remote Host section and Pinned presentation', () => {
       view.querySelector('[data-testid="conversation-row-channel:launch-team"]'),
     ).not.toBeNull();
     await type(view, 'a');
-    expect(rows(view)[0]).toBe('Ada, Done');
+    expect(rows(view)[0]).toBe('Ada, Done, studio');
     expect(rows(view)[1]).toContain('Launch team');
     expect(view.querySelector('[data-testid="chat-section-pinned"]')).toBeNull();
   });
   const seed = () => {
+    conversationFilter.set(computerEnvironmentKey(hostState.hostId));
     roster.arrangement = {
       pins: ['dm-ada'],
       hidden: [],
@@ -1391,10 +1437,12 @@ describe('Remote Host section and Pinned presentation', () => {
     await type(view, '');
     expect(ordered(view)).not.toContain('conversation-row-bot:ada');
     hostState.hostId = 'h2';
+    conversationFilter.set(computerEnvironmentKey('h2'));
     await act(async () => root!.render(<HomeScreen />));
     expect(ordered(view)).toContain('conversation-row-bot:ada');
     expect(ordered(view)).toContain('conversation-row-channel:launch-team');
     hostState.hostId = 'h1';
+    conversationFilter.set(computerEnvironmentKey('h1'));
     await act(async () => root!.render(<HomeScreen />));
     expect(ordered(view)).not.toContain('conversation-row-bot:ada');
     expect(call).not.toHaveBeenCalled();
@@ -1476,7 +1524,9 @@ describe('Activity Channel navigation', () => {
     root = createRoot(host);
     await act(async () => root!.render(<ActivityScreen />));
     await act(async () => new Promise((resolve) => setTimeout(resolve, 100)));
-    const row = host.querySelector<HTMLButtonElement>('[data-testid="inbox-row-approval"]');
+    const row = [...host.querySelectorAll<HTMLButtonElement>('[data-testid]')].find(
+      (element) => element.dataset.testid === 'inbox-row-["h1","approval"]',
+    );
     expect(host.textContent).toContain('Check deployment');
     expect(row).not.toBeNull();
     await act(async () => row!.click());

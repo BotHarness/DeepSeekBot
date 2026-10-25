@@ -1,3 +1,4 @@
+import { HostRow } from '../../../src/ui/chat/host-conversation-row';
 import { renderKeyboardFormScroll } from '../../../src/ui/primitives/keyboard-form';
 import {
   Redirect,
@@ -13,12 +14,13 @@ import Animated from 'react-native-reanimated';
 import {
   refreshQuietChannels,
   useHostSession,
-  useHostSnapshot,
-  useInbox,
   useQuietChannels,
+  useHostSessions,
+  quietChannels,
+  type ConnectedHost,
 } from '../../../src/host/host-session';
 import { prefetchInbox } from '../../../src/host/inbox';
-import { useHostLook } from '../../../src/host/native-host-look';
+import { hostLooks, useHostLook } from '../../../src/host/native-host-look';
 import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
 import { cloudAvailable } from '../../../src/cloud/available';
 import { cloudConversations, useCloudConversations } from '../../../src/cloud/native-conversations';
@@ -26,20 +28,10 @@ import { cloudViewScope } from '../../../src/cloud/workspace-directory';
 import { navigateCloudChannel } from '../../../src/ui/shell/cloud-channel-navigation';
 import { cloudError } from '../../../src/cloud/client';
 import type { CloudConversation } from '../../../src/cloud/conversations';
-import { ManagedConversationRow } from '../../../src/ui/chat/managed-conversation-row';
 import { DeletionSheet } from '../../../src/ui/chat/deletion-sheet';
 import type { DeletionTarget } from '../../../src/host/deletion';
 import { ItemMenu } from '../../../src/ui/primitives/item-menu';
-import {
-  PINNED_SECTION,
-  chatList,
-  conversations,
-  searchKey,
-  type ChatListItem,
-  type Conversation,
-} from '../../../src/ui/chat/conversations';
-import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
-import { SectionHeader } from '../../../src/ui/chat/section-header';
+import { conversations, searchKey, PINNED_SECTION } from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
@@ -62,60 +54,31 @@ import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
 import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
 
-type Row =
-  | {
-      key: string;
-      environment: string;
-      type: 'computer';
-      conversation: Conversation;
-      pinned: boolean;
-      at?: string;
-    }
-  | {
-      key: string;
-      environment: string;
-      type: 'cloud';
-      conversation: CloudConversation;
-      pinned: false;
-      at?: string;
-    };
-type ListRow =
-  | Row
-  | {
-      type: 'section';
-      key: string;
-      environment: string;
-      section: Extract<ChatListItem, { kind: 'section' }>;
-    };
+import {
+  environmentChatList,
+  ALL_HOSTS_COLLAPSE,
+  type EnvironmentChatRow as Row,
+  type EnvironmentChatItem,
+} from '../../../src/ui/chat/environment-chat-list';
+import { SectionHeader } from '../../../src/ui/chat/section-header';
+import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
+
 export default function HomeScreen() {
   const focused = useIsFocused();
-  const { saved, client, inbox } = useHostSession();
-  const snapshot = useHostSnapshot(client, focused);
-  const list = useInbox(inbox, focused);
-  return (
-    <HomeContent
-      key={saved?.hostId ?? 'unpaired'}
-      saved={saved}
-      client={client}
-      inbox={inbox}
-      snapshot={snapshot}
-      list={list}
-    />
-  );
+  const { saved, client } = useHostSession();
+
+  const hosts = useHostSessions(focused);
+  return <HomeContent saved={saved} client={client} hosts={hosts} />;
 }
 
 const HomeContent = memo(function HomeContent({
   saved,
   client,
-  inbox,
-  snapshot,
-  list,
+  hosts,
 }: {
   saved: ReturnType<typeof useHostSession>['saved'];
   client: ReturnType<typeof useHostSession>['client'];
-  inbox: ReturnType<typeof useHostSession>['inbox'];
-  snapshot: ReturnType<typeof useHostSnapshot>;
-  list: ReturnType<typeof useInbox>;
+  hosts: readonly ConnectedHost[];
 }) {
   const t = useStrings();
   const router = useRouter();
@@ -157,9 +120,10 @@ const HomeContent = memo(function HomeContent({
   const cloudEntryFocused = useRef(false);
   const [error, setError] = useState<string>();
   const [failedOpen, setFailedOpen] = useState<CloudConversation>();
-  const [deleting, setDeleting] = useState<{ hostId: string; target: DeletionTarget }>();
+  const [deleting, setDeleting] = useState<{ host: ConnectedHost; target: DeletionTarget }>();
   const [actionError, setActionError] = useState(false);
-  const [refreshFailedHost, setRefreshFailedHost] = useState<string>();
+  const deletionLook = useHostLook(deleting?.host.saved.hostId);
+  const [refreshFailedHosts, setRefreshFailedHosts] = useState<string[]>([]);
   const enrollment = JSON.stringify(cloud.rows.map(cloudViewScope));
   const unpaired =
     !cloudAvailable &&
@@ -181,22 +145,26 @@ const HomeContent = memo(function HomeContent({
   const filters = useMemo(
     () =>
       conversationEnvironments(
-        saved
-          ? {
-              hostId: saved.hostId,
-              name: shownHostName(look, saved.hostName),
-              icon: look.icon,
-              ...(look.color === undefined ? {} : { color: look.color }),
-            }
-          : undefined,
+        hosts.map(({ saved }) => {
+          const look = hostLooks.look(saved.hostId);
+          return {
+            hostId: saved.hostId,
+            name: shownHostName(look, saved.hostName),
+            icon: look.icon,
+            ...(look.color === undefined ? {} : { color: look.color }),
+          };
+        }),
         cloud.rows.filter((r) => r.hasSession).map(cloudViewScope),
         directory.workspaces,
         t.allEnvironments,
       ),
-    [t, saved, look, cloud.rows, directory.workspaces],
+    [t, hosts, look, cloud.rows, directory.workspaces],
   );
-  const environment = filters.find((item) => item.key === filter) ?? filters[0]!;
+  const environment = filters.find((f) => f.key === filter) ?? filters[0]!;
   const effectiveFilter = environment.key;
+  const selectedHost = hosts.find(
+    (host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter,
+  );
   useFocusEffect(
     useCallback(() => {
       cloudEntryFocused.current = true;
@@ -210,8 +178,12 @@ const HomeContent = memo(function HomeContent({
       };
     }, [enrollment, effectiveFilter]),
   );
+  const collapseScope =
+    hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
+      .hostId ?? ALL_HOSTS_COLLAPSE;
+  const collapsed = useCollapsedSections(collapseScope);
+
   const quiet = useQuietChannels(saved?.hostId);
-  const collapsed = useCollapsedSections(saved?.hostId);
   useFocusEffect(
     useCallback(() => {
       if (saved) refreshQuietChannels(saved);
@@ -240,30 +212,31 @@ const HomeContent = memo(function HomeContent({
     ]),
   );
   const rows = useMemo(() => {
-    const pins = new Set(snapshot.roster?.arrangement?.pins);
-    const hostRows: Row[] = saved
-      ? conversations(
-          snapshot.roster,
-          list.status === 'ready' ? list.sections.action : [],
-          list.status === 'ready' ? list.unread : {},
-          quiet,
-        ).map((conversation) => ({
-          key: JSON.stringify(['computer', saved.hostId, conversation.key]),
-          environment: computerEnvironmentKey(saved.hostId),
-          type: 'computer',
-          conversation,
-          pinned:
-            pins.has(
-              conversation.kind === 'bot' ? conversation.bot.slug : conversation.channel.id,
-            ) ||
-            pins.has(
-              conversation.kind === 'bot'
-                ? (conversation.bot.dmChannelId ?? '')
-                : conversation.channel.id,
-            ),
-          ...(conversation.at ? { at: conversation.at } : {}),
-        }))
-      : [];
+    const hostRows: Row[] = hosts.flatMap((host) => {
+      if (host.snapshot.connection.status !== 'connected' && host !== selectedHost) return [];
+      const pins = new Set(host.snapshot.roster?.arrangement?.pins);
+      const list = host.attention;
+      return conversations(
+        host.snapshot.roster,
+        list.status === 'ready' ? list.sections.action : [],
+        list.status === 'ready' ? list.unread : {},
+        quietChannels.get(host.saved.hostId),
+      ).map((conversation) => ({
+        key: JSON.stringify(['computer', host.saved.hostId, conversation.key]),
+        environment: computerEnvironmentKey(host.saved.hostId),
+        type: 'computer' as const,
+        host,
+        conversation,
+        pinned:
+          pins.has(conversation.kind === 'bot' ? conversation.bot.slug : conversation.channel.id) ||
+          pins.has(
+            conversation.kind === 'bot'
+              ? (conversation.bot.dmChannelId ?? '')
+              : conversation.channel.id,
+          ),
+        ...(conversation.at ? { at: conversation.at } : {}),
+      }));
+    });
     const scopes = new Set(cloud.rows.filter((row) => row.hasSession).map(cloudViewScope));
     const cloudRows: Row[] = directory.rows
       .filter((row) => scopes.has(row.scope))
@@ -294,44 +267,26 @@ const HomeContent = memo(function HomeContent({
           (Date.parse(b.at ?? '') || 0) - (Date.parse(a.at ?? '') || 0) ||
           a.key.localeCompare(b.key),
       );
-  }, [snapshot.roster, list, directory.rows, cloud.rows, saved, query, quiet]);
-  const displayed = useMemo((): ListRow[] => {
-    const visible = (row: { environment: string }) =>
-      effectiveFilter === 'all' || row.environment === effectiveFilter;
-    if (searchKey(query)) return rows.filter(visible);
-    const hostEnvironment = saved ? computerEnvironmentKey(saved.hostId) : '';
-    const hostRows = new Map(
-      rows.filter((row) => row.type === 'computer').map((row) => [row.conversation.key, row]),
-    );
-    const grouped: ListRow[] = saved
-      ? chatList(
-          snapshot.roster,
-          list.status === 'ready' ? list.sections.action : [],
-          collapsed,
-          list.status === 'ready' ? list.unread : {},
-          quiet,
-        ).flatMap((item): ListRow[] => {
-          const key = JSON.stringify(['computer', saved.hostId, item.key]);
-          if (item.kind === 'section')
-            return [{ type: 'section', key, environment: hostEnvironment, section: item }];
-          const row = hostRows.get(item.row.key);
-          return row ? [row] : [];
-        })
-      : [];
-    return [...grouped, ...rows.filter((row) => row.type === 'cloud')].filter(visible);
-  }, [rows, effectiveFilter, query, saved, snapshot.roster, list, collapsed, quiet]);
-  const includesHost = Boolean(
-    saved && (effectiveFilter === 'all' || environment.kind === 'computer'),
+  }, [hosts, directory.rows, cloud.rows, selectedHost, query, quiet]);
+  const displayed = environmentChatList(
+    rows,
+    effectiveFilter,
+    hosts,
+    collapsed,
+    query.trim() !== '',
   );
   const includesCloud = environment.kind !== 'computer';
   const hostFailed =
-    includesHost &&
-    (snapshot.connection.status === 'unreachable' ||
-      snapshot.connection.status === 'refused' ||
-      snapshot.connection.status === 'stopped');
+    selectedHost !== undefined &&
+    ['unreachable', 'refused', 'stopped'].includes(selectedHost.snapshot.connection.status);
   const cloudFailed = includesCloud && Boolean(directory.errors.length || cloud.error);
+  const loadingHosts = selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [];
   const coldLoading =
-    (includesHost && !snapshot.roster && !hostFailed) ||
+    loadingHosts.some(
+      (host) =>
+        !host.snapshot.roster &&
+        ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
+    ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
     return <ListSkeleton />;
@@ -363,14 +318,19 @@ const HomeContent = memo(function HomeContent({
         />
       </View>
     );
-  const refresh = async () => {
+  const refresh = async (target?: ConnectedHost) => {
     setRefreshing(true);
-    const result = await Promise.allSettled([
-      client?.refresh(),
-      inbox?.refresh(),
-      cloudConversations.refresh(),
+    const targets = target ? [target] : hosts;
+    const results = await Promise.allSettled([
+      ...targets.map((host) => Promise.all([host.client.refresh(), host.inbox.refresh()])),
+      ...(target ? [] : [cloudConversations.refresh()]),
     ]);
-    setRefreshFailedHost(result[0]?.status === 'rejected' ? saved?.hostId : undefined);
+    setRefreshFailedHosts((previous) => [
+      ...previous.filter((id) => !targets.some((host) => host.saved.hostId === id)),
+      ...targets.flatMap((host, index) =>
+        results[index]?.status === 'rejected' ? [host.saved.hostId] : [],
+      ),
+    ]);
     setRefreshing(false);
   };
   const openCloud = (target: CloudConversation) => {
@@ -431,28 +391,13 @@ const HomeContent = memo(function HomeContent({
     };
     openTail.current = openTail.current.then(open, open);
   };
-  const renderHostConversation = (conversation: Conversation, pinned: boolean) => (
-    <ManagedConversationRow
-      row={conversation}
-      pinned={pinned}
-      look={look}
-      client={client}
-      inbox={inbox}
-      hostId={saved?.hostId}
-      arrangement={snapshot.roster?.arrangement}
-      onError={() => setActionError(true)}
-      onDelete={(target) => {
-        if (saved) setDeleting({ hostId: saved.hostId, target });
-      }}
-    />
-  );
   return (
     <>
       <Stack.Screen options={{ title: environment.title, headerShown: false }} />
       <HostDrawerEdge>
         <HomeHeader
           environment={environment}
-          connection={environment.kind === 'computer' ? snapshot.connection : undefined}
+          connection={selectedHost?.snapshot.connection}
           search={
             searching ? (
               <HeaderSearch
@@ -492,7 +437,7 @@ const HomeContent = memo(function HomeContent({
           {(headerTravel) => (
             <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
               {(pull) => (
-                <Animated.FlatList<ListRow>
+                <Animated.FlatList<EnvironmentChatItem>
                   {...pull}
                   renderScrollComponent={renderKeyboardFormScroll}
                   onScroll={onScroll}
@@ -509,21 +454,21 @@ const HomeContent = memo(function HomeContent({
                           {t.rowActions.failed}
                         </Text>
                       ) : null}
-                      {saved && environment.key === computerEnvironmentKey(saved.hostId) && (
-                        <ConnectionBanner
-                          connection={snapshot.connection}
-                          onRetry={() => client?.retryNow()}
-                          onPairAgain={() => router.push('/pair')}
-                        />
-                      )}
-                      {saved &&
-                      (refreshFailedHost === saved.hostId ||
-                        (hostFailed && environment.kind === 'all')) &&
-                      (environment.key === 'all' ||
-                        environment.key === computerEnvironmentKey(saved.hostId)) ? (
+                      {selectedHost &&
+                        selectedHost.snapshot.connection.status !== 'unreachable' && (
+                          <ConnectionBanner
+                            connection={selectedHost.snapshot.connection}
+                            onRetry={() => selectedHost.client.retryNow()}
+                            onPairAgain={() => router.push('/pair')}
+                          />
+                        )}
+                      {selectedHost &&
+                      ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
+                        selectedHost.snapshot.connection.status === 'unreachable' ||
+                        selectedHost.snapshot.connection.status === 'stopped') ? (
                         <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
                           <Text tone="muted">
-                            {snapshot.roster === undefined
+                            {selectedHost.snapshot.roster === undefined
                               ? t.hostListLoadFailed
                               : t.hostListUnavailable}
                           </Text>
@@ -531,7 +476,7 @@ const HomeContent = memo(function HomeContent({
                             testID="chat-list-retry"
                             label={t.retry}
                             on="canvas"
-                            onPress={() => void refresh()}
+                            onPress={() => void refresh(selectedHost)}
                             disabled={refreshing}
                           />
                         </View>
@@ -558,16 +503,22 @@ const HomeContent = memo(function HomeContent({
                       <ListSkeleton />
                     ) : hostFailed || cloudFailed ? undefined : (
                       <Text tone="muted" style={{ padding: space.x6 }}>
-                        {query ? t.searchNoMatch(query.trim()) : t.cloudChannels.empty}
+                        {query
+                          ? t.searchNoMatch(query.trim())
+                          : effectiveFilter === 'all' &&
+                              hosts.length > 0 &&
+                              hosts.every((host) => host.snapshot.connection.status !== 'connected')
+                            ? t.noOnlineChats
+                            : t.cloudChannels.empty}
                       </Text>
                     )
                   }
                   renderItem={({ item }) =>
                     item.type === 'section' ? (
                       <ItemMenu
-                        title={item.section.name ?? t.pinnedSection}
+                        title={item.name ?? t.pinnedSection}
                         actions={
-                          item.section.id === PINNED_SECTION || !saved || !client
+                          item.id === PINNED_SECTION || !item.host
                             ? []
                             : [
                                 {
@@ -577,11 +528,11 @@ const HomeContent = memo(function HomeContent({
                                   destructive: true,
                                   run: () =>
                                     setDeleting({
-                                      hostId: saved.hostId,
+                                      host: item.host!,
                                       target: {
                                         kind: 'section',
-                                        id: item.section.id,
-                                        name: item.section.name ?? '',
+                                        id: item.id,
+                                        name: item.name ?? '',
                                       },
                                     }),
                                 },
@@ -590,23 +541,25 @@ const HomeContent = memo(function HomeContent({
                       >
                         {(open, nativeContextMenu) => (
                           <SectionHeader
-                            {...item.section}
-                            testID={`chat-section-${item.section.id}`}
-                            name={item.section.name ?? t.pinnedSection}
+                            {...item}
+                            testID={`chat-section-${item.id}`}
+                            name={item.name ?? t.pinnedSection}
                             onLongPress={
-                              nativeContextMenu || item.section.id === PINNED_SECTION
-                                ? undefined
-                                : open
+                              nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
                             }
-                            onMenu={item.section.id === PINNED_SECTION ? undefined : open}
+                            onMenu={item.id === PINNED_SECTION ? undefined : open}
                             onToggle={() => {
-                              if (saved) sectionCollapse.toggle(saved.hostId, item.section.id);
+                              sectionCollapse.toggle(collapseScope, item.id);
                             }}
                           />
                         )}
                       </ItemMenu>
                     ) : item.type === 'computer' ? (
-                      renderHostConversation(item.conversation, item.pinned)
+                      <HostRow
+                        item={item}
+                        onError={() => setActionError(true)}
+                        onDelete={(target) => setDeleting({ host: item.host, target })}
+                      />
                     ) : (
                       <CloudConversationRow
                         row={item.conversation}
@@ -621,16 +574,16 @@ const HomeContent = memo(function HomeContent({
           )}
         </HomeHeader>
       </HostDrawerEdge>
-      {deleting && client && saved?.hostId === deleting.hostId ? (
+      {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet
-          key={`${deleting.hostId}:${deleting.target.kind}:${deleting.target.id}`}
+          key={`${deleting.host.saved.hostId}:${deleting.target.kind}:${deleting.target.id}`}
           target={deleting.target}
-          client={client}
-          hostName={shownHostName(look, saved.hostName)}
+          client={deleting.host.client}
+          hostName={shownHostName(deletionLook, deleting.host.saved.hostName)}
           onClose={() => setDeleting(undefined)}
           onDeleted={() => {
             setDeleting(undefined);
-            void inbox?.refresh();
+            void deleting.host.inbox.refresh();
           }}
         />
       ) : null}

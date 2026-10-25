@@ -6,6 +6,8 @@ import { useMounted } from '../ui/mounted';
 import { channelDestination, navigateChannel } from '../ui/shell/channel-navigation';
 import { createHostClient, type HostClient, type RosterView } from './client';
 import { hostSession } from './host-session';
+import { conversationFilter } from './native-conversation-filter';
+import { computerEnvironmentKey } from './conversation-environments';
 import { nativeCarrier } from './native-carrier';
 import { onNotificationTap } from './native-notifications';
 import { parsePushData, pushHref, type PushTarget } from './push';
@@ -165,8 +167,10 @@ export function usePushRouting(
                 (channelId) =>
                   roster?.channels.some((channel) => channel.id === channelId) ?? false,
               );
-              if (href.pathname === '/activity') router.navigate('/activity');
-              else router.push({ ...href, params: { ...href.params, hostId: target.hostId } });
+              if (href.pathname === '/activity') {
+                conversationFilter.set(computerEnvironmentKey(target.hostId));
+                router.navigate('/activity');
+              } else router.push({ ...href, params: { ...href.params, hostId: target.hostId } });
             }
           } catch (error) {
             if (isCurrent())
