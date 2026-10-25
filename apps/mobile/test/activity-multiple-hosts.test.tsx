@@ -42,6 +42,10 @@ import { FakeHost } from './fake-host';
 import { t } from '../src/ui/strings';
 import { createHostLooks } from '../src/host/host-look';
 import wire from './fixtures/inbox-wire.json';
+vi.mock('expo-symbols', () => ({
+  SymbolView: ({ name, tintColor }: { name: { android: string }; tintColor: string }) =>
+    createElement('i', { 'data-symbol': name.android, 'data-color': tintColor }),
+}));
 const push = vi.fn();
 const looks = createHostLooks({ read: async () => undefined, write() {} });
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: looks }));
@@ -125,8 +129,18 @@ it('real Activity screen combines both Hosts and resolves a colliding approval o
     await act(async () => root.render(createElement(Screen)));
     await settle();
     expect(posts()).toHaveLength(4);
-    expect(view.textContent).toContain(' · a');
-    expect(view.textContent).toContain(' · b');
+    expect(posts()[0]!.textContent).toContain('a');
+    expect(posts().every((post) => post.querySelector('[data-symbol="computer"]'))).toBe(true);
+    await act(async () => looks.set('b', { icon: { kind: 'symbol', id: 'lab' }, color: 'purple' }));
+    await settle();
+    const bPosts = posts().filter((post) => post.getAttribute('data-testid')?.includes('["b",'));
+    expect(bPosts).toHaveLength(2);
+    expect(bPosts.every((post) => post.querySelector('[data-symbol="science"]'))).toBe(true);
+    const aColor = posts()
+      .find((post) => post.getAttribute('data-testid')?.includes('["a",'))!
+      .querySelector('[data-symbol]')!
+      .getAttribute('data-color');
+    expect(bPosts[0]!.querySelector('[data-symbol]')!.getAttribute('data-color')).not.toBe(aColor);
     const aQuestion = posts().find(
       (el) => el.getAttribute('data-testid') === `inbox-post-${JSON.stringify(['a', question.id])}`,
     )!;

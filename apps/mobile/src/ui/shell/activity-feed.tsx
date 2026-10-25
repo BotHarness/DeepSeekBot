@@ -1,3 +1,5 @@
+import { HostGlyph } from './host-tile';
+import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
@@ -193,6 +195,32 @@ function minutesSince(at: string, now: number): number {
   return Math.max(0, Math.floor((now - Date.parse(at)) / 60_000));
 }
 
+function ActivityEnvironment({ item }: { item: HumanAttentionItem }) {
+  const theme = useDesignTheme();
+  const source = item.activitySource;
+  if (!source) return null;
+  const look = source.look ?? DEFAULT_HOST_LOOK;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1, flexShrink: 1 }}>
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <HostGlyph
+          icon={look.icon}
+          size={theme.type.meta.size * theme.fontScale}
+          color={hostColorInk(theme.scheme, theme.color, look.color)}
+        />
+      </View>
+      <Text
+        variant="meta"
+        tone="muted"
+        numberOfLines={theme.largeText ? undefined : 1}
+        style={{ flexShrink: 1 }}
+      >
+        {source.label}
+      </Text>
+    </View>
+  );
+}
+
 const Row = memo(function Row({
   item,
   settled,
@@ -281,9 +309,10 @@ const Row = memo(function Row({
               strong={!settled}
               style={{ flexShrink: 1 }}
             >
-              {theme.largeText ? name : t.rowTitle(kind, name)}
+              {theme.largeText ? localName : t.rowTitle(kind, localName)}
               {settled && summary.length > 0 ? <Text tone="muted">{` · ${summary}`}</Text> : null}
             </Text>
+            <ActivityEnvironment item={item} />
             {theme.largeText ? null : metadata}
           </View>
           {!settled && summary.length > 0 ? (
@@ -398,9 +427,10 @@ function Post({
             }}
           >
             <Text strong numberOfLines={theme.largeText ? undefined : 1} style={{ flexShrink: 1 }}>
-              {name}
+              {localName}
               {theme.largeText ? null : <Text tone="muted">{where}</Text>}
             </Text>
+            <ActivityEnvironment item={item} />
             {theme.largeText && where !== '' ? (
               <Text variant="meta" tone="muted">
                 {t.inChannel(item.channelName ?? '')}

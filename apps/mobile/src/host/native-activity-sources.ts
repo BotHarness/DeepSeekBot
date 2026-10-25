@@ -22,6 +22,7 @@ export function useActivitySources(): readonly ActivitySource[] {
     .map((host) => ({
       hostId: host.saved.hostId,
       label: shownHostName(hostLooks.look(host.saved.hostId), host.saved.hostName),
+      look: hostLooks.look(host.saved.hostId),
       client: host.client,
       inbox: host.inbox,
       get roster() {
@@ -32,7 +33,12 @@ export function useActivitySources(): readonly ActivitySource[] {
     next.length !== previous.current.length ||
     next.some((source, index) => {
       const old = previous.current[index];
-      return !old || source.client !== old.client || source.label !== old.label;
+      return (
+        !old ||
+        source.client !== old.client ||
+        source.label !== old.label ||
+        source.look !== old.look
+      );
     })
   )
     previous.current = next;

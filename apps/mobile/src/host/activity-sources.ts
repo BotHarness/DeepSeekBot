@@ -1,3 +1,4 @@
+import type { HostLook } from '../ui/design/host-look';
 import { observeActivityCount, type createActivityCountPreferences } from './activity-count';
 import type { HostClient, HostSnapshot } from './client';
 import {
@@ -13,6 +14,7 @@ import type { HumanAttentionItem } from './wire';
 export interface ActivitySource {
   hostId: string;
   label: string;
+  look?: HostLook;
   client: HostClient;
   inbox: Inbox;
   roster: HostSnapshot['roster'];

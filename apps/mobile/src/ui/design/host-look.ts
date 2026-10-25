@@ -71,6 +71,22 @@ export const HOST_NAME_MAX = 40;
 
 export const DEFAULT_HOST_LOOK: HostLook = { icon: { kind: 'symbol', id: 'desktop' } };
 
+export function nextHostLook(existing: readonly HostLook[]): HostLook {
+  const symbolCount = (id: HostSymbolId) =>
+    existing.filter((look) => look.icon.kind === 'symbol' && look.icon.id === id).length;
+  const colorCount = (id: HostColorId) =>
+    existing.filter((look) => (look.color ?? 'blue') === id).length;
+  const symbol = HOST_SYMBOL_IDS.reduce(
+    (best, id) => (symbolCount(id) < symbolCount(best) ? id : best),
+    'desktop',
+  );
+  const color = HOST_COLOR_IDS.reduce(
+    (best, id) => (colorCount(id) < colorCount(best) ? id : best),
+    'blue',
+  );
+  return { icon: { kind: 'symbol', id: symbol }, color };
+}
+
 export function hostLookName(name: unknown): string | undefined {
   if (typeof name !== 'string') return undefined;
   const trimmed = name.trim().slice(0, HOST_NAME_MAX);

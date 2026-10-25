@@ -285,18 +285,13 @@ export function ConversationRowFrame({
             gap: space.x3,
           }}
         >
-          <SourceName name={title} source={source} look={look} />
+          <SourceName name={title} source={source} look={look} sourceLabel={sourceLabel} />
           {time === '' ? null : (
             <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 0 }}>
               {time}
             </Text>
           )}
         </View>
-        {sourceLabel ? (
-          <Text variant="meta" tone="subtle" numberOfLines={1}>
-            {sourceLabel}
-          </Text>
-        ) : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"
