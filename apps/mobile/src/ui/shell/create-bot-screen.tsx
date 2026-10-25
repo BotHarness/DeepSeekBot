@@ -353,13 +353,16 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                   ? copy.targetFixed
                   : copy.beforeSend}
               </Text>
-              <Text accessibilityLiveRegion="polite">
-                {state.receipt?.status === 'created'
-                  ? copy.completed
-                  : state.receipt
-                    ? copy.accepted
-                    : copy.uncertain}
-              </Text>
+              {state.receipt ||
+              (state.record.kind === 'submitted' && state.record.mutationStarted) ? (
+                <Text accessibilityLiveRegion="polite">
+                  {state.receipt?.status === 'created'
+                    ? copy.completed
+                    : state.receipt
+                      ? copy.accepted
+                      : copy.uncertain}
+                </Text>
+              ) : null}
               {state.error === 'git-source-changed' ? (
                 <>
                   <Text>{copy.previousKept}</Text>
@@ -394,7 +397,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
                 </>
               ) : (
                 <Button
-                  label={copy.retry}
+                  label={importing ? copy.import : copy.retry}
                   testID="create-bot-retry"
                   busy={state.busy}
                   onPress={submit}

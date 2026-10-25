@@ -2,7 +2,11 @@
 import { act, createElement, useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { createBotCreationController, type BotCreationOperation } from '../src/host/bot-creation';
+import {
+  BotCreationFailure,
+  createBotCreationController,
+  type BotCreationOperation,
+} from '../src/host/bot-creation';
 
 const fixture = vi.hoisted(() => ({
   routeReady: true,
@@ -10,6 +14,7 @@ const fixture = vi.hoisted(() => ({
   open: vi.fn(),
   screen: vi.fn(),
   create: vi.fn(),
+  lookup: vi.fn(async () => null),
   preview: vi.fn(async () => ({
     kind: 'git' as const,
     gitUrl: 'https://github.com/a/b.git',
@@ -33,7 +38,7 @@ const controller = createBotCreationController({
       sizeBytes: 30,
     }),
     previewZip: async (_target, source) => ({ source, displayName: 'Archive helper' }),
-    lookup: async () => null,
+    lookup: () => fixture.lookup(),
     create: async (operation: BotCreationOperation) => {
       fixture.create(operation);
       return {
@@ -270,4 +275,27 @@ it('does not submit after leaving while the source check is pending', async () =
   );
   expect(fixture.create).toHaveBeenCalledTimes(creates);
   expect(controller.getSnapshot().record.kind).toBe('draft');
+});
+
+it('offers Import for a saved pre-send failure without claiming an unknown creation result', async () => {
+  await controller.another('A');
+  await controller.beginImport({ gitUrl: 'https://github.com/a/b', displayName: 'My helper' });
+  await controller.preview();
+  fixture.lookup.mockRejectedValueOnce(new BotCreationFailure('gateway/arguments-invalid'));
+  await controller.submit();
+  expect(controller.getSnapshot().record).toMatchObject({
+    kind: 'submitted',
+    mutationStarted: false,
+  });
+  element = document.createElement('div');
+  document.body.append(element);
+  root = createRoot(element);
+  await act(async () => root.render(<CreateBotScreen initialSource="git" />));
+  expect(
+    [...element.querySelectorAll('button')].some(
+      (item) => item.textContent === t.botCreation.import,
+    ),
+  ).toBe(true);
+  expect(element.textContent).not.toContain(t.botCreation.retry);
+  expect(element.textContent).not.toContain(t.botCreation.uncertain);
 });
