@@ -40,3 +40,15 @@ Notifications opened from Settings or a Bot profile stay inside that parent draw
 - Maestro grants every permission on `launchApp` by default, so the notification prompt does not appear in the journey. To see the denied state, launch with `permissions: { all: unset }` and tap Don't Allow.
 - A Maestro step can outlast a Host's keep-alive timeout, so the journey's next `fetch` may write to a closed pooled socket (`EPIPE`); it retries a Host call once.
 - A run that has to build needs several GB free: DerivedData (about 2.5 GB, deleted once the `.app` is cached), the Pods in `apps/mobile/ios` and Metro's cache. A run that reuses the cached `.app` needs only the Simulator and Metro's cache. Do not run it from a new worktree: each one adds its own `node_modules` and Pods. With a full disk `xcodebuild` fails with unrelated-looking compile errors before it says "No space left on device". Maestro's debug output stays in the evidence folder, which each run replaces.
+
+## Scoped navigation regression (#2798)
+
+Through the shared Android/iOS QA lanes, verify each platform separately:
+
+1. Open interruption details for a Human/Bot DM, Group Channel and Bot-to-Bot DM. Tap Open conversation, verify the source Host and original message, then Back to the details. Opening must neither clear the item nor restart execution.
+2. With Channel A below B, tap a notification for A. Verify it unwinds to A; a second notification with another message focus adds no page. Back follows A's retained history.
+3. Cold-launch a notification, then Back to a reachable tab root. Repeat with delayed Roster delivery, two rapid taps and two Hosts with colliding Bot slugs. Only the latest destination may win.
+4. Check missing Channel, missing original message, disconnected Host, source change and unmount during loading. Observe visible feedback, retained correct conversation when only focus is missing, and no late jump.
+5. Record Android hardware/predictive Back and iOS edge swipe separately. Capture loading/error and destination/Back in light/dark at default, intermediate and maximum text sizes. FCM needs a provisioned phone; cross-Host checks need a second paired QA Host. Source tests do not replace this evidence.
+
+Automated entry coverage: `apps/mobile/test/attention-navigation.test.tsx`, `apps/mobile/test/push-navigation.test.tsx`, and `apps/mobile/test/conversation-navigation.test.tsx` drive real entries through the production adapter and installed Expo stack reducer, with external Host/notification inputs simulated.

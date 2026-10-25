@@ -868,7 +868,13 @@ function ChatConversation({
                       ? t.dictationUnavailable
                       : dictation.state.status === 'failed'
                         ? t.dictationFailed
-                        : undefined;
+                        : focus !== undefined &&
+                            snapshot.status === 'live' &&
+                            !snapshot.hasOlder &&
+                            !snapshot.loadingOlder &&
+                            !rows.some((row) => row.kind === 'message' && row.message.id === focus)
+                          ? t.messageFocusUnavailable
+                          : undefined;
 
   const listTop = notice === undefined ? headerPadding : 0;
   const topFade =

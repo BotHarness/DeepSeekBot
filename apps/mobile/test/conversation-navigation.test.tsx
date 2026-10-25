@@ -352,13 +352,32 @@ afterEach(() => {
   root = undefined;
 });
 
-async function render(place: ChatPlace) {
+async function render(place: ChatPlace, focus?: string) {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+  await act(async () => root!.render(<ConversationScreen place={place} focus={focus} />));
   return container;
 }
+
+it('keeps the correct DM open and explains when the linked message is unavailable', async () => {
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  state.history = ['/', '/dm/ada'];
+  const view = await render({ kind: 'dm', slug: 'ada' }, 'removed-message');
+  expect(view.textContent).toContain(t.messageFocusUnavailable);
+  expect(view.querySelector('[data-testid="chat-controls"]')).not.toBeNull();
+  expect(state.history).toEqual(['/', '/dm/ada']);
+});
 
 async function press(view: HTMLElement, label: string) {
   const button = [...view.querySelectorAll('button')].find((node) => node.textContent === label);

@@ -1,11 +1,11 @@
 import { Text } from '../../src/ui/primitives/system-text';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { Stack, useLocalSearchParams, useNavigationContainerRef, useRouter } from 'expo-router';
+import { useMemo, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { fullClientParams, type FullClientTarget } from '../../src/host/full-client';
 import { useHostSession, useHostSnapshot, useInbox } from '../../src/host/host-session';
-import { messageHref } from '../../src/host/push';
+import { channelDestination, navigateChannel } from '../../src/ui/shell/channel-navigation';
 import {
   answerQuestion,
   decideApproval,
@@ -30,6 +30,7 @@ type Params = {
   summary?: string;
   channelId?: string;
   messageId?: string;
+  hostId?: string;
 };
 
 export default function InboxItemScreen() {
@@ -37,6 +38,11 @@ export default function InboxItemScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<Params>();
   const { saved, client, inbox } = useHostSession();
+  const [openedOn, setOpenedOn] = useState(saved?.hostId);
+  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
+  const expectedHostId = params.hostId ?? openedOn;
+  const navigation = useNavigationContainerRef();
+  const [openNotice, setOpenNotice] = useState<string>();
   const snapshot = useHostSnapshot(client);
   const list = useInbox(inbox);
   const botName =
@@ -131,7 +137,9 @@ export default function InboxItemScreen() {
     </ScrollView>
   );
   let body;
-  if (params.kind === 'tool-approval' && approvalPort !== undefined)
+  if (expectedHostId !== undefined && saved?.hostId !== expectedHostId)
+    body = <Notice tone="warning">{t.sourceChanged}</Notice>;
+  else if (params.kind === 'tool-approval' && approvalPort !== undefined)
     body = <ApprovalView port={approvalPort} botName={botName} listed={listed} />;
   else if (params.kind === 'user-question' && questionPort !== undefined)
     body = <QuestionView port={questionPort} botName={botName} listed={listed} />;
@@ -150,13 +158,13 @@ export default function InboxItemScreen() {
         botName={botName}
         after={() => void inbox?.refresh()}
         onOpenChat={(item) => {
-          const href = messageHref(
-            item,
-            (slug) => snapshot.roster?.bots.find((bot) => bot.slug === slug)?.dmChannelId,
-            (channelId) =>
-              snapshot.roster?.channels.some((channel) => channel.id === channelId) ?? false,
-          );
-          if (href !== undefined) router.push(href);
+          if (!saved || saved.hostId !== expectedHostId) {
+            setOpenNotice(t.sourceChanged);
+            return;
+          }
+          const destination = channelDestination(saved.hostId, item, snapshot.roster);
+          if (destination && navigateChannel(navigation, destination)) setOpenNotice(undefined);
+          else setOpenNotice(snapshot.roster ? t.noChannel : t.channelOpeningNotReady);
         }}
         fallback={fallback}
       />
@@ -166,6 +174,7 @@ export default function InboxItemScreen() {
   return (
     <>
       <Stack.Screen options={{ title }} />
+      {openNotice === undefined ? null : <Notice tone="warning">{openNotice}</Notice>}
       {body}
     </>
   );

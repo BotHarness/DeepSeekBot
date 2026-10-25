@@ -1210,3 +1210,7 @@ Bot-owned choice controls use the shared `ds/Select` → `PointerMenu` geometry 
 window zoom. It keeps the native Menu renderer and keyboard owner inside the owning Modal,
 converts viewport anchor coordinates through effective CSS zoom, clamps to the safe viewport
 and returns focus after dismissal. No second shortcut router or Panel state is introduced.
+
+### Mobile notification and interruption conversation entry
+
+The mobile Channel navigation owner (`apps/mobile/src/ui/shell/channel-navigation.ts`) resolves notification and interrupted-processing destinations from the Host Roster, including Bot-to-Bot DMs. It dispatches into the existing Expo root stack: new destinations preserve their origin, while an existing Host-scoped destination unwinds to its retained route. Message focus does not create a second page. Notification routing owns serialized Host switching, cancellable readiness and latest-intent selection; the screen owns unavailable-message feedback. Opening does not mutate the Human Inbox or retry interrupted execution. See the [ADR-0211 amendment](../adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md) and [#2798](https://github.com/BotHarness/DeepSeekBot/issues/2798). Remaining entry and reset migrations are separate work.
