@@ -19,6 +19,7 @@ export function channelNavigationHarness(wrapped = false) {
       'cloud-channels',
       'conversation-section',
       'channel-files',
+      'host-look',
     ],
     routeParamList: {},
     routeGetIdList: {

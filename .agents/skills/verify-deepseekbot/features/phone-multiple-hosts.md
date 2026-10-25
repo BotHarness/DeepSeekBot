@@ -54,7 +54,15 @@ Capture source/integrated SHAs, light/dark screenshots, actual A/B message readb
 and connection transitions. Redact credentials and unrelated conversations.
 
 Verify new pairings receive an unused icon/color where available, existing custom looks
-survive re-pairing, and icon changes update Activity without reopening it. In All Chats,
+survive re-pairing, and saved icon changes update Activity without reopening it. New
+pairings select that environment and open its appearance sheet above Chats; account
+batches open the last newly added environment after completing the batch. Edit name,
+icon and color and verify only the sheet preview changes before Save. Back or swipe
+dismissal retains the stored appearance and the new pairing. Reopen, edit and tap the
+native top-right Save checkmark; Chats and Activity now reflect the saved appearance.
+Check the iOS prominent glass/opaque fallback and Android M3 filled icon button, light/dark,
+large text and keyboard reachability. On a storage failure the draft remains visible
+and retry succeeds without closing early. In All Chats,
 the environment name sits immediately after the first-line icon; the preview remains
 the second line. Tap a real unread Activity row and the corresponding All Chats row:
 both must open the originating Host conversation through Expo's outer root stack.

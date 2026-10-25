@@ -4,6 +4,8 @@ This is the target design of the DeepSeekBot mobile app. Every new or changed sc
 
 References:
 
+Environment appearance is an explicit-save form sheet. A newly paired environment becomes the current Host and the Chats/Activity filter, and its name/icon/color sheet opens above Chats. Account batches finish before opening the last newly added environment. Back or swipe dismissal discards appearance edits while retaining the pairing and its allocated defaults. Existing-environment editing uses the same draft/save contract. The leading header action is Back; the trailing Save checkmark is a native iOS circular prominent glass button (opaque fallback with Reduce Transparency/older iOS) or an Android M3 filled icon button. Save applies all fields together, closes only after persistence succeeds, and preserves the draft on failure.
+
 | App       | What we use from it                                                                                                                                                                          |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Manus     | The chat: one Bot is one contact, the conversation reads like IM, and action cards sit in the chat.                                                                                          |

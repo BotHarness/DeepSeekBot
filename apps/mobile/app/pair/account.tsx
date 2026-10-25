@@ -37,6 +37,7 @@ export default function PairAccountScreen() {
         },
         result: (host, result) => setResults((old) => ({ ...old, [host.id]: result })),
       });
+      if (!operation.signal.aborted) pairing.finishSetup();
     } finally {
       if (batch.current === operation) {
         batch.current = undefined;

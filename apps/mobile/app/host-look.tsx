@@ -31,10 +31,14 @@ export default function HostLookScreen() {
   return (
     <SheetScreen>
       <HostLookEditor
+        key={hostId}
         hostName={host.hostName}
         look={look}
         actions={{
-          onChange: (next) => hostLooks.set(hostId, next),
+          onSave: async (next) => {
+            await hostLooks.refresh();
+            await hostLooks.update(hostId, () => next);
+          },
           onClose: () => router.back(),
         }}
       />

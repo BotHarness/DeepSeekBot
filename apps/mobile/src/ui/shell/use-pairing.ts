@@ -1,5 +1,5 @@
 import Constants from 'expo-constants';
-import { useRouter } from 'expo-router';
+import { useNavigationContainerRef, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
@@ -8,11 +8,14 @@ import { hostSession } from '../../host/host-session';
 import { nativeCarrier } from '../../host/native-carrier';
 import { connectAccount } from '../../host/native-connect-account';
 import { hostLooks } from '../../host/native-host-look';
+import { conversationFilter } from '../../host/native-conversation-filter';
+import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { pairHost, type PairingFailure } from '../../host/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '../../telemetry/schema';
 import { hostLookName } from '../design/host-look';
 import { clearsPastedLink } from '../pairing-failure';
+import { resetWorkspaceRoot } from './workspace-navigation';
 
 function deviceName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
@@ -20,6 +23,16 @@ function deviceName(): string {
 
 export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: boolean } = {}) {
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
+  const setupHost = useRef<string | undefined>(undefined);
+  const finishSetup = () => {
+    const hostId = setupHost.current;
+    if (!hostId) return false;
+    conversationFilter.set(computerEnvironmentKey(hostId));
+    if (!resetWorkspaceRoot(navigation, undefined, hostId)) return false;
+    setupHost.current = undefined;
+    return true;
+  };
   const [connectionName, setConnectionName] = useState('');
   const [busy, setBusy] = useState(false);
   const [fingerprint, setFingerprint] = useState<string>();
@@ -119,6 +132,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           hostSession.getState().hosts.map((saved) => saved.hostId),
           name,
         );
+        if (!original) setupHost.current = host.hostId;
       },
       telemetry: mobileTelemetry,
       signal: operation.signal,
@@ -132,11 +146,12 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
       setError(result.code);
       return result.code;
     }
-    if (!options.stayOnPage) router.dismissTo('/');
+    if (!options.stayOnPage && !finishSetup()) router.dismissTo('/');
     return undefined;
   };
 
   return {
+    finishSetup,
     busy,
     fingerprint,
     verification,
