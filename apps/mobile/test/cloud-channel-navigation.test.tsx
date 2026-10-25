@@ -142,13 +142,11 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ channels: [{ channelId: 'channel-a', name: 'Alpha' }], nextCursor: null });
   fixture.open.mockReset().mockResolvedValue({ channelId: 'channel-a', name: 'Alpha' });
-  fixture.messages
-    .mockReset()
-    .mockResolvedValue({
-      messages: [{ sequence: 1, authorType: 'human', authorId: 'qa', text: 'Cloud history' }],
-      hasMore: false,
-      nextCursor: 1,
-    });
+  fixture.messages.mockReset().mockResolvedValue({
+    messages: [{ sequence: 1, authorType: 'human', authorId: 'qa', text: 'Cloud history' }],
+    hasMore: false,
+    nextCursor: 1,
+  });
   state = {
     stale: false,
     type: 'stack',
