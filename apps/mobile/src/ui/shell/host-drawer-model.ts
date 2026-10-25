@@ -81,10 +81,11 @@ export interface HostDrawerState {
 }
 
 export interface HostDrawerPort {
-  switchTo(hostId: string): Promise<boolean>;
+  switchTo(hostId: string, current: () => boolean): Promise<boolean>;
   showView(hostId: string | undefined): void;
   pair(): void;
   notifications(): void;
+  failed?(): void;
 }
 
 export interface HostDrawer {
@@ -96,6 +97,8 @@ export interface HostDrawer {
   hidden(): void;
   select(hostId: string): Promise<boolean>;
   selectAll(): void;
+  beginWorkspaceSelection(): () => boolean;
+  captureWorkspaceSelection(): () => boolean;
   pairNew(): void;
   openNotifications(): void;
   setReturnFocus(focus: (() => void) | undefined): void;
@@ -117,6 +120,10 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
   };
 
   const close = (): void => publish({ open: false, shown: state.shown });
+  const beginWorkspaceSelection = () => {
+    const selected = ++selection;
+    return () => selected === selection;
+  };
 
   return {
     getSnapshot: () => state,
@@ -131,24 +138,34 @@ export function createHostDrawer(port: HostDrawerPort): HostDrawer {
       if (!state.open) publish({ open: false, shown: false });
     },
     async select(hostId) {
-      const selected = ++selection;
+      const current = beginWorkspaceSelection();
       close();
-      const switchHost = () => port.switchTo(hostId);
+      const switchHost = () =>
+        current() ? port.switchTo(hostId, current) : Promise.resolve(false);
       const pending =
         switching === undefined ? switchHost() : switching.then(switchHost, switchHost);
       switching = pending;
       try {
         const switched = await pending;
-        if (switched && selected === selection) port.showView(hostId);
+        if (switched && current()) port.showView(hostId);
+        if (!switched && current()) port.failed?.();
         return switched;
+      } catch {
+        if (current()) port.failed?.();
+        return false;
       } finally {
         if (switching === pending) switching = undefined;
       }
     },
     selectAll() {
-      selection++;
+      beginWorkspaceSelection();
       close();
       port.showView(undefined);
+    },
+    beginWorkspaceSelection,
+    captureWorkspaceSelection() {
+      const selected = selection;
+      return () => selected === selection;
     },
     pairNew() {
       close();

@@ -10,7 +10,8 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import '../src/host/native-haptic-feedback';
 
 import { usePushRouting } from '../src/host/push-routing';
-import { HostDrawer, WorkspaceButton } from '../src/ui/shell/host-drawer';
+import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
+import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
@@ -41,6 +42,7 @@ function RootNavigator() {
   const design = useDesignTheme();
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending);
+  const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
@@ -52,7 +54,7 @@ function RootNavigator() {
                 <Notice tone="warning">{t.channelOpening}</Notice>
               </SafeAreaView>
             ) : null}
-            <View testID="app-stack-content" style={{ flex: 1 }}>
+            <View ref={workspace} testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
                 screenOptions={{
                   orientation: 'portrait',

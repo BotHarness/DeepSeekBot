@@ -67,15 +67,18 @@ import {
 } from './host-drawer-model';
 import { ActivityIcon, ChatsIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
 import { noticeHostKept } from '../unpair-notice';
+import { chooseCloudWorkspace, showWorkspaceRoot } from './native-workspace-navigation';
 
 export const hostDrawer = createHostDrawer({
-  switchTo: (hostId) => hostSession.switchTo(hostId),
+  switchTo: (hostId, current) => hostSession.switchTo(hostId, current),
   showView: (hostId) => {
     conversationFilter.set(hostId === undefined ? 'all' : computerEnvironmentKey(hostId));
-    router.replace('/');
+    if (!showWorkspaceRoot())
+      showAppDialog(t.channelOpeningNotReady, undefined, [{ text: t.done }]);
   },
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
+  failed: () => showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
 });
 
 const glances = createHostGlances((host) =>
@@ -653,23 +656,13 @@ export function HostDrawer() {
   }, [state.open, tab, cloud.ready, cloudKey]);
   const choose = async (workspace: CloudWorkspace) => {
     if (selecting || cloud.busy || directory.busy) return;
+    const current = hostDrawer.beginWorkspaceSelection();
     setSelecting(true);
     setSelectionError(undefined);
     try {
-      if (workspace.role === 'guest') await cloudClient.whoami(workspace.instanceId);
-      else await cloudClient.useOrganization(workspace.instanceId, workspace.organizationId);
-      closeThen(() =>
-        router.push({
-          pathname: '/cloud-channels',
-          params: {
-            instanceId: workspace.instanceId,
-            organizationId: workspace.organizationId,
-            guest: workspace.role === 'guest' ? 'true' : 'false',
-          },
-        }),
-      );
+      if (await chooseCloudWorkspace(workspace, current)) settle(false);
     } catch (error) {
-      setSelectionError(cloudError(error));
+      if (current()) setSelectionError(cloudError(error));
     } finally {
       setSelecting(false);
     }
