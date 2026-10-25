@@ -100,6 +100,7 @@ export function createLocalComputerProvider(options: {
         controller = new AbortController();
         const signal = controller.signal;
         state = { state: 'stopped', phase: 'starting' };
+        let permissions: LocalPermissions | undefined;
         try {
           await options.driver.ensure(signal, (progress) => {
             if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
@@ -136,10 +137,13 @@ export function createLocalComputerProvider(options: {
             throw new Error(
               'Local Computer driver doctor failed. Check the installation and retry.',
             );
-          const readiness = localReadiness(
-            platform,
-            await options.driver.call('check_permissions', localPermissionArgs(platform), signal),
+          const checked = await options.driver.call(
+            'check_permissions',
+            localPermissionArgs(platform),
+            signal,
           );
+          if (platform === 'darwin') permissions = localPermissions(checked);
+          const readiness = localReadiness(platform, checked);
           options.onEvent?.(
             `phase=permissions platform=${platform} ${readiness.detail} durationMs=${String(Date.now() - started)}`,
           );
@@ -158,6 +162,16 @@ export function createLocalComputerProvider(options: {
           state = {
             state: 'failed',
             phase: 'failed',
+            refusal:
+              permissions && (!permissions.accessibility || !permissions.screenRecording)
+                ? 'permissions-required'
+                : error &&
+                    typeof error === 'object' &&
+                    'setupCode' in error &&
+                    typeof error.setupCode === 'string'
+                  ? error.setupCode
+                  : 'setup-failed',
+            ...(permissions ? { permissions } : {}),
             detail: error instanceof Error ? error.message : String(error),
             ...(missing === undefined ? {} : { missing }),
           };

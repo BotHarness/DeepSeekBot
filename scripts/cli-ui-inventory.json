@@ -667,6 +667,13 @@
       "commands": ["computer-logs"]
     },
     {
+      "id": "computer-open-permission-settings",
+      "description": "Open an allowlisted macOS privacy pane on the Local Computer Host without granting permission.",
+      "scope": "Host",
+      "surfaces": ["route:packages/computer/src/index.ts:'/api/computer/open-permission-settings'"],
+      "commands": ["computer-open-permission-settings"]
+    },
+    {
       "id": "computer-open-dir",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",

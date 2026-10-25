@@ -101,40 +101,13 @@ afterEach(async () => {
   await act(() => root.unmount());
 });
 
-it('reserves a flow surface with safe-area space and removes it while typing', async () => {
-  await act(async () => root.render(<BotCreationNotice />));
-  const notice = container.querySelector<HTMLElement>('[data-testid="create-bot-notice"]')!;
-  expect(notice.style.position).toBe('');
-  expect(Number.parseFloat(notice.style.paddingBottom)).toBeGreaterThan(34);
-  expect(notice.parentElement?.style.flexShrink).toBe('0');
-  expect(container.textContent).toContain(creationCopy.resume);
-  fixture.keyboard = true;
+it('never renders a global creation footer on Home, with or without the keyboard', async () => {
   await act(async () => root.render(<BotCreationNotice />));
   expect(container.querySelector('[data-testid="create-bot-notice"]')).toBeNull();
-  fixture.keyboard = false;
+  expect(container.querySelector('button')).toBeNull();
+  fixture.keyboard = true;
   await act(async () => root.render(<BotCreationNotice />));
-  expect(container.textContent).toContain(creationCopy.resume);
-});
-
-it('does not redirect to recovery when opening finishes after the app enters the background', async () => {
-  fixture.state = {
-    ...fixture.state,
-    receipt: {
-      status: 'created',
-      operationKey: 'operation-123',
-      botSlug: 'new-bot',
-      channelId: 'dm',
-    },
-  };
-  fixture.open.mockImplementationOnce(async (stillHere) => {
-    fixture.appState = 'background';
-    fixture.onState?.('background');
-    expect(stillHere()).toBe(false);
-    return false;
-  });
-  await act(async () => root.render(<BotCreationNotice />));
-  await act(async () => container.querySelector('button')!.click());
-  expect(fixture.push).not.toHaveBeenCalled();
+  expect(container.textContent).toBe('');
 });
 
 it('owns recovery subscriptions even when its notice is hidden and releases them on unmount', async () => {
@@ -152,3 +125,11 @@ it('uses canonical localized copy and keeps unknown refusal codes out of visible
   expect(creationError('private-internal-code')).toBe(t.botCreation.refused);
   expect(creationError('private-internal-code')).not.toContain('private-internal-code');
 });
+
+it.each(['git-clone-failed', 'git-clone-timeout', 'git-not-found'])(
+  'explains the actual Git refusal %s',
+  (code) => {
+    expect(creationError(code)).not.toBe(t.botCreation.refused);
+    expect(creationError(code)).not.toContain(code);
+  },
+);

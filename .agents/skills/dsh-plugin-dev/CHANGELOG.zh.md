@@ -9,6 +9,8 @@ artifact；DSH 版本与上游 revision 记录这些内容是基于什么版本�
 
 ### Documentation
 
+- 补充 Electron 桌面环境的 ASAR 文件系统行为，以及运行时复用所需的真实文件安装验证（[#2761](https://github.com/BotHarness/DeepSeekBot/issues/2761)）。
+
 - 将下游产品安装指南同步到已验证的 Tobs 1.5.1 包，区分新的命令与兼容入口；DSH/Cordis Context 和 Skill 行为不变（[#2751](https://github.com/BotHarness/DeepSeekBot/issues/2751)）。
 
 - 更新下游审批指南与验收路径，说明管理与设备操作的显式持久授权；DSH/Cordis Context 与 Skill 行为不变（[#2730](https://github.com/BotHarness/DeepSeekBot/issues/2730)）。
