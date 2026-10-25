@@ -4,12 +4,99 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "phone.interface-preferences",
+      "label": "Phone-local language and appearance choices preserve the active chat and draft",
+      "source": "apps/mobile/src/ui/interface-preferences.ts",
+      "task": 2702,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-interface.md"
+    },
+    {
+      "id": "phone.zip-bot-import",
+      "label": "Retain a selected Zip, upload bounded chunks and recover the original imported Bot and DM",
+      "source": "apps/mobile/src/host/native-zip-import-file.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2637,
+      "gap": "Host/CLI restart proof and deterministic file/transport tests do not establish native picker, foreground, keyboard or device-disconnect behavior."
+    },
+    {
+      "id": "phone.marketplace-bot-import",
+      "label": "Browse the public native Marketplace before selecting a Host and import its reviewed source",
+      "source": "apps/mobile/app/marketplace.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2636,
+      "gap": "Public catalogue API proof does not establish native rendering, keyboard behavior or successful import; Android/iOS require the shared device journey."
+    },
+    {
+      "id": "phone.blank-bot-creation",
+      "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2629,
+      "gap": "Native Android/iOS interaction remains separate from the passing PR2632 Host/CLI path; source tests do not establish native acceptance."
+    },
+    {
+      "id": "phone.git-bot-import",
+      "label": "Import a pinned Git source on a chosen paired Host and recover the same Bot and DM",
+      "source": "apps/mobile/app/create-bot.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
+      "task": 2635,
+      "gap": "Record the Git import Host/CLI path and Android/iOS interaction at their exact candidate; inherited blank-creation evidence does not qualify import."
+    },
+    {
+      "id": "phone.local-computer-video",
+      "label": "Watch a Windows Local Computer on Android, explicitly take control, release and resume Bots",
+      "source": "apps/mobile/src/ui/chat/local-computer-screen.android.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/local-computer-video.md",
+      "task": 2558,
+      "gap": "Windows helper capture, Android native rendering, physical LAN interaction and Human qualification remain unverified; source checks do not establish runtime acceptance."
+    },
+    {
+      "id": "phone.pinned-list",
+      "label": "Browse Remote Host sections and full Pinned conversation rows, collapse and search without changing arrangement",
+      "source": "apps/mobile/app/(tabs)/(home)/index.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-pinned-list.md",
+      "task": 2571,
+      "gap": "Centralized test center owns native iOS/Android width/text/appearance, interaction and screenshot qualification; Human visual feedback gates Organize/drag siblings."
+    },
+    {
+      "id": "phone.chat-row-actions",
+      "label": "Swipe or open the menu to pin, mute, assign or create a Host section",
+      "source": "apps/mobile/src/ui/chat/conversation-section-sheet.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-chat-row-actions.md",
+      "task": 2519,
+      "gap": "Native iPhone and Android gestures, menus, keyboard, screen readers and light/dark large-text qualification await the shared-device queues."
+    },
+    {
+      "id": "marketplace.browse",
+      "label": "Browse flat Bot cards with banners, topic filters and remembered sorting",
+      "source": "packages/client/src/client/market-panel.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 2568,
+      "gap": "Web Panel light/dark and reload verified; production Worker deployment and native Desktop qualification remain separate."
+    },
+    {
+      "id": "phone.drawer-views",
+      "label": "Choose All or one Host from the phone drawer with Android Host accent",
+      "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-drawer-views.md",
+      "task": 2518,
+      "gap": "Native iOS and Android light/dark/large-text qualification requires the shared device queues. All covers the current Host and cloud workspaces only."
+    },
+    {
       "id": "browser.remote-hosts",
       "label": "Pair Remote Hosts, retain browser pairings across the Host Feed rename and open their conversations",
       "source": "packages/client/src/client/remote-hosts.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/remote-hosts.md",
       "task": 2500,
       "gap": "Two isolated local Hosts qualify the browser path; DSH Desktop, physical tailnet machines and remote image/card rendering remain unqualified."
+    },
+    {
+      "id": "connect.encrypted-channel",
+      "label": "Pair exact device keys and carry Connect messages, resources and private input through Noise XK",
+      "source": "packages/core/src/devices/encrypted-gateway.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
+      "task": 2542,
+      "gap": "Real Cloudflare network, iOS/Android and Human acceptance remain separate gates; browser/Node local-origin capture is not native proof."
     },
     {
       "id": "desktop.approval.three-actions",
@@ -690,6 +777,43 @@
       "gap": "Controlled Provider; real external delivery and GitHub authentication are not qualified."
     },
     {
+      "id": "phone.composer",
+      "label": "Native message composer layout, editing and attachment actions",
+      "source": "apps/mobile/src/ui/chat/composer.tsx",
+      "task": 2566,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
+    },
+    {
+      "id": "phone.haptic-feedback",
+      "label": "Immediate press feedback, semantic haptics and device-local feedback preference",
+      "source": "apps/mobile/src/ui/haptics.ts",
+      "task": 2624,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-haptic-feedback.md",
+      "gap": "Source tests do not qualify native interaction or Human tactile acceptance; both platforms require queued native and physical-device checks."
+    },
+    {
+      "id": "host.ssh-tunnel",
+      "label": "Computer SSH tunnel to a pinned Linux Host",
+      "source": "packages/core/src/devices/ssh-tunnel.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/ssh-host.md",
+      "task": 2607
+    },
+    {
+      "id": "product.command-compatibility",
+      "label": "Install and uninstall Tobs and legacy CLI independently with matching behavior",
+      "source": "scripts/e2e-tobs-commands.mjs",
+      "guide": null,
+      "task": 2722,
+      "gap": "Package command qualification only; Host persistence and native mobile identity require separate journeys."
+    },
+    {
+      "id": "bot.subagent-presets",
+      "label": "Independent Subagents choose explicit, configured or current system preset; forks inherit; direct CLI uses live parent",
+      "source": "packages/core/src/runtime/subagent-model-tools.ts",
+      "task": 2435,
+      "guide": ".agents/skills/verify-deepseekbot/features/subagent-presets.md"
+    },
+    {
       "id": "phone.deletion",
       "label": "Review and delete Bots, dissolve groups and remove sections from mobile long press",
       "source": "apps/mobile/src/ui/chat/deletion-sheet.tsx",
@@ -700,20 +824,28 @@
   ],
   "scripts": [
     {
+      "path": "scripts/e2e-zip-import-proof.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.zip-bot-import"],
+      "reason": "Imported helper of e2e-personabot-create.mjs, not a standalone launcher: same archive after upload restart and duplicate chunk, CLI preview/import/status, discarded accepted reply and same Bot/DM after import restart.",
+      "task": 2637,
+      "sha256": "8a2b6e3604d177e402376191a3a259f490964c572d5324573b484b6be8858ca4"
+    },
+    {
       "path": "scripts/e2e-tool-approval-simple.mjs",
       "category": "mapped",
       "behaviors": ["desktop.approval.three-actions"],
-      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and Full Access Human-only management.",
-      "task": 2080,
-      "sha256": "ae02a942c136a8b8875eb21e5cbc703931654c564bf1a1a0fbf0b891fb7f0d79"
+      "reason": "Task-owned isolated Windows Host; real native pwsh requests, Web Always allow, changed inputs, other-tool/CLI/revoke checks and rememberable permission management under Full Access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2730,
+      "sha256": "69f0c60976b84a85c22874c93e4238329f78caa210511b9426963cfb7fb780a9"
     },
     {
       "path": "scripts/e2e-workspace-request-write.mjs",
       "category": "mapped",
       "behaviors": ["desktop.grants.request-write-continue"],
-      "reason": "Task-owned isolated Host and temporary folder; real Web confirmation, authoritative Grant readback, native Orchestrator/Assignment file writes and same-task reply. No mobile or full recovery claim.",
+      "reason": "Task-owned isolated Host and temporary folder; real Web confirmation, authoritative Grant readback, native Orchestrator/Assignment file writes and same-task reply. No mobile or full recovery claim. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2080,
-      "sha256": "3ca8a16e8efddeacfb82c601917884d2944a716c573447347d934f8fd22a0991"
+      "sha256": "aa435da3a89bb89b952a282326e438c656864ee34561783c6b16105d7ce91963"
     },
     {
       "path": "scripts/e2e-bot-session-folders.mjs",
@@ -751,65 +883,65 @@
       "path": "scripts/e2e-activity-recovery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer.",
+      "reason": "Requires real model and cookie profile; deliberately refuses activity streams to compare polling/reconnect with visible sidebar and composer. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "3d4f336835d68cdaaacfff50c6af4addda67726e922bb3851b6a0fcd04d11714"
+      "sha256": "d54e46c551bf914d541d72f3fc8c4e8cfe417ad59fcae67a3590a48276a17045"
     },
     {
       "path": "scripts/e2e-all-bot-mention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.mention"],
-      "reason": "#542 prepared scene and real models; checks picker names, two replies, silent exclusion and stale membership refusal.",
+      "reason": "#542 prepared scene and real models; checks picker names, two replies, silent exclusion and stale membership refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "7c2717d164f04497849db1bfad5a8a7bccfc40e642cfdf0c62f032b708efc4aa"
+      "sha256": "66b68f4d5b2d4f38cacabb0ef81a9f79a124ee018f3c79476bb7fc11f510f8d1"
     },
     {
       "path": "scripts/e2e-approval-capacity-proof.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Imported proof validator for approval-capacity; asserts native original/competing tool order and grant revocation, not a launchable journey.",
+      "reason": "Imported proof validator for approval-capacity; asserts native original/competing tool order and grant revocation, not a launchable journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ab711a04478719a82258f152ec43b45cf75e10ab89d7103096d70d7c6078d1ab"
+      "sha256": "b23a05bc07513a9d28d5032e40f26828015865d589f9a5c00ca91256f711fbb2"
     },
     {
       "path": "scripts/e2e-approval-capacity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle", "desktop.inbox.requests"],
-      "reason": "#1037 task-owned workspace, live model and limit=1; real approval UI and competing native command effects; changes settings.",
+      "reason": "#1037 task-owned workspace, live model and limit=1; real approval UI and competing native command effects; changes settings. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "e52468ee2f3c98f3b290f1712e2654511efd3cbaf1c1d2c8b3a73b7d784a56aa"
+      "sha256": "2bc74784f083f465057da155dea91c6d81fd70ae9a3807e45d98128c7a3d0794"
     },
     {
       "path": "scripts/e2e-assignment-active-crash.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn.",
+      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ec8a0e98e6549b3e85a0587e1908ce19fa15b564fed3bc08f95f92ba5619bf64"
+      "sha256": "964cf2d663bb05ec965b18ad6d1a755c740add9ba5b53ce21f8f05cbeb82d492"
     },
     {
       "path": "scripts/e2e-assignment-attention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
-      "reason": "#123 stored scene and live model; compares Assignment waiting-Human attention with Overview and answered revision.",
+      "reason": "#123 stored scene and live model; compares Assignment waiting-Human attention with Overview and answered revision. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "b7ec29867e0d022470d1bb1efdd8814c1f8157f9dc859cff86f4b3d37c1abfbd"
+      "sha256": "294c0829b0406933ec2290dfd3e03fdb4efe6ce1ea78f2c4fc88bc15d2f4c61f"
     },
     {
       "path": "scripts/e2e-assignment-escalation.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 prepare/pending/verify/answered phases; exact Assignment Session resumes from Human answer and reports once.",
+      "reason": "#194 prepare/pending/verify/answered phases; exact Assignment Session resumes from Human answer and reports once. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "2a6a8ef8a281c7c7850701767415156297272a8e4ce10317d20c60f3bc2eef61"
+      "sha256": "a2059d6c14afb9acf0fd2de3f0479bd50b08d4442143bdbc3863e45d01e43268"
     },
     {
       "path": "scripts/e2e-assignment-failed-report.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Prepare/restart/verify with private state; validates failed Report exposure and no duplicate Assignment after restart.",
+      "reason": "Prepare/restart/verify with private state; validates failed Report exposure and no duplicate Assignment after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "7d7ce074f2ba6d05a5e2edb75839448481fea6f93a415dc15644ff2e6e51b49d"
+      "sha256": "fe6860f4091e21bc504901de88e8a3b1963ab36f047cd94bd1e99252bec1ef55"
     },
     {
       "path": "scripts/e2e-assignment-harvest-proof.mjs",
@@ -823,33 +955,33 @@
       "path": "scripts/e2e-assignment-model-switch.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.model.routing"],
-      "reason": "Needs two live catalog routes and workspace; checks explicit route switch and rejected/preset changes preserving existing Assignment.",
+      "reason": "Needs two live catalog routes and workspace; checks explicit route switch and rejected/preset changes preserving existing Assignment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "d732d68b02a85d66b65348463710db4e78031941ea920a2b89fa42f6e914038c"
+      "sha256": "4f16946a32b535b07b46aa64c78f5a0f467d0a0d091674358dd1698dbedcf3b3"
     },
     {
       "path": "scripts/e2e-assignment-native-cancel.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Prepare/baseline/cancelled/restart phases require actual native cancellation; compares retained facts and Turn counts.",
+      "reason": "Prepare/baseline/cancelled/restart phases require actual native cancellation; compares retained facts and Turn counts. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "4fcd26568b3e2019e04fcb32fac61068e6227f33e7f7864ea62c55fa7b18d723"
+      "sha256": "120160f6f19e55f7c1e7ef743b3dced3cf8f5f1a1250c13cc5c8f7dc68da2c40"
     },
     {
       "path": "scripts/e2e-assignment-native-error.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Prepare/baseline/failed/restart phases require native failure; verifies terminal notice, continuity removal and no replay.",
+      "reason": "Prepare/baseline/failed/restart phases require native failure; verifies terminal notice, continuity removal and no replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "9cde211e35826ccfe89dbf676e20470d10b13061cc7236215f06c27438032883"
+      "sha256": "113162ac05df442d866ec286b042e562ce265f4872588d1cd6255a0f06d8f501"
     },
     {
       "path": "scripts/e2e-assignment-observed-restart.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 stored scene and real model; observes Report then restarts task Host to verify same idle Assignment and one tool call.",
+      "reason": "#194 stored scene and real model; observes Report then restarts task Host to verify same idle Assignment and one tool call. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "22ff32a29e0001791edbc53a4fac043900f51a2810ddd599277b23c53bf3c3a9"
+      "sha256": "feefdbb0003e234de884186de3b655d5290132f20d8cb6211296f887863dd107"
     },
     {
       "path": "scripts/e2e-assignment-probe.mjs",
@@ -863,25 +995,25 @@
       "path": "scripts/e2e-assignment-recovery-notice.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay.",
+      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "09076a2eb646d98c8c4fbc6552d08bcdc1f2eeff91755474f1edb4ff530b201d"
+      "sha256": "f33f3c36f897b3756a6e6eacf18ac4f40d13d2462df030a0a2446c5fc7c4efce"
     },
     {
       "path": "scripts/e2e-assignment-repair-severity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Needs prior repair scene; introduces weaker report then restarts, checking severity retention and single exposure.",
+      "reason": "Needs prior repair scene; introduces weaker report then restarts, checking severity retention and single exposure. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "b30fb937dc6c96cde7e6ba437be58d01ddc620a9d577929b493553fffb42155c"
+      "sha256": "77efdd39b368fd9701b3399dd73014f610b0908ffb87be92e7062879f0ac73c8"
     },
     {
       "path": "scripts/e2e-assignment-report-harvest.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 real-model prepare/complete/verify/capture; three actual Report calls with one Assignment and independent sources.",
+      "reason": "#194 real-model prepare/complete/verify/capture; three actual Report calls with one Assignment and independent sources. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "f9fc502ca47916f92c3dca6eb8524dab7cc8ee6244b96f71607fd403a322deaa"
+      "sha256": "a882d59f92f6704ed701b1ee540022b22a2e9c3ee7801d9c601bcf9e1a6459fc"
     },
     {
       "path": "scripts/e2e-assignment-report-proof.mjs",
@@ -895,9 +1027,9 @@
       "path": "scripts/e2e-assignment-report-restart.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 pending Reports survive task Host restart, then Human DM harvests them in the original Orchestrator.",
+      "reason": "#194 pending Reports survive task Host restart, then Human DM harvests them in the original Orchestrator. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "9c0f1c22863afa2c6b33db77185d61ce81c44bf7a61126d12474cddb086461f4"
+      "sha256": "f64fadb6e84d899037d60e1ed763b43e65eae8218c192fc780c0cb72ff1c893b"
     },
     {
       "path": "scripts/e2e-assignment-restart-proof.mjs",
@@ -911,25 +1043,25 @@
       "path": "scripts/e2e-assignment-stop-recovery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#81 prepared grant/model fixture; native stop_assignment and shell result checked across stop/restart phases.",
+      "reason": "#81 prepared grant/model fixture; native stop_assignment and shell result checked across stop/restart phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "9f724ad77bf19ef1572f248cdb42bd7c8780627742953232cf1c32ae41d75bb3"
+      "sha256": "2b946937f69f8513558d26b740faf774f6e0f3cacac1ef889405a1f449b29a8c"
     },
     {
       "path": "scripts/e2e-assignment-terminal-notice.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "#194 multi-phase live execution; terminal Notice is retained, exposed and handled exactly once after restart.",
+      "reason": "#194 multi-phase live execution; terminal Notice is retained, exposed and handled exactly once after restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "a316921ad80e4defa9a0d53acd3efaba1ee466d983c738c7e74e6e24fa914362"
+      "sha256": "05fcf8e6efe659f95ec331846fada64e2440aae5b66aa25de3fc56f350d31dd9"
     },
     {
       "path": "scripts/e2e-assignment-wait.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle", "desktop.activity.live"],
-      "reason": "#123 pending native approval and real model; Assignment source replaces then restores Orchestrator presentation.",
+      "reason": "#123 pending native approval and real model; Assignment source replaces then restores Orchestrator presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "379ba066a06cb2df578c86c50da19bca5a2d1c5048c0fe987c6e9e7c137e455e"
+      "sha256": "b893234e0828e5acc05fad69db21e7b3cc5e85f649726c3b0e254d6499a63947"
     },
     {
       "path": "scripts/e2e-attention-presets.mjs",
@@ -959,9 +1091,9 @@
       "path": "scripts/e2e-browser-access.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Task fixture server and phase state; live model navigates, stops, revokes access and restarts with independent Computer access.",
+      "reason": "Task fixture server and phase state; live model navigates, stops, revokes access and restarts with independent Computer access. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "0c431841bcd99cd5dba5cdcd1698bec5f4f0618a1c13cc764a05f783a9fab0a9"
+      "sha256": "4a15fcc889075ac80efaa0c366cdef133be0008cb2e794191939172e25066e3f"
     },
     {
       "path": "scripts/e2e-browser-closed-tab.mjs",
@@ -975,9 +1107,9 @@
       "path": "scripts/e2e-browser-container.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase.",
+      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "3b16b867fc55d20ebb43eb87eb47a57947717258255052cfdcce85268173b61c"
+      "sha256": "8496d954fe23e98c2e9cacaa83ec7b7366c37ad3f38803e53fef40f5fccd18ea"
     },
     {
       "path": "scripts/e2e-browser-editability.mjs",
@@ -991,17 +1123,17 @@
       "path": "scripts/e2e-browser-entry.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Three-tab task scene and separately collected UI results; verifies Browser entry/focus without replacing ongoing work.",
+      "reason": "Three-tab task scene and separately collected UI results; verifies Browser entry/focus without replacing ongoing work. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "4e4e5dea65421a0444f4a895ee57e893a509910ba4185cde4fd539c919122c19"
+      "sha256": "8369dae71f49e9229fd4915c1dc58efee02a933a9c49ef9cdb03b81cd2659824"
     },
     {
       "path": "scripts/e2e-browser-interaction.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Local fixture server, model and phase state; probes input timeout and focus preservation with screenshot evidence.",
+      "reason": "Local fixture server, model and phase state; probes input timeout and focus preservation with screenshot evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "5911daf3e011166b5014cdd5a8169b47cbb7ab685f160bda08a75bea4fe6cf3d"
+      "sha256": "79496ba4b644ef435c0e63d619e5f91b21a8afa62e08255290e71fd9abf5777a"
     },
     {
       "path": "scripts/e2e-browser-keyboard.mjs",
@@ -1023,9 +1155,9 @@
       "path": "scripts/e2e-browser-multitab.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Two Bots and local fixture server; checks tab/focus isolation and separate screenshots, not model delivery alone.",
+      "reason": "Two Bots and local fixture server; checks tab/focus isolation and separate screenshots, not model delivery alone. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "567a25e84510a2f69cb6042b3c6d23a9a76b6874ba73d49ee698c3b5eb3d035c"
+      "sha256": "8b296c8392bf24e0456af3068b785c92c1df024d8421fb0af94094931526b061"
     },
     {
       "path": "scripts/e2e-browser-navigation.mjs",
@@ -1039,9 +1171,9 @@
       "path": "scripts/e2e-browser-observation.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Local fixture plus paused live Browser; tests read/screenshot refusal and resumed frame with same scoped Session.",
+      "reason": "Local fixture plus paused live Browser; tests read/screenshot refusal and resumed frame with same scoped Session. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "fd9133fd70fb30fc387a68436f046039e7ea1ca8c9f28e67ca0a5db62c9a78c2"
+      "sha256": "e31b999a4f3fdbd89dd342eb147b25c361bafda38461b05c3a978ced3694a772"
     },
     {
       "path": "scripts/e2e-browser-profile-names.mjs",
@@ -1063,9 +1195,9 @@
       "path": "scripts/e2e-browser-profiles.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume.",
+      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "cca4cab04cbf64a8973041e9d6b7de38aad913b27634a37edadc7d8993967006"
+      "sha256": "14af2c1c9960a67b1f1ae2266a9a7686f0e75a034997bc8e2f303429183706d0"
     },
     {
       "path": "scripts/e2e-browser-refusal-audit.mjs",
@@ -1087,49 +1219,49 @@
       "path": "scripts/e2e-browser-screenshot-upload.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Task-owned screenshot files and upload fixture; actual image attachment plus bounded retention, no unrelated files.",
+      "reason": "Task-owned screenshot files and upload fixture; actual image attachment plus bounded retention, no unrelated files. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "e7451808d1f9de5189c8029106be560cf32b881327ea26bd6451027090fa357f"
+      "sha256": "ea646184d43a096d2e86920b4aad31adc0f0237313a79881b2cf88d072ad69a6"
     },
     {
       "path": "scripts/e2e-browser-scroll.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Prepared scroll fixture and live Session; verifies scroll/refusal audit, original tab and single completion.",
+      "reason": "Prepared scroll fixture and live Session; verifies scroll/refusal audit, original tab and single completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "e30fd6d5a611abf282a172961a3863a64cf22625c9aa4315c041f72efd35a4e6"
+      "sha256": "e1b9865b26246905640116adf3f1ee366782a62b5d392c0290070448e61ecdab"
     },
     {
       "path": "scripts/e2e-browser-upload-target.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Prepared upload fixture and live Session; one invalid target refuses and one valid target succeeds, focus retained.",
+      "reason": "Prepared upload fixture and live Session; one invalid target refuses and one valid target succeeds, focus retained. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "ffd7f7e59280e48f2d63cd09c94c5225348e8f3385aefd9d89f2d946fa8ad018"
+      "sha256": "10728c3f340aa009c66fd323b5a62772dbd7a93712f759d251c1c3f4f8701717"
     },
     {
       "path": "scripts/e2e-browser-upload.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.tools"],
-      "reason": "Task assets and local upload server; two accepted/two rejected uploads with actual receipts and path/content-redacted audit.",
+      "reason": "Task assets and local upload server; two accepted/two rejected uploads with actual receipts and path/content-redacted audit. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "0e598b4aa0575b0a1b3e381e94dff2023140fe85d14aaa87c8897ee95fc283d7"
+      "sha256": "d4062ac4b3840c3cf2862fd56ed328e6522183055bccec4d7395358ae9595a13"
     },
     {
       "path": "scripts/e2e-channel-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.metrics"],
-      "reason": "#703 prepared task Host; compares daily Human/Bot counts and late arrivals without changing Human attention.",
+      "reason": "#703 prepared task Host; compares daily Human/Bot counts and late arrivals without changing Human attention. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "f7a05d50929c41ccc5317233c6d3d623cd028de9afd292d813811d84019e8e47"
+      "sha256": "0a7b595c0c6f4930a9a49450ad3dc3f2444e67cba272be17e08de53bd8b8c4ca"
     },
     {
       "path": "scripts/e2e-channel-image-read.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.dm.reply", "desktop.attachments"],
-      "reason": "Authenticated browser uploads generated image; requires vision-capable real model reply containing IMAGE-Z9.",
+      "reason": "Authenticated browser uploads generated image; requires vision-capable real model reply containing IMAGE-Z9. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "0b85bc259da210b64047c9962b4e69ad38241029297f899086106f8caa9cdd1e"
+      "sha256": "3b626f3f042ad6f0a64b4728a30ac712257672e9196a4555c0fdd9de895f9a5e"
     },
     {
       "path": "scripts/e2e-channel-multiselect.mjs",
@@ -1183,9 +1315,9 @@
       "path": "scripts/e2e-cli-live.mjs",
       "category": "historical-regression",
       "behaviors": ["cli.send-receipt"],
-      "reason": "Private launcher and explicit QA Bot; repeated real-model send/send-status checks same receipt and no auth in output.",
+      "reason": "Private launcher and explicit QA Bot; repeated real-model send/send-status checks same receipt and no auth in output. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "3b6924c6d009ae9e00735173951945c9161a53ce9b5d8bcc417c20d266d3cce5"
+      "sha256": "262e4aaaefb4181c8cb9a0612955ba637ceefd204ee33ec10588804a83fe4393"
     },
     {
       "path": "scripts/e2e-client-interactions.mjs",
@@ -1231,17 +1363,17 @@
       "path": "scripts/e2e-concurrent-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "#123 real concurrent native tools and approval; sorted references, active-tool count and restored idle presentation.",
+      "reason": "#123 real concurrent native tools and approval; sorted references, active-tool count and restored idle presentation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "d900fb7c23787650dfd75b602f1c30bcf735f35488918345ded6e792486bae3c"
+      "sha256": "e85b9f092a1918435a3b0f05742b78d045d8e709351e9ffedb3eb665117b2211"
     },
     {
       "path": "scripts/e2e-daily-control.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "#766 local editing fixture plus model; Human takeover, resume and returned navigation cannot cause forbidden write.",
+      "reason": "#766 local editing fixture plus model; Human takeover, resume and returned navigation cannot cause forbidden write. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1976,
-      "sha256": "09ba15ba0f347fb8859165589297ee2ed7fc5317bf61c722b85994c5682acfc0"
+      "sha256": "f549a79e38fe8660d86c68e865d524d22c42908b01a39f37bfbd51179bebe836"
     },
     {
       "path": "scripts/e2e-device-full-client.mjs",
@@ -1271,17 +1403,17 @@
       "path": "scripts/e2e-dm-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames.",
+      "reason": "Real model/tool approval with optional steering; tracks same Host/sidebar/composer working-to-idle frames. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "ea87d989fc7888fc7ed5eab65cd19276f8823b63a19d3533c66aa2ebffc48dc0"
+      "sha256": "9acd768fd7e5a5a3180545d0aed1f5af9365cdd106d23fb675e280b43c214a4f"
     },
     {
       "path": "scripts/e2e-dm-scroll.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.timeline.read-position"],
-      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile.",
+      "reason": "Real model reply and expanding activity footer; asserts scroll geometry in light/dark, prepared task profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "11e88ac8c5d64a8051cbd60d3787a0d30f76a62b243de1f6f4fe25d2126e24f2"
+      "sha256": "4ea51928ece47020f6efe63023344895464703eac6c38cb7bf13b8c60147d0d1"
     },
     {
       "path": "scripts/e2e-filtered-usage.mjs",
@@ -1295,33 +1427,33 @@
       "path": "scripts/e2e-fresh-profile-install.mjs",
       "category": "historical-regression",
       "behaviors": ["product.fresh-install"],
-      "reason": "Exact prepared artifacts and fresh Profile; installs/restarts real Host, rejects native preflight plugin disablement, creates Bot/DM; no Client check.",
-      "task": 1980,
-      "sha256": "15d101840fae11397b69a8b516ac992bfcd3221dde767ffdf1040e234a6cc16b"
+      "reason": "Exact artifacts through both Bundles; published 1.4.1 upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
+      "task": 2744,
+      "sha256": "da6396ff22fa9240e0b5b3b3196ceb6c518142508fa10f0cf79af23a24ff943d"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.grants", "desktop.activity.live"],
-      "reason": "#123 model-created grant request; verifies pending/dismissed attention and Overview revisions, not full revoke journey.",
+      "reason": "#123 model-created grant request; verifies pending/dismissed attention and Overview revisions, not full revoke journey. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
-      "sha256": "3fd408655cc2f0286f8f855e33ab8584b9e11e83ca305b4377d31b02b86b4012"
+      "sha256": "c46d486943b71d381e6864eb41213cd1ff10cfad22a1f3f1e957ef78ecf3c0c0"
     },
     {
       "path": "scripts/e2e-group-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity"],
-      "reason": "Task group and live model; measures header/profile state and overflow against Host activity snapshot.",
+      "reason": "Task group and live model; measures header/profile state and overflow against Host activity snapshot. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "102a56f34894cbd603700a35e3221075dee85b6cc0e831410bcf06c92221e64d"
+      "sha256": "9eec5112103ac1eaaf48382f27a41e0939f7198d07a3e4f2411a41404fdfc504"
     },
     {
       "path": "scripts/e2e-group-assignment-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity", "desktop.assignment.lifecycle"],
-      "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion.",
+      "reason": "#124 real native timer and Group reply; layout and successful Assignment result precede committed completion. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "594d95d7c486377ecd72beaf45fd4654470dca1042a2e547b5f94de2b4790d1d"
+      "sha256": "0066ac880f4a642f9b7e3011479d0ef6184e8b021b4f7bcad52c06578d5cd1aa"
     },
     {
       "path": "scripts/e2e-group-assignment-proof.mjs",
@@ -1335,17 +1467,17 @@
       "path": "scripts/e2e-group-attention-tools.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Port/home real-model fixture; Bot wake-policy tools, Human override and restart durability.",
+      "reason": "Port/home real-model fixture; Bot wake-policy tools, Human override and restart durability. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "f9deba6705b335f4818c25226440c31f1018960f1618ede03b61bc3e82c8befe"
+      "sha256": "288e1ad1532bed23d23b82ec5ad4123a2a77fb467671bbf9948b32dc8ba31dec"
     },
     {
       "path": "scripts/e2e-group-backlog.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Port/home live model; pending backlog selection supplies oldest/nearby context and leaves unselected messages pending.",
+      "reason": "Port/home live model; pending backlog selection supplies oldest/nearby context and leaves unselected messages pending. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "2766298ca1110d66adc3c197f7b5631664f73ac79f94e1fc38f23d7f0157409c"
+      "sha256": "05fc9626439a5f8bac268ba295a1e4606cdfc37d58584668cdc556c252cc5447"
     },
     {
       "path": "scripts/e2e-group-context.mjs",
@@ -1375,9 +1507,9 @@
       "path": "scripts/e2e-group-motion-matrix.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity"],
-      "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile.",
+      "reason": "#124 live tool and model; full/reduced motion matrix, overflow and completion ordering in Group header/profile. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "f03dc611942e8d4d0aa0157d438b53022cbbe5f1ea7be3c1e7c74fab367b063b"
+      "sha256": "ed7ee00349fef9e95b7f237bb2e58ffe48dd6b7ad9d70ad701da757696f5230e"
     },
     {
       "path": "scripts/e2e-group-motion-proof.mjs",
@@ -1407,9 +1539,9 @@
       "path": "scripts/e2e-group-shell.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.activity"],
-      "reason": "#124 prepared live Group/model fixture; verifies source timeline, avatar ownership and narrow layout.",
+      "reason": "#124 prepared live Group/model fixture; verifies source timeline, avatar ownership and narrow layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "692cb08505a752facb17d977072d3c0d1b42cd6a9559c7fc89c6c7dd430fdc09"
+      "sha256": "569cd998328030dae76aa79e0198bc903bca8e7a87580c1d3555ea5316db56e9"
     },
     {
       "path": "scripts/e2e-harvest.mjs",
@@ -1431,9 +1563,9 @@
       "path": "scripts/e2e-human-channel-names.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.identity.names"],
-      "reason": "#622 prepared scene and real model; separate DM/Group aliases and stable local-human identity in replies.",
+      "reason": "#622 prepared scene and real model; separate DM/Group aliases and stable local-human identity in replies. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "df0474d113b9dbef71689e42437c72ea46c10876555f9f1d4de05dcc301e263f"
+      "sha256": "ca1e038b943d8de51e72bbd41806bc4ebe2d5e87d28af11d9b6269914ecb5970"
     },
     {
       "path": "scripts/e2e-human-inbox-list.mjs",
@@ -1447,49 +1579,49 @@
       "path": "scripts/e2e-human-inbox-reply.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
-      "reason": "#547 prepared sources and real model; exact Group/DM reply correlation and drafts survive failed navigation.",
+      "reason": "#547 prepared sources and real model; exact Group/DM reply correlation and drafts survive failed navigation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "b513d5168c444532ec3c12baa03e8669a19954451c024ff8f9eb6b14a2159b1b"
+      "sha256": "c1b08f7cedcc15a14853690e5de26a99833013f63b90ba66d4503f3eacf44a92"
     },
     {
       "path": "scripts/e2e-human-mentions.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
-      "reason": "#549 source fixture, personal attention and second identity; filtered mentions and exact reply target.",
+      "reason": "#549 source fixture, personal attention and second identity; filtered mentions and exact reply target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "3ed5b0726332058bceca090f5800cfd42177ecb4416a221b0a5ccb9280d24c28"
+      "sha256": "f77995e61dc11ff904df12900963116bccb2ce133884b637dfdecf7ab4be004a"
     },
     {
       "path": "scripts/e2e-human-names.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.identity.names"],
-      "reason": "#621 prepared scene; changes Human display name while preserving message authors, mentions, attention and default fallback.",
+      "reason": "#621 prepared scene; changes Human display name while preserving message authors, mentions, attention and default fallback. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "7c96936867451dc7bb871f01ac60177e317030941d7c718ebe20ed58589a521e"
+      "sha256": "081523eefd05645cafd3611a45c6b7acbbcbfc3ac9d3429beb0e965153af8d44"
     },
     {
       "path": "scripts/e2e-human-personal-replies.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.messages"],
-      "reason": "#548 prepared reply source; exact read-state and Human response identity, with actual browser target.",
+      "reason": "#548 prepared reply source; exact read-state and Human response identity, with actual browser target. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "a5c808e3dce520839a49f2567a927a3b01be3be2450d101dfc9ef6cd270b95b1"
+      "sha256": "73fc5d9576ceb0795ea1f08949990e9bab60324b4509988f036a7e23369eee24"
     },
     {
       "path": "scripts/e2e-inbox-grant-assignment.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.requests", "desktop.grants"],
-      "reason": "#552 live grant/Assignment fixture; approval and replies resume exact Session, preserve independent requests and stale refusal.",
+      "reason": "#552 live grant/Assignment fixture; approval and replies resume exact Session, preserve independent requests and stale refusal. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
-      "sha256": "401f5733fa76d7151a247abda68a0fd8914e7b3fca18675539366dfd395dab95"
+      "sha256": "4511fc271e8863d1d2b7127add9f9cfab6cba68fde7b79997bd335de5939bb49"
     },
     {
       "path": "scripts/e2e-activity-live.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Task-local real browser: idle and slow-read stability, live cross-Channel message and request arrivals, read/source identity, actual WebSocket reconnect, snooze expiry, group-join decision and bounded CLI watch.",
+      "reason": "Task-local real browser: idle and slow-read stability, live cross-Channel message and request arrivals, read/source identity, actual WebSocket reconnect, snooze expiry, group-join decision and bounded CLI watch. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
-      "sha256": "c8afb92a41d9af11b7d629eb245cdb7e03c378e2099e0ee59954bc75ae929b5e"
+      "sha256": "5dd881a4de566a563a76f4901963b1c17d6fbb6f6ad8727ff9d70f524ce1deee"
     },
     {
       "path": "scripts/e2e-inbox-tool-approval.mjs",
@@ -1519,17 +1651,17 @@
       "path": "scripts/e2e-local-computer-idle.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.native"],
-      "reason": "Requires task native fixture PID/marker/baseline; raw driver screenshot hashes and Access-off state, explicit native permissions needed.",
+      "reason": "Requires task native fixture PID/marker/baseline; raw driver screenshot hashes and Access-off state, explicit native permissions needed. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1977,
-      "sha256": "95159c49b0cc0020110d9f03e19edf7b7728b45716f7351de04f1dbe19eb39db"
+      "sha256": "0de557e0329dbbf9d463259a02c4012a5ebfeb3800c5659d37f70a25da51f540"
     },
     {
       "path": "scripts/e2e-local-computer-screenshot.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.native"],
-      "reason": "Native fixture PID and model; captures real image/readback, induces driver failure and checks Access-off Turn; no shared device implied.",
+      "reason": "Native fixture PID and model; captures real image/readback, induces driver failure and checks Access-off Turn; no shared device implied. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1977,
-      "sha256": "229f70c342aadb16e985b0e8f8df2760edc6a4f742967699ca190a635ba2f1d4"
+      "sha256": "0202f03deec1f87cdbc5a2221a072b7b50cf11752a8a6ea2c4d248f5c392e8f8"
     },
     {
       "path": "scripts/e2e-memory-restore.mjs",
@@ -1567,9 +1699,9 @@
       "path": "scripts/e2e-mobile-follow-latest-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
-      "reason": "Own task Host and Expo Web export; mobile scroll/follow behavior only, not native gesture acceptance.",
+      "reason": "Own task Host and Expo Web export; mobile scroll/follow behavior only, not native gesture acceptance. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "4e673487b97269fee2f94b5f243e999d72df2b30e3a48e72b97ff4f857ad84ff"
+      "sha256": "ba0ae84b06abc7c184256779df7333a9debd2238658466e9c8d42c2959bd3ab3"
     },
     {
       "path": "scripts/e2e-mobile-group-info-web.mjs",
@@ -1591,17 +1723,17 @@
       "path": "scripts/e2e-mobile-reactions-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
-      "reason": "Own task Host and Expo Web export with seeded messages; reactions/long-press details in Web, not native touch proof.",
+      "reason": "Own task Host and Expo Web export with seeded messages; reactions/long-press details in Web, not native touch proof. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "469bdb30738542f5b7eb913788c727b028a71849e29fb98e1dced4f50f3339de"
+      "sha256": "d176c820fe449a263eb7aab55ac63f91039c6fead4ff7515fabcb930bf753102"
     },
     {
       "path": "scripts/e2e-mobile-routines-web.mjs",
       "category": "mapped",
       "behaviors": ["phone.routines"],
-      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Native gestures and scheduler/model execution are separate.",
+      "reason": "Own task Host and Expo Web export; verifies routine mutation/history, explicit selected routine IDs and preview dates against the Host. Drives visible controls after return completes, pins selector locale and formats expected dates in the browser; uses the Windows package-manager adapter. Uses the current Tailscale pairing chooser and captures settings/full-client removal; waits for advanced-routine history to settle before matched theme captures. Native gestures and scheduler/model execution are separate.",
       "task": 2028,
-      "sha256": "48702c190e4584f5265e7fe8832940b344d8d7b3d58c0c0dfd9607b8e3cf96f0"
+      "sha256": "3903a64308e151ccce70afbef53bcc90fa528117b7d081f2093d82b586acbb39"
     },
     {
       "path": "scripts/e2e-mobile-android-interactions.mjs",
@@ -1623,9 +1755,9 @@
       "path": "scripts/e2e-mobile-sim.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing", "phone.notifications"],
-      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence.",
+      "reason": "Shared-device queue only: creates its own Simulator/Metro/two Hosts, resets evidence directory; simulated push is not APNs/FCM; approval model phase optional. SDK 58 cache uses strict native fingerprints, including app-version fields; unit fingerprint checks are not device evidence. Dev-only pairing launches use deepseekbot-dev; coexistence and store routing require the separate native variant checklist (#2322).",
       "task": 2020,
-      "sha256": "f78a7b9e9c52d6a813cb1dfccc15c99f85d2f6dda4b6d97e2715828eb53964f6"
+      "sha256": "7d93f96202df240bc8e022b49cad8bf61ead88eafe935c163ff7f4ae4d1bcc9c"
     },
     {
       "path": "scripts/e2e-mobile-usage-web.mjs",
@@ -1647,41 +1779,41 @@
       "path": "scripts/e2e-mobile-working-web.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.timeline"],
-      "reason": "Own task Host and Expo Web export; prepared working-state presentation in Web, not native lifecycle qualification.",
+      "reason": "Own task Host and Expo Web export; prepared working-state presentation in Web, not native lifecycle qualification. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "670466a157b7a874407741303e11074ed6001967d23ccbf943c779754143f034"
+      "sha256": "b4f23ed573b575b51d9cf41611d90336e0a29a2976ac8b4128066c5db01a03ff"
     },
     {
       "path": "scripts/e2e-model-usage.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.usage", "desktop.model.routing"],
-      "reason": "Real model selection and native usage compared with Profile totals and theme/refresh; requires usable catalog route.",
+      "reason": "Real model selection and native usage compared with Profile totals and theme/refresh; requires usable catalog route. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "74bdf0052bbee85bd3ba8a6fe07891a4bc7191ace208cf9cdfe2698bf0e949df"
+      "sha256": "7b0d19b63b6d2ccd81a266fb09878017f80945a3b45400224d05c25f5dc9329f"
     },
     {
       "path": "scripts/e2e-orchestrator-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.live"],
-      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots.",
+      "reason": "Real model/native shell and approval; execution/source ownership and idle attention checked through public snapshots. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "4aace10cd0c1394876d25a8935b43e67def5b2166d2fbb494721086dbc59f4b1"
+      "sha256": "55fa26fc3e12420f66b95fee812ea0c054a433d1bfd1b1667d51dd2f22621a74"
     },
     {
       "path": "scripts/e2e-orchestrator-reply-delivery.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.dm.reply"],
-      "reason": "Loopback Host, explicit models/scenarios and image/question fixtures; matrix of committed real-model replies, not full IM.",
+      "reason": "Loopback Host, explicit models/scenarios and image/question fixtures; matrix of committed real-model replies, not full IM. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "31f4d82df48329717c793cae11613c9a65daf00b862434feda1133dce00912b3"
+      "sha256": "4425f1a9c3781ca907ac4c7d17df8e869773c7ce52a12c8b1da551084ea6c162"
     },
     {
       "path": "scripts/e2e-output-committed.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.dm.reply"],
-      "reason": "#125 event probe requires owned Sessions; actual channel_send and one frozen already-committed output event across phases.",
+      "reason": "#125 event probe requires owned Sessions; actual channel_send and one frozen already-committed output event across phases. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "3cc4c4a9a6f80e3b9319e076f0d31939aa044bac255dae904d4be9629cec8857"
+      "sha256": "0805f2ec4085538cdbf8c44aa10dfefbe49ef91a3a72bb7370038c5531d3dc5b"
     },
     {
       "path": "scripts/e2e-overview-memory.mjs",
@@ -1695,25 +1827,30 @@
       "path": "scripts/e2e-overview-priority.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.metrics", "desktop.inbox.requests"],
-      "reason": "#705 stored scene; stacked chart and collapse persist; mark-all-read leaves requests and later unread message intact.",
+      "reason": "#705 stored scene; stacked chart and collapse persist; mark-all-read leaves requests and later unread message intact. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "8abbbbac877d3ef3599a406238d225d1605503536b43c5a256dda109ab5724ec"
+      "sha256": "8cfe76ad9d4d6bb4bc592cf744f48aca5ccb2d4e53057b9623c7ae1716ffea92"
     },
     {
       "path": "scripts/e2e-overview-usage.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.metrics", "desktop.usage"],
-      "reason": "#709 actual model usage and Profile/Overview totals; range/chart/navigation plus subsequent usage, prepared launcher.",
+      "reason": "#709 actual model usage and Profile/Overview totals; range/chart/navigation plus subsequent usage, prepared launcher. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "5316d2f63dcad8a131a1958af615c061c2ed3751c2e99585a143158f3a77381d"
+      "sha256": "0649cbe8fdd3178c05a520772d41712d9f7a619bee1fe46dfcdff3630dbbc539"
     },
     {
       "path": "scripts/e2e-personabot-create.mjs",
       "category": "mapped",
-      "behaviors": ["desktop.personabot.create"],
-      "reason": "Own pinned isolated Host; public create/read/Memory snapshot and restart persistence. Optional DM commits Human message only, not Bot response.",
-      "task": 1972,
-      "sha256": "d8fe67038816e8be69a698a4d5fe5e18d3a759a8061bf9e3fc8a3a75d85529eb"
+      "behaviors": [
+        "desktop.personabot.create",
+        "phone.blank-bot-creation",
+        "phone.git-bot-import",
+        "phone.zip-bot-import"
+      ],
+      "reason": "Own isolated Host with shared DSH API-floor admission instead of SDK equality; Workspace/Memory/DM restart persistence, blank lookup and CLI retry, pinned Git preview/create/readback, changed-source refusal, Zip upload and import restart recovery with the same Bot/DM. The smoke discards accepted replies; native UI and injected disconnects require separate qualification. Optional DM commits Human message only, not Bot response. Restart now waits for both HTTP shutdown and actual process exit; Linux zombie state is treated as exited (#2713).",
+      "task": 2713,
+      "sha256": "d4a34ec8a567c8bf1fb3c9be0d8adb1f2c6e98bcec266c8cbf5082f4b85f4e05"
     },
     {
       "path": "scripts/e2e-profile-heatmap-tooltip.mjs",
@@ -1727,9 +1864,9 @@
       "path": "scripts/e2e-question-attention.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.inbox.requests", "desktop.activity.live"],
-      "reason": "#123 real model asks formal question; offline read, answer/cancel and Host attention revision compared.",
+      "reason": "#123 real model asks formal question; offline read, answer/cancel and Host attention revision compared. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "0b3e63fb2069bdb8a42b9e606e30e96328b97199f8ae991a8ee4eed51fa84a07"
+      "sha256": "ad470a81bd82b797dc2f4920ccf852fc9cef6d6610518284209cd132a719341a"
     },
     {
       "path": "scripts/e2e-rail-avatar-badge.mjs",
@@ -1767,9 +1904,9 @@
       "path": "scripts/e2e-safe-tool-activity.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.activity.tool-details"],
-      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout.",
+      "reason": "Real native tool/model and optional reconnected Bot; checks safe summary, disclosure, exact Session title/events and layout. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "2b9d68f0b2eda03cf1f565c9064bde2dca2fb76ff86f3e15c0644eb41be2213f"
+      "sha256": "1be5ba72dc363a6f8203b8411d1580aafc803da442bcdca77421718d7f79cb3b"
     },
     {
       "path": "scripts/e2e-sidebar-preview.mjs",
@@ -1783,17 +1920,17 @@
       "path": "scripts/e2e-silent-channel-read.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Real model and silent Group; explicit Channel read supplies exact latest content without automatic wake.",
+      "reason": "Real model and silent Group; explicit Channel read supplies exact latest content without automatic wake. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "dbf19c3afbf3e8cf49cb2929b02a7ccc4024ab9a6d71b2f30fa66fd99b1f6eed"
+      "sha256": "964878300b7b11a3dd54a5b31d97a3b3a356dcc0ac92769e6429efa7b692c3ee"
     },
     {
       "path": "scripts/e2e-subagent-routing.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.model.routing"],
-      "reason": "Two live catalog routes and task workspace; inherited/denied/fallback child routes checked against native Session ownership.",
+      "reason": "Two live catalog routes and task workspace; inherited/denied/fallback child routes checked against native Session ownership. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "d6dd7223411537d2d8e4f5cdd07c5724d1629ad23f7713889a4e5d0163e3a8d0"
+      "sha256": "426de32eb3795d7be639fddfa85d51616a7639cafd7c0344a439ef7649a20bc4"
     },
     {
       "path": "scripts/e2e-tool-detail-capability.mjs",
@@ -1945,9 +2082,9 @@
       "path": "scripts/e2e-llm-scenarios.mjs",
       "category": "mapped",
       "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation.",
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2053,
-      "sha256": "4940ba3a8c8e3892b11e01c959efc874a3e12b16527e076db62345f87b4508d6"
+      "sha256": "a49bc6b90ca33efd88d9dd87dc9729a2c612c935665961b73873acfb3afc50e8"
     },
     {
       "path": "scripts/e2e-tob-channel-management.mjs",
@@ -1961,9 +2098,9 @@
       "path": "scripts/e2e-group-send-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055).",
+      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055). #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2053,
-      "sha256": "5215105fca692ef6e1255c47754f3b81dd01ec7a7a8f172c29f43d9595ada3cf"
+      "sha256": "795715f31d9989c039c68dfc22a72d2e614a6c5c8b13345c79bc0e55ee3d8cf6"
     },
     {
       "path": "scripts/e2e-group-peer-review.mjs",
@@ -1993,9 +2130,9 @@
       "path": "scripts/e2e-group-busy-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment.",
+      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2055,
-      "sha256": "27a142b32d0219d5d7a04f7a6123bfb004881c20a63e8db4a633a96bb05b970b"
+      "sha256": "fc67fab47d8be6e580dd0346c3c738b96caab11b3927e2bd75c696c9d21ccc74"
     },
     {
       "path": "scripts/e2e-group-responsibility.mjs",
@@ -2017,17 +2154,17 @@
       "path": "scripts/e2e-activity-approve-sync.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Real native bash Allow once from Activity and conversation with independent browser observers, canonical decision identity and native file effect.",
+      "reason": "Real native bash Allow once from Activity and conversation with independent browser observers, canonical decision identity and native file effect. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
-      "sha256": "6ca3f039719c512d5740c44df6182c3a7b60d4da82e40a928b92ae850d2abde7"
+      "sha256": "db6fcaaaf55eda5877f0ea481bc91276276aa806e83927f00dd45ccda8cc22f6"
     },
     {
       "path": "scripts/e2e-activity-load.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence.",
+      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2230,
-      "sha256": "461ebc88f911f1424e9179475eae14e88741a6059735b85dde75a2634cbce9e0"
+      "sha256": "07a97a0743b998e206f73d5d9500fe872f1674917a7206a2db8ed8e0d5b50e7a"
     },
     {
       "path": "scripts/e2e-memory-images.mjs",
@@ -2055,18 +2192,18 @@
     },
     {
       "path": "scripts/e2e-vrm-companion.mjs",
-      "sha256": "f510708c64fe6b701c2855aedf1cd4c04fe2c6bc4601eb8981f42cf8b034bc39",
+      "sha256": "1065b820340e720bb0580d98dfb889040bd39e7316dcaa9612f9c25506882fe6",
       "category": "mapped",
-      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart.",
+      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2222,
       "behaviors": ["desktop.vrm-companion"]
     },
     {
       "path": "scripts/e2e-desktop-zoom-launch.mjs",
-      "sha256": "7aa97d564aa93d76372e952e2d0a747a4cd9d310f54a49fb655e56642c319a9a",
+      "sha256": "01b194480a51560a5d896b47fdcdd805de9d9f6e9092eac4d1ab8600ee72ab33",
       "category": "mapped",
-      "reason": "Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate.",
-      "task": 2268,
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate.",
+      "task": 2713,
       "behaviors": ["desktop.window-zoom"]
     },
     {
@@ -2153,17 +2290,41 @@
       "path": "scripts/e2e-private-input-origin.mjs",
       "category": "mapped",
       "behaviors": ["credentials.private-input-origin"],
-      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential.",
+      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2290,
-      "sha256": "a523ea1964d31850aa65b4e96ee2c37318d2c3c90b2b7feb86e8dfacfd4adce8"
+      "sha256": "ea9e569d4e931b884e0acdcfb343985b6cff01254dd88dc65d28d1c5d0dd2810"
     },
     {
       "path": "scripts/e2e-desktop-zoom-windows.mjs",
-      "sha256": "cf08b5af77f660a47d033a5a7812acaf3d825c8512c073b6cb5b942ca126f1f8",
+      "sha256": "ce7697d6a8dc0a516c9a3f92144fa2164f789ba8e1263e545a558737e51d287b",
       "category": "mapped",
-      "reason": "Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
-      "task": 2270,
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
+      "task": 2713,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-tobs-commands.mjs",
+      "category": "historical-regression",
+      "behaviors": ["product.command-compatibility"],
+      "reason": "Installs verified local release archives through a loopback registry; checks global coexistence, independent removal, exit codes and npm exec on Windows and Linux; no live Host check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
+      "task": 2744,
+      "sha256": "5c4c77f6b560105b4d307fa26ce2a2fc89f406424c140137ee045a5883400064"
+    },
+    {
+      "path": "scripts/e2e-phone-recovery.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.pairing"],
+      "reason": "Real isolated Host and LAN offer; browser-scoped status/offer faults and route-set invalidation with cropped light/dark base/candidate evidence. OS VPN and physical-phone switching remain native QA.",
+      "task": 2731,
+      "sha256": "70e000a0d26b20f7658f88cad4cc3e33f01fb62afa201569ee8ca874c561171b"
+    },
+    {
+      "path": "scripts/e2e-timeline-navigation.mjs",
+      "category": "mapped",
+      "behaviors": ["desktop.timeline.read-position", "desktop.timeline.messages"],
+      "reason": "Task-owned isolated Host; real direct Bot tool seeds 260 messages and 140 unread. Browser verifies read-anchor opening, bounded cursor paging and idle edges, ordinary history return button, live count, multiline composer without sending, actual themes, read-complete reopen and paged jump to latest; closes its browser in finally. Caller owns Host cleanup. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "task": 2748,
+      "sha256": "ee8785b8e2b9d8631d9aebf9d209af76c1d762e101f88363785fe3b65670bf24"
     },
     {
       "path": "scripts/e2e-mobile-deletion-web.mjs",
@@ -2171,7 +2332,7 @@
       "behaviors": ["phone.deletion"],
       "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks retention, erasure, Tob and sections. Native acceptance remains separate.",
       "task": 2783,
-      "sha256": "440be52734528fcd7af6cfe78f1cb7a26c6bcdc9ad816c0c6c9b8f119670890a"
+      "sha256": "6dea0c5c116ad31febe69cae9d14f5bffa458a3f355a682f2830a6f7a673e6f7"
     }
   ],
   "native": [

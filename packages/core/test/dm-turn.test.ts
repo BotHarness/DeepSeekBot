@@ -47,6 +47,8 @@ function startHarness(): Harness {
   const host = new FakeAgentHost(
     { kind: 'completed' },
     {
+      sendMessage: true,
+      messageChannel: 'dm-ada',
       onAgentCreated: (agent) => {
         for (const session of host.sessions) stored.add(session.id);
         ctx.emit('agent/created', { agent } as never);

@@ -21,7 +21,7 @@ import {
 import { pointer, radius, edge } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { PointerArrow } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { settleZoom } from './zoom-math';
 
 export type BrowserTouchMode = 'direct' | 'trackpad';
@@ -48,6 +48,7 @@ export function BrowserStage({
   pointerShape?: 'dot' | 'arrow';
   onWheel?(dragY: number, at: StagePoint | undefined): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [stage, setStage] = useState({ width: 0, height: 0 });
   const page = { width: frame.width, height: frame.height };

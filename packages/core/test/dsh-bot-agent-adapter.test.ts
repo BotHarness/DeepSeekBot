@@ -109,7 +109,135 @@ const reportRun: OrchestratorAgentRun = {
   },
 };
 
-describe('explicit Inbox completion with channel_send', () => {
+describe('direct Subagent execution', () => {
+  function deferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    const promise = new Promise<T>((accept) => {
+      resolve = accept;
+    });
+    return { promise, resolve };
+  }
+  it.each(['stop', 'steer'] as const)(
+    'keeps a later Human turn reachable for %s while a direct Subagent is pending',
+    async (operation) => {
+      const directResult = deferred<{ isError: false; value: string }>();
+      const activeTurn = deferred<void>();
+      const turnStarted = deferred<void>();
+      let turns = 0;
+      const agents = new FakeAgentHost(
+        { kind: 'completed' },
+        {
+          onTurn: async () => {
+            if (++turns === 1) return;
+            turnStarted.resolve();
+            await activeTurn.promise;
+          },
+          onAgentCreated: (agent) => {
+            Object.assign((agent as Agent).ctx.tools, {
+              execute: () => directResult.promise,
+            });
+          },
+        },
+      );
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+        subagentTools: () => [],
+      });
+      let direct: Promise<unknown> | undefined;
+      let turn: Promise<void> | undefined;
+      try {
+        await adapter.runOrchestrator(reportRun);
+        direct = adapter.runDirectTool!(
+          { ...reportRun, sessionId: 'direct-pending-subagent' },
+          'bot_subagent',
+          { description: 'Review', prompt: 'Review', run_in_background: false },
+          new AbortController().signal,
+          reportRun.sessionId,
+        );
+        turn = adapter.runOrchestrator({ ...reportRun, resume: true, message: 'A new request' });
+        await turnStarted.promise;
+        if (operation === 'stop') {
+          expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBe(reportRun.sessionId);
+          expect(agents.cancelled).toEqual([
+            { sessionId: reportRun.sessionId, reason: { kind: 'user' } },
+          ]);
+        } else {
+          expect(adapter.steerOrchestrator?.(BOT.slug, 'Update the active request')).toBe(true);
+          expect(agents.steered.get(reportRun.sessionId)).toHaveLength(1);
+        }
+      } finally {
+        directResult.resolve({ isError: false, value: 'complete' });
+        activeTurn.resolve();
+        await Promise.allSettled([direct, turn]);
+        await adapter.close();
+      }
+    },
+  );
+
+  it('requires an existing parent without creating a replacement Agent', async () => {
+    const agents = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      subagentTools: () => [],
+    });
+    try {
+      await expect(
+        adapter.runDirectTool!(reportRun, 'bot_subagent', {}, new AbortController().signal),
+      ).rejects.toMatchObject({ code: 'parent-unavailable' });
+      expect(agents.createOptions).toEqual([]);
+      expect(agents.resumeOptions).toEqual([]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it.each([false, true])(
+    'preserves the parent native pipeline result (refused: %s)',
+    async (refused) => {
+      const agents = new FakeAgentHost();
+      const execute = vi.fn(async () =>
+        refused
+          ? {
+              isError: true,
+              error: { message: 'Preset is not allowed', info: { code: 'INVALID_ARGS' } },
+            }
+          : { isError: false, value: '{"accepted":true}' },
+      );
+      const parent = { id: 'live-parent', ctx: { tools: { execute } } } as unknown as Agent;
+      vi.spyOn(agents, 'get').mockReturnValue(parent);
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        subagentTools: () => [],
+      });
+      const signal = new AbortController().signal;
+      const args = { description: 'Review', prompt: 'Review', agent_preset: 'reviewer' };
+      try {
+        const result = adapter.runDirectTool!(
+          reportRun,
+          'bot_subagent',
+          args,
+          signal,
+          'live-parent',
+        );
+        if (refused) await expect(result).rejects.toMatchObject({ code: 'invalid-args' });
+        else await expect(result).resolves.toEqual({ accepted: true });
+        expect(execute).toHaveBeenCalledWith(
+          expect.objectContaining({ agent: parent, signal, arguments: args, name: 'bot_subagent' }),
+        );
+        expect(agents.createOptions).toEqual([]);
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
+});
+
+describe('explicit Inbox completion with messaging tools', () => {
   async function fixture(
     check: (
       run: OrchestratorAgentRun,
@@ -124,7 +252,22 @@ describe('explicit Inbox completion with channel_send', () => {
     });
     const run: OrchestratorAgentRun = {
       ...reportRun,
-      channels: { ...reportRun.channels },
+      channels: {
+        ...reportRun.channels,
+        list: () => ({
+          channels: [
+            {
+              id: 'group',
+              type: 'group',
+              kind: 'group',
+              humanMembers: [],
+              name: 'Group',
+              members: [{ botId: 'ada', displayName: 'Ada', active: true }],
+            },
+          ],
+        }),
+      },
+      replyDestination: () => ({ kind: 'channel', channelId: 'group', messageId: 'request' }),
       triage: {
         current: () => [],
         list: () => ({ total: 0, snoozed: 0, groups: [] }),
@@ -138,7 +281,12 @@ describe('explicit Inbox completion with channel_send', () => {
       await check(run, async (args) =>
         JSON.parse(
           JSON.stringify(
-            await adapter.runDirectTool!(run, 'channel_send', args, new AbortController().signal),
+            await adapter.runDirectTool!(
+              run,
+              args.action ? 'channel_action' : 'bot_send_message',
+              args.action ? args : { source_event_id: 'request', ...args },
+              new AbortController().signal,
+            ),
           ),
         ),
       );
@@ -198,10 +346,10 @@ describe('explicit Inbox completion with channel_send', () => {
       run.triage!.resolve = () => {
         throw new Error('unobserved item');
       };
-      expect(await call({ body: 'Answer', resolve_inbox_ids: ['unseen'] })).toMatchObject({
+      expect(await call({ body: 'Answer', resolve_inbox_ids: ['request'] })).toMatchObject({
         status: 'committed',
         messageId: 'bot-1',
-        inboxResolution: { outcome: 'failed', retry: 'inbox_resolve' },
+        inboxResolution: { outcome: 'failed', reason: 'inbox-resolution-failed' },
       });
     });
   });
@@ -214,7 +362,7 @@ describe('explicit Inbox completion with channel_send', () => {
         draftId: input.draftId,
         reason: 'explicit-drop',
       });
-      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', action: 'drop' };
       await call(args);
       expect(resolve).not.toHaveBeenCalled();
       expect(await call({ ...args, resolve_inbox_ids: ['request'] })).toMatchObject({
@@ -242,7 +390,7 @@ describe('explicit Inbox completion with channel_send', () => {
         budget: { used: 2, limit: 2, exhausted: true },
         keepOpenInboxIds: ['request-source', 'request-message'],
       });
-      const args = { body: '', channel_id: 'group', draft_id: 'draft', drop: true };
+      const args = { body: '', channel_id: 'group', draft_id: 'draft', action: 'drop' };
       const continuation = {
         reason: 'exhausted-drop-keeps-original-work-open',
         instruction: expect.stringContaining('Use inbox_snooze'),
@@ -295,7 +443,7 @@ describe('explicit Inbox completion with channel_send', () => {
       expect(resolve).not.toHaveBeenCalled();
     });
   });
-  it('uses the inbound Channel for drop and preserves explicit Channel and refusal checks', async () => {
+  it('requires an explicit Channel for drop and preserves refusal checks', async () => {
     await fixture(async (run, call) => {
       const drop = vi.fn((input: { channelId: string; draftId: string }) => ({
         status: 'refused' as const,
@@ -305,14 +453,13 @@ describe('explicit Inbox completion with channel_send', () => {
       }));
       run.channels.dropDraft = drop;
       const resolve = vi.spyOn(run.triage!, 'resolve');
-      const args = { body: '', draft_id: 'draft', drop: true, resolve_inbox_ids: ['request'] };
-      expect(await call(args)).toMatchObject({ status: 'refused', channelId: 'dm-test' });
-      expect(drop).toHaveBeenLastCalledWith({ channelId: 'dm-test', draftId: 'draft' });
+      const args = { body: '', draft_id: 'draft', action: 'drop', resolve_inbox_ids: ['request'] };
+      await expect(call(args)).rejects.toThrow('channel_id');
       await call({ ...args, channel_id: 'explicit-group' });
       expect(drop).toHaveBeenLastCalledWith({ channelId: 'explicit-group', draftId: 'draft' });
       run.inboundChannelId = undefined;
-      await expect(call(args)).rejects.toThrow('explicit or inbound channel_id');
-      expect(drop).toHaveBeenCalledTimes(2);
+      await expect(call(args)).rejects.toThrow('channel_id');
+      expect(drop).toHaveBeenCalledTimes(1);
       expect(resolve).not.toHaveBeenCalled();
     });
   });
@@ -320,7 +467,7 @@ describe('explicit Inbox completion with channel_send', () => {
     await fixture(async (run, call) => {
       const send = vi.spyOn(run.channels, 'send');
       await expect(call({ body: 'Answer', resolve_inbox_ids: [] })).rejects.toThrow(
-        'resolve_inbox_ids',
+        'explicitly referenced reply source',
       );
       expect(send).not.toHaveBeenCalled();
     });
@@ -328,19 +475,27 @@ describe('explicit Inbox completion with channel_send', () => {
   it('rejects yielding without a drop or observed handle before any side effect', async () => {
     await fixture(async (run, call) => {
       const send = vi.spyOn(run.channels, 'send');
+      run.channels.dropDraft = () => {
+        throw new Error('unexpected drop');
+      };
       const resolve = vi.spyOn(run.triage!, 'resolve');
       for (const args of [
-        { body: 'Answer', yield_to_message_ids: ['peer'], observation_id: 'seen' },
-        { body: '', drop: true, draft_id: 'draft', yield_to_message_ids: ['peer'] },
+        {
+          action: 'inspect',
+          channel_id: 'group',
+          yield_to_message_ids: ['peer'],
+          observation_id: 'seen',
+        },
+        { body: '', action: 'drop', draft_id: 'draft', yield_to_message_ids: ['peer'] },
         {
           body: '',
-          drop: true,
+          action: 'drop',
           draft_id: 'draft',
           observation_id: 'seen',
           yield_to_message_ids: [],
         },
       ])
-        await expect(call(args)).rejects.toThrow('yield_to_message_ids');
+        await expect(call({ channel_id: 'group', ...args })).rejects.toThrow(/yield|inspection/);
       expect(send).not.toHaveBeenCalled();
       expect(resolve).not.toHaveBeenCalled();
     });
@@ -402,7 +557,8 @@ describe('DSH Bot Agent adapter', () => {
             scope.guards.some((guard) => guard({ name })?.includes('scoped deepseekbot CLI')),
           ).toBe(tobCli);
         }
-        expect(scope.tools.map((tool) => tool.name)).toContain('channel_send');
+        expect(scope.tools.map((tool) => tool.name)).toContain('bot_send_message');
+        expect(scope.tools.map((tool) => tool.name)).not.toContain('channel_send');
         expect(scope.tools.map((tool) => tool.name)).toContain('channel_read');
         expect(
           rolePrompt?.includes("Tob is the Human's private steward, never a Group participant"),
@@ -1471,7 +1627,7 @@ describe('DSH Bot Agent adapter', () => {
       reachedSend = resolve;
     });
     let firstSend = true;
-    const host = new FakeAgentHost();
+    const host = new FakeAgentHost({ kind: 'completed' }, { sendMessage: true });
     const defaultModel = { currentSelection: () => ({ provider: 'test', model: 'test' }) };
     const adapter = createDshBotAgentAdapter({
       agents: host,
@@ -1489,6 +1645,19 @@ describe('DSH Bot Agent adapter', () => {
       inboundChannelId: 'dm-test',
       channels: {
         ...groupTools,
+        list: () => ({
+          outputLimit: 12000,
+          channels: [
+            {
+              id: 'dm-test',
+              type: 'dm',
+              kind: 'human-dm',
+              name: 'Ada',
+              members: [{ botId: 'ada', displayName: 'Ada', active: true }],
+              humanMembers: [],
+            },
+          ],
+        }),
         contacts: () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
@@ -1605,13 +1774,13 @@ describe('DSH Bot Agent adapter', () => {
 
       connected = true;
       await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(16);
-      expect(listed.at(-1)).toContain('bridge_reply');
+      expect(listed.at(-1)).toHaveLength(13);
+      expect(listed.at(-1)).not.toContain('bridge_reply');
       expect(listed.at(-1)).toContain('bridge_reachable_groups');
       expect(imPrompt()).toBe(true);
 
       await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(16);
+      expect(listed.at(-1)).toHaveLength(13);
 
       connected = false;
       await adapter.runOrchestrator({ ...run, resume: true });
@@ -1757,6 +1926,7 @@ describe('DSH Bot Agent adapter', () => {
     const host = new FakeAgentHost(
       { kind: 'completed' },
       {
+        sendMessage: true,
         onSessionEvent: (session, event) => {
           if (session.id === 'orchestrator-ada' && event.type === 'turn/start')
             expect(adapter.steerOrchestrator?.(BOT.slug, '请继续回复当前 Channel')).toBe(true);
@@ -1784,6 +1954,19 @@ describe('DSH Bot Agent adapter', () => {
       message: '请核对发布状态',
       channels: {
         ...groupTools,
+        list: () => ({
+          outputLimit: 12000,
+          channels: [
+            {
+              id: 'dm-test',
+              type: 'dm',
+              kind: 'human-dm',
+              name: 'Ada',
+              members: [{ botId: 'ada', displayName: 'Ada', active: true }],
+              humanMembers: [],
+            },
+          ],
+        }),
         contacts: () => ({ outputLimit: 12_000, contacts: [] }),
         sendToBot: async () => {
           throw new Error('unexpected Bot DM');
@@ -1850,7 +2033,9 @@ describe('DSH Bot Agent adapter', () => {
     });
     void reports;
 
-    expect(sends).toEqual([{ body: '发布状态已经核对完成。' }]);
+    expect(sends).toEqual([
+      expect.objectContaining({ channelId: 'dm-test', body: '发布状态已经核对完成。' }),
+    ]);
     expect(reports).toEqual([{ state: 'completed', summary: '发布状态正常' }]);
     expect(completions).toEqual([
       {
@@ -1877,6 +2062,8 @@ describe('DSH Bot Agent adapter', () => {
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
     expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
+      'channel_action',
+      'bot_send_message',
       'memory_switch_branch',
       'memory_continue_from_commit',
       'list_assignment_models',
@@ -1920,8 +2107,6 @@ describe('DSH Bot Agent adapter', () => {
       'bot_schedule_update',
       'bot_schedule_delete',
       'group_leave',
-      'bot_dm_send',
-      'channel_send',
     ]);
     expect(
       host.scopes
@@ -1931,26 +2116,28 @@ describe('DSH Bot Agent adapter', () => {
     ).toEqual([]);
     const channelSend = host.scopes
       .get('orchestrator-ada')
-      ?.tools.find((tool) => tool.name === 'channel_send');
+      ?.tools.find((tool) => tool.name === 'bot_send_message');
     const rolePrompt = host.scopes.get('orchestrator-ada')?.sections[0]?.text ?? '';
     expect(rolePrompt).toContain('## Reply delivery contract');
     expect(rolePrompt.indexOf('## Reply delivery contract')).toBeLessThan(
       rolePrompt.indexOf('Use three complementary sources'),
     );
-    expect(rolePrompt).toContain('Reading content or images does not send an answer');
-    expect(rolePrompt).toContain('Never imitate an earlier assistant-only answer');
-    expect(rolePrompt).toContain('If the Human explicitly asks for no reply');
-    expect(rolePrompt).toContain('External IM uses bridge_reply or bridge_reply_file');
-    expect(rolePrompt).toContain('retry an uncertain send blindly');
+    expect(rolePrompt).toContain('Your assistant text is private Session output');
+    expect(rolePrompt).toContain('Do not acknowledge every request');
+    expect(rolePrompt).toContain('Respect requests for silence');
+    expect(rolePrompt).toContain('Use the same tool for Group/Bot DM, attachments and external IM');
+    expect(rolePrompt).toContain('do not retry uncertain sends blindly');
     expect(rolePrompt).toContain('call ask_secret at once');
     expect(rolePrompt).toContain('never ask them to paste a secret into a Channel');
     expect(rolePrompt.replace(/\{\{(?:provider|model|cwd)\}\}/g, '')).not.toContain('{{');
-    expect(channelSend?.description).toContain('Assistant final text is private Session output');
-    expect(channelSend?.description).toContain('A request for "no tools"');
+    expect(channelSend?.description).toContain('Ordinary assistant text is private');
+    expect(channelSend?.description).toContain('Ordinary assistant text is private');
     const deliveryPrompt = host.scopes
       .get('orchestrator-ada')
       ?.sections.find((section) => section.name === 'botharness:reply-delivery')?.text;
-    expect(deliveryPrompt).toContain('MUST deliver any intended Human-facing answer');
+    expect(deliveryPrompt).toContain(
+      'Deliver intended Channel and external IM messages through bot_send_message',
+    );
     expect(deliveryPrompt).toContain('纯文本 final 不会发送给用户');
     expect(deliveryPrompt).toContain('If no reply is wanted, remain silent');
     const received = host.received.get('orchestrator-ada')?.[0]?.content;
@@ -2001,7 +2188,9 @@ describe('DSH Bot Agent adapter', () => {
         },
       ),
     ).toMatchObject([{ type: 'text' }, { type: 'image' }]);
-    expect(JSON.stringify(channelSend?.parameters)).not.toMatch(/bot_slug|persona_bot|author/);
+    expect(JSON.stringify(channelSend?.parameters)).not.toMatch(
+      /"(?:bot_slug|persona_bot|author)"\s*:/,
+    );
     const groupAttentionSet = host.scopes
       .get('orchestrator-ada')
       ?.tools.find((tool) => tool.name === 'group_attention_set');
@@ -2404,14 +2593,14 @@ describe('DSH Bot Agent adapter', () => {
           type: 'tool-call-delta',
           index: callIndexes.get(callId),
           id: callId,
-          name: 'channel_send',
+          name: 'bot_send_message',
           argumentsDelta,
         },
       } as AssistantStreamFrame);
     };
 
     const first = run(false);
-    stream('allowed', '{"body":"a');
+    stream('allowed', '{"channel_id":"dm-test","body":"a');
     stream('allowed', 'b');
     stream('allowed', 'c"}');
     stream('denied-1', '{"body":"private","channel_id":"outside"}');
@@ -2423,7 +2612,7 @@ describe('DSH Bot Agent adapter', () => {
     const second = run(true);
     frameIndex = 0;
     callIndexes.clear();
-    stream('next', '{"body":"next"}');
+    stream('next', '{"channel_id":"dm-test","body":"next"}');
     await second;
     expect(probes).toEqual(['dm-test', 'outside', 'dm-test']);
     expect(drafts.at(-1)).toBe('next');
@@ -2469,18 +2658,20 @@ it('routes external Tools through the active owning Orchestrator without a local
         expect(
           JSON.parse(
             String(
-              await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext),
+              await permissions.execute({ source_event_id: 'source-1' }, {
+                signal,
+              } as ToolRunContext),
             ),
           ),
         ).toEqual({ queriedAt: '2026-10-11T00:00:00Z', status: 'visitor' });
-        await permissions.execute({ source_event_id: 'source-1' }, {} as ToolRunContext);
+        await permissions.execute({ source_event_id: 'source-1' }, { signal } as ToolRunContext);
         expect(permissionsRead).toHaveBeenCalledTimes(2);
         expect(permissionsRead).toHaveBeenCalledWith('source-1');
         const directory = tools.find((tool) => tool.name === 'bridge_directory');
         if (!directory) throw new Error('directory tool unavailable');
         await directory.execute(
           { kind: 'observed-people', source_event_id: 'source-1', limit: 1 },
-          {} as ToolRunContext,
+          { signal } as ToolRunContext,
         );
         expect(directoryRead).toHaveBeenCalledWith({
           kind: 'observed-people',
@@ -2500,7 +2691,7 @@ it('routes external Tools through the active owning Orchestrator without a local
         );
         const groups = tools.find((tool) => tool.name === 'bridge_reachable_groups');
         if (!groups) throw new Error('reachable groups tool unavailable');
-        expect(JSON.parse(String(await groups.execute({}, {} as ToolRunContext)))).toEqual([
+        expect(JSON.parse(String(await groups.execute({}, { signal } as ToolRunContext)))).toEqual([
           {
             bindingId: 'owned-app',
             platform: 'feishu',
@@ -2513,44 +2704,39 @@ it('routes external Tools through the active owning Orchestrator without a local
           },
         ]);
         const targets = tools.find((tool) => tool.name === 'bridge_targets');
-        const post = tools.find((tool) => tool.name === 'bridge_post');
+        const post = tools.find((tool) => tool.name === 'bot_send_message');
         const outbox = tools.find((tool) => tool.name === 'bridge_outbox');
         if (!targets || !post || !outbox) throw new Error('outbox tools unavailable');
-        expect(JSON.parse(String(await targets.execute({}, {} as ToolRunContext)))).toEqual([]);
+        expect(JSON.parse(String(await targets.execute({}, { signal } as ToolRunContext)))).toEqual(
+          [],
+        );
         await expect(
-          post.execute(
-            { grant_id: 'grant', request_id: 'stable_report_id', text: 'Report' },
-            {} as ToolRunContext,
-          ),
+          post.execute({ grant_id: 'grant', body: 'Report' }, { signal } as ToolRunContext),
         ).rejects.toThrow('post ownership sentinel');
         await expect(
           post.execute(
             {
               binding_id: 'owned-app',
               conversation_id: 'oc_new',
-              request_id: 'new_group_post',
-              text: 'Report',
+              body: 'Report',
             },
-            {} as ToolRunContext,
+            { signal } as ToolRunContext,
           ),
         ).rejects.toThrow('reachable post ownership sentinel');
         await expect(
-          outbox.execute({ intent_id: 'foreign' }, {} as ToolRunContext),
+          outbox.execute({ intent_id: 'foreign' }, { signal } as ToolRunContext),
         ).rejects.toThrow('outbox ownership sentinel');
         latePost = () =>
-          post.execute(
-            { grant_id: 'grant', request_id: 'stable_report_id', text: 'Report' },
-            {} as ToolRunContext,
-          );
+          post.execute({ grant_id: 'grant', body: 'Report' }, { signal } as ToolRunContext);
         const read = tools.find((tool) => tool.name === 'bridge_read');
-        const reply = tools.find((tool) => tool.name === 'bridge_reply');
+        const reply = tools.find((tool) => tool.name === 'bot_send_message');
         const share = tools.find((tool) => tool.name === 'bridge_share');
         if (!read || !reply || !share) throw new Error('external tools unavailable');
-        expect(reply.parameters).toMatchObject({ required: ['source_event_id', 'text'] });
+        expect(reply.parameters).toMatchObject({ required: ['body'] });
         expect(share.parameters).toMatchObject({ required: ['source_event_id', 'channel_id'] });
         const placed = await share.execute(
           { source_event_id: 'source-1', channel_id: 'group-team' },
-          {} as ToolRunContext,
+          { signal } as ToolRunContext,
         );
         expect(JSON.parse(String(placed))).toMatchObject({
           sourceEventId: 'source-1',
@@ -2558,17 +2744,17 @@ it('routes external Tools through the active owning Orchestrator without a local
           alreadyShared: false,
         });
         await expect(
-          read.execute({ source_event_id: 'source-1' }, {} as ToolRunContext),
+          read.execute({ source_event_id: 'source-1' }, { signal } as ToolRunContext),
         ).rejects.toThrow('owned source sentinel');
         const result = await reply.execute(
-          { source_event_id: 'source-1', text: 'Topic response' },
-          {} as ToolRunContext,
+          { source_event_id: 'source-1', body: 'Topic response' },
+          { signal } as ToolRunContext,
         );
         expect(typeof result).toBe('string');
         if (typeof result !== 'string') throw new Error('Expected serialized tool result');
         expect(JSON.parse(result)).toMatchObject({
-          sourceEventId: 'source-1',
-          state: 'provider-accepted',
+          status: 'provider-accepted',
+          intentId: 'intent',
         });
       },
     },
@@ -2581,6 +2767,7 @@ it('routes external Tools through the active owning Orchestrator without a local
   });
   await adapter.runOrchestrator({
     sessionId: 'external-ada',
+    replyDestination: () => ({ kind: 'external' }),
     resume: false,
     bot: BOT,
     inboundChannelId: undefined,
@@ -2678,13 +2865,17 @@ it('routes external Tools through the active owning Orchestrator without a local
       request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
     },
   });
-  await expect(latePost?.()).rejects.toThrow('bridge_post: unavailable');
+  await expect(latePost?.()).rejects.toThrow('Orchestrator run is unavailable');
   expect(reads).toEqual(['source-1']);
   expect(replies).toEqual([['source-1', 'Topic response']]);
-  const tool = host.scopes.get('external-ada')?.tools.find((item) => item.name === 'bridge_reply');
+  const tool = host.scopes
+    .get('external-ada')
+    ?.tools.find((item) => item.name === 'bot_send_message');
   await expect(
-    tool?.execute({ source_event_id: 'source-1', text: 'Late response' }, {} as ToolRunContext),
-  ).rejects.toThrow('bridge_reply: unavailable');
+    tool?.execute({ source_event_id: 'source-1', body: 'Late response' }, {
+      signal,
+    } as ToolRunContext),
+  ).rejects.toThrow('Orchestrator run is unavailable');
   expect(replies).toHaveLength(1);
   const contextTool = host.scopes
     .get('external-ada')
@@ -2729,7 +2920,7 @@ describe('Bot Schedule Tools', () => {
             return found;
           };
           denial = scope?.guards.map((guard) => guard({ name: 'schedule_create' })).find(Boolean);
-          allowed = scope?.guards.map((guard) => guard({ name: 'channel_send' })).find(Boolean);
+          allowed = scope?.guards.map((guard) => guard({ name: 'bot_send_message' })).find(Boolean);
           calls.push(tool('bot_schedule_list').execute({}, {} as ToolRunContext));
           calls.push(
             tool('bot_schedule_create').execute(

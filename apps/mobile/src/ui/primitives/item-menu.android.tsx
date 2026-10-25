@@ -8,6 +8,7 @@ export function ItemMenu({ title, actions, children }: ItemMenuProps) {
       title,
       actions.map((action) => ({
         text: action.label,
+        icon: action.glyph,
         style: action.destructive ? 'destructive' : 'default',
         onPress: action.run,
       })),

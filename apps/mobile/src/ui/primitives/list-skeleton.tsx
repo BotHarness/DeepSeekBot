@@ -2,9 +2,10 @@ import { View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function ListSkeleton() {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <View

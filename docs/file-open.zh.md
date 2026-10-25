@@ -54,6 +54,6 @@ Schema 激活是单向升级：旧的 hash-only 版本不能读取 generation 39
 
 向获准的 Lark 群／话题上传一个小型 CSV ZIP。回复该文件，使用普通文本并从真实成员候选选择 @Bot，请求返回新 ZIP。Bot Inbox 的「外部消息」详情展示文件名；「下载文件」按需获取原件。下载失败会明确显示，不表示传输成功。
 
-Bot 通过 `bridge_read` 与 `bridge_attachment_save` 另存独立工作副本，使用原生文件工具及经审批的 Shell 处理，再通过 `channel_attachment_import` 明确选择新结果，使用 `bridge_reply_file` 以自己的账号回到准确原话题。文本与文件共用每个来源唯一的回复 intent，不先自动发送一条占用它的确认文本。请在 Lark 下载收到的结果并检查内容；「平台已接受」本身不能证明送达或已读。
+Bot 通过 `bridge_read` 与 `bridge_attachment_save` 另存独立工作副本，使用原生文件工具及经审批的 Shell 处理，再通过 `channel_attachment_import` 明确选择新结果，使用 `bot_send_message` 以自己的账号回到准确原话题。文本与文件共用每个来源唯一的回复 intent，不先自动发送一条占用它的确认文本。请在 Lark 下载收到的结果并检查内容；「平台已接受」本身不能证明送达或已读。
 
 原件保持不变。沿用 25 MiB 传输上限；撤销来源访问会阻止未来平台读取／回复，已完成的独立副本仍受其 Workspace Grant 约束。重启保留来源和文件身份，不重复不确定发送。这是 #657 的临时 provider 切片，不表示生产启用、Slack 支持或通用历史读取。见 [ADR-0107](adr/0107-external-files-use-trusted-source-capabilities-and-existing-owner.md)。

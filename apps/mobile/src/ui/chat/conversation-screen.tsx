@@ -118,13 +118,11 @@ import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
-import { OpenFullClientButton } from '../open-full-client';
-import { fullClientParams, type FullClientTarget } from '../../host/full-client';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
 import { KeyboardChatFrame, useListBottomSafeArea } from '../primitives/keyboard-frame';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
@@ -147,6 +145,7 @@ export function ConversationScreen({
   focus: string | undefined;
   latestWindowOnly?: boolean;
 }) {
+  const t = useStrings();
   const { client, saved } = useHostSession();
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
@@ -235,26 +234,16 @@ const RequestCard = memo(function RequestCard({
     () => grantRequestPort(client, ref, () => void inbox?.refresh()),
     [client, inbox, ref],
   );
-  const router = useRouter();
   const subject = card.subject === undefined ? {} : { subject: card.subject };
   if (card.kind === 'private-input')
     return (
       <PrivateInputCard
+        target={ref}
         botName={botName}
         purpose={card.subject}
         resolved={resolution?.kind === 'private-input'}
         focused={focused}
         group={group}
-        onFill={() =>
-          router.push({
-            pathname: '/full-client',
-            params: fullClientParams({
-              kind: 'private-input',
-              channelId: card.channelId,
-              messageId: message.id,
-            }),
-          })
-        }
       />
     );
   if (card.kind === 'grant')
@@ -306,6 +295,7 @@ function ChatConversation({
   focus: string | undefined;
   latestWindowOnly: boolean;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
   const headerOverlap = useHeaderOverlap();
@@ -681,6 +671,7 @@ function ChatConversation({
         return conversation === undefined ? null : (
           <PlaybackBubble
             playback={playback}
+            focused={focused}
             queueKey={item.key}
             speaker={
               dm
@@ -747,6 +738,7 @@ function ChatConversation({
       return (
         <PlaybackBubble
           playback={playback}
+          focused={focused}
           queueKey={item.key}
           message={item.message}
           first={item.first}
@@ -765,8 +757,10 @@ function ChatConversation({
       );
     },
     [
+      t,
       dm,
       playback,
+      focused,
       conversation,
       client,
       slug,
@@ -827,16 +821,6 @@ function ChatConversation({
       }
     />
   );
-  const fullClient: FullClientTarget | undefined =
-    slug !== undefined
-      ? { kind: 'dm', slug }
-      : channelId !== undefined
-        ? { kind: 'channel', channelId }
-        : undefined;
-  const trailing =
-    fullClient === undefined ? null : (
-      <OpenFullClientButton target={fullClient} bar plain={!headerIslands} />
-    );
   const ios = Platform.OS === 'ios';
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
@@ -910,28 +894,6 @@ function ChatConversation({
                   { type: 'spacing' as const, spacing: 0 },
                   { type: 'custom' as const, element: titleItem },
                 ],
-                unstable_headerRightItems: () =>
-                  fullClient === undefined
-                    ? []
-                    : headerIslands
-                      ? [
-                          {
-                            type: 'custom' as const,
-                            element: <OpenFullClientButton target={fullClient} bar plain={false} />,
-                          },
-                        ]
-                      : [
-                          {
-                            type: 'button' as const,
-                            label: t.openFullClient,
-                            icon: { type: 'sfSymbol' as const, name: 'macwindow' as const },
-                            onPress: () =>
-                              router.push({
-                                pathname: '/full-client',
-                                params: fullClientParams(fullClient),
-                              }),
-                          },
-                        ],
               }
             : {
                 headerTitleAlign: 'left' as const,
@@ -946,7 +908,6 @@ function ChatConversation({
                     {title}
                   </View>
                 ),
-                headerRight: () => trailing,
                 ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
               }),
         }}

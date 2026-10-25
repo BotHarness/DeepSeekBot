@@ -260,7 +260,7 @@ async function main() {
     await page.waitForSelector(`[placeholder="Message ${displayName}"]`, { timeout: 30_000 });
     await page.type(
       `[placeholder="Message ${displayName}"]`,
-      'Send me the numbers from 1 to 60. Put each number in its own separate channel_send call, one call at a time, and do not combine them.',
+      'Send me the numbers from 1 to 60. Put each number in its own separate bot_send_message call, one call at a time, and do not combine them.',
     );
     await page.locator('::-p-aria(Send)').click();
     steps.push('opened the DM and sent a long task from the composer');

@@ -618,12 +618,12 @@ export function diagnosticBundleZip(bundle: DiagnosticBundle): Buffer {
   return writeZip(bundle.entries);
 }
 
-const README = `# DeepSeekBot Diagnostic Bundle / 诊断包
+const README = `# Tobs Diagnostic Bundle / 诊断包
 
-This file was exported locally by DeepSeekBot to help diagnose a problem. DeepSeekBot never
+This file was exported locally by Tobs to help diagnose a problem. Tobs never
 uploads it; share it only with people you trust to read your conversations.
 
-本文件由 DeepSeekBot 在本机导出，用于排查问题，产品不会自动上传。它包含所选范围内的聊天内容，
+本文件由 Tobs 在本机导出，用于排查问题，产品不会自动上传。它包含所选范围内的聊天内容，
 请只分享给你信任的人。
 
 - \`manifest.json\`: versions, selected messages, effective time range, Bots and Sessions, omissions.

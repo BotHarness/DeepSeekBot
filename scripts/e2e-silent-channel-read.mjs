@@ -87,7 +87,7 @@ if (typeof dm?.id !== 'string') throw new Error('No Bot DM');
 const replyMarker = `SILENT_READ_REPLY_${stamp}`;
 await rpc('channelSend', {
   channelId: dm.id,
-  body: `请用 channel_read 精确读取群 ${group.name}（channel_id: ${group.id}）中包含 SILENT_READ_${stamp}_ 的消息，limit 设为 1。只读取这一页，不要翻页、不要读其他历史、不要执行文件工具。然后在本私聊用 channel_send 回复实际返回的那一条代号，并包含 ${replyMarker}。`,
+  body: `请用 channel_read 精确读取群 ${group.name}（channel_id: ${group.id}）中包含 SILENT_READ_${stamp}_ 的消息，limit 设为 1。只读取这一页，不要翻页、不要读其他历史、不要执行文件工具。然后在本私聊用 bot_send_message 回复实际返回的那一条代号，并包含 ${replyMarker}。`,
 });
 const reply = await waitForReply(dm.id, replyMarker);
 if (!reply.body.includes(marker(3))) {

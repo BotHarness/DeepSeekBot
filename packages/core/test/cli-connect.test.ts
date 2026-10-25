@@ -28,7 +28,15 @@ describe('connect CLI', () => {
         host: {},
         devices: [{ id: 'd' }],
         routes: { routes: [] },
-        connect: { state: 'off' },
+        connect: {
+          state: 'off',
+          encryption: {
+            protocol: 'connect-noise-xk-v1',
+            required: true,
+            state: 'disconnected',
+            fingerprint: 'public-fingerprint',
+          },
+        },
       }),
     );
     expect(
@@ -36,7 +44,15 @@ describe('connect CLI', () => {
         http,
       })),
     ).toEqual({
-      connect: { state: 'off' },
+      connect: {
+        state: 'off',
+        encryption: {
+          protocol: 'connect-noise-xk-v1',
+          required: true,
+          state: 'disconnected',
+          fingerprint: 'public-fingerprint',
+        },
+      },
       routes: { routes: [] },
     });
     expect(http.mock.calls[0]).toEqual(['/api/botharness/devices']);

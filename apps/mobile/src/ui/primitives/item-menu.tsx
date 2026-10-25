@@ -1,10 +1,19 @@
+import type { LinkMenuActionProps } from 'expo-router';
+import type { MenuGlyph } from './menu-icon';
 import { useState, type ReactElement } from 'react';
 import { ScrollView } from 'react-native';
 import { Sheet } from '../chat/sheet';
 import { space } from '../design/tokens';
 import { Button } from './button';
 
-export type ItemMenuAction = { key: string; label: string; destructive?: boolean; run(): void };
+export type ItemMenuAction = {
+  key: string;
+  label: string;
+  glyph: MenuGlyph;
+  icon?: NonNullable<LinkMenuActionProps['icon']>;
+  destructive?: boolean;
+  run(): void;
+};
 export type ItemMenuProps = {
   title: string;
   actions: readonly ItemMenuAction[];

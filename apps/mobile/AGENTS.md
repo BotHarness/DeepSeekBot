@@ -19,7 +19,7 @@ Read docs for SDK 58 (`https://docs.expo.dev/versions/v58.0.0/...`), not `latest
 
 ## Design rules
 
-Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the screen anatomy, and the code rules. No literal colours, type, spacing, radii or edge widths outside `src/ui/design/` (`test/style-guard.test.ts`); text through `src/ui/primitives/text`; new visual elements land in `src/ui/primitives`, `chat` or `shell` before a screen uses them.
+Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) and [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the screen anatomy, and the code rules. No literal colours, type, spacing, radii or edge widths outside `src/ui/design/` (`test/style-guard.test.ts`); text through `src/ui/primitives/text`; new visual elements land in `src/ui/primitives`, `chat` or `shell` before a screen uses them.
 
 **Immediate interaction feedback is required.** For navigation, drawers/sheets, search and async actions, follow [Responsive interactions](./DESIGN.md#responsive-interactions): commit the shell/selection before uncached data or heavy content, retain scoped cached content during refresh, and measure tap-to-feedback separately from data-ready time. Include long-list and streaming regressions when those paths are affected; 120 FPS requires native Release evidence, not a display refresh-rate setting.
 
@@ -35,7 +35,7 @@ Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the sc
 - **File writes are explicit.** SDK 58 `File.write()` is asynchronous. The existing synchronous persistence adapters use `File.writeSync()` so their failure handling and callers retain the same contract.
 - **A native change needs a new development build.** Adding a package with native code, a config plugin, or an `app.json` native field change means the installed dev build is stale; say so in the PR. JavaScript-only changes reload through Metro.
 - **No secrets in the bundle.** Anything in `EXPO_PUBLIC_*` variables or `app.json` ships inside the app. Tokens live only in `expo-secure-store` and are never logged.
-- **HTTPS only.** iOS App Transport Security and Android cleartext rules block plain `http://` on device; the Host is reached over Tailscale HTTPS.
+- **HTTPS for ordinary requests.** LAN uses only the restricted native `LanChannel` carrier for pinned-key Noise frames; it never sends ordinary HTTP or device credentials in plaintext. Keep general cleartext disabled. Tailscale uses HTTPS and Connect retains its encrypted carrier. See `docs/architecture/lan-phone-v1.md` at the repo root.
 - **Long lists virtualize.** Use `FlatList`/`SectionList` (or FlashList if measured), never `ScrollView` over `.map()`.
 - **Web is a preview target, not a product.** The web export exists for screenshots in cloud sessions (see `README.md`); do not add web-only code paths to make it work.
 
@@ -51,6 +51,7 @@ Screens follow [DESIGN.md](./DESIGN.md): the Host-as-workspace structure, the sc
   - `smoke --ios --no-start --no-reload --port <port> --json`: one exit code for "the app is connected and threw nothing". `--no-start` keeps it from starting Metro, a Simulator or Expo Go.
   - Never run `agents:setup`, `new`, `install`, `deploy` or anything with `--eas`: they rewrite `AGENTS.md`/`CLAUDE.md`, change dependencies or spend EAS credits.
 - Native devices and QA Hosts are shared by every agent. Read [shared device QA](../../docs/agents/device-qa.md) before builds or device interaction; it routes Mac/iOS and Windows/Android to their own batch queues. Windows emulator/USB phone control and scrcpy evidence use `scripts/android-qa.ps1` from the repo root.
+- Screenshots, recordings and release image retention follow [local QA evidence](../../docs/agents/qa-evidence.md): index each platform's actual source/build and results in the main checkout, and retain accepted evidence outside disposable worktrees.
 - Cloud sessions have no simulator. They use the web screenshots ("Screenshots without a phone") and reach a Mac through Remote Control for native checks.
 
 ## Profiling

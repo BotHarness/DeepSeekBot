@@ -5,8 +5,8 @@ import type { LayerName } from '../design/layers';
 import { useDesignTheme } from '../design/theme';
 
 export type ToggleProps = {
-  label: string;
   testID?: string;
+  label: string;
   value: boolean;
   disabled?: boolean;
   on?: LayerName;
@@ -14,8 +14,8 @@ export type ToggleProps = {
 };
 
 export function Toggle({
-  label,
   testID,
+  label,
   value,
   disabled = false,
   on = 'sheet',

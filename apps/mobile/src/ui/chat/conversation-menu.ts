@@ -22,12 +22,25 @@ export function conversationMenu(
 ): ItemMenuAction[] {
   const actions: ItemMenuAction[] = conversationActions(conversation, options).map((action) => ({
     ...action,
+    icon:
+      action.key === 'section'
+        ? 'folder'
+        : action.key === 'read'
+          ? 'checkmark'
+          : action.key === 'pin' || action.key === 'unpin'
+            ? 'pin'
+            : action.key === 'mute'
+              ? 'bell.slash'
+              : 'bell',
+    glyph: action.key === 'section' ? 'folder' : action.key === 'read' ? 'check' : action.key,
     run: () => options.onAction(action.key),
   }));
   if (conversationChannelId(conversation)) {
     actions.push(
       ...options.sections.map((section) => ({
         key: `move:${section.id}`,
+        glyph: 'folder' as const,
+        icon: 'folder' as const,
         label: `${t.deletion.move}: ${section.name}`,
         run: () => options.onMove(section.id),
       })),
@@ -35,6 +48,8 @@ export function conversationMenu(
     if (options.sections.length > 0)
       actions.push({
         key: 'move:none',
+        glyph: 'folder',
+        icon: 'folder',
         label: t.deletion.unsectioned,
         run: () => options.onMove(null),
       });
@@ -42,6 +57,8 @@ export function conversationMenu(
   if (conversation.kind === 'channel')
     actions.push({
       key: 'delete',
+      glyph: 'delete',
+      icon: 'trash',
       label: t.deletion.dissolve,
       destructive: true,
       run: () =>
@@ -54,6 +71,7 @@ export function conversationMenu(
   else if (!conversation.bot.tob)
     actions.push({
       key: 'delete',
+      glyph: 'delete',
       label: t.deletion.deleteBot,
       destructive: true,
       run: () =>

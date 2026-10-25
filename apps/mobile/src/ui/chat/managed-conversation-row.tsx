@@ -1,11 +1,13 @@
+import { Platform } from 'react-native';
 import { showActionMenu } from '../primitives/app-dialog';
+import { useStrings } from '../strings';
 import { useRouter } from 'expo-router';
 import type { HostClient, RosterArrangement } from '../../host/client';
 import type { DeletionTarget } from '../../host/deletion';
 import type { Inbox } from '../../host/inbox';
 import type { HostLook } from '../design/host-look';
 import { ItemMenu } from '../primitives/item-menu';
-import { ConversationPeek, conversationPeek } from '../shell/conversation-peek';
+import { conversationPeek } from '../shell/conversation-peek';
 import { conversationHref, openConversation } from '../shell/open-conversation';
 import {
   conversationActions,
@@ -37,10 +39,16 @@ export function ManagedConversationRow({
   onDelete(target: DeletionTarget): void;
   onError(): void;
 }) {
+  useStrings();
   const router = useRouter();
   const channelId = conversationChannelId(row);
   const state = { pinned, hostMuted: arrangement?.muted?.includes(channelId ?? '') === true };
   const onAction = (key: Parameters<typeof runConversationAction>[3]) => {
+    if (key === 'section') {
+      if (hostId && channelId)
+        router.push({ pathname: '/conversation-section', params: { hostId, channelId } });
+      return;
+    }
     if (client) void runConversationAction(client, inbox, row, key).catch(onError);
   };
   const actions = client
@@ -59,23 +67,26 @@ export function ManagedConversationRow({
       })
     : [];
   const common = { row, now: new Date(), look, actions: conversationActions(row, state), onAction };
-  if (conversationPeek)
+  const openMenu = () =>
+    showActionMenu(
+      titleOf(row),
+      actions.map((action) => ({
+        text: action.label,
+        icon: action.glyph,
+        style: action.destructive ? 'destructive' : 'default',
+        onPress: action.run,
+      })),
+    );
+  if (conversationPeek || Platform.OS === 'android')
     return (
-      <ConversationPeek href={conversationHref(row, hostId)} actions={actions}>
-        <ConversationRow
-          {...common}
-          onMenu={() =>
-            showActionMenu(
-              titleOf(row),
-              actions.map((action) => ({
-                text: action.label,
-                style: action.destructive ? 'destructive' : 'default',
-                onPress: action.run,
-              })),
-            )
-          }
-        />
-      </ConversationPeek>
+      <ConversationRow
+        {...common}
+        previewHref={conversationPeek ? conversationHref(row, hostId) : undefined}
+        menuActions={actions}
+        onLongPress={conversationPeek ? undefined : openMenu}
+        onMenu={openMenu}
+        onPress={() => openConversation(router, row, hostId)}
+      />
     );
   return (
     <ItemMenu title={titleOf(row)} actions={actions}>
@@ -83,6 +94,7 @@ export function ManagedConversationRow({
         <ConversationRow
           {...common}
           onLongPress={open}
+          onMenu={open}
           onPress={() => openConversation(router, row, hostId)}
         />
       )}

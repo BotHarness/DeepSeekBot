@@ -52,7 +52,7 @@ export interface QuestionRequest extends RequestRef {
 
 export type DecisionResult = 'accepted' | 'decided' | 'expired';
 
-export type ApprovalChoice = 'allowed-once' | 'allowed-always-tool' | 'rejected';
+export type ApprovalChoice = ToolApprovalOutcome;
 
 export function requestRef(item: HumanAttentionItem): RequestRef | undefined {
   if (item.channelId === undefined || item.messageId === undefined) return undefined;

@@ -9,7 +9,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { ChevronRightIcon, CpuIcon, FolderIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { modelLabel, workspaceLabel } from './composer-labels';
 import { DmActivitySettings } from './dm-activity-settings';
@@ -17,6 +17,7 @@ import { DmActivitySettings } from './dm-activity-settings';
 const ICON = 20;
 
 export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: RosterBot }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const { saved } = useHostSession();
   const settings = useMemo(() => botSettings(client, bot.slug), [client, bot.slug]);

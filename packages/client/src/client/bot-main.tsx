@@ -41,6 +41,7 @@ import {
 
 import {
   IconCheckOutlineRegular,
+  IconChevronDownOutlineRegular,
   IconChecklistOutlineRegular,
   IconCopyOutlineRegular,
   IconGoalOutlineRegular,
@@ -142,6 +143,7 @@ import { AutoApprovalLine, AutoApprovalPauseLine } from './approval-template-ent
 import { BotChannelPostLine, elsewhereAction } from './bot-channel-post-line.js';
 import {
   hiddenDmActionsSnapshot,
+  dmMemoryDisplaySnapshot,
   subscribeHiddenDmActions,
   visibleDmMessages,
 } from './dm-actions.js';
@@ -1319,6 +1321,11 @@ function ConversationView({
     subscribeHiddenDmActions,
     () => hiddenDmActionsSnapshot(dmBotSlug),
     () => hiddenDmActionsSnapshot(dmBotSlug),
+  );
+  const memoryDisplay = useSyncExternalStore(
+    subscribeHiddenDmActions,
+    () => dmMemoryDisplaySnapshot(dmBotSlug),
+    () => dmMemoryDisplaySnapshot(dmBotSlug),
   );
   const messages = conversation.messages;
   const displayMessages: ChannelMessage[] = [
@@ -2796,6 +2803,11 @@ function ConversationView({
                       <MemoryCommitLine
                         messageId={first.id}
                         commit={first.memoryCommit}
+                        compact={
+                          dmBotSlug !== undefined &&
+                          first.noticeOrigin !== undefined &&
+                          memoryDisplay === 'compact'
+                        }
                         bots={state.bots}
                         action={
                           first.noticeOrigin === undefined
@@ -3016,15 +3028,6 @@ function ConversationView({
               </div>
             ) : null}
           </div>
-          {activeMemoryView === undefined && (unseen > 0 || conversation.timeline.hasNewer) ? (
-            <button type="button" className="bh-timeline-new" onClick={jumpToLatest}>
-              {conversation.timeline.hasNewer
-                ? t('messages.latest')
-                : t(unseen === 1 ? 'messages.unseenOne' : 'messages.unseen', {
-                    count: unseen,
-                  })}
-            </button>
-          ) : null}
           {activeMemoryView === undefined && restoreBlocked ? (
             <div className="bh-note" role="alert">
               {t('message.restoreBlocked')}
@@ -3048,6 +3051,30 @@ function ConversationView({
                 } else void exportSelectionImage(selectedIds);
               }}
             />
+          ) : null}
+          {activeMemoryView === undefined &&
+          selectedIds === undefined &&
+          (!atLatest || unseen > 0 || conversation.timeline.hasNewer) ? (
+            <div className="bh-timeline-jump-anchor">
+              <button
+                type="button"
+                className="bh-timeline-new"
+                aria-label={t('messages.latest')}
+                aria-description={
+                  unseen > 0
+                    ? t(unseen === 1 ? 'messages.unseenOne' : 'messages.unseen', { count: unseen })
+                    : undefined
+                }
+                onClick={jumpToLatest}
+              >
+                <IconChevronDownOutlineRegular size={16} aria-hidden="true" />
+                {unseen > 0 ? (
+                  <span className="bh-timeline-new-count" aria-hidden="true">
+                    {unseen > 99 ? '99+' : unseen}
+                  </span>
+                ) : null}
+              </button>
+            </div>
           ) : null}
           {readOnlyDm && selectedIds === undefined ? (
             <div className="bh-bot-dm-readonly">
@@ -3280,7 +3307,7 @@ function ConversationView({
     state.selection === undefined ? (
       <Welcome state={state} t={t} />
     ) : state.selection.kind === 'inbox' ? (
-      <ActivityCenterView actions={actions} t={t} />
+      <ActivityCenterView actions={actions} t={t} registry={dockPanels} />
     ) : (
       conversationPane
     );
@@ -3517,7 +3544,7 @@ function BotMainContent({
   const workspace = useContext(WorkspaceContext);
   if (!workspace && state.selection === undefined) return <Welcome state={state} t={t} />;
   if (!workspace && state.selection?.kind === 'inbox')
-    return <ActivityCenterView actions={actions} t={t} />;
+    return <ActivityCenterView actions={actions} t={t} registry={dockPanels} />;
   const scopeKey =
     state.selection === undefined
       ? 'welcome'

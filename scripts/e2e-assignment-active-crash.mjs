@@ -72,7 +72,7 @@ if (phase === 'prepare') {
     await rpc('create', {
       displayName: 'Active crash QA ' + stamp,
       persona:
-        'Follow the Human exactly. Create only the one requested Assignment, with continuity key active-crash-direction. Never approve tools, run Shell in the Orchestrator, create subagents or edit files. After creation channel_send ACTIVE_CREATED then end. Never resume the Assignment or create replacement work unless the Human explicitly asks.',
+        'Follow the Human exactly. Create only the one requested Assignment, with continuity key active-crash-direction. Never approve tools, run Shell in the Orchestrator, create subagents or edit files. After creation bot_send_message ACTIVE_CREATED then end. Never resume the Assignment or create replacement work unless the Human explicitly asks.',
     })
   ).bot;
   await rpc('modelPresetApply', { slug: bot.slug, presetId: preset.id });
@@ -91,7 +91,7 @@ if (phase === 'prepare') {
       grant.id +
       ' and continuity key active-crash-direction. Purpose: Active Assignment crash QA. It must FIRST invoke report_to_orchestrator exactly once with state progress, summary ' +
       JSON.stringify(marker) +
-      ', expects_reply false. Then invoke native Shell with only command sleep 1 and description Active crash QA timer, omitting sandbox_permissions and justification. Wait for Human approval. Do not report completed, stop, use files or perform any other tool. After creating it channel_send ACTIVE_CREATED and end without waiting.',
+      ', expects_reply false. Then invoke native Shell with only command sleep 1 and description Active crash QA timer, omitting sandbox_permissions and justification. Wait for Human approval. Do not report completed, stop, use files or perform any other tool. After creating it bot_send_message ACTIVE_CREATED and end without waiting.',
   });
   scene.sessionId = (
     await waitFor(

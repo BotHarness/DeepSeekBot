@@ -107,7 +107,7 @@ describe('native Bot Session folders', () => {
       await act(async () => root.render(createElement(BotSessionFolders, props)));
       const rootHeader = () =>
         tree.querySelector<HTMLButtonElement>('[data-bot-folder-root] > div > [data-panel-head]')!;
-      expect(rootHeader().textContent).toBe('DeepSeekBot2');
+      expect(rootHeader().textContent).toBe('Tobs2');
       expect(rootHeader().querySelector('.bh-bot-icon img')).not.toBeNull();
       expect(rootHeader().querySelector('[data-panel-chevron]')).toBeNull();
       icon = 'bot';

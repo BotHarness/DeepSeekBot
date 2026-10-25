@@ -15,9 +15,10 @@ import { useDesignTheme } from '../../../src/ui/design/theme';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
 import { ActivityFeed } from '../../../src/ui/shell/activity-feed';
 import { HostDrawerEdge } from '../../../src/ui/shell/host-drawer';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 
 export default function ActivityScreen() {
+  const t = useStrings();
   const router = useRouter();
   const focused = useIsFocused();
   const theme = useDesignTheme();
@@ -87,7 +88,7 @@ export default function ActivityScreen() {
         />
       </View>
     ),
-    [partial, snapshot.connection, client, router],
+    [t, partial, snapshot.connection, client, router],
   );
 
   return (

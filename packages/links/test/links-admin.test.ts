@@ -87,6 +87,24 @@ async function signedIn() {
 }
 
 describe('admin access', () => {
+  it('keeps administration on its existing Access origin while public hosts migrate', async () => {
+    const origin = 'https://go.deepseekbot.app';
+    const { request } = createHarness({ ADMIN_ORIGIN: origin });
+    for (const host of ['https://go.tobs.app', 'https://go.botharness.ai']) {
+      for (const method of ['GET', 'HEAD']) {
+        const response = await request('/admin/links?campaign=launch', { origin: host, method });
+        expect(response.status).toBe(302);
+        expect(response.headers.get('location')).toBe(`${origin}/admin/links?campaign=launch`);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+      }
+      expect((await request('/admin/links', { origin: host, method: 'POST' })).status).toBe(403);
+      expect((await request('/v1/links', { origin: host })).status).toBe(401);
+    }
+    const destination = await request('/admin', { origin });
+    expect(destination.status).not.toBe(200);
+    expect(destination.headers.get('location')).toBeNull();
+  });
+
   it('needs a Cloudflare Access JWT and refuses a missing one', async () => {
     const { request } = accessHarness();
     const response = await request('/admin');
@@ -179,9 +197,7 @@ describe('admin pages', () => {
       path: '/',
       language: 'zh',
     });
-    expect(link.headers.get('location')).toContain(
-      'Created+https%3A%2F%2Fgo.botharness.ai%2Fx-post',
-    );
+    expect(link.headers.get('location')).toContain('Created+https%3A%2F%2Fgo.tobs.app%2Fx-post');
     const detail = await (await page('/admin/campaigns/ph-launch-2026')).text();
     expect(detail.indexOf('New link')).toBeLessThan(detail.indexOf('<h2>Links</h2>'));
   });
@@ -215,8 +231,8 @@ describe('admin pages', () => {
     await request('/ph-bili');
 
     const detail = await (await page('/admin/campaigns/ph-launch')).text();
-    expect(detail).toContain('data-copy="https://go.botharness.ai/ph-x-post"');
-    expect(detail).toContain('data-copy="https://go.botharness.ai/ph-bili"');
+    expect(detail).toContain('data-copy="https://go.tobs.app/ph-x-post"');
+    expect(detail).toContain('data-copy="https://go.tobs.app/ph-bili"');
     expect(detail).toContain('3 clicks across 2 links');
     expect(detail).toContain('data-chart="daily"');
     expect(detail).toContain('data-chart="links"');
@@ -233,7 +249,7 @@ describe('admin pages', () => {
       ]),
     );
     expect(detail).toContain(
-      'href="https://deepseekbot.botharness.ai/en/docs/overview/?utm_campaign=ph-launch&amp;utm_source=x&amp;utm_medium=post&amp;utm_content=ph-x-post"',
+      'href="https://tobs.app/en/docs/overview/?utm_campaign=ph-launch&amp;utm_source=x&amp;utm_medium=post&amp;utm_content=ph-x-post"',
     );
 
     const invalid = await post('/admin/links', {

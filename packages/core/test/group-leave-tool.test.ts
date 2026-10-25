@@ -15,7 +15,9 @@ type Fixture = {
   dmId: string;
 };
 async function call(f: Fixture, name: string, args: unknown) {
-  return f.tools.find((tool) => tool.name === name)!.execute(args, {} as ToolRunContext);
+  return f.tools
+    .find((tool) => tool.name === name)!
+    .execute(args, { signal: new AbortController().signal } as ToolRunContext);
 }
 async function leave(f: Fixture, channelId = f.groupId) {
   return JSON.parse(String(await call(f, 'group_leave', { channel_id: channelId })));
@@ -114,8 +116,8 @@ describe('compiled Orchestrator group_leave outcomes', () => {
         'not a member',
       );
       await expect(
-        call(f, 'channel_send', { channel_id: f.groupId, body: 'Denied' }),
-      ).rejects.toThrow('not a member');
+        call(f, 'bot_send_message', { channel_id: f.groupId, body: 'Denied' }),
+      ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
       const notices = f.core.channels.readMessages(f.groupId).filter((m) => m.memberDeparture);
       expect(notices).toHaveLength(1);
       expect(notices[0]?.memberDeparture?.departureType).toBe('left');

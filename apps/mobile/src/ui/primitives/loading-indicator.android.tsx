@@ -8,7 +8,7 @@ import { View, type ColorValue } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { loadingIndicator } from '../design/tokens';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { LoadingIndicatorSize } from './loading-indicator';
 
 export function LoadingIndicator({
@@ -20,6 +20,7 @@ export function LoadingIndicator({
   accessibilityLabel?: string;
   size?: LoadingIndicatorSize;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const box = size === 'page' ? loadingIndicator.size : loadingIndicator.control;
   const tint = color ?? theme.color.accent;

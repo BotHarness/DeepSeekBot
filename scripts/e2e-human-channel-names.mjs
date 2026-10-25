@@ -255,7 +255,7 @@ try {
             await rpc('create', {
               displayName: 'Navigator QA',
               persona:
-                'Follow the Human request precisely. Discover Channel and Human identities through channel_list and channel_query. Send the requested message with channel_send and mention_human_ids if asked. Do not create Assignments. Finish after the requested send.',
+                'Follow the Human request precisely. Discover Channel and Human identities through channel_list and channel_query. Send the requested message with bot_send_message and mention_human_ids if asked. Do not create Assignments. Finish after the requested send.',
             })
           ).bot;
           const dm = (await rpc('channelDm', { slug: bot.slug })).channel;
@@ -266,7 +266,7 @@ try {
             await rpc('channelCreate', { name: 'Default name QA', members: [bot.slug] })
           ).channel;
           const sourceBody =
-            '@Navigator QA Discover this Channel humanMembers with channel_list then send a trusted Human mention with body exactly "QA_NICKNAME_TRUSTED: Confirm Friday. Plain @Human stays ordinary." Use mention_human_ids and no reply_to.';
+            '@Navigator QA Discover this Channel humanMembers with channel_list then send a trusted Human mention with body exactly "QA_NICKNAME_TRUSTED: Confirm Friday. Plain @Human stays ordinary." Use mention_human_ids and explicit channel_id without source_event_id.';
           await rpc('channelSend', {
             channelId: group.id,
             messageId: 'human-' + crypto.randomUUID(),
@@ -342,7 +342,7 @@ try {
     await rpc('channelSend', {
       channelId: scene.dm.id,
       messageId,
-      body: 'Use channel_list to discover current humanMembers for your DM and the Group named Roleplay nicknames QA. Send exactly one DM reply using channel_send with reply_to this message. Body: QA_VISIBLE: DM=<actual DM Human displayName>; Group=<actual Group Human displayName>; ID=<Human ID>. Read the actual current names, never guess them.',
+      body: 'Use channel_list to discover current humanMembers for your DM and the Group named Roleplay nicknames QA. Send exactly one DM reply using bot_send_message with source_event_id from this request. Body: QA_VISIBLE: DM=<actual DM Human displayName>; Group=<actual Group Human displayName>; ID=<Human ID>. Read the actual current names, never guess them.',
     });
     const visible = await waitMessage(scene.dm.id, 'QA_VISIBLE:');
     assert.ok(visible.body.includes('DM=船长'));

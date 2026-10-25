@@ -1,6 +1,6 @@
 export interface DraftStorage {
   read(): Promise<unknown>;
-  write(value: Record<string, string>): void;
+  write(value: Record<string, string>, required?: boolean): void;
 }
 export function createSourceDrafts(storage: DraftStorage) {
   let values: Record<string, string> = {};
@@ -42,6 +42,21 @@ export function createSourceDrafts(storage: DraftStorage) {
         storage.write(values);
         publish();
       }
+    },
+    async removePersistedWhere(match: (key: string) => boolean) {
+      await ready;
+      const raw = await storage.read();
+      const next: Record<string, string> = {};
+      if (raw && typeof raw === 'object' && !Array.isArray(raw))
+        for (const [key, value] of Object.entries(raw))
+          if (!changed.has(key) && typeof value === 'string') next[key] = value;
+      Object.assign(next, values);
+      const removed = Object.keys(next).filter(match);
+      for (const key of removed) delete next[key];
+      storage.write(next, true);
+      values = next;
+      for (const key of removed) changed.add(key);
+      publish();
     },
     subscribe(listener: () => void) {
       listeners.add(listener);

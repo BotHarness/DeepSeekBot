@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { packProduct, productDsh, productImProvider } from './product-artifacts.mjs';
@@ -35,6 +35,7 @@ export const publicationOrder = [
   '@botharness/computer',
   ...cloudflaredPackages.map((entry) => entry.name),
   'deepseekbot',
+  '@botharness/tobs',
 ];
 const platformPackages = new Map(cloudflaredPackages.map((entry) => [entry.name, entry]));
 const registry = 'https://registry.npmjs.org';
@@ -131,10 +132,22 @@ export function checkPackage(manifest, artifact, files, inventory) {
     throw new Error('The core package must export its bundled CLI at ./cli');
   if (manifest.name === 'deepseekbot' && manifest.bin?.deepseekbot !== './dist/deepseekbot.mjs')
     throw new Error('The product package must provide its bundled deepseekbot executable');
+  if (
+    manifest.name === '@botharness/tobs' &&
+    (manifest.bin?.tobs !== './src/tobs.mjs' ||
+      Object.keys(manifest.bin).length !== 1 ||
+      manifest.dependencies?.deepseekbot !== manifest.version)
+  )
+    throw new Error('Tobs must own only its command and pin the matching legacy implementation');
   const binPaths =
     typeof manifest.bin === 'string' ? [manifest.bin] : Object.values(manifest.bin ?? {});
   for (const path of [
     ...(manifest.name === '@botharness/core' ? ['./cli/index.mjs'] : []),
+    ...(manifest.name === '@botharness/computer'
+      ? ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'].map(
+          (name) => `./native/local-video/${name}`,
+        )
+      : []),
     ...binPaths,
     manifest.main,
     manifest.dsh?.bundle?.patch,
@@ -185,7 +198,15 @@ export function verifyRelease(directory, expected = {}) {
     return { artifact, manifest };
   });
   const product = packages.find((p) => p.artifact.name === 'deepseekbot');
-  for (const name of publicationOrder.slice(0, -1)) {
+  const tobs = packages.find((p) => p.artifact.name === '@botharness/tobs');
+  if (
+    tarText(directory, tobs.artifact, 'cordis.im.patch.yml') !==
+    tarText(directory, product.artifact, 'cordis.im.patch.yml')
+  )
+    throw new Error('Tobs and DeepSeekBot must compose the same product Patch');
+  for (const name of publicationOrder.filter(
+    (name) => !['deepseekbot', '@botharness/tobs'].includes(name),
+  )) {
     const declared = platformPackages.has(name)
       ? product.manifest.optionalDependencies?.[name]
       : product.manifest.dependencies?.[name];
@@ -219,7 +240,7 @@ export function verifyPackedCli(
   const temporary = mkdtempSync(join(tmpdir(), 'botharness-packed-cli-'));
   try {
     const modules = join(temporary, 'node_modules');
-    for (const name of ['@botharness/core', 'deepseekbot']) {
+    for (const name of ['@botharness/core', 'deepseekbot', '@botharness/tobs']) {
       const entry = packages.find(({ artifact }) => artifact.name === name);
       if (!entry) throw new Error(`Missing CLI package: ${name}`);
       const destination = join(modules, name);
@@ -260,7 +281,24 @@ export function verifyPackedCli(
         stdio: ['ignore', 'pipe', 'pipe'],
       },
     );
-    if (!output.includes('deepseekbot')) throw new Error('Packed CLI did not return its help');
+    if (!output.includes('tobs:')) throw new Error('Packed CLI did not return its help');
+    const aliasOutput = execFileSync(
+      process.execPath,
+      [join(modules, '@botharness/tobs/src/tobs.mjs'), '--help'],
+      {
+        cwd: temporary,
+        env: {
+          HOME: home,
+          USERPROFILE: home,
+          PATH: '',
+          ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+        },
+        encoding: 'utf8',
+        timeout: 15_000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
+    if (aliasOutput !== output) throw new Error('Tobs CLI differs from the legacy implementation');
     return { executable: 'deepseekbot', packedCoreExport: './cli/index.mjs', isolatedHelp: true };
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -381,10 +419,10 @@ export async function awaitPublished(
 }
 
 export function publicationWaves(packages) {
-  const product = publicationOrder.at(-1);
   return [
-    packages.filter(({ artifact }) => artifact.name !== product),
-    packages.filter(({ artifact }) => artifact.name === product),
+    packages.filter(({ artifact }) => !['deepseekbot', '@botharness/tobs'].includes(artifact.name)),
+    packages.filter(({ artifact }) => artifact.name === 'deepseekbot'),
+    packages.filter(({ artifact }) => artifact.name === '@botharness/tobs'),
   ].filter((wave) => wave.length);
 }
 
@@ -506,11 +544,20 @@ async function main() {
   }
   const npm = (args) =>
     new Promise((done, fail) => {
-      const child = spawn('npm', [...args, ...npmConfig], {
-        cwd: directory,
-        env,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const windows = process.platform === 'win32';
+      const child = spawn(
+        windows ? process.execPath : 'npm',
+        [
+          ...(windows ? [join(dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')] : []),
+          ...args,
+          ...npmConfig,
+        ],
+        {
+          cwd: directory,
+          env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
       let stdout = '';
       let output = '';
       child.stdout.on('data', (chunk) => {

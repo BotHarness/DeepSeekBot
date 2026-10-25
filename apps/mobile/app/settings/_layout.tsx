@@ -1,8 +1,9 @@
 import { Stack } from 'expo-router';
 import { SheetStack } from '../../src/ui/primitives/sheet-stack';
-import { t } from '../../src/ui/strings';
+import { useStrings } from '../../src/ui/strings';
 
 export default function SettingsLayout() {
+  const t = useStrings();
   return (
     <SheetStack modalGrabber>
       <Stack.Screen name="chat-background" options={{ title: t.chatBackground.global }} />

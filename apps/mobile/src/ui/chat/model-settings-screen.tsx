@@ -28,7 +28,7 @@ import { SettingsGroupItem, SettingsRow, SettingsSection } from '../primitives/s
 import { SheetPage } from '../primitives/sheet-page';
 import { TextField } from '../primitives/text-field';
 import { CheckIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
@@ -123,6 +123,7 @@ function ModelsView({
   scope: ModelScope;
   picker?: ModelField | undefined;
 }) {
+  const t = useStrings();
   const router = useRouter();
   const theme = useDesignTheme();
   const models = useModels(client, scope);
@@ -469,6 +470,7 @@ export function ModelSettingsScreen({
   kind: ModelScope['kind'];
   pick?: boolean;
 }) {
+  const t = useStrings();
   const {
     slug = '',
     id = '',

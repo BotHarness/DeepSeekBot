@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Local Computer video qualification fixture</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 32px;
+      background: #17191e;
+      color: #fff;
+      font: 24px system-ui;
+    }
+    button {
+      font: inherit;
+      padding: 24px;
+      margin: 12px;
+      border: 3px solid white;
+      border-radius: 12px;
+    }
+    #count {
+      font-size: 80px;
+      font-variant-numeric: tabular-nums;
+    }
+    #scene {
+      width: min(100%, 1200px);
+      height: 300px;
+      background: black;
+    }
+    p {
+      max-width: 1000px;
+    }
+    #result {
+      background: #173b68;
+      padding: 20px;
+    }
+  </style>
+  <h1>Windows → Android video fixture</h1>
+  <p>
+    No accounts, credentials, network requests or private content. The source counter is not the
+    receiver presentation measurement.
+  </p>
+  <canvas id="scene" width="1200" height="300"></canvas>
+  <div id="count">Frame 0</div>
+  <button id="increment">Click once</button
+  ><button id="motion">Pause motion</button>
+  <div id="result">Clicks: 0</div>
+  <p>
+    Static readability: ABC abc 0123456789 — 中文静态文字。Observe beyond the declared stall
+    threshold, then click once.
+  </p>
+  <script>
+    const canvas = document.getElementById('scene'),
+      context = canvas.getContext('2d');
+    let frame = 0,
+      clicks = 0,
+      moving = true;
+    function draw() {
+      if (moving) {
+        frame++;
+        context.fillStyle = '#111';
+        context.fillRect(0, 0, 1200, 300);
+        context.fillStyle = '#fff';
+        context.fillRect((frame * 13) % 1100, 0, 100, 300);
+        context.fillStyle = '#ffd600';
+        context.font = 'bold 96px monospace';
+        context.fillText(String(frame), 30, 160);
+        document.getElementById('count').textContent = `Frame ${frame}`;
+      }
+      requestAnimationFrame(draw);
+    }
+    document.getElementById('increment').onclick = () => {
+      clicks++;
+      const result = document.getElementById('result');
+      result.textContent = `Clicks: ${clicks} · source frame ${frame}`;
+      result.style.background = clicks % 2 ? '#9b2424' : '#173b68';
+    };
+    document.getElementById('motion').onclick = (event) => {
+      moving = !moving;
+      event.target.textContent = moving ? 'Pause motion' : 'Resume motion';
+    };
+    requestAnimationFrame(draw);
+  </script>
+</html>

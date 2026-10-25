@@ -1,14 +1,15 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
+import type { Href } from 'expo-router';
 import { SourceName } from './source-name';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { edge, radius, space } from '../design/tokens';
+import { chatList, edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
 import {
   countBadge,
@@ -23,11 +24,13 @@ import {
 import { RowStatusGlyph } from './row-status-glyph';
 import type { ConversationAction, ConversationActionKey } from './conversation-actions';
 import { ConversationSwipe } from './conversation-swipe';
+import { ConversationPeek, type ConversationPeekAction } from '../shell/conversation-peek';
+import { showActionMenu } from '../primitives/app-dialog';
 
 const AVATAR = 48;
 const RING = 6;
 
-export const AVATAR_EDGE = space.x5 + RING / 2;
+export const AVATAR_EDGE = chatList.gutter;
 
 export function ConversationRow({
   row,
@@ -35,19 +38,24 @@ export function ConversationRow({
   onPress,
   actions = [],
   onAction,
+  look,
+  previewHref,
+  menuActions: suppliedMenuActions,
   onLongPress,
   onMenu,
-  look,
 }: {
   row: Conversation;
   now: Date;
   look?: HostLook | undefined;
+  previewHref?: Href | undefined;
+  menuActions?: readonly ConversationPeekAction[];
+  onLongPress?: (() => void) | undefined;
+  onMenu?: (() => void) | undefined;
   onPress?: () => void;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
-  onLongPress?: () => void;
-  onMenu?: (() => void) | undefined;
 }) {
+  const t = useStrings();
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
@@ -63,34 +71,85 @@ export function ConversationRow({
   const time = shortTime(row.at, now);
   const label = rowLabel(row, title, status, preview);
   const act = onAction ?? (() => undefined);
-  return (
-    <ConversationSwipe actions={onAction ? actions : []} onAction={act}>
-      <ConversationRowFrame
-        testID={`conversation-row-${row.key}`}
-        actions={onAction ? actions : []}
-        onAction={act}
-        title={title}
-        source="computer"
-        look={look}
-        label={label}
-        preview={preview}
-        time={time}
-        status={status}
-        unread={row.unread > 0 && !row.muted}
-        badge={badge}
-        onPress={onPress}
-        onLongPress={onLongPress}
-        onMenu={onMenu}
-        avatar={
-          row.kind === 'bot' ? (
-            <AvatarSlot>
-              <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
-            </AvatarSlot>
-          ) : (
-            <ConversationGroupAvatar avatar={row.channel.avatar} />
-          )
-        }
-      />
+  const availableActions = onAction ? actions : [];
+  const menuActions: readonly ConversationPeekAction[] =
+    suppliedMenuActions ??
+    availableActions.map((action) => ({
+      key: action.key,
+      label: action.label,
+      icon:
+        action.key === 'section'
+          ? 'folder'
+          : action.key === 'read'
+            ? 'checkmark'
+            : action.key === 'pin' || action.key === 'unpin'
+              ? 'pin'
+              : action.key === 'mute'
+                ? 'bell.slash'
+                : 'bell',
+      run: () => act(action.key),
+    }));
+  const avatar =
+    row.kind === 'bot' ? (
+      <AvatarSlot>
+        <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
+      </AvatarSlot>
+    ) : (
+      <ConversationGroupAvatar avatar={row.channel.avatar} />
+    );
+  const frame = (
+    <ConversationRowFrame
+      testID={`conversation-row-${row.key}`}
+      actions={onAction ? actions : []}
+      onAction={act}
+      title={title}
+      source="computer"
+      look={look}
+      label={label}
+      preview={preview}
+      time={time}
+      status={status}
+      unread={row.unread > 0 && !row.muted}
+      badge={badge}
+      onPress={previewHref ? undefined : onPress}
+      onLongPress={
+        onLongPress ??
+        (Platform.OS === 'android' && availableActions.length > 0
+          ? () =>
+              showActionMenu(
+                title,
+                availableActions
+                  .filter((action) => action.key !== 'read')
+                  .map((action) => ({
+                    text: action.label,
+                    icon:
+                      action.key === 'read'
+                        ? ('check' as const)
+                        : action.key === 'section'
+                          ? ('folder' as const)
+                          : action.key,
+                    onPress: () => act(action.key),
+                  })),
+                avatar,
+              )
+          : undefined)
+      }
+      onMenu={onMenu}
+      avatar={avatar}
+    />
+  );
+  const content = previewHref ? (
+    <ConversationPeek href={previewHref} actions={menuActions}>
+      {frame}
+    </ConversationPeek>
+  ) : (
+    frame
+  );
+  return Platform.OS === 'android' ? (
+    content
+  ) : (
+    <ConversationSwipe actions={availableActions} onAction={act}>
+      {content}
     </ConversationSwipe>
   );
 }
@@ -129,19 +188,19 @@ export function ConversationRowFrame({
   badge,
   avatar,
   onPress,
+  onLongPress,
   disabled = false,
   actions = [],
   onAction,
-  onLongPress,
-  onMenu,
   testID,
+  onMenu,
   look,
+  ref,
 }: {
+  ref?: Ref<ViewInstance>;
   look?: HostLook | undefined;
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
-  onLongPress?: (() => void) | undefined;
-  onMenu?: (() => void) | undefined;
   title: string;
   source: 'computer' | 'cloud';
   label: string;
@@ -152,12 +211,16 @@ export function ConversationRowFrame({
   badge?: ReturnType<typeof countBadge>;
   avatar: ReactNode;
   onPress?: (() => void) | undefined;
+  onLongPress?: (() => void) | undefined;
   disabled?: boolean;
   testID?: string;
+  onMenu?: (() => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <Pressable
+      ref={ref}
       testID={testID}
       onPress={onPress}
       onLongPress={onLongPress}
@@ -166,21 +229,23 @@ export function ConversationRowFrame({
       accessibilityLabel={label}
       accessibilityActions={[
         ...actions.map((action) => ({ name: action.key, label: action.label })),
-        ...((onMenu ?? onLongPress) ? [{ name: 'actions', label: t.deletion.actions(title) }] : []),
+        ...(onMenu ? [{ name: 'actions', label: t.deletion.actions(title) }] : []),
       ]}
       onAccessibilityAction={(event) => {
-        if (event.nativeEvent.actionName === 'actions') (onMenu ?? onLongPress)?.();
-        else {
-          const action = actions.find((entry) => entry.key === event.nativeEvent.actionName);
-          if (action) onAction?.(action.key);
+        if (event.nativeEvent.actionName === 'actions') {
+          onMenu?.();
+          return;
         }
+        const action = actions.find((item) => item.key === event.nativeEvent.actionName);
+        if (action) onAction?.(action.key);
       }}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x4,
         minHeight: theme.touch,
-        paddingHorizontal: space.x5,
+        paddingLeft: chatList.gutter - RING / 2,
+        paddingRight: chatList.gutter,
         paddingVertical: space.x3,
         backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
       })}
@@ -208,9 +273,9 @@ export function ConversationRowFrame({
       >
         <View
           style={{
-            flexDirection: theme.largeText ? 'column' : 'row',
-            alignItems: theme.largeText ? 'flex-start' : 'center',
-            gap: theme.largeText ? space.x1 : space.x3,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x3,
           }}
         >
           <SourceName name={title} source={source} look={look} />
@@ -224,7 +289,8 @@ export function ConversationRowFrame({
           <Text
             variant="meta"
             tone={unread ? 'fg' : 'muted'}
-            numberOfLines={theme.largeText ? 2 : 1}
+            numberOfLines={1}
+            ellipsizeMode="tail"
             style={{ flex: 1 }}
           >
             {preview}

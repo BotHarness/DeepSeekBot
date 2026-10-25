@@ -1,7 +1,8 @@
 import { Stack } from 'expo-router';
 import { SheetStack } from '../../../src/ui/primitives/sheet-stack';
-import { t } from '../../../src/ui/strings';
+import { useStrings } from '../../../src/ui/strings';
 export default function GroupLayout() {
+  const t = useStrings();
   return (
     <SheetStack>
       <Stack.Screen name="index" options={{ headerShown: false }} />

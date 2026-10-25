@@ -1,9 +1,16 @@
-import { Link, type Href } from 'expo-router';
+import { Link, type Href, type LinkMenuActionProps } from 'expo-router';
 import type { ReactElement } from 'react';
 import { Platform } from 'react-native';
-import type { ItemMenuAction } from '../primitives/item-menu';
 
 export const conversationPeek = Platform.OS === 'ios';
+
+export type ConversationPeekAction = {
+  key: string;
+  label: string;
+  icon?: NonNullable<LinkMenuActionProps['icon']>;
+  destructive?: boolean;
+  run(): void;
+};
 
 export function ConversationPeek({
   href,
@@ -12,23 +19,26 @@ export function ConversationPeek({
 }: {
   href: Href;
   children: ReactElement;
-  actions?: readonly ItemMenuAction[];
+  actions?: readonly ConversationPeekAction[];
 }) {
   return (
     <Link href={href} asChild>
       <Link.Trigger>{children}</Link.Trigger>
       <Link.Preview />
-      <Link.Menu>
-        {actions.map((action) => (
-          <Link.MenuAction
-            key={action.key}
-            destructive={action.destructive === true}
-            onPress={action.run}
-          >
-            {action.label}
-          </Link.MenuAction>
-        ))}
-      </Link.Menu>
+      {actions.length > 0 ? (
+        <Link.Menu>
+          {actions.map((action) => (
+            <Link.MenuAction
+              key={action.key}
+              {...(action.icon ? { icon: action.icon } : {})}
+              destructive={action.destructive === true}
+              onPress={action.run}
+            >
+              {action.label}
+            </Link.MenuAction>
+          ))}
+        </Link.Menu>
+      ) : null}
     </Link>
   );
 }

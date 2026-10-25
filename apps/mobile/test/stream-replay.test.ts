@@ -56,7 +56,7 @@ async function server(events = false) {
 const request = (role = 'user', stream = false) => ({
   stream,
   messages: [{ role, content: 'QA replay' }],
-  tools: [{ type: 'function', function: { name: 'channel_send' } }],
+  tools: [{ type: 'function', function: { name: 'bot_send_message' } }],
 });
 const post = (base: string, body: unknown) =>
   fetch(base + '/v1/chat/completions', {

@@ -1,7 +1,15 @@
-export type PairingMethod = 'qr' | 'paste' | 'deep_link' | 'account';
+import { isDeviceYearClass, isPublicModelId, type DeviceTelemetryContext } from './device-context';
+
+export type PairingMethod = 'qr' | 'image' | 'paste' | 'deep_link' | 'account';
 export type PairingOutcome = 'success' | 'refused' | 'failed' | 'cancelled';
 export type PairingReason =
+  | 'lan-build-required'
+  | 'lan-unreachable'
+  | 'already-paired'
   | 'none'
+  | 'host-key-required'
+  | 'host-key-confirmation-required'
+  | 'channel-authentication-failed'
   | 'link-invalid'
   | 'link-expired'
   | 'no-route'
@@ -15,10 +23,35 @@ export type PairingReason =
   | 'account-not-allowed'
   | 'host-offline'
   | 'relay-unavailable'
+  | 'account-changed'
+  | 'account-identity-required'
+  | 'account-action-pending'
+  | 'account-cleanup-failed'
+  | 'account-deletion-uncertain'
   | 'unknown';
 export type DurationBucket = 'under1s' | '1-5s' | '5-15s' | '15-60s' | '60plus';
 export type ActivationStep = 'host_ready' | 'message_accepted' | 'bot_message_observed';
 export type ChannelKind = 'dm' | 'group';
+export type BotOperationKind = 'blank' | 'git' | 'zip' | 'marketplace';
+export type BotOperationPhase = 'preview' | 'submit' | 'recover';
+export type BotOperationOutcome =
+  | 'preview_ready'
+  | 'created'
+  | 'recovered'
+  | 'pending'
+  | 'refused'
+  | 'failed'
+  | 'unknown';
+export type BotOperationReason =
+  | 'none'
+  | 'validation'
+  | 'target-unavailable'
+  | 'host-update-required'
+  | 'source-changed'
+  | 'source-invalid'
+  | 'storage'
+  | 'transport'
+  | 'unknown';
 export type ConnectionTrigger = 'pair' | 'open' | 'resume' | 'switch' | 'recovery' | 'manual_retry';
 export type ConnectionOutcome = 'ready' | 'refused' | 'timeout' | 'cancelled';
 export type ConnectionReason =
@@ -27,6 +60,16 @@ export type ConnectionReason =
   | 'device-unknown'
   | 'device-credential-missing';
 export interface EventProperties {
+  mobile_bot_operation_started: {
+    kind: BotOperationKind;
+    phase: BotOperationPhase;
+    attempt_id: string;
+  };
+  mobile_bot_operation_result: EventProperties['mobile_bot_operation_started'] & {
+    outcome: BotOperationOutcome;
+    reason: BotOperationReason;
+    duration_bucket: DurationBucket;
+  };
   mobile_connection_result: {
     trigger: ConnectionTrigger;
     outcome: ConnectionOutcome;
@@ -49,7 +92,7 @@ export interface EventProperties {
     duration_bucket: DurationBucket;
   };
 }
-export interface TelemetryContext {
+export interface TelemetryContext extends Partial<DeviceTelemetryContext> {
   platform: 'ios' | 'android';
   app_version: string;
   app_build: string;
@@ -76,9 +119,47 @@ const member =
   (...values: string[]) =>
   (value: unknown): value is string =>
     typeof value === 'string' && values.includes(value);
-const method = member('qr', 'paste', 'deep_link', 'account');
+const method = member('qr', 'image', 'paste', 'deep_link', 'account');
 const duration = member('under1s', '1-5s', '5-15s', '15-60s', '60plus');
+const deviceFields: Record<keyof DeviceTelemetryContext, (value: unknown) => boolean> = {
+  os_version: (value) => typeof value === 'string' && /^(?:\d{1,3}\.\d{1,3}|unknown)$/u.test(value),
+  device_class: member('phone', 'tablet', 'unknown'),
+  device_model: (value) => value === 'unknown' || isPublicModelId(value),
+  total_mem_gb_bucket: member('<=4', '8', '16', '32', '64plus', 'unknown'),
+  device_year_class: (value) => value === 'unknown' || isDeviceYearClass(value),
+};
 const fields: Record<keyof EventProperties, Record<string, (value: unknown) => boolean>> = {
+  mobile_bot_operation_started: {
+    kind: member('blank', 'git', 'zip', 'marketplace'),
+    phase: member('preview', 'submit', 'recover'),
+    attempt_id: isUuid,
+  },
+  mobile_bot_operation_result: {
+    kind: member('blank', 'git', 'zip', 'marketplace'),
+    phase: member('preview', 'submit', 'recover'),
+    attempt_id: isUuid,
+    outcome: member(
+      'preview_ready',
+      'created',
+      'recovered',
+      'pending',
+      'refused',
+      'failed',
+      'unknown',
+    ),
+    reason: member(
+      'none',
+      'validation',
+      'target-unavailable',
+      'host-update-required',
+      'source-changed',
+      'source-invalid',
+      'storage',
+      'transport',
+      'unknown',
+    ),
+    duration_bucket: duration,
+  },
   mobile_connection_result: {
     trigger: member('pair', 'open', 'resume', 'switch', 'recovery', 'manual_retry'),
     outcome: member('ready', 'refused', 'timeout', 'cancelled'),
@@ -101,7 +182,13 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
     attempt_id: isUuid,
     outcome: member('success', 'refused', 'failed', 'cancelled'),
     reason: member(
+      'lan-build-required',
+      'lan-unreachable',
       'none',
+      'host-key-required',
+      'host-key-confirmation-required',
+      'already-paired',
+      'channel-authentication-failed',
       'link-invalid',
       'link-expired',
       'no-route',
@@ -115,6 +202,11 @@ const fields: Record<keyof EventProperties, Record<string, (value: unknown) => b
       'account-not-allowed',
       'host-offline',
       'relay-unavailable',
+      'account-changed',
+      'account-identity-required',
+      'account-action-pending',
+      'account-cleanup-failed',
+      'account-deletion-uncertain',
       'unknown',
     ),
     duration_bucket: duration,
@@ -162,6 +254,12 @@ export function sanitizeEvent(value: unknown): TelemetryEvent | undefined {
     $geoip_disable: true,
   };
   if (isUuid(props['qa_run_id'])) properties['qa_run_id'] = props['qa_run_id'];
+  for (const [name, valid] of Object.entries(deviceFields)) {
+    const field = props[name];
+    if (field === undefined) continue;
+    if (!valid(field) || (typeof field !== 'string' && typeof field !== 'number')) return undefined;
+    properties[name] = field;
+  }
   for (const [name, valid] of Object.entries(fields[event as keyof EventProperties])) {
     const field = props[name];
     if (!valid(field) || typeof field !== 'string') return undefined;

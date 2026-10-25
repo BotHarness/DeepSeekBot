@@ -331,6 +331,41 @@ describe('notification buttons', () => {
 });
 
 describe('push registration with a real Host gateway', () => {
+  it('registers replacement credentials without asking permission again after revoking the old device', async () => {
+    const h = await realHost();
+    const hostPush = createHostPush(nodeCarrier(), 2_000);
+    const phone = fakeNotifications('granted');
+    phone.port.request = async () => {
+      throw new Error('must not request permission');
+    };
+    const session = createPushSession({
+      notifications: phone.port,
+      hostPush,
+      platform: 'ios',
+      locale: 'en',
+    });
+    await session.sync([h.saved]);
+    const approved = h.pairing.redeem({
+      offer: h.pairing.createOffer().offer,
+      name: 'Phone replacement',
+    });
+    if (!approved.ok) throw new Error('pairing failed');
+    const replacement = {
+      ...h.saved,
+      deviceId: approved.device.id,
+      credential: approved.credential,
+      routes: h.saved.routes.slice(1),
+    };
+    await session.sync([replacement]);
+    h.pairing.revoke(h.saved.deviceId);
+    expect((await hostPush.settings(replacement)).registered).toBe(true);
+    expect(session.getSnapshot()).toEqual({ status: 'on', failed: [] });
+    h.raise('approval:replacement');
+    await h.push.reconcile();
+    expect(h.sent).toHaveLength(1);
+    h.owner.close();
+  });
+
   it('registers after the Human allows notifications, honours kinds, tests, and stops on unpair', async () => {
     const h = await realHost();
     const hostPush = createHostPush(nodeCarrier(), 2_000);

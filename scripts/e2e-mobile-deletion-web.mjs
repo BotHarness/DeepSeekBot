@@ -214,12 +214,12 @@ try {
   await waitText('Chat history stays on the computer.');
   await shot('group-review');
   await page.locator('[data-testid="deletion-cancel"]').click();
-  await hold('[data-testid="section-header"]');
+  await hold('[data-testid^="chat-section-"]');
   await click('Delete section');
   await waitText('No Bots or conversations are deleted.');
   await shot('section-review');
   await page.locator('[data-testid="deletion-confirm"]').click();
-  await page.waitForFunction(() => !document.querySelector('[data-testid="section-header"]'));
+  await page.waitForFunction(() => !document.querySelector('[data-testid^="chat-section-"]'));
   assert.equal(
     (await call('rosterGet', {})).sections.some((row) => row.id === section.id),
     false,

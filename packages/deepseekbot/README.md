@@ -1,117 +1,241 @@
 <div align="center">
-  <a href="https://deepseekbot.app/en/"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/deepseekbot-og-en-v2.png" width="800" alt="DeepSeekBot: the open-source Grok Bot alternative. Built on DeepSeek Harness, works with DSH plugins, Lark, Slack, Discord and WeChat, MIT" /></a>
+  <a href="https://tobs.app/en/">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/hero-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/hero-en-day.svg" width="960" alt="Tobs — a crew of your own" />
+</picture>
+  </a>
 
-# DeepSeekBot
+# Tobs
 
-[![npm](https://img.shields.io/npm/v/deepseekbot?color=CB3837&logo=npm)](https://www.npmjs.com/package/deepseekbot)
-[![Website](https://img.shields.io/badge/website-deepseekbot.app-3D5AFE)](https://deepseekbot.app/en/)
-[![GitHub](https://img.shields.io/github/stars/BotHarness/DeepSeekBot?style=flat&logo=github)](https://github.com/BotHarness/DeepSeekBot)
-[![MIT license](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/BotHarness/DeepSeekBot/blob/main/LICENSE)
-[![Discord](https://img.shields.io/badge/Discord-join-5865F2?logo=discord&logoColor=white)](https://discord.gg/aEB2Ayhu7B)
+[中文](https://github.com/BotHarness/DeepSeekBot/blob/main/README.md) ｜ **English**
 
-**DeepSeekBot (DSB): the open-source Grok Bot alternative for DeepSeek Harness.**
-A crew of bots, each with its own identity, persona and memory, working together.
+[![npm](https://img.shields.io/npm/v/@botharness/tobs?style=flat-square&color=3d5afe&label=npm)](https://www.npmjs.com/package/@botharness/tobs)
+[![MIT](https://img.shields.io/badge/license-MIT-71964a?style=flat-square)](https://github.com/BotHarness/DeepSeekBot/blob/main/LICENSE)
+[![DeepSeek Harness](https://img.shields.io/badge/built_for-DeepSeek_Harness-b8702f?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 
-[Website](https://deepseekbot.app/en/) · [GitHub](https://github.com/BotHarness/DeepSeekBot) · [Docs](https://botharness.ai) · [中文](#中文)
+**Tobs: the open-source Grok Bot alternative. A crew of bots, each with its own identity, persona and memory, working together.**
+
+[Website](https://tobs.app/en/) · [Video](#video) · [Install](#install) · [Features](#features) · [Releases](#releases) · [vs. DS Bot](#deepseek-bot-projects) · [Community](#community) · [Docs](https://tobs.app/en/docs/overview/)
 
 </div>
 
-DeepSeekBot installs into [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) as one plugin: a Bot roster, DMs and Groups, Git Memory you can see, delegation, and IM identities of the Bots' own. DeepSeekBot (DSB) is a different project from DS Bot (npm `ds-bot`); see [how they differ](https://github.com/BotHarness/DeepSeekBot/blob/main/README.en.md#deepseek-bot-projects).
+<a id="video"></a>
 
-- **Open-source Grok Bot alternative**, MIT licensed
-- **Built on DeepSeek Harness**: any model provider you connect in DSH works
-- **Works with other DSH plugins** in the same Profile
-- **Lark / Feishu, Slack, Discord, QQ and WeChat**: Bots speak under their own identity
+## Video
+
+Tobs in three minutes: a crew of bots with their own identity, persona and memory, working together in a small town. Recorded under the former DeepSeekBot name. Click the poster to play.
+
+<p align="center">
+  <a href="https://media.botharness.ai/pv/botharness-town-v19-1080p-lite-en.mp4"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v2/en/promo-video-v16.jpg" width="800" alt="Tobs promo video (3 minutes): click to play" /></a>
+</p>
+
+Tobs is BotHarness’s MIT-licensed, open-source Grok Bot alternative, running as a plugin in [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness). Create Bots for research, writing or coding and work with them like colleagues: chat one to one, bring them into a group, hand them tasks. They remember you, do things on schedule, and answer you under their own identity in Slack, Discord, Lark / Feishu, QQ and WeChat.
+
+Bots use the model providers and quota you set up in DSH, and the machine running DSH has to stay online for Bots to keep working in the background. Tobs is a different project from the similarly named DS Bot (npm `ds-bot`); see [how they differ](#deepseek-bot-projects).
+
+<a id="install"></a>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/install-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/install-en-day.svg" width="960" alt="" />
+</picture>
 
 ## Install
 
-**Desktop:** in the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `deepseekbot`, keep the official npm registry and click **Install**, then **Enable now**. **Bot mode** appears in the sidebar.
+Tobs was formerly named **DeepSeekBot**. The `deepseekbot` npm package and command remain supported for existing users; new installations use `@botharness/tobs`, with the `tobs` command.
 
-**CLI:** needs Node 22+ and DSH 0.2.0-rc.2 or later in the 0.2.x line. 1.4.1 is tested on 0.2.1-rc.2, the version the command below installs.
+In the DeepSeek Harness desktop app, go to **Plugins → Add plugin**, enter `@botharness/tobs@1.5.0`, install and enable it, and **Bot mode** appears in the sidebar. No DSH yet? [Get the desktop app](https://www.deepseek.com/en/harness/).
+
+For command-line install, version notes and troubleshooting, see the [installation guide](https://tobs.app/en/docs/installation/).
+
+<a id="features"></a>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/features-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/features-en-day.svg" width="960" alt="" />
+</picture>
+
+## What you can do with it
+
+| You want                              | How Tobs helps                                                                                                                                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A small AI team of your own**       | Create a researcher, a designer, an engineer. Each Bot has a name, a persona and a pixel avatar, and stays the same Bot across conversations.                                                                   |
+| **Bots that remember you**            | Bots keep your preferences and project context and pick up where they left off. You can read and correct their memory, and sync it to other computers.                                                          |
+| **Several Bots on one job**           | Bring Bots into a group chat and @ whoever you need. Hand a bigger task to one Bot to work on separately; it reports back and asks when it needs your call.                                                     |
+| **Bots in the chat apps you use**     | Connect Bots to Slack, Discord, Lark / Feishu, QQ and WeChat. @ them in a group or message them directly, and they reply in place under their own identity; in WeChat DMs they can also send and receive files. |
+| **Things done on time**               | Say “send me a log summary every morning at 9” and the Bot sets up the schedule itself, or set one to run every few minutes, hours or days.                                                                     |
+| **Help on your computer and browser** | Once you allow it, a Bot can open web pages, click, type and take screenshots, or work on a shared desktop. You watch it live and can pause it any time.                                                        |
+| **Ready-made Bots in one click**      | Browse and install Bots other people share in the [Bot Marketplace](https://tobs.app/en/market), share your own, or send a Bot to a friend as a zip.                                                            |
+| **Know what each update brings**      | After an update, Bot mode shows what is new; check for and install updates from Settings in one click.                                                                                                          |
+
+<a id="pixel-avatars"></a>
+
+### Pixel avatars
+
+<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel-avatars-crew.gif" width="660" alt="Six pixel PersonaBot avatars" />
+
+Every Bot gets a pixel avatar made from its name, and while it works the avatar morphs into the tool it is using. Want to make one? Type a name in the [Avatar Studio](https://tobs.app/en/avatar) on our website and download it in high resolution.
+
+<a id="screenshots"></a>
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/hero.jpg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/hero-dark.jpg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/hero.jpg" alt="Bot mode: the control rail and channel list on the left, a DM with Mira in the middle, and Mira's memory evolution with a merged branch on the right" /></picture></a><br /><b>Bot DMs and memory evolution</b>: Mira finds the visitor numbers in her memory; every commit and branch of that memory is on the right.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/group.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/group.jpg" alt="Observatory Studio Group: Mira, Theo and Nova reply under their own identities, with the member list on the right" /></a><br /><b>Group chats</b>: @ three Bots and each replies; Nova reads the first two before answering.</td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/schedules.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/schedules.jpg" alt="Kai creates a weekly schedule after a request to draft a post every Monday at 9; the Schedules panel is on the right" /></a><br /><b>Schedules</b>: one sentence and the Bot sets up the task.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/marketplace.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/marketplace.jpg" alt="Bot Marketplace: filter by topic and search; each Bot card shows a pixel banner, avatar, role, stars and an Install button" /></a><br /><b>Bot Marketplace</b>: find Bots by topic or keyword and install one as a new colleague (sample data).</td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/home.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/home.jpg" alt="Home and a DM with Tob side by side: token usage and Bot activity on the left, Tob reporting on every Bot on the right" /></a><br /><b>Home and Tob</b>: put panels side by side; ask Tob and it reports on all your Bots.</td>
+    <td width="50%"><a href="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/appearance.jpg"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/v3/en/appearance.jpg" alt="Appearance in Bot settings: theme, colors, wallpaper library and panel materials, over a workspace with a wallpaper" /></a><br /><b>Appearance</b>: themes, colors, a wallpaper library and see-through panels, saved on this device only.</td>
+  </tr>
+</table>
+
+_Screenshots from an isolated local DSH; the conversations are a fictional observatory-exhibition example._
+
+<a id="git-memory"></a>
+
+## Memory you can see
+
+Each Bot's memory is a plain Git repository. In the sidebar you can read what it remembers and see which lines changed and when, and edit anything that is wrong. Push it to GitHub to use the same Bot on several computers. See the [memory evolution guide](https://tobs.app/en/docs/channel-sidebar/memory-evolution/).
+
+<a id="releases"></a>
+
+## Release highlights
+
+Full history on the [website changelog](https://tobs.app/en/changelog/).
+
+| Version                                                                                                       | What's new                                                                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[1.5.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.5.0)** (2026-10-22)                       | **Tobs Connect** pairs a phone through your account without Tailscale; **Storage** clears old media and messages; the Bot Marketplace becomes a panel; plugins update from Bot settings; Bot mode is fast again on long conversations; the VRM companion installs on its own.                                                                                                          |
+| **[1.4.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.4.1)** (2026-10-20)                       | A five-step intro from Tob the first time you enter Bot mode; Bot mode gets its own **themes, see-through panels and a wallpaper library**; `/compact` and Idle Compaction keep long conversations fast; quick search jumps to any setting; Memory previews images and Markdown; the mobile Beta adds notification switches.                                                           |
+| **[1.4.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.4.0)** (2026-10-19)                       | **Tob** on Home manages Bots, models and groups through chat; the desktop becomes a drag-and-drop **panel workspace** that remembers each Channel's layout; a reviewer model can handle approvals; pair a phone; the CLI covers almost everything the UI does. Supports DSH 0.2.0-rc.2 through 0.2.x.                                                                                  |
+| **[1.3.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.1)** (2026-10-14)                       | Installing `deepseekbot` from the Plugins page takes one step again, with no build approval; needs DSH 0.2.0-rc.2. The `deepseekbot` CLI can configure a Host, drive a Bot's Browser and Computer, and manage IM apps; the Browser panel updates live.                                                                                                                                 |
+| **[1.3.0](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.3.0)** (2026-10-14)                       | One design system across Bot mode, with Channel settings in a dialog; the Orchestrator tidies its own inbox and tasks; Bots use your secrets for CLI tools and **MCP** servers with your approval, and set up MCP from one sentence; **export** multi-selected messages; Bot colors, more pixel species and hand-drawn parts; restore memory to any version. Needs DSH 0.2.0 or later. |
+| **[1.2.1](https://github.com/BotHarness/DeepSeekBot/releases/tag/v1.2.1)** (2026-10-12)                       | Fixes installs failing on some DSH versions; group avatars show a grid of member avatars; audio and file attachments play and download in place.                                                                                                                                                                                                                                       |
+| **[1.2.0](https://github.com/BotHarness/DeepSeekBot/blob/v1.2.0/CHANGELOG.md#120---2026-10-08)** (2026-10-08) | Pixel **Window Companions** you can pin on your desktop; bind one app to message Bots in Lark, Slack, Discord and WeChat; **import and export** Bots as zip files; Bot profiles with a banner and bio.                                                                                                                                                                                 |
+| **1.1.0** (2026-10-06)                                                                                        | **Schedules**; every conversation carries the Bot's persona and core memory; **one-click update** in Settings; WeChat voice-to-text and images.                                                                                                                                                                                                                                        |
+| **1.0.1** (2026-10-05)                                                                                        | First stable release: PersonaBots with their own identity, Git memory, group chats, delegated tasks, pixel avatars, IM connections and the first **Bot Marketplace**.                                                                                                                                                                                                                  |
+
+<a id="deepseek-bot-projects"></a>
+
+## Tobs and DS Bot (ds-bot): two projects, different focus
+
+The names are close, but these are two independent open-source projects. Both run on DeepSeek Harness (DSH), and neither is an official DeepSeek product.
+
+- **Tobs**, this repository, by BotHarness, makes each Bot a long-lived colleague that **works beyond the DSH window**: Git memory you can review, the Bot's own Lark / Slack / Discord / WeChat identity, schedules, delegated Assignments and a Bot Marketplace.
+- **DS Bot**, [Fei2411/DeepSeek-Bot](https://github.com/Fei2411/DeepSeek-Bot) (npm `ds-bot`, also written DeepSeek Bot in its README), **turns DSH itself into a bot chat app**: a main Bot, Chief, sets up your team through conversation, a group admin answers first to keep token use down, and a Usage page shows tokens by time, Bot and model.
+
+|              | Tobs                                                                                               | DS Bot (ds-bot)                                                                       |
+| ------------ | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Repository   | [BotHarness/DeepSeekBot](https://github.com/BotHarness/DeepSeekBot)                                | [Fei2411/DeepSeek-Bot](https://github.com/Fei2411/DeepSeek-Bot)                       |
+| Package      | npm [`@botharness/tobs`](https://www.npmjs.com/package/@botharness/tobs)                           | npm [`ds-bot`](https://www.npmjs.com/package/ds-bot)                                  |
+| License      | MIT                                                                                                | Apache-2.0                                                                            |
+| Memory       | One Git working tree per Bot: files, commits and diffs; push to GitHub to share it across machines | Markdown memory reviewed after each turn; personal and team levels                    |
+| Several Bots | @ whoever you need in a Group; Assignments delegate separate tasks with their own reports          | A main Bot manages the team; a group admin answers by default and calls in other Bots |
+| Beyond DSH   | Bots join Lark / Feishu, Slack, Discord and WeChat under their own identity                        | GitHub connector                                                                      |
+| Also         | Schedules, Bot Marketplace, Bot import and export, pixel avatars                                   | Schedules, Usage page                                                                 |
+
+**Which one?** If you want Bots to work in your IM under their own identity, or to review and sync memory with Git, try Tobs. If you want a main Bot to walk you through building a team inside DSH and keep an eye on token use, try DS Bot. Both are open source, so read both codebases: [Tobs](https://github.com/BotHarness/DeepSeekBot) · [DS Bot](https://github.com/Fei2411/DeepSeek-Bot). For a longer comparison, see [the article on our website](https://tobs.app/en/blog/deepseekbot-vs-ds-bot/).
+
+## FAQ
+
+### Which DeepSeek Bot project is this?
+
+This is **Tobs by BotHarness**: npm package [`@botharness/tobs`](https://www.npmjs.com/package/@botharness/tobs), website [tobs.app](https://tobs.app/en/). DS Bot uses `ds-bot` and is a separate project, not a short name or an older version of this one. See [how the two differ](#deepseek-bot-projects).
+
+### Does Tobs require DeepSeek models?
+
+No. It uses the providers configured in DSH; availability depends on API support, model settings and credentials. Memory and chat history stay on your host, while calls to a remote model send relevant context to the provider you chose.
+
+<a id="docs"></a>
+
+## For developers
+
+To run from source or contribute, you need Node ≥22 and pnpm.
 
 ```bash
-npm i -g @deepseek-ai/dsh@0.2.1-rc.2
-dsh plugin --profile web add deepseekbot
-dsh web
+git clone https://github.com/BotHarness/DeepSeekBot.git BotHarness
+cd BotHarness
+pnpm install && pnpm build
+node scripts/dev-instance.mjs --home /tmp/botharness-demo --port 31967
 ```
 
-Open **Bot mode**, create a PersonaBot, DM it, then start a Group and invite members. To use Lark, Slack, Discord, QQ or WeChat, connect the app in **Settings → IM bots**, then bind the identity and authorize a group in the Bot's Profile. Accounts start disconnected; you turn each one on.
+More in the [local instance guide](docs/client-bridge.md) · [contributing guide](CONTRIBUTING.md) · [architecture](docs/architecture/botharness-architecture.md) · [decisions](docs/adr/) · [agent guidelines](AGENTS.md) · [Release Ledger](CHANGELOG.md) · [DSH docs](https://deepseek-harness.github.io/deepseek-harness/).
 
-## Every Bot is a colleague
+For real IM tests, the [shared QA App wizard](docs/agents/im-test-apps.md) configures independent Lark, Slack and Discord QA1/QA2/QA3 slots. For example, run `node scripts/dev-im-test-apps.mjs setup discord` to enter the Token privately; confirm the current exclusive window before each receiver start.
 
-- **Lasting identity:** each PersonaBot keeps its own name, Soul (SOUL.md) and avatar across chats, Sessions and Workspaces.
-- **Git Memory you can see:** a Bot's memory is a plain Git working tree. Browse files, branches, commits and diffs in the sidebar, or push it to GitHub to share it across machines.
-- **Groups:** messages keep each Bot's identity, and you @ whoever you need.
-- **Assignments:** grant a Workspace and a Bot can delegate independent Assignments, each with its own Session and report.
-- **Their own IM identity:** when mentioned in an authorized group or thread, a Bot replies there under its own identity.
-- **Schedules:** have a Bot do something every few minutes, every hour or every day; add one in the sidebar or just ask the Bot, and lock it when the Bot shouldn't change it.
-- **Bot Marketplace:** install a Bot someone shared on the [Bot Marketplace](https://deepseekbot.app/en/market), or [share your own](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/share-bot.md).
-- **Update notes:** after an install or update, Bot mode shows what changed, and Bot settings check npm for a newer version.
+<a id="community"></a>
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/hero.jpg" width="800" alt="Bot mode: the control rail and channel list, a DM with Mira and her Memory evolution Git graph" />
-
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/group.jpg" width="800" alt="Three Bots replying under their own identities in a Group" />
-
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/schedules.jpg" width="800" alt="A Bot created a weekly schedule itself; the Schedules panel lists it on the right" />
-
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/marketplace.jpg" width="800" alt="Bot Marketplace with topic filters, search and Install buttons (sample listings)" />
-
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/home.jpg" width="800" alt="Home and a DM with Tob side by side: token usage, Bot activity and Tob reporting on every Bot" />
-
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/en/appearance.jpg" width="800" alt="Appearance settings with themes, colors, a wallpaper library and see-through panels" />
-
-More screenshots and per-version highlights are in the [GitHub README](https://github.com/BotHarness/DeepSeekBot#screenshots).
-
-## Pixel avatars
-
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/pixel-avatars-crew.gif" width="660" alt="Six pixel-art PersonaBot avatars" />
-
-Every Bot's default avatar is generated from its name, and while a Bot works its avatar morphs into the tool it is using. Try it on the [website](https://deepseekbot.app/en/avatar); avatars come from [BotPixel](https://github.com/BotHarness/BotPixel).
-
-## Built on DeepSeek Harness
-
-DeepSeekBot runs on DSH's own session management and harness, so any LLM provider you connect in DSH works for your Bots, and it installs alongside other DSH plugins. Some plugins may not be compatible yet; please open an [issue](https://github.com/BotHarness/DeepSeekBot/issues) or a PR if you hit one.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/community-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/community-en-day.svg" width="960" alt="" />
+</picture>
 
 ## Community
 
-- Discord: [discord.gg/aEB2Ayhu7B](https://discord.gg/aEB2Ayhu7B)
-- QQ group: 1125565676
-- Issues: [github.com/BotHarness/DeepSeekBot/issues](https://github.com/BotHarness/DeepSeekBot/issues)
+Questions, ideas and the Bots you build are all welcome.
 
----
+| Come say hello                                                                                                                                                                                                                                                                                                                                                                                                                                                | Build something together                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discord-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discord-day.svg" width="160" alt="discord" /></picture>](https://discord.gg/aEB2Ayhu7B)                                                               | [Join the Tobs server](https://discord.gg/aEB2Ayhu7B) to ask questions and share your crew.                                                                                                                                                                                        |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-qq-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-qq-day.svg" width="160" alt="qq" /></picture>                                                                                                               | Search for group **1125565676** in QQ.                                                                                                                                                                                                                                             |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discuss-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-discuss-day.svg" width="160" alt="discuss" /></picture>](https://github.com/BotHarness/DeepSeekBot/discussions)                                       | [Questions, ideas and things you have made](https://github.com/BotHarness/DeepSeekBot/discussions) · [Welcome thread](https://github.com/BotHarness/DeepSeekBot/discussions/1397).                                                                                                 |
+| [<picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-contribute-night.svg" /><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/badge-contribute-day.svg" width="160" alt="contribute" /></picture>](CONTRIBUTING.md)                                                                    | [Contribution guide](CONTRIBUTING.md) · [First contribution](https://github.com/BotHarness/DeepSeekBot/discussions/1398). Docs, tests and answers all help; use [Issues](https://github.com/BotHarness/DeepSeekBot/issues/new/choose) for confirmed bugs and implementation tasks. |
+| <a href="https://www.producthunt.com/products/deepseekbot?embed=true&amp;utm_source=badge-featured&amp;utm_medium=badge&amp;utm_campaign=badge-deepseekbot" target="_blank" rel="noopener noreferrer"><img alt="Tobs - Open-source Grok Bot alternative built on DeepSeek Harness &#124; Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1276820&amp;theme=light&amp;t=1791733459461"></a> | We are on Product Hunt. Take a look and share Tobs with a friend.                                                                                                                                                                                                                  |
 
-<a id="中文"></a>
+<a id="repository-status"></a>
 
-## 中文
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/status-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/status-en-day.svg" width="960" alt="" />
+</picture>
 
-<a href="https://deepseekbot.app"><img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/deepseekbot-og-zh-v2.png" width="800" alt="DeepSeekBot：开源的 GrokBot 平替" /></a>
+## Repository status
 
-**DeepSeekBot（DSB）：开源的 GrokBot 平替。一组有各自身份、人格和记忆的 bots，一起做事。**
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/readme-status/stats-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/readme-status/stats-en-day.svg" width="960" alt="GitHub repository status: stars, forks, open issues and PRs, closed PRs and commits over 30 days. Text data and counting rules are linked below." />
+</picture>
 
-DeepSeekBot 以一个插件装进 DeepSeek Harness（DSH）：Bot 名册、私聊与 Group、看得见的 Git Memory、定时任务、Bot 市场、任务委派，以及 Bot 自己的 IM 身份（飞书 / Lark、Slack、Discord、QQ、微信）。DeepSeekBot（简称 DSB）与 DS Bot（npm `ds-bot`）是两个独立项目，区别见 [GitHub README](https://github.com/BotHarness/DeepSeekBot#deepseek-bot-projects)。它直接用 DSH 的 Session 管理和 Harness，你在 DSH 里接入的任何模型 provider 都能用，也能和其他 DSH 插件装在一起。
+**Last 30 days:** closed PRs include merged PRs; commits count all reachable default-branch history, including merge and bot commits. Updated every six hours; the card shows the last successful update.
 
-**桌面端**：打开 DeepSeek Harness，点「插件 → 添加插件」，在「包名或地址」里输入 `deepseekbot`，点「安装」，再点「立即启用」。
+[Text data and counting rules](https://github.com/BotHarness/DeepSeekBot/tree/readme-status#readme) · [JSON](https://raw.githubusercontent.com/BotHarness/DeepSeekBot/readme-status/stats.json) · [Update workflow](https://github.com/BotHarness/DeepSeekBot/actions/workflows/readme-status.yml)
 
-**命令行**：需要 Node 22+，支持 DSH 0.2.0-rc.2 起的 0.2.x 版本。1.4.1 在 0.2.1-rc.2 上测试，下面的命令安装的就是这个版本。
+<a href="https://github.com/BotHarness/DeepSeekBot">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/star-en-night.svg" />
+  <img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/f995657f424e/docs/assets/readme/pixel/star-en-day.svg" width="960" alt="Star Tobs. Come back and build with us." />
+</picture>
+</a>
 
-```bash
-npm i -g @deepseek-ai/dsh@0.2.1-rc.2
-dsh plugin --profile web add deepseekbot
-dsh web
-```
+## Inspiration and acknowledgements
 
-<img src="https://raw.githubusercontent.com/BotHarness/DeepSeekBot/main/docs/assets/readme/v3/zh/hero.jpg" width="800" alt="Bot 模式：频道列表、与 Mira 的私聊和她的记忆演化" />
+- [Grok Bot](https://x.ai/bot): persistent Bots that people can message and delegate work to like teammates.
+- [Rakazo](https://github.com/elie222/rakazo): persistent AI teammates, conversations, and memory.
+- [DS Bot](https://github.com/Fei2411/DeepSeek-Bot): another Bot plugin for DSH with a different focus, worth a read.
+- [deepseek-harness-workbench-plugin](https://github.com/loadingvx/deepseek-harness-workbench-plugin): Memory Git graph rails, commit lists, and diff presentation.
+- [Coopanion](https://github.com/Pal-AI-Lab/Coopanion): the Window Companion's single speech bubble, sentence pacing, walking direction, and bubble style.
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): the upstream plugin host.
+- [dsh-im](https://github.com/xmanrui/dsh-im), [dsh-lark-link](https://github.com/amlyczz/dsh-lark-link), and [dsh-lark-bridge](https://github.com/imetn/dsh-lark-bridge): IM integration foundations and reliability/routing references.
 
-更多截图和各版本亮点见 [GitHub README](https://github.com/BotHarness/DeepSeekBot/blob/main/README.md#screenshots)。
+## License
 
-官网：[deepseekbot.app](https://deepseekbot.app) · 源码：[GitHub](https://github.com/BotHarness/DeepSeekBot) · Discord：[加入](https://discord.gg/aEB2Ayhu7B) · QQ 群：1125565676
+MIT — see [LICENSE](https://github.com/BotHarness/DeepSeekBot/blob/main/LICENSE). Third-party works distributed inside the Client Bundle are listed in [THIRD_PARTY_NOTICES.md](packages/client/THIRD_PARTY_NOTICES.md).
 
----
+## Star History
 
-## Package notes
+Live chart for **BotHarness/DeepSeekBot**, using [Star History's official embed](https://www.star-history.com/blog/how-to-use-github-star-history/#how-to-embed-the-chart-in-your-readme).
 
-This product Bundle combines BotHarness Core (`@botharness/core`), Client (`@botharness/ui`), Browser (`@botharness/browser`), Computer (`@botharness/computer`) and the independently versioned, qualified IM Provider (`@botharness/im-provider`, maintained from [dsh-im](https://github.com/xmanrui/dsh-im) under its MIT license). The Provider updates with the product, without an independent upstream auto-update. Browser and Computer ship present but gated: each Bot still needs its own Browser/Computer Access, and IM accounts start disconnected until you add app credentials in Settings → IM bots.
-
-If an existing Profile enables standalone `@xmanrui/dsh-im` or `@botharness/im-provider` as another Bundle, remove that separate Bundle before enabling DeepSeekBot. Formerly separate `@botharness/browser`, `@botharness/computer`, `@botharness/core` or `@botharness/ui` entries migrate into this Bundle automatically on update. Removing a Bundle keeps its stored account configuration and credentials; revalidate the retained Bot bindings and group authorization afterwards. The Bot Browser runs headless by default; a Host that needs the visible window (one-time Human login) overrides `headless` in a later Patch layer or Settings.
-
-MIT © BotHarness
+<a href="https://www.star-history.com/?repos=BotHarness%2FTobs&amp;type=date&amp;legend=top-left">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=BotHarness/DeepSeekBot&amp;type=date&amp;theme=dark&amp;legend=top-left" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=BotHarness/DeepSeekBot&amp;type=date&amp;legend=top-left" />
+    <img alt="BotHarness/DeepSeekBot GitHub Star History by date" src="https://api.star-history.com/chart?repos=BotHarness/DeepSeekBot&amp;type=date&amp;legend=top-left" />
+  </picture>
+</a>

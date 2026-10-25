@@ -5,15 +5,17 @@
 
 ## 发布的包
 
-每次发布按以下顺序发布四个预编译包：
+每次发布按以下顺序发布预编译包：
 
-1. `@botharness/im-provider`，保留独立 Provider 版本（例如 `4.32.0-botharness.5`）；
+1. `@botharness/im-provider`，保留独立 Provider 版本（例如 `4.32.0-botharness.21`）；
 2. `@botharness/core@<version>`；
 3. `@botharness/ui@<version>`；
-4. `@botharness/cloudflared-<平台>-<架构>@<version>`：每个平台一个可选包（`darwin-arm64`、
+4. `@botharness/browser@<version>`；
+5. `@botharness/computer@<version>`；
+6. `@botharness/cloudflared-<平台>-<架构>@<version>`：每个平台一个可选包（`darwin-arm64`、
    `darwin-x64`、`linux-arm64`、`linux-x64`、`win32-x64`），装着 Connect 用的固定版本
    `cloudflared`（ADR-0241），沿用 esbuild 的做法；
-5. `deepseekbot@<version>`，通过精确依赖组合一个产品 Bundle，并把 `cloudflared` 包列为精确的
+7. `deepseekbot@<version>`，通过精确依赖组合一个产品 Bundle，并把 `cloudflared` 包列为精确的
    `optionalDependencies`，npm 只会装与本机匹配的那一个。
 
 `prepare` 会把 `packages/core/src/devices/cloudflared.json` 固定的 `cloudflared` 发布下载到
@@ -22,15 +24,15 @@
 `node scripts/cloudflared-packages.mjs list` 不下载，只列出包、资产和哈希。这些包使用
 Apache-2.0，并附带 cloudflared 的 `LICENSE`。
 
-不发布可选 Computer／Browser Bundle。维持已验收 Provider 的固定源码；上游 PR
-合并不代表替换版本已经资格验证。DSH 支持范围仍以 `0.2.0-rc.1` 为准。
+Computer 与 Browser 随发布流程打包并默认纳入 `deepseekbot`（ADR-0160）。维持已验收 Provider 的固定源码；上游 PR
+合并不代表替换版本已经资格验证。DSH 开发目标为 `0.2.1-rc.3`；全新 Profile 发布矩阵保留 `0.2.0-rc.2`、`0.2.1-rc.2` 并加入 rc.3（声明范围 `>=0.2.0-0`）。源码升级不等于已发布包通过资格验证。桌面缩放保留可复现的主题构建输入，按协议和内容完整性检查，不再按运行时版本号拒绝；原生交互仍须单独验证。
 
 源码包保留 private／0.0.0；已有打包器在独立暂存目录产生公开 manifest 和预编译入口，
 保留 MIT、Provider attribution 和 `PROVENANCE.json`，不打包账号、凭据、Binding 或 Grant。
 
 ## 发布一个版本
 
-当前正式版本是 `deepseekbot@1.0.1`。发布由在 main 上推送 SemVer tag 触发；分支、PR 和手动
+当前已验证的正式包记录于 `scripts/install-release.json`，具体命令见[安装指南](https://tobs.app/docs/installation/)。发布由在 main 上推送 SemVer tag 触发；分支、PR 和手动
 dispatch 都不会发布。
 
 1. 在双语 Release Ledger 中把 `Unreleased` 归档到新版本（[发布规则](agents/changelog.md)），

@@ -4,6 +4,16 @@ A DeepSeek Harness plugin layer that gives LLM agents a persistent product ident
 
 ## Language
 
+### Product naming
+
+**Tobs / 托布**:
+The application product previously named DeepSeekBot; its English name is Tobs and its Chinese name is 托布. The name means “Team of bots” and also evokes “Thousands of Bots” and is distinct from Tob, the built-in Steward Bot.
+_Avoid_: 拖布, Tob (when referring to the product)
+
+**BotHarness**:
+The framework behind Tobs; its name remains BotHarness when the application adopts the Tobs brand.
+_Avoid_: Tobs (when referring to the framework)
+
 ### Product releases
 
 **Product Release Version**:
@@ -204,7 +214,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use always needs a Human approval card (ADR-0207).
+A Profile-wide, Human-written Markdown policy that says which tool approvals may be allowed, refused or sent to the Human. A PersonaBot selects one or none; selecting, clearing or editing a template in use needs a Human decision or an explicitly saved Tool Approval Rule in the dedicated management scope (ADR-0249).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:
@@ -258,7 +268,7 @@ The Provider registered on DSH's computer-use seam that supplies the observation
 _Avoid_: driver, backend, computer provider
 
 **Takeover**:
-A human session on a Computer that pauses every PersonaBot acting there and disables model-facing screenshots for its duration. It is initiated from one Bot Screen but always applies to the whole Computer.
+A Human's exclusive control of a Computer, initiated from a Bot Screen but applying to the whole Computer and pausing every PersonaBot's actions and model-facing screenshots there. Watching grants no control; releasing control leaves the Bots paused until the Human explicitly resumes them.
 _Avoid_: handoff, screen sharing, per-bot takeover
 
 **Computer Export**:
@@ -282,7 +292,7 @@ The per-PersonaBot opt-in, off by default, that makes the Computer tools and the
 _Avoid_: permission, grant, feature flag, developer mode
 
 **Computer Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Computer; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Computer tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool and the current target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: takeover, consent dialog, per-action approval
 
 **Computer Audit**:
@@ -304,7 +314,7 @@ The per-PersonaBot opt-in, off by default, that makes the Bot Browser tools and 
 _Avoid_: permission, grant, feature flag, extension toggle
 
 **Browser Authorization**:
-The once-per-session Human approval before a PersonaBot's first action on the Bot Browser; a profile-level auto-allow setting can skip asking. Access decides whether the tools exist; Authorization decides whether they may run.
+The authority to run Bot Browser tools after Access makes them available. A Human may approve the Session once or save a revocable Tool Approval Rule for one tool, Browser Profile and target, reusable across Sessions. Saved rules authorize each execution without creating a Session-wide grant; revocation or a changed target restores prompting. A profile-level auto-allow setting can skip asking.
 _Avoid_: Browser Access, consent dialog, per-action approval
 
 **Browser Pause**:
@@ -428,7 +438,7 @@ Historical (retired with PersonaBot Export): materializing a PersonaBot Export. 
 _Avoid_: database dump, live clone, publish
 
 **Import**:
-Creating a new PersonaBot from a shared Memory Git repository (Git URL or Bot Marketplace install); always a copy, with imported operational authorities disabled until explicitly rebound or reauthorized.
+Creating a new PersonaBot from a shared Memory Git repository (Git URL or Bot Marketplace install) or a Bot Zip; always a copy, with imported operational authorities disabled until explicitly rebound or reauthorized.
 _Avoid_: install, clone, pull, restore
 
 **Publish**:
@@ -494,8 +504,12 @@ The Human-confirmed end of a Channel’s active membership and routing while ret
 _Avoid_: Hidden Channel, Content Purge, provider conversation deletion
 
 **Channel section**:
-A user-created, collapsible grouping of Channels in the Channel list panel. Local display arrangement, not part of a Soul.
+A user-created, collapsible grouping of Channels in the Channel list panel. Its membership and order belong to the owning Host's display arrangement, not to a Soul.
 _Avoid_: folder, category, group
+
+**Pinned section (置顶分区)**:
+A built-in presentation of a Host's pinned Channels, separate from user-created Channel-section membership. Pinning preserves a Channel's original section membership while displaying it only in the Pinned section; unpinning restores its ordinary placement.
+_Avoid_: copied Channel, user-created section, device-local pin store
 
 **Section order (区块顺序)**:
 The relative order of Channel sections in the Channel list panel: creation order by default, user-arranged afterwards. Ungrouped Channels may occupy top-level positions between sections without becoming sections.

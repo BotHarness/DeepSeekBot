@@ -239,7 +239,8 @@ async function episode(instance, preset, family, index, variant, register, save)
           .filter((turn) => timestamp(turn.startedAt) >= timestamp(log.sourceStartedAt))
           .flatMap((turn) => turn.calls)
           .find(
-            (t) => t.name === 'channel_send' && /"status"\s*:\s*"requires-review"/.test(t.result),
+            (t) =>
+              t.name === 'bot_send_message' && /"status"\s*:\s*"requires-review"/.test(t.result),
           );
         if (exhausted) {
           log.revocationBarrier = exhausted;

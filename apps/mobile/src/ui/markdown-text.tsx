@@ -11,7 +11,7 @@ import { StreamReveal, nativeStreamReveal } from './primitives/stream-reveal';
 import { renderMarkdownInline } from './markdown-inline';
 import { MarkdownTable } from './markdown-table';
 import { isMarkdownTable } from './markdown-blocks';
-import { t } from './strings';
+import { useStrings } from './strings';
 
 export function MarkdownText({
   tokens,
@@ -20,6 +20,7 @@ export function MarkdownText({
   reveal = false,
   nativeReveal = nativeStreamReveal,
   renderInlineBlock,
+  onOpenLink,
 }: {
   tokens: Token[];
   color: string;
@@ -27,7 +28,9 @@ export function MarkdownText({
   reveal?: boolean;
   nativeReveal?: boolean;
   renderInlineBlock?(tokens: Token[], heading: boolean): ReactNode;
+  onOpenLink?: ((url: string) => void) | undefined;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const visible = (entries: Token[]) =>
     entries.filter((token) => !['space', 'def', 'checkbox'].includes(token.type));
@@ -39,7 +42,13 @@ export function MarkdownText({
     if (token.type === 'space' || token.type === 'def' || token.type === 'checkbox') return null;
     if (isMarkdownTable(token))
       return (
-        <MarkdownTable key={index} table={token} color={color} renderCell={renderInlineBlock} />
+        <MarkdownTable
+          key={index}
+          table={token}
+          color={color}
+          renderCell={renderInlineBlock}
+          onOpenLink={onOpenLink}
+        />
       );
     if (token.type === 'hr')
       return (
@@ -122,7 +131,7 @@ export function MarkdownText({
                       ? `${Number(token.start) + itemIndex}.`
                       : '•'}
                 </Text>
-                <View style={{ flex: 1, gap: token.loose ? space.x3 : 0 }}>
+                <View style={{ flexShrink: 1, gap: token.loose ? space.x3 : 0 }}>
                   {blocks(item.tokens, animate && itemIndex === token.items.length - 1)}
                 </View>
               </View>
@@ -151,7 +160,7 @@ export function MarkdownText({
       >
         {children === undefined
           ? decodeHTML(text)
-          : renderMarkdownInline(children, theme, animate && !nativeReveal)}
+          : renderMarkdownInline(children, theme, animate && !nativeReveal, undefined, onOpenLink)}
       </Text>
     );
     return nativeReveal ? (

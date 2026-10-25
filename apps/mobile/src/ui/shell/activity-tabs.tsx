@@ -6,7 +6,7 @@ import { runOnJS, useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
 import { edge, space, swipeRow, tabLabel, tabMotion } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import type { ActivitySection } from './activity-filters';
 import { ActivityIcon, ChatsIcon, PersonIcon } from './icons';
 
@@ -23,6 +23,7 @@ export function ActivityTabs({
   position: SceneRendererProps['position'];
   onSelect(section: ActivityTab['key']): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [width, setWidth] = useState(0);
   const tabWidth = width / ACTIVITY_TABS.length;

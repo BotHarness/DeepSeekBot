@@ -47,9 +47,18 @@ function answering(
   } as unknown as HostClient;
 }
 
+function deferredSwitch() {
+  let resolve: (value: boolean) => void = () => {};
+  const promise = new Promise<boolean>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
 describe('Host drawer', () => {
   it('opens from the chip and closes from the backdrop, returning focus to the chip', () => {
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications: vi.fn(),
@@ -71,6 +80,7 @@ describe('Host drawer', () => {
 
   it('shows the drawer while an edge swipe drags it in, and hides it again when the swipe is let go early', () => {
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications: vi.fn(),
@@ -89,6 +99,7 @@ describe('Host drawer', () => {
 
   it('keeps the drawer shown when it reopens before the closing slide ends', () => {
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications: vi.fn(),
@@ -102,7 +113,12 @@ describe('Host drawer', () => {
 
   it('switches to the chosen Host and closes', async () => {
     const switchTo = vi.fn(async () => true);
-    const drawer = createHostDrawer({ switchTo, pair: vi.fn(), notifications: vi.fn() });
+    const drawer = createHostDrawer({
+      showView: vi.fn(),
+      switchTo,
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
     drawer.open();
 
     await expect(drawer.select('laptop')).resolves.toBe(true);
@@ -110,9 +126,102 @@ describe('Host drawer', () => {
     expect(drawer.getSnapshot().open).toBe(false);
   });
 
+  it('selects All without changing the current Host', () => {
+    const showView = vi.fn();
+    const switchTo = vi.fn(async () => true);
+    const drawer = createHostDrawer({ showView, switchTo, pair: vi.fn(), notifications: vi.fn() });
+    drawer.open();
+    drawer.selectAll();
+    expect(showView).toHaveBeenCalledWith(undefined);
+    expect(switchTo).not.toHaveBeenCalled();
+    expect(drawer.getSnapshot().open).toBe(false);
+  });
+
+  it('changes the conversation view only after a successful Host switch', async () => {
+    const showView = vi.fn();
+    let resolveSwitch: (value: boolean) => void = () => {};
+    const switchTo = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveSwitch = resolve;
+        }),
+    );
+    const drawer = createHostDrawer({ showView, switchTo, pair: vi.fn(), notifications: vi.fn() });
+    const selecting = drawer.select('laptop');
+    expect(showView).not.toHaveBeenCalled();
+    resolveSwitch(true);
+    await selecting;
+    expect(showView).toHaveBeenLastCalledWith('laptop');
+    showView.mockClear();
+    const removed = drawer.select('removed');
+    resolveSwitch(false);
+    await expect(removed).resolves.toBe(false);
+    expect(showView).not.toHaveBeenCalled();
+  });
+
+  it('keeps a newer All choice when an earlier Host switch finishes', async () => {
+    const pending = deferredSwitch();
+    const showView = vi.fn();
+    const drawer = createHostDrawer({
+      showView,
+      switchTo: () => pending.promise,
+      pair: vi.fn(),
+      notifications: vi.fn(),
+    });
+    const selecting = drawer.select('laptop');
+    drawer.selectAll();
+    pending.resolve(true);
+    await expect(selecting).resolves.toBe(true);
+    expect(showView.mock.calls).toEqual([[undefined]]);
+  });
+
+  it.each([true, false])(
+    'commits only the latest Host choice when the older switch completes first: %s',
+    async (olderFirst) => {
+      const older = deferredSwitch();
+      const newer = deferredSwitch();
+      const showView = vi.fn();
+      const drawer = createHostDrawer({
+        showView,
+        switchTo: (hostId) => (hostId === 'laptop' ? older.promise : newer.promise),
+        pair: vi.fn(),
+        notifications: vi.fn(),
+      });
+      const laptop = drawer.select('laptop');
+      const tower = drawer.select('tower');
+      if (olderFirst) {
+        older.resolve(true);
+        await laptop;
+        expect(showView).not.toHaveBeenCalled();
+        newer.resolve(true);
+      } else {
+        newer.resolve(true);
+        older.resolve(true);
+      }
+      await Promise.all([laptop, tower]);
+      expect(showView.mock.calls).toEqual([['tower']]);
+    },
+  );
+
+  it('continues with the next Host choice after a switch rejects', async () => {
+    const error = new Error('storage failed');
+    const switchTo = vi
+      .fn<(hostId: string) => Promise<boolean>>()
+      .mockRejectedValueOnce(error)
+      .mockResolvedValueOnce(true);
+    const showView = vi.fn();
+    const drawer = createHostDrawer({ switchTo, showView, pair: vi.fn(), notifications: vi.fn() });
+    const failed = drawer.select('laptop');
+    const next = drawer.select('tower');
+    await expect(failed).rejects.toBe(error);
+    await expect(next).resolves.toBe(true);
+    expect(showView.mock.calls).toEqual([['tower']]);
+  });
+
   it('opens the pairing flow from "Pair a new computer" and closes', () => {
     const pair = vi.fn();
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair,
       notifications: vi.fn(),
@@ -127,6 +236,7 @@ describe('Host drawer', () => {
   it('opens notification settings from the footer and closes', () => {
     const notifications = vi.fn();
     const drawer = createHostDrawer({
+      showView: vi.fn(),
       switchTo: vi.fn(async () => true),
       pair: vi.fn(),
       notifications,

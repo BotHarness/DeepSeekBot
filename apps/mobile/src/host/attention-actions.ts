@@ -2,6 +2,7 @@ import { HostAnswerInvalid } from './bot-settings';
 import type { HostClient } from './client';
 import { uuid } from './conversation';
 import type { HumanAssignmentContext, HumanAttentionItem, HumanAttentionPage } from './wire';
+export { decideApproval, answerQuestion, decideGrantRequest } from './requests';
 
 export interface AttentionRef {
   id: string;

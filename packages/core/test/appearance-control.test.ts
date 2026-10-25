@@ -7,6 +7,33 @@ const request = (body: unknown) =>
   });
 afterEach(() => vi.useRealTimers());
 describe('explicit Client appearance delivery', () => {
+  it('forwards notification choices only to the named Client without persisting them', async () => {
+    const host = createAppearanceControl();
+    const lease = await (await host.fetch(request({ action: 'register', platform: 'web' }))).json();
+    const poll = host.fetch(request({ action: 'poll', ...lease }));
+    await Promise.resolve();
+    const notifications = { hostId: 'remote', patch: { enabled: false } };
+    const response = host.fetch(
+      request({
+        action: 'request',
+        clientId: lease.clientId,
+        notifications,
+        expectedRevision: 'before',
+      }),
+    );
+    const { command } = await (await poll).json();
+    expect(command).toMatchObject({ notifications, expectedRevision: 'before' });
+    await host.fetch(
+      request({
+        action: 'reply',
+        ...lease,
+        requestId: command.id,
+        result: { error: { code: 'notification-revision-stale' } },
+      }),
+    );
+    expect((await response).status).toBe(409);
+    host.dispose();
+  });
   it('delivers only to the selected leased Client, relays storage refusal, and drops targets on disposal', async () => {
     const host = createAppearanceControl();
     const a = await (await host.fetch(request({ action: 'register', platform: 'web' }))).json();

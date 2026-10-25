@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { t } from '../src/ui/strings';
 
 const { platform, nativeAlert, actionSheet } = vi.hoisted(() => ({
   platform: { OS: 'android' },
@@ -12,7 +13,12 @@ vi.mock('react-native', () => ({
   Keyboard: { dismiss() {} },
 }));
 
-import { confirmDestructive, showActionMenu, showAppDialog } from '../src/ui/primitives/app-dialog';
+import {
+  confirmAppDialog,
+  confirmDestructive,
+  showActionMenu,
+  showAppDialog,
+} from '../src/ui/primitives/app-dialog';
 import { appDialogs, createDialogState } from '../src/ui/primitives/dialog-state';
 
 afterEach(() => {
@@ -23,18 +29,26 @@ afterEach(() => {
 });
 
 describe('app dialogs', () => {
+  it('keeps a single Android command in a menu and preserves its icon', () => {
+    showActionMenu('Ada', [{ text: 'Open profile', icon: 'person' }]);
+    expect(appDialogs.getSnapshot()).toMatchObject({ presentation: 'menu' });
+    expect(appDialogs.getSnapshot()?.actions[1]?.icon).toBe('person');
+    appDialogs.dismiss();
+    showAppDialog('Confirm?', undefined, [{ text: 'Confirm' }]);
+    expect(appDialogs.getSnapshot()).toMatchObject({ presentation: 'dialog' });
+  });
   it('shows an iOS action sheet with the destructive action last and Cancel apart', () => {
     platform.OS = 'ios';
     const remove = vi.fn();
     const open = vi.fn();
     showActionMenu('Bo', [
-      { text: 'Remove', style: 'destructive', onPress: remove },
-      { text: 'Open profile', onPress: open },
+      { text: 'Remove', icon: 'remove', style: 'destructive', onPress: remove },
+      { text: 'Open profile', icon: 'person', onPress: open },
     ]);
     const [options, pick] = actionSheet.mock.calls[0]!;
     expect(options).toEqual({
       title: 'Bo',
-      options: ['Open profile', 'Remove', 'Cancel'],
+      options: ['Open profile', 'Remove', t.cancel],
       destructiveButtonIndex: 1,
       cancelButtonIndex: 2,
     });
@@ -49,7 +63,7 @@ describe('app dialogs', () => {
     platform.OS = 'ios';
     confirmDestructive('Sign out?', undefined, 'Sign out', vi.fn());
     expect(nativeAlert.mock.calls[0]![2]).toEqual([
-      { text: 'Cancel', style: 'cancel' },
+      { text: t.cancel, style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: expect.any(Function) },
     ]);
   });
@@ -200,4 +214,53 @@ describe('app dialogs', () => {
     await old;
     expect(state.getSnapshot()).toMatchObject({ title: 'New', busy: undefined, error: undefined });
   });
+});
+
+it('resolves Android trust confirmation only on explicit confirmation and refuses cancellation or replacement', async () => {
+  const accepted = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  await appDialogs.choose(1, appDialogs.getSnapshot()!.id);
+  await expect(accepted).resolves.toBe(true);
+  const cancelled = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  await appDialogs.choose(0, appDialogs.getSnapshot()!.id);
+  await expect(cancelled).resolves.toBe(false);
+  const dismissed = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  appDialogs.dismiss();
+  await expect(dismissed).resolves.toBe(false);
+  const replaced = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  showAppDialog('Another dialog', undefined, [{ text: 'OK' }]);
+  await expect(replaced).resolves.toBe(false);
+});
+
+it('resolves iOS trust confirmation through the native alert buttons', async () => {
+  platform.OS = 'ios';
+  const cancelled = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  nativeAlert.mock.calls[0]![2][0].onPress();
+  await expect(cancelled).resolves.toBe(false);
+  const accepted = confirmAppDialog(
+    'Compare fingerprint',
+    'public fingerprint',
+    'Fingerprints match',
+  );
+  nativeAlert.mock.calls[1]![2][1].onPress();
+  await expect(accepted).resolves.toBe(true);
 });

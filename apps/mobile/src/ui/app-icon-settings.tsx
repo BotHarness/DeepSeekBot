@@ -6,7 +6,7 @@ import { radius, space } from './design/tokens';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Notice, errorText } from './request-parts';
 import { CheckIcon } from './shell/icons';
-import { t } from './strings';
+import { useStrings, t } from './strings';
 import { LoadingIndicator } from './primitives/loading-indicator';
 
 export const APP_ICONS = ['default', 'DeepSeekBotSimple'] as const;
@@ -22,13 +22,13 @@ export type AppIconPreviews = Record<AppIconName, Record<'light' | 'dark', Image
 
 const ICON_SIZE = 48;
 
-const LABEL: Record<AppIconName, { title: string; detail: string }> = {
+const iconLabels = (): Record<AppIconName, { title: string; detail: string }> => ({
   default: { title: t.appIconDeepSeekBot, detail: t.appIconDefaultHint },
   DeepSeekBotSimple: {
     title: t.appIconDeepSeekBotSimple,
     detail: t.appIconDeepSeekBotSimpleHint,
   },
-};
+});
 
 function IconPreview({ name, previews }: { name: AppIconName; previews: AppIconPreviews }) {
   const theme = useDesignTheme();
@@ -49,6 +49,7 @@ export function AppIconSettings({
   port: AppIconPort;
   previews: AppIconPreviews;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [current, setCurrent] = useState<AppIconName>(() =>
     port.supported ? port.current() : 'default',
@@ -84,8 +85,8 @@ export function AppIconSettings({
           <SettingsRow
             on="raised"
             key={name}
-            title={LABEL[name].title}
-            detail={LABEL[name].detail}
+            title={iconLabels()[name].title}
+            detail={iconLabels()[name].detail}
             selected={current === name}
             leading={<IconPreview name={name} previews={previews} />}
             trailing={

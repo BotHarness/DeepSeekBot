@@ -16,7 +16,7 @@ it('loses exactly one actual committed result for the armed Group, retaining the
     { stateFile },
   );
   const exec = {
-    name: 'channel_send',
+    name: 'bot_send_message',
     callId: 'native-call',
     agent: { session: { id: 'native-session' } },
     arguments: { body: 'Notice' },

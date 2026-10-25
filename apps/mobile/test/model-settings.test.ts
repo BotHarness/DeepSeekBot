@@ -52,7 +52,7 @@ function setup() {
     credential: fake.credential,
     carrier: fake.carrier,
   });
-  fake.methods.set('modelCatalog', () => ({ models, default: flash }));
+  fake.methods.set('modelCatalog', () => ({ models, default: flash, defaultRevision: 5 }));
   fake.methods.set('modelPresets', () => ({ presets: [preset] }));
   fake.methods.set('modelPlan', () => ({ revision: 4, plan }));
   return { fake, client };
@@ -108,10 +108,17 @@ describe('native Model Plans and Presets', () => {
   it('writes the global default without a Bot slug or any Bot override mutation', async () => {
     const { fake, client } = setup();
     fake.methods.set('onboardingModel', () => ({ revision: 0 }));
-    await setModelRoute(client, { kind: 'global' }, state, 'orchestrator', pro);
-    expect(fake.calls.map(({ method, args }) => [method, args])).toEqual([
-      ['onboardingModel', { expectedRevision: 0, globalDefault: true, route: pro }],
-    ]);
+    const observed = await modelSettingsResource(client, { kind: 'global' }).refresh();
+    await setModelRoute(client, { kind: 'global' }, observed, 'orchestrator', pro);
+    expect(fake.calls.at(-1)).toMatchObject({
+      method: 'onboardingModel',
+      args: {
+        expectedRevision: 0,
+        expectedDefaultRevision: 5,
+        globalDefault: true,
+        route: pro,
+      },
+    });
   });
 
   it('customizes only the Bot Orchestrator and uses the observed revision', async () => {

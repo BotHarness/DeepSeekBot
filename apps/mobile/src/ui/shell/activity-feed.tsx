@@ -75,7 +75,7 @@ import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar'
 import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
   ActivityFilters,
@@ -202,6 +202,7 @@ const Row = memo(function Row({
   onOpen(item: HumanAttentionItem): void;
   actions: readonly SwipeAction[];
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const kind = t.kind[item.kind] ?? t.otherKind;
   const name =
@@ -309,6 +310,7 @@ function Post({
   onSettled(item: HumanAttentionItem, result: DecisionResult): void;
   actions: readonly SwipeAction[];
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const name = bot?.displayName ?? item.botSlug;
   const where =
@@ -521,7 +523,9 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
                   active={route.key === ACTIVITY_TABS[index]?.key}
                   searchFocused={searchFocused}
                   scrollActive={route.key === ACTIVITY_TABS[index]?.key}
-                  pinChrome={searchFocused || filtering}
+                  pinChrome={
+                    searchFocused || filtering || (Platform.OS === 'android' && search !== '')
+                  }
                   headerTravel={travel}
                   dismissSearch={dismissSearch}
                 />
@@ -612,6 +616,7 @@ const ActivityPage = memo(function ActivityPage({
   pinChrome: boolean;
   headerTravel: number;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const bottom = useFloatingTabInset();
   const filter = useMemo<ActivityFilter>(
@@ -780,6 +785,7 @@ const ActivityPage = memo(function ActivityPage({
             return [
               {
                 text: t.activitySnoozeChoice[choice](time),
+                icon: 'clock' as const,
                 onPress: () => snoozeTo(item, choice),
               },
             ];

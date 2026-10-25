@@ -134,7 +134,7 @@ const grant = (
 
 await rpc('channelSend', {
   channelId: `dm-${bot.slug}`,
-  body: `QA step 1: create_assignment with grant ${grant.id}, continuity key ${key}, and no model override. Purpose: call bot_subagent with run_in_background false, description "Check inherited model", prompt "Reply exactly CHILD_ONE. Do not call any tools.", and omit model fields. Then call report_to_orchestrator state completed, summary CHILD_ONE_DONE followed by the Subagent tool result. Finally channel_send here with the Assignment Session id. Do not use shell tools in this QA.`,
+  body: `QA step 1: create_assignment with grant ${grant.id}, continuity key ${key}, and no model override. Purpose: call bot_subagent with run_in_background false, description "Check inherited model", prompt "Reply exactly CHILD_ONE. Do not call any tools.", and omit model fields. Then call report_to_orchestrator state completed, summary CHILD_ONE_DONE followed by the Subagent tool result. Finally bot_send_message here with the Assignment Session id. Do not use shell tools in this QA.`,
 });
 const first = await report(bot.slug, key, 'CHILD_ONE_DONE');
 console.log('Phase one report:', JSON.stringify(first.latestReport));
@@ -173,7 +173,7 @@ if (!fallback.latestReport.summary.includes('Assignment default'))
 
 await rpc('channelSend', {
   channelId: `dm-${bot.slug}`,
-  body: `QA final: use channel_send here to summarize the verified Assignment ${first.sessionId} route results. Include marker SUBAGENT_ROUTE_QA, CHILD_ONE, DENIED, and CHILD_TWO, and state that the second child used ${proRoute.model}/off after the preset changed.`,
+  body: `QA final: use bot_send_message here to summarize the verified Assignment ${first.sessionId} route results. Include marker SUBAGENT_ROUTE_QA, CHILD_ONE, DENIED, and CHILD_TWO, and state that the second child used ${proRoute.model}/off after the preset changed.`,
 });
 await until(
   'Bot QA summary',

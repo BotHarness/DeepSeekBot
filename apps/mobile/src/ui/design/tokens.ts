@@ -1,5 +1,7 @@
 export type PlatformOS = 'ios' | 'android';
 
+export const computerCanvas = { background: '#000000' } as const;
+
 export const space = {
   x1: 2,
   x2: 4,
@@ -7,6 +9,23 @@ export const space = {
   x4: 12,
   x5: 16,
   x6: 24,
+} as const;
+
+export const materialSearch = { height: 56, lineHeight: 24 } as const;
+
+export const materialMenu = {
+  containerRadius: 16,
+  outerItemRadius: 12,
+  innerItemRadius: 4,
+  groupPadding: 2,
+  groupGap: 2,
+  itemHeight: 44,
+  horizontalPadding: 16,
+  verticalPadding: 8,
+  iconLabelGap: 12,
+  iconSize: 20,
+  width: 280,
+  elevation: 3,
 } as const;
 
 export const radius = {
@@ -26,6 +45,7 @@ export const edge = {
 export const sidebar = { inset: 8, radius: 44 } as const;
 export const stateRing = { width: 2, inset: 3, segment: 0.26, period: 1300 } as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
+export const accountActionIcon = { slot: 28, signOutOpticalOffset: 1.5 } as const;
 
 export const sheetHandle = { width: 32, height: 4 } as const;
 export const navigationBar = {
@@ -43,14 +63,16 @@ export const navigationBar = {
   },
 } as const;
 export const materialNavigationBar = {
-  height: 64,
+  iconSize: 24,
+  height: 80,
+  margin: 0,
   indicatorWidth: 56,
   indicatorHeight: 32,
   iconLabelGap: 4,
-  elevation: 3,
 } as const;
 export const materialIconButton = {
   container: 40,
+  iconSize: 24,
 } as const;
 export const fab = {
   size: 56,
@@ -66,6 +88,8 @@ export const fab = {
 export const materialDrawer = { width: 360, scrimGutter: 56, addressMinScale: 0.6 } as const;
 export const loadingIndicator = { size: 48, control: 20, controlStroke: 2.5 } as const;
 export const swipeAction = { size: 56 } as const;
+export const tabHeader = { gutter: space.x4 } as const;
+export const chatList = { gutter: tabHeader.gutter } as const;
 export const environmentTab = { widthRatio: 0.6 } as const;
 export const tabLabel = { minimumFontScale: 0.6 } as const;
 export const modalRail = { maxWidth: 360 } as const;
@@ -145,6 +169,15 @@ export const pointer = {
   rim: '#0f1115',
 };
 
+export const computerClickRipple = {
+  left: '#60a5fa',
+  right: '#fb923c',
+  diameter: 40,
+  duration: 300,
+  startScale: 0.95,
+  expansion: 0.65,
+} as const;
+
 export const motion = {
   drawer: 250,
   composer: 160,
@@ -192,4 +225,16 @@ export const PRESS_TINT = 0.12;
 export const scrim = {
   light: 0.32,
   dark: 0.6,
+} as const;
+
+export const marketplaceDiscovery = { featuredTopics: 6 } as const;
+
+export const marketplaceArt = {
+  aspectRatio: 3,
+  cardAvatar: 56,
+  profileAvatar: 88,
+  avatarEdge: 3,
+  cardOverlap: 20,
+  profileOverlap: 32,
+  menuWidth: 360,
 } as const;

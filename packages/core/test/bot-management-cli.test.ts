@@ -218,7 +218,7 @@ describe('online CLI management', () => {
     const root = mkdtempSync(join(tmpdir(), 'botharness-cli-zip-'));
     directories.push(root);
     const archive = writeZip([
-      { path: 'SOUL.md', data: Buffer.from('Reply using channel_send.') },
+      { path: 'SOUL.md', data: Buffer.from('Reply using bot_send_message.') },
       { path: '.botharness/bot.json', data: Buffer.from('{"name":"Original"}') },
     ]);
     const path = join(root, 'shared.zip');
@@ -429,6 +429,69 @@ describe('online CLI management', () => {
     ]);
   });
 
+  it.each([
+    null,
+    {
+      operationKey: 'human-lookup-01',
+      botSlug: 'minted',
+      status: 'created',
+      channelId: 'dm-minted',
+    },
+  ])('looks up a creation without resubmitting it: %j', async (receipt) => {
+    const live = await host(() => ({ ok: true, value: { receipt } }));
+    const result = await invoke(
+      [
+        'create-status',
+        '--name',
+        'Ada',
+        '--persona-stdin',
+        '--description',
+        'Bio',
+        '--role',
+        'research',
+        '--operation-key',
+        'human-lookup-01',
+      ],
+      live.url,
+      'Keep answers short.',
+    );
+    expect(result).toEqual({ code: 0, value: { receipt } });
+    expect(live.calls).toEqual([
+      {
+        method: 'createLookup',
+        args: {
+          operationKey: 'human-lookup-01',
+          displayName: 'Ada',
+          persona: 'Keep answers short.',
+          description: 'Bio',
+          roles: ['research'],
+        },
+      },
+    ]);
+  });
+
+  it('refuses missing lookup keys before networking and preserves owner lookup refusals', async () => {
+    const live = await host(() => ({
+      ok: false,
+      error: { code: 'creation-key-conflict', message: 'Different input' },
+    }));
+    for (const flags of [
+      [],
+      ['--operation-key', 'short'],
+      ['--operation-key', 'human-lookup-01', '--from-git', 'owner/repo'],
+    ])
+      expect(
+        (await invoke(['create-status', '--name', 'Ada', ...flags], live.url)).value.error.code,
+      ).toBe('usage');
+    expect(live.calls).toEqual([]);
+    const refused = await invoke(
+      ['create-status', '--name', 'Ada', '--operation-key', 'human-lookup-01'],
+      live.url,
+    );
+    expect(refused.value.error.code).toBe('creation-key-conflict');
+    expect(live.calls.map((call) => call.method)).toEqual(['createLookup']);
+  });
+
   it('carries a stable creation key and returns the canonical receipt', async () => {
     const operationKey = 'human-create-operation-01';
     const live = await host((method) => ({
@@ -637,4 +700,85 @@ describe('online CLI management', () => {
     expect(invalid.value.error.code).toBe('usage');
     expect(live.calls).toHaveLength(3);
   });
+});
+
+it('inspects Git source and performs read-only status lookup with the accepted commit', async () => {
+  const commit = 'a'.repeat(40);
+  const live = await host((method) => ({
+    ok: true,
+    value:
+      method === 'botImportPreview'
+        ? { source: { kind: 'git', gitUrl: 'https://github.com/owner/repo.git', commit } }
+        : { receipt: null },
+  }));
+  expect(
+    (await invoke(['bot-import-preview', '--from-git', 'owner/repo'], live.url)).value.source
+      .commit,
+  ).toBe(commit);
+  expect(
+    await invoke(
+      [
+        'create-status',
+        '--name',
+        'Imported',
+        '--from-git',
+        'owner/repo',
+        '--expected-commit',
+        commit,
+        '--operation-key',
+        'git-status-001',
+      ],
+      live.url,
+    ),
+  ).toEqual({ code: 0, value: { receipt: null } });
+  expect(live.calls).toEqual([
+    { method: 'botImportPreview', args: { gitUrl: 'https://github.com/owner/repo.git' } },
+    {
+      method: 'botImportLookup',
+      args: {
+        displayName: 'Imported',
+        gitUrl: 'https://github.com/owner/repo.git',
+        expectedCommit: commit,
+        operationKey: 'git-status-001',
+      },
+    },
+  ]);
+});
+it('creates a pinned Git import and exposes its stable receipt without inspecting a moving source again', async () => {
+  const operationKey = 'git-cli-import-001';
+  const commit = 'b'.repeat(40);
+  const receipt = { operationKey, botSlug: 'minted', status: 'created', channelId: 'dm-minted' };
+  const live = await host((method) => ({
+    ok: true,
+    value: {
+      bot: { slug: 'minted', displayName: 'Imported', memoryDir: 'host/memory' },
+      ...(method === 'createFromGit' ? { receipt } : {}),
+    },
+  }));
+  const result = await invoke(
+    [
+      'create',
+      '--name',
+      'Imported',
+      '--from-git',
+      'owner/repo',
+      '--expected-commit',
+      commit,
+      '--operation-key',
+      operationKey,
+    ],
+    live.url,
+  );
+  expect(result.code).toBe(0);
+  expect(result.value.operation).toEqual(receipt);
+  expect(live.calls[0]).toEqual({
+    method: 'createFromGit',
+    args: {
+      displayName: 'Imported',
+      gitUrl: 'https://github.com/owner/repo.git',
+      expectedCommit: commit,
+      operationKey,
+    },
+  });
+  expect(live.calls.some((call) => call.method === 'botImportPreview')).toBe(false);
 });

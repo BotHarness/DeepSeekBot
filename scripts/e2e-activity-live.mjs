@@ -127,7 +127,7 @@ try {
   const created = await rpc('create', {
     displayName: 'Activity QA',
     persona:
-      'You are a disposable verification bot. Follow the requested exact short response. Use channel_send for replies. Never modify files or settings.',
+      'You are a disposable verification bot. Follow the requested exact short response. Use bot_send_message for replies. Never modify files or settings.',
   });
   const slug = created.bot?.slug ?? created.slug ?? created.record?.slug;
   assert.ok(slug, 'created Bot slug: ' + JSON.stringify(Object.keys(created)));
@@ -160,7 +160,7 @@ try {
   const started = Date.now();
   await rpc('channelSend', {
     channelId: channel.id,
-    body: 'Reply exactly with ACTIVITY_LIVE_2230_READY. Use channel_send; do not use other tools.',
+    body: 'Reply exactly with ACTIVITY_LIVE_2230_READY. Use bot_send_message; do not use other tools.',
   });
   const canonical = await wait(async () => {
     const items = (await rpc('humanAttention', { category: 'unread', channelId: channel.id }))
@@ -198,7 +198,7 @@ try {
   await sleep(500);
   await rpc('channelSend', {
     channelId: channel.id,
-    body: 'Reply exactly with ACTIVITY_RECONNECTED_2230. Use channel_send; do not use other tools.',
+    body: 'Reply exactly with ACTIVITY_RECONNECTED_2230. Use bot_send_message; do not use other tools.',
   });
   const offline = await wait(
     async () =>

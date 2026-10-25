@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Image } from 'expo-image';
+import { ResourceImage as Image } from '../primitives/resource-image';
 import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
@@ -17,7 +17,7 @@ import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { CloseIcon, ShareIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   clampTo,
   dismissDirection,
@@ -73,6 +73,7 @@ function ZoomableImage({
   onClose(): void;
   onShare(attachment: MessageAttachment): Promise<void>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const frame = useWindowDimensions();

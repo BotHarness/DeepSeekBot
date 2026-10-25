@@ -1,7 +1,9 @@
+import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import {
   approveGrantRequest,
   type GrantRequestApprovalResult,
 } from '../workspaces/grant-requests.js';
+import { notificationAttentionPage } from '../runtime/notification-attention.js';
 import { MemoryImageError } from '../memory/image.js';
 import {
   MIN_IDLE_MS,
@@ -33,9 +35,22 @@ import {
   type ChannelManagementResult,
 } from '../channels/management.js';
 import { botProfileFingerprint } from '../bots/profile-snapshot.js';
+import type {
+  BotZipImportService,
+  BotZipImportInput,
+  BotZipImportReference,
+  BotZipPreview,
+} from '../bots/zip-import.js';
+import {
+  BotZipUploadError,
+  type BotZipUploadIdentity,
+  type BotZipUploadStatus,
+} from '../bots/zip-upload.js';
+import { ZipArchiveError } from '../bots/zip-archive.js';
 import {
   BotCreationError,
   type BotCreationService,
+  type BotCreationInput,
   type BotCreationReceipt,
 } from '../bots/creation.js';
 import { TobError, type TobService, type TobHome } from '../tob/service.js';
@@ -605,9 +620,28 @@ export interface BridgeMethods {
   create(
     payload: unknown,
   ): BridgeResult<{ bot: PersonaBotDetail; channelId?: string; receipt?: BotCreationReceipt }>;
-  createFromGit(
+  botImportPreview(
     payload: unknown,
-  ): Promise<BridgeResult<{ bot: PersonaBotDetail; httpsFallback?: HttpsFallback }>>;
+  ): Promise<BridgeResult<Awaited<ReturnType<BotImportsService['previewGit']>>>>;
+  botImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
+  zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
+  zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
+  zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
+  zipImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
+  zipImport(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ bot: PersonaBotDetail; channelId: string; receipt?: BotCreationReceipt }>
+  >;
+  createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
+  createFromGit(payload: unknown): Promise<
+    BridgeResult<{
+      bot: PersonaBotDetail;
+      httpsFallback?: HttpsFallback;
+      receipt?: BotCreationReceipt;
+      channelId?: string;
+    }>
+  >;
   update(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   dataResetPreview(): BridgeResult<{ preview: DataResetPreview }>;
   dataResetConfirm(payload: unknown): BridgeResult<{ reset: DataResetResult }>;
@@ -918,6 +952,8 @@ export interface BridgeMethodsDeps {
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
   creations?: BotCreationService;
+  imports?: BotImportsService;
+  zipImports?: BotZipImportService;
   channelManagement?: ChannelManagementService;
   approvalTemplates?: ApprovalTemplateLibrary;
   deletions?: PersonaBotDeletions;
@@ -1026,6 +1062,105 @@ function asSlug(payload: unknown): string | undefined {
 function marketplaceLang(value: unknown): MarketplaceLanguage | undefined | false {
   if (value === undefined) return undefined;
   return MARKETPLACE_LANGUAGES.find((language) => language === value) ?? false;
+}
+
+function parseCreation(
+  payload: unknown,
+): BridgeResult<{ input: BotCreationInput; operationKey?: string }> {
+  const source = asObject(payload);
+  const displayName = source['displayName'];
+  if (typeof displayName !== 'string' || displayName.trim().length === 0) {
+    return invalidInput('displayName is required');
+  }
+  const persona = parseOptional(source, 'persona');
+  const coreMemory = parseOptional(source, 'coreMemory');
+  const roles = parseRoles(source);
+  const description = parseOptional(source, 'description');
+  const model = parseOptional(source, 'model');
+  const preset = parseOptional(source, 'preset');
+  const workspaces = parseWorkspaces(source);
+  const avatar = parseOptional(source, 'avatar');
+  const memoryLocation = parseOptional(source, 'memoryLocation');
+  if (
+    !memoryLocation.ok ||
+    !persona.ok ||
+    !coreMemory.ok ||
+    !roles.ok ||
+    !description.ok ||
+    !model.ok ||
+    !preset.ok ||
+    !workspaces.ok ||
+    !avatar.ok
+  ) {
+    return invalidInput('invalid create payload');
+  }
+  const operationKey = source['operationKey'];
+  if (operationKey !== undefined && typeof operationKey !== 'string')
+    return invalidInput('operationKey must be a string');
+  const input = {
+    displayName,
+    ...(persona.value === undefined ? {} : { persona: persona.value }),
+    ...(coreMemory.value === undefined ? {} : { coreMemory: coreMemory.value }),
+    ...(roles.value === undefined ? {} : { roles: roles.value }),
+    ...(description.value === undefined ? {} : { description: description.value }),
+    ...(model.value === undefined ? {} : { model: model.value }),
+    ...(preset.value === undefined ? {} : { preset: preset.value }),
+    ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
+    ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
+    ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
+  };
+  return { ok: true, value: { input, ...(operationKey === undefined ? {} : { operationKey }) } };
+}
+
+function parseZipUpload(payload: unknown): BotZipUploadIdentity | undefined {
+  const source = asObject(payload);
+  const uploadKey = source['uploadKey'];
+  const sha256 = source['sha256'];
+  const sizeBytes = source['sizeBytes'];
+  return typeof uploadKey === 'string' &&
+    typeof sha256 === 'string' &&
+    typeof sizeBytes === 'number'
+    ? { uploadKey, sha256, sizeBytes }
+    : undefined;
+}
+
+function parseZipImport(payload: unknown): BotZipImportReference | undefined {
+  const source = asObject(payload);
+  const operationKey = source['operationKey'];
+  const sha256 = source['sha256'];
+  const displayName = source['displayName'];
+  const roles = parseRoles(source);
+  const description = parseOptional(source, 'description');
+  if (
+    typeof operationKey !== 'string' ||
+    typeof sha256 !== 'string' ||
+    typeof displayName !== 'string' ||
+    !roles.ok ||
+    !description.ok
+  )
+    return undefined;
+  return {
+    operationKey,
+    sha256,
+    displayName,
+    ...(roles.value === undefined ? {} : { roles: roles.value }),
+    ...(description.value === undefined ? {} : { description: description.value }),
+  };
+}
+
+function zipFailure(error: unknown): BridgeResult<never> {
+  return {
+    ok: false,
+    error: {
+      code:
+        error instanceof BotZipUploadError ||
+        error instanceof BotCreationError ||
+        error instanceof ZipArchiveError
+          ? error.code
+          : 'upload-unavailable',
+      message: 'The Zip operation could not be completed.',
+    },
+  };
 }
 
 function parseOptional(source: Record<string, unknown>, key: string): ParsedField<string> {
@@ -1285,6 +1420,15 @@ function createFailure(
         error: {
           code: 'invalid-git-url',
           message: 'Enter an HTTPS or SSH Git URL without credentials.',
+        },
+      };
+    case 'git-source-changed':
+      return {
+        ok: false,
+        error: {
+          code: 'git-source-changed',
+          message:
+            'The repository changed after inspection. Review the source again before starting another import.',
         },
       };
     case 'git-clone-failed':
@@ -2870,48 +3014,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       };
     },
     create(payload) {
-      const source = asObject(payload);
-      const displayName = source['displayName'];
-      if (typeof displayName !== 'string' || displayName.trim().length === 0) {
-        return invalidInput('displayName is required');
-      }
-      const persona = parseOptional(source, 'persona');
-      const coreMemory = parseOptional(source, 'coreMemory');
-      const roles = parseRoles(source);
-      const description = parseOptional(source, 'description');
-      const model = parseOptional(source, 'model');
-      const preset = parseOptional(source, 'preset');
-      const workspaces = parseWorkspaces(source);
-      const avatar = parseOptional(source, 'avatar');
-      const memoryLocation = parseOptional(source, 'memoryLocation');
-      if (
-        !memoryLocation.ok ||
-        !persona.ok ||
-        !coreMemory.ok ||
-        !roles.ok ||
-        !description.ok ||
-        !model.ok ||
-        !preset.ok ||
-        !workspaces.ok ||
-        !avatar.ok
-      ) {
-        return invalidInput('invalid create payload');
-      }
-      const operationKey = source['operationKey'];
-      if (operationKey !== undefined && typeof operationKey !== 'string')
-        return invalidInput('operationKey must be a string');
-      const input = {
-        displayName,
-        ...(persona.value === undefined ? {} : { persona: persona.value }),
-        ...(coreMemory.value === undefined ? {} : { coreMemory: coreMemory.value }),
-        ...(roles.value === undefined ? {} : { roles: roles.value }),
-        ...(description.value === undefined ? {} : { description: description.value }),
-        ...(model.value === undefined ? {} : { model: model.value }),
-        ...(preset.value === undefined ? {} : { preset: preset.value }),
-        ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
-        ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
-        ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
-      };
+      const parsed = parseCreation(payload);
+      if (!parsed.ok) return parsed;
+      const { input, operationKey } = parsed.value;
       if (deps.creations !== undefined) {
         try {
           const created = deps.creations.create(input, operationKey);
@@ -2942,6 +3047,158 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!result.ok) return createFailure(slug, result);
       return { ok: true, value: detailOf(result.record) };
     },
+    createLookup(payload) {
+      const parsed = parseCreation(payload);
+      if (!parsed.ok) return parsed;
+      const { input, operationKey } = parsed.value;
+      if (operationKey === undefined) return invalidInput('operationKey is required');
+      if (deps.creations === undefined)
+        return {
+          ok: false,
+          error: {
+            code: 'creation-unavailable',
+            message: 'Idempotent creation is unavailable on this Host.',
+          },
+        };
+      try {
+        return { ok: true, value: { receipt: deps.creations.lookup(operationKey, input) ?? null } };
+      } catch (error) {
+        if (error instanceof BotCreationError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
+    },
+    zipUploadBegin(payload) {
+      const input = parseZipUpload(payload);
+      if (!input) return invalidInput('An upload identity is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: deps.zipImports.begin(input) };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    zipUploadChunk(payload) {
+      const input = parseZipUpload(payload);
+      const source = asObject(payload);
+      const offset = source['offset'];
+      const dataBase64 = source['dataBase64'];
+      if (!input || typeof offset !== 'number' || typeof dataBase64 !== 'string')
+        return invalidInput('An upload chunk is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: deps.zipImports.chunk({ ...input, offset, dataBase64 }) };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    zipUploadPreview(payload) {
+      const input = parseZipUpload(payload);
+      if (!input) return invalidInput('An upload identity is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: deps.zipImports.preview(input) };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    zipImportLookup(payload) {
+      const input = parseZipImport(payload);
+      if (!input) return invalidInput('The original import input is required');
+      if (!deps.zipImports) return unavailable();
+      try {
+        return { ok: true, value: { receipt: deps.zipImports.lookup(input) ?? null } };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    async zipImport(payload) {
+      const identity = parseZipUpload(payload);
+      const reference = parseZipImport(payload);
+      if (!identity || !reference) return invalidInput('The original import input is required');
+      if (!deps.zipImports) return unavailable();
+      const input: BotZipImportInput = { ...identity, ...reference };
+      try {
+        const created = await deps.zipImports.create(input);
+        return {
+          ok: true,
+          value: {
+            ...detailOf(created.record),
+            channelId: created.channelId,
+            ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
+          },
+        };
+      } catch (error) {
+        return zipFailure(error);
+      }
+    },
+    botImportLookup(payload) {
+      const source = asObject(payload);
+      const displayName = source['displayName'];
+      const gitUrl = source['gitUrl'];
+      const expectedCommit = source['expectedCommit'];
+      const operationKey = source['operationKey'];
+      const roles = parseRoles(source);
+      const description = parseOptional(source, 'description');
+      if (
+        typeof displayName !== 'string' ||
+        !displayName.trim() ||
+        typeof gitUrl !== 'string' ||
+        typeof expectedCommit !== 'string' ||
+        typeof operationKey !== 'string' ||
+        !roles.ok ||
+        !description.ok
+      )
+        return invalidInput('Stable Git lookup needs its complete original input');
+      const imports =
+        deps.imports ??
+        (deps.creations
+          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+          : undefined);
+      if (!imports)
+        return {
+          ok: false,
+          error: {
+            code: 'creation-unavailable',
+            message: 'Import recovery is unavailable on this Host.',
+          },
+        };
+      try {
+        const input = imports.gitInput({
+          displayName,
+          gitUrl,
+          expectedCommit,
+          ...(roles.value === undefined ? {} : { roles: roles.value }),
+          ...(description.value === undefined ? {} : { description: description.value }),
+        });
+        return { ok: true, value: { receipt: imports.lookup(operationKey, input) ?? null } };
+      } catch (error) {
+        if (error instanceof BotCreationError)
+          return { ok: false, error: { code: error.code, message: error.message } };
+        throw error;
+      }
+    },
+    async botImportPreview(payload) {
+      const gitUrl = asObject(payload)['gitUrl'];
+      if (typeof gitUrl !== 'string') return invalidInput('gitUrl is required');
+      const imports =
+        deps.imports ??
+        (deps.creations
+          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+          : undefined);
+      if (!imports) return unavailable();
+      try {
+        return { ok: true, value: await imports.previewGit(gitUrl) };
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: error instanceof BotCreationError ? error.code : 'import-unavailable',
+            message: 'The selected source could not be inspected.',
+          },
+        };
+      }
+    },
     async createFromGit(payload) {
       const source = asObject(payload);
       const displayName = source['displayName'];
@@ -2955,11 +3212,53 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const roles = parseRoles(source);
       const description = parseOptional(source, 'description');
       if (!roles.ok || !description.ok) return invalidInput('invalid create payload');
+      if (source['operationKey'] !== undefined) {
+        const imports =
+          deps.imports ??
+          (deps.creations
+            ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
+            : undefined);
+        if (
+          !imports ||
+          typeof source['operationKey'] !== 'string' ||
+          typeof source['expectedCommit'] !== 'string'
+        )
+          return invalidInput('Stable Git import needs operationKey and expectedCommit');
+        try {
+          const input = imports.gitInput({
+            gitUrl,
+            expectedCommit: source['expectedCommit'],
+            displayName,
+            ...(roles.value === undefined ? {} : { roles: roles.value }),
+            ...(description.value === undefined ? {} : { description: description.value }),
+          });
+          const created = await imports.create(source['operationKey'], input);
+          return {
+            ok: true,
+            value: {
+              ...detailOf(created.record),
+              receipt: created.receipt!,
+              channelId: created.channelId,
+              source: input.source,
+              ...(created.httpsFallback === undefined
+                ? {}
+                : { httpsFallback: created.httpsFallback }),
+            },
+          };
+        } catch (error) {
+          if (error instanceof BotCreationError)
+            return { ok: false, error: { code: error.code, message: error.message } };
+          throw error;
+        }
+      }
       const slug = createBotId();
       const result = await deps.registry.createFromGit({
         slug,
         displayName,
         gitUrl,
+        ...(typeof source['expectedCommit'] === 'string'
+          ? { expectedCommit: source['expectedCommit'] }
+          : {}),
         ...(roles.value === undefined ? {} : { roles: roles.value }),
         ...(description.value === undefined ? {} : { description: description.value }),
       });
@@ -5163,6 +5462,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     humanAttention(payload) {
       const source = asObject(payload);
+      if (source['notifications'] !== undefined && typeof source['notifications'] !== 'boolean')
+        return invalidInput('notifications must be a boolean');
       if (source['queryVersion'] !== undefined && source['queryVersion'] !== 1)
         return invalidInput('unsupported Activity query version');
       if (source['queryVersion'] === 1 && deps.humanAttention === undefined)
@@ -5224,6 +5525,24 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       )
         return invalidInput('invalid cursor');
       try {
+        if (source['notifications'] === true) {
+          if (deps.humanAttention === undefined)
+            return invalidInput('notification queries are unavailable');
+          if (
+            Object.keys(source).some(
+              (key) =>
+                !['notifications', 'limit', 'cursor'].includes(key) && source[key] !== undefined,
+            )
+          )
+            return invalidInput('notification discovery does not accept Activity filters');
+          return {
+            ok: true,
+            value: notificationAttentionPage(deps.humanAttention, {
+              ...(limit === undefined ? {} : { limit: limit as number }),
+              ...(cursor === undefined ? {} : { cursor: cursor as string }),
+            }),
+          };
+        }
         return {
           ok: true,
           value: {

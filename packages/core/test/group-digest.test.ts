@@ -507,7 +507,9 @@ describe('Group ordinary-message digest', () => {
       await began;
       await ordinary(core, group.id, 'one');
       await ordinary(core, group.id, 'two');
-      expect(runs).toEqual(['[Human DM]\nChannel: ' + dm.id + '\nMessage ID: hold\nHold']);
+      expect(runs).toHaveLength(1);
+      expect(runs[0]).toMatch(/^\[Human DM\]\nSource Event ID: [^\n]+\n/);
+      expect(runs[0]).toContain('Channel: ' + dm.id + '\nMessage ID: hold\nHold');
       release();
       await core.runtime.whenIdle();
       expect(runs).toHaveLength(2);

@@ -25,7 +25,7 @@ Use a fresh, disposable isolated Host containing only this journey's fixtures:
 4. Run `node scripts/e2e-mobile-deletion-web.mjs mobile-delete`. It pairs through the UI, captures matched base/current views, opens menus and reviews, verifies Memory resets after cancellation, deletes a test Bot with Memory retained, removes a section while preserving its group, and dissolves the group while retaining its history. Canonical checks use the same Host's public APIs. It refuses to overwrite a prior journey's fixture receipt; use a fresh isolated name for another run.
 5. Inspect `.github/pr-screenshots/2783/` and `.humanlayer/verify/mobile-delete/evidence/`. Published screenshots blur the machine-local Memory path. A successful run writes `result.json`; a failure retains the ARIA tree, image and page errors. Run `observe` before retrying a surprising drive.
 
-Native checks belong to the shared device QA runner: verify long-press and iOS preview, Android anchored menus, cancellation and Back, pending submission, screen-reader actions, default/intermediate/maximum text sizes in light/dark themes, and the same canonical outcomes. Submit through [shared device QA](../../../../docs/agents/device-qa.md). A Web pass does not prove those native behaviors.
+Native checks belong to the shared device QA runner: verify long-press and iOS preview, Android native action sheets, cancellation and Back, pending submission, screen-reader actions, default/intermediate/maximum text sizes in light/dark themes, and the same canonical outcomes. Submit through [shared device QA](../../../../docs/agents/device-qa.md). A Web pass does not prove those native behaviors.
 
 ## Gotchas
 

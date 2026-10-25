@@ -247,6 +247,52 @@ async function fixture(
   };
 }
 
+it('saves an explicit permission-management rule from Lark and re-prompts after revocation', async () => {
+  const f = await fixture(true, true, true);
+  const command = 'deepseekbot grant-write-set ada --grant project --enabled';
+  const first = f.repeat('policy-first', command);
+  await vi.waitFor(() => expect(f.cards).toHaveBeenCalled());
+  const delivery = f.core.externalMessaging.approvals
+    .snapshot('ada')
+    .deliveries.find((row) => row.callId === 'policy-first')!;
+  expect(f.cards.mock.calls.at(-1)![2]).toMatchObject({ rules: ['exact'] });
+  expect(await f.ruleAction(delivery.id, 'preview-all-opaque')).toMatchObject({
+    status: 'refused',
+  });
+  expect(await f.ruleAction(delivery.id, 'preview-exact')).toMatchObject({ status: 'queued' });
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.find((row) => row.id === delivery.id)?.ruleConfirmation?.presented,
+    ).toBe(true),
+  );
+  const confirmation = f.core.externalMessaging.approvals
+    .snapshot('ada')
+    .deliveries.find((row) => row.id === delivery.id)!.ruleConfirmation!;
+  await f.ruleAction(delivery.id, 'confirm-exact', confirmation.id);
+  expect(await first.answer).toBe('allowed-once');
+  const rule = f.core.toolRules.list('ada')[0]!;
+  expect(rule).toMatchObject({ kind: 'exact', externalCreator: { actorId: 'ou_alice' } });
+  const repeat = f.repeat('policy-repeat', command);
+  expect(await repeat.answer).toBe('allowed-once');
+  f.core.toolRules.revoke('ada', rule.id);
+  expect(repeat.guard()).toBe(false);
+  const revoked = f.repeat('policy-revoked', command);
+  await vi.waitFor(() =>
+    expect(
+      f.core.externalMessaging.approvals
+        .snapshot('ada')
+        .deliveries.some((row) => row.callId === 'policy-revoked'),
+    ).toBe(true),
+  );
+  const pending = f.core.externalMessaging.approvals
+    .snapshot('ada')
+    .deliveries.find((row) => row.callId === 'policy-revoked')!;
+  await f.action(pending.id, { action: 'rejected' });
+  expect(await revoked.answer).toBe('rejected');
+});
+
 it('exact Lark rules require a private second confirmation, are idempotent, and deny mismatched input or revoked creator authority', async () => {
   const f = await fixture(true, true);
   const first = await f.start();

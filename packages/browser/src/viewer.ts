@@ -1,13 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 
-import {
-  ViewerProxy,
-  deviceViewerUpgradeRoutes,
-  proxyUpgrade,
-  viewerUpgradePaths,
-  type DeviceViewerUpgrade,
-} from '../../core/src/http/viewer-proxy.js';
+import { ViewerProxy, proxyUpgrade, viewerUpgradePaths } from '../../core/src/http/viewer-proxy.js';
 
 export interface BrowserViewerHost {
   register(route: {
@@ -35,7 +29,6 @@ export function registerBrowserViewer(options: {
   prefix: string;
   upstream: () => URL | undefined;
   rejection: (headers: Headers) => number | undefined;
-  deviceUpgrade?: () => DeviceViewerUpgrade | undefined;
 }): () => void {
   const proxy = new ViewerProxy({ prefix: options.prefix, upstream: options.upstream });
   const sockets = new Set<Duplex>();
@@ -89,9 +82,6 @@ export function registerBrowserViewer(options: {
         }),
       );
     }
-    if (options.deviceUpgrade !== undefined)
-      for (const route of deviceViewerUpgradeRoutes(options.prefix, options.deviceUpgrade))
-        release.push(options.host.registerUpgrade(route));
   } catch (error) {
     for (const dispose of release.reverse()) dispose();
     throw error;

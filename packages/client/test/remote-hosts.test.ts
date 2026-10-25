@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, assert, describe, expect, it, vi } from 'vitest';
 
 import type { HostCarrier } from '../../../apps/mobile/src/host/carrier.js';
+import type { HumanAttentionItem as HostAttentionItem } from '../../../apps/mobile/src/host/wire.js';
 import { FakeHost } from '../../../apps/mobile/test/fake-host.js';
+import { createHostActivityActions } from '../src/client/host-activity-actions.js';
+import type { HumanAttentionItem } from '../src/client/store.js';
 import { pairingLink } from '../../core/src/devices/http.js';
+import { en, zh } from '../src/client/locale.js';
+import { REMOTE_NOTIFICATION_KEY } from '../src/client/remote-notifications.js';
 import {
   ALL_HOSTS,
   HOST_TAB_STORAGE_KEY,
@@ -126,6 +131,10 @@ describe('remote hosts', () => {
     );
     expect(sources.conversation(here)).toBe(sources.conversation({ ...here }));
     expect(sources.conversation({ ...here, hostId: 'host-c' })).toBeUndefined();
+    expect(sources.client('host-b')).toBe(sources.client('host-b'));
+    expect(sources.client('host-b')).toBeDefined();
+    expect(sources.client('local')).toBeUndefined();
+    expect(sources.client('host-c')).toBeUndefined();
   });
 
   it('removes a remote, revokes this browser there and forgets its open chat', async () => {
@@ -138,6 +147,7 @@ describe('remote hosts', () => {
 
     await sources.remove('host-b');
 
+    expect(sources.client('host-b')).toBeUndefined();
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
     expect(storage.values.has(REMOTE_HOSTS_STORAGE_KEY)).toBe(false);
     expect(calls.at(-1)).toEqual({
@@ -157,16 +167,45 @@ describe('remote hosts', () => {
     sources.select('local');
     expect(sources.getSnapshot().tab).toBe('local');
   });
+
+  it('permanently forgets only the removed Host notification choice across reload and re-pair', async () => {
+    const preferences = { approval: false, question: true, 'private-input': false, reply: true };
+    const retained = { enabled: true, preferences };
+    const storage = memoryStorage({
+      [REMOTE_NOTIFICATION_KEY]: JSON.stringify({ 'host-b': retained, 'host-c': retained }),
+    });
+    const { carrier } = fakeCarrier();
+    const sources = createRemoteHosts({ storage, carrier });
+    await sources.pair(link(), 'Browser', 'host-a');
+    expect(sources.notifications.choice('host-b')).toEqual(retained);
+
+    await sources.remove('host-b');
+
+    expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty('host-b');
+    expect(JSON.parse(storage.values.get(REMOTE_NOTIFICATION_KEY)!)).toEqual({
+      'host-c': retained,
+    });
+    const reloaded = createRemoteHosts({ storage, carrier });
+    await reloaded.pair(link(), 'Browser', 'host-a');
+    expect(reloaded.notifications.choice('host-b')).toEqual({
+      enabled: false,
+      preferences: { approval: true, question: true, 'private-input': true, reply: true },
+    });
+    expect(reloaded.notifications.choice('host-c')).toEqual(retained);
+  });
 });
 
 const releases: Array<() => void> = [];
 afterEach(() => {
   for (const release of releases.splice(0)) release();
+  vi.unstubAllGlobals();
 });
 
 function liveHost() {
   const host = new FakeHost();
-  host.methods.set('humanAttention', () => ({ items: [], queryVersion: 1 }));
+  host.methods.set('humanAttention', (args) =>
+    args.notifications ? { items: [], notificationVersion: 1 } : { items: [], queryVersion: 1 },
+  );
   host.methods.set('channelUnreadCounts', () => ({
     channels: [{ channelId: 'dm-ada', unreadCount: 2 }],
   }));
@@ -194,6 +233,516 @@ function liveHost() {
 }
 
 describe('Host Feed lifecycle', () => {
+  it.each(['removeItem', 'setItem'] as const)(
+    'finishes permanent removal and reports notification persistence refusal from %s',
+    async (operation) => {
+      const close = vi.fn();
+      const show = vi.fn();
+      const diagnostic = vi.fn();
+      vi.stubGlobal('window', {
+        dispatchEvent: diagnostic,
+        Notification: class {
+          static permission = 'granted';
+          onclick = null;
+          close = close;
+          constructor() {
+            show();
+          }
+        },
+      });
+      const { host, storage } = liveHost();
+      const sources = createRemoteHosts({ carrier: host.carrier, storage });
+      releases.push(sources.subscribe(() => {}));
+      await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+      await sources.notifications.set(host.hostId, {
+        enabled: true,
+        preferences: { approval: false },
+      });
+      if (operation === 'setItem')
+        await sources.notifications.set('other', { preferences: { reply: false } });
+      const other = sources.notifications.choice('other');
+      const client = sources.client(host.hostId)!;
+      const received: HostAttentionItem = {
+        id: 'received',
+        kind: 'user-question',
+        category: 'action',
+        botSlug: 'ada',
+        createdAt: '2026-01-01',
+        summary: 'Question',
+      };
+      host.methods.set('humanAttention', (args) =>
+        args.notifications
+          ? { notificationVersion: 1, items: [received] }
+          : { queryVersion: 1, items: [] },
+      );
+      host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+      await vi.waitFor(() => expect(show).toHaveBeenCalledOnce());
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      let entered = false;
+      host.methods.set('humanAttention', async (args) => {
+        if (!args.notifications) return { queryVersion: 1, items: [] };
+        entered = true;
+        await gate;
+        return { notificationVersion: 1, items: [received] };
+      });
+      const enabling = sources.notifications.set(host.hostId, { preferences: { approval: true } });
+      const cancelled = expect(enabling).rejects.toThrow('notification-activation-cancelled');
+      await vi.waitFor(() => expect(entered).toBe(true));
+      const stored = storage.getItem(REMOTE_NOTIFICATION_KEY);
+      const original = storage[operation];
+      if (operation === 'removeItem') {
+        const remove = storage.removeItem;
+        storage.removeItem = (key) => {
+          if (key === REMOTE_NOTIFICATION_KEY) throw new Error('private storage detail');
+          remove(key);
+        };
+      } else {
+        const set = storage.setItem;
+        storage.setItem = (key, value) => {
+          if (key === REMOTE_NOTIFICATION_KEY) throw new Error('private storage detail');
+          set(key, value);
+        };
+      }
+      try {
+        await expect(sources.remove(host.hostId)).resolves.toBeUndefined();
+        await cancelled;
+        expect(host.requests).toContain('POST http://127.0.0.1:47001/botharness-device/unpair');
+        expect(client.getSnapshot().connection.status).toBe('stopped');
+        expect(sources.client(host.hostId)).toBeUndefined();
+        expect(sources.getSnapshot().hosts).toEqual([]);
+        expect(storage.getItem(REMOTE_HOSTS_STORAGE_KEY)).toBeNull();
+        expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty(host.hostId);
+        expect(sources.notifications.choice('other')).toEqual(other);
+        expect(close).toHaveBeenCalledOnce();
+        expect(diagnostic).toHaveBeenCalledExactlyOnceWith(
+          expect.objectContaining({
+            type: 'botharness:notification-diagnostic',
+            detail: 'remote-notification-forget-persistence-failed',
+          }),
+        );
+        finish();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(sources.notifications.getSnapshot().hosts).not.toHaveProperty(host.hostId);
+        expect(show).toHaveBeenCalledOnce();
+        expect(storage.getItem(REMOTE_NOTIFICATION_KEY)).toBe(stored);
+      } finally {
+        finish();
+        Object.assign(storage, { [operation]: original });
+        await cancelled;
+      }
+    },
+  );
+
+  it.each(['Activity', 'notification page'] as const)(
+    'preserves a completed notification baseline when %s alone fails on a connected Host',
+    async (failure) => {
+      const show = vi.fn();
+      vi.stubGlobal('window', {
+        Notification: class {
+          static permission = 'granted';
+          onclick = null;
+          close() {}
+          constructor(title: string, options: unknown) {
+            show(title, options);
+          }
+        },
+      });
+      const { host, storage } = liveHost();
+      const old: HostAttentionItem = {
+        id: 'old',
+        kind: 'user-question',
+        category: 'action',
+        botSlug: 'ada',
+        createdAt: '2026-10-22T12:00:00.000Z',
+        summary: 'Old question',
+      };
+      const items = [old];
+      let fail = false;
+      host.methods.set('humanAttention', (args) => {
+        if (args.notifications) {
+          if (args.cursor) {
+            if (fail && failure === 'notification page')
+              throw new Error('notification-page-unavailable');
+            return { notificationVersion: 1, items: items.slice(1) };
+          }
+          return { notificationVersion: 1, items: items.slice(0, 1), nextCursor: 'tail' };
+        }
+        if (fail && failure === 'Activity' && args.category === 'action')
+          throw new Error('activity-unavailable');
+        return { queryVersion: 1, items: [] };
+      });
+      const sources = createRemoteHosts({ carrier: host.carrier, storage });
+      releases.push(sources.subscribe(() => {}));
+      await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+      await sources.notifications.set(host.hostId, { enabled: true });
+      const refresh = async () => {
+        const before = sources.getSnapshot().hosts[0]?.inbox;
+        host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+        await vi.waitFor(() => {
+          const remote = sources.getSnapshot().hosts[0];
+          expect(remote?.inbox).not.toBe(before);
+          expect(remote?.snapshot.connection.status).toBe('connected');
+          expect(remote?.host.credential).toBe(host.credential);
+        });
+      };
+      fail = true;
+      await refresh();
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        ...(failure === 'Activity'
+          ? { stale: expect.any(String) }
+          : { notificationItems: undefined }),
+      });
+      items.push({ ...old, id: 'new', createdAt: '2026-01-01T00:00:00.000Z' });
+      await refresh();
+      expect(show).not.toHaveBeenCalled();
+      fail = false;
+      await refresh();
+      expect(show).toHaveBeenCalledExactlyOnceWith('Studio · Ada', {
+        body: 'Old question',
+        tag: `botharness-remote:${host.hostId}:new`,
+      });
+      await refresh();
+      expect(show).toHaveBeenCalledTimes(1);
+      await sources.notifications.set(host.hostId, { enabled: false });
+      const saved = storage.getItem('botharness.remoteNotifications.v1');
+      fail = true;
+      await expect(sources.notifications.set(host.hostId, { enabled: true })).rejects.toThrow(
+        'notification-baseline-unavailable',
+      );
+      expect(sources.notifications.choice(host.hostId).enabled).toBe(false);
+      expect(storage.getItem('botharness.remoteNotifications.v1')).toBe(saved);
+      items.push({ ...old, id: 'while-disabled' });
+      fail = false;
+      await sources.notifications.set(host.hostId, { enabled: true });
+      await refresh();
+      expect(show).toHaveBeenCalledTimes(1);
+      items.push({ ...old, id: 'after-enable', createdAt: '2025-01-01T00:00:00.000Z' });
+      await refresh();
+      expect(show).toHaveBeenCalledTimes(2);
+      expect(show.mock.calls[1]?.[1]).toMatchObject({
+        tag: `botharness-remote:${host.hostId}:after-enable`,
+      });
+    },
+  );
+  it('keeps notification identities across reconnect and active resubscription, but releases them on final disposal', async () => {
+    const show = vi.fn();
+    vi.stubGlobal('window', {
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor(title: string, options: unknown) {
+          show(title, options);
+        }
+      },
+    });
+    const { host, storage } = liveHost();
+    let items: HostAttentionItem[] = [];
+    host.methods.set('humanAttention', (args) =>
+      args.notifications ? { notificationVersion: 1, items } : { queryVersion: 1, items: [] },
+    );
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    const primary = sources.subscribe(() => {});
+    releases.push(primary);
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true });
+    const received: HostAttentionItem = {
+      id: 'received',
+      kind: 'user-question',
+      category: 'action',
+      botSlug: 'ada',
+      createdAt: '2026-01-01',
+      summary: 'Question',
+    };
+    const refresh = async (next: typeof items) => {
+      const before = sources.getSnapshot().hosts[0]?.inbox;
+      items = next;
+      host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+      await vi.waitFor(() => {
+        const after = sources.getSnapshot().hosts[0]?.inbox;
+        expect(after).not.toBe(before);
+        expect(after).toMatchObject({ status: 'ready', notificationItems: next });
+      });
+    };
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(1);
+    await refresh([]);
+    const secondary = sources.subscribe(() => {});
+    primary();
+    const resubscribed = sources.subscribe(() => {});
+    releases.push(resubscribed);
+    secondary();
+    await refresh([]);
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(1);
+    await refresh([]);
+    host.kill();
+    host.restart();
+    await vi.waitFor(
+      () => {
+        expect(sources.getSnapshot().hosts[0]?.snapshot.connection.status).toBe('connected');
+        expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+          status: 'ready',
+          notificationItems: [],
+        });
+      },
+      { timeout: 3000 },
+    );
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(1);
+    await refresh([]);
+    resubscribed();
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => {
+      expect(sources.getSnapshot().hosts[0]?.snapshot.connection.status).toBe('connected');
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        notificationItems: [],
+      });
+    });
+    await refresh([received]);
+    expect(show).toHaveBeenCalledTimes(2);
+  });
+  it('marks the remote DM channel read through its own credential and refreshes its Inbox', async () => {
+    const { host, storage } = liveHost();
+    host.methods.set('channels', () => ({
+      channels: [{ id: 'dm-ada', type: 'dm', botSlug: 'ada', name: 'Ada', members: ['ada'] }],
+    }));
+    host.methods.set('channelMarkRead', () => {
+      host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
+      return { accepted: true };
+    });
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() =>
+      expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
+        status: 'ready',
+        unread: { 'dm-ada': 2 },
+      }),
+    );
+    await sources.markRead({ hostId: host.hostId, title: 'Ada', botSlug: 'ada' }, 'message-2');
+    expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toEqual([
+      { method: 'channelMarkRead', args: { channelId: 'dm-ada', messageId: 'message-2' } },
+    ]);
+    const inbox = sources.getSnapshot().hosts[0]?.inbox;
+    assert(inbox?.status === 'ready');
+    expect(inbox.unread).toEqual({});
+    await sources.markRead({ hostId: 'another-host', title: 'Ada', botSlug: 'ada' }, 'message-2');
+    expect(host.calls.filter(({ method }) => method === 'channelMarkRead')).toHaveLength(1);
+  });
+
+  it('keeps canonical unread counts when the owning Host refuses a read update', async () => {
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    host.failing.add('channelMarkRead');
+    await expect(
+      sources.markRead({ hostId: host.hostId, title: 'Group', channelId: 'group' }, 'message-2'),
+    ).rejects.toThrow();
+    expect(sources.getSnapshot().hosts[0]?.inbox).toMatchObject({ unread: { 'dm-ada': 2 } });
+  });
+
+  it('uses the bound translator for private notification bodies after the locale changes', async () => {
+    const show = vi.fn();
+    vi.stubGlobal('window', {
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor(title: string, options: unknown) {
+          show(title, options);
+        }
+      },
+    });
+    vi.stubGlobal('document', { documentElement: { lang: 'en' } });
+    let dictionary = en;
+    const translate = (key: 'remoteHosts.notifications.privateBody') => dictionary[key];
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage, translate });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true });
+    dictionary = zh;
+    host.methods.set('humanAttention', (args) =>
+      args.notifications
+        ? {
+            notificationVersion: 1,
+            items: [
+              {
+                id: 'private',
+                kind: 'private-input',
+                botSlug: 'ada',
+                createdAt: 'now',
+                summary: 'must not appear',
+              },
+            ],
+          }
+        : { queryVersion: 1, items: [] },
+    );
+    host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(1));
+    expect(show.mock.calls[0]?.[1]).toMatchObject({
+      body: zh['remoteHosts.notifications.privateBody'],
+    });
+  });
+  it('establishes an enable boundary through the shared paginated Inbox despite concurrent live frames and page failure', async () => {
+    const show = vi.fn();
+    vi.stubGlobal('window', {
+      Notification: class {
+        static permission = 'granted';
+        onclick = null;
+        close() {}
+        constructor(title: string, options: unknown) {
+          show(title, options);
+        }
+      },
+    });
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    await sources.notifications.set(host.hostId, { enabled: true, preferences: { reply: false } });
+    const items = Array.from({ length: 35 }, (_, index) => ({
+      id: `old-${index}`,
+      kind: 'channel-mention',
+      category: 'replies',
+      botSlug: 'ada',
+      createdAt: '2026-10-22T12:00:00.000Z',
+      summary: `old-${index}`,
+    }));
+    let finish!: () => void;
+    let gate: Promise<void> | undefined = new Promise((resolve) => {
+      finish = resolve;
+    });
+    let tails = 0;
+    let fail = false;
+    host.methods.set('humanAttention', async (args) => {
+      if (!args.notifications) return { queryVersion: 1, items: [] };
+      if (!args.cursor)
+        return { notificationVersion: 1, items: items.slice(0, 30), nextCursor: 'tail' };
+      tails++;
+      await gate;
+      if (fail) throw new Error('page unavailable');
+      return { notificationVersion: 1, items: items.slice(30) };
+    });
+    const live = () =>
+      host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
+    live();
+    await vi.waitFor(() => expect(tails).toBe(1));
+    const enabled = sources.notifications.set(host.hostId, { preferences: { reply: true } });
+    live();
+    expect(sources.notifications.choice(host.hostId).preferences.reply).toBe(false);
+    finish();
+    gate = undefined;
+    await enabled;
+    expect(tails).toBeGreaterThan(1);
+    expect(show).not.toHaveBeenCalled();
+    items.push(
+      ...['group', 'dm'].map((id) => ({
+        id,
+        kind: 'channel-reply',
+        category: 'replies',
+        botSlug: 'ada',
+        createdAt: '2026-10-22T12:00:00.000Z',
+        summary: id,
+      })),
+    );
+    live();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(2));
+    await sources.notifications.set(host.hostId, { preferences: { reply: false } });
+    fail = true;
+    await expect(
+      sources.notifications.set(host.hostId, { preferences: { reply: true } }),
+    ).rejects.toThrow('notification-baseline-unavailable');
+    expect(sources.notifications.choice(host.hostId).preferences.reply).toBe(false);
+    fail = false;
+    await sources.notifications.set(host.hostId, { preferences: { reply: true } });
+    expect(show).toHaveBeenCalledTimes(2);
+    items.push({
+      id: 'later',
+      kind: 'channel-reply',
+      category: 'replies',
+      botSlug: 'ada',
+      createdAt: '2026-10-22T12:00:00.000Z',
+      summary: 'later',
+    });
+    live();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(3));
+    items.push(
+      ...[
+        'tool-approval',
+        'user-question',
+        'private-input',
+        'channel-mention',
+        'channel-reply',
+        'channel-reply',
+      ].map((kind, index) => ({
+        id: `late-attention-${index}`,
+        kind,
+        category: index < 3 ? 'action' : 'replies',
+        botSlug: 'ada',
+        createdAt: `2026-01-0${6 - index}T00:00:00.000Z`,
+        summary: `late-attention-${index}`,
+      })),
+    );
+    live();
+    await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(9));
+    for (let index = 0; index < 6; index++)
+      expect(
+        show.mock.calls.filter(
+          ([, options]) =>
+            options.tag === `botharness-remote:${host.hostId}:late-attention-${index}`,
+        ),
+      ).toHaveLength(1);
+    await sources.notifications.set(host.hostId, { enabled: false });
+    await sources.notifications.set(host.hostId, { enabled: true });
+    expect(show).toHaveBeenCalledTimes(9);
+  });
+
+  it.each(['switch', 'remove', 'dispose'] as const)(
+    'cancels pending activation on Host %s without applying a late scan',
+    async (operation) => {
+      vi.stubGlobal('window', {
+        Notification: class {
+          static permission = 'granted';
+        },
+      });
+      const { host, storage } = liveHost();
+      const sources = createRemoteHosts({ carrier: host.carrier, storage });
+      const release = sources.subscribe(() => {});
+      releases.push(release);
+      await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+      let finish!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      let entered = false;
+      host.methods.set('humanAttention', async (args) => {
+        if (!args.notifications) return { queryVersion: 1, items: [] };
+        entered = true;
+        await gate;
+        return { notificationVersion: 1, items: [] };
+      });
+      const enabled = sources.notifications.set(host.hostId, { enabled: true });
+      const refused = expect(enabled).rejects.toThrow('notification-activation-cancelled');
+      await vi.waitFor(() => expect(entered).toBe(true));
+      if (operation === 'switch') sources.select('local');
+      else if (operation === 'remove') await sources.remove(host.hostId);
+      else release();
+      await refused;
+      finish();
+      await Promise.resolve();
+      expect(sources.notifications.choice(host.hostId).enabled).toBe(false);
+      expect(storage.values.has('botharness.remoteNotifications.v1')).toBe(false);
+    },
+  );
+
   it('retains legacy pairings when browser storage refuses the migration write', () => {
     const { host, saved } = liveHost();
     const storage = memoryStorage({
@@ -244,6 +793,7 @@ describe('Host Feed lifecycle', () => {
       { category: 'action', limit: 100, sort: 'newest', queryVersion: 1 },
       { category: 'replies', limit: 30, sort: 'mentions-first', queryVersion: 1 },
       { category: 'unread', limit: 30, queryVersion: 1 },
+      { notifications: true, limit: 100 },
     ]);
     first();
     host.methods.set('channelUnreadCounts', () => ({
@@ -330,3 +880,446 @@ describe('Host Feed lifecycle', () => {
     expect(sources.getSnapshot().avatars.size).toBe(0);
   });
 });
+
+it('reuses the shared activity Inbox for reads, pagination and refresh', async () => {
+  const { host, storage } = liveHost();
+  host.methods.set('humanAttention', (args) => ({
+    queryVersion: 1,
+    items: [
+      {
+        id: String(args.category) + (args.cursor ? '-next' : ''),
+        category: args.category,
+        kind: 'channel-unread',
+        botSlug: 'ada',
+        summary: 'remote',
+        createdAt: '',
+      },
+    ],
+    ...(args.cursor ? {} : { nextCursor: 'remote-cursor' }),
+  }));
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const observation = sources.activity(host.hostId)!;
+  expect(sources.activity(host.hostId)).toBe(observation);
+  expect(observation.getSnapshot()).toBe(sources.getSnapshot().hosts[0]?.inbox);
+  const reads = host.calls.length;
+  const off = observation.subscribe(() => {});
+  expect(host.calls).toHaveLength(reads);
+  await observation.getInbox()!.loadMore!('unread');
+  expect(observation.getSnapshot()).toMatchObject({
+    sections: { unread: [{ id: 'unread' }, { id: 'unread-next' }] },
+  });
+  off();
+  await sources.remove(host.hostId);
+  expect(sources.activity(host.hostId)).toBeUndefined();
+});
+
+it('queries remote search and history on its own Host client and disposes the filtered Inbox', async () => {
+  const { host, storage } = liveHost();
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const query = {
+    activity: true,
+    section: 'handled' as const,
+    search: 'Remote-only',
+    sort: 'oldest' as const,
+  };
+  const observation = sources.activity(host.hostId, query)!;
+  expect(sources.activity(host.hostId, query)).toBe(observation);
+  const off = observation.subscribe(() => {});
+  await vi.waitFor(() => expect(observation.getSnapshot().status).toBe('ready'));
+  expect(host.calls).toContainEqual({
+    method: 'humanAttention',
+    args: {
+      category: 'handled',
+      limit: 30,
+      queryVersion: 1,
+      search: 'Remote-only',
+      sort: 'oldest',
+    },
+  });
+  off();
+  expect(observation.getInbox()).toBeUndefined();
+});
+
+it('routes decisions, questions, joins, snooze and clear to the owning Host and refuses removed Hosts', async () => {
+  const { host, storage } = liveHost();
+  const sources = createRemoteHosts({ carrier: host.carrier, storage });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const item: HumanAttentionItem = {
+    id: 'approval:shared',
+    category: 'action',
+    kind: 'tool-approval',
+    botSlug: 'tob',
+    channelId: 'dm-tob',
+    messageId: 'same-message',
+    summary: 'Remote request',
+    createdAt: '',
+    sourceEventId: 'same-event',
+  };
+  const refresh = vi.fn(async () => {});
+  const actions = createHostActivityActions({
+    requestUnavailable: 'Request was not accepted',
+    client: () => {
+      const client = sources.client(host.hostId);
+      if (client === undefined) throw new Error('Host removed');
+      return client;
+    },
+    items: () => [item],
+    refresh,
+    open: async () => {},
+  });
+  host.methods.set('toolApprovalDecide', () => ({}));
+  host.methods.set('userQuestionAnswer', () => ({}));
+  host.methods.set('channelGroupJoinDecide', (args) => ({
+    channel: {
+      joinRequests: [{ id: args.requestId, status: args.accept ? 'accepted' : 'declined' }],
+    },
+  }));
+  host.methods.set('humanAttentionSnooze', () => ({ accepted: true }));
+  host.methods.set('humanAttentionDismiss', () => ({ accepted: true }));
+  host.calls.length = 0;
+  await actions.decideToolApproval('dm-tob', 'same-message', 'allowed-once');
+  await actions.answerUserQuestion('dm-tob', 'same-message', [
+    { id: 'q', selected: ['Yes'], custom: '' },
+  ]);
+  await actions.decideGroupJoin('same-group', 'same-request', true);
+  await actions.snoozeHumanInbox(item, '2099-01-01T00:00:00.000Z');
+  await actions.dismissHumanInbox(item);
+  expect(host.calls).toEqual([
+    {
+      method: 'toolApprovalDecide',
+      args: { channelId: 'dm-tob', messageId: 'same-message', outcome: 'allowed-once' },
+    },
+    {
+      method: 'userQuestionAnswer',
+      args: {
+        channelId: 'dm-tob',
+        messageId: 'same-message',
+        answer: { answers: [{ id: 'q', selected: ['Yes'], custom: '' }] },
+      },
+    },
+    {
+      method: 'channelGroupJoinDecide',
+      args: { channelId: 'same-group', requestId: 'same-request', accept: true },
+    },
+    {
+      method: 'humanAttentionSnooze',
+      args: { itemId: item.id, sourceKey: 'same-event', until: '2099-01-01T00:00:00.000Z' },
+    },
+    { method: 'humanAttentionDismiss', args: { itemId: item.id, sourceKey: 'same-event' } },
+  ]);
+  expect(refresh).toHaveBeenCalledTimes(5);
+  host.methods.set('humanAttentionDismiss', () => ({ accepted: false }));
+  await expect(actions.dismissHumanInbox(item)).rejects.toThrow();
+  expect(refresh).toHaveBeenCalledTimes(5);
+  await expect(actions.decideToolApproval('dm-tob', 'unowned-message', 'rejected')).rejects.toThrow(
+    'Request was not accepted',
+  );
+  await sources.remove(host.hostId);
+  await expect(actions.dismissHumanInbox(item)).rejects.toThrow('Host removed');
+});
+
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['decided', 'expired'] as const).map((result) => ({ kind, result })),
+  ),
+)(
+  'does not accept a remote $kind returning $result after the precheck',
+  async ({ kind, result }) => {
+    const { host, storage } = liveHost();
+    const sources = createRemoteHosts({ carrier: host.carrier, storage });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    let pending = true;
+    const item: HumanAttentionItem = {
+      id: 'request',
+      category: 'action',
+      kind,
+      botSlug: 'ada',
+      channelId: 'dm-ada',
+      messageId: 'request-message',
+      summary: '',
+      createdAt: '',
+    };
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => [item],
+      refresh,
+      open: async () => {},
+      requestUnavailable: 'This request was not accepted',
+    });
+    const request = {
+      id: item.messageId,
+      toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+      userQuestionRequest: {
+        questions: [{ id: 'q', question: 'Choose', options: [{ label: 'Blue' }] }],
+      },
+    };
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          request,
+          ...(!pending && result === 'decided'
+            ? [
+                {
+                  id: 'other-device-decision',
+                  toolApprovalDecision: { requestMessageId: item.messageId, outcome: 'rejected' },
+                  userQuestionResolution: {
+                    requestMessageId: item.messageId,
+                    state: 'answered',
+                    answers: [{ id: 'q', selected: ['Blue'] }],
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    }));
+    host.methods.set('toolApprovalStatus', () => ({ status: pending ? 'pending' : 'expired' }));
+    host.methods.set('userQuestionStatus', () => ({
+      status: pending ? 'pending' : result === 'decided' ? 'answered' : 'expired',
+    }));
+    host.methods.set(kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer', () => {
+      pending = false;
+      throw new Error('Host refused after another device settled the request');
+    });
+    const status = () =>
+      kind === 'tool-approval'
+        ? actions.toolApprovalStatus(item.channelId!, item.messageId!)
+        : actions.userQuestionStatus(item.channelId!, item.messageId!);
+    expect(await status()).toBe('pending');
+    const submit = () =>
+      kind === 'tool-approval'
+        ? actions.decideToolApproval(item.channelId!, item.messageId!, 'allowed-once')
+        : actions.answerUserQuestion(item.channelId!, item.messageId!, [
+            { id: 'q', selected: ['Blue'] },
+          ]);
+    await expect(submit()).rejects.toThrow('This request was not accepted');
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(await status()).toBe(
+      kind === 'user-question' && result === 'decided' ? 'answered' : 'expired',
+    );
+  },
+);
+
+it.each(
+  (['tool-approval', 'user-question'] as const).flatMap((kind) =>
+    (['submit', 'refresh'] as const).map((phase) => ({ kind, phase })),
+  ),
+)('preserves the $phase failure cause for remote $kind', async ({ kind, phase }) => {
+  const { host, storage } = liveHost();
+  const method = kind === 'tool-approval' ? 'toolApprovalDecide' : 'userQuestionAnswer';
+  const cause = new TypeError('Network request failed');
+  host.methods.set(method, () => ({ accepted: true }));
+  const sources = createRemoteHosts({
+    storage,
+    carrier: {
+      ...host.carrier,
+      async request(url, init) {
+        if (phase === 'submit' && url.endsWith('/' + method)) throw cause;
+        return host.carrier.request(url, init);
+      },
+    },
+  });
+  releases.push(sources.subscribe(() => {}));
+  await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+  const refresh = vi.fn(async () => {
+    throw cause;
+  });
+  const actions = createHostActivityActions({
+    client: () => sources.client(host.hostId)!,
+    items: () => [
+      {
+        id: 'request',
+        category: 'action',
+        kind,
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'request-message',
+        summary: '',
+        createdAt: '',
+      },
+    ],
+    refresh,
+    open: async () => {},
+    requestUnavailable: '操作失败，请刷新后重试',
+  });
+  const submit = () =>
+    kind === 'tool-approval'
+      ? actions.decideToolApproval('dm-ada', 'request-message', 'allowed-once')
+      : actions.answerUserQuestion('dm-ada', 'request-message', [{ id: 'q', selected: ['Blue'] }]);
+  if (phase === 'submit') {
+    await expect(submit()).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: { message: 'The Host could not be reached.' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  } else {
+    await expect(submit()).rejects.toBe(cause);
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(host.calls.filter((call) => call.method === method)).toHaveLength(1);
+  }
+});
+
+it.each(['tool-approval', 'user-question'] as const)(
+  'rejects a removed %s without reusing its cached mutation reference',
+  async (kind) => {
+    const { host, storage } = liveHost();
+    host.methods.set('toolApprovalStatus', () => ({ status: 'pending' }));
+    host.methods.set('userQuestionStatus', () => ({ status: 'pending' }));
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          {
+            id: 'request-message',
+            toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+            userQuestionRequest: { questions: [{ id: 'q', question: 'Choose' }] },
+          },
+        ],
+      },
+    }));
+    host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
+    host.methods.set('userQuestionAnswer', () => ({ accepted: true }));
+    const sources = createRemoteHosts({ storage, carrier: host.carrier });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    let items: HumanAttentionItem[] = [
+      {
+        id: 'request',
+        category: 'action',
+        kind,
+        botSlug: 'ada',
+        channelId: 'dm-ada',
+        messageId: 'request-message',
+        summary: '',
+        createdAt: '',
+      },
+    ];
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => items,
+      refresh,
+      open: async () => {},
+      requestUnavailable: '操作失败，请刷新后重试',
+    });
+    const status = () =>
+      kind === 'tool-approval'
+        ? actions.toolApprovalStatus('dm-ada', 'request-message')
+        : actions.userQuestionStatus('dm-ada', 'request-message');
+    expect(await status()).toBe('pending');
+    items = [];
+    const submit = () =>
+      kind === 'tool-approval'
+        ? actions.decideToolApproval('dm-ada', 'request-message', 'allowed-once')
+        : actions.answerUserQuestion('dm-ada', 'request-message', [
+            { id: 'q', selected: ['Blue'] },
+          ]);
+    await expect(submit()).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: { message: 'Activity request is unavailable' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(
+      host.calls.filter(
+        ({ method }) => method === 'toolApprovalDecide' || method === 'userQuestionAnswer',
+      ),
+    ).toEqual([]);
+    expect(await status()).toBe('pending');
+  },
+);
+
+it.each(
+  (
+    [
+      'toolApprovalStatus',
+      'toolApprovalState',
+      'toolApprovalExecutionState',
+      'userQuestionStatus',
+    ] as const
+  ).flatMap((method) =>
+    (['status', 'timeline'] as const).flatMap((read) =>
+      (['http', 'non-json', 'network'] as const).map((failure) => ({ method, read, failure })),
+    ),
+  ),
+)(
+  'localizes $method $read $failure while retaining its cause',
+  async ({ method, read, failure }) => {
+    const { host, storage } = liveHost();
+    const status = method === 'userQuestionStatus' ? 'userQuestionStatus' : 'toolApprovalStatus';
+    const endpoint = read === 'timeline' ? 'channelTimeline' : status;
+    host.methods.set(status, () => ({ status: 'pending' }));
+    host.methods.set('channelTimeline', () => ({
+      page: {
+        entries: [
+          {
+            id: 'request-message',
+            toolApprovalRequest: { toolName: 'bash', role: 'orchestrator', cwd: '', input: '{}' },
+            userQuestionRequest: { questions: [{ id: 'q', question: 'Choose' }] },
+          },
+        ],
+      },
+    }));
+    const sources = createRemoteHosts({
+      storage,
+      carrier: {
+        ...host.carrier,
+        async request(url, init) {
+          if (url.endsWith('/' + endpoint)) {
+            if (failure === 'network') throw new TypeError('Network request failed');
+            return {
+              status: failure === 'http' ? 502 : 200,
+              text: async () => '<html>Bad gateway</html>',
+            };
+          }
+          return host.carrier.request(url, init);
+        },
+      },
+    });
+    releases.push(sources.subscribe(() => {}));
+    await vi.waitFor(() => expect(sources.getSnapshot().hosts[0]?.inbox.status).toBe('ready'));
+    const refresh = vi.fn(async () => {});
+    const actions = createHostActivityActions({
+      client: () => sources.client(host.hostId)!,
+      items: () => [
+        {
+          id: 'request',
+          category: 'action',
+          kind: method === 'userQuestionStatus' ? 'user-question' : 'tool-approval',
+          botSlug: 'ada',
+          channelId: 'dm-ada',
+          messageId: 'request-message',
+          summary: '',
+          createdAt: '',
+        },
+      ],
+      refresh,
+      open: async () => {},
+      requestUnavailable: '操作失败，请刷新后重试',
+    });
+    const readRequest = actions[method];
+    assert(readRequest !== undefined);
+    await expect(readRequest('dm-ada', 'request-message')).rejects.toMatchObject({
+      message: '操作失败，请刷新后重试',
+      cause: {
+        message:
+          failure === 'http'
+            ? 'The Host answered 502.'
+            : failure === 'non-json'
+              ? 'The Host did not return a JSON response.'
+              : 'The Host could not be reached.',
+      },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+    expect(
+      host.calls.filter(
+        ({ method }) => method === 'toolApprovalDecide' || method === 'userQuestionAnswer',
+      ),
+    ).toEqual([]);
+  },
+);

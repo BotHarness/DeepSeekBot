@@ -13,7 +13,7 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import { Sheet } from './sheet';
 
 export function DeletionSheet({
@@ -29,6 +29,7 @@ export function DeletionSheet({
   onClose(): void;
   onDeleted(): void;
 }) {
+  const t = useStrings();
   const store = useMemo(
     () => deletionPreviewStore(client, target.kind === 'bot' ? target.id : undefined),
     [client, target.kind, target.id],

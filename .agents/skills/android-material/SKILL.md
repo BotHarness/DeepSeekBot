@@ -22,7 +22,7 @@ Material 3 (with its Expressive update) decides **which** control an Android sur
 | ------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------- |
 | run one of several commands from a ⋯ button or a long press   | **menu** (dropdown menu anchored to the trigger)                    | a dialog or panel of tonal buttons                    |
 | pick one value from a short set, shown in place               | **exposed dropdown menu** (or a menu with a checked item)           | a full-screen page for 3–7 options                    |
-| switch between 2–5 peer options, all visible                  | **segmented buttons** or **filter / choice chips**                  | a dropdown that hides them                            |
+| switch between 2–5 peer options, all visible                  | **button groups** or **filter / choice chips**                  | a dropdown that hides them                            |
 | choose from many options, or options that need explanation    | **modal bottom sheet** (radio list inside)                          | a menu                                                |
 | confirm a destructive or irreversible action                  | **dialog** (title, consequence, text-button Cancel and action)      | acting straight from the menu item                    |
 | move between top-level sections                               | **navigation bar** (phone), rail on wider windows                   | tabs that trigger actions                             |
@@ -30,7 +30,9 @@ Material 3 (with its Expressive update) decides **which** control an Android sur
 | one primary creation action on a screen                       | **FAB** (or extended FAB); several related ones → **FAB menu**      | more than one FAB                                     |
 | a short, non-blocking result                                  | **snackbar**                                                        | a dialog                                              |
 
-Our exception: the floating tab island with a separate **+** is app-owned on both platforms (ADR-0235). Keep it until a Human revisits that ADR; on Android it keeps the opaque surface `DESIGN.md` describes.
+The Human revisited ADR-0235: Android now uses native Compose NavigationBar/NavigationBarItem with vertically stacked native Icon/Label slots and a creation FAB above it. Activity keeps its label and changes its icon to the pending count. iOS retains its floating tab island. Follow `DESIGN.md` for the pinned Expo bridge adaptation.
+
+For inline peer choices, use Material 3 button groups instead of legacy segmented buttons. SDK 58 exposes `ToggleButton` and `Row`, but no connected button-group API: use a standard group with 12dp spacing, controlled single selection and the existing large-text radio-list fallback. Marketplace topic tags use borderless `FilterChip`s with inset/chosen fills for unselected/selected states. See [Material button groups](https://m3.material.io/components/button-groups/overview).
 
 ## System behaviour
 

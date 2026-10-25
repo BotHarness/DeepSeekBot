@@ -119,9 +119,41 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  publish:
+  qualify-commands:
     needs: prepare
     if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-release-${{ needs.prepare.outputs.version }}
+          path: .release-artifacts
+      - run: node scripts/e2e-tobs-commands.mjs .release-artifacts .release-artifacts/commands.json
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: commands-${{ matrix.os }}-${{ needs.prepare.outputs.version }}
+          path: .release-artifacts/commands.json
+
+  publish:
+    needs: [prepare, qualify-commands]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.qualify-commands.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     environment: npm-release

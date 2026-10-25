@@ -1,9 +1,7 @@
 import {
   Box,
   Column,
-  HorizontalDivider,
   Host,
-  ListItem,
   ModalBottomSheet,
   RNHostView,
   Row,
@@ -12,7 +10,6 @@ import {
 import {
   Shapes,
   background,
-  clickable,
   clip,
   defaultMinSize,
   horizontalScroll,
@@ -21,14 +18,14 @@ import {
   semantics,
   toggleable,
 } from '@expo/ui/jetpack-compose/modifiers';
-import { Fragment } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { MENU_REACTIONS, reactedByMe } from '../../host/conversation';
-import { space } from '../design/tokens';
+import { materialMenu, space } from '../design/tokens';
+import { MaterialMenuGroup } from '../primitives/material-menu.android';
 import { useDesignTheme } from '../design/theme';
 import { RowIcon } from '../primitives/row-icon';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 import {
   menuGroups,
   menuLabel,
@@ -57,6 +54,7 @@ export function MessageActions({
   onCopy,
   onShareText,
 }: MessageActionsProps) {
+  const t = useStrings();
   const theme = useDesignTheme();
   if (target === undefined) return null;
   const { message } = target;
@@ -121,35 +119,35 @@ export function MessageActions({
               <MessageSheetText body={message.body} />
             </RNHostView>
           )}
-          {groups.map((group, index) => (
-            <Fragment key={group.map((action) => action.key).join()}>
-              {index === 0 && !reactions ? null : <HorizontalDivider />}
-              {group.map((action) => (
-                <ListItem
-                  key={action.key}
-                  modifiers={[
-                    clickable(() => {
-                      runAction(action, message, {
-                        onCopy,
-                        onShareText,
-                        onOpen: () => target.activity?.onOpen?.(),
-                      });
-                      onClose();
-                    }),
-                  ]}
-                >
-                  <ListItem.LeadingContent>
-                    <RNHostView matchContents>
-                      <RowIcon name={action.key} size={theme.type.title.line * theme.fontScale} />
-                    </RNHostView>
-                  </ListItem.LeadingContent>
-                  <ListItem.HeadlineContent>
-                    <Text>{action.label}</Text>
-                  </ListItem.HeadlineContent>
-                </ListItem>
-              ))}
-            </Fragment>
-          ))}
+          <Column
+            verticalArrangement={{ spacedBy: materialMenu.groupGap }}
+            modifiers={[padding(space.x5, 0, space.x5, space.x5)]}
+          >
+            {groups.map((group) => (
+              <MaterialMenuGroup
+                key={group.map((action) => action.key).join()}
+                items={group.map((action) => ({
+                  key: action.key,
+                  label: action.label,
+                  icon: (
+                    <RowIcon
+                      name={action.key}
+                      color={theme.color.muted}
+                      size={materialMenu.iconSize}
+                    />
+                  ),
+                  onPress: () => {
+                    runAction(action, message, {
+                      onCopy,
+                      onShareText,
+                      onOpen: () => target.activity?.onOpen?.(),
+                    });
+                    onClose();
+                  },
+                }))}
+              />
+            ))}
+          </Column>
         </Column>
       </ModalBottomSheet>
     </Host>

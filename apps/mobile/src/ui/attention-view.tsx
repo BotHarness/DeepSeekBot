@@ -1,18 +1,18 @@
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
 import type { HumanAssignmentContext, HumanAttentionItem } from '../host/wire';
 import { ActionCard, CardButtons, CardLine, CardNote, DetailRow } from './chat/action-card';
 import { useDesignTheme } from './design/theme';
 import { radius, space } from './design/tokens';
-import { haptic } from './haptics';
+import { haptic, type HapticMoment } from './haptics';
 import { useMounted } from './mounted';
 import { Button } from './primitives/button';
 import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { Text } from './primitives/text';
 import { TextField } from './primitives/text-field';
 import { errorText } from './request-parts';
-import { t } from './strings';
+import { useStrings } from './strings';
 
 function Page({ children }: { children: ReactNode }) {
   const theme = useDesignTheme();
@@ -47,30 +47,54 @@ function Well({ children }: { children: string }) {
   );
 }
 
-function useAction(after?: () => void) {
+function useAction(after: (() => void) | undefined, port: object, requestId: string) {
+  const t = useStrings();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [done, setDone] = useState<string>();
-  const pending = useRef(false);
-  const run = async (key: string, work: () => Promise<string>) => {
-    if (pending.current) return;
-    pending.current = true;
+  const current = useRef({ port, requestId, pending: false, active: true, finished: false });
+  if (current.current.port !== port || current.current.requestId !== requestId)
+    current.current = { port, requestId, pending: false, active: true, finished: false };
+  const submission = current.current;
+  useLayoutEffect(() => {
+    submission.active = true;
+    setBusy(undefined);
+    setError(undefined);
+    setDone(undefined);
+    return () => {
+      submission.active = false;
+    };
+  }, [submission]);
+  const isCurrent = () => submission.active && current.current === submission;
+  const run = async (
+    key: string,
+    work: (isCurrent: () => boolean) => Promise<string>,
+    moment: HapticMoment,
+  ) => {
+    if (submission.pending || submission.finished || !isCurrent()) return;
+    submission.pending = true;
     setBusy(key);
     setError(undefined);
     try {
-      setDone(await work());
+      const text = await work(isCurrent);
+      if (!isCurrent()) return;
+      submission.finished = true;
+      haptic(moment);
+      setDone(text);
       after?.();
     } catch (cause) {
+      if (!isCurrent()) return;
       setError(`${t.actionFailed} ${errorText(cause)}`);
     } finally {
-      pending.current = false;
-      setBusy(undefined);
+      submission.pending = false;
+      if (isCurrent()) setBusy(undefined);
     }
   };
   return { busy, error, done, run };
 }
 
 function Done({ category, text }: { category: string; text: string }) {
+  const t = useStrings();
   return (
     <Page>
       <CardLine text={t.cardLine(category, text)} tone="success" />
@@ -93,7 +117,8 @@ export function AutoRejectionView({
   port: AutoRejectionPort;
   after?(): void;
 }) {
-  const { busy, error, done, run } = useAction(after);
+  const t = useStrings();
+  const { busy, error, done, run } = useAction(after, port, item.id);
   const category = t.kind['auto-rejection']!;
   if (done !== undefined) return <Done category={category} text={done} />;
   const detail = item.autoRejection;
@@ -125,11 +150,14 @@ export function AutoRejectionView({
             tone="primary"
             busy={busy === 'allow'}
             onPress={() =>
-              void run('allow', async () => {
-                await port.allowOnce();
-                haptic('approve');
-                return t.autoRejectionAllowed;
-              })
+              void run(
+                'allow',
+                async () => {
+                  await port.allowOnce();
+                  return t.autoRejectionAllowed;
+                },
+                'approve',
+              )
             }
           />
         </CardButtons>
@@ -155,7 +183,8 @@ export function RepairView({
   after?(): void;
   onOpenChat?(): void;
 }) {
-  const { busy, error, done, run } = useAction(after);
+  const t = useStrings();
+  const { busy, error, done, run } = useAction(after, port, item.id);
   const category = t.kind['bot-message-needs-repair']!;
   if (done !== undefined) return <Done category={category} text={done} />;
   return (
@@ -184,11 +213,14 @@ export function RepairView({
             testID="repair-clear"
             busy={busy === 'clear'}
             onPress={() =>
-              void run('clear', async () => {
-                await port.clear();
-                haptic('submit');
-                return t.repairCleared;
-              })
+              void run(
+                'clear',
+                async () => {
+                  await port.clear();
+                  return t.repairCleared;
+                },
+                'submit',
+              )
             }
           />
         </CardButtons>
@@ -212,15 +244,19 @@ export function JoinRequestView({
   port: JoinRequestPort;
   after?(): void;
 }) {
-  const { busy, error, done, run } = useAction(after);
+  const t = useStrings();
+  const { busy, error, done, run } = useAction(after, port, item.id);
   const category = t.kind['group-join-request']!;
   if (done !== undefined) return <Done category={category} text={done} />;
   const decide = (accept: boolean) =>
-    void run(accept ? 'accept' : 'decline', async () => {
-      await port.decide(accept);
-      haptic(accept ? 'approve' : 'deny');
-      return accept ? t.joinAccepted : t.joinDeclined;
-    });
+    void run(
+      accept ? 'accept' : 'decline',
+      async () => {
+        await port.decide(accept);
+        return accept ? t.joinAccepted : t.joinDeclined;
+      },
+      accept ? 'approve' : 'deny',
+    );
   return (
     <Page>
       <ActionCard
@@ -274,10 +310,11 @@ export function AssignmentView({
   port: AssignmentPort;
   after?(): void;
 }) {
+  const t = useStrings();
   const [phase, setPhase] = useState<AssignmentPhase>({ kind: 'loading' });
   const [draft, setDraft] = useState('');
   const [sent, setSent] = useState<{ body: string }>();
-  const { busy, error, run } = useAction(after);
+  const { busy, error, run } = useAction(after, port, item.id);
 
   const load = useCallback(async () => {
     setPhase({ kind: 'loading' });
@@ -317,13 +354,17 @@ export function AssignmentView({
   const reply = sent ?? context.reply;
   const target = context.reports.find((report) => report.sourceEventId === context.sourceEventId);
   const send = () =>
-    void run('send', async () => {
-      const value = await port.reply(draft);
-      setSent(value);
-      setDraft('');
-      haptic('approve');
-      return t.assignmentSent;
-    });
+    void run(
+      'send',
+      async (isCurrent) => {
+        const value = await port.reply(draft);
+        if (!isCurrent()) return t.assignmentSent;
+        setSent(value);
+        setDraft('');
+        return t.assignmentSent;
+      },
+      'approve',
+    );
   return (
     <View ref={mount} style={{ flex: 1 }}>
       <Page>

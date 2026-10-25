@@ -159,6 +159,62 @@ describe('canonical keyed Bot creation', () => {
     expect(f.core.registry.list()).toHaveLength(1);
   });
 
+  it('looks up the original Bot and DM after a lost bridge response and Host restart', async () => {
+    const f = fixture();
+    const bridge = createBridgeMethods({ ...f.core, creations: f.owner });
+    const request = { ...input, operationKey: key };
+    expect(bridge.createLookup(request)).toEqual({ ok: true, value: { receipt: null } });
+    expect(f.core.registry.list()).toHaveLength(0);
+    expect(f.core.channels.list()).toHaveLength(0);
+    const result = bridge.create(request);
+    if (!result.ok) throw new Error(result.error.message);
+    await f.close();
+    const restarted = fixture(f.home);
+    const recovered = createBridgeMethods({ ...restarted.core, creations: restarted.owner });
+    const beforeLookup =
+      restarted.core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
+    expect(recovered.createLookup(request)).toEqual({
+      ok: true,
+      value: { receipt: result.value.receipt },
+    });
+    expect(restarted.core.operationalDatabase.diagnostics().metrics.transactionsCommitted).toBe(
+      beforeLookup,
+    );
+    expect(recovered.create(request)).toEqual(result);
+    expect(restarted.core.registry.list()).toHaveLength(1);
+    expect(restarted.core.channels.list()).toHaveLength(1);
+    expect(recovered.createLookup({ ...request, description: 'Another Bio' })).toMatchObject({
+      ok: false,
+      error: { code: 'creation-key-conflict' },
+    });
+    expect(recovered.createLookup({ ...request, roles: ['different'] })).toMatchObject({
+      ok: false,
+      error: { code: 'creation-key-conflict' },
+    });
+  });
+
+  it('refuses invalid lookup inputs and unavailable creation without reserving an identity', () => {
+    const f = fixture();
+    const bridge = createBridgeMethods({ ...f.core, creations: f.owner });
+    for (const patch of [{ operationKey: undefined }, { operationKey: 5 }, { roles: 5 }])
+      expect(bridge.createLookup({ ...input, operationKey: key, ...patch })).toMatchObject({
+        ok: false,
+        error: { code: 'invalid-input' },
+      });
+    expect(bridge.createLookup({ ...input, operationKey: 'bad' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-operation-key' },
+    });
+    const { creations: _creations, ...withoutCreation } = f.core;
+    const unavailable = createBridgeMethods(withoutCreation);
+    expect(unavailable.createLookup({ ...input, operationKey: key })).toMatchObject({
+      ok: false,
+      error: { code: 'creation-unavailable' },
+    });
+    expect(f.core.registry.list()).toHaveLength(0);
+    expect(f.core.channels.list()).toHaveLength(0);
+  });
+
   it('rejects custom Memory paths for keyed creation before reserving any identity', () => {
     const f = fixture();
     expect(() => f.owner.create({ ...input, memoryLocation: f.home }, key)).toThrow(

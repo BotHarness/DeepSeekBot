@@ -12,9 +12,10 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export function CloudCreateChannelScreen() {
+  const t = useStrings();
   const params = useLocalSearchParams<{
     instanceId: string;
     organizationId: string;
@@ -37,6 +38,7 @@ function CreateChannelForm({
   organizationId: string;
   accountScope: string;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const snapshot = useCloudSnapshot();
   const row = snapshot.rows.find((r) => r.config.instanceId === instanceId);

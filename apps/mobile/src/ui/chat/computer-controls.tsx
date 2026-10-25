@@ -21,7 +21,7 @@ import {
   MouseButtonIcon,
   MouseIcon,
 } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 
 export type ComputerTool = 'mouse' | 'keyboard' | 'control';
 
@@ -38,6 +38,7 @@ export function ComputerMousePad({
   onClick(button: 'left' | 'right'): void;
   onWheel(dragY: number): void;
 }) {
+  const t = useStrings();
   const { theme, colors } = useRound();
   const big = theme.touch * 1.5;
   const travel = big;
@@ -130,14 +131,14 @@ export function ComputerMousePad({
   );
 }
 
-const MODIFIERS: readonly (readonly [ComputerModifier, string, string])[] = [
+const modifierLabels = (): readonly (readonly [ComputerModifier, string, string])[] => [
   ['meta', '⌘', t.computerKeyCommand],
   ['ctrl', '⌃', t.computerKeyControl],
   ['alt', '⌥', t.computerKeyOption],
   ['shift', '⇧', t.computerKeyShift],
 ];
 
-const KEYS: readonly (readonly [string, string, string])[] = [
+const keyLabels = (): readonly (readonly [string, string, string])[] => [
   [COMPUTER_KEYS.enter, '↵', t.computerKeyReturn],
   [COMPUTER_KEYS.tab, '⇥', t.computerKeyTab],
   [COMPUTER_KEYS.escape, '⎋', t.computerKeyEscape],
@@ -158,6 +159,7 @@ export function ComputerKeyBar({
   onSecret(): void;
   onHide(): void;
 }) {
+  const t = useStrings();
   const { theme, colors } = useRound();
   const key =
     (selected: boolean) =>
@@ -179,7 +181,7 @@ export function ComputerKeyBar({
         contentContainerStyle={{ gap: space.x3 }}
         style={{ flex: 1 }}
       >
-        {MODIFIERS.map(([name, glyph, label]) => {
+        {modifierLabels().map(([name, glyph, label]) => {
           const on = modifiers.includes(name);
           return (
             <Pressable
@@ -196,7 +198,7 @@ export function ComputerKeyBar({
             </Pressable>
           );
         })}
-        {KEYS.map(([name, glyph, label]) => (
+        {keyLabels().map(([name, glyph, label]) => (
           <Pressable
             key={name}
             accessibilityRole="button"
@@ -236,6 +238,7 @@ export function ComputerDock({
   tool: ComputerTool;
   onTool(tool: ComputerTool): void;
 }) {
+  const t = useStrings();
   const { theme } = useRound();
   const items = [
     ['mouse', t.computerMouse, MouseIcon],

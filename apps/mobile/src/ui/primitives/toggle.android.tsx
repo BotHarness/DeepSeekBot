@@ -6,8 +6,8 @@ import { useDesignTheme } from '../design/theme';
 import type { ToggleProps } from './toggle';
 
 export function Toggle({
-  label,
   testID,
+  label,
   value,
   disabled = false,
   on = 'sheet',
@@ -16,9 +16,9 @@ export function Toggle({
   const theme = useDesignTheme();
   return (
     <View
+      testID={testID}
       accessible
       accessibilityRole="switch"
-      testID={testID}
       accessibilityLabel={label}
       accessibilityState={{ checked: value, disabled }}
       accessibilityActions={disabled ? [] : [{ name: 'activate' }]}

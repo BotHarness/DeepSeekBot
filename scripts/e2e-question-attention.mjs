@@ -117,7 +117,7 @@ async function requestQuestion(scene) {
   await rpc('channelSend', {
     channelId: scene.channelId,
     messageId: `human-${crypto.randomUUID()}`,
-    body: 'Use native ask_user_question exactly once. Question id release-route: "Which release channel should I use?" Options Canary and Stable. Wait for the actual Human answer, then use channel_send to report it in this DM beginning ANSWER_QA:. Do not create Assignments or ask again.',
+    body: 'Use native ask_user_question exactly once. Question id release-route: "Which release channel should I use?" Options Canary and Stable. Wait for the actual Human answer, then use bot_send_message to report it in this DM beginning ANSWER_QA:. Do not create Assignments or ask again.',
   });
   const request = await waitFor(
     async () =>
@@ -158,7 +158,7 @@ async function prepare() {
     await rpc('create', {
       displayName: `Question attention Human QA ${Date.now()}`,
       persona:
-        'Follow the Human precisely. Use the native ask_user_question Tool when requested and await the Human answer. Report the actual returned answer through channel_send in your DM. Do not ask again or create Assignments.',
+        'Follow the Human precisely. Use the native ask_user_question Tool when requested and await the Human answer. Report the actual returned answer through bot_send_message in your DM. Do not ask again or create Assignments.',
     })
   ).bot;
   const channelId = (await rpc('channelDm', { slug: bot.slug })).channel.id;

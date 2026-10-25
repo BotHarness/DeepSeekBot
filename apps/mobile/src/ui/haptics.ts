@@ -1,13 +1,25 @@
-import * as Haptics from 'expo-haptics';
+import { playHaptic } from './haptic-effect';
 
-export type HapticMoment = 'send' | 'approve' | 'deny' | 'submit' | 'menu' | 'pull' | 'react';
+export type HapticMoment =
+  | 'send'
+  | 'approve'
+  | 'deny'
+  | 'submit'
+  | 'menu'
+  | 'pull'
+  | 'react'
+  | 'reply'
+  | 'selection';
+
+let enabled = true;
+
+export function setHapticsEnabled(value: boolean): void {
+  enabled = value;
+}
 
 export function haptic(moment: HapticMoment): void {
-  const done =
-    moment === 'approve'
-      ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-      : moment === 'deny'
-        ? Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
-        : Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  void done.catch(() => undefined);
+  if (!enabled) return;
+  try {
+    void playHaptic(moment).catch(() => undefined);
+  } catch {}
 }

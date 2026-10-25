@@ -6,11 +6,12 @@ import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { t } from '../strings';
+import { useStrings } from '../strings';
 
 export const DIFF_LINES = 40;
 
 export function FileDiff({ change }: { change: ApprovalFileChange }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [all, setAll] = useState(false);
   const shown = all ? change.lines : change.lines.slice(0, DIFF_LINES);

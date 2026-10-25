@@ -8,6 +8,10 @@ import {
   type ConnectionReason,
   type ActivationStep,
   type ChannelKind,
+  type BotOperationKind,
+  type BotOperationPhase,
+  type BotOperationOutcome,
+  type BotOperationReason,
   type EventProperties,
   type PairingMethod,
   type PairingOutcome,
@@ -297,6 +301,33 @@ export function createMobileTelemetry(options: TelemetryOptions) {
       };
     },
     isActive: () => active,
+    botOperation(kind: BotOperationKind, phase: BotOperationPhase) {
+      const current = generation;
+      const fromSession = session;
+      const start = options.monotonic();
+      const attempt_id = options.uuid();
+      const allowed =
+        active && capture('mobile_bot_operation_started', { kind, phase, attempt_id });
+      let finished = false;
+      return {
+        finish(outcome: BotOperationOutcome, reason: BotOperationReason = 'none') {
+          if (finished || !allowed || current !== generation || disposed) return;
+          finished = true;
+          capture(
+            'mobile_bot_operation_result',
+            {
+              kind,
+              phase,
+              attempt_id,
+              outcome,
+              reason,
+              duration_bucket: durationBucket(options.monotonic() - start),
+            },
+            fromSession,
+          );
+        },
+      };
+    },
     onBackground(listener: () => void) {
       backgroundListeners.add(listener);
       return () => {

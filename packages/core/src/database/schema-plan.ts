@@ -2466,6 +2466,21 @@ const PUSH_APP_RENDER_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEVICE_NOTIFICATION_PREFERENCE_MIGRATION: SchemaMigration = {
+  generation: 106,
+  module: 'push',
+  description: 'Keep the device-owned notification preference copy without a push token',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE device_notification_preferences (
+        device_id TEXT PRIMARY KEY,
+        preferences_json TEXT NOT NULL
+      );
+      INSERT INTO device_notification_preferences SELECT device_id, preferences_json FROM push_devices;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2571,4 +2586,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   USAGE_IDLE_COMPACTION_MIGRATION,
   THREE_ACTION_APPROVAL_MIGRATION,
   PUSH_APP_RENDER_MIGRATION,
+  DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
 ]);

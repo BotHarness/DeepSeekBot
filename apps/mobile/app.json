@@ -2,7 +2,7 @@
   "expo": {
     "name": "DeepSeekBot Dev",
     "slug": "deepseekbot",
-    "scheme": ["deepseekbot-dev", "deepseekbot", "ai.botharness.deepseekbot.dev"],
+    "scheme": ["deepseekbot-dev", "ai.botharness.deepseekbot.dev"],
     "version": "0.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
@@ -19,6 +19,7 @@
         "tinted": "./assets/app-icons/deepseekbot-tinted.png"
       },
       "infoPlist": {
+        "NSLocalNetworkUsageDescription": "DeepSeekBot connects to your computer on this network using an encrypted connection.",
         "CFBundleDevelopmentRegion": "en",
         "CFBundleLocalizations": ["en", "zh-Hans"]
       }
@@ -31,7 +32,22 @@
       }
     },
     "plugins": [
+      ["expo-localization", { "supportedLocales": ["en", "zh-Hans"], "supportsRTL": false }],
+      "./with-lan-channel",
       "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app-icons/deepseekbot-light.png",
+          "imageWidth": 128,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFFFFF",
+          "dark": {
+            "image": "./assets/app-icons/deepseekbot-dark.png",
+            "backgroundColor": "#242424"
+          }
+        }
+      ],
       "expo-secure-store",
       "expo-notifications",
       "@bacons/apple-targets",
@@ -81,6 +97,8 @@
       "expo-web-browser"
     ],
     "web": {
+      "name": "Tobs",
+      "shortName": "Tobs",
       "output": "single"
     },
     "experiments": {

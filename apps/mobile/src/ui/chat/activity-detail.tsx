@@ -23,7 +23,7 @@ import { DayHeat } from '../primitives/day-heat';
 import { Segmented } from '../primitives/segmented';
 import { Text } from '../primitives/text';
 import { ChevronLeftIcon, ChevronRightIcon } from '../shell/icons';
-import { t } from '../strings';
+import { useStrings, t } from '../strings';
 import { tokenTotalText } from './activity-glance';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 
@@ -111,6 +111,7 @@ function nullableCount(value: number | null): string {
 }
 
 function ModelRow({ model, last }: { model: ModelUsage; last: boolean }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   return (
     <View
@@ -142,6 +143,7 @@ function ModelRow({ model, last }: { model: ModelUsage; last: boolean }) {
 }
 
 function TokenCard({ detail, range }: { detail: ActivityDetail; range: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const tones = seriesTones(theme, 3, theme.layer.raised.fill);
   const total = tokenTotalText(detail.total, false);
@@ -217,6 +219,7 @@ function TokenCard({ detail, range }: { detail: ActivityDetail; range: string })
 }
 
 function EventsCard({ detail, range }: { detail: ActivityDetail; range: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const total = t.activityCount(detail.events);
   return (
@@ -264,6 +267,7 @@ function EventsCard({ detail, range }: { detail: ActivityDetail; range: string }
 }
 
 function MemoryCard({ detail, range }: { detail: ActivityDetail; range: string }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const total = t.activityCount(detail.commits);
   return (
@@ -325,6 +329,7 @@ function Detail({
   activity: ProfileActivity;
   onQuery(query: ActivityQuery): void;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const detail = activityDetail(activity);
   const range = t.activityRange(dayLabel(detail.first), dayLabel(detail.last));
@@ -364,6 +369,7 @@ export function ActivityDetailView({
   bot: RosterBot;
   load: (query: ActivityQuery) => Promise<ProfileActivity>;
 }) {
+  const t = useStrings();
   const theme = useDesignTheme();
   const [query, setQuery] = useState<ActivityQuery>({
     weeks: ACTIVITY_WINDOWS[0],

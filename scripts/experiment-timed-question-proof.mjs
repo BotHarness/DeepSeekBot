@@ -158,10 +158,10 @@ export function checkTimedQuestion(proof) {
     const send = after.events.find(
       (event) =>
         event.type === 'tool/call' &&
-        event.data.name === 'channel_send' &&
+        ['bot_send_message', 'channel_send'].includes(event.data.name) &&
         JSON.parse(event.data.arguments).body === body,
     );
-    assert.ok(send, 'actual native channel_send: ' + body);
+    assert.ok(send, 'actual native bot_send_message: ' + body);
     const model = after.events.find(
       (event) =>
         event.type === 'assistant/message' &&
@@ -260,7 +260,7 @@ export function checkTimedQuestion(proof) {
     after.events.some(
       (event) =>
         event.type === 'tool/call' &&
-        !['channel_send', 'ask_user_question'].includes(event.data.name),
+        !['bot_send_message', 'channel_send', 'ask_user_question'].includes(event.data.name),
     ),
     false,
     'only the declared synthetic tools executed',

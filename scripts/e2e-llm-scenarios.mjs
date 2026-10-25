@@ -79,7 +79,7 @@ const REPORT_RULE = '大家都只在被 @ 时才会被唤醒，所以完成后�
 export const SCENARIOS = [
   {
     id: 'dm-reply',
-    summary: 'A Human DM gets a committed reply through channel_send.',
+    summary: 'A Human DM gets a committed reply through bot_send_message.',
     areas: RUNTIME_AREAS,
     bots: ['aura'],
     async run(ctx) {

@@ -27,10 +27,15 @@ export function ToolApprovalCard({
   companionTarget,
   channelId: sourceChannelId,
   surface = 'chat',
+  hostScoped = false,
 }: {
   surface?: 'chat' | 'activity';
   message: ChannelMessage;
-  actions: BridgeActions;
+  actions: Pick<
+    BridgeActions,
+    'toolApprovalStatus' | 'toolApprovalState' | 'toolApprovalExecutionState' | 'decideToolApproval'
+  >;
+  hostScoped?: boolean;
   channelId?: string | undefined;
   decision?:
     | 'allowed-once'
@@ -195,6 +200,7 @@ export function ToolApprovalCard({
     setError(undefined);
     const channelId = cardChannelId;
     if (
+      !hostScoped &&
       !companionTarget &&
       surface !== 'activity' &&
       store.getSnapshot().selection?.kind !== 'inbox' &&
