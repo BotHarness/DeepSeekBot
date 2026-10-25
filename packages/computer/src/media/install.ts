@@ -1,12 +1,19 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { createReadStream as nodeCreateReadStream } from 'node:fs';
+import * as nodePromises from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { homedir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 
 import { LocalVideoError } from '../local-video-contract.js';
 import type { ComputerProgress, ComputerRuntimeRunner } from '../provider.js';
+
+const physicalFs: typeof import('node:fs') | undefined = process.versions.electron
+  ? createRequire(import.meta.url)('original-fs')
+  : undefined;
+const createReadStream = physicalFs?.createReadStream ?? nodeCreateReadStream;
+const { lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, writeFile } =
+  physicalFs?.promises ?? nodePromises;
 
 export const LOCAL_VIDEO_ELECTRON_VERSION = '44.9.3';
 export const LOCAL_VIDEO_ARCHIVE_SHA256 =
@@ -156,10 +163,14 @@ export async function ensureLocalVideoHelper(options: {
   options.onEvent?.(
     `phase=media-install version=${LOCAL_VIDEO_ELECTRON_VERSION} archiveBytes=${LOCAL_VIDEO_ARCHIVE_BYTES}`,
   );
-  await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
-  const staging = await mkdtemp(join(dirname(directory), '.video-install-'));
+  let stage = 'prepare';
+  let staging: string | undefined;
   let invalid: string | undefined;
+  let installed = false;
   try {
+    await mkdir(dirname(directory), { recursive: true, mode: 0o700 });
+    staging = await mkdtemp(join(dirname(directory), '.video-install-'));
+    stage = 'download';
     const response = await fetch(LOCAL_VIDEO_ARCHIVE_URL, {
       signal: AbortSignal.any([
         AbortSignal.timeout(120_000),
@@ -169,7 +180,6 @@ export async function ensureLocalVideoHelper(options: {
     if (!response.ok || !response.body) throw new Error('Runtime download failed');
     const archive = join(staging, 'runtime.zip');
     const hash = createHash('sha256');
-    const { open } = await import('node:fs/promises');
     const file = await open(archive, 'wx', 0o600);
     let downloadedBytes = 0;
     let reported = -1;
@@ -197,9 +207,16 @@ export async function ensureLocalVideoHelper(options: {
     } finally {
       await file.close();
     }
-    if (hash.digest('hex') !== LOCAL_VIDEO_ARCHIVE_SHA256)
+    stage = 'verify';
+    options.onProgress?.({ text: 'video-verifying' });
+    if (
+      downloadedBytes !== LOCAL_VIDEO_ARCHIVE_BYTES ||
+      hash.digest('hex') !== LOCAL_VIDEO_ARCHIVE_SHA256
+    )
       throw new Error('Runtime checksum mismatch');
     options.signal?.throwIfAborted();
+    stage = 'extract';
+    options.onProgress?.({ text: 'video-extracting' });
     const extracted = join(staging, 'runtime');
     await mkdir(extracted, { mode: 0o700 });
     const result = await options.runner.run(['tar', '-xf', archive, '-C', extracted], {
@@ -209,6 +226,8 @@ export async function ensureLocalVideoHelper(options: {
     });
     if (result.code !== 0) throw new Error('Runtime extraction failed');
     options.signal?.throwIfAborted();
+    stage = 'install';
+    options.onProgress?.({ text: 'video-installing' });
     const launcherSourceSha256 = await hashFile(join(assets, 'launcher.cs'));
 
     const compiler = join(
@@ -238,6 +257,8 @@ export async function ensureLocalVideoHelper(options: {
     if (compilation.code !== 0) throw new Error('Job launcher compilation failed');
     if (launcherSourceSha256 !== (await hashFile(join(assets, 'launcher.cs'))))
       throw new Error('Launcher source changed during compilation');
+    stage = 'verify';
+    options.onProgress?.({ text: 'video-verifying' });
     const files: Record<string, string> = {};
     for (const name of await filesIn(extracted)) {
       options.signal?.throwIfAborted();
@@ -256,23 +277,68 @@ export async function ensureLocalVideoHelper(options: {
     if (!(await verifyLocalVideoHelper(extracted, assets)))
       throw new Error('Runtime verification failed');
     options.signal?.throwIfAborted();
+    stage = 'install';
+    options.onProgress?.({ text: 'video-installing' });
     try {
       await lstat(directory);
-      invalid = `${directory}.invalid-${randomUUID()}`;
-      await rename(directory, invalid);
+      const previous = `${directory}.invalid-${randomUUID()}`;
+      await rename(directory, previous);
+      invalid = previous;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if (!(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT'))
+        throw error;
     }
     await rename(extracted, directory);
+    installed = true;
     options.onEvent?.(`phase=media-installed durationMs=${Date.now() - started}`);
-  } catch {
-    options.onEvent?.(`phase=media-install-refused durationMs=${Date.now() - started}`);
-    throw new LocalVideoError(
-      'helper-missing',
-      'Local Computer video setup failed. Check the connection and start Local Computer again.',
+  } catch (error) {
+    const errno = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+    const reason = options.signal?.aborted
+      ? 'cancelled'
+      : ['ENOSPC', 'EACCES', 'EPERM', 'ENOENT'].includes(errno)
+        ? errno
+        : stage + '-failed';
+    options.onEvent?.(
+      `phase=media-install-refused platform=win32 stage=${stage} code=${reason} durationMs=${Date.now() - started}`,
+    );
+    options.signal?.throwIfAborted();
+    throw Object.assign(
+      new LocalVideoError(
+        'helper-missing',
+        'Local Computer video setup failed. Check the connection, disk space and folder permissions, then start Local Computer again.',
+      ),
+      {
+        setupCode:
+          reason === 'ENOSPC'
+            ? 'disk-full'
+            : reason === 'EACCES' || reason === 'EPERM'
+              ? 'runtime-write-refused'
+              : stage === 'download'
+                ? 'download-failed'
+                : stage === 'verify'
+                  ? 'verification-failed'
+                  : 'installation-failed',
+      },
     );
   } finally {
-    await rm(staging, { recursive: true, force: true });
-    if (invalid) await rm(invalid, { recursive: true, force: true });
+    const cleanup = async (path: string, target: 'staging' | 'previous'): Promise<void> => {
+      try {
+        await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      } catch (error) {
+        const code =
+          error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+        const reason = ['ENOTEMPTY', 'EBUSY', 'EPERM', 'EACCES', 'EMFILE', 'ENFILE'].includes(code)
+          ? code
+          : 'cleanup-failed';
+        options.onEvent?.(
+          `phase=media-cleanup-refused platform=win32 target=${target} code=${reason}`,
+        );
+      }
+    };
+    if (staging) await cleanup(staging, 'staging');
+    if (invalid) {
+      if (installed) await cleanup(invalid, 'previous');
+      else await rename(invalid, directory);
+    }
   }
 }

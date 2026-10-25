@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { join } from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -320,8 +321,8 @@ describe('Mac video supervisor', () => {
       expect(mocks.spawn).toHaveBeenCalledWith(
         process.execPath,
         expect.arrayContaining([
-          'assets/launcher-macos.cjs',
-          'mac-runtime/Electron.app/Contents/MacOS/Electron',
+          join('assets', 'launcher-macos.cjs'),
+          join('mac-runtime', 'Electron.app/Contents/MacOS/Electron'),
         ]),
         expect.objectContaining({ env: expect.objectContaining({ ELECTRON_RUN_AS_NODE: '1' }) }),
       );
