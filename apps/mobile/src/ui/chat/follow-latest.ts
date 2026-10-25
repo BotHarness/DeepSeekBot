@@ -105,8 +105,6 @@ export function useFollowLatest<Row>(
   const measureEvent = useCallback((event: ScrollEvent): number => {
     const native = event.nativeEvent;
     metrics.current = {
-      // During entry, layout callbacks own the current extent. A queued native
-      // scroll event may still describe the previous content size.
       content:
         !settled.current && metrics.current.content > 0
           ? metrics.current.content
@@ -131,7 +129,6 @@ export function useFollowLatest<Row>(
   const hold = useCallback(() => {
     if (!followingNow.current) return;
     followingNow.current = false;
-    // A deliberate history gesture or message-focus jump owns placement from here.
     settled.current = true;
     setReady(true);
     setCanRetry(false);
@@ -156,8 +153,6 @@ export function useFollowLatest<Row>(
         if (settled.current || version !== sizes.current || !hasRows.current) return;
         attempts.current += 1;
         const target = latestOffset(metrics.current, startInset.current);
-        // Fitting content has no offscreen history to reveal. Automatic native
-        // insets can already be in place without emitting a no-op scroll event.
         const fits =
           metrics.current.content + startInset.current <= metrics.current.layout + 1 &&
           metrics.current.offset >= target &&
@@ -169,7 +164,6 @@ export function useFollowLatest<Row>(
           setCanRetry(false);
           setReady(true);
         } else if (attempts.current >= SETTLE_FRAMES) {
-          // Offer recovery instead of treating a scroll command as native confirmation.
           setCanRetry(true);
         } else check(positioned ? stable + 1 : 0);
       });

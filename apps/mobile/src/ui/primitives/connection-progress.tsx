@@ -14,7 +14,6 @@ export function useConnectionProgress(
   return undefined;
 }
 
-/** The identity keeps its footprint; its accessible parent names connection progress. */
 export function ConnectionProgress({ active, children }: { active: boolean; children: ReactNode }) {
   const theme = useDesignTheme();
   return (

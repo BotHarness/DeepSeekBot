@@ -136,7 +136,6 @@ export interface ConversationMessage {
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
   delivery: DeliveryState;
-  /** Device-local start of the current send attempt; never the message timestamp. */
   attemptStartedAt?: number;
   error?: string;
   welcome?: true;

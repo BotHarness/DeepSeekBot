@@ -1029,6 +1029,7 @@ function ChatConversation({
               </Pressable>
             ) : host.connection.status === 'unreachable' ? (
               <Pressable
+                testID="chat-connection-retry"
                 accessibilityRole="button"
                 onPress={() => client?.retryNow()}
                 hitSlop={space.x3}

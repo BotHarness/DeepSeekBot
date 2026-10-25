@@ -414,7 +414,6 @@ const HomeContent = memo(function HomeContent({
         }
       }
     };
-    // Session mutations share CloudClient's lock. Superseded taps never start another mutation.
     openTail.current = openTail.current.then(open, open);
   };
   const renderHostConversation = (conversation: Conversation, pinned: boolean) => (
