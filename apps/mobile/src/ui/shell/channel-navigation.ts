@@ -1,4 +1,4 @@
-import type { NavigationAction, NavigationState } from 'expo-router/react-navigation';
+import type { NavigationAction, NavigationState, PartialState } from 'expo-router/react-navigation';
 import type { Stack } from 'expo-router';
 import type { ComponentProps } from 'react';
 
@@ -75,12 +75,22 @@ export type ChannelNavigation = {
   dispatch(action: NavigationAction): void;
 };
 
+export function appStackState(
+  state: NavigationState | PartialState<NavigationState>,
+): NavigationState | undefined {
+  if (state.stale === false && state.routeNames.includes('(tabs)')) return state;
+  const child = state.routes[state.index ?? 0]?.state;
+  return child ? appStackState(child) : undefined;
+}
+
 export function navigateChannel(
   navigation: ChannelNavigation,
   destination: ChannelDestination,
   intent?: 'dismiss-profile',
 ): boolean {
   if (!navigation.isReady()) return false;
+  const state = appStackState(navigation.getRootState());
+  if (!state) return false;
   const params =
     destination.params.focus === undefined
       ? destination.params
@@ -90,7 +100,7 @@ export function navigateChannel(
         };
   navigation.dispatch({
     type: 'NAVIGATE',
-    target: navigation.getRootState().key,
+    target: state.key,
     payload: {
       name: destination.pathname.slice(1),
       params,

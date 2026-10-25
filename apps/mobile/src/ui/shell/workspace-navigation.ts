@@ -1,4 +1,4 @@
-import type { ChannelNavigation } from './channel-navigation';
+import { appStackState, type ChannelNavigation } from './channel-navigation';
 import type { CloudWorkspace } from '../../cloud/workspace-directory';
 
 export type CloudWorkspaceRoot = {
@@ -31,7 +31,8 @@ export function resetWorkspaceRoot(
   cloud?: CloudWorkspaceRoot,
 ): boolean {
   if (!navigation.isReady()) return false;
-  const state = navigation.getRootState();
+  const state = appStackState(navigation.getRootState());
+  if (!state) return false;
   const retained = state.routes.find((route) => route.name === '(tabs)');
   const tabsState = retained?.state;
   const home = tabsState?.routes.findIndex((route) => route.name === '(home)') ?? -1;
@@ -85,7 +86,8 @@ export function removeScopedRoutes(
   instanceIds: ReadonlySet<string>,
 ): void {
   if (!navigation.isReady() || (!hostIds.size && !instanceIds.size)) return;
-  const state = navigation.getRootState();
+  const state = appStackState(navigation.getRootState());
+  if (!state) return;
   const routes = state.routes.filter((route) => {
     const params: Record<string, unknown> = { ...route.params };
     const hostId = params['hostId'];

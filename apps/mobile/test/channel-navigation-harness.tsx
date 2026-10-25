@@ -2,7 +2,7 @@ import { StackRouter } from '../node_modules/expo-router/build/react-navigation/
 import type { NavigationAction } from 'expo-router/react-navigation';
 import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 
-export function channelNavigationHarness() {
+export function channelNavigationHarness(wrapped = false) {
   const original = StackRouter({ initialRouteName: '(tabs)' }) as Parameters<
     typeof channelStackRouter
   >[0];
@@ -38,8 +38,18 @@ export function channelNavigationHarness() {
   };
   const navigation = {
     isReady: () => true,
-    getRootState: () => state,
+    getRootState: () =>
+      wrapped
+        ? {
+            ...state,
+            key: 'expo-root',
+            routeNames: ['__root'],
+            index: 0,
+            routes: [{ key: 'expo-slot', name: '__root', state }],
+          }
+        : state,
     dispatch(action: NavigationAction) {
+      if (action.target && action.target !== state.key) return;
       const next = reduce(state, action, options);
       if (next && typeof next === 'object') state = next.state;
     },

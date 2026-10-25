@@ -94,6 +94,7 @@ function Fixture({ time = '12:39', menu = false }: { time?: string; menu?: boole
         <ConversationRowFrame
           title={title}
           source="computer"
+          sourceLabel="Research"
           label={label}
           preview={preview}
           time={time}
@@ -175,4 +176,13 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
     act(() => row.view.querySelector('button')!.click());
     expect(onPress).toHaveBeenCalledOnce();
   });
+});
+
+it('keeps the environment beside the title icon rather than adding a third line', () => {
+  render();
+  const texts = [...host!.querySelectorAll('span')];
+  const name = texts.find((node) => node.textContent === title)!;
+  const environment = texts.find((node) => node.textContent === 'Research')!;
+  expect(environment.parentElement).toBe(name.parentElement);
+  expect(environment.previousElementSibling?.querySelector('i')).not.toBeNull();
 });

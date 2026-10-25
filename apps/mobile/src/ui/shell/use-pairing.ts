@@ -11,7 +11,7 @@ import { hostLooks } from '../../host/native-host-look';
 import { pairHost, type PairingFailure } from '../../host/pairing';
 import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '../../telemetry/schema';
-import { hostLookName, withHostName } from '../design/host-look';
+import { hostLookName } from '../design/host-look';
 import { clearsPastedLink } from '../pairing-failure';
 
 function deviceName(): string {
@@ -114,7 +114,11 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
           );
         } else await hostSession.pair(host);
         const name = hostLookName(connectionName);
-        if (name) hostLooks.set(host.hostId, withHostName(hostLooks.look(host.hostId), name));
+        await hostLooks.initialize(
+          host.hostId,
+          hostSession.getState().hosts.map((saved) => saved.hostId),
+          name,
+        );
       },
       telemetry: mobileTelemetry,
       signal: operation.signal,
