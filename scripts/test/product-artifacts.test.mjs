@@ -38,7 +38,7 @@ function artifactSet(version = '0.0.0-test.823') {
   const root = mkdtempSync(join(tmpdir(), 'product-packages-'));
   temporary.push(root);
   const artifacts = [
-    'tobs',
+    '@botharness/tobs',
     'deepseekbot',
     '@botharness/browser',
     '@botharness/computer',
@@ -97,7 +97,7 @@ describe('packaged product selection', () => {
     expect(result.dependencies).toEqual({
       other: '1.0.0',
       deepseekbot: expect.stringMatching(/^file:.*\.tgz$/),
-      tobs: expect.stringMatching(/^file:.*\.tgz$/),
+      '@botharness/tobs': expect.stringMatching(/^file:.*\.tgz$/),
     });
     expect(result.dsh.profile.bundles).toEqual([
       '@deepseek-ai/dsh-base',

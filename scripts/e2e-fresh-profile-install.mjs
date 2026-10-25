@@ -198,7 +198,7 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
       await legacy.stop();
     }
   }
-  if (upgradeFrom && productName === 'tobs') {
+  if (upgradeFrom && productName === '@botharness/tobs') {
     step = run(dsh, ['plugin', '--profile', 'qa', 'remove', 'deepseekbot'], { cwd: runtime, env });
     writeFileSync(join(root, 'legacy-remove.private.log'), step.output, { mode: 0o600 });
     assert.equal(step.status, 0, 'The old product could not be removed');
@@ -211,7 +211,7 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
   }
   const workspace = join(profile, 'pnpm-workspace.yaml');
   const overrides = Object.entries(
-    freshProfileOverrides(artifacts, upgradeFrom ? 'tobs' : productName),
+    freshProfileOverrides(artifacts, upgradeFrom ? '@botharness/tobs' : productName),
   )
     .map(([name, spec]) => `  '${name}': '${spec}'\n`)
     .join('');
@@ -239,7 +239,7 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
   enable(productName);
   if (upgradeFrom && productName === 'deepseekbot') {
     const enabledBundles = JSON.parse(readFileSync(manifestPath, 'utf8')).dsh.profile.bundles;
-    const alias = artifacts.artifacts.find((artifact) => artifact.name === 'tobs');
+    const alias = artifacts.artifacts.find((artifact) => artifact.name === '@botharness/tobs');
     step = run(
       dsh,
       ['plugin', '--profile', 'qa', 'add', join(artifacts.directory, alias.filename)],
@@ -252,7 +252,7 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
     manifest.dsh.profile.bundles = enabledBundles;
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     assert.ok(enabledBundles.includes('deepseekbot'));
-    assert.equal(enabledBundles.includes('tobs'), false);
+    assert.equal(enabledBundles.includes('@botharness/tobs'), false);
   }
   const verifyPreserved = async (
     host,
@@ -282,11 +282,14 @@ async function qualify(artifacts, version, root, port, productName, upgradeFrom)
           ?.body,
         memory.body,
       );
-    if (productName === 'tobs') {
+    if (productName === '@botharness/tobs') {
       const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
       assert.equal(manifest.dependencies?.deepseekbot, undefined);
       assert.equal(manifest.dsh.profile.bundles.includes('deepseekbot'), false);
-      assert.equal(manifest.dsh.profile.bundles.filter((name) => name === 'tobs').length, 1);
+      assert.equal(
+        manifest.dsh.profile.bundles.filter((name) => name === '@botharness/tobs').length,
+        1,
+      );
     }
   };
   const first = await boot({ dsh, runtime, env, port, log: join(root, 'boot-1.private.log') });
@@ -374,10 +377,19 @@ async function main() {
       'Fresh Profiles plus published 1.4.1 upgrade and old Bundle removal/Tobs installation in the same Profile: preserve Bot configuration, DM identity/history and SOUL/MEMORY across restart; CLI cross-writes and unauthorized refusal parity. Browser, model and IM delivery are separate gates.',
     rows: [
       ...productDshVersions.flatMap((dsh) =>
-        ['deepseekbot', 'tobs'].map((productName) => ({ dsh, productName, state: 'pending' })),
+        ['deepseekbot', '@botharness/tobs'].map((productName) => ({
+          dsh,
+          productName,
+          state: 'pending',
+        })),
       ),
       { dsh: '0.2.1-rc.2', productName: 'deepseekbot', upgradeFrom: '1.4.1', state: 'pending' },
-      { dsh: '0.2.1-rc.2', productName: 'tobs', upgradeFrom: '1.4.1', state: 'pending' },
+      {
+        dsh: '0.2.1-rc.2',
+        productName: '@botharness/tobs',
+        upgradeFrom: '1.4.1',
+        state: 'pending',
+      },
     ],
   };
   for (const [index, row] of report.rows.entries()) {

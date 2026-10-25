@@ -312,12 +312,14 @@ export function packProduct({
   const source = join(repoRoot, 'packages/deepseekbot');
   writeJson(join(product, 'package.json'), productRelease);
   copyAvailable(source, product, ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md']);
+  cpSync(join(repoRoot, 'README.en.md'), join(product, 'README.md'));
   cpSync(join(repoRoot, 'LICENSE'), join(product, 'LICENSE'));
   packageDirectories.push(product);
   const tobs = join(staging, 'tobs');
   mkdirSync(tobs);
   writeJson(join(tobs, 'package.json'), tobsManifest(productRelease));
-  copyAvailable(join(repoRoot, 'packages/tobs'), tobs, ['src', 'README.md']);
+  copyAvailable(join(repoRoot, 'packages/tobs'), tobs, ['src']);
+  cpSync(join(repoRoot, 'README.en.md'), join(tobs, 'README.md'));
   const launcher = join(tobs, 'src/tobs.mjs');
   writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
   copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme']);
@@ -359,7 +361,7 @@ export function packProduct({
 
 export function tobsManifest(product) {
   return {
-    name: 'tobs',
+    name: '@botharness/tobs',
     version: product.version,
     type: 'module',
     description: 'Tobs — Team of bots with persistent memory, delegation and messaging.',
