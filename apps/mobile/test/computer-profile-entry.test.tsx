@@ -42,6 +42,7 @@ vi.mock('../src/ui/chat/bot-profile', () => ({
   },
 }));
 vi.mock('../src/ui/chat/bot-settings-panel', () => ({ BotSettingsPanel: () => null }));
+vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: vi.fn() }));
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ color: { surface: 'black' } }),
 }));

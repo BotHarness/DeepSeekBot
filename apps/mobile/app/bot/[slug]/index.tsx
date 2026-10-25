@@ -3,6 +3,8 @@ import { useMemo } from 'react';
 import { View } from 'react-native';
 
 import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
+import { setBotAvatar } from '../../../src/host/bot-avatar';
+import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { BotProfileSheet } from '../../../src/ui/chat/bot-profile';
 import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
@@ -26,7 +28,7 @@ export default function BotProfileScreen() {
     [client, bot?.slug, bot?.dmChannelId],
   );
 
-  if (bot === undefined || profile === undefined)
+  if (bot === undefined || profile === undefined || client === undefined)
     return (
       <View
         style={{
@@ -46,6 +48,7 @@ export default function BotProfileScreen() {
       channels={channels}
       initialProfile={profile.peek()}
       load={profile.refresh}
+      avatar={{ pick: pickAvatarImage, save: (avatar) => setBotAvatar(client, bot, avatar) }}
       settings={client === undefined ? undefined : <BotSettingsPanel client={client} bot={bot} />}
       actions={{
         onOpenRoutine: (routine) =>

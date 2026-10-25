@@ -109,3 +109,5 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 | Workspace request read/write approval and original-task continuation | yes | `scripts/e2e-workspace-request-write.mjs`, `scripts/e2e-mobile-folder-browse-web.mjs` | [workspace-request-write.md](workspace-request-write.md) |
 
 | Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |
+
+| Mobile group/Bot avatars and separate chat backgrounds | no | none (Expo and shared-device user path) | [phone-channel-avatars.md](phone-channel-avatars.md) |
