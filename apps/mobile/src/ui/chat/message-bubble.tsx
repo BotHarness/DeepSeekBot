@@ -1,8 +1,6 @@
 import {
   memo,
   useCallback,
-  useEffect,
-  useState,
   useMemo,
   useRef,
   useSyncExternalStore,
@@ -64,28 +62,31 @@ function usePendingFeedback(message: ConversationMessage): boolean {
     message.author === 'human' && message.delivery === 'pending'
       ? message.attemptStartedAt
       : undefined;
-  const [elapsedAttempt, setElapsedAttempt] = useState<number>();
-  useEffect(() => {
-    if (started === undefined) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const update = () => {
-      clearTimeout(timer);
-      if (AppState.currentState !== 'active') return;
-      const remaining = started + PENDING_FEEDBACK_MS - Date.now();
-      if (remaining <= 0) setElapsedAttempt(started);
-      else timer = setTimeout(update, remaining);
-    };
-    update();
-    const subscription = AppState.addEventListener('change', update);
-    return () => {
-      clearTimeout(timer);
-      subscription.remove();
-    };
-  }, [started]);
-  return (
-    started !== undefined &&
-    (elapsedAttempt === started || Date.now() >= started + PENDING_FEEDBACK_MS)
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      if (started === undefined) return () => {};
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const update = () => {
+        clearTimeout(timer);
+        if (AppState.currentState !== 'active') return;
+        notify();
+        const remaining = started + PENDING_FEEDBACK_MS - Date.now();
+        if (remaining > 0) timer = setTimeout(update, remaining);
+      };
+      update();
+      const subscription = AppState.addEventListener('change', update);
+      return () => {
+        clearTimeout(timer);
+        subscription.remove();
+      };
+    },
+    [started],
   );
+  const snapshot = useCallback(
+    () => started !== undefined && Date.now() >= started + PENDING_FEEDBACK_MS,
+    [started],
+  );
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
 export function BubbleBody({
@@ -95,6 +96,7 @@ export function BubbleBody({
   onShare = async () => {},
   fill,
   streaming = false,
+  deliveryAccessibility = true,
 }: {
   message: ConversationMessage;
   group: BubbleGroup;
@@ -102,6 +104,7 @@ export function BubbleBody({
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   fill?: { maxWidth?: DimensionValue; width?: number; maxHeight?: number } | undefined;
   streaming?: boolean;
+  deliveryAccessibility?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -110,6 +113,13 @@ export function BubbleBody({
   const ink = human ? 'onAccent' : 'fg';
   return (
     <View
+      {...(deliveryAccessibility && human && message.delivery === 'pending'
+        ? {
+            accessible: true,
+            accessibilityState: { busy: true },
+            accessibilityValue: { text: t.sending },
+          }
+        : {})}
       style={{
         ...bubbleShape(human, group),
         ...fill,
@@ -145,6 +155,7 @@ function PressableBubble({
   accessibilityLabel,
   accessibilityHint,
   accessibilityActionLabel,
+  pending = false,
   onPress,
   onLongPress,
   onDoubleTap,
@@ -157,6 +168,7 @@ function PressableBubble({
   accessibilityLabel?: string | undefined;
   accessibilityHint?: string;
   accessibilityActionLabel?: string;
+  pending?: boolean;
   onPress?: () => void;
   onLongPress?: (anchor: Rect) => void;
   onDoubleTap?: () => void;
@@ -197,6 +209,9 @@ function PressableBubble({
       ]}
     >
       <Pressable
+        {...(pending
+          ? { accessibilityState: { busy: true }, accessibilityValue: { text: t.sending } }
+          : {})}
         {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
         {...(accessibilityLabel === undefined ? {} : { accessibilityLabel })}
         {...(accessibilityHint === undefined ? {} : { accessibilityHint })}
@@ -311,6 +326,7 @@ export const MessageBubble = memo(function MessageBubble({
       group={group}
       onOpenImage={onOpenImage}
       onShare={onShare}
+      deliveryAccessibility={!(failed || actionable || streaming)}
       fill={failed || actionable || streaming ? { maxWidth: '100%' } : undefined}
       streaming={streaming}
     />
@@ -321,6 +337,7 @@ export const MessageBubble = memo(function MessageBubble({
         human={human}
         group={group}
         lifted={lifted}
+        pending={human && message.delivery === 'pending'}
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
         {...(actionable
           ? {

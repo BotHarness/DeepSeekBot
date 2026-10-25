@@ -37,6 +37,8 @@ vi.mock('react-native', async () => {
         'accessibilityLabel',
         'accessibilityRole',
         'accessibilityHint',
+        'accessibilityState',
+        'accessibilityValue',
         'selectable',
         'source',
         'recyclingKey',
@@ -179,12 +181,21 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
 });
 
 describe('message states', () => {
-  it('shows a pending Human message without sending text or a retry control', () => {
-    const html = renderToStaticMarkup(<MessageBubble message={human({ delivery: 'pending' })} />);
-    expect(html).not.toContain(t.sending);
-    expect(html).not.toContain(t.retrySend);
-    expect(html).not.toContain('data-accessibilityrole="button"');
-  });
+  it.each(['hello', ''])(
+    'keeps pending status accessible without visible sending text (body: %s)',
+    (body) => {
+      const html = renderToStaticMarkup(
+        <MessageBubble message={human({ delivery: 'pending', body })} />,
+      );
+      expect(html).not.toContain(`>${t.sending}<`);
+      expect(html).toContain('data-accessibilitystate="{&quot;busy&quot;:true}"');
+      expect(html).toContain(
+        `data-accessibilityvalue="{&quot;text&quot;:&quot;${t.sending}&quot;}"`,
+      );
+      expect(html).not.toContain(t.retrySend);
+      expect(html).not.toContain('data-accessibilityrole="button"');
+    },
+  );
 
   it('shows a delivered message as sent until its journal entry arrives', () => {
     expect(deliveryLabel(human({}))).toBe(t.sent);
@@ -677,9 +688,16 @@ describe('outgoing delivery presentation through Conversation', () => {
     expect(view.surface().style.opacity).toBe('1');
     act(() => vi.advanceTimersByTime(1));
     expect(view.surface().style.opacity).toBe('0.7');
+    expect(
+      view.container
+        .querySelector('[data-accessibilitystate]')
+        ?.getAttribute('data-accessibilitystate'),
+    ).toBe('{"busy":true}');
     const bubble = view.surface();
     await view.settle();
     expect(view.surface()).toBe(bubble);
+    expect(view.container.querySelector('[data-accessibilityvalue]')).toBeNull();
+    expect(view.container.querySelector('[data-accessibilitystate]')).toBeNull();
     expect(view.surface().style.opacity).toBe('1');
     expect(view.host.channel('quiet-dm').messages).toHaveLength(1);
     expect(view.target.getSnapshot().messages).toHaveLength(1);
@@ -727,7 +745,6 @@ describe('outgoing delivery presentation through Conversation', () => {
           .filter((call) => call.method === 'channelSend')
           .map((call) => call.args['messageId']),
       ).toEqual(['quiet-message', 'quiet-message']);
-      // Retrying changes presentation timing, never the timestamp of the local message.
       expect(originalAt).toBe(new Date(10_000).toISOString());
     },
   );
