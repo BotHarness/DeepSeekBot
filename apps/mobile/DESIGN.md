@@ -440,6 +440,12 @@ Each layer has `fill`, `pressed`, `selected` (neutral, such as the current tab),
 7. **Copy lives in `src/ui/strings.ts`** and follows [UI copy](../../docs/agents/ui-copy.md): say Bot, keep hints and captions short and plain. Internal ids and protocol names stay out of the UI.
 8. **UI PRs show the change.** Follow the [visual evidence rules](../../docs/agents/pr-ui-visual-evidence.md). Font, keyboard, native chrome and native control behavior require native captures and interaction checks; web previews are supplementary. Record source checks, platform-native results and Human QA separately.
 
+## Message feedback
+
+The feedback form separates the rating and local diagnostic bundle into two spaced, grouped surfaces. Rating, tags, comment and the single prominent submit action stay together; the short PostHog destination label stays beside that action. The diagnostic group contains its size/count summary, local save/share action and optional scope/file disclosures. Raw files are collapsed initially and remain virtualized when opened. Success replaces only the rating group, retaining local download below it. Actions scroll with their fields in the keyboard-aware owner, without a competing fixed footer.
+
+iOS uses SwiftUI buttons, segmented Picker and button-style Toggle tags; Android uses native Compose filled/tonal/text buttons, the Material 3 standard ToggleButton group and FilterChips, with Expressive grouped surfaces from the existing Settings primitives. Editable fields retain the stable system TextInput adapter and keyboard contract. Platform-native system save/share, keyboard, default/intermediate/maximum text and light/dark appearance still require their own native acceptance; Expo Web is a layout preview only.
+
 ## System text and large-text acceptance
 
 This contract applies to new and changed Expo/React Native screens, shared components and text/input adapters. It is a review requirement, not a claim that every existing screen or platform has already passed. The implementation details above remain version-specific; recheck them when React Native or Expo changes.

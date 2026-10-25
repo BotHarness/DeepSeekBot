@@ -59,7 +59,12 @@ Session, Inbox, delivery content or archive bytes. No dedicated receiver is need
 no-response case but does not prove normal Bot replies.
 Mobile: pair the Expo Web export with this isolated Host, open the synthetic DM, long-press the
 saved message and choose **Give feedback**. Change evidence scope, verify stale material cannot
-submit, refresh, rate and submit; inspect the receipt. Long-press → **Select messages**, toggle
+submit, refresh, rate and submit; inspect the receipt. Rating and local diagnostics occupy separate
+groups; file contents start collapsed. Open **View files**, check the actual included chats/Inbox
+summary, then hide files. Confirm download remains after the receipt and after a failed save/refresh
+its filename still uses the original receipt ID. On native platforms check SwiftUI buttons/tags and
+Compose Material buttons/chips, operation progress, keyboard reachability and maximum text size.
+Long-press → **Select messages**, toggle
 another saved message, copy, open **Screenshot** and inspect the preview, then cancel. Switch
 Channels and verify selection clears. Web previews are layout/browser evidence only; native
 capture/share, keyboard and accessibility checks remain tracked in #2811 for both device lanes.

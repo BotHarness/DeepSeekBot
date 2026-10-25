@@ -75,6 +75,11 @@ it('prevents a stale scope submission and retains the frozen report on retry', a
   );
   try {
     expect(button('Submit feedback').disabled).toBe(true);
+    expect(container.textContent).not.toContain('manifest.json');
+    await act(async () => button('View files').click());
+    expect(container.textContent).toContain('manifest.json');
+    await act(async () => button('Hide files').click());
+    expect(container.textContent).not.toContain('manifest.json');
     await act(async () => button('Bad').click());
     await act(async () => button('Diagnostic bundle contents').click());
     await act(async () =>
@@ -87,7 +92,12 @@ it('prevents a stale scope submission and retains the frozen report on retry', a
     await act(async () => button('Submit feedback').click());
     expect(container.textContent).toContain('accepted');
     await act(async () => button('Download diagnostics').click());
-    expect(shareFeedbackArchive).toHaveBeenCalledWith(new Uint8Array([80, 75]), 'p1');
+    expect(shareFeedbackArchive).toHaveBeenCalledWith(new Uint8Array([80, 75]), 'accepted');
+    vi.mocked(shareFeedbackArchive).mockRejectedValueOnce(new Error('save-failed'));
+    await act(async () => button('Download diagnostics').click());
+    await act(async () => button('Refresh evidence').click());
+    await act(async () => button('Download diagnostics').click());
+    expect(shareFeedbackArchive).toHaveBeenLastCalledWith(new Uint8Array([80, 75]), 'accepted');
     expect(submissions).toHaveLength(2);
     expect(submissions[0]).toEqual(submissions[1]);
   } finally {

@@ -1,10 +1,10 @@
 import { Segmented } from '../primitives/segmented';
-import { Chip } from '../primitives/chip';
+import { FeedbackTag } from './feedback-tag';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { shareFeedbackArchive } from '../../host/share-feedback';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMounted } from '../mounted';
-import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
+import { FlatList, View, type ViewInstance } from 'react-native';
 import type { HostClient } from '../../host/client';
 import {
   createMessageFeedback,
@@ -19,10 +19,11 @@ import {
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Toggle } from '../primitives/toggle';
-import { Button } from '../primitives/button';
+import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { SettingsRow } from '../primitives/settings-row';
+import { LoadingIndicator } from '../primitives/loading-indicator';
+import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 
 const categories = [
@@ -33,6 +34,19 @@ const categories = [
   'relatedChats',
   'wholeSessions',
 ] as const;
+
+function FeedbackSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <SettingsSection>
+      <View style={{ padding: space.x5, gap: space.x4 }}>
+        <Text variant="title" accessibilityRole="header">
+          {title}
+        </Text>
+        {children}
+      </View>
+    </SettingsSection>
+  );
+}
 export function MessageFeedbackForm({
   client,
   channelId,
@@ -68,10 +82,11 @@ export function MessageFeedbackForm({
   const [preview, setPreview] = useState<FeedbackPreview>();
   const [scopeKey, setScopeKey] = useState('');
   const [receipt, setReceipt] = useState<FeedbackReceipt>();
-  const [busy, setBusy] = useState(false);
+  const [activity, setActivity] = useState<'preview' | 'submit' | 'download'>();
+  const busy = activity !== undefined;
   const [error, setError] = useState(false);
-  const updateBusy = (value: boolean) => {
-    setBusy(value);
+  const updateBusy = (value: boolean, operation: 'preview' | 'submit' | 'download' = 'preview') => {
+    setActivity(value ? operation : undefined);
     onBusyChange?.(value);
   };
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -80,6 +95,7 @@ export function MessageFeedbackForm({
   const alive = useRef(true);
   const [locked, setLocked] = useState(false);
   const [showScope, setShowScope] = useState(false);
+  const [showFiles, setShowFiles] = useState(false);
   const key = JSON.stringify(scope);
   const fresh = preview !== undefined && scopeKey === key;
   const refresh = async () => {
@@ -111,10 +127,13 @@ export function MessageFeedbackForm({
   const download = async () => {
     if (!fresh || pending.current) return;
     pending.current = true;
-    updateBusy(true);
+    updateBusy(true, 'download');
     setError(false);
     try {
-      await shareFeedbackArchive(await api.download(preview.token), preview.token);
+      await shareFeedbackArchive(
+        await api.download(preview.token),
+        receipt?.reportId ?? preview.token,
+      );
     } catch {
       if (alive.current) setError(true);
     } finally {
@@ -127,7 +146,7 @@ export function MessageFeedbackForm({
     frozen.current ??= { token: preview.token, feedback: { rating, tags, comment } };
     setLocked(true);
     pending.current = true;
-    updateBusy(true);
+    updateBusy(true, 'submit');
     setError(false);
     try {
       const next = await api.submit(frozen.current);
@@ -139,26 +158,21 @@ export function MessageFeedbackForm({
       if (alive.current) updateBusy(false);
     }
   };
-  if (receipt !== undefined)
-    return (
-      <View ref={mount} style={{ padding: space.x5, gap: space.x5 }}>
-        <Text variant="title">{f.receipt}</Text>
-        <Text selectable testID="feedback-receipt">
-          {receipt.reportId}
-        </Text>
-        <Button
-          label={f.download}
-          busy={busy}
-          disabled={!fresh}
-          onPress={() => void download()}
-          testID="feedback-download"
-        />
-        {error ? <Text accessibilityRole="alert">{f.failed}</Text> : null}
-        <Button label={t.close} disabled={busy} onPress={onClose} testID="feedback-close" />
-      </View>
-    );
-  const header = (
-    <View style={{ gap: space.x4 }}>
+  const ratingPanel = receipt ? (
+    <FeedbackSection title={f.receipt}>
+      <Text selectable testID="feedback-receipt">
+        {receipt.reportId}
+      </Text>
+      <Button
+        label={t.close}
+        tone="primary"
+        disabled={busy}
+        onPress={onClose}
+        testID="feedback-close"
+      />
+    </FeedbackSection>
+  ) : (
+    <FeedbackSection title={f.ratingTitle}>
       <Segmented
         label={f.title}
         options={[
@@ -177,7 +191,7 @@ export function MessageFeedbackForm({
       {rating === undefined ? null : (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x2 }}>
           {feedbackTags[rating].map((tag) => (
-            <Chip
+            <FeedbackTag
               key={tag}
               label={f[`tag.${tag}`]}
               selected={tags.includes(tag)}
@@ -201,100 +215,141 @@ export function MessageFeedbackForm({
         editable={!locked && !busy}
         onChangeText={(value) => setComment(Array.from(value).slice(0, 500).join(''))}
       />
-      <Button
-        label={f.include}
-        testID="feedback-scope"
-        onPress={() => setShowScope((value) => !value)}
-      />
-      <Text variant="meta" tone="muted">
-        {f.before}: {scope.before} · {f.after}: {scope.after}
-      </Text>
-      {showScope ? (
-        <>
-          {(['before', 'after'] as const).map((side) => (
-            <View key={side} style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-              <Text style={{ flex: 1 }}>{f[side]}</Text>
-              <TextField
-                testID={'feedback-' + side}
-                accessibilityLabel={f[side]}
-                keyboardType="number-pad"
-                value={String(scope[side])}
-                editable={!locked && !busy}
-                onChangeText={(value) => {
-                  if (/^\d{0,3}$/.test(value))
-                    setScope((s) => ({ ...s, [side]: Math.min(100, Number(value)) }));
-                }}
-              />
-            </View>
-          ))}
-          {categories.map((category) => (
-            <SettingsRow
-              key={category}
-              title={f[category]}
-              trailing={
-                <Toggle
-                  testID={'feedback-' + category}
-                  label={f[category]}
-                  disabled={locked || busy}
-                  value={scope[category]}
-                  onChange={(value) => setScope((s) => ({ ...s, [category]: value }))}
-                />
-              }
-            />
-          ))}
-        </>
-      ) : null}
-      <Text tone="muted" variant="meta">
-        {f.privacy}
-      </Text>
-      <Button
-        label={f.refresh}
-        busy={busy}
-        onPress={() => void refresh()}
-        testID="feedback-refresh"
-      />
-      {!fresh && preview !== undefined ? <Text>{f.refreshNeeded}</Text> : null}
-      {error ? <Text accessibilityRole="alert">{f.failed}</Text> : null}
+      <Text tone="muted">{f.privacy}</Text>
+      {Array.from(comment).length >= 450 ? <Text>{Array.from(comment).length} / 500</Text> : null}
       {preview?.canSubmit === false ? <Text>{f.unavailable}</Text> : null}
-      {preview === undefined ? null : (
-        <>
-          <Text strong>
-            {f.preview} · {Math.ceil(preview.bytes / 1024)} KB
+      <Button
+        label={f.submit}
+        tone="primary"
+        testID="feedback-submit"
+        disabled={busy || !fresh || !preview?.canSubmit || rating === undefined}
+        onPress={() => void submit()}
+      />
+      {activity === 'submit' ? <LoadingIndicator size="control" /> : null}
+    </FeedbackSection>
+  );
+  const header = (
+    <View style={{ gap: space.x6 }}>
+      {ratingPanel}
+      {error ? <Text accessibilityRole="alert">{f.failed}</Text> : null}
+      <FeedbackSection title={f.localBundle}>
+        <Text tone="muted">{f.localOnly}</Text>
+        {preview ? (
+          <Text>
+            {preview.summary.channels.reduce((total, channel) => total + channel.messages, 0)}{' '}
+            {f.messages} · {preview.summary.sessions.length} {f.sessionCount} ·{' '}
+            {Math.ceil(preview.bytes / 1024)} KB
           </Text>
-          <Text variant="meta">
-            {f.sessions}: {preview.summary.sessions.length} · {f.inbox}:{' '}
-            {preview.summary.admissions}
+        ) : busy ? (
+          <Text>{f.preparing}</Text>
+        ) : null}
+        {!receipt ? (
+          <>
+            <Button
+              label={f.include}
+              variant="text"
+              testID="feedback-scope"
+              onPress={() => setShowScope((value) => !value)}
+            />
+            {showScope ? (
+              <View style={{ gap: space.x3 }}>
+                {(['before', 'after'] as const).map((side) => (
+                  <View key={side} style={{ gap: space.x2 }}>
+                    <Text>{f[side]}</Text>
+                    <TextField
+                      testID={'feedback-' + side}
+                      accessibilityLabel={f[side]}
+                      keyboardType="number-pad"
+                      value={String(scope[side])}
+                      editable={!locked && !busy}
+                      onChangeText={(value) => {
+                        if (/^\d{0,3}$/.test(value))
+                          setScope((s) => ({ ...s, [side]: Math.min(100, Number(value)) }));
+                      }}
+                    />
+                  </View>
+                ))}
+                {categories.map((category) => (
+                  <SettingsRow
+                    key={category}
+                    title={f[category]}
+                    trailing={
+                      <Toggle
+                        testID={'feedback-' + category}
+                        label={f[category]}
+                        disabled={locked || busy}
+                        value={scope[category]}
+                        onChange={(value) => setScope((s) => ({ ...s, [category]: value }))}
+                      />
+                    }
+                  />
+                ))}
+              </View>
+            ) : null}
+          </>
+        ) : null}
+        {!fresh && preview !== undefined ? <Text>{f.refreshNeeded}</Text> : null}
+        {!fresh || (locked && !receipt) || error ? (
+          <Button
+            label={f.refresh}
+            disabled={busy}
+            onPress={() => void refresh()}
+            testID="feedback-refresh"
+          />
+        ) : null}
+        {activity === 'preview' ? <LoadingIndicator size="control" /> : null}
+        <Button
+          label={f.download}
+          disabled={!fresh || busy}
+          onPress={() => void download()}
+          testID="feedback-download"
+        />
+        {activity === 'download' ? <LoadingIndicator size="control" /> : null}
+        {preview ? (
+          <Button
+            label={showFiles ? f.hideFiles : f.viewFiles}
+            variant="text"
+            onPress={() => setShowFiles((value) => !value)}
+            testID="feedback-files"
+          />
+        ) : null}
+        {showFiles && preview ? (
+          <View style={{ gap: space.x3 }}>
+            <Text>
+              {f.sessions}: {preview.summary.sessions.length} · {f.inbox}:{' '}
+              {preview.summary.admissions}
+            </Text>
+            {preview.summary.channels.map((channel, i) => (
+              <Text key={i}>
+                {channel.role === 'selected' ? f.conversation : f.relatedChats}: {channel.name} ·{' '}
+                {channel.messages} {f.messages}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {preview?.summary.omissions.map((omission, i) => (
+          <Text key={i} tone="muted">
+            {f.missing} {omission.detail}
           </Text>
-          {preview.summary.channels.map((channel, i) => (
-            <Text key={i}>
-              {channel.role === 'selected' ? f.conversation : f.relatedChats}: {channel.name} ·{' '}
-              {channel.messages} {f.messages}
-            </Text>
-          ))}
-          {preview.summary.omissions.map((omission, i) => (
-            <Text key={i} tone="muted">
-              {f.missing} {omission.detail}
-            </Text>
-          ))}
-        </>
-      )}
+        ))}
+      </FeedbackSection>
     </View>
   );
   return (
-    <View ref={mount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+    <View ref={mount} style={{ flex: 1, backgroundColor: theme.layer.canvas.fill }}>
       <FlatList
-        data={preview?.files ?? []}
+        data={showFiles ? (preview?.files ?? []) : []}
         keyExtractor={(item) => item.path}
         renderScrollComponent={renderKeyboardFormScroll}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={header}
+        contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: space.x5, gap: space.x3 }}
         renderItem={({ item }) => (
-          <View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={item.path}
-              accessibilityState={{ expanded: expanded.has(item.path) }}
+          <SettingsSection>
+            <Button
+              variant="text"
+              label={item.path}
               onPress={() =>
                 setExpanded((current) => {
                   const next = new Set(current);
@@ -303,44 +358,15 @@ export function MessageFeedbackForm({
                   return next;
                 })
               }
-              style={{ minHeight: theme.touch, justifyContent: 'center' }}
-            >
-              <Text>{item.path}</Text>
-            </Pressable>
+            />
             {expanded.has(item.path) ? (
-              <Text selectable variant="meta">
+              <Text selectable style={{ padding: space.x4 }}>
                 {item.content}
               </Text>
             ) : null}
-          </View>
+          </SettingsSection>
         )}
       />
-      <View style={{ padding: space.x5, gap: space.x3 }}>
-        <Button
-          label={f.submit}
-          tone="primary"
-          busy={busy}
-          testID="feedback-submit"
-          disabled={!fresh || !preview?.canSubmit || rating === undefined}
-          onPress={() => void submit()}
-        />
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: space.x2 }}>
-          <Button
-            variant="text"
-            label={f.download}
-            disabled={!fresh || busy}
-            onPress={() => void download()}
-            testID="feedback-download"
-          />
-          <Button
-            variant="text"
-            label={t.close}
-            disabled={busy}
-            onPress={onClose}
-            testID="feedback-close"
-          />
-        </View>
-      </View>
     </View>
   );
 }
