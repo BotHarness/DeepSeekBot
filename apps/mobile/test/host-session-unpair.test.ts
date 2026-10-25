@@ -180,6 +180,28 @@ it('refreshes push routes after authenticated address recovery', async () => {
   expect(syncPush).toHaveBeenLastCalledWith([{ ...host('old'), routes }, host('new')]);
 });
 
+it('allocates a selection revision synchronously for both an already-selected and a queued Host', async () => {
+  const { hostSession } = await session('old');
+  const initial = hostSession.getSelectionRevision();
+  const same = hostSession.switchTo('old');
+  expect(hostSession.getSelectionRevision()).toBe(initial + 1);
+  expect(await same).toBe(true);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  beforeSave = () => gate;
+  const switching = hostSession.switchTo('new');
+  expect(hostSession.getSelectionRevision()).toBe(initial + 2);
+  expect(hostSession.getState().saved?.hostId).toBe('old');
+  const newer = hostSession.switchTo('old');
+  expect(hostSession.getSelectionRevision()).toBe(initial + 3);
+  expect(await newer).toBe(true);
+  release();
+  expect(await switching).toBe(false);
+  expect(hostSession.getState().saved?.hostId).toBe('old');
+});
+
 describe('unpairing a Computer', () => {
   it('does not adopt or persist an obsolete notification switch after its owner unmounts', async () => {
     const { hostSession } = await session('old');

@@ -23,9 +23,15 @@ export function RequestActivityScreen() {
     let disposed = false;
     const workspaceCurrent = hostDrawer.captureWorkspaceSelection();
     const selection = hostSession.getSelectionRevision();
+    let ownedSelection: number | undefined;
     let routeState = navigation.isReady() ? navigation.getRootState() : undefined;
     const current = () => {
-      if (disposed || !workspaceCurrent()) return false;
+      if (
+        disposed ||
+        !workspaceCurrent() ||
+        (ownedSelection !== undefined && hostSession.getSelectionRevision() !== ownedSelection)
+      )
+        return false;
       if (!navigation.isReady()) return true;
       const next = navigation.getRootState();
       routeState ??= next;
@@ -66,8 +72,10 @@ export function RequestActivityScreen() {
       await wait(() => hostSession.getState().saved !== undefined);
       if (!current() || hostSession.getSelectionRevision() !== selection) return;
       const target = typeof id === 'string' ? requestActivitySession.target(id) : undefined;
-      if (!target || !(await hostSession.switchTo(target.hostId, current)))
-        throw new Error('missing');
+      if (!target) throw new Error('missing');
+      const switching = hostSession.switchTo(target.hostId, current);
+      ownedSelection = hostSession.getSelectionRevision();
+      if (!(await switching)) throw new Error('missing');
       if (!current()) return;
       await wait(() => {
         const selected = hostSession.getState();

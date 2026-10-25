@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { channelNavigationHarness } from './channel-navigation-harness';
+import { navigateChannel } from '../src/ui/shell/channel-navigation';
 
 const source = vi.hoisted(() => {
   const client = () => {
@@ -213,6 +214,59 @@ it('does not commit a delayed switch after the Human opens another page', async 
   });
   expect(source.state.saved.hostId).toBe('b');
   expect(history.state.routes.at(-1)?.name).toBe('settings');
+});
+it('keeps a newer notification selection when the old Host roster arrives before its save completes', async () => {
+  await act(async () => root.render(<RequestActivityScreen />));
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  source.pauseSwitch(() => gate);
+  const originalPage = history.state;
+  const newer = source.switchTo('b', () => history.state === originalPage);
+  expect(source.state.saved.hostId).toBe('a');
+  await act(async () => source.a.emit());
+  const afterOldRoster = history.state;
+  let selected = false;
+  await act(async () => {
+    release();
+    selected = await newer;
+    if (selected)
+      navigateChannel(navigation, { pathname: '/dm/[slug]', params: { hostId: 'b', slug: 'ada' } });
+  });
+  expect(afterOldRoster).toBe(originalPage);
+  expect(selected).toBe(true);
+  expect(source.state.saved.hostId).toBe('b');
+  expect(history.state.routes.at(-1)?.params).toMatchObject({ hostId: 'b' });
+});
+it('captures its own selection before a newer notification starts ahead of the await continuation', async () => {
+  source.a.emit();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const actualSwitch = source.switchTo.getMockImplementation()!;
+  let newer: Promise<boolean> | undefined;
+  const originalPage = history.state;
+  source.switchTo.mockImplementationOnce((id, current) =>
+    actualSwitch(id, current).then((selected) => {
+      queueMicrotask(() => {
+        source.pauseSwitch(() => gate);
+        newer = source.switchTo('b', () => history.state === originalPage);
+      });
+      return selected;
+    }),
+  );
+  await act(async () => root.render(<RequestActivityScreen />));
+  const afterContinuation = history.state;
+  let selected = false;
+  await act(async () => {
+    release();
+    selected = await newer!;
+  });
+  expect(afterContinuation).toBe(originalPage);
+  expect(selected).toBe(true);
+  expect(source.state.saved.hostId).toBe('b');
 });
 it('ignores the old client after a source change and releases subscriptions', async () => {
   await act(async () => root.render(<RequestActivityScreen />));
