@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -59,7 +60,8 @@ ws.on('close', (code) => {
   for (const { fail } of pending.values()) fail(new Error(`inspector socket closed (${code})`));
   pending.clear();
   console.error(`inspector socket closed (${code}); the app reloaded, crashed or Metro restarted`);
-  process.exit(2);
+  if (noReact) void cleanupJsCapture().finally(() => process.exit(2));
+  else process.exit(2);
 });
 const send = (method, params = {}) =>
   new Promise((ok, fail) => {
@@ -129,57 +131,118 @@ const collect = `(() => {
     renders: p.renders, renderedPerCommit: p.renderedPerCommit, frames: p.frames });
 })()`;
 
+const captureId = randomUUID();
 const installFrames = `(() => {
-  const p = globalThis.__agentJsFrames = { on: true, start: performance.now(), frames: [] };
+  if (globalThis.__agentJsFrames) globalThis.__agentJsFrames.on = false;
+  const p = globalThis.__agentJsFrames = { id: '${captureId}', on: true, start: performance.now(), frames: [] };
   const tick = (t) => { if (!p.on) return; p.frames.push(t); requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
   return 'ok';
 })()`;
 const collectFrames = `(() => {
-  const p = globalThis.__agentJsFrames; p.on = false;
+  const p = globalThis.__agentJsFrames;
+  if (p?.id !== '${captureId}') throw new Error('JS-frame capture was replaced');
+  p.on = false;
   return JSON.stringify({ mode: 'js-only', clock: 'performance.now', start: p.start,
     end: performance.now(), frames: p.frames });
 })()`;
 
-await send('Runtime.enable');
-await send('Profiler.enable').catch(() => {});
-await send('Profiler.setSamplingInterval', { interval: 1000 }).catch(() => {});
-const installed = await evaluate(noReact ? installFrames : install);
-if (installed !== 'ok') throw new Error(installed);
-await send('Profiler.start');
-const t0 = Date.now();
-let child;
-if (typeof args.run === 'string') child = spawn('sh', ['-c', args.run], { stdio: 'inherit' });
-
-let lastCount = 0;
-let lastChange = Date.now();
-if (noReact)
-  child?.once('exit', () => {
-    lastChange = Date.now();
-  });
-for (;;) {
-  await new Promise((r) => setTimeout(r, 500));
-  if (!noReact) {
-    const n = await Promise.race([
-      evaluate('globalThis.__agentPerf.commits.length'),
-      new Promise((r) => setTimeout(() => r(-1), 5000)),
-    ]);
-    if (n === -1) lastChange = Date.now();
-    if (n !== lastCount) {
-      lastCount = n;
-      lastChange = Date.now();
+let child, react, profile, t0;
+let profilerRequested = false;
+let cleanup;
+const stopFrames = `(() => {
+  const p = globalThis.__agentJsFrames;
+  if (p?.id !== '${captureId}') return false;
+  p.on = false;
+  return true;
+})()`;
+const cleanupJsCapture = () => {
+  if (cleanup) return cleanup;
+  cleanup = (async () => {
+    closing = true;
+    const unconfirmed = () =>
+      console.error(
+        'JS-only cleanup unconfirmed; retry with a fresh capture after checking the inspector.',
+      );
+    let deadline;
+    try {
+      if (ws.readyState !== WebSocket.OPEN) unconfirmed();
+      else
+        await Promise.race([
+          evaluate(stopFrames)
+            .then((owned) => (owned && profilerRequested ? send('Profiler.stop') : undefined))
+            .catch(unconfirmed),
+          new Promise((resolve) => {
+            deadline = setTimeout(() => {
+              unconfirmed();
+              resolve();
+            }, 1000);
+          }),
+        ]);
+    } finally {
+      clearTimeout(deadline);
+      ws.terminate();
+      child?.kill();
     }
-  }
-  const elapsed = (Date.now() - t0) / 1000;
-  if (elapsed > maxSeconds) break;
-  const quiet = Date.now() - lastChange > quietSeconds * 1000;
-  if (child ? child.exitCode !== null && quiet : !noReact && lastCount > 0 && quiet) break;
+  })();
+  return cleanup;
+};
+const interrupted = (signal) => {
+  void cleanupJsCapture().finally(() => process.exit(signal === 'SIGINT' ? 130 : 143));
+};
+if (noReact) {
+  process.once('SIGINT', interrupted);
+  process.once('SIGTERM', interrupted);
 }
-const react = JSON.parse(await evaluate(noReact ? collectFrames : collect));
-const { profile } = await send('Profiler.stop');
-closing = true;
-ws.close();
-child?.kill();
+try {
+  await send('Runtime.enable');
+  await send('Profiler.enable').catch(() => {});
+  await send('Profiler.setSamplingInterval', { interval: 1000 }).catch(() => {});
+  const installed = await evaluate(noReact ? installFrames : install);
+  if (installed !== 'ok') throw new Error(installed);
+  profilerRequested = true;
+  await send('Profiler.start');
+  t0 = Date.now();
+  if (typeof args.run === 'string') child = spawn('sh', ['-c', args.run], { stdio: 'inherit' });
+
+  let lastCount = 0;
+  let lastChange = Date.now();
+  if (noReact)
+    child?.once('exit', () => {
+      lastChange = Date.now();
+    });
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (!noReact) {
+      const n = await Promise.race([
+        evaluate('globalThis.__agentPerf.commits.length'),
+        new Promise((r) => setTimeout(() => r(-1), 5000)),
+      ]);
+      if (n === -1) lastChange = Date.now();
+      if (n !== lastCount) {
+        lastCount = n;
+        lastChange = Date.now();
+      }
+    }
+    const elapsed = (Date.now() - t0) / 1000;
+    if (elapsed > maxSeconds) break;
+    const quiet = Date.now() - lastChange > quietSeconds * 1000;
+    if (child ? child.exitCode !== null && quiet : !noReact && lastCount > 0 && quiet) break;
+  }
+  react = JSON.parse(await evaluate(noReact ? collectFrames : collect));
+  ({ profile } = await send('Profiler.stop'));
+  profilerRequested = false;
+} finally {
+  if (noReact) {
+    await cleanupJsCapture();
+    process.off('SIGINT', interrupted);
+    process.off('SIGTERM', interrupted);
+  } else {
+    closing = true;
+    ws.close();
+    child?.kill();
+  }
+}
 writeFileSync(join(out, 'profile.cpuprofile'), JSON.stringify(profile));
 const timingFile = join(out, noReact ? 'js-frames.json' : 'react.json');
 writeFileSync(timingFile, JSON.stringify(react));

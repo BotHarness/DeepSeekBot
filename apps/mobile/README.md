@@ -250,6 +250,11 @@ the first eligible target. Without `--run`, JS-only mode records until `--max`;
 with a driver, it stops after the driver exits and the quiet tail, or at the cap.
 Check driver exit, completed actions and owned child cleanup separately: profiler
 success alone does not prove the scenario succeeded.
+JS-only captures stop their frame collector on normal completion, errors and
+SIGINT/SIGTERM, with at most one second for best-effort inspector cleanup. An
+unreachable inspector is reported as cleanup unconfirmed. SIGKILL cannot run
+cleanup; the next JS-only installation disables the previous collector before
+starting another. Check the inspector before retrying an interrupted CPU capture.
 
 In this mode, `summary.json` reports `mode: "js-only"`, `react: null` and the reason;
 `js-frames.json` contains the actual JS capture boundaries and rAF samples, while

@@ -36,8 +36,7 @@ const profile = {
   timeDeltas: [250_000, 250_000],
 };
 
-async function capture(args = [], { reactHook = false } = {}) {
-  const out = mkdtempSync(join(tmpdir(), 'rn-profile-cli-'));
+function inspectorRuntime(reactHook = false) {
   let now = 1000;
   const frames = [];
   const runtime = createContext({
@@ -45,6 +44,43 @@ async function capture(args = [], { reactHook = false } = {}) {
     requestAnimationFrame: (callback) => frames.push(callback),
     ...(reactHook ? { __REACT_DEVTOOLS_GLOBAL_HOOK__: { onCommitFiberRoot() {} } } : {}),
   });
+  return {
+    runtime,
+    now: () => now,
+    advance(time, kind = 'frame') {
+      now = time;
+      if (kind === 'frame') for (const callback of frames.splice(0)) callback(time);
+      else if (kind === 'commit' && reactHook)
+        runtime.__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberRoot(1, {
+          current: {
+            tag: 0,
+            type: { displayName: 'FixtureEditor' },
+            actualDuration: 2,
+            selfBaseDuration: 1,
+            flags: 1,
+            alternate: {},
+            child: null,
+            sibling: null,
+          },
+        });
+      return frames.length;
+    },
+  };
+}
+
+async function capture(
+  args = [],
+  {
+    reactHook = false,
+    state = inspectorRuntime(reactHook),
+    rejectStart = false,
+    interrupt,
+    ignoreCleanup = false,
+  } = {},
+) {
+  const out = mkdtempSync(join(tmpdir(), 'rn-profile-cli-'));
+  let startRequested = false;
+  const { runtime } = state;
   const server = createServer((request, response) => {
     if (request.url !== '/json/list') {
       response.writeHead(404).end();
@@ -66,37 +102,35 @@ async function capture(args = [], { reactHook = false } = {}) {
       const { id, method, params } = JSON.parse(String(raw));
       let result = {};
       if (method === 'Runtime.evaluate') {
+        if (ignoreCleanup && startRequested) return;
         try {
           result = { result: { value: runInContext(params.expression, runtime) } };
         } catch (error) {
           result = { exceptionDetails: { text: error.message } };
         }
       } else if (method === 'Profiler.start') {
-        for (const [time, kind] of [
-          [1016, 'frame'],
-          [1032, 'frame'],
-          [1100, 'commit'],
-          [1300, 'frame'],
-          [1400, 'commit'],
-          [1490, 'frame'],
-        ]) {
-          now = time;
-          if (kind === 'frame') frames.shift()?.(time);
-          else if (reactHook)
-            runtime.__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberRoot(1, {
-              current: {
-                tag: 0,
-                type: { displayName: 'FixtureEditor' },
-                actualDuration: 2,
-                selfBaseDuration: 1,
-                flags: 1,
-                alternate: {},
-                child: null,
-                sibling: null,
-              },
-            });
+        startRequested = true;
+        if (interrupt) {
+          child.kill(interrupt);
+          return;
         }
-        now = 1500;
+        if (rejectStart) {
+          socket.send(
+            JSON.stringify({ id, error: { message: 'synthetic Profiler.start refusal' } }),
+          );
+          return;
+        }
+        const start = state.now();
+        for (const [offset, kind] of [
+          [16, 'frame'],
+          [32, 'frame'],
+          [100, 'commit'],
+          [300, 'frame'],
+          [400, 'commit'],
+          [490, 'frame'],
+        ])
+          state.advance(start + offset, kind);
+        state.advance(start + 500, 'clock');
       } else if (method === 'Profiler.stop') result = { profile };
       socket.send(JSON.stringify({ id, result }));
     });
@@ -117,7 +151,11 @@ async function capture(args = [], { reactHook = false } = {}) {
     child.stderr.on('data', (chunk) => {
       stderr += chunk;
     });
-    const timeout = setTimeout(() => child.kill(), 5000);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill('SIGKILL');
+    }, 5000);
     const code = await new Promise((resolve, reject) => {
       child.once('error', reject);
       child.once('close', resolve);
@@ -126,6 +164,8 @@ async function capture(args = [], { reactHook = false } = {}) {
       existsSync(join(out, name)) ? JSON.parse(readFileSync(join(out, name), 'utf8')) : undefined;
     return {
       code,
+      timedOut,
+      rescheduledFrames: state.advance(state.now() + 16),
       stdout,
       stderr,
       summary: json('summary.json'),
@@ -201,4 +241,39 @@ it('honors explicit JS-only mode even when a React hook is available', async () 
   expect(result.summary.react).toBeNull();
   expect(result.react).toBeUndefined();
   expect(result.jsFrames.frames).toEqual([1016, 1032, 1300, 1490]);
+});
+
+it('stops JS frame callbacks when Profiler.start rejects before collection', async () => {
+  const result = await capture(['--no-react'], { rejectStart: true });
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('synthetic Profiler.start refusal');
+  expect(result.rescheduledFrames).toBe(0);
+});
+
+it('stops a previous uncatchably terminated collector before the next capture', async () => {
+  const state = inspectorRuntime();
+  const interrupted = await capture(['--no-react'], { state, interrupt: 'SIGKILL' });
+  expect(interrupted.rescheduledFrames).toBe(1);
+  const next = await capture(['--no-react'], { state });
+  expect(next.code, next.stderr).toBe(0);
+  expect(next.rescheduledFrames).toBe(0);
+});
+
+it.each([
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+])('cleans up its JS frames on %s', async (interrupt, code) => {
+  const result = await capture(['--no-react'], { interrupt });
+  expect(result.code).toBe(code);
+  expect(result.rescheduledFrames).toBe(0);
+  expect(result.summary).toBeUndefined();
+});
+
+it('bounds cleanup when the inspector stops answering and reports it as unconfirmed', async () => {
+  const result = await capture(['--no-react'], { rejectStart: true, ignoreCleanup: true });
+  expect(result.timedOut).toBe(false);
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('JS-only cleanup unconfirmed');
+  expect(result.summary).toBeUndefined();
+  expect(result.rescheduledFrames).toBe(1);
 });
