@@ -485,17 +485,23 @@ describe('Search in the Chats header', () => {
       if (reset !== 'none') {
         expect(whoami).toHaveBeenCalledOnce();
         const state = cloudHistory.state;
-        cloudHistory.navigation.dispatch({
-          type: 'RESET',
-          payload: {
-            ...state,
-            index: 0,
-            routes: [{ key: 'replacement-tabs', name: '(tabs)' }],
-          },
-        });
+        if (reset === 'workspace-intent') {
+          hostDrawer.beginWorkspaceSelection();
+          expect(cloudHistory.state).toBe(state);
+        } else {
+          cloudHistory.navigation.dispatch({
+            type: 'RESET',
+            payload: {
+              ...state,
+              index: 0,
+              routes: [{ key: 'replacement-tabs', name: '(tabs)' }],
+            },
+          });
+        }
         const replacement = cloudHistory.state;
         await act(async () => finishIdentity?.());
         expect(cloudHistory.state).toBe(replacement);
+        if (reset === 'workspace-intent') expect(cloudHistory.state).toBe(state);
         expect(cloudHistory.state.routes.map((r) => r.name)).toEqual(['(tabs)']);
       } else {
         expect(cloudHistory.state.routes.at(-1)).toMatchObject({
