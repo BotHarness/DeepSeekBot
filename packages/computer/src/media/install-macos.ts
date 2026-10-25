@@ -219,7 +219,6 @@ export async function ensureMacVideoHelper(options: {
               : 'Mac video runtime installation failed. Check available disk space and folder permissions, then start Local Computer again.';
     throw new LocalVideoError('helper-missing', message);
   } finally {
-    // Cleanup must not replace the setup result or prevent restoring the previous runtime.
     const cleanup = async (path: string, target: 'staging' | 'previous'): Promise<void> => {
       try {
         await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
