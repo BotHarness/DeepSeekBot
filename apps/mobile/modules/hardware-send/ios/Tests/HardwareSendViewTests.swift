@@ -38,7 +38,8 @@ final class HardwareSendViewTests: XCTestCase {
     prepareEditor()
     defer { removeEditor() }
     let command = try sendCommand()
-    XCTAssertTrue(UIApplication.shared.sendAction(command.action, to: nil, from: command, for: nil))
+    let action = try XCTUnwrap(command.action)
+    XCTAssertTrue(UIApplication.shared.sendAction(action, to: nil, from: command, for: nil))
     XCTAssertEqual(sends, 1)
   }
 
@@ -46,17 +47,19 @@ final class HardwareSendViewTests: XCTestCase {
     prepareEditor()
     defer { removeEditor() }
     let command = try sendCommand()
+    let action = try XCTUnwrap(command.action)
     field.setMarkedText("ni", selectedRange: NSRange(location: 2, length: 0))
     XCTAssertNotNil(field.markedTextRange)
     XCTAssertFalse(view.keyCommands?.contains(where: isSendCommand) ?? false)
-    UIApplication.shared.sendAction(command.action, to: view, from: command, for: nil)
+    UIApplication.shared.sendAction(action, to: view, from: command, for: nil)
     XCTAssertEqual(sends, 0)
     XCTAssertEqual(field.text, "ni")
     XCTAssertNotNil(field.markedTextRange)
     field.unmarkText()
     XCTAssertNil(field.markedTextRange)
     let next = try sendCommand()
-    UIApplication.shared.sendAction(next.action, to: nil, from: next, for: nil)
+    let nextAction = try XCTUnwrap(next.action)
+    UIApplication.shared.sendAction(nextAction, to: nil, from: next, for: nil)
     XCTAssertEqual(sends, 1)
   }
 
@@ -64,11 +67,12 @@ final class HardwareSendViewTests: XCTestCase {
     prepareEditor()
     defer { removeEditor() }
     let command = try sendCommand()
+    let action = try XCTUnwrap(command.action)
     let other = UITextView(frame: CGRect(x: 0, y: 200, width: 500, height: 100))
     window.rootViewController!.view.addSubview(other)
     XCTAssertTrue(other.becomeFirstResponder())
     XCTAssertFalse(field.isFirstResponder)
-    UIApplication.shared.sendAction(command.action, to: view, from: command, for: nil)
+    UIApplication.shared.sendAction(action, to: view, from: command, for: nil)
     XCTAssertEqual(sends, 0)
   }
 
