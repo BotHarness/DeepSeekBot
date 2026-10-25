@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
-import { channelRouteId } from '../src/ui/shell/channel-navigation';
+import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View } from 'react-native';
@@ -54,6 +54,7 @@ function RootNavigator() {
             ) : null}
             <View testID="app-stack-content" style={{ flex: 1 }}>
               <Stack
+                UNSTABLE_router={channelStackRouter}
                 screenOptions={{
                   orientation: 'portrait',
                   headerStyle: { backgroundColor: theme.background },

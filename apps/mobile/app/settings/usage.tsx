@@ -32,7 +32,9 @@ export default function UsageScreen() {
       key={saved?.hostId}
       sources={sources}
       roster={roster?.bots ?? []}
-      onOpenBot={(slug) => router.push({ pathname: '/bot/[slug]', params: { slug } })}
+      onOpenBot={(slug) =>
+        router.push({ pathname: '/bot/[slug]', params: { slug, hostId: saved?.hostId } })
+      }
     />
   );
 }

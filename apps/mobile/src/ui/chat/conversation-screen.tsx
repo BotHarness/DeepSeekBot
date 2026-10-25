@@ -1,7 +1,7 @@
 import { useSourceDraft } from '../../host/native-source-drafts';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
-import { Stack, useIsFocused, useRouter } from 'expo-router';
+import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -118,6 +118,7 @@ import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
+import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
@@ -151,14 +152,18 @@ export function ConversationScreen({
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const focused = useIsFocused();
   const roster = useHostSnapshot(client, focused).roster;
-  const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const identities = useMemo(
     () => ({
       bots: roster?.bots ?? [],
       openBot: (slug: string) =>
-        router.push({ pathname: '/dm/[slug]', params: { slug, hostId: saved?.hostId } }),
+        saved &&
+        navigateChannel(navigation, {
+          pathname: '/dm/[slug]',
+          params: { slug, hostId: saved.hostId },
+        }),
     }),
-    [roster?.bots, router, saved?.hostId],
+    [roster?.bots, navigation, saved],
   );
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
@@ -298,6 +303,7 @@ function ChatConversation({
   const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
+  const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const headerPadding = useHeaderPadding();
   const { width: windowWidth } = useWindowDimensions();
@@ -705,7 +711,21 @@ function ChatConversation({
                             : item.message.activity?.kind === 'bot-create'
                               ? t.activityRow.openBot
                               : t.activityRow.openChat,
-                        onOpen: () => router.push(target),
+                        onOpen: () => {
+                          if (target.pathname === '/dm/[slug]') {
+                            if (saved)
+                              navigateChannel(navigation, {
+                                ...target,
+                                params: { ...target.params, hostId: saved.hostId },
+                              });
+                          } else if (target.pathname === '/channel/[id]') {
+                            if (saved)
+                              navigateChannel(navigation, {
+                                ...target,
+                                params: { ...target.params, hostId: saved.hostId },
+                              });
+                          } else router.push(target);
+                        },
                       },
               })
             }
@@ -790,7 +810,12 @@ function ChatConversation({
     <ChatTitle
       bot={bot}
       fallback={slug ?? ''}
-      onPress={() => router.push(`/bot/${bot?.slug ?? slug}`)}
+      onPress={() =>
+        router.push({
+          pathname: '/bot/[slug]',
+          params: { slug: bot?.slug ?? slug, hostId: saved?.hostId },
+        })
+      }
     />
   ) : botDm ? (
     <View
@@ -817,7 +842,10 @@ function ChatConversation({
       channel={channel}
       fallback={channelId ?? ''}
       onPress={() =>
-        router.push({ pathname: '/group/[id]', params: { id: channel?.id ?? channelId } })
+        router.push({
+          pathname: '/group/[id]',
+          params: { id: channel?.id ?? channelId, hostId: saved?.hostId },
+        })
       }
     />
   );
