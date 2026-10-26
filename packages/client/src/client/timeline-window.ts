@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 const KEEP_RENDERED_VIEWPORTS = 1.5;
 
@@ -116,6 +117,10 @@ export function useTimelineWindow(
       resize.current = new ResizeObserver((entries) => {
         let changed = false;
         for (const entry of entries) {
+          if (entry.target === root.current) {
+            changed = true;
+            continue;
+          }
           const key = (entry.target as HTMLElement).dataset['groupKey'];
           if (key === undefined || !entry.target.isConnected) continue;
           const height =
@@ -151,14 +156,21 @@ export function useTimelineWindow(
     return ref;
   };
 
+  const onScroll = useCallback(() => flushSync(update), [update]);
+
   const rootRef = useCallback(
     (node: HTMLElement | null) => {
-      root.current?.removeEventListener('scroll', update);
+      if (root.current !== null) {
+        root.current.removeEventListener('scroll', onScroll);
+        observer()?.unobserve(root.current);
+      }
       root.current = node;
-      node?.addEventListener('scroll', update, { passive: true });
-      if (node !== null) schedule();
+      if (node === null) return;
+      node.addEventListener('scroll', onScroll, { passive: true });
+      observer()?.observe(node);
+      schedule();
     },
-    [schedule, update],
+    [onScroll, schedule],
   );
 
   const known = new Set(keys);
