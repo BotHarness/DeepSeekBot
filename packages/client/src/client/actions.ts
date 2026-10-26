@@ -63,7 +63,7 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
-import type { HumanAttentionPage, HumanInboxState } from './store.js';
+import type { BotAttentionPage, HumanAttentionPage, HumanInboxState } from './store.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
@@ -532,6 +532,7 @@ export interface BridgeActions {
   ): Promise<TimelinePage>;
   ignoreHumanReport(sourceEventId: string): Promise<void>;
   loadMoreBotInbox(slug: string): Promise<void>;
+  botInboxPage(slug: string, cursor?: string): Promise<BotAttentionPage>;
   openChannel(channelId: string): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
   averageReplyPerf(channelId: string, signal?: AbortSignal): Promise<AveragePerfView | undefined>;
@@ -1962,6 +1963,7 @@ export function createActions(
         humanInboxScopeVersion += 1;
       };
     },
+    botInboxPage: (slug, cursor) => loadBotAttention(call, slug, 50, cursor),
     activityPage: (category, filters, cursor) =>
       loadHumanAttention(call, category, 50, cursor, filters),
     openHumanInbox() {

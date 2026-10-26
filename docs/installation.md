@@ -48,7 +48,7 @@ Once enabled, **Bot mode (Bot 模式)** appears in the sidebar. In the verified 
 
 ## 4. Start with Home onboarding
 
-Open **Bot mode**, configure a model in Home and send Tob an editable creation request. Follow the journey to create a real Bot and group, with existing management approvals, then learn to drag panel titles, resize panels and reopen them from the control rail. Finish by clicking the **Home title** to close Home and enter the original Tob DM.
+Open **Bot mode**, configure a model in Home and send Tob an editable creation request. Follow the journey to create a real Bot and group, with existing management approvals, then choose a Layout mode (Simple is preselected) and read the tips for it. In Simple, finish by selecting **Messages** on the control rail; in Advanced, finish by clicking the **Home title** to close Home. Either way you land in the original Tob DM.
 
 New Bots no longer receive an automatic welcome message. Send your own greeting and check a real reply to verify model usability. DSH still manages credentials; npm installation does not provide them. See [API and Bot models](/docs/model-setup) and [Settings guide](/docs/settings) for appearance, concurrency, persona, attention, sidebar, and workspace authorization fields.
 

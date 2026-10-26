@@ -14,7 +14,13 @@ import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { openModelsSettingsAndReturn } from './bot-settings-open.js';
 import type { Appearance, AppearancePatch } from './appearance.js';
 import { AppearanceMaterialSettings } from './appearance-material-settings.js';
-import { ColorSchemePicker, ThemePresetPicker, applyPreset } from './appearance-pickers.js';
+import {
+  ColorSchemePicker,
+  LayoutModePicker,
+  ThemePresetPicker,
+  applyPreset,
+} from './appearance-pickers.js';
+import type { LayoutMode } from './layout-mode.js';
 import { WallpaperLibrary } from './wallpaper-library.js';
 import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
@@ -219,6 +225,7 @@ const styles = stylex.create({
   note: { display: 'flex', flexDirection: 'column', gap: space.x2 },
   signature: { margin: 0, alignSelf: 'flex-end', color: color.muted, fontSize: text.bodySize },
   section: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
+  layoutHint: { margin: 0, color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
   sectionTitle: {
     margin: 0,
     color: color.muted,
@@ -368,6 +375,8 @@ export function BotIntro({
           <ThemeStep
             appearance={appearance}
             wallpaper={wallpaper}
+            layoutMode={state.layoutMode}
+            onLayoutMode={(mode) => controller.chooseLayout(mode)}
             t={t}
             track={(setting) => controller.introEvent('intro_theme_changed', { setting })}
           />
@@ -492,13 +501,17 @@ function Section({ title, children }: { title: string; children: ReactNode }): R
 function ThemeStep({
   appearance,
   wallpaper,
+  layoutMode,
+  onLayoutMode,
   t,
   track,
 }: {
   appearance: Appearance;
   wallpaper?: Wallpaper | undefined;
+  layoutMode?: LayoutMode | undefined;
+  onLayoutMode(mode: LayoutMode): void;
   t: BotHarnessTranslate;
-  track(setting: 'scheme' | 'preset' | 'wallpaper'): void;
+  track(setting: 'scheme' | 'preset' | 'layout' | 'wallpaper'): void;
 }): ReactElement {
   const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
   const media = useSyncExternalStore(wallpaper?.subscribe ?? noSubscribe, () =>
@@ -534,6 +547,25 @@ function ThemeStep({
           t={t}
         />
       </Section>
+      {layoutMode ? (
+        <Section title={t('workspace.layoutMode')}>
+          <LayoutModePicker
+            value={layoutMode}
+            onChange={(mode) => {
+              onLayoutMode(mode);
+              track('layout');
+            }}
+            t={t}
+          />
+          <p {...stylex.props(styles.layoutHint)}>
+            {t(
+              layoutMode === 'simple'
+                ? 'onboarding.short.layoutSimpleHint'
+                : 'onboarding.short.layoutAdvancedHint',
+            )}
+          </p>
+        </Section>
+      ) : null}
       {wallpaper ? (
         <Section title={t('intro.theme.wallpaper')}>
           <WallpaperLibrary

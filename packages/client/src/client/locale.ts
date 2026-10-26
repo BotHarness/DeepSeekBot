@@ -453,6 +453,23 @@ export const zh = {
     '现在试一下：点击首页面板左上角的图标与标题，关闭首页，进入总管对话。草稿会保留。',
   'onboarding.short.layout': '调整页面布局',
   'onboarding.short.layoutHint': '了解移动、缩放、关闭与重新打开面板。',
+  'onboarding.short.layoutChoose': '先选一种布局模式，之后可以随时在 Bot 设置 › 界面设置里切换。',
+  'onboarding.short.layoutSimpleHint':
+    '简单：左侧栏切换整块视图，消息里频道列表和对话并排显示。适合大多数人。',
+  'onboarding.short.layoutAdvancedHint': '高级：面板可以自由拖拽、停靠和缩放，适合同时看很多内容。',
+  'onboarding.short.chatHintSimple': '现在试一下：点击左侧栏的「消息」，进入总管对话。草稿会保留。',
+  'onboarding.short.views': '切换视图',
+  'onboarding.short.viewsHint':
+    '左侧栏的每个按钮会把右侧整块区域切换到对应视图，例如首页、消息和活动中心。',
+  'onboarding.short.messages': '消息',
+  'onboarding.short.messagesHint':
+    '消息视图里，频道列表和对话并排显示。拖动中间的分隔线可以调整宽度。',
+  'onboarding.short.column': '子面板栏',
+  'onboarding.short.columnHint':
+    '在对话标题栏点子面板按钮，右侧会打开会话、记忆、浏览器等子面板。每一项都能折叠，也能拖动调整高度；折叠不会停止 Bot 的工作。',
+  'onboarding.short.switchMode': '切换模式',
+  'onboarding.short.switchModeHint':
+    '想自由拖拽面板？随时可以在 Bot 设置 › 界面设置里切换到高级模式。',
   'onboarding.short.suggest': '填入示例问题',
   'onboarding.short.draft': '输入框里有草稿，可以继续编辑后发送。',
   'onboarding.short.tour': '看看怎么操作',
@@ -1796,6 +1813,12 @@ export const zh = {
   'message.delivery.ignored': '已忽略',
   'message.delivery.retryable': '失败，可重试',
   'message.delivery.needs-repair': '处理失败，需检查',
+  'message.delivery.missing': '未收到',
+  'message.delivery.openInbox': '查看 {name} 的收件箱',
+  'message.delivery.inboxTitle': '{name} 的收件箱',
+  'message.delivery.thisMessage': '这条消息',
+  'message.delivery.notInInbox': '这条消息没有进入 {name} 的收件箱。',
+  'message.delivery.history': '收件记录',
   'message.failed': '发送失败',
   'message.failedRestore': '将失败消息放回输入框修改后重发',
   'message.unconfirmed': '结果未确认',
@@ -1857,6 +1880,8 @@ export const zh = {
   'workspace.reorderHint': '拖拽排序，或按 Alt + 上下方向键移动',
   'workspace.shortcut': '开关 {panel} 面板',
   'workspace.channelPanels': '频道子面板',
+  'workspace.subpanelColumn': '子面板栏',
+  'workspace.subpanelColumn.hide': '隐藏 {label}',
   'workspace.session.left': '移到消息左侧',
   'workspace.session.right': '移到消息右侧',
   'workspace.session.above': '移到消息上方',
@@ -4874,6 +4899,26 @@ export const en = {
     'Try it now: click the Home panel icon and title at the top left to hide Home and enter your steward conversation. Your draft stays saved.',
   'onboarding.short.layout': 'Arrange your workspace',
   'onboarding.short.layoutHint': 'Learn to move, resize, hide and reopen panels.',
+  'onboarding.short.layoutChoose':
+    'Choose a layout mode first. You can switch any time in Bot Settings › Appearance.',
+  'onboarding.short.layoutSimpleHint':
+    'Simple: the rail switches the whole view, and Messages shows the Channel list beside the conversation. Best for most people.',
+  'onboarding.short.layoutAdvancedHint':
+    'Advanced: drag, dock and resize panels freely to see many things at once.',
+  'onboarding.short.chatHintSimple':
+    'Try it now: select Messages on the rail to enter your steward conversation. Your draft stays saved.',
+  'onboarding.short.views': 'Switch views',
+  'onboarding.short.viewsHint':
+    'Each rail button switches the whole area on the right to its view, such as Home, Messages or Activity Center.',
+  'onboarding.short.messages': 'Messages',
+  'onboarding.short.messagesHint':
+    'Messages shows the Channel list beside the conversation. Drag the divider between them to change the width.',
+  'onboarding.short.column': 'Subpanel column',
+  'onboarding.short.columnHint':
+    'Use the subpanel button in the conversation header to open Sessions, Memory, Browser and other subpanels on the right. Each one collapses and resizes, and collapsing never stops Bot work.',
+  'onboarding.short.switchMode': 'Switch modes',
+  'onboarding.short.switchModeHint':
+    'Want to drag panels freely? Switch to Advanced any time in Bot Settings › Appearance.',
   'onboarding.short.suggest': 'Use example request',
   'onboarding.short.draft': 'Your input has a draft. Edit it and send when ready.',
   'onboarding.short.tour': 'Show me how',
@@ -6282,6 +6327,12 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.delivery.ignored': 'Ignored',
   'message.delivery.retryable': 'Failed, retry available',
   'message.delivery.needs-repair': 'Failed, needs review',
+  'message.delivery.missing': 'Not received',
+  'message.delivery.openInbox': "Open {name}'s Inbox",
+  'message.delivery.inboxTitle': "{name}'s Inbox",
+  'message.delivery.thisMessage': 'This message',
+  'message.delivery.notInInbox': "This message never reached {name}'s Inbox.",
+  'message.delivery.history': 'Inbox history',
   'message.failed': 'Failed to send',
   'message.failedRestore': 'Restore failed message to composer to edit and resend',
   'message.unconfirmed': 'Not confirmed',
@@ -6344,6 +6395,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'workspace.reorderHint': 'Drag to reorder, or press Alt + Up/Down',
   'workspace.shortcut': 'Toggle {panel} panel',
   'workspace.channelPanels': 'Channel subpanels',
+  'workspace.subpanelColumn': 'Subpanel column',
+  'workspace.subpanelColumn.hide': 'Hide {label}',
   'workspace.session.left': 'Move left of Messages',
   'workspace.session.right': 'Move right of Messages',
   'workspace.session.above': 'Move above Messages',

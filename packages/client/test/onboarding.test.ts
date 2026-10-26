@@ -384,3 +384,53 @@ it.each(['no-op', 'failure', 'timeline-error'])(
     expect(controller.getSnapshot().error).toBeTruthy();
   },
 );
+it.each(['simple', 'advanced'] as const)(
+  'v2 %s step 5 finishes only from the action of that Layout mode',
+  async (mode) => {
+    const { actions, controller } = harness(true);
+    actions.onboarding.mockResolvedValue({
+      ...receipt,
+      tutorial: 'active',
+      journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
+    });
+    await controller.enter();
+    controller.attachLayout(mode, { setMode: vi.fn() });
+    controller.finishTour();
+    const reveal = vi.fn();
+    const other = mode === 'simple' ? 'finishFromHomeTitle' : 'finishFromRail';
+    const own = mode === 'simple' ? 'finishFromRail' : 'finishFromHomeTitle';
+    await controller[other](reveal);
+    expect(reveal).not.toHaveBeenCalled();
+    expect(actions.openChannel).not.toHaveBeenCalled();
+    actions.openChannel.mockImplementationOnce(async () => {
+      store.select({ kind: 'channel', channelId: 'dm-ada' });
+      store.setConversation({ status: 'ready', error: undefined });
+    });
+    await controller[own](reveal);
+    expect(reveal).toHaveBeenCalledOnce();
+    expect(actions.openChannel).toHaveBeenLastCalledWith('dm-ada');
+    expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish');
+  },
+);
+it('v2 Simple rail selection before the layout tips does not finish', async () => {
+  const { actions, controller } = harness(true);
+  actions.onboarding.mockResolvedValue({
+    ...receipt,
+    tutorial: 'active',
+    journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
+  });
+  await controller.enter();
+  const setMode = vi.fn();
+  const detach = controller.attachLayout('simple', { setMode });
+  controller.chooseLayout('advanced');
+  expect(setMode).toHaveBeenCalledWith('advanced');
+  const reveal = vi.fn();
+  await controller.finishFromRail(reveal);
+  expect(reveal).not.toHaveBeenCalled();
+  expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
+  const stale = controller.attachLayout('advanced', { setMode });
+  detach();
+  expect(controller.getSnapshot().layoutMode).toBe('advanced');
+  stale();
+  expect(controller.getSnapshot().layoutMode).toBeUndefined();
+});
