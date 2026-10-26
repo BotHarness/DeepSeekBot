@@ -1,4 +1,12 @@
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+  writeSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -734,20 +742,28 @@ describe('operational database owner', () => {
     });
     owner.close();
 
-    const external = new DatabaseSync(databasePath(dshHome));
-    external.exec(`
-      PRAGMA writable_schema = ON;
-      UPDATE sqlite_master SET sql = 'CREATE INDEX test_records_a ON test_records(b)'
-        WHERE name = 'test_records_a';
-    `);
-    external.close();
+    const inspect = new DatabaseSync(databasePath(dshHome), { readOnly: true });
+    const { rootpage } = inspect
+      .prepare("SELECT rootpage FROM sqlite_master WHERE name = 'test_records_a'")
+      .get() as { rootpage: number };
+    const { page_size: pageSize } = inspect.prepare('PRAGMA page_size').get() as {
+      page_size: number;
+    };
+    inspect.close();
+    const offset = (rootpage - 1) * pageSize;
+    const bytes = readFileSync(databasePath(dshHome));
+    const page = bytes.subarray(offset, offset + pageSize);
+    for (let id = 1; id <= 8; id += 1) page[page.indexOf(`a${id}`)] = 'z'.charCodeAt(0);
+    const file = openSync(databasePath(dshHome), 'r+');
+    writeSync(file, page, 0, pageSize, offset);
+    closeSync(file);
 
     const failed = mountOperationalDatabase({ dshHome, schemaPlan: plan });
     expect(failed.recovery?.code).toBe('integrity-failed');
     expect(failed.recovery?.message).toMatch(
       /^SQLite integrity check failed: (?:[^;]+; ){5}\+\d+ more$/,
     );
-    expect(failed.recovery?.message).toContain('test_records_a');
+    expect(failed.recovery?.message).toContain('missing from index test_records_a');
     failed.close();
   });
 
