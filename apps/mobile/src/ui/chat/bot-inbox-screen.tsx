@@ -105,7 +105,10 @@ export function BotInboxScreen({
         data={items}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
-          <InboxRow item={item} marked={item.sourceMessageId === messageId} />
+          <InboxRow
+            item={item}
+            marked={messageId !== undefined && item.sourceMessageId === messageId}
+          />
         )}
         onEndReachedThreshold={0.5}
         onEndReached={() => {

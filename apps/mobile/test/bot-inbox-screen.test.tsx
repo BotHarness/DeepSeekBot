@@ -100,6 +100,26 @@ describe('Bot Inbox screen', () => {
     expect(view.querySelector('[data-testid="bot-inbox-load-more"]')).toBeNull();
   });
 
+  it('tags no row when opened without a message', async () => {
+    const view = await render(
+      <BotInboxScreen
+        client={
+          {
+            call: vi.fn(async () => ({
+              items: [item('loose'), item('linked', { sourceMessageId: 'm1' })],
+            })),
+          } as unknown as HostClient
+        }
+        slug="ada"
+        botName="ADA"
+        messageId={undefined}
+        missing={false}
+      />,
+    );
+    expect(rows(view)).toEqual(['bot-inbox-item-loose', 'bot-inbox-item-linked']);
+    expect(view.textContent).not.toContain(t.delivery.thisMessage);
+  });
+
   it('explains that a not-received Bot never got the message', async () => {
     const view = await render(
       <BotInboxScreen
