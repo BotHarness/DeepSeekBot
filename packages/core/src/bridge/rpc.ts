@@ -69,7 +69,14 @@ import type {
 import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
-import type { ApprovalReviewerModelView, IdleCompactionView, OverviewUsage } from './methods.js';
+import type {
+  ApprovalReviewerModelView,
+  BotPromptView,
+  IdleCompactionView,
+  OverviewUsage,
+  PromptPartView,
+} from './methods.js';
+import type { PromptPreset } from '../prompts/prompt-presets.js';
 import type { ManualCompactionResult } from '../runtime/idle-compaction.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { HumanAssignmentContext } from '../runtime/assignment-human-context.js';
@@ -1055,6 +1062,62 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   approvalTemplateUpdate(name: string, text: string): { template: ApprovalTemplateEntry } {
     return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
+  }
+
+  promptParts(): { parts: PromptPartView[] } {
+    return unwrap(this.methods.promptParts({}));
+  }
+
+  promptPresets(): { presets: PromptPreset[]; globalPresetId: string | null } {
+    return unwrap(this.methods.promptPresets({}));
+  }
+
+  promptPresetCreate(name: string, parts?: Record<string, unknown>): { preset: PromptPreset } {
+    return unwrap(
+      this.methods.promptPresetCreate({ name, ...(parts === undefined ? {} : { parts }) }),
+    );
+  }
+
+  promptPresetUpdate(
+    id: string,
+    name?: string,
+    parts?: Record<string, unknown>,
+    expectedRevision?: number,
+  ): { preset: PromptPreset } {
+    return unwrap(
+      this.methods.promptPresetUpdate({
+        id,
+        ...(name === undefined ? {} : { name }),
+        ...(parts === undefined ? {} : { parts }),
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
+  }
+
+  promptPresetDelete(id: string): { id: string; clearedBots: string[] } {
+    return unwrap(this.methods.promptPresetDelete({ id }));
+  }
+
+  promptGlobalSet(presetId: string | null): { presetId: string | null } {
+    return unwrap(this.methods.promptGlobalSet({ presetId }));
+  }
+
+  botPrompt(slug: string): BotPromptView {
+    return unwrap(this.methods.botPrompt({ slug }));
+  }
+
+  botPromptSet(
+    slug: string,
+    presetId?: string | null,
+    parts?: Record<string, unknown>,
+  ): BotPromptView {
+    return unwrap(
+      this.methods.botPromptSet({
+        slug,
+        ...(presetId === undefined ? {} : { presetId }),
+        ...(parts === undefined ? {} : { parts }),
+      }),
+    );
   }
 
   approvalTemplateDelete(name: string): { template: { name: string }; clearedBots: string[] } {

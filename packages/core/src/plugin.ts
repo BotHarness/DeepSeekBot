@@ -2359,7 +2359,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           effectiveText: logged,
           effectiveSource: logged === null ? 'none' : 'log',
           next: null,
-          pending: false,
+          pending: sessionId !== null && core.prompts.pending(slug, sessionId),
         };
       }
       const nodes = agent.session.surface.nodes
@@ -2380,7 +2380,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           sections: assembly.sections.map(({ name, text }) => ({ name, text })),
           contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
         },
-        pending: effectiveText !== null && effectiveText !== text,
+        pending:
+          (effectiveText !== null && effectiveText !== text) ||
+          core.prompts.pending(slug, sessionId ?? undefined),
       };
     },
     cloudConnections,
