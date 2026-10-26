@@ -5,6 +5,7 @@ import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { useStrings, t } from '../strings';
+import { BADGE_HEIGHT } from './bubble-shape';
 
 export function reactionSummary(
   reaction: ConversationReaction,
@@ -54,7 +55,7 @@ export function ReactionChips({
               alignItems: 'center',
               gap: space.x2,
               paddingHorizontal: space.x4,
-              paddingVertical: space.x2 + space.x1,
+              minHeight: BADGE_HEIGHT,
               borderRadius: radius.round,
               borderWidth: edge.focus,
               borderColor: theme.color.base,

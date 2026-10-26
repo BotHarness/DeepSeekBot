@@ -25,6 +25,7 @@ import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
+import { BADGE_HEIGHT } from './bubble-shape';
 
 const STACK_LIMIT = 3;
 const STACK_AVATAR = 16;
@@ -229,7 +230,7 @@ export function ReadingBadge({
         gap: space.x2,
         paddingLeft: space.x2,
         paddingRight: space.x4,
-        paddingVertical: space.x2,
+        minHeight: BADGE_HEIGHT,
         borderRadius: radius.round,
         borderWidth: edge.focus,
         borderColor: theme.color.base,

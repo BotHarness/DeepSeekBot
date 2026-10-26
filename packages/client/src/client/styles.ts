@@ -3564,6 +3564,9 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-bubble-wrap:has(.bh-bubble-badges) {
   margin-bottom: ${space.x6};
 }
+.bh-message-group:has(> .bh-message-stack > .bh-bubble-wrap:last-child .bh-bubble-badges) > .bh-message-group-avatar {
+  margin-bottom: ${space.x6};
+}
 .bh-reading {
   display: inline-flex;
   align-items: center;
