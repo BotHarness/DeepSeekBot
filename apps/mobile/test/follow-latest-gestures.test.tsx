@@ -56,9 +56,13 @@ function message(id: string, author: ConversationMessage['author']): Conversatio
   return { id, at: '', author, body: id, attachments: [], delivery: 'committed' };
 }
 
-function mount(messages: readonly ConversationMessage[] = [], start = 0, empty = false) {
+function mount(
+  messages: readonly ConversationMessage[] = [],
+  start = 0,
+  empty = false,
+  animateGrowth = false,
+) {
   const following = vi.fn();
-  const latestChange = vi.fn();
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
   const probe: { current?: ReturnType<typeof useFollowLatest<unknown>> } = {};
@@ -69,7 +73,7 @@ function mount(messages: readonly ConversationMessage[] = [], start = 0, empty =
       following,
       start,
       known && rows.length === 0,
-      latestChange,
+      animateGrowth,
     );
     return null;
   }
@@ -77,7 +81,6 @@ function mount(messages: readonly ConversationMessage[] = [], start = 0, empty =
   act(() => root.render(<Probe rows={messages} known={empty} />));
   return {
     following,
-    latestChange,
     scrollToOffset,
     get current() {
       return probe.current!;
@@ -413,7 +416,6 @@ describe('following a growing conversation', () => {
         const content = geometry === 'content' ? CONTENT + 200 : CONTENT;
         const viewport = geometry === 'viewport' ? LAYOUT - 200 : LAYOUT;
         view.scrollToOffset.mockClear();
-        view.latestChange.mockClear();
         const reportGeometry = () => {
           const scrollEvent = event(0);
           view.current.listProps.onScroll({
@@ -433,7 +435,6 @@ describe('following a growing conversation', () => {
           offset: END + 200,
           animated: false,
         });
-        expect(view.latestChange).toHaveBeenLastCalledWith(END + 200);
         act(() => view.current.hold());
         view.scrollToOffset.mockClear();
         act(reportGeometry);
@@ -641,4 +642,55 @@ describe('native keyboard and reading-position coordination', () => {
     expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: true });
     view.unmount();
   });
+});
+
+it('animates settled streaming growth without unchanged callbacks snapping the animation', () => {
+  const view = mount([message('latest', 'bot')], 0, false, true);
+  try {
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+    });
+    flushFrames();
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    view.scrollToOffset.mockClear();
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 60, animated: true });
+    view.scrollToOffset.mockClear();
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 60));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.hold());
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT + 120));
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+  } finally {
+    view.unmount();
+  }
+});
+
+it('keeps native keyboard ownership even when streaming growth is animated', () => {
+  const view = mount([message('latest', 'bot')], 0, false, true);
+  try {
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+      view.current.jumpToLatest();
+    });
+    flushFrames();
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.keyboard.onStart();
+      view.current.listProps.onContentSizeChange(0, CONTENT + 60);
+    });
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.keyboard.onEnd());
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 60, animated: false });
+  } finally {
+    view.unmount();
+  }
 });
