@@ -75,6 +75,7 @@ export function useFollowLatest<Row>(
   if (!ready && empty) setReady(true);
   const followingNow = useRef(true);
   const dragging = useRef(false);
+  const momentumFromDrag = useRef(false);
   const latestId = useRef<string | undefined>(undefined);
   latestId.current = messages.at(-1)?.id;
   const hasRows = useRef(false);
@@ -127,6 +128,7 @@ export function useFollowLatest<Row>(
   );
 
   const hold = useCallback(() => {
+    momentumFromDrag.current = false;
     if (!followingNow.current) return;
     followingNow.current = false;
     settled.current = true;
@@ -222,7 +224,8 @@ export function useFollowLatest<Row>(
     (event: ScrollEvent) => {
       dragging.current = false;
       const distance = measureEvent(event);
-      if ((event.nativeEvent.velocity?.y ?? 0) === 0) settle(distance);
+      momentumFromDrag.current = (event.nativeEvent.velocity?.y ?? 0) !== 0;
+      if (!momentumFromDrag.current) settle(distance);
     },
     [measureEvent, settle],
   );
@@ -230,7 +233,8 @@ export function useFollowLatest<Row>(
   const onMomentumScrollEnd = useCallback(
     (event: ScrollEvent) => {
       const distance = measureEvent(event);
-      if (dragging.current) return;
+      if (dragging.current || !momentumFromDrag.current) return;
+      momentumFromDrag.current = false;
       settle(distance);
     },
     [measureEvent, settle],
@@ -238,8 +242,12 @@ export function useFollowLatest<Row>(
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
-      metrics.current = { ...metrics.current, content: height };
-      sizes.current += 1;
+      if (metrics.current.content !== height) {
+        metrics.current = { ...metrics.current, content: height };
+        sizes.current += 1;
+        attempts.current = 0;
+        setCanRetry(false);
+      }
       pin();
     },
     [pin],
@@ -247,7 +255,13 @@ export function useFollowLatest<Row>(
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      metrics.current = { ...metrics.current, layout: event.nativeEvent.layout.height };
+      const height = event.nativeEvent.layout.height;
+      if (metrics.current.layout !== height) {
+        metrics.current = { ...metrics.current, layout: height };
+        sizes.current += 1;
+        attempts.current = 0;
+        setCanRetry(false);
+      }
       pin();
     },
     [pin],

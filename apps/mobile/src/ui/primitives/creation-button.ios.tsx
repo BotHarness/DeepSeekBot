@@ -25,6 +25,7 @@ export function Button({
   return (
     <Host
       matchContents={{ vertical: true }}
+      ignoreSafeArea="keyboard"
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
     >
