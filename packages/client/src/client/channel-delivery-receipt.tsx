@@ -9,9 +9,10 @@ import { useMountedResource } from './mounted-resource.js';
 import { color } from './ds/tokens.stylex.js';
 
 type Delivery = NonNullable<ChannelMessage['deliveries']>[number];
-type DeliveryState = Delivery['state'] | 'human-read' | 'human-unread';
+type BotState = Delivery['state'] | 'missing';
+type DeliveryState = BotState | 'human-read' | 'human-unread';
 type Recipient =
-  | { kind: 'bot'; botSlug: string; state: Delivery['state'] }
+  | { kind: 'bot'; botSlug: string; state: BotState }
   | { kind: 'human'; humanId: string; displayName: string; state: 'human-read' | 'human-unread' };
 
 const STATE_ORDER: readonly DeliveryState[] = [
@@ -22,6 +23,7 @@ const STATE_ORDER: readonly DeliveryState[] = [
   'ignored',
   'retryable',
   'needs-repair',
+  'missing',
   'human-read',
   'human-unread',
 ];
@@ -34,6 +36,7 @@ const STATE_COLOR: Readonly<Record<DeliveryState, string>> = {
   ignored: color.subtle,
   retryable: color.danger,
   'needs-repair': color.danger,
+  missing: color.warning,
   'human-read': color.success,
   'human-unread': color.muted,
 };
@@ -46,19 +49,29 @@ export function ChannelDeliveryReceipt({
   message,
   bots,
   humanMembers = [],
+  onOpenInbox,
   t,
 }: {
   message: ChannelMessage;
   bots: readonly BotSummary[];
   humanMembers?: readonly ChannelHumanMember[];
+  onOpenInbox?: ((target: { botSlug: string; missing: boolean }) => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const authorSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
   const deliveries = (message.deliveries ?? []).filter(
     (delivery) => delivery.botSlug !== authorSlug,
   );
+  const admitted = new Set(deliveries.map((delivery) => delivery.botSlug));
+  const missing =
+    message.author.kind === 'human'
+      ? [...new Set((message.mentions ?? []).map((mention) => mention.botSlug))].filter(
+          (botSlug) => !admitted.has(botSlug),
+        )
+      : [];
   const recipients: Recipient[] = [
     ...deliveries.map((delivery) => ({ kind: 'bot' as const, ...delivery })),
+    ...missing.map((botSlug) => ({ kind: 'bot' as const, botSlug, state: 'missing' as const })),
     ...(message.author.kind === 'human'
       ? []
       : (message.humanReceipts ?? []).map((receipt) => ({
@@ -222,8 +235,8 @@ export function ChannelDeliveryReceipt({
                         }
                         const bot = bots.find((candidate) => candidate.slug === recipient.botSlug);
                         const name = bot?.displayName ?? recipient.botSlug;
-                        return (
-                          <li key={'bot:' + recipient.botSlug} title={name}>
+                        const content = (
+                          <>
                             <PersonaBotAvatar
                               personaBotId={recipient.botSlug}
                               name={name}
@@ -235,6 +248,28 @@ export function ChannelDeliveryReceipt({
                               t={t}
                             />
                             <span>{name}</span>
+                          </>
+                        );
+                        return (
+                          <li key={'bot:' + recipient.botSlug} title={name}>
+                            {onOpenInbox === undefined || bot === undefined ? (
+                              content
+                            ) : (
+                              <button
+                                type="button"
+                                className="bh-delivery-bot"
+                                aria-label={t('message.delivery.openInbox', { name })}
+                                onClick={() => {
+                                  setOpen(false);
+                                  onOpenInbox({
+                                    botSlug: recipient.botSlug,
+                                    missing: recipient.state === 'missing',
+                                  });
+                                }}
+                              >
+                                {content}
+                              </button>
+                            )}
                           </li>
                         );
                       })}

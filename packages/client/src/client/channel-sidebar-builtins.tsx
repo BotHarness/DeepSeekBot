@@ -219,7 +219,7 @@ function MembersBadge(): ReactElement {
   return <Tag tone="neutral">{count}</Tag>;
 }
 
-function BotInboxItemRow({
+export function BotInboxItemRow({
   item,
   source,
   actions,
