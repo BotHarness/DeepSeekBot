@@ -5,7 +5,7 @@ import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { chatList, edge, radius, space } from '../design/tokens';
+import { chatList, conversationType, edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -295,10 +295,11 @@ export function ConversationRowFrame({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"
+            dynamicTypeRamp="subheadline"
             tone={unread ? 'fg' : 'muted'}
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={{ flex: 1 }}
+            style={[conversationType.preview, { flex: 1 }]}
           >
             {preview}
           </Text>

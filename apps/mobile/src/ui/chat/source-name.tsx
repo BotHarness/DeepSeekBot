@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
-import { chatList, space } from '../design/tokens';
+import { chatList, conversationType, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { hostColorInk, type HostLook } from '../design/host-look';
 import { HostGlyph } from '../shell/host-tile';
@@ -33,7 +33,12 @@ export function SourceName({
         gap: space.x2,
       }}
     >
-      <Text strong numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1 }}>
+      <Text
+        dynamicTypeRamp="headline"
+        numberOfLines={1}
+        ellipsizeMode="tail"
+        style={[conversationType.name, { flexShrink: 1 }]}
+      >
         {name}
       </Text>
       <View
