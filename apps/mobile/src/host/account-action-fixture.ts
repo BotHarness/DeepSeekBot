@@ -9,7 +9,8 @@ export type AccountFixtureScenario =
   | 'local-write'
   | 'session-write'
   | 'expired-retry'
-  | 'completion-write';
+  | 'completion-write'
+  | 'environments';
 
 const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -107,7 +108,38 @@ export function createAccountActionFixture(scenario: AccountFixtureScenario = 's
             return response({}, 400);
           return response({ access_token: 'fixture-access', user: { id: owner.subject } });
         }
-        if (url === `${owner.relay}/v1/hosts`) return response({ hosts: [] });
+        if (url === `${owner.relay}/v1/hosts`)
+          return response({
+            hosts:
+              scenario === 'environments'
+                ? [
+                    {
+                      id: 'studio',
+                      name: 'Studio Mac',
+                      hostname: 'studio.fixture.invalid',
+                      tunnel: true,
+                    },
+                    {
+                      id: 'laptop',
+                      name: 'Travel Laptop',
+                      hostname: 'laptop.fixture.invalid',
+                      tunnel: true,
+                    },
+                    {
+                      id: 'owned',
+                      name: 'Home PC',
+                      hostname: 'owned.fixture.invalid',
+                      tunnel: true,
+                    },
+                    {
+                      id: 'office',
+                      name: 'Office Server',
+                      hostname: 'office.fixture.invalid',
+                      tunnel: false,
+                    },
+                  ]
+                : [],
+          });
         if (url === `${owner.relay}/v1/account` && init?.method === 'DELETE') {
           counters.deletes++;
           remoteDeleted = true;

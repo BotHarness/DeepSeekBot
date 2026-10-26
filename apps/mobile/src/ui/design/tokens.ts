@@ -87,6 +87,7 @@ export const fab = {
 } as const;
 export const materialDrawer = { width: 360, scrimGutter: 56, addressMinScale: 0.6 } as const;
 export const loadingIndicator = { size: 48, control: 20, controlStroke: 2.5 } as const;
+export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
 export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {

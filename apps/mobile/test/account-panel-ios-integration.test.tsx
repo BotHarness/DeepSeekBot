@@ -44,6 +44,7 @@ vi.mock('@expo/ui/swift-ui', () => {
   return {
     Form: group,
     HStack: group,
+    ProgressView: () => <progress />,
     Section: group,
     VStack: group,
     Label: group,
@@ -73,6 +74,18 @@ vi.mock('@expo/ui/swift-ui', () => {
     ),
   };
 });
+vi.mock('../src/ui/primitives/step-bar', () => ({
+  StepBar: ({ primary }: import('../src/ui/primitives/step-bar').StepBarProps) => (
+    <button
+      data-testid={primary.testID}
+      data-busy={primary.busy === true}
+      disabled={primary.disabled === true || primary.busy === true}
+      onClick={primary.onPress}
+    >
+      {primary.label}
+    </button>
+  ),
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock(
@@ -260,4 +273,64 @@ it('disables both actual iOS controls during busy and loading states and rejects
     await pending;
   });
   expect(JSON.parse(fixture.getSnapshot()).signedIn).toBe(false);
+});
+
+it('marks iOS Environment rows with one native checkmark and pins the add action', async () => {
+  const { AccountPanel } = await import('../src/ui/primitives/account-panel.ios');
+  const onToggle = vi.fn();
+  const onAdd = vi.fn();
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  const row = (
+    id: string,
+    patch: Partial<import('../src/ui/primitives/account-panel').AccountComputerRow>,
+  ) => ({
+    id,
+    name: id,
+    detail: t.pairAccount.online,
+    added: false,
+    selected: false,
+    pairing: false,
+    disabled: false,
+    ...patch,
+  });
+  const render = (busy: boolean, pairing: string | undefined) =>
+    root!.render(
+      <AccountPanel
+        email="alice@example.com"
+        loading={false}
+        busy={busy}
+        rows={[
+          row('studio', { selected: true, pairing: pairing === 'studio' }),
+          row('laptop', {}),
+          row('office', { added: true, disabled: true, detail: t.pairAccount.added }),
+        ]}
+        selectedCount={1}
+        onToggle={onToggle}
+        onAdd={onAdd}
+        onRefresh={vi.fn()}
+        onSignIn={vi.fn()}
+        onSignOut={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+  await act(async () => render(false, undefined));
+  const symbols = (id: string) =>
+    [...button(`account-computer-${id}`).querySelectorAll('i')].map((i) => i.dataset['symbol']);
+  expect(symbols('studio')).toEqual(['desktopcomputer', 'checkmark']);
+  expect(symbols('laptop')).toEqual(['desktopcomputer']);
+  expect(symbols('office')).toEqual(['desktopcomputer']);
+  expect(button('account-computer-office').textContent).toContain(t.pairAccount.added);
+  expect(button('account-computer-office').disabled).toBe(true);
+  await click('account-computer-laptop');
+  expect(onToggle).toHaveBeenCalledWith('laptop');
+  expect(button('account-add-selected').textContent).toBe(t.pairAccount.addSelected(1));
+  await click('account-add-selected');
+  expect(onAdd).toHaveBeenCalledTimes(1);
+  await act(async () => render(true, 'studio'));
+  expect(button('account-computer-studio').querySelector('progress')).not.toBeNull();
+  expect(button('account-computer-studio').textContent).toContain(t.pairAccount.pairing);
+  expect(button('account-add-selected').dataset['busy']).toBe('true');
+  expect(button('account-add-selected').disabled).toBe(true);
 });

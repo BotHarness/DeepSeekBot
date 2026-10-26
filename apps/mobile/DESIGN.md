@@ -98,6 +98,15 @@ The video canvas and letterboxing are pure black in both app appearances, with a
 
 Normal video waiting shows only a native loading indicator over the canvas, without explanatory copy; actual failures retain a short recovery message and action. Preview and pointer gestures share the video surface, with pointer input enabled only while controlling. Accepted clicks share the cursor-position ripple (blue left, orange right), scoped to the current viewer/grant; refused or stale clicks show none. Reduce Motion uses a brief static ring. The iOS Bot profile exposes the Human Computer viewer independently of the Bot Computer Access opt-in; server-owned route admission and explicit takeover still guard viewing and input. Back releases the viewer without resuming paused Bots. Picture in Picture remains deferred to #2664.
 
+## Step bar and Environment selection
+
+Accepted 2026-10-26 (#2922). Adding Environments and creating a Bot share one pinned bottom bar and one selection idiom.
+
+- **Step bar.** A `StepBar` primitive pins the flow's action above the bottom safe area: an optional round Back button and a capsule primary button of the same height (iOS 52pt, Android 56dp, never below the touch target). The capsule names the action and, in a multi-step flow, the step (“Next · 2/3”); its accessible label speaks the step in words. Busy shows the platform's native indicator inside the capsule and disables it. iOS 26 uses Liquid Glass (`glass` / `glassProminent`) and falls back to bordered styles on earlier iOS or with Reduce Transparency; Android uses Material 3 Expressive `FilledTonalIconButton` + `Button` with the Expressive loading indicator.
+- **Environment.** These flows call a paired Host an Environment (环境), per `CONTEXT.md`.
+- **Selection list.** Choosing Environments uses whole-row selection with one native checkmark: a trailing `checkmark` on iOS, the selected settings-row fill plus a check on Android. No row embeds a checkbox control. Already-added Environments say “Added” and are not selectable; offline ones are disabled.
+- **Adding from a Tobs Connect account.** The bar's capsule reads “Add N Environments” and is disabled until something is selected. Pairing keeps the list visible: the row being paired shows the native indicator and “Adding…”, then its result. The verification page replaces the list only while a fingerprint needs the Human's comparison or approval.
+
 ## Native Bot creation and import
 
 Accepted scope, 2026-10-23. PR #2632 implements native blank creation and its recovery path; native qualification remains separate. The following contract also governs the remaining Git, Marketplace and Zip import slices tracked by #2634.
