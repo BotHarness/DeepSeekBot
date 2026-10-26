@@ -69,12 +69,20 @@ it('skips blocks beyond one and a half viewports and keeps their measured height
   expect(blocks[0]!.dataset['offscreen']).toBe('');
 
   root.scrollTop = 0;
-  tracker.update();
+  root.dispatchEvent(new Event('scroll'));
   expect(blocks[0]!.dataset['offscreen']).toBeUndefined();
   expect(blocks[5]!.dataset['offscreen']).toBe('');
 
+  blocks[4]!.remove();
+  root.scrollTop = 300;
+  root.dispatchEvent(new Event('scroll'));
+  expect(blocks[3]!.dataset['offscreen']).toBeUndefined();
+  expect(blocks[4]!.dataset['offscreen']).toBe('');
+
   tracker.disconnect();
-  expect(blocks.some((block) => block.dataset['offscreen'] !== undefined)).toBe(false);
+  expect(
+    blocks.some((block) => block.isConnected && block.dataset['offscreen'] !== undefined),
+  ).toBe(false);
 });
 
 it('does not observe an avatar while its block is offscreen', async () => {

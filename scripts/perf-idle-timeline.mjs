@@ -77,6 +77,11 @@ const bodies = [
 async function scrollCheck() {
   const result = await page.$eval('.bh-chat-body', async (body) => {
     const frame = () => new Promise((done) => requestAnimationFrame(() => done(undefined)));
+    const topOf = (id) => {
+      for (const node of body.querySelectorAll('[data-message-id]'))
+        if (node.dataset.messageId === id) return node.getBoundingClientRect().top;
+      return undefined;
+    };
     const firstVisible = () => {
       const top = body.getBoundingClientRect().top;
       for (const node of body.querySelectorAll('[data-message-id]')) {
@@ -101,11 +106,13 @@ async function scrollCheck() {
       const before = firstVisible();
       await frame();
       await frame();
-      const after = firstVisible();
-      if (before && after && before.id === after.id) {
-        const moved = Math.abs(after.y - before.y);
-        if (moved > 1) jumps += 1;
-        maxJumpPx = Math.max(maxJumpPx, moved);
+      const after = before === undefined ? undefined : topOf(before.id);
+      if (before !== undefined && after !== undefined) {
+        const moved = Math.abs(after - before.y);
+        if (moved > 1) {
+          jumps += 1;
+          maxJumpPx = Math.max(maxJumpPx, moved);
+        }
       }
       const view = body.getBoundingClientRect();
       for (const block of body.querySelectorAll('.bh-message-block')) {

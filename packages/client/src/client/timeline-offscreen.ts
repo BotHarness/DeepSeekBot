@@ -12,7 +12,7 @@ export class OffscreenBlocks {
   constructor(root: HTMLElement) {
     this.root = root;
     this.#width = root.clientWidth;
-    root.addEventListener('scroll', this.schedule, { passive: true });
+    root.addEventListener('scroll', this.onScroll, { passive: true });
     this.#resize =
       typeof ResizeObserver === 'undefined'
         ? undefined
@@ -26,18 +26,14 @@ export class OffscreenBlocks {
     this.#resize?.observe(root);
   }
 
-  get size(): number {
-    return this.#blocks.size;
-  }
-
   observe(block: HTMLElement): void {
     this.#blocks.add(block);
     this.schedule();
   }
 
-  unobserve(block: HTMLElement): void {
-    this.#blocks.delete(block);
-  }
+  readonly onScroll = (): void => {
+    this.update();
+  };
 
   readonly schedule = (): void => {
     if (this.#frame !== undefined) return;
@@ -53,6 +49,10 @@ export class OffscreenBlocks {
     const bottom = this.root.scrollTop + this.root.clientHeight + keep;
     const rootTop = this.root.getBoundingClientRect().top - this.root.scrollTop;
     for (const block of this.#blocks) {
+      if (!block.isConnected) {
+        this.#blocks.delete(block);
+        continue;
+      }
       const offscreen = block.dataset['offscreen'] !== undefined;
       const bounds = block.getBoundingClientRect();
       const blockTop = bounds.top - rootTop;
@@ -74,7 +74,7 @@ export class OffscreenBlocks {
   disconnect(): void {
     if (this.#frame !== undefined) window.cancelAnimationFrame(this.#frame);
     this.#frame = undefined;
-    this.root.removeEventListener('scroll', this.schedule);
+    this.root.removeEventListener('scroll', this.onScroll);
     this.#resize?.disconnect();
     for (const block of this.#blocks) delete block.dataset['offscreen'];
     this.#blocks.clear();
@@ -91,24 +91,17 @@ export function revealOffscreen<T extends Element>(element: T): T {
   return element;
 }
 
-export function useOffscreenBlocks(): (block: HTMLElement | null) => (() => void) | undefined {
+export function useOffscreenBlocks(): (block: HTMLElement | null) => void {
   const tracker = useRef<OffscreenBlocks | undefined>(undefined);
   return useCallback((block: HTMLElement | null) => {
     const root = block?.parentElement;
     if (block === null || root == null || typeof window.requestAnimationFrame !== 'function')
-      return undefined;
+      return;
     if (tracker.current?.root !== root) {
       tracker.current?.disconnect();
       tracker.current = new OffscreenBlocks(root);
     }
-    const current = tracker.current;
-    current.observe(block);
-    return () => {
-      current.unobserve(block);
-      if (current.size > 0) return;
-      current.disconnect();
-      if (tracker.current === current) tracker.current = undefined;
-    };
+    tracker.current.observe(block);
   }, []);
 }
 
