@@ -88,3 +88,8 @@ apps/mobile/test/message-selection.test.ts, packages/client/test/message-selecti
 - `deepseekbot pause` and `resume` have no online adapter; you cannot pause a Bot on a live Host to keep it from answering seeded messages.
 
 - The pinned DSH Menu renders one submenu level. Memory display choices are flat labelled rows inside the existing action submenu; do not encode a third menu level in MenuItem data. Settings uses the existing Select.
+
+
+## Theme readability and quiet sending (#2875)
+
+Use synthetic Chinese messages. Compare light/dark and custom yellow, green, white and black themes, including a custom panel background. Inspect Bot Markdown links, quoted text, code, Human text and settings actions. Send once with completion before 3 seconds: no visible delivery feedback. Delay another send beyond 3 seconds: feedback appears beside the unchanged bubble. Fail then retry: failure remains horizontally beside the bubble, retry starts a fresh delay, and no extra vertical status row appears. Record bubble and following-message positions before and after each transition. Compare multiple Web panels with different backgrounds. Native evidence follows the shared device lane; browser previews do not qualify native layout or accessibility.

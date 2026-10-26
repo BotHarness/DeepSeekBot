@@ -114,5 +114,9 @@ const styles = stylex.create({
     borderColor: color.borderStrong,
     borderRadius: radius.xs,
   },
-  checked: { backgroundColor: color.accentTint, color: color.accent, borderColor: color.accent },
+  checked: {
+    backgroundColor: color.accentTint,
+    color: color.accentText,
+    borderColor: color.accent,
+  },
 });

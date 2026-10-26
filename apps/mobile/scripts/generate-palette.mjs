@@ -16,6 +16,7 @@ export const ROLES = {
   hover: 'alias-interactive-bg-hover',
   selected: 'alias-interactive-bg-active',
   accent: 'alias-state-business-primary',
+  accentText: 'alias-link',
   accentTint: 'alias-state-business-tertiary',
   onAccent: 'alias-label-primary-foreground',
   danger: 'alias-state-error-primary',

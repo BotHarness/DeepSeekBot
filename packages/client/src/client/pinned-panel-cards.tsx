@@ -304,7 +304,7 @@ const styles = stylex.create({
   },
   open: {
     borderColor: color.accent,
-    color: color.accent,
+    color: color.accentText,
     backgroundColor: {
       default: color.accentTint,
       ':hover': color.accentTint,

@@ -12,6 +12,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
   const stub = () => null;
   const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
   return {
+    IconWarningTriangleOutlineRegular: () => null,
     IconCodeOutlineRegular: () => null,
     IconBranchOutlineRegular: () => null,
     Button: stub,
@@ -562,7 +563,7 @@ describe('Bot main Sessions pane', () => {
       }),
     );
     expect(markup).toContain('bh-bubble-pending');
-    expect(markup).toContain('发送中');
+    expect(markup).not.toContain('发送中');
     expect(markup).toContain('hello');
     expect(markup).not.toContain('bh-message-group-avatar');
   });
@@ -610,7 +611,8 @@ describe('Bot main Sessions pane', () => {
     );
     expect(markup).toContain('hello');
     expect(markup).toContain('bh-bubble-failed');
-    expect(markup).toContain('发送失败');
+    expect(markup).toContain('将失败消息放回输入框修改后重发');
+    expect(markup).toContain('network disconnected');
     expect(markup).not.toContain('发送中');
   });
   it('keeps a Bot DM read-only when its stored member list is incomplete', () => {
