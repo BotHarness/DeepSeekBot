@@ -8,7 +8,7 @@ import Yoga, { type Node as YogaNode } from 'yoga-layout';
 const native = vi.hoisted(() => ({
   width: 390,
   fontScale: 1,
-  styles: new Map<string, { style: ViewStyle & TextStyle; text: boolean }>(),
+  styles: new Map<string, { style: ViewStyle & TextStyle; text: boolean; scroll?: boolean }>(),
 }));
 
 vi.mock('react-native', async () => {
@@ -21,7 +21,7 @@ vi.mock('react-native', async () => {
     if (typeof style === 'number') throw new Error('Registered styles need native resolution');
     return style || {};
   };
-  const host = (text: boolean) =>
+  const host = (text: boolean, scroll = false) =>
     function NativeNode({
       children,
       style,
@@ -30,14 +30,21 @@ vi.mock('react-native', async () => {
       style?: StyleProp<ViewStyle & TextStyle>;
     }) {
       const id = String(native.styles.size);
-      native.styles.set(id, { style: flatten(style), text });
+      native.styles.set(id, { style: flatten(style), text, scroll });
       return <div data-layout={id}>{children}</div>;
     };
+  const Scroll = host(false, true);
+  const Content = host(false);
   return {
     ...shim,
     View: host(false),
     Pressable: host(false),
     Text: host(true),
+    ScrollView: ({ children, style }: { children?: ReactNode; style?: StyleProp<ViewStyle> }) => (
+      <Scroll style={[{ flexGrow: 1, flexShrink: 1, flexDirection: 'row' }, style]}>
+        <Content style={{ flexDirection: 'row' }}>{children}</Content>
+      </Scroll>
+    ),
     Platform: { OS: 'android', select: (options: { android?: unknown }) => options.android },
     useWindowDimensions: () => ({
       width: native.width,
@@ -102,16 +109,23 @@ function layout(body: string, streaming = false) {
   const root = Yoga.Node.create(config);
   root.setWidth(native.width);
   const texts: Array<{ body: string; node: YogaNode }> = [];
+  const scrolls: YogaNode[] = [];
   const build = (element: Element, parent: YogaNode) => {
     const entry = native.styles.get(element.getAttribute('data-layout') ?? '');
     if (entry === undefined) throw new Error('Layout node was not captured');
     const node = Yoga.Node.create(config);
     parent.insertChild(node, parent.getChildCount());
     const { style } = entry;
+    if (entry.scroll) {
+      node.setOverflow(Yoga.OVERFLOW_SCROLL);
+      scrolls.push(node);
+    }
     if (style.flex !== undefined) node.setFlex(style.flex);
     if (style.flexGrow !== undefined) node.setFlexGrow(style.flexGrow);
     if (style.flexShrink !== undefined) node.setFlexShrink(style.flexShrink);
     if (style.flexDirection === 'row') node.setFlexDirection(Yoga.FLEX_DIRECTION_ROW);
+    if (typeof style.width === 'number') node.setWidth(style.width);
+    if (style.alignSelf === 'stretch') node.setAlignSelf(Yoga.ALIGN_STRETCH);
     if (style.alignSelf === 'flex-start') node.setAlignSelf(Yoga.ALIGN_FLEX_START);
     if (style.alignItems === 'flex-start') node.setAlignItems(Yoga.ALIGN_FLEX_START);
     if (typeof style.maxWidth === 'string' && style.maxWidth.endsWith('%'))
@@ -144,7 +158,14 @@ function layout(body: string, streaming = false) {
   try {
     for (const child of container.children) build(child, root);
     root.calculateLayout(undefined, undefined, Yoga.DIRECTION_LTR);
-    return texts.map(({ body, node }) => ({ body, width: node.getComputedWidth() }));
+    return [
+      ...texts.map(({ body, node }) => ({ body, width: node.getComputedWidth() })),
+      ...scrolls.map((node) => ({ body: 'TABLE_VIEWPORT', width: node.getComputedWidth() })),
+      ...scrolls.map((node) => ({
+        body: 'TABLE_CONTENT',
+        width: node.getChild(0).getComputedWidth(),
+      })),
+    ];
   } finally {
     root.freeRecursive();
     config.free();
@@ -182,4 +203,44 @@ it('keeps short list content compact while long prose uses available space', () 
   expect(long).toBeDefined();
   expect(short?.width).toBeLessThan(40);
   expect(long?.width).toBeGreaterThan(200);
+});
+
+it.each([320, 390, 600].flatMap((width) => [1, 2, 3].map((fontScale) => ({ width, fontScale }))))(
+  'contains a wide table at width $width and font scale $fontScale',
+  ({ width, fontScale }) => {
+    native.width = width;
+    native.fontScale = fontScale;
+    const header = '| A | B | C | D | E | F |';
+    const rule = '|---|---|---|---|---|---|';
+    const row = '| 内容 | 内容 | 内容 | 内容 | 内容 | 内容 |';
+    for (const streaming of [false, true]) {
+      const nodes = layout(`${header}\n${rule}\n${row}`, streaming);
+      const viewport = nodes.find((node) => node.body === 'TABLE_VIEWPORT')!;
+      const content = nodes.find((node) => node.body === 'TABLE_CONTENT')!;
+      expect(viewport).toBeDefined();
+      expect(viewport.width).toBeLessThan(width * 0.8);
+      expect(viewport.width).toBeGreaterThan(100);
+      expect(content.width).toBeGreaterThan(viewport.width);
+    }
+  },
+);
+
+it('keeps multiple and quoted tables independently scrollable alongside prose', () => {
+  const table =
+    '| A | B | C | D | E | F |\n|---|---|---|---|---|---|\n| 中文 | text | **bold** | `code` | long_value_without_spaces | 42 |';
+  const nodes = layout(
+    `Before\n\n${table}\n\nBetween\n\n${table
+      .split('\n')
+      .map((line) => `> ${line}`)
+      .join('\n')}\n\nAfter`,
+  );
+  const viewports = nodes.filter((node) => node.body === 'TABLE_VIEWPORT');
+  const contents = nodes.filter((node) => node.body === 'TABLE_CONTENT');
+  expect(viewports).toHaveLength(2);
+  for (const [index, viewport] of viewports.entries()) {
+    expect(viewport.width).toBeLessThan(native.width * 0.8);
+    expect(contents[index]!.width).toBeGreaterThan(viewport.width);
+  }
+  for (const body of ['Before', 'Between', 'After'])
+    expect(nodes.some((node) => node.body === body)).toBe(true);
 });
