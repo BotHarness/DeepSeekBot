@@ -43,9 +43,17 @@ export const edge = {
 } as const;
 
 export const sidebar = { inset: 8, radius: 44 } as const;
-export const stateRing = { width: 2, inset: 3, segment: 0.26, period: 1300 } as const;
+export const stateRing = {
+  width: 2,
+  inset: 3,
+  segment: 0.26,
+  period: 1300,
+} as const;
 export const rowGlyph = { size: 16, period: 900 } as const;
-export const accountActionIcon = { slot: 28, signOutOpticalOffset: 1.5 } as const;
+export const accountActionIcon = {
+  slot: 28,
+  signOutOpticalOffset: 1.5,
+} as const;
 
 export const sheetHandle = { width: 32, height: 4 } as const;
 export const navigationBar = {
@@ -85,8 +93,16 @@ export const fab = {
   menuIconGap: 8,
   menuCloseGap: 8,
 } as const;
-export const materialDrawer = { width: 360, scrimGutter: 56, addressMinScale: 0.6 } as const;
-export const loadingIndicator = { size: 48, control: 20, controlStroke: 2.5 } as const;
+export const materialDrawer = {
+  width: 360,
+  scrimGutter: 56,
+  addressMinScale: 0.6,
+} as const;
+export const loadingIndicator = {
+  size: 48,
+  control: 20,
+  controlStroke: 2.5,
+} as const;
 export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {
@@ -198,7 +214,10 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
 
-export const markdownTable = { minColumnWidth: 96, maxColumnWidth: 280 } as const;
+export const markdownTable = {
+  minColumnWidth: 96,
+  maxColumnWidth: 280,
+} as const;
 
 export const drawerSpring = { duration: 280, dampingRatio: 1 } as const;
 
@@ -244,4 +263,15 @@ export const marketplaceArt = {
   cardOverlap: 20,
   profileOverlap: 32,
   menuWidth: 360,
+} as const;
+
+export const profileShell = {
+  avatar: 88,
+  avatarEdge: 3,
+  bannerAspect: 3,
+  overlap: 40,
+  openScale: 0.94,
+  openDuration: 220,
+  tabFade: 140,
+  dismissDistance: 96,
 } as const;

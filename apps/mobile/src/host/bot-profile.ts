@@ -26,7 +26,21 @@ export interface ProfileBotRef {
   dmChannelId?: string;
 }
 
+export interface ProfileAssignment {
+  sessionId: string;
+  purpose: string;
+  activity: 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
+  latestReport?: {
+    state: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
+    summary: string;
+    at: string;
+  };
+  archivedAt?: string;
+  updatedAt: string;
+}
+
 export interface BotProfile {
+  work: ProfilePart<ProfileAssignment[]>;
   identity: ProfilePart<string | undefined>;
   memory: ProfilePart<ProfileMemory>;
   routines: ProfilePart<BotScheduleSummary[]>;
@@ -86,6 +100,7 @@ export function botProfileResource(client: HostClient, bot: ProfileBotRef): BotP
             const next = await loadBotProfile(client, bot);
             const value = queries.getQueryData<BotProfile>(queryKey);
             return {
+              work: keepSuccessful(next.work, value?.work),
               identity: keepSuccessful(next.identity, value?.identity),
               memory: keepSuccessful(next.memory, value?.memory),
               routines: keepSuccessful(next.routines, value?.routines),
@@ -134,8 +149,11 @@ export function dmChannel(client: HostClient, bot: ProfileBotRef): Promise<strin
 }
 
 async function snapshotOf(client: HostClient, channelId: string): Promise<MemorySnapshot> {
-  return (await client.call<{ snapshot: MemorySnapshot }>('memorySnapshot', { channelId }))
-    .snapshot;
+  return (
+    await client.call<{ snapshot: MemorySnapshot }>('memorySnapshot', {
+      channelId,
+    })
+  ).snapshot;
 }
 
 export async function loadMemoryFiles(client: HostClient, bot: ProfileBotRef): Promise<string[]> {
@@ -195,27 +213,47 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
     const { channelId, snapshot: current } = await snapshot;
     const path = current.standing.find((entry) => entry.role === 'soul')?.path ?? SOUL;
     if (!current.files.includes(path)) return undefined;
-    const { file } = await client.call<{ file?: MemoryFile }>('memoryFile', { channelId, path });
+    const { file } = await client.call<{ file?: MemoryFile }>('memoryFile', {
+      channelId,
+      path,
+    });
     return file === undefined || file.binary === true || file.body.trim() === ''
       ? undefined
       : file.body.trim();
   };
-  const [identity, memory, routines, files, activity] = await Promise.all([
+  const [work, identity, memory, routines, files, activity] = await Promise.all([
+    settle(
+      client
+        .call<{
+          assignments: ProfileAssignment[];
+        }>('assignments', { slug: bot.slug })
+        .then((result) => workRows(result.assignments)),
+    ),
     settle(soul()),
     settle(snapshot.then(({ snapshot: current }): ProfileMemory => ({ files: current.files }))),
     settle(
       client
-        .call<{ schedules: BotScheduleSummary[] }>('scheduleList', { slug: bot.slug })
+        .call<{
+          schedules: BotScheduleSummary[];
+        }>('scheduleList', { slug: bot.slug })
         .then((result) => result.schedules),
     ),
     settle(
       client
-        .call<{ grants: WorkspaceGrantSummary[] }>('grants', { slug: bot.slug })
+        .call<{
+          grants: WorkspaceGrantSummary[];
+        }>('grants', { slug: bot.slug })
         .then((result) => result.grants.filter((grant) => grant.revokedAt === undefined)),
     ),
     settle(channel.then((channelId) => loadProfileActivity(client, channelId, { weeks: 1 }))),
   ]);
-  return { identity, memory, routines, files, activity };
+  return { work, identity, memory, routines, files, activity };
+}
+
+export function workRows(assignments: readonly ProfileAssignment[]): ProfileAssignment[] {
+  return assignments
+    .filter((assignment) => assignment.archivedAt === undefined)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export function botChannels(roster: RosterView | undefined, slug: string): RosterChannel[] {
