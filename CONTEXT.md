@@ -835,6 +835,14 @@ _Avoid_: sidebar roster, dashboard, bot list
 The desktop Bot mode arrangement of a Global workspace and the active Channel's workspace inside its unique Messages panel. Closing a Global panel or Channel subpanel preserves its saved size proportions; reopening and refreshing restore them against the current workspace dimensions. The Human can move and resize panels within their owning workspace; panels do not form tabs or float outside it. Qualified Web/macOS shells release the native sidebar allocation; narrow layouts and unqualified shells retain their responsive fallback.
 _Avoid_: workbench, panel layout, dock
 
+**Layout mode**:
+The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple shows one Global panel at a time, chosen from the Workspace Control Rail, with Channel subpanels stacked in the Subpanel column; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
+_Avoid_: Bot mode, DSB mode, simple view, expert mode
+
+**Subpanel column**:
+In Simple layout mode, the collapsible right-hand column inside the Messages panel that lists the active Channel's available subpanels in a fixed vertical order. Each subpanel can be collapsed, and the column scrolls; collapsing only removes presentation, never stopping a running Browser, Computer or Session.
+_Avoid_: Channel sidebar, right sidebar, inspector
+
 The following layout terms describe the agreed target in [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048) and ADR-0221. Sessions is delivered in [#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049), with Memory files, Memory evolution and Schedules added in [#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067). Browser control and Computer control join the same Bot-only workspace in [#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069). Transient files, Inbox and Members are not yet unified with persisted subpanel layout.
 
 **Global workspace**:
