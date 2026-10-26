@@ -39,11 +39,26 @@ export interface WireAllBotMention {
   preview: WireAllBotPreview;
 }
 
+export type WireDeliveryState =
+  | 'pending'
+  | 'observed'
+  | 'running'
+  | 'retryable'
+  | 'needs-repair'
+  | 'handled'
+  | 'ignored';
+
+export interface WireDelivery {
+  botSlug: string;
+  state: WireDeliveryState;
+}
+
 export interface ChannelWireMessage extends WireMessage {
   contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];
   reactions?: WireReaction[];
+  deliveries?: WireDelivery[];
   attachments?: readonly AttachmentRef[];
   clearedAttachments?: readonly { name: string; mime: string; size: number; clearedAt: string }[];
   bridgeMedia?: { items: readonly BridgeMediaItem[] };
@@ -114,7 +129,7 @@ export interface WireDraftAppend {
 }
 
 export type ChannelNotification =
-  | { kind: 'admission'; channelId: string; messageId: string }
+  | { kind: 'admission'; channelId: string; messageId: string; deliveries?: WireDelivery[] }
   | { kind: 'human-read'; channelId: string; humanId: string; revision: number }
   | { kind: 'reaction'; channelId: string; messageId: string; reactions: WireReaction[] }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: WireDraft[] }
@@ -405,6 +420,37 @@ export interface HumanAssignmentContext {
   reports: HumanAssignmentReport[];
   canReply: boolean;
   reply?: { id: string; at: string; body: string };
+}
+
+export type BotInboxState =
+  | 'pending'
+  | 'processing'
+  | 'observed'
+  | 'deferred'
+  | 'needs-repair'
+  | 'open'
+  | 'snoozed'
+  | 'handled'
+  | 'ignored';
+
+export interface BotInboxItem {
+  id: string;
+  botSlug: string;
+  reason: string;
+  state: BotInboxState;
+  createdAt: string;
+  resolutionNote?: string;
+  snoozeNote?: string;
+  sourceKind: string;
+  sourceChannelName?: string;
+  sourceMessageId?: string;
+  externalOrigin?: { conversationName: string };
+  summary: string;
+}
+
+export interface BotInboxPage {
+  items: BotInboxItem[];
+  nextCursor?: string;
 }
 
 export interface HumanAttentionPage {

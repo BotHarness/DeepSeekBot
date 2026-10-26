@@ -46,6 +46,7 @@ export function SettingsView({
   activityCount,
   chatBackground,
   hapticFeedback,
+  deliveryReceipts,
 }: {
   hostName: string | undefined;
   connection: ConnectionState;
@@ -57,6 +58,7 @@ export function SettingsView({
   activityCount?: ReactNode;
   chatBackground?: ReactNode;
   hapticFeedback?: ReactNode;
+  deliveryReceipts?: ReactNode;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -146,6 +148,7 @@ export function SettingsView({
           {activityCount}
           {chatBackground}
           {hapticFeedback}
+          {deliveryReceipts}
         </SettingsSection>
         <InterfaceSaveNotice />
         {messageDisplay}

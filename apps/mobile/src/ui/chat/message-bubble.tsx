@@ -40,6 +40,7 @@ import { Text } from '../primitives/text';
 import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
 import { bubbleCorners, bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
+import { DeliveryReceiptButton } from './delivery-pie';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
@@ -287,6 +288,7 @@ export const MessageBubble = memo(function MessageBubble({
   onShare = async () => {},
   onLongPress = (pressed) => openMessageMenu(pressed.body),
   onReact,
+  onOpenDelivery,
   botName = (id) => id,
   speaker,
   lifted = false,
@@ -301,6 +303,7 @@ export const MessageBubble = memo(function MessageBubble({
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   onLongPress?: (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => void;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
+  onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
   botName?: (id: string) => string;
   speaker?: Speaker | undefined;
   lifted?: boolean;
@@ -381,12 +384,12 @@ export const MessageBubble = memo(function MessageBubble({
     <View
       style={{
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'flex-end',
         gap: space.x2,
       }}
     >
-      <View style={{ width: space.x6, alignItems: 'center' }}>
+      <View style={{ width: space.x6, alignItems: 'center', paddingBottom: space.x1 }}>
         {failed ? (
           <Pressable
             testID={`message-retry-${message.id}`}
@@ -407,6 +410,8 @@ export const MessageBubble = memo(function MessageBubble({
           >
             …
           </Text>
+        ) : onOpenDelivery !== undefined && !streaming ? (
+          <DeliveryReceiptButton message={message} onOpen={onOpenDelivery} />
         ) : null}
       </View>
       {content}
