@@ -1,6 +1,6 @@
 # Mobile Bot profile tabs
 
-Status: agreed design (grilled 2026-10-26), not yet built. Reference: Meta Muse's agent profile.
+Status: agreed design (grilled 2026-10-26), not yet built. Tracked in #2904. Reference: Meta Muse's agent profile.
 
 Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applies. Use native controls wherever they exist: SwiftUI controls with Liquid Glass on iOS 26 (opaque fallback on earlier iOS and with Reduce Transparency), and Material 3 Expressive Compose controls on Android.
 
@@ -17,7 +17,7 @@ Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applie
 - Group profile: **Members / Files / Work / Settings**. Join requests sit in Members.
 - Bot-to-Bot DM: Files only, so no tab bar.
 - Icon-only tabs (SF Symbols / Material Symbols) with accessibility labels. The first line of the content is a small heading naming the tab or section ("Work", "Daily").
-- iOS: native segmented `Picker`. Android: M3 Expressive connected button group.
+- iOS: native segmented `Picker`, using system springs. Android: M3 Expressive connected button group (`ButtonGroup` + `ToggleButton`) using the connected leading, middle and trailing shapes, with the selected button morphing to a fully round shape on the Expressive spatial spring; see [Button groups guidelines](https://m3.material.io/components/button-groups/guidelines) and [specs](https://m3.material.io/components/button-groups/specs). Reduce Motion and animator scale 0 use fades.
 - Scrolling collapses the avatar and name; the tab bar sticks to the top and floats over the content (glass on iOS 26, opaque `raised` elsewhere). Horizontal swipe switches tabs.
 - The last tab is remembered globally, once for Bot profiles and once for Group profiles, not per Bot. A remembered tab that the page lacks falls back to the first tab. A Live Activity deep link opens that Assignment's detail instead.
 
