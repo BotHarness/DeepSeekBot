@@ -242,8 +242,12 @@ export function useFollowLatest<Row>(
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
-      metrics.current = { ...metrics.current, content: height };
-      sizes.current += 1;
+      if (metrics.current.content !== height) {
+        metrics.current = { ...metrics.current, content: height };
+        sizes.current += 1;
+        attempts.current = 0;
+        setCanRetry(false);
+      }
       pin();
     },
     [pin],
@@ -251,7 +255,13 @@ export function useFollowLatest<Row>(
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      metrics.current = { ...metrics.current, layout: event.nativeEvent.layout.height };
+      const height = event.nativeEvent.layout.height;
+      if (metrics.current.layout !== height) {
+        metrics.current = { ...metrics.current, layout: height };
+        sizes.current += 1;
+        attempts.current = 0;
+        setCanRetry(false);
+      }
       pin();
     },
     [pin],
