@@ -30,7 +30,7 @@ export function ReactionChips({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const slop = Math.max(0, (theme.touch - theme.type.meta.line - (space.x2 + space.x1) * 2) / 2);
+  const slop = Math.max(0, (theme.touch - BADGE_HEIGHT) / 2);
   return (
     <View
       style={{
