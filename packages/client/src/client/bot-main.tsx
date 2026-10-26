@@ -109,6 +109,7 @@ import {
   useConversationSurface,
 } from './bot-primary-color.js';
 import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
+import { BotInboxDialog } from './bot-inbox-dialog.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -527,6 +528,12 @@ function humanBubbleStyle(
   } as CSSProperties;
 }
 
+interface InboxTarget {
+  botSlug: string;
+  messageId: string;
+  missing: boolean;
+}
+
 const NO_HUMAN_MEMBERS: readonly ChannelHumanMember[] = [];
 
 const MessageGroupView = memo(function MessageGroupView({
@@ -538,6 +545,7 @@ const MessageGroupView = memo(function MessageGroupView({
   currentDmBotSlug,
   onContextMenu,
   onAvatarMenu,
+  onOpenInbox,
   onReply,
   onReact,
   onJumpReply,
@@ -559,6 +567,7 @@ const MessageGroupView = memo(function MessageGroupView({
   bots: readonly BotSummary[];
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   onAvatarMenu?: ((botSlug: string, x: number, y: number) => void) | undefined;
+  onOpenInbox?: ((target: InboxTarget) => void) | undefined;
   onReply?: ((message: ChannelMessage) => void) | undefined;
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed?: ((message: ChannelMessage) => void) | undefined;
@@ -872,6 +881,11 @@ const MessageGroupView = memo(function MessageGroupView({
                   message={message}
                   bots={bots}
                   humanMembers={humanMembers}
+                  onOpenInbox={
+                    onOpenInbox === undefined
+                      ? undefined
+                      : (target) => onOpenInbox({ ...target, messageId: message.id })
+                  }
                   t={t}
                 />
                 <div className="bh-bubble-meta">
@@ -1316,6 +1330,7 @@ function ConversationView({
   const [reactionMenu, setReactionMenu] = useScopedState<MessageMenuRequest | undefined>(scopeKey);
   const [feedbackMessage, setFeedbackMessage] = useScopedState<string | undefined>(scopeKey);
   const [avatarMenu, setAvatarMenu] = useScopedState<AvatarMenuRequest | undefined>(scopeKey);
+  const [inboxTarget, setInboxTarget] = useScopedState<InboxTarget | undefined>(scopeKey);
   const [selectedMessages, setSelectedMessages] = useScopedState<
     { channelId: string; ids: readonly string[] } | undefined
   >(scopeKey);
@@ -2081,6 +2096,7 @@ function ConversationView({
       if (channelId !== undefined) void actions.openAround(channelId, messageId);
     },
     restoreFailed: restoreFailedMessage,
+    openInbox: (target: InboxTarget) => setInboxTarget(target),
     openMemoryView,
   };
   const latestTimeline = useRef(timelineHandlers);
@@ -2096,6 +2112,7 @@ function ConversationView({
         latestTimeline.current.react(message, emoji, active),
       jumpReply: (messageId: string) => latestTimeline.current.jumpReply(messageId),
       restoreFailed: (message: ChannelMessage) => latestTimeline.current.restoreFailed(message),
+      openInbox: (target: InboxTarget) => latestTimeline.current.openInbox(target),
       memoryNavigation: {
         file: (path: string) => latestTimeline.current.openMemoryView({ kind: 'file', path }),
         commit: (sha: string) => latestTimeline.current.openMemoryView({ kind: 'commit', sha }),
@@ -2948,6 +2965,9 @@ function ConversationView({
                           message={first}
                           bots={state.bots}
                           humanMembers={channel?.humanMembers ?? []}
+                          onOpenInbox={(target) =>
+                            setInboxTarget({ ...target, messageId: first.id })
+                          }
                           t={t}
                         />
                       </div>
@@ -3047,6 +3067,7 @@ function ConversationView({
                           onAvatarMenu={
                             channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
                           }
+                          onOpenInbox={timelineCallbacks.openInbox}
                           onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
                           onReact={
                             reactToMessage === undefined ? undefined : timelineCallbacks.react
@@ -3359,6 +3380,21 @@ function ConversationView({
               onMention={mentionBot}
               onProfile={(botSlug) => void actions.openBot(botSlug, 'profile')}
               onClose={() => setAvatarMenu(undefined)}
+            />
+          )}
+          {inboxTarget === undefined ? null : (
+            <BotInboxDialog
+              key={inboxTarget.botSlug + ':' + inboxTarget.messageId}
+              botSlug={inboxTarget.botSlug}
+              botName={
+                state.bots.find((bot) => bot.slug === inboxTarget.botSlug)?.displayName ??
+                inboxTarget.botSlug
+              }
+              messageId={inboxTarget.messageId}
+              missing={inboxTarget.missing}
+              actions={actions}
+              t={t}
+              onClose={() => setInboxTarget(undefined)}
             />
           )}
           {selectionImage === undefined ? null : (

@@ -5,6 +5,7 @@ import { requestCreation } from './create-request.js';
 import { store } from './store.js';
 import { invalidateModelPlan } from './model-plan-store.js';
 import type { WindowCompanions } from './window-companions.js';
+import type { LayoutMode } from './layout-mode.js';
 import {
   loadChecklistEvidence,
   type ChecklistEvidence,
@@ -31,6 +32,7 @@ export interface OnboardingViewState {
   sessionsTourOpen: boolean;
   checklistOpen: boolean;
   layoutComplete?: boolean;
+  layoutMode?: LayoutMode | undefined;
   evidence?: ChecklistEvidence | undefined;
   experience?: 'memory' | 'im' | undefined;
   intro?: { step: number; hidden: boolean } | undefined;
@@ -190,6 +192,19 @@ export class OnboardingController {
     return () => {
       if (this.revealHome === reveal) this.revealHome = undefined;
     };
+  }
+  private layout: { setMode(mode: LayoutMode): void } | undefined;
+  attachLayout(mode: LayoutMode, owner: { setMode(mode: LayoutMode): void }): () => void {
+    this.layout = owner;
+    if (this.state.layoutMode !== mode) this.update({ layoutMode: mode });
+    return () => {
+      if (this.layout !== owner) return;
+      this.layout = undefined;
+      this.update({ layoutMode: undefined });
+    };
+  }
+  chooseLayout(mode: LayoutMode): void {
+    this.layout?.setMode(mode);
   }
   private companion: WindowCompanions | undefined;
   attachCompanion(companion: WindowCompanions | undefined): void {
@@ -353,7 +368,15 @@ export class OnboardingController {
     }
     this.update({ guideOpen: false, checklistOpen: this.state.receipt?.tutorial === 'active' });
   }
-  async finishFromHomeTitle(revealMessages: () => void): Promise<void> {
+  finishFromHomeTitle(revealMessages: () => void): Promise<void> {
+    if (this.state.layoutMode === 'simple') return Promise.resolve();
+    return this.finishInSteward(revealMessages);
+  }
+  finishFromRail(revealMessages: () => void): Promise<void> {
+    if (this.state.layoutMode !== 'simple') return Promise.resolve();
+    return this.finishInSteward(revealMessages);
+  }
+  private async finishInSteward(revealMessages: () => void): Promise<void> {
     const receipt = this.state.receipt;
     if (
       !this.state.layoutComplete ||

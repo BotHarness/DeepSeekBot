@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
 import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
-import { useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
 import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
 import { ActionButton } from './ds/action-button.js';
@@ -229,6 +229,15 @@ function WorkspaceRail({
   t: BotHarnessTranslate;
 }): ReactElement {
   const simple = layoutMode.mode === 'simple';
+  const setLayoutMode = useRef(layoutMode.setMode);
+  setLayoutMode.current = layoutMode.setMode;
+  const layoutMount = useMountedResource<HTMLSpanElement>(
+    () =>
+      onboardingFor(options.actions).attachLayout(layoutMode.mode, {
+        setMode: (mode) => setLayoutMode.current(mode),
+      }),
+    [options.actions, layoutMode.mode],
+  );
   const icon = useSyncExternalStore(
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
@@ -333,6 +342,12 @@ function WorkspaceRail({
               menuTrigger={(id) =>
                 id === 'activity-center' ? indicatorMenu.triggerProps : undefined
               }
+              onActivate={(id) => {
+                if (simple && id === CHANNEL_BODY_PANEL)
+                  void onboardingFor(options.actions).finishFromRail(() =>
+                    options.dockPanels?.open(CHANNEL_BODY_PANEL),
+                  );
+              }}
               badge={(id) =>
                 id === 'activity-center'
                   ? {
@@ -386,6 +401,7 @@ function WorkspaceRail({
         />
       </span>
       <span ref={settingsMount} hidden />
+      <span ref={layoutMount} hidden />
       {settingsTarget &&
         createPortal(
           <SettingsSection title={t('workspace.appearance')}>

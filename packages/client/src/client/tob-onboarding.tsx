@@ -1,8 +1,9 @@
 import { useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Button, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
+import type { LayoutMode } from './layout-mode.js';
 import { onboardingFor } from './onboarding.js';
 import { store } from './store.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
@@ -24,6 +25,7 @@ const styles = stylex.create({
   },
   copy: { margin: 0, color: color.muted, fontSize: text.bodySize },
   actions: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
+  choice: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: space.x2 },
 });
 export function TobOnboarding({
   actions,
@@ -56,6 +58,13 @@ export function TobOnboarding({
           ? 'chat'
           : 'layout';
   const number = ['model', 'bot', 'group', 'layout', 'chat'].indexOf(step) + 1;
+  const mode = state.layoutMode;
+  const hint =
+    step === 'layout' && mode !== undefined
+      ? 'onboarding.short.layoutChoose'
+      : step === 'chat' && mode === 'simple'
+        ? 'onboarding.short.chatHintSimple'
+        : (`onboarding.short.${step}Hint` as const);
   const created = client.bots.find((bot) => bot.slug === journey.botSlug);
   const name = created?.displayName ?? journey.botSlug ?? '';
   const greet =
@@ -79,7 +88,28 @@ export function TobOnboarding({
           {t('onboarding.short.progress', { done: String(number - 1) })}
         </span>
       </div>
-      <p {...stylex.props(styles.copy)}>{t(`onboarding.short.${step}Hint`, { name })}</p>
+      <p {...stylex.props(styles.copy)}>{t(hint, { name })}</p>
+      {step === 'layout' && mode !== undefined ? (
+        <div {...stylex.props(styles.choice)} data-onboarding-layout-mode>
+          <SegmentedControl
+            id="bh-onboarding-layout-mode"
+            label={t('workspace.layoutMode')}
+            value={mode}
+            options={[
+              { value: 'simple', label: t('workspace.layoutMode.simple') },
+              { value: 'advanced', label: t('workspace.layoutMode.advanced') },
+            ]}
+            onChange={(next) => controller.chooseLayout(next as LayoutMode)}
+          />
+          <p {...stylex.props(styles.copy)}>
+            {t(
+              mode === 'simple'
+                ? 'onboarding.short.layoutSimpleHint'
+                : 'onboarding.short.layoutAdvancedHint',
+            )}
+          </p>
+        </div>
+      ) : null}
       {hasDraft && (step === 'bot' || step === 'group') ? (
         <p {...stylex.props(styles.copy)}>{t('onboarding.short.draft')}</p>
       ) : null}
