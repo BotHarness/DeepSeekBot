@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RosterView } from '../src/host/client';
 import type { HumanAttentionItem } from '../src/host/wire';
 import { locale, t } from '../src/ui/strings';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import {
   chatList,
   conversations,
@@ -218,6 +219,22 @@ describe('Row status', () => {
     ).toBe('none');
     expect(rowStatus(row({ previewAuthor: { kind: 'human' } }, { unread: 1 }), now)).toBe('none');
     expect(rowStatus(row({}), now)).toBe('none');
+  });
+
+  it('uses the current app language for missing and empty message previews', () => {
+    const language = interfacePreferences.getSnapshot().language;
+    try {
+      interfacePreferences.setLanguage('en');
+      expect(previewText(undefined)).toBe('No messages yet');
+      expect(previewText('')).toBe('No messages yet');
+      expect(previewText('Hello')).toBe('Hello');
+      interfacePreferences.setLanguage('zh');
+      expect(previewText(undefined)).toBe('暂无消息');
+      expect(previewText('')).toBe('暂无消息');
+      expect(previewText('你好')).toBe('你好');
+    } finally {
+      interfacePreferences.setLanguage(language);
+    }
   });
 
   it('shows a pending tool approval preview in the app language', () => {
