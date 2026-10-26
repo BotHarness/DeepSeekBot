@@ -809,6 +809,7 @@ window.__ModuleLoader__.load({
 			selected: "var(--dsw-alias-interactive-bg-active)",
 			navSelected: "var(--dsw-specific-sidebar-nav-item-active)",
 			accent: "var(--dsw-alias-state-business-primary)",
+			accentText: "var(--dsw-alias-link)",
 			onAccent: "var(--dsw-alias-label-primary-foreground)",
 			danger: "var(--dsw-alias-state-error-primary)",
 			onDanger: "var(--dsw-alias-label-primary-foreground)",

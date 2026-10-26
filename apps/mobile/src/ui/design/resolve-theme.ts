@@ -1,3 +1,7 @@
+import {
+  humanBubbleColors,
+  readable,
+} from '../../../../../packages/client/src/client/bot-name-color';
 import { layers, tint, type Layer, type LayerName } from './layers';
 import { palette } from './palette.generated';
 import { mono, touch, typeScale, weight, type PlatformOS } from './tokens';
@@ -49,11 +53,8 @@ export function contrast(a: string, b: string): number {
 }
 
 const INK_LIGHT = '#ffffff';
-const INK_DARK = '#0f1115';
-const SEPARATION = 1.3;
 const SCRIM: Record<ColorScheme, string> = { light: '#0f111566', dark: '#00000099' };
 const BODY_CONTRAST = 4.5;
-const LIGHT_SURFACE = 3;
 
 export function mix(from: string, to: string, amount: number): string {
   const a = rgb(from);
@@ -74,26 +75,19 @@ export function withAccent(
   source: string | undefined,
 ): Record<ColorRole, string> {
   if (source === undefined || !HEX.test(source)) return color;
-  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
-  const separated = mix(
-    source.toLowerCase(),
-    color.fg,
-    steps.find((step) =>
-      [color.base, color.surface].every(
-        (behind) => contrast(mix(source.toLowerCase(), color.fg, step), behind) >= SEPARATION,
-      ),
-    ) ?? 1,
-  );
-  if (contrast(separated, INK_LIGHT) < LIGHT_SURFACE)
-    return { ...color, accent: separated, onAccent: INK_DARK };
-  const accent = mix(
-    separated,
-    '#000000',
-    steps.find((step) => contrast(mix(separated, '#000000', step), INK_LIGHT) >= BODY_CONTRAST) ??
-      1,
-  );
-  const onAccent = INK_LIGHT;
-  return { ...color, accent, onAccent };
+  const pair = humanBubbleColors(source, 'light', color.base, {
+    base: color.base,
+    surface: color.surface,
+    fg: color.fg,
+  });
+  return pair === undefined
+    ? color
+    : {
+        ...color,
+        accent: pair.fill,
+        onAccent: pair.ink,
+        accentText: readable(source, color.surface, 4.6),
+      };
 }
 
 export type HeaderBand = { top: string; bottom: string; ink: ColorRole; lightInk: boolean };
@@ -129,7 +123,7 @@ export function resolveTheme(
 ): DesignTheme {
   const scheme =
     appearance.scheme === undefined || appearance.scheme === 'system' ? system : appearance.scheme;
-  const color = withAccent({ ...palette[scheme] }, appearance.accent);
+  const color = withAccent({ ...palette[scheme] }, appearance.accent ?? palette[scheme].accent);
   return {
     scheme,
     fontScale: 1,

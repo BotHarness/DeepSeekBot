@@ -18,7 +18,7 @@ import { color } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
   link: {
-    color: color.accent,
+    color: color.accentText,
     textDecoration: { default: 'none', ':hover': 'underline' },
   },
 });

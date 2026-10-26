@@ -1,3 +1,4 @@
+import { PendingDelivery } from './message-delivery.js';
 import { AppearanceContext } from './appearance-context.js';
 import type { Appearance } from './appearance.js';
 import { onboardingFor, type OnboardingViewState } from './onboarding.js';
@@ -40,6 +41,7 @@ import {
 } from 'react';
 
 import {
+  IconWarningTriangleOutlineRegular,
   IconCheckOutlineRegular,
   IconChevronDownOutlineRegular,
   IconChecklistOutlineRegular,
@@ -508,10 +510,13 @@ export function MessageBubbleWrap({
   );
 }
 
-function humanBubbleStyle(source: string | undefined): CSSProperties | undefined {
+function humanBubbleStyle(
+  source: string | undefined,
+  background: string,
+): CSSProperties | undefined {
   if (source === undefined) return undefined;
-  const light = humanBubbleColors(source, 'light');
-  const dark = humanBubbleColors(source, 'dark');
+  const light = humanBubbleColors(source, 'light', background);
+  const dark = humanBubbleColors(source, 'dark', background);
   if (light === undefined || dark === undefined) return undefined;
   return {
     '--bh-bubble-me-fill-light': light.fill,
@@ -636,7 +641,7 @@ function MessageGroupView({
     human && currentDmBotSlug !== undefined
       ? bots.find((candidate) => candidate.slug === currentDmBotSlug)
       : undefined;
-  const bubbleStyle = humanBubbleStyle(botNameSource(dmBot));
+  const bubbleStyle = humanBubbleStyle(botNameSource(dmBot), surface.background);
   const lastMessage = group.messages[group.messages.length - 1];
   const lastReactions = (lastMessage?.reactions ?? [])
     .map((reaction) => `${reaction.emoji}${String(reaction.actors.length)}`)
@@ -727,7 +732,7 @@ function MessageGroupView({
             withAuthorCard(
               <span
                 className="bh-bubble-author"
-                ref={nameColor === undefined ? undefined : surface.probe}
+                ref={surface.probe}
                 data-bot-name-color={nameColor}
                 style={nameColor === undefined ? undefined : { color: nameColor }}
               >
@@ -758,9 +763,19 @@ function MessageGroupView({
               <div
                 className={`bh-bubble-surface${message.failed === undefined ? '' : ' bh-bubble-surface-failed'}`}
               >
+                {human && message.pending === true && message.failed === undefined ? (
+                  <PendingDelivery message={message} t={t} />
+                ) : null}
                 {message.failed === undefined ? null : onRestoreFailed === undefined ? (
-                  <span className="bh-bubble-failed-action" title={message.failed}>
-                    {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
+                  <span
+                    className="bh-bubble-failed-action"
+                    role="img"
+                    aria-label={t(
+                      message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed',
+                    )}
+                    title={message.failed}
+                  >
+                    <IconWarningTriangleOutlineRegular size={16} />
                   </span>
                 ) : (
                   <button
@@ -774,7 +789,7 @@ function MessageGroupView({
                     title={message.failed}
                     onClick={() => onRestoreFailed(message)}
                   >
-                    {t(message.unconfirmed === true ? 'message.unconfirmed' : 'message.failed')}
+                    <IconWarningTriangleOutlineRegular size={16} />
                   </button>
                 )}
                 <div
@@ -804,7 +819,7 @@ function MessageGroupView({
                       />
                     </MessageFold>
                   </ImageGalleryScope>
-                  {message.pending === true || message.streaming === true ? (
+                  {message.streaming === true ? (
                     <span className="bh-bubble-status" role="status">
                       {t(message.streaming === true ? 'message.generating' : 'message.sending')}
                     </span>
