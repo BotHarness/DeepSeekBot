@@ -39,7 +39,7 @@ export function ReactionChips({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x2 * 2) / 2);
+  const slop = Math.max(0, (theme.touch - theme.type.meta.line - (space.x2 + space.x1) * 2) / 2);
   return (
     <View
       style={{
@@ -63,8 +63,8 @@ export function ReactionChips({
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.x2,
-              paddingHorizontal: space.x4,
-              paddingVertical: space.x2,
+              paddingHorizontal: space.x4 + space.x1,
+              paddingVertical: space.x2 + space.x1,
               borderRadius: radius.round,
               backgroundColor: mine
                 ? theme.layer.canvas.chosen

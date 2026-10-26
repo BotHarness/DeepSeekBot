@@ -6,7 +6,7 @@ export const AVATAR_CORNER = radius.sm;
 
 export const BUBBLE_MAX = '88%';
 
-export const BADGE_OVERLAP = space.x4;
+export const BADGE_OVERLAP = space.x5 + space.x1;
 
 export function bubbleCorners(human: boolean, { first, last, avatar = false }: BubbleGroup) {
   return {

@@ -3546,7 +3546,7 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   z-index: 1;
   left: ${space.x4};
   right: ${space.x4};
-  bottom: calc(-1 * ${space.x4});
+  bottom: calc(-1 * ${space.x5});
   display: flex;
   align-items: center;
   gap: ${space.x2};
@@ -3563,13 +3563,13 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   margin-right: auto;
 }
 .bh-bubble-wrap:has(.bh-bubble-badges) {
-  margin-bottom: ${space.x5};
+  margin-bottom: ${space.x6};
 }
 .bh-reading {
   display: inline-flex;
   align-items: center;
   gap: ${space.x1};
-  padding: ${space.x1} ${space.x3} ${space.x1} ${space.x1};
+  padding: ${space.x2} ${space.x4} ${space.x2} ${space.x2};
   border-radius: 999px;
   background: var(--dsw-alias-bg-base);
   box-shadow: 0 1px 4px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent);
