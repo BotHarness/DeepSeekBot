@@ -28,8 +28,8 @@ export function bubbleShape(human: boolean, group: BubbleGroup) {
     maxWidth: BUBBLE_MAX,
     alignSelf: human ? 'flex-end' : 'flex-start',
     ...bubbleCorners(human, group),
-    paddingHorizontal: space.x4,
-    paddingVertical: space.x3,
+    paddingHorizontal: space.x5,
+    paddingVertical: space.x3 + space.x1,
   } as const;
 }
 

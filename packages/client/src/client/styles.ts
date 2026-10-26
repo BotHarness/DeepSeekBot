@@ -3568,10 +3568,10 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   display: inline-flex;
   align-items: center;
   gap: ${space.x1};
-  padding: ${space.x2} ${space.x4} ${space.x2} ${space.x2};
+  padding: ${space.x2} ${space.x3} ${space.x2} ${space.x2};
+  border: ${border.focus} solid var(--dsw-alias-bg-base);
   border-radius: 999px;
-  background: var(--dsw-alias-bg-base);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent);
+  background: ${color.surface};
   color: var(--dsw-alias-label-tertiary);
   pointer-events: auto;
 }
@@ -3586,7 +3586,7 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   margin-left: calc(-1 * ${space.x3});
 }
 .bh-reading .bh-stack-avatar {
-  outline: ${border.hairline} solid var(--dsw-alias-bg-base);
+  outline: ${border.hairline} solid ${color.surface};
 }
 .bh-stack-human {
   display: grid;

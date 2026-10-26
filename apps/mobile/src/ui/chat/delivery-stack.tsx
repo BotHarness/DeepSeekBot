@@ -21,11 +21,10 @@ import {
 import { BotPortrait } from '../bot-avatar';
 import type { DesignTheme } from '../design/resolve-theme';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
-import { chipShadow } from './message-reactions';
 
 const STACK_LIMIT = 3;
 const STACK_AVATAR = 16;
@@ -229,16 +228,17 @@ export function ReadingBadge({
         alignItems: 'center',
         gap: space.x2,
         paddingLeft: space.x2,
-        paddingRight: space.x4 + space.x1,
+        paddingRight: space.x4,
         paddingVertical: space.x2,
         borderRadius: radius.round,
-        backgroundColor: theme.layer.canvas.fill,
-        ...chipShadow(theme.color.fg),
+        borderWidth: edge.focus,
+        borderColor: theme.color.base,
+        backgroundColor: theme.layer.raised.fill,
       }}
     >
       <AvatarStack
         bots={bots}
-        items={readers.map((botSlug) => ({ botSlug, ring: theme.layer.canvas.fill }))}
+        items={readers.map((botSlug) => ({ botSlug, ring: theme.layer.raised.fill }))}
       />
       <View style={{ flexDirection: 'row', gap: space.x1 }}>
         {[0, 200, 400].map((delay) => (

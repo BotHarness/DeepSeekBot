@@ -16,16 +16,6 @@ export function reactionSummary(
   return t.reactionSummary(names.join(t.reactionSeparator), reaction.emoji);
 }
 
-export function chipShadow(ink: string) {
-  return {
-    shadowColor: ink,
-    shadowOpacity: 0.14,
-    shadowRadius: space.x2,
-    shadowOffset: { width: 0, height: edge.hairline },
-    elevation: edge.hairline,
-  } as const;
-}
-
 export function ReactionChips({
   reactions,
   human,
@@ -63,15 +53,16 @@ export function ReactionChips({
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.x2,
-              paddingHorizontal: space.x4 + space.x1,
+              paddingHorizontal: space.x4,
               paddingVertical: space.x2 + space.x1,
               borderRadius: radius.round,
+              borderWidth: edge.focus,
+              borderColor: theme.color.base,
               backgroundColor: mine
-                ? theme.layer.canvas.chosen
+                ? theme.layer.raised.chosen
                 : pressed
-                  ? theme.layer.canvas.pressed
-                  : theme.layer.canvas.fill,
-              ...chipShadow(theme.color.fg),
+                  ? theme.layer.raised.pressed
+                  : theme.layer.raised.fill,
             })}
           >
             <Text variant="meta">{reaction.emoji}</Text>
