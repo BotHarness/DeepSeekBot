@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import {
   closeSync,
   fstatSync,
@@ -7,6 +7,7 @@ import {
   openSync,
   readFileSync,
   realpathSync,
+  renameSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -195,29 +196,116 @@ function configureProfileZoom({
     refuse('desktop-zoom-setup-package-outcome-unconfirmed');
   return { action, profile, changed, restartRequired: true, runtimeVerified: false };
 }
+const WAITING = new Set(['desktop-zoom-setup-desktop-running', 'desktop-zoom-setup-profile-busy']);
+function readState(path) {
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return undefined;
+  }
+}
+function writeState(path, value) {
+  const temporary = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporary, `${JSON.stringify(value)}\n`, { mode: 0o600 });
+  renameSync(temporary, path);
+}
+function otherProcesses(pid) {
+  return () =>
+    execFileSync('/bin/ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+      .split('\n')
+      .map((line) => /^\s*(\d+)\s(.*)$/.exec(line))
+      .filter((match) => match && Number(match[1]) !== pid)
+      .map((match) => match[2])
+      .join('\n');
+}
+export function relaunchDesktopApp(desktopApp, platform = process.platform, launch = spawn) {
+  const [command, args] =
+    platform === 'darwin' ? ['/usr/bin/open', [desktopApp]] : ['explorer.exe', [desktopApp]];
+  launch(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+}
+export async function configureDesktopZoomAfterQuit({
+  state,
+  id,
+  timeoutMs = 30 * 60_000,
+  intervalMs = 1000,
+  now = Date.now,
+  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  relaunch = relaunchDesktopApp,
+  configure = configureDesktopZoom,
+  ...options
+}) {
+  const current = () => {
+    const value = readState(state);
+    return value?.id === id && value.status === 'waiting' ? value : undefined;
+  };
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    const request = current();
+    if (!request) return { status: 'superseded' };
+    let outcome;
+    try {
+      const result = configure({
+        processes: otherProcesses(process.pid),
+        windowsProcesses: () =>
+          desktopZoomWindowsProcesses().filter((row) => row.ProcessId !== process.pid),
+        ...options,
+      });
+      outcome = { status: 'done', changed: result.changed };
+    } catch (error) {
+      const code = error.code ?? 'desktop-zoom-setup-failed';
+      if (WAITING.has(code) && now() < deadline) {
+        await sleep(intervalMs);
+        continue;
+      }
+      outcome = {
+        status: 'failed',
+        code: WAITING.has(code) ? 'desktop-zoom-setup-wait-expired' : code,
+      };
+    }
+    const latest = readState(state);
+    if (latest?.id !== id) return { status: 'superseded' };
+    writeState(state, { ...latest, ...outcome, finishedAt: new Date(now()).toISOString() });
+    if (outcome.code !== 'desktop-zoom-setup-wait-expired')
+      relaunch(options.desktopApp, options.platform);
+    return outcome;
+  }
+}
 export function runDesktopZoomSetup(args) {
   const [action, ...flags] = args;
   const values = new Map();
   for (let i = 0; i < flags.length; i += 2) {
     if (
-      !['--home', '--profile', '--dsh', '--desktop-app'].includes(flags[i]) ||
+      !['--home', '--profile', '--dsh', '--desktop-app', '--after-quit', '--request'].includes(
+        flags[i],
+      ) ||
       !flags[i + 1] ||
       values.has(flags[i])
     )
       refuse('desktop-zoom-setup-arguments-invalid');
     values.set(flags[i], flags[i + 1]);
   }
-  return configureDesktopZoom({
+  if (values.has('--after-quit') !== values.has('--request'))
+    refuse('desktop-zoom-setup-arguments-invalid');
+  const options = {
     action,
     home: values.get('--home'),
     profile: values.get('--profile'),
     dsh: values.get('--dsh'),
     desktopApp: values.get('--desktop-app'),
-  });
+  };
+  if (values.has('--after-quit')) {
+    if (!['enable', 'disable'].includes(action)) refuse('desktop-zoom-setup-action-required');
+    return configureDesktopZoomAfterQuit({
+      ...options,
+      state: values.get('--after-quit'),
+      id: values.get('--request'),
+    });
+  }
+  return configureDesktopZoom(options);
 }
 if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    console.log(JSON.stringify(runDesktopZoomSetup(process.argv.slice(2))));
+    console.log(JSON.stringify(await runDesktopZoomSetup(process.argv.slice(2))));
   } catch (error) {
     console.error(JSON.stringify({ code: error.code ?? 'desktop-zoom-setup-failed' }));
     process.exitCode = 1;

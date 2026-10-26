@@ -1,4 +1,5 @@
 import { WindowZoomSettings } from './window-zoom-settings.js';
+import { WindowZoomSetup } from './window-zoom-setup.js';
 import type { ZoomSurface } from './window-zoom-mount.js';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -57,6 +58,7 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
   return (
     <Rows>
       <WindowZoomSettings surface={props.zoomSurface} t={props.t} />
+      <WindowZoomSetup surface={props.zoomSurface} t={props.t} />
       <OnboardingSetting
         actions={props.actions}
         closeBotSettings={props.closeBotSettings}
