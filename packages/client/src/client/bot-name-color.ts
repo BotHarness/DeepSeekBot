@@ -137,8 +137,17 @@ export function readable(source: string, background: string, minimum: number): s
   return adjusted === undefined ? toHex(from) : toHex(adjusted);
 }
 
+const nameColors = new Map<string, string>();
+
 export function botNameColor(source: string, background: string): string {
-  return readable(source, background, NAME_TARGET);
+  const key = `${source}\n${background}`;
+  let color = nameColors.get(key);
+  if (color === undefined) {
+    if (nameColors.size >= 256) nameColors.clear();
+    color = readable(source, background, NAME_TARGET);
+    nameColors.set(key, color);
+  }
+  return color;
 }
 
 export const BUBBLE_SURFACES: Record<ThemeName, { base: string; surface: string; fg: string }> = {

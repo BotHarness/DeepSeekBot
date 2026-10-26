@@ -56,6 +56,14 @@ node scripts/verify-app.mjs shot <label> --name <n> --bot-mode \
 - Use `rpc <namespace/method> [json]` to read canonical state (Channel timelines, Bot lists) after a UI action, or to seed preconditions through the same public API the Client calls. It is evidence of state, never a substitute for the UI step it follows.
 - For scripted journeys, use the feature file’s launch contract. Some accept `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json`, the model suite accepts `--name <n>`, and others own their Host; check before running so the journey targets this task’s instance.
 
+## Measure performance
+
+For a change that touches the timeline, the composer or message rendering, or a report that
+Bot mode is slow, hot or laggy, measure before and after with `scripts/perf-idle-timeline.mjs`.
+It seeds a long Group without a model, mounts the whole history, and reports idle main-thread
+time, typing latency per key and the hottest functions. Follow
+[the performance guide](references/performance.md) for the A/B protocol and how to read it.
+
 ## Native mobile
 
 The Web Client drives above do not cover the Expo app in `apps/mobile`. Before starting a

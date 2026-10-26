@@ -29,6 +29,7 @@ import { ComposerSendKeyContext } from './composer-send-key.js';
 import { ConversationFileDropOverlay, useConversationFileDrop } from './conversation-file-drop.js';
 import type { ComposerShortcut } from './composer-shortcuts.js';
 import {
+  memo,
   useCallback,
   useContext,
   useMemo,
@@ -533,7 +534,9 @@ interface InboxTarget {
   missing: boolean;
 }
 
-function MessageGroupView({
+const NO_HUMAN_MEMBERS: readonly ChannelHumanMember[] = [];
+
+const MessageGroupView = memo(function MessageGroupView({
   humanMembers = [],
   group,
   channelId,
@@ -903,7 +906,7 @@ function MessageGroupView({
       </div>
     </div>
   );
-}
+});
 
 function MessageActionMenu({
   onReply,
@@ -1357,16 +1360,43 @@ function ConversationView({
     () => dmMemoryDisplaySnapshot(dmBotSlug),
   );
   const messages = conversation.messages;
-  const displayMessages: ChannelMessage[] = [
-    ...visibleDmMessages(messages, hiddenActions),
-    ...(conversation.timeline.hasNewer ? [] : conversation.drafts).map((item) => ({
-      id: item.draftId,
-      at: '',
-      author: { kind: 'bot' as const, slug: item.botSlug },
-      body: item.body,
-      streaming: true,
-    })),
-  ];
+  const timelineDrafts = conversation.timeline.hasNewer ? undefined : conversation.drafts;
+  const displayMessages = useMemo<readonly ChannelMessage[]>(() => {
+    const visible = visibleDmMessages(messages, hiddenActions);
+    if (timelineDrafts === undefined || timelineDrafts.length === 0) return visible;
+    return [
+      ...visible,
+      ...timelineDrafts.map((item) => ({
+        id: item.draftId,
+        at: '',
+        author: { kind: 'bot' as const, slug: item.botSlug },
+        body: item.body,
+        streaming: true,
+      })),
+    ];
+  }, [messages, hiddenActions, timelineDrafts]);
+  const timelineDecisions = useMemo(
+    () => ({
+      resolvedGrantRequests: resolvedGrantRequestIds(displayMessages),
+      toolApprovalDecisions: new Map(
+        displayMessages
+          .filter((item) => item.toolApprovalDecision !== undefined)
+          .map((item) => [
+            item.toolApprovalDecision!.requestMessageId,
+            item.toolApprovalDecision!.outcome,
+          ]),
+      ),
+      userQuestionResolutions: new Map(
+        displayMessages
+          .filter((item) => item.userQuestionResolution !== undefined)
+          .map((item) => [
+            item.userQuestionResolution!.requestMessageId,
+            item.userQuestionResolution!.state,
+          ]),
+      ),
+    }),
+    [displayMessages],
+  );
   const selection = state.selection;
   const bot =
     selection?.kind === 'bot'
@@ -1552,23 +1582,26 @@ function ConversationView({
     selectedMessages !== undefined && selectedMessages.channelId === channelId
       ? selectedMessages.ids
       : undefined;
-  const messageSelection: MessageSelection | undefined =
-    channelId === undefined
-      ? undefined
-      : {
-          selected: new Set(selectedIds ?? []),
-          active: selectedIds !== undefined,
-          begin: (message) => {
-            setMessageMenu(undefined);
-            setSelectedMessages({ channelId, ids: toggleSelection([], message) });
+  const messageSelection = useMemo<MessageSelection | undefined>(
+    () =>
+      channelId === undefined
+        ? undefined
+        : {
+            selected: new Set(selectedIds ?? []),
+            active: selectedIds !== undefined,
+            begin: (message) => {
+              setMessageMenu(undefined);
+              setSelectedMessages({ channelId, ids: toggleSelection([], message) });
+            },
+            toggle: (message) =>
+              setSelectedMessages((current) =>
+                current === undefined || current.channelId !== channelId
+                  ? current
+                  : { channelId, ids: toggleSelection(current.ids, message) },
+              ),
           },
-          toggle: (message) =>
-            setSelectedMessages((current) =>
-              current === undefined || current.channelId !== channelId
-                ? current
-                : { channelId, ids: toggleSelection(current.ids, message) },
-            ),
-        };
+    [channelId, selectedIds],
+  );
   const cancelSelection = useCallback(() => setSelectedMessages(undefined), [scopeKey]);
   const [selectionBusy, setSelectionBusy] = useScopedState(scopeKey, false);
   const [selectionImage, setSelectionImage] = useScopedState<Blob | undefined>(scopeKey);
@@ -2000,26 +2033,121 @@ function ConversationView({
     void actions.loadNewer(channelId);
   };
 
+  const restoreFailedMessage = (message: ChannelMessage): void => {
+    if (channelId === undefined) return;
+    if (draft.length > 0 || uploadItems.length > 0 || conversation.sending) {
+      setRestoreBlocked(true);
+      return;
+    }
+    if (message.unconfirmed === true) {
+      setSubmissionNotice(t('composer.submissionChecking'));
+      void actions.submissions
+        .check(channelId, message.id)
+        .then(async (status) => {
+          if (status === 'unknown') {
+            setSubmissionNotice(t('composer.submissionUncheckable'));
+            return;
+          }
+          await actions.submissions.reconcile(channelId);
+          setSubmissionNotice(
+            t(
+              status === 'committed'
+                ? 'composer.submissionDelivered'
+                : 'composer.submissionNotDelivered',
+            ),
+          );
+        })
+        .catch(() => setSubmissionNotice(t('composer.submissionUncheckable')));
+      return;
+    }
+    if (!actions.dismissFailedMessage(channelId, message.id)) return;
+    setDraft(message.body);
+    setMentionTokens(message.mentions ?? []);
+    setChannelRefTokens(message.channelRefs ?? []);
+    setUploadItems(
+      (message.attachments ?? []).map((ref) => ({
+        id: crypto.randomUUID(),
+        file: new File([], ref.name, { type: ref.mime }),
+        ref,
+        status: 'ready' as const,
+      })),
+    );
+    setReplyTarget(
+      message.replyTo === undefined
+        ? undefined
+        : messages.find((candidate) => candidate.id === message.replyTo),
+    );
+    setRestoreBlocked(false);
+    setRestoreFocusSignal((value) => value + 1);
+  };
+  const timelineHandlers = {
+    contextMenu: (message: ChannelMessage, x: number, y: number) => {
+      setAvatarMenu(undefined);
+      setMessageMenu({ message, x, y });
+    },
+    avatarMenu: (botSlug: string, x: number, y: number) => {
+      setMessageMenu(undefined);
+      setAvatarMenu({ botSlug, x, y });
+    },
+    reply: (message: ChannelMessage) => setReplyTarget(message),
+    react: (message: ChannelMessage, emoji: string, active: boolean) =>
+      reactToMessage?.(message, emoji, active),
+    jumpReply: (messageId: string) => {
+      if (channelId !== undefined) void actions.openAround(channelId, messageId);
+    },
+    restoreFailed: restoreFailedMessage,
+    openInbox: (target: InboxTarget) => setInboxTarget(target),
+    openMemoryView,
+  };
+  const latestTimeline = useRef(timelineHandlers);
+  latestTimeline.current = timelineHandlers;
+  const timelineCallbacks = useMemo(
+    () => ({
+      contextMenu: (message: ChannelMessage, x: number, y: number) =>
+        latestTimeline.current.contextMenu(message, x, y),
+      avatarMenu: (botSlug: string, x: number, y: number) =>
+        latestTimeline.current.avatarMenu(botSlug, x, y),
+      reply: (message: ChannelMessage) => latestTimeline.current.reply(message),
+      react: (message: ChannelMessage, emoji: string, active: boolean) =>
+        latestTimeline.current.react(message, emoji, active),
+      jumpReply: (messageId: string) => latestTimeline.current.jumpReply(messageId),
+      restoreFailed: (message: ChannelMessage) => latestTimeline.current.restoreFailed(message),
+      openInbox: (target: InboxTarget) => latestTimeline.current.openInbox(target),
+      memoryNavigation: {
+        file: (path: string) => latestTimeline.current.openMemoryView({ kind: 'file', path }),
+        commit: (sha: string) => latestTimeline.current.openMemoryView({ kind: 'commit', sha }),
+        working: (change: MemoryWorkingChange) =>
+          latestTimeline.current.openMemoryView({ kind: 'working', change }),
+      },
+    }),
+    [],
+  );
   const unreadAfter = conversation.unreadAfterMessageId;
-  const messageGroups = groupChannelMessages(displayMessages, unreadAfter);
-  const galleryImages: GalleryImage[] =
-    channelId === undefined
-      ? []
-      : displayMessages.flatMap((message) =>
-          message.contentPurged === true
-            ? []
-            : (message.attachments ?? []).flatMap((ref) =>
-                inlineImageAttachment(ref.mime)
-                  ? [
-                      {
-                        key: galleryImageKey(message.id, ref),
-                        src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
-                        alt: ref.name,
-                      },
-                    ]
-                  : [],
-              ),
-        );
+  const messageGroups = useMemo(
+    () => groupChannelMessages(displayMessages, unreadAfter),
+    [displayMessages, unreadAfter],
+  );
+  const galleryImages = useMemo<GalleryImage[]>(
+    () =>
+      channelId === undefined
+        ? []
+        : displayMessages.flatMap((message) =>
+            message.contentPurged === true
+              ? []
+              : (message.attachments ?? []).flatMap((ref) =>
+                  inlineImageAttachment(ref.mime)
+                    ? [
+                        {
+                          key: galleryImageKey(message.id, ref),
+                          src: channelAttachmentUrl(ref, { channelId, messageId: message.id }),
+                          alt: ref.name,
+                        },
+                      ]
+                    : [],
+                ),
+          ),
+    [channelId, displayMessages],
+  );
   const imageGallery = useMessageImageGallery(galleryImages, t);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
@@ -2918,123 +3046,34 @@ function ConversationView({
                       </button>
                     ) : first.botDmAction === undefined ? (
                       <OnboardingMemoryNavigation.Provider
-                        value={{
-                          file: (path) => openMemoryView({ kind: 'file', path }),
-                          commit: (sha) => openMemoryView({ kind: 'commit', sha }),
-                          working: (change) => openMemoryView({ kind: 'working', change }),
-                        }}
+                        value={timelineCallbacks.memoryNavigation}
                       >
                         <MessageGroupView
-                          humanMembers={channel?.humanMembers ?? []}
+                          humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
                           group={group}
                           channelId={channelId}
                           actions={actions}
                           gallery={imageGallery.gallery}
                           nativeChatT={nativeChatT}
-                          resolvedGrantRequests={resolvedGrantRequestIds(displayMessages)}
-                          toolApprovalDecisions={
-                            new Map(
-                              displayMessages
-                                .filter((item) => item.toolApprovalDecision !== undefined)
-                                .map((item) => [
-                                  item.toolApprovalDecision!.requestMessageId,
-                                  item.toolApprovalDecision!.outcome,
-                                ]),
-                            )
-                          }
-                          userQuestionResolutions={
-                            new Map(
-                              displayMessages
-                                .filter((item) => item.userQuestionResolution !== undefined)
-                                .map((item) => [
-                                  item.userQuestionResolution!.requestMessageId,
-                                  item.userQuestionResolution!.state,
-                                ]),
-                            )
-                          }
+                          resolvedGrantRequests={timelineDecisions.resolvedGrantRequests}
+                          toolApprovalDecisions={timelineDecisions.toolApprovalDecisions}
+                          userQuestionResolutions={timelineDecisions.userQuestionResolutions}
                           focusMessageId={conversation.focusMessageId}
                           currentDmBotSlug={
                             channel?.type === 'dm' && !botDm ? channel.botSlug : undefined
                           }
                           bots={state.bots}
-                          onContextMenu={(message, x, y) => {
-                            setAvatarMenu(undefined);
-                            setMessageMenu({ message, x, y });
-                          }}
+                          onContextMenu={timelineCallbacks.contextMenu}
                           onAvatarMenu={
-                            channel?.type === 'group'
-                              ? (botSlug, x, y) => {
-                                  setMessageMenu(undefined);
-                                  setAvatarMenu({ botSlug, x, y });
-                                }
-                              : undefined
+                            channel?.type === 'group' ? timelineCallbacks.avatarMenu : undefined
                           }
-                          onOpenInbox={setInboxTarget}
-                          onReply={readOnlyDm ? undefined : (message) => setReplyTarget(message)}
-                          onReact={reactToMessage}
-                          onJumpReply={(messageId) => {
-                            if (channelId !== undefined)
-                              void actions.openAround(channelId, messageId);
-                          }}
-                          onRestoreFailed={
-                            readOnlyDm
-                              ? undefined
-                              : (message) => {
-                                  if (channelId === undefined) return;
-                                  if (
-                                    draft.length > 0 ||
-                                    uploadItems.length > 0 ||
-                                    conversation.sending
-                                  ) {
-                                    setRestoreBlocked(true);
-                                    return;
-                                  }
-                                  if (message.unconfirmed === true) {
-                                    setSubmissionNotice(t('composer.submissionChecking'));
-                                    void actions.submissions
-                                      .check(channelId, message.id)
-                                      .then(async (status) => {
-                                        if (status === 'unknown') {
-                                          setSubmissionNotice(t('composer.submissionUncheckable'));
-                                          return;
-                                        }
-                                        await actions.submissions.reconcile(channelId);
-                                        setSubmissionNotice(
-                                          t(
-                                            status === 'committed'
-                                              ? 'composer.submissionDelivered'
-                                              : 'composer.submissionNotDelivered',
-                                          ),
-                                        );
-                                      })
-                                      .catch(() =>
-                                        setSubmissionNotice(t('composer.submissionUncheckable')),
-                                      );
-                                    return;
-                                  }
-                                  if (!actions.dismissFailedMessage(channelId, message.id)) return;
-                                  setDraft(message.body);
-                                  setMentionTokens(message.mentions ?? []);
-                                  setChannelRefTokens(message.channelRefs ?? []);
-                                  setUploadItems(
-                                    (message.attachments ?? []).map((ref) => ({
-                                      id: crypto.randomUUID(),
-                                      file: new File([], ref.name, { type: ref.mime }),
-                                      ref,
-                                      status: 'ready' as const,
-                                    })),
-                                  );
-                                  setReplyTarget(
-                                    message.replyTo === undefined
-                                      ? undefined
-                                      : messages.find(
-                                          (candidate) => candidate.id === message.replyTo,
-                                        ),
-                                  );
-                                  setRestoreBlocked(false);
-                                  setRestoreFocusSignal((value) => value + 1);
-                                }
+                          onOpenInbox={timelineCallbacks.openInbox}
+                          onReply={readOnlyDm ? undefined : timelineCallbacks.reply}
+                          onReact={
+                            reactToMessage === undefined ? undefined : timelineCallbacks.react
                           }
+                          onJumpReply={timelineCallbacks.jumpReply}
+                          onRestoreFailed={readOnlyDm ? undefined : timelineCallbacks.restoreFailed}
                           t={t}
                         />
                       </OnboardingMemoryNavigation.Provider>
