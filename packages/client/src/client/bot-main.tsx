@@ -107,7 +107,12 @@ import {
   humanBubbleColors,
   useConversationSurface,
 } from './bot-primary-color.js';
-import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
+import {
+  ChannelDeliveryReceipt,
+  DeliveryReceiptsVisible,
+  MessageReading,
+  readingBots,
+} from './channel-delivery-receipt.js';
 import { BotInboxDialog } from './bot-inbox-dialog.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
@@ -547,6 +552,7 @@ function MessageGroupView({
   onReact,
   onJumpReply,
   onRestoreFailed,
+  reading,
   actions,
   resolvedGrantRequests,
   toolApprovalDecisions,
@@ -569,6 +575,7 @@ function MessageGroupView({
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed?: ((message: ChannelMessage) => void) | undefined;
   onJumpReply(messageId: string): void;
+  reading?: ReadonlyMap<string, readonly string[]> | undefined;
   actions: BridgeActions;
   resolvedGrantRequests: ReadonlySet<string>;
   toolApprovalDecisions: ReadonlyMap<
@@ -834,17 +841,23 @@ function MessageGroupView({
                     </span>
                   ) : null}
                 </div>
-                <MessageReactionChips
-                  reactions={message.reactions ?? []}
-                  mine={human}
-                  names={reactorName}
-                  onReact={
-                    onReact === undefined || !reactableMessage(message)
-                      ? undefined
-                      : (emoji, active) => onReact(message, emoji, active)
-                  }
-                  t={t}
-                />
+                {(message.reactions ?? []).length > 0 ||
+                (reading?.get(message.id)?.length ?? 0) > 0 ? (
+                  <div className="bh-bubble-badges">
+                    <MessageReactionChips
+                      reactions={message.reactions ?? []}
+                      mine={human}
+                      names={reactorName}
+                      onReact={
+                        onReact === undefined || !reactableMessage(message)
+                          ? undefined
+                          : (emoji, active) => onReact(message, emoji, active)
+                      }
+                      t={t}
+                    />
+                    <MessageReading readers={reading?.get(message.id) ?? []} bots={bots} t={t} />
+                  </div>
+                ) : null}
                 <div className="bh-bubble-toolbar">
                   <div className="bh-bubble-actions">
                     {onReact !== undefined && reactableMessage(message) ? (
@@ -1367,6 +1380,7 @@ function ConversationView({
       streaming: true,
     })),
   ];
+  const reading = readingBots(messages);
   const selection = state.selection;
   const bot =
     selection?.kind === 'bot'
@@ -2927,6 +2941,7 @@ function ConversationView({
                         <MessageGroupView
                           humanMembers={channel?.humanMembers ?? []}
                           group={group}
+                          reading={reading}
                           channelId={channelId}
                           actions={actions}
                           gallery={imageGallery.gallery}
@@ -3684,18 +3699,25 @@ export function BotMain({
     () => prefs?.source.getSnapshot().autoCollapseMessages ?? false,
     () => false,
   );
+  const showDeliveryReceipts = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
+    () => false,
+  );
   return (
-    <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-      <MessageDeveloperMode.Provider value={developerMode}>
-        <ComposerSendKeyContext.Provider value={sendKey}>
-          <AppearanceContext.Provider value={appearance}>
-            <Workspace options={workspace} t={props.t ?? zhTranslate}>
-              <BotMainContent {...props} />
-            </Workspace>
-          </AppearanceContext.Provider>
-        </ComposerSendKeyContext.Provider>
-      </MessageDeveloperMode.Provider>
-    </AutoCollapseMessages.Provider>
+    <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
+      <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+        <MessageDeveloperMode.Provider value={developerMode}>
+          <ComposerSendKeyContext.Provider value={sendKey}>
+            <AppearanceContext.Provider value={appearance}>
+              <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                <BotMainContent {...props} />
+              </Workspace>
+            </AppearanceContext.Provider>
+          </ComposerSendKeyContext.Provider>
+        </MessageDeveloperMode.Provider>
+      </AutoCollapseMessages.Provider>
+    </DeliveryReceiptsVisible.Provider>
   );
 }
 

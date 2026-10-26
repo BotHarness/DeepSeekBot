@@ -3,7 +3,10 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 
-import { ChannelDeliveryReceipt } from '../src/client/channel-delivery-receipt.js';
+import {
+  ChannelDeliveryReceipt,
+  DeliveryReceiptsVisible,
+} from '../src/client/channel-delivery-receipt.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { BotSummary, ChannelMessage } from '../src/client/store.js';
 
@@ -17,6 +20,13 @@ const bots: BotSummary[] = ['ada', 'bea', 'cee', 'dee', 'elle', 'fen', 'gia', 'h
     createdAt: '2026-09-26T00:00:00.000Z',
   }),
 );
+
+const receipt = (props: Parameters<typeof ChannelDeliveryReceipt>[0]) =>
+  createElement(
+    DeliveryReceiptsVisible.Provider,
+    { value: true },
+    createElement(ChannelDeliveryReceipt, props),
+  );
 
 const message: ChannelMessage = {
   id: 'm1',
@@ -42,17 +52,22 @@ describe('Channel delivery receipt', () => {
     document.body.append(host);
     const root = createRoot(host);
     try {
-      await act(async () =>
-        root.render(createElement(ChannelDeliveryReceipt, { message, bots, t: zhTranslate })),
-      );
+      await act(async () => root.render(receipt({ message, bots, t: zhTranslate })));
       const trigger = host.querySelector<HTMLButtonElement>('.bh-delivery-trigger');
       expect(trigger?.getAttribute('aria-label')).toContain('1 已处理');
       expect(trigger?.getAttribute('aria-label')).toContain('1 处理中');
       expect(trigger?.getAttribute('aria-label')).toContain('1 已投递');
-      const pie = trigger?.querySelector<HTMLElement>('.bh-delivery-pie');
-      expect(pie?.getAttribute('style')).toContain('conic-gradient');
-      expect(pie?.getAttribute('style')).toContain('var(--dsw-alias-state-business-primary)');
-      expect(trigger?.querySelector('svg')).toBeNull();
+      const stacked = trigger?.querySelectorAll<HTMLElement>('.bh-delivery-stack .bh-stack-avatar');
+      expect(stacked).toHaveLength(3);
+      expect(stacked?.[0]?.getAttribute('style')).toContain(
+        'var(--dsw-alias-state-success-primary)',
+      );
+      expect(trigger?.querySelector('.bh-stack-more')?.textContent).toBe('+4');
+      expect(
+        [...(trigger?.querySelectorAll('svg') ?? [])].filter(
+          (svg) => !svg.closest('.bh-stack-avatar'),
+        ),
+      ).toHaveLength(0);
       expect(trigger?.hasAttribute('title')).toBe(false);
       expect(document.body.querySelector('.bh-delivery-panel')).toBeNull();
       expect(trigger?.getAttribute('aria-expanded')).toBe('false');
@@ -73,7 +88,7 @@ describe('Channel delivery receipt', () => {
 
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: {
               ...message,
               deliveries: (message.deliveries ?? []).map((item) =>
@@ -108,18 +123,14 @@ describe('Channel delivery receipt', () => {
       humanReceipts: [{ humanId: 'local-human', displayName: 'Human', state: 'unread' }],
     };
     try {
-      await act(async () =>
-        root.render(
-          createElement(ChannelDeliveryReceipt, { message: botMessage, bots, t: zhTranslate }),
-        ),
-      );
+      await act(async () => root.render(receipt({ message: botMessage, bots, t: zhTranslate })));
       const trigger = host.querySelector<HTMLButtonElement>('.bh-delivery-trigger');
       expect(trigger?.getAttribute('aria-label')).toContain('1 你未读');
       await act(async () => trigger?.click());
       expect(document.body.querySelector('.bh-delivery-panel')?.textContent).toContain('你');
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: {
               ...botMessage,
               humanReceipts: [{ ...botMessage.humanReceipts![0]!, state: 'read' }],
@@ -132,7 +143,7 @@ describe('Channel delivery receipt', () => {
       expect(trigger?.getAttribute('aria-label')).toContain('1 你已读');
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: botMessage,
             bots,
             humanMembers: [{ humanId: 'local-human', displayName: '教授 🐻' }],
@@ -143,7 +154,7 @@ describe('Channel delivery receipt', () => {
       expect(document.body.querySelector('.bh-delivery-panel')?.textContent).toContain('教授 🐻');
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: { ...botMessage, author: { kind: 'human' } },
             bots,
             t: zhTranslate,
@@ -165,7 +176,7 @@ describe('Channel delivery receipt', () => {
     try {
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: {
               ...message,
               author: { kind: 'system' },
@@ -199,7 +210,23 @@ describe('Channel delivery receipt', () => {
     }
   });
 
-  it('shows no pie without an admitted recipient or for an optimistic echo', async () => {
+  it('stays hidden until the delivery status setting turns it on', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(createElement(ChannelDeliveryReceipt, { message, bots, t: zhTranslate })),
+      );
+      expect(host.innerHTML).toBe('');
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
+  it('shows no receipt without an admitted recipient or for an optimistic echo', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const host = document.createElement('div');
     document.body.append(host);
@@ -207,7 +234,7 @@ describe('Channel delivery receipt', () => {
     try {
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: { ...message, deliveries: [{ botSlug: 'ada', state: 'handled' }] },
             bots,
             t: zhTranslate,
@@ -217,7 +244,7 @@ describe('Channel delivery receipt', () => {
       expect(host.innerHTML).toBe('');
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: {
               ...message,
               deliveries: [
@@ -230,15 +257,13 @@ describe('Channel delivery receipt', () => {
           }),
         ),
       );
-      expect(host.querySelector('.bh-delivery-pie')?.getAttribute('style')).toContain(
+      expect(host.querySelector('.bh-stack-avatar')?.getAttribute('style')).toContain(
         'var(--dsw-alias-state-success-primary)',
       );
-      expect(host.querySelector('.bh-delivery-pie')?.getAttribute('style')).not.toContain(
-        'conic-gradient',
-      );
+      expect(host.querySelector('.bh-stack-more')).toBeNull();
       await act(async () =>
         root.render(
-          createElement(ChannelDeliveryReceipt, {
+          receipt({
             message: { ...message, pending: true },
             bots,
             t: zhTranslate,

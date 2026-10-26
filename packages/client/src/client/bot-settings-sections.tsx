@@ -15,6 +15,7 @@ import {
   GroupAutoAcceptSetting,
   SendKeySetting,
   AutoCollapseMessagesSetting,
+  DeliveryReceiptsSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { buildLabel, clientBuild } from './build-id.js';
@@ -106,6 +107,7 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
       />
       <SendKeySetting {...props} />
       <AutoCollapseMessagesSetting {...props} />
+      <DeliveryReceiptsSetting {...props} />
       <SettingsSection>
         <GroupAutoAcceptSetting {...props} />
       </SettingsSection>

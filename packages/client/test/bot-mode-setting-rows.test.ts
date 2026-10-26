@@ -91,6 +91,7 @@ function snapshot(patch?: Partial<BotModePrefsSnapshot>): BotModePrefsSnapshot {
     botIcon: 'mascot' as const,
     sendKey: 'enter' as const,
     autoCollapseMessages: false,
+    showDeliveryReceipts: false,
     autoAcceptGroupInvites: true,
     assignmentConcurrencyLimit: 3,
     developerMode: false,
