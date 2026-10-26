@@ -4,13 +4,16 @@ import { act, use, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
-import type { HostSnapshot } from '../src/host/client';
+import type { ConversationSnapshot } from '../src/host/conversation';
+import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
 import {
   channelRouteId,
   channelStackRouter,
   navigateChannel,
 } from '../src/ui/shell/channel-navigation';
 import { t } from '../src/ui/strings';
+import { FakeHost } from './fake-host';
+import { ChannelFilesScreen } from '../src/ui/chat/channel-files-screen';
 import { HostScope } from '../src/host/host-scope';
 
 const fixture = vi.hoisted(() => {
@@ -34,13 +37,23 @@ const fixture = vi.hoisted(() => {
   };
   return {
     snapshot,
+    fileClient: undefined as HostClient | undefined,
     params: {} as Record<string, string>,
     activity: { ready: true, busy: false, tracking: false },
+    conversation: {
+      status: 'live',
+      messages: [],
+      drafts: [],
+      hasOlder: false,
+      loadingOlder: false,
+      fromCache: false,
+    } as ConversationSnapshot,
+    conversationListeners: new Set<() => void>(),
     startActivity: vi.fn(async () => {}),
     stopActivity: vi.fn(async () => {}),
     hostId: 'host-a',
     pairedSourceAvailable: false,
-    client: { call: async () => ({}), subscribe: () => () => {} },
+    client: { call: async () => ({}), subscribe: () => () => {}, retryNow: vi.fn() },
     otherClient: { call: async () => ({}), subscribe: () => () => {} },
   };
 });
@@ -48,6 +61,7 @@ vi.mock('../src/host/native-live-activity', () => ({
   useRequestActivity: () => fixture.activity,
   requestActivitySession: { start: fixture.startActivity, stop: fixture.stopActivity },
 }));
+vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-file-system', () => ({
   File: class {
@@ -55,6 +69,7 @@ vi.mock('expo-file-system', () => ({
   },
   Paths: { document: '' },
 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 vi.mock('react-native', async () => ({
@@ -75,6 +90,13 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: async () => undefined }));
 vi.mock('../src/host/host-session', () => ({
+  useConversation: () => ({
+    subscribe: (listener: () => void) => {
+      fixture.conversationListeners.add(listener);
+      return () => fixture.conversationListeners.delete(listener);
+    },
+    getSnapshot: () => fixture.conversation,
+  }),
   useHostSession: (hostId?: string) => {
     const scope = use(HostScope);
     const source = fixture.pairedSourceAvailable
@@ -83,19 +105,23 @@ vi.mock('../src/host/host-session', () => ({
     return {
       saved: { hostId: source },
       client:
-        fixture.pairedSourceAvailable && source === 'host-b' ? fixture.otherClient : fixture.client,
+        fixture.pairedSourceAvailable && source === 'host-b'
+          ? fixture.otherClient
+          : (fixture.fileClient ?? fixture.client),
     };
   },
   useHostSnapshot: (client: unknown) =>
-    client === fixture.otherClient
-      ? {
-          ...fixture.snapshot,
-          roster: {
-            bots: [],
-            channels: [{ id: 'group-a', name: 'Wrong B group', memberCount: 0, members: [] }],
-          },
-        }
-      : fixture.snapshot,
+    client === fixture.fileClient && fixture.fileClient
+      ? fixture.fileClient.getSnapshot()
+      : client === fixture.otherClient
+        ? {
+            ...fixture.snapshot,
+            roster: {
+              bots: [],
+              channels: [{ id: 'group-a', name: 'Wrong B group', memberCount: 0, members: [] }],
+            },
+          }
+        : fixture.snapshot,
 }));
 vi.mock('../src/ui/shell/channel-notification-screen', () => ({
   default: ({ channelId }: { channelId: string }) => (
@@ -105,6 +131,8 @@ vi.mock('../src/ui/shell/channel-notification-screen', () => ({
   ),
 }));
 vi.mock('expo-router', () => ({
+  Stack: { Screen: () => null },
+  useIsFocused: () => true,
   useLocalSearchParams: () => ({ slug: 'ada', id: 'group-a', hostId: 'host-a', ...fixture.params }),
   useNavigationContainerRef: () => navigation,
   useNavigation: () => ({ addListener: () => () => {} }),
@@ -163,9 +191,12 @@ afterEach(() => {
   act(() => root?.unmount());
   node?.remove();
   fixture.hostId = 'host-a';
+  fixture.fileClient?.stop();
+  fixture.fileClient = undefined;
   fixture.params = {};
   fixture.snapshot.roster!.activityChannels = [];
   fixture.startActivity.mockClear();
+  fixture.conversation = { ...fixture.conversation, messages: [] };
   fixture.activity.busy = false;
   fixture.activity.ready = true;
   fixture.snapshot.connection = { status: 'connected', route: 'https://qa.test' };
@@ -522,6 +553,19 @@ it('keeps iOS tracking explicit and scoped to the request passed from the chat C
   Object.assign(Platform, { OS: 'ios' });
   try {
     fixture.params = { channelId: 'dm-ada', activityMessageId: 'request-a' };
+    fixture.conversation = {
+      ...fixture.conversation,
+      messages: [
+        {
+          id: 'request-a',
+          at: '',
+          author: 'human',
+          body: 'Hello',
+          attachments: [],
+          delivery: 'pending',
+        },
+      ],
+    };
     const alert = vi.spyOn(Alert, 'alert');
     node = document.createElement('div');
     document.body.append(node);
@@ -529,6 +573,28 @@ it('keeps iOS tracking explicit and scoped to the request passed from the chat C
     await act(async () => root!.render(<BotProfileScreen />));
     const control = node.querySelector<HTMLButtonElement>('[data-testid="request-activity"]');
     expect(control).not.toBeNull();
+    expect(control!.disabled).toBe(true);
+    await act(async () => {
+      fixture.conversation = {
+        ...fixture.conversation,
+        messages: [
+          {
+            id: 'request-a',
+            at: '',
+            author: 'human',
+            body: 'Hello',
+            attachments: [],
+            delivery: 'committed',
+            source: {
+              channelId: 'dm-ada',
+              revision: 1,
+              message: { id: 'request-a', at: '', body: 'Hello', author: { kind: 'human' } },
+            },
+          },
+        ],
+      };
+      fixture.conversationListeners.forEach((listener) => listener());
+    });
     expect(control!.disabled).toBe(false);
     await act(async () => control!.click());
     expect(alert).toHaveBeenCalledWith(
@@ -650,4 +716,73 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
   await act(async () => root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />));
   expect(node.querySelector('[data-testid="channel-files-open"]')).toBeNull();
   expect(node.textContent).toContain(t.refused);
+});
+
+it('loads the file destination from its routed Host while a different Host is selected', async () => {
+  const fake = new FakeHost();
+  fake
+    .channel('dm-ada')
+    .append(
+      {
+        id: 'file-message',
+        author: { kind: 'human' },
+        attachments: [
+          {
+            fileId: 'file:00000000-0000-4000-8000-000000000001',
+            name: 'host-a-only.pdf',
+            mime: 'application/pdf',
+            size: 8,
+          },
+        ],
+      },
+      false,
+    );
+  fixture.fileClient = createHostClient({
+    routes: ['https://studio.tailnet-example.ts.net'],
+    credential: fake.credential,
+    carrier: fake.carrier,
+  });
+  fixture.fileClient.start();
+  fixture.hostId = 'host-b';
+  fixture.pairedSourceAvailable = true;
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => {
+    await vi.waitFor(() =>
+      expect(fixture.fileClient!.getSnapshot().connection.status).toBe('connected'),
+    );
+    root!.render(<ChannelFilesScreen hostId="host-a" channelId="dm-ada" botSlug="ada" />);
+  });
+  await act(async () => {
+    await vi.waitFor(() => expect(node!.textContent).toContain('host-a-only.pdf'));
+  });
+  expect(node.textContent).not.toContain(t.sourceChanged);
+  expect(fixture.hostId).toBe('host-b');
+});
+
+it('offers recovery instead of indefinite loading when Bot-to-Bot details open offline', async () => {
+  const roster = fixture.snapshot.roster!;
+  delete fixture.snapshot.roster;
+  fixture.snapshot.connection = {
+    status: 'unreachable',
+    route: 'https://qa.test',
+    attempt: 1,
+    reason: 'offline',
+  };
+  try {
+    node = document.createElement('div');
+    document.body.append(node);
+    root = createRoot(node);
+    await act(async () =>
+      root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />),
+    );
+    expect(node.textContent).toContain(t.channelFiles.disconnected);
+    const retry = node.querySelector<HTMLButtonElement>('[data-testid="channel-details-retry"]');
+    expect(retry).not.toBeNull();
+    await act(async () => retry!.click());
+    expect(fixture.client.retryNow).toHaveBeenCalled();
+  } finally {
+    fixture.snapshot.roster = roster;
+  }
 });

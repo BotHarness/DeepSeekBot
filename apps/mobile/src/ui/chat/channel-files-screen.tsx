@@ -24,7 +24,7 @@ import { fileSize } from './message-attachments';
 type FilesPlace = { channelId: string; hostId: string; botSlug?: string };
 
 export function ChannelFilesScreen(place: FilesPlace) {
-  const { client, saved } = useHostSession();
+  const { client, saved } = useHostSession(place.hostId);
   const t = useStrings();
   if (!client || saved?.hostId !== place.hostId) return <Text>{t.sourceChanged}</Text>;
   return <Files key={`${place.hostId}:${place.channelId}`} {...place} client={client} />;

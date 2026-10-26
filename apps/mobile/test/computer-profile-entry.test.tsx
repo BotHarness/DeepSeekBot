@@ -25,6 +25,10 @@ vi.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ slug: 'test' }),
   useRouter: () => ({ push: state.push }),
 }));
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => ({ ready: true, tracking: false, busy: false }),
+  requestActivitySession: {},
+}));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ client: {}, saved: { hostId: 'qa' } }),
   useHostSnapshot: () => ({

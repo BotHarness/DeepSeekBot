@@ -1,5 +1,7 @@
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { useRouter } from 'expo-router';
+import { Button } from '../primitives/creation-button';
 import { ScrollView } from 'react-native';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { space } from '../design/tokens';
@@ -13,6 +15,8 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
   const host = useHostSnapshot(client);
   const t = useStrings();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const offline = host.connection.status === 'unreachable' || host.connection.status === 'stopped';
   const channel = host.roster?.activityChannels?.find(
     (entry) =>
       entry.id === channelId &&
@@ -27,7 +31,9 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
         ? t.refused
         : host.roster && !channel
           ? t.noChannel
-          : undefined;
+          : !channel && offline
+            ? t.channelFiles.disconnected
+            : undefined;
   return (
     <SheetScreen modalGrabber>
       <ScrollView
@@ -39,7 +45,19 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
         }}
       >
         {unavailable ? (
-          <Text tone="muted">{unavailable}</Text>
+          <>
+            <Text tone="muted">{unavailable}</Text>
+            {unavailable === t.channelFiles.disconnected ? (
+              <Button
+                testID="channel-details-retry"
+                variant="text"
+                label={host.connection.status === 'unreachable' ? t.retry : t.back}
+                onPress={() =>
+                  host.connection.status === 'unreachable' ? client?.retryNow() : router.back()
+                }
+              />
+            ) : null}
+          </>
         ) : !channel ? (
           <LoadingIndicator />
         ) : (

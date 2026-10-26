@@ -1,7 +1,4 @@
-import {
-  activityStartTarget,
-  type InitiatedActivityRequest,
-} from '../../host/live-activity-routing';
+import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
 import { selectionText, toggleMessageSelection } from './message-selection';
@@ -125,7 +122,7 @@ import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
 import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
-import { AccentProvider, useDesignTheme } from '../design/theme';
+import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
@@ -406,21 +403,6 @@ function ChatConversation({
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
-  const lockTarget = useMemo(() => {
-    if (!dm || !initiatedRequest || initiatedRequest.botSlug !== slug) return undefined;
-    const committed = snapshot.messages.find(
-      (message) =>
-        message.id === initiatedRequest.messageId &&
-        message.author === 'human' &&
-        message.delivery === 'committed',
-    );
-    return activityStartTarget(
-      initiatedRequest,
-      saved?.hostId,
-      committed?.source?.channelId,
-      committed ? [initiatedRequest.messageId] : [],
-    );
-  }, [dm, initiatedRequest, saved?.hostId, slug, snapshot.messages]);
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
   const [picked, setPicked] = useState<{ scope: string; ids: readonly string[] }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
@@ -1009,6 +991,14 @@ function ChatConversation({
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
   const canGoBack = router.canGoBack();
+  const botDmName =
+    channelDetails?.members
+      .map(
+        (member) =>
+          roster?.bots.find((entry) => entry.slug === member)?.displayName ??
+          t.activityRow.unavailableBot,
+      )
+      .join('、') ?? '';
   const title = dm ? (
     <ChatTitle
       bot={bot}
@@ -1021,7 +1011,9 @@ function ChatConversation({
             slug: bot?.slug ?? slug,
             hostId: saved?.hostId,
             ...(activeChannel ? { channelId: activeChannel } : {}),
-            ...(lockTarget ? { activityMessageId: lockTarget.messageId } : {}),
+            ...(initiatedRequest?.hostId === saved?.hostId && initiatedRequest?.botSlug === slug
+              ? { activityMessageId: initiatedRequest?.messageId }
+              : {}),
           },
         })
       }
@@ -1030,13 +1022,8 @@ function ChatConversation({
     <Pressable
       testID="channel-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={channelDetails.members
-        .map(
-          (member) =>
-            roster?.bots.find((entry) => entry.slug === member)?.displayName ??
-            t.activityRow.unavailableBot,
-        )
-        .join('、')}
+      accessibilityLabel={[botDmName, connectionLabel].filter(Boolean).join(', ')}
+      android_ripple={{ color: pressTint(theme.color.fg), borderless: false }}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       disabled={!saved || hostRefused}
       onPress={() =>
@@ -1055,16 +1042,11 @@ function ChatConversation({
         paddingHorizontal: theme.touch / 2,
         borderRadius: radius.round,
         ...titleChipFill(theme, pressed),
+        overflow: 'hidden',
       })}
     >
       <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
-        {channelDetails.members
-          .map(
-            (member) =>
-              roster?.bots.find((entry) => entry.slug === member)?.displayName ??
-              t.activityRow.unavailableBot,
-          )
-          .join('、')}
+        {botDmName}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
     </Pressable>

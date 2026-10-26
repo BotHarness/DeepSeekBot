@@ -77,22 +77,16 @@ export default function BotProfileScreen() {
               botSlug={bot.slug}
             />
           ) : null}
-          <RequestActivityControl
-            target={
-              saved &&
-              activityMessageId &&
-              channelId &&
-              channelId === bot.dmChannelId &&
-              snapshot.connection.status !== 'refused'
-                ? {
-                    hostId: saved.hostId,
-                    channelId,
-                    botSlug: bot.slug,
-                    messageId: activityMessageId,
-                  }
-                : undefined
-            }
-          />
+          {saved ? (
+            <RequestActivityControl
+              client={client}
+              bot={bot}
+              hostId={saved.hostId}
+              messageId={activityMessageId}
+              channelId={channelId}
+              refused={snapshot.connection.status === 'refused'}
+            />
+          ) : null}
         </View>
       }
       settings={<BotSettingsPanel client={client} bot={bot} />}
