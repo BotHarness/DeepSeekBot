@@ -25,7 +25,7 @@ export function HostRow({
       inbox={inbox}
       hostId={saved.hostId}
       look={look}
-      sourceLabel={showSourceLabel ? shownHostName(look, saved.hostName) : undefined}
+      {...(showSourceLabel ? { sourceLabel: shownHostName(look, saved.hostName) } : {})}
       arrangement={snapshot.roster?.arrangement}
       onDelete={onDelete}
       onError={onError}
