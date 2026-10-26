@@ -112,9 +112,9 @@ import {
 import {
   ChannelDeliveryReceipt,
   DeliveryReceiptsVisible,
-  MessageReading,
   readingBots,
 } from './channel-delivery-receipt.js';
+import { BubbleBadges } from './bubble-badges.js';
 import { BotInboxDialog } from './bot-inbox-dialog.js';
 import { StreamReplies } from './stream-replies.js';
 import { useMessageArrivals } from './message-arrivals.js';
@@ -172,6 +172,7 @@ import {
   type BotSummary,
   type ChannelAttachmentRef,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelSummary,
   type ClientState,
 } from './store.js';
@@ -207,7 +208,6 @@ import {
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { AutoCollapseMessages, foldableMessage, MessageFold } from './message-fold.js';
 import {
-  MessageReactionChips,
   MessageReactionPicker,
   MessageReactionSurface,
   ReactionIcon,
@@ -546,6 +546,8 @@ interface InboxTarget {
 }
 
 const NO_HUMAN_MEMBERS: readonly ChannelHumanMember[] = [];
+const NO_REACTIONS: readonly ChannelReaction[] = [];
+const NO_READERS: readonly string[] = [];
 
 const MessageGroupView = memo(function MessageGroupView({
   humanMembers = [],
@@ -819,23 +821,19 @@ const MessageGroupView = memo(function MessageGroupView({
                     </span>
                   ) : null}
                 </div>
-                {(message.reactions ?? []).length > 0 ||
-                (reading?.get(message.id)?.length ?? 0) > 0 ? (
-                  <div className="bh-bubble-badges">
-                    <MessageReactionChips
-                      reactions={message.reactions ?? []}
-                      mine={human}
-                      names={reactorName}
-                      onReact={
-                        onReact === undefined || !reactableMessage(message)
-                          ? undefined
-                          : (emoji, active) => onReact(message, emoji, active)
-                      }
-                      t={t}
-                    />
-                    <MessageReading readers={reading?.get(message.id) ?? []} bots={bots} t={t} />
-                  </div>
-                ) : null}
+                <BubbleBadges
+                  reactions={message.reactions ?? NO_REACTIONS}
+                  readers={reading?.get(message.id) ?? NO_READERS}
+                  mine={human}
+                  names={reactorName}
+                  onReact={
+                    onReact === undefined || !reactableMessage(message)
+                      ? undefined
+                      : (emoji, active) => onReact(message, emoji, active)
+                  }
+                  bots={bots}
+                  t={t}
+                />
                 <div className="bh-bubble-toolbar">
                   <div className="bh-bubble-actions">
                     {onReact !== undefined && reactableMessage(message) ? (

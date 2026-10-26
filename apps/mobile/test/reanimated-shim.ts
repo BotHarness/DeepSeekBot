@@ -58,7 +58,14 @@ export const runOnJS =
     callback(...args);
 export const LinearTransition = transition;
 export const useReducedMotion = () => false;
-export const withTiming = <T>(value: T) => value;
+export const withTiming = <T>(
+  value: T,
+  _config?: unknown,
+  callback?: (finished?: boolean) => void,
+) => {
+  callback?.(true);
+  return value;
+};
 export const withRepeat = <T>(value: T) => value;
 export const useAnimatedProps = (worklet: () => object) => worklet();
 export const interpolateColor = (_value: number, _range: number[], colors: string[]) =>
@@ -68,6 +75,7 @@ export const ReduceMotion = { System: 'system' };
 export const Easing = {
   linear: (t: number) => t,
   out: (curve: unknown) => curve,
+  in: (curve: unknown) => curve,
   quad: (t: number) => t * t,
 };
 export class Keyframe {

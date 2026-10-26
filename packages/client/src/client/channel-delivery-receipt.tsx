@@ -122,10 +122,14 @@ function StackedBotAvatar({
 export function MessageReading({
   readers,
   bots,
+  motion,
+  onLeft,
   t,
 }: {
   readers: readonly string[];
   bots: readonly BotSummary[];
+  motion?: 'enter' | 'leave' | undefined;
+  onLeft?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   if (readers.length === 0) return null;
@@ -141,6 +145,11 @@ export function MessageReading({
       aria-label={label}
       title={label}
       data-message-reading=""
+      data-badge-motion={motion}
+      aria-hidden={motion === 'leave' ? true : undefined}
+      onAnimationEnd={(event) => {
+        if (motion === 'leave' && event.animationName === 'bh-badge-out') onLeft?.();
+      }}
     >
       {shown.map((botSlug) => (
         <StackedBotAvatar key={botSlug} botSlug={botSlug} bots={bots} size={18} t={t} />

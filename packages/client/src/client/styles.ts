@@ -3636,6 +3636,22 @@ html[data-botharness-motion='reduce'] .bh-bubble-enter { animation: none; }
 .bh-reading-dots i:nth-child(2) { animation-delay: 0.2s; }
 .bh-reading-dots i:nth-child(3) { animation-delay: 0.4s; }
 html[data-botharness-motion='reduce'] .bh-reading-dots i { animation: none; }
+[data-badge-motion='enter'] {
+  animation: bh-badge-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+[data-badge-motion='leave'] {
+  animation: bh-badge-out 180ms ease-in both;
+  pointer-events: none;
+}
+html[data-botharness-motion='reduce'] [data-badge-motion] { animation-duration: 1ms; }
+@keyframes bh-badge-in {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes bh-badge-out {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.6); }
+}
 .bh-message-group-me {
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-light, color-mix(in srgb, ${color.accent} 90%, ${color.fg}));
   --bh-bubble-me-ink: var(--bh-bubble-me-ink-light, ${color.onAccent});

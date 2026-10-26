@@ -24,6 +24,7 @@ const native = vi.hoisted(() => ({
 }));
 
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 
 vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
@@ -51,6 +52,7 @@ vi.mock('react-native', async () => {
       const style = props['style'] as { opacity?: number } | undefined;
       return (
         <div
+          ref={props['ref'] as never}
           data-native={name}
           {...attributes}
           style={{ opacity: style?.opacity }}
@@ -219,6 +221,9 @@ describe('message delivery receipt', () => {
     try {
       act(() => root.render(<MessageBubble message={mentioned} readers={['ada', 'bea']} />));
       expect(container.querySelector(reading)?.textContent).toBe('AB');
+      act(() => root.render(<MessageBubble message={mentioned} readers={[]} />));
+      expect(container.querySelector(reading)).toBeNull();
+      act(() => root.render(<MessageBubble message={mentioned} readers={['ada']} />));
       act(() => root.render(<MessageBubble message={mentioned} readers={[]} />));
       expect(container.querySelector(reading)).toBeNull();
       act(() =>

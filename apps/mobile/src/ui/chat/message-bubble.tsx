@@ -33,6 +33,7 @@ import {
   reactedByMe,
   type ConversationDraft,
   type ConversationMessage,
+  type ConversationReaction,
   type MessageAttachment,
 } from '../../host/conversation';
 import type { RosterBot } from '../../host/client';
@@ -72,6 +73,7 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
 const PENDING_FEEDBACK_MS = 3_000;
 
 const NO_READERS: readonly string[] = [];
+const NO_REACTIONS: readonly ConversationReaction[] = [];
 
 const NO_BOTS: readonly RosterBot[] = [];
 
@@ -357,6 +359,13 @@ export const MessageBubble = memo(function MessageBubble({
   const [reactionsStill] = useState(
     () => new Set((message.reactions ?? []).map((reaction) => reaction.emoji)),
   );
+  const reactions = streaming ? NO_REACTIONS : (message.reactions ?? NO_REACTIONS);
+  const [chipsMounted, setChipsMounted] = useState(reactions.length > 0);
+  if (!chipsMounted && reactions.length > 0) setChipsMounted(true);
+  const reading = streaming ? NO_READERS : readers;
+  const [shownReading, setShownReading] = useState(reading);
+  if (reading.length > 0 && reading.join('\n') !== shownReading.join('\n'))
+    setShownReading(reading);
   if (message.author === 'system')
     return (
       <View
@@ -371,7 +380,6 @@ export const MessageBubble = memo(function MessageBubble({
   const actionable =
     !streaming &&
     (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
-  const reactions = streaming ? [] : (message.reactions ?? []);
   const group = { first, last, avatar: speaker?.last === true, compact };
   const bubble = (
     <BubbleBody
@@ -425,8 +433,7 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       bubble
     );
-  const reading = streaming ? NO_READERS : readers;
-  const badged = reactions.length > 0 || reading.length > 0;
+  const badged = chipsMounted || shownReading.length > 0;
   const framed = (
     <Animated.View
       ref={pop.ref}
@@ -453,7 +460,7 @@ export const MessageBubble = memo(function MessageBubble({
             gap: space.x2,
           }}
         >
-          {reactions.length === 0 ? null : (
+          {!chipsMounted ? null : (
             <ReactionChips
               reactions={reactions}
               still={reactionsStill}
@@ -467,12 +474,14 @@ export const MessageBubble = memo(function MessageBubble({
                   })}
             />
           )}
-          {reading.length === 0 ? null : (
+          {shownReading.length === 0 ? null : (
             <PopIn
               enabled={!readingStill}
+              show={reading.length > 0}
+              onHidden={() => setShownReading(NO_READERS)}
               style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}
             >
-              <ReadingBadge messageId={message.id} readers={reading} bots={bots} />
+              <ReadingBadge messageId={message.id} readers={shownReading} bots={bots} />
             </PopIn>
           )}
         </View>
