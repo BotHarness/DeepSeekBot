@@ -86,10 +86,10 @@ export function compactionThresholdTokens(
     (entry) => entry.provider === route.provider && entry.model === route.model,
   );
   const ratio = exact?.thresholdRatio ?? policy.thresholdRatio ?? 0.8;
-  const headroom = exact?.headroomTokens ?? policy.headroomTokens ?? 65536;
-  return Math.floor(
-    Math.min(contextWindow * ratio, contextWindow - reservedCompletionTokens - headroom),
-  );
+  const free = contextWindow - reservedCompletionTokens;
+  const configured = exact?.headroomTokens ?? policy.headroomTokens ?? 65536;
+  const headroom = free - configured > 0 ? configured : Math.min(configured, 65536);
+  return Math.floor(Math.min(contextWindow * ratio, free - headroom));
 }
 
 export function cacheHitRatio(usage: TokenUsageBuckets): number | undefined {

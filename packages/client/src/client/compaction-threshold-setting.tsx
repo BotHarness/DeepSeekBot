@@ -23,7 +23,7 @@ interface Draft {
 
 function draftOf(threshold: CompactionThreshold): Draft {
   return {
-    percent: String(Math.round(threshold.ratio * 100)),
+    percent: String(Number((threshold.ratio * 100).toFixed(2))),
     headroom: String(threshold.headroomTokens),
   };
 }
@@ -62,7 +62,10 @@ export function CompactionThresholdSetting({
   const percentMax = Math.round((threshold?.ratioRange.max ?? 1) * 100);
   const percentInvalid =
     threshold !== undefined &&
-    (!Number.isInteger(percent) || percent < percentMin || percent > percentMax);
+    (draft.percent === '' ||
+      !Number.isFinite(percent) ||
+      percent < percentMin ||
+      percent > percentMax);
   const headroomInvalid =
     threshold !== undefined &&
     (!Number.isInteger(headroom) ||
@@ -70,7 +73,7 @@ export function CompactionThresholdSetting({
       headroom > threshold.headroomRange.max);
   const changed =
     threshold !== undefined &&
-    (percent !== Math.round(threshold.ratio * 100) || headroom !== threshold.headroomTokens);
+    (percent / 100 !== threshold.ratio || headroom !== threshold.headroomTokens);
   const save = async (next: {
     thresholdRatio?: number | null;
     headroomTokens?: number | null;
@@ -104,7 +107,7 @@ export function CompactionThresholdSetting({
             })}
             error={
               percentInvalid
-                ? t('compactionThreshold.invalid', { min: percentMin, max: percentMax })
+                ? t('compactionThreshold.ratio.invalid', { min: percentMin, max: percentMax })
                 : undefined
             }
             inputMode="numeric"
@@ -139,9 +142,7 @@ export function CompactionThresholdSetting({
               disabled={busy || !changed || percentInvalid || headroomInvalid}
               onClick={() =>
                 void save({
-                  ...(percent === Math.round(threshold.ratio * 100)
-                    ? {}
-                    : { thresholdRatio: percent / 100 }),
+                  ...(percent / 100 === threshold.ratio ? {} : { thresholdRatio: percent / 100 }),
                   ...(headroom === threshold.headroomTokens ? {} : { headroomTokens: headroom }),
                 })
               }

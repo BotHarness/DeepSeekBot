@@ -690,8 +690,8 @@ export function BotPromptSettingsEntry({
     setError(undefined);
     void actions.botPromptSet!(botSlug, change)
       .then(async () => {
-        setDraft(undefined);
-        setLimitDraft({});
+        if (change.parts !== undefined) setDraft(undefined);
+        if (change.limits !== undefined) setLimitDraft({});
         setState(await load(botSlug));
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))

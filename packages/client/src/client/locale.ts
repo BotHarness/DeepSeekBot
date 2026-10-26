@@ -1114,6 +1114,7 @@ export const zh = {
   'compactionThreshold.headroom': '余量（token）',
   'compactionThreshold.headroom.hint': '{min}–{max}，默认 {value}',
   'compactionThreshold.invalid': '请输入 {min}–{max} 之间的整数。',
+  'compactionThreshold.ratio.invalid': '请输入 {min}–{max} 之间的数。',
   'compactionThreshold.save': '保存',
   'compactionThreshold.reset': '恢复默认',
   'compactionThreshold.error': '保存失败，请重试。',
@@ -3612,7 +3613,7 @@ export const zh = {
   'promptInspect.systemInfo':
     'System Prompt 由多个分段按固定顺序拼成：DSH 基础分段（工具说明等）在前，然后是 BotHarness 的角色说明、外部 IM 说明、SOUL.md 与 MEMORY.md、回复投递规则。\n\nSOUL.md 和 MEMORY.md 在一个会话里保持冻结，改动要到新会话或下一次压缩才进入。为保证模型缓存命中，已生效的前缀只追加不改写。\n\n运行时上下文（工作目录、沙箱和审批策略等）不在 System Prompt 里，而是在每一步作为一条单独的消息附加。',
   'promptInspect.turnInfo':
-    'Bot 空闲时，新消息开启一轮：Host 把 Inbox 里到期的内容（私聊、群里的 @、Bot 私信、群消息摘要、外部 IM、定时任务、Assignment 汇报等）拼成这一轮的第一条用户消息，末尾附一句回复提醒。\n\nBot 正在运行时，按来源策略默认以 steer 方式在下一步开始前插入同样格式的消息，所以同一轮里可能出现第 2、3 步的输入。\n\n“运行时上下文”是 DSH 在每一步附加的环境说明。普通群消息会先攒到 5 条或 30 秒再一起送达。',
+    'Bot 空闲时，新消息开启一轮：Host 把 Inbox 里到期的内容（私聊、群里的 @、Bot 私信、群消息摘要、外部 IM、定时任务、Assignment 汇报等）拼成这一轮的第一条用户消息，末尾附一句回复提醒。\n\nBot 正在运行时，按来源策略默认以 steer 方式在下一步开始前插入同样格式的消息，所以同一轮里可能出现第 2、3 步的输入。\n\n“运行时上下文”是 DSH 在每一步附加的环境说明。在默认的摘要策略下，普通群消息会先攒到 5 条或 30 秒再一起送达；其他策略可能立即唤醒、只看 @ 或不唤醒。',
   'promptInspect.turn': '第 {turn} 轮',
   'promptInspect.step': '第 {step} 步',
   'promptInspect.sourceUser': '用户消息',
@@ -3651,7 +3652,7 @@ export const zh = {
   'prompts.editTitle': '编辑“{name}”',
   'prompts.deleteTitle': '删除“{name}”？',
   'prompts.deleteBody':
-    '使用这个预设的 Bot 会回到全局预设；如果它是全局预设，所有 Bot 回到内置文字。',
+    '删除后无法恢复。选了这个预设的 Bot 改用全局预设；如果它是全局预设，从它继承的部分回到内置文字，Bot 自己选的预设和改写不受影响。',
   'prompts.changed': '改了 {count} 处',
   'prompts.editorHint': '只保存你改过的部件，其余部件继续跟随下一层。',
   'prompts.kind.system': 'System Prompt',
@@ -5706,6 +5707,7 @@ export const en = {
   'compactionThreshold.headroom': 'Headroom (tokens)',
   'compactionThreshold.headroom.hint': '{min}–{max}, default {value}',
   'compactionThreshold.invalid': 'Enter a whole number from {min} to {max}.',
+  'compactionThreshold.ratio.invalid': 'Enter a number from {min} to {max}.',
   'compactionThreshold.save': 'Save',
   'compactionThreshold.reset': 'Restore defaults',
   'compactionThreshold.error': 'Could not save. Try again.',
@@ -8331,7 +8333,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'promptInspect.systemInfo':
     'The system prompt is built from sections in a fixed order: DSH base sections (tool guidance and so on) first, then the BotHarness role guidance, external IM guidance, SOUL.md and MEMORY.md, and reply delivery rules.\n\nSOUL.md and MEMORY.md stay frozen within a Session; edits arrive in a new Session or after the next compaction. To keep the model cache warm, the prefix already in use is only appended to, never rewritten.\n\nRuntime context (working directory, sandbox and approval policy, and so on) is not part of the system prompt; it is added as a separate message at every step.',
   'promptInspect.turnInfo':
-    'When the Bot is idle, a new message starts a turn: the Host joins the due Inbox items (DMs, Group mentions, Bot DMs, Group digests, external IM, schedules, Assignment reports and so on) into the first user message of the turn and appends a short reply reminder.\n\nWhile the Bot is running, the source policy by default steers the same kind of message in before the next step, so one turn can show input at step 2 or 3.\n\nRuntime context is the environment note DSH adds at every step. Ordinary Group messages are collected until 5 messages or 30 seconds before they are delivered together.',
+    'When the Bot is idle, a new message starts a turn: the Host joins the due Inbox items (DMs, Group mentions, Bot DMs, Group digests, external IM, schedules, Assignment reports and so on) into the first user message of the turn and appends a short reply reminder.\n\nWhile the Bot is running, the source policy by default steers the same kind of message in before the next step, so one turn can show input at step 2 or 3.\n\nRuntime context is the environment note DSH adds at every step. Under the default digest policy, ordinary Group messages are collected until 5 messages or 30 seconds before they are delivered together; other policies can wake at once, take only mentions, or stay silent.',
   'promptInspect.turn': 'Turn {turn}',
   'promptInspect.step': 'Step {step}',
   'promptInspect.sourceUser': 'User message',
@@ -8371,7 +8373,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'prompts.editTitle': 'Edit "{name}"',
   'prompts.deleteTitle': 'Delete "{name}"?',
   'prompts.deleteBody':
-    'Bots that use this preset fall back to the global one; if it is the global preset, every Bot falls back to the built-in text.',
+    'This cannot be undone. Bots that chose this preset use the global one instead; if it is the global preset, the parts inherited from it fall back to the built-in text, and a Bot’s own preset and edits stay.',
   'prompts.changed': '{count} parts changed',
   'prompts.editorHint':
     'Only the parts you change are saved; the rest keep following the next layer.',
