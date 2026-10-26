@@ -1201,7 +1201,7 @@ const INTRO_EVENTS: Record<string, Record<string, readonly string[] | 'boolean'>
   intro_step_viewed: { step: INTRO_STEP_IDS },
   intro_dismissed: { step: INTRO_STEP_IDS, via: ['skip', 'close'] },
   intro_completed: { starter: ['botPrompt', 'firstRequest', 'exampleRequest', 'own'] },
-  intro_theme_changed: { setting: ['scheme', 'preset', 'wallpaper'] },
+  intro_theme_changed: { setting: ['scheme', 'preset', 'layout', 'wallpaper'] },
   intro_model_saved: { advanced: 'boolean' },
   intro_community_clicked: { target: ['github', 'discord', 'qq'] },
 };

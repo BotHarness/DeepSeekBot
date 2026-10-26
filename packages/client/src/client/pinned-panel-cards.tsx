@@ -42,6 +42,7 @@ export interface PinnedPanelCardsProps {
   badge?: ((id: string) => PinnedPanelBadge | undefined) | undefined;
   fallback?: ((id: string) => (() => void) | undefined) | undefined;
   tourOf?: ((id: string) => string | undefined) | undefined;
+  onActivate?: ((id: string) => void) | undefined;
   t: BotHarnessTranslate;
 }
 
@@ -57,6 +58,7 @@ export function PinnedPanelCards({
   fallback,
   tourOf,
   menuTrigger,
+  onActivate,
   t,
 }: PinnedPanelCardsProps): ReactElement | null {
   const [dragging, setDragging] = useState<string | null>(null);
@@ -177,7 +179,14 @@ export function PinnedPanelCards({
               aria-label={label}
               aria-pressed={open}
               aria-disabled={run === undefined ? true : undefined}
-              onClick={run}
+              onClick={
+                run === undefined
+                  ? undefined
+                  : () => {
+                      run();
+                      onActivate?.(panel.id);
+                    }
+              }
               onContextMenu={menu?.onContextMenu}
               aria-haspopup={menu?.['aria-haspopup']}
               aria-expanded={menu?.['aria-expanded']}

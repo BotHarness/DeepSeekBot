@@ -20,6 +20,8 @@ import { onboardingFor, requestBotCreation } from './onboarding.js';
 import { store } from './store.js';
 import type { WindowCompanions } from './window-companions.js';
 import { startInternalTour, type InternalTourSpec } from './internal-tour.js';
+import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
+import type { LayoutMode } from './layout-mode.js';
 import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-view.js';
 import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
@@ -345,7 +347,34 @@ export function OnboardingWelcome({
   );
 }
 
-export function desktopLayoutTourSteps(t: BotHarnessTranslate): InternalTourSpec[] {
+export function desktopLayoutTourSteps(
+  t: BotHarnessTranslate,
+  mode?: LayoutMode,
+): InternalTourSpec[] {
+  if (mode === 'simple')
+    return [
+      {
+        selector: '.bh-workspace-rail',
+        title: t('onboarding.short.views'),
+        description: t('onboarding.short.viewsHint'),
+      },
+      {
+        selector: `.bh-workspace-rail [data-pinned-panel="${CHANNEL_BODY_PANEL}"]`,
+        fallback: '.bh-workspace-rail',
+        title: t('onboarding.short.messages'),
+        description: t('onboarding.short.messagesHint'),
+      },
+      {
+        selector: '[data-workspace-enabled]',
+        title: t('onboarding.short.column'),
+        description: t('onboarding.short.columnHint'),
+      },
+      {
+        selector: '[data-workspace-enabled]',
+        title: t('onboarding.short.switchMode'),
+        description: t('onboarding.short.switchModeHint'),
+      },
+    ];
   return [
     {
       selector: '[data-dock-header]',
@@ -534,7 +563,7 @@ export function OnboardingOverlay({
     )
       return;
     return startInternalTour(
-      state.receipt?.journey ? desktopLayoutTourSteps(t) : onboardingTourSteps(t),
+      state.receipt?.journey ? desktopLayoutTourSteps(t, state.layoutMode) : onboardingTourSteps(t),
       {
         closeLabel: t('common.close'),
         skipLabel: t('onboarding.skip'),
@@ -558,6 +587,7 @@ export function OnboardingOverlay({
     state.receipt?.completed,
     state.modelOpen,
     state.sendOpen,
+    state.layoutMode,
   ]);
   const sessionsTourMount = useMountedResource<HTMLSpanElement>(() => {
     if (!state.sessionsTourOpen || state.receipt?.tutorial !== 'active') return;

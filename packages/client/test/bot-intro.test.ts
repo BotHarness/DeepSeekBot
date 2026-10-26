@@ -204,6 +204,24 @@ describe('intro modal', () => {
     expect(appearance.getSnapshot().config.modes.light.preset).toBe('forest-green');
     expect(appearance.getSnapshot().config.modes.dark.preset).toBe('forest-green');
     expect(dialog().querySelector('[data-wallpaper-settings]')).toBeNull();
+    expect(dialog().querySelector('[data-layout-mode]')).toBeNull();
+    const setMode = vi.fn();
+    let detachLayout = () => {};
+    await act(async () => {
+      detachLayout = controller.attachLayout('simple', { setMode });
+    });
+    const layout = (mode: string) =>
+      dialog().querySelector<HTMLButtonElement>(`[data-layout-mode="${mode}"]`)!;
+    expect(layout('simple').getAttribute('aria-checked')).toBe('true');
+    expect(dialog().textContent).toContain(zhTranslate('onboarding.short.layoutSimpleHint'));
+    await act(async () => layout('advanced').click());
+    expect(setMode).toHaveBeenCalledWith('advanced');
+    await act(async () => {
+      detachLayout();
+      detachLayout = controller.attachLayout('advanced', { setMode });
+    });
+    expect(layout('advanced').getAttribute('aria-checked')).toBe('true');
+    expect(dialog().textContent).toContain(zhTranslate('onboarding.short.layoutAdvancedHint'));
     await click('下一步');
     expect(step()).toBe('model');
     await click('下一步');
@@ -232,6 +250,8 @@ describe('intro modal', () => {
     expect(events[0]).toEqual(['intro_shown', undefined]);
     expect(events).toContainEqual(['intro_step_viewed', { step: 'community' }]);
     expect(events).toContainEqual(['intro_theme_changed', { setting: 'preset' }]);
+    expect(events).toContainEqual(['intro_theme_changed', { setting: 'layout' }]);
+    detachLayout();
     expect(events.at(-1)).toEqual(['intro_completed', { starter: 'firstRequest' }]);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
