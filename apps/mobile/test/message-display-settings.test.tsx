@@ -5,7 +5,10 @@ import { expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'raised' }));
-vi.mock('../src/ui/shell/icons', () => ({ CheckIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  CheckIcon: () => null,
+}));
 vi.mock('../src/host/native-message-display', async () => {
   const { useSyncExternalStore } = await import('react');
   const { createMessageDisplayPreferences } = await import('../src/host/message-display');

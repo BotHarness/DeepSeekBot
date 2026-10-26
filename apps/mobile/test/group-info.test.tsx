@@ -14,7 +14,8 @@ vi.mock('../src/ui/bot-avatar', () => ({
   BotAvatar: ({ bot }: { bot: { slug: string } }) =>
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronRightIcon: () => null,
   MoreIcon: () => null,
   PlusIcon: () => null,

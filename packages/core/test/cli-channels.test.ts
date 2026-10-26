@@ -78,6 +78,38 @@ const ok = (method: string, args: Record<string, unknown>) => ({
 });
 
 describe('Channel and group CLI commands', () => {
+  it('routes recovery and current context inspection through the same Host commands', async () => {
+    const live = await host(ok);
+    expect(
+      (
+        await invoke(
+          [
+            'channel-retry',
+            'dm',
+            '--message-id',
+            'request',
+            '--recovery',
+            'compact',
+            '--failure-message-id',
+            'failure',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'channelRetry',
+      args: {
+        channelId: 'dm',
+        messageId: 'request',
+        recovery: 'compact',
+        failureMessageId: 'failure',
+      },
+    });
+    expect((await invoke(['bot-context', 'ada'], live.url)).json).toMatchObject({
+      method: 'botContext',
+      args: { slug: 'ada' },
+    });
+  });
   it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
     const live = await host(ok);
     expect((await invoke(['channel', 'team'], live.url)).json).toMatchObject({

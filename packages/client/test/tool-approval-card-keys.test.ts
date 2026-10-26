@@ -16,6 +16,7 @@ import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
     createElement('button', props, children),
+  IconRefreshOutlineRegular: () => null,
   Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
 }));
 
@@ -158,7 +159,7 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
     await act(async () =>
       card
-        .querySelector<HTMLButtonElement>('.bh-tool-approval-actions .bh-request-secondary')!
+        .querySelector<HTMLButtonElement>('.bh-tool-approval-actions button:nth-child(2)')!
         .click(),
     );
     expect(decisions).toEqual(['allowed-always-tool']);
@@ -291,7 +292,8 @@ describe('Tool approval recovery and duplicate clicks', () => {
     expect(submit).toHaveBeenCalledWith('dm-ada', 'request', 'allowed-always-tool');
     expect(always.disabled).toBe(true);
     expect(always.getAttribute('aria-busy')).toBe('true');
-    expect(always.textContent).toBe(zhTranslate('activityInbox.submitting'));
+    expect(always.textContent).toBe(zhTranslate('approval.allowAlways'));
+    expect(always.getAttribute('aria-busy')).toBe('true');
     expect(
       [...card.querySelectorAll<HTMLButtonElement>('.bh-tool-approval-actions button')].every(
         (candidate) => candidate.disabled,

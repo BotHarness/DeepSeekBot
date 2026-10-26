@@ -11,7 +11,7 @@ export function feedbackUploader(
   endpoint = TELEMETRY_ENDPOINT,
 ): NonNullable<MessageFeedbackOptions['submit']> {
   if (endpoint !== TELEMETRY_ENDPOINT) throw new Error('feedback-endpoint-not-allowed');
-  return async ({ reportId, feedback, version }) => {
+  return async ({ reportId, feedback, version, turn }) => {
     const response = await fetch(TELEMETRY_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -30,6 +30,7 @@ export function feedbackUploader(
               tags: feedback.tags,
               comment: feedback.comment,
               version,
+              ...(turn ? { failed_turn: turn } : {}),
             },
           },
         ],

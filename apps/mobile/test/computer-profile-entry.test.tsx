@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   actions: undefined as { onComputer?: () => void } | undefined,
   push: vi.fn(),
 }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', () => ({
   Platform: {
     get OS() {

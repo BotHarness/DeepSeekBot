@@ -107,6 +107,8 @@ interface ChannelValues {
   before?: string;
   limit?: string;
   'message-id'?: string;
+  'failure-message-id'?: string;
+  recovery?: string;
   'confirmation-stdin'?: boolean;
   'avatar-file'?: string;
   invitation?: string;
@@ -377,6 +379,12 @@ export async function runChannelCommand(
     case 'channel-retry':
       method = 'channelRetry';
       args.messageId = required(values['message-id'], '--message-id');
+      if (values.recovery !== undefined) {
+        if (values.recovery !== 'compact' && values.recovery !== 'new-session')
+          usage('--recovery must be compact or new-session');
+        args.recovery = values.recovery;
+        args.failureMessageId = required(values['failure-message-id'], '--failure-message-id');
+      }
       break;
     case 'channel-bot-stop':
       method = 'channelBotStop';

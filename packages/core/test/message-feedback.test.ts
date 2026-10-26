@@ -279,3 +279,48 @@ describe('message feedback through the Host HTTP interface', () => {
     expect((await download.arrayBuffer()).byteLength).toBeGreaterThan(0);
   });
 });
+
+it('uploads only the selected failed turn and redacts tool secrets', async () => {
+  const f = fixture(async (report) => {
+    expect(report.turn?.prompt).toEqual(['[Human DM]\nChannel: dm\nMessage ID: m30\nMessage 30']);
+    expect(report.turn?.toolCalls).toHaveLength(1);
+    expect(JSON.stringify(report)).not.toContain('private-credential');
+    expect(Object.keys(report).sort()).toEqual(['feedback', 'reportId', 'turn', 'version']);
+    return { reportId: report.reportId };
+  });
+  f.messages[36] = {
+    id: 'm36',
+    at: new Date(1_700_000_036_000).toISOString(),
+    author: { kind: 'bot', slug: 'bot' },
+    body: 'Failed',
+    sessionFailure: {
+      role: 'orchestrator',
+      sessionId: 'session',
+      requestMessageId: 'm30',
+      detail: 'Failed',
+    },
+  };
+  const response = await f.post('preview', {
+    channelId: 'dm',
+    messageId: 'm36',
+    failureTurn: true,
+  });
+  expect(response.status).toBe(200);
+  const preview = await response.json();
+  expect(preview.uploadEvidence.toolCalls).toHaveLength(1);
+  expect(
+    (
+      await f.post('submit', {
+        token: preview.token,
+        feedback: { rating: 'bad', tags: [], comment: '' },
+      })
+    ).status,
+  ).toBe(200);
+});
+
+it('refuses turn uploads for ordinary messages', async () => {
+  const f = fixture();
+  expect(
+    (await f.post('preview', { channelId: 'dm', messageId: 'm30', failureTurn: true })).status,
+  ).toBe(400);
+});

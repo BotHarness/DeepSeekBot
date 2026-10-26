@@ -650,6 +650,7 @@ describe('bridge typert service', () => {
       'channelRetry',
       'botNewSession',
       'botCompact',
+      'botContext',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',

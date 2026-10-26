@@ -1,3 +1,4 @@
+import { ReadFailure } from './ds/read-failure.js';
 import {
   useId,
   useMemo,
@@ -387,16 +388,9 @@ function MarketplaceDetailView({
         </div>
       ) : null}
       {state.status === 'error' ? (
-        <div className="bh-market-state" role="alert">
-          <span>
-            {t('market.detail.error', {
-              error: marketplaceError(state.cause, t),
-            })}
-          </span>
-          <Button variant="outline" onClick={onRetry}>
-            {t('market.retry')}
-          </Button>
-        </div>
+        <ReadFailure retryLabel={t('market.retry')} onRetry={onRetry}>
+          {t('market.detail.error', { error: marketplaceError(state.cause, t) })}
+        </ReadFailure>
       ) : null}
       {state.status === 'ready' && state.detail.readme === null ? (
         <div className="bh-market-state">{t('market.detail.noReadme')}</div>
@@ -692,12 +686,9 @@ export function MarketplaceListStatus({
   }
   if (list.status === 'error') {
     return (
-      <div className="bh-market-state" role="alert">
-        <span>{t('market.error.load', { error: marketplaceError(list.cause, t) })}</span>
-        <Button variant="outline" onClick={browse.retry}>
-          {t('market.retry')}
-        </Button>
-      </div>
+      <ReadFailure retryLabel={t('market.retry')} onRetry={browse.retry}>
+        {t('market.error.load', { error: marketplaceError(list.cause, t) })}
+      </ReadFailure>
     );
   }
   if (list.bots.length > 0) return null;

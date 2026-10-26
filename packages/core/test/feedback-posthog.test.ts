@@ -63,3 +63,21 @@ it('refuses unsuccessful ingestion instead of claiming a receipt', async () => {
     }),
   ).rejects.toThrow();
 });
+
+it('includes explicitly selected turn evidence without the diagnostic archive', async () => {
+  const request = vi.fn<typeof fetch>(async () => Response.json({ status: 1 }));
+  vi.stubGlobal('fetch', request);
+  const turn = {
+    prompt: ['Synthetic QA prompt'],
+    toolCalls: [{ type: 'tool/call' as const, data: { name: 'read' } }],
+  };
+  await feedbackUploader()({
+    reportId: 'test',
+    version: 'test',
+    feedback: { rating: 'bad', tags: [], comment: '' },
+    turn,
+  });
+  const properties = JSON.parse(String(request.mock.calls[0]?.[1]?.body)).batch[0].properties;
+  expect(properties.failed_turn).toEqual(turn);
+  expect(properties.archive).toBeUndefined();
+});

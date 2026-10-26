@@ -1,3 +1,4 @@
+import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
 import {
   GroupReplySourceRevoked,
   GroupSendReview,
@@ -651,6 +652,7 @@ export class DirectBotToolError extends Error {
 
 export interface BotAgentAdapter {
   runOrchestrator(run: OrchestratorAgentRun): Promise<void>;
+  loadOrchestrator?(run: OrchestratorAgentRun): Promise<void>;
 
   steerOrchestrator?(botSlug: string, text: string): boolean;
   stopOrchestratorTurn?(botSlug: string): string | undefined;
@@ -742,6 +744,13 @@ export interface BotRuntime {
   ): string | undefined;
   reconcileMemoryChangesOnStartup?(): void;
   retryDmMessage?(channelId: string, messageId: string): Promise<void>;
+  recoverDmMessage?(input: {
+    channelId: string;
+    failureMessageId: string;
+    action: SessionRecoveryAction;
+    compact(sessionId: string): Promise<boolean>;
+  }): Promise<void>;
+  compactOrchestrator?<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T>;
   admitDmMessage(input: HandleDmMessageInput): DmMessageAdmission;
 
   admitGroupMessage(channelId: string, messageId: string): void;
@@ -1674,6 +1683,13 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   async retryDmMessage(channelId: string, messageId: string): Promise<void> {
+    const message = this.#retryableDmMessage(channelId, messageId);
+    const admission = this.admitDmMessage({ channelId, messageId, body: message.body });
+    if (!admission.admitted) throw new Error(admission.reason);
+    void admission.settled.catch(() => undefined);
+  }
+
+  #retryableDmMessage(channelId: string, messageId: string) {
     const channel = this.#channels.get(channelId);
     const message = this.#channels.message(channelId, messageId);
     if (channel?.type !== 'dm' || !channel.botSlug || message?.author.kind !== 'human')
@@ -1690,9 +1706,130 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     if (!safe)
       throw new Error('This message cannot be safely retried; inspect its original Session');
-    const admission = this.admitDmMessage({ channelId, messageId, body: message.body });
-    if (!admission.admitted) throw new Error(admission.reason);
-    void admission.settled.catch(() => undefined);
+    return message;
+  }
+
+  async recoverDmMessage(input: {
+    channelId: string;
+    failureMessageId: string;
+    action: SessionRecoveryAction;
+    compact(sessionId: string): Promise<boolean>;
+  }): Promise<void> {
+    const card = this.#channels.message(input.channelId, input.failureMessageId);
+    const failure = card?.sessionFailure;
+    const channel = this.#channels.get(input.channelId);
+    const botSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
+    if (
+      !botSlug ||
+      card?.author.kind !== 'bot' ||
+      card.author.slug !== botSlug ||
+      failure?.role !== 'orchestrator' ||
+      !failure.requestMessageId
+    )
+      throw new SessionRecoveryError(
+        'retry-unavailable',
+        'Recovery requires the original Bot failure',
+      );
+    const messageId = failure.requestMessageId;
+    const assertAllowed = () => {
+      const bot = this.#registry.get(botSlug);
+      if (!bot || bot.paused || this.#closed)
+        throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
+      this.#requireExecution?.(botSlug);
+      try {
+        this.#retryableDmMessage(input.channelId, messageId);
+      } catch {
+        throw new SessionRecoveryError(
+          'retry-unavailable',
+          'This message cannot be safely retried. Inspect its original Session.',
+        );
+      }
+    };
+    const assertCurrent = () => {
+      if (this.currentOrchestratorSessionId(botSlug) !== failure.sessionId)
+        throw new SessionRecoveryError(
+          'session-changed',
+          'The Session has changed. Retry the message without resetting it.',
+        );
+      assertAllowed();
+    };
+    assertCurrent();
+    if (this.#tails.has(botSlug))
+      throw new SessionRecoveryError(
+        'bot-busy',
+        'Wait for the current reply or stop the Bot first',
+      );
+    await this.#enqueue(botSlug, async () => {
+      assertCurrent();
+      if (input.action === 'new-session') {
+        const result = await this.#replaceOrchestrator(botSlug, assertAllowed);
+        if (result.outcome === 'refused')
+          throw new SessionRecoveryError(
+            'bot-busy',
+            'Wait for the current reply or stop the Bot first',
+          );
+      } else {
+        await this.#loadOrchestrator(botSlug, failure.sessionId);
+        assertCurrent();
+        const compacted = await input.compact(failure.sessionId).catch(() => false);
+        if (!compacted)
+          throw new SessionRecoveryError(
+            'compaction-failed',
+            'Could not compact this Session. Start a new Session to recover.',
+          );
+        assertCurrent();
+      }
+      await this.retryDmMessage(input.channelId, messageId);
+    });
+  }
+
+  async #loadOrchestrator(botSlug: string, sessionId: string): Promise<void> {
+    const bot = this.#registry.get(botSlug);
+    if (!bot || bot.paused || !this.#agents.loadOrchestrator)
+      throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
+    this.#requireExecution?.(botSlug);
+    await this.#agents.loadOrchestrator({
+      sessionId,
+      resume: true,
+      bot,
+      message: '',
+      inbox: '',
+      inboundChannelId: undefined,
+      ...this.#orchestratorServices(bot, {
+        sessionId,
+        channelId: undefined,
+        sourceEventId: `maintenance-${randomUUID()}`,
+        markSideEffect: () => {
+          throw new Error('Maintenance cannot perform Bot actions');
+        },
+        readAdmissions: new Set(),
+        importedFiles: new Map(),
+        turnSources: new Set(),
+        observeMemory: false,
+        observeReads: false,
+      }),
+    });
+  }
+
+  async compactOrchestrator<T>(
+    botSlug: string,
+    compact: (sessionId: string) => Promise<T>,
+  ): Promise<T> {
+    if (this.#tails.has(botSlug))
+      throw new SessionRecoveryError(
+        'bot-busy',
+        'Wait for the current reply or stop the Bot first',
+      );
+    let result: { value: T } | undefined;
+    await this.#enqueue(botSlug, async () => {
+      const sessionId = this.currentOrchestratorSessionId(botSlug);
+      if (!sessionId)
+        throw new SessionRecoveryError('recovery-unavailable', 'No Session to compact');
+      await this.#loadOrchestrator(botSlug, sessionId);
+      result = { value: await compact(sessionId) };
+    });
+    if (!result) throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
+    return result.value;
   }
 
   admitDmMessage(input: HandleDmMessageInput): DmMessageAdmission {

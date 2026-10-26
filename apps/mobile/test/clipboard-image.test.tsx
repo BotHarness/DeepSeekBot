@@ -62,7 +62,10 @@ vi.mock('../src/ui/primitives/text', () => ({ Text: () => null }));
 vi.mock('../src/ui/primitives/button', () => ({ Button: () => null }));
 vi.mock('../src/ui/primitives/drawer-material', () => ({ useLiquidGlass: () => false }));
 vi.mock('../src/ui/chat/composer-chrome', () => ({ ComposerFieldMaterial: () => null }));
-vi.mock('../src/ui/shell/icons', () => ({ PhotoIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  PhotoIcon: () => null,
+}));
 
 const { ClipboardImageOffer, useClipboardImage } = await import('../src/ui/chat/clipboard-image');
 const { fromClipboardImage } = await import('../src/host/pick-files');

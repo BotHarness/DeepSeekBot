@@ -1,3 +1,4 @@
+import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, type ReactNode } from 'react';
 import { Pressable, SectionList, View } from 'react-native';
 
@@ -379,21 +380,7 @@ function ProfileRow({
   if (row.kind === 'failed')
     return (
       <View style={shape}>
-        <Text variant="meta" tone="danger">{`${t.profileFailed} ${row.error}`}</Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.tryAgain}
-          onPress={onRetry}
-          style={{
-            minHeight: theme.touch,
-            justifyContent: 'center',
-            alignSelf: 'flex-start',
-          }}
-        >
-          <Text tone="accent" strong>
-            {t.tryAgain}
-          </Text>
-        </Pressable>
+        <ReadFailure title={t.profileFailed} detail={row.error} onRetry={onRetry} />
       </View>
     );
   if (row.kind === 'note')

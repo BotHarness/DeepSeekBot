@@ -413,3 +413,14 @@ describe('design-system tokens', () => {
     expect(widths).toEqual([440, 760, 1060]);
   });
 });
+
+it('keeps derived action fills usable in portaled settings without Bot-mode variables', () => {
+  const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
+  const actions = tokens.slice(
+    tokens.indexOf('export const actionColor'),
+    tokens.indexOf('export const color'),
+  );
+  expect(actions).not.toContain('--bh-');
+  expect(actions.match(/color-mix\(in srgb/g)).toHaveLength(4);
+  expect(actions).toContain('--dsw-alias-bg-module-platform');
+});

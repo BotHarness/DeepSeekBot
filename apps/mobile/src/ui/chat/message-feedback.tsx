@@ -52,12 +52,14 @@ export function MessageFeedbackForm({
   channelId,
   messageId,
   onClose,
+  failureTurn = false,
   onBusyChange,
 }: {
   client: HostClient;
   channelId: string;
   messageId: string;
   onClose(): void;
+  failureTurn?: boolean;
   onBusyChange?(busy: boolean): void;
 }) {
   const t = useStrings();
@@ -75,8 +77,9 @@ export function MessageFeedbackForm({
     deliveries: true,
     relatedChats: true,
     wholeSessions: false,
+    failureTurn,
   });
-  const [rating, setRating] = useState<'good' | 'bad'>();
+  const [rating, setRating] = useState<'good' | 'bad' | undefined>(failureTurn ? 'bad' : undefined);
   const [tags, setTags] = useState<string[]>([]);
   const [comment, setComment] = useState('');
   const [preview, setPreview] = useState<FeedbackPreview>();
@@ -215,7 +218,7 @@ export function MessageFeedbackForm({
         editable={!locked && !busy}
         onChangeText={(value) => setComment(Array.from(value).slice(0, 500).join(''))}
       />
-      <Text tone="muted">{f.privacy}</Text>
+      <Text tone="muted">{failureTurn ? t.sessionRecovery.uploadScope : f.privacy}</Text>
       {Array.from(comment).length >= 450 ? <Text>{Array.from(comment).length} / 500</Text> : null}
       {preview?.canSubmit === false ? <Text>{f.unavailable}</Text> : null}
       <Button

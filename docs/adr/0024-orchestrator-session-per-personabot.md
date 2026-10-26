@@ -17,6 +17,8 @@ An Assignment Session is a runtime and domain identity for one Human-meaningful 
 
 ## Consequences
 
+Explicit Human recovery is an exception to the original no-rollover wording: `/new` archives the idle Orchestrator Session and the next admitted message creates another. Context compaction still preserves its Session id. Error-card recovery may explicitly combine replacement with retry of one safely retryable Human DM message; it checks the failed Session identity before mutation. Channel history, Memory Repository and independent Assignment Sessions remain intact. An old failure card cannot replace a newer Orchestrator.
+
 - We own relay durability, de-dup, request/reply correlation, timeouts, and completion notices. DSH provides the primitives (`agent.followup/steer/inject`, `agent/status`, `session/event`, `sessionQuery`, `tokenMeter`) but no adjacency guarantees between peer Sessions.
 - The Orchestrator is at most one active Session at a time per PersonaBot; its id must stay stable so routing survives context compaction. Zero or more Assignment Sessions remain independent roots.
 - A Host-lifetime runtime owner, not the Orchestrator's scoped Agent context, owns the live `AgentHandle`s for Assignment Sessions. An Assignment Session therefore survives Orchestrator teardown and is reconstructed from durable Session ownership after Host restart (ADR-0035).
