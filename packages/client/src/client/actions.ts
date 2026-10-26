@@ -380,6 +380,28 @@ export interface BridgeActions {
   botSystemPrompt(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
+  promptParts?(): Promise<{
+    parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
+  }>;
+  promptPresets?(): Promise<{
+    presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
+    globalPresetId: string | null;
+  }>;
+  promptPresetCreate?(
+    name: string,
+    parts: Record<string, string | null>,
+  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  promptPresetUpdate?(
+    id: string,
+    change: { name?: string; parts?: Record<string, string | null>; expectedRevision?: number },
+  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
+  promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
+  botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
+  botPromptSet?(
+    slug: string,
+    change: { presetId?: string | null; parts?: Record<string, string | null> },
+  ): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
   botTurnInput(
     botSlug: string,
     turns?: number,
@@ -1608,6 +1630,14 @@ export function createActions(
     async botSystemPrompt(botSlug) {
       return invoke('botSystemPrompt', { slug: botSlug });
     },
+    promptParts: () => invoke('promptParts', {}),
+    promptPresets: () => invoke('promptPresets', {}),
+    promptPresetCreate: (name, parts) => invoke('promptPresetCreate', { name, parts }),
+    promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
+    promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
+    promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
+    botPrompt: (slug) => invoke('botPrompt', { slug }),
+    botPromptSet: (slug, change) => invoke('botPromptSet', { slug, ...change }),
     async botTurnInput(botSlug, turns = 1) {
       return invoke('botTurnInput', { slug: botSlug, turns });
     },

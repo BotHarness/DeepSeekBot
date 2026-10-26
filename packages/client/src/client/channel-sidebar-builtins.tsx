@@ -16,6 +16,7 @@ import type { BotModePrefs } from './bot-mode-prefs.js';
 import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import { AutoApprovalBadge, AutoApprovalSettingsEntry } from './approval-template-entry.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
+import { BotPromptSettingsEntry } from './prompt-preset-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
 import { AssignmentConcurrencySetting } from './assignment-concurrency-setting.js';
@@ -1330,6 +1331,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: AutoApprovalSettingsEntry,
       badge: AutoApprovalBadge,
+    },
+    {
+      id: 'prompts',
+      surface: 'settings',
+      icon: 'file-text',
+      label: t('entry.prompts'),
+      order: 24,
+      scope: 'personabot',
+      component: BotPromptSettingsEntry,
     },
     {
       id: 'model',

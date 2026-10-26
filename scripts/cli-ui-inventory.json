@@ -219,6 +219,27 @@
       ]
     },
     {
+      "id": "prompt-presets",
+      "description": "Prompt Preset library, the global preset and each Bot's preset and own part edits.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.global')}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.new')}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{preset.name}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}"
+      ],
+      "commands": [
+        "prompt-parts",
+        "prompt-presets",
+        "prompt-preset-create",
+        "prompt-preset-update",
+        "prompt-preset-delete",
+        "prompt-global-set",
+        "bot-prompt",
+        "bot-prompt-set"
+      ]
+    },
+    {
       "id": "idle-compaction",
       "description": "Host idle Orchestrator Session compaction setting.",
       "scope": "Host",
