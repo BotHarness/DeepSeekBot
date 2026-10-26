@@ -720,23 +720,21 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
 
 it('loads the file destination from its routed Host while a different Host is selected', async () => {
   const fake = new FakeHost();
-  fake
-    .channel('dm-ada')
-    .append(
-      {
-        id: 'file-message',
-        author: { kind: 'human' },
-        attachments: [
-          {
-            fileId: 'file:00000000-0000-4000-8000-000000000001',
-            name: 'host-a-only.pdf',
-            mime: 'application/pdf',
-            size: 8,
-          },
-        ],
-      },
-      false,
-    );
+  fake.channel('dm-ada').append(
+    {
+      id: 'file-message',
+      author: { kind: 'human' },
+      attachments: [
+        {
+          fileId: 'file:00000000-0000-4000-8000-000000000001',
+          name: 'host-a-only.pdf',
+          mime: 'application/pdf',
+          size: 8,
+        },
+      ],
+    },
+    false,
+  );
   fixture.fileClient = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
     credential: fake.credential,
