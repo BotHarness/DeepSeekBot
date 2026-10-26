@@ -4000,6 +4000,9 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-delivery-legend-needs-repair {
   color: var(--dsw-alias-state-error-primary);
 }
+.bh-delivery-legend-missing {
+  color: var(--dsw-alias-state-warn-primary);
+}
 /* The receipt card portals to body so it remains visible at the edge of the
    scrolling Channel timeline. It reads DSH tokens directly, like HoverCard. */
 .bh-delivery-panel {
@@ -4065,10 +4068,34 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   min-width: 0;
   gap: ${space.x2};
 }
-.bh-delivery-panel-group li > span:last-child {
+.bh-delivery-panel-group li > span:last-child,
+.bh-delivery-bot > span:last-child {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.bh-delivery-bot {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: ${space.x2};
+  margin-inline: calc(-1 * ${space.x2});
+  padding: ${space.x1} ${space.x2};
+  border: 0;
+  border-radius: ${radius.sm};
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.bh-delivery-bot:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.bh-delivery-bot:focus-visible {
+  outline: ${border.focus} solid var(--dsw-alias-label-primary);
+  outline-offset: 0;
 }
 .bh-mention-picker {
   max-height: 280px;

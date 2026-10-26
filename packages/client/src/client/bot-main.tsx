@@ -108,6 +108,7 @@ import {
   useConversationSurface,
 } from './bot-primary-color.js';
 import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
+import { BotInboxDialog } from './bot-inbox-dialog.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -526,6 +527,12 @@ function humanBubbleStyle(
   } as CSSProperties;
 }
 
+interface InboxTarget {
+  botSlug: string;
+  messageId: string;
+  missing: boolean;
+}
+
 function MessageGroupView({
   humanMembers = [],
   group,
@@ -535,6 +542,7 @@ function MessageGroupView({
   currentDmBotSlug,
   onContextMenu,
   onAvatarMenu,
+  onOpenInbox,
   onReply,
   onReact,
   onJumpReply,
@@ -556,6 +564,7 @@ function MessageGroupView({
   bots: readonly BotSummary[];
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   onAvatarMenu?: ((botSlug: string, x: number, y: number) => void) | undefined;
+  onOpenInbox?: ((target: InboxTarget) => void) | undefined;
   onReply?: ((message: ChannelMessage) => void) | undefined;
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed?: ((message: ChannelMessage) => void) | undefined;
@@ -869,6 +878,11 @@ function MessageGroupView({
                   message={message}
                   bots={bots}
                   humanMembers={humanMembers}
+                  onOpenInbox={
+                    onOpenInbox === undefined
+                      ? undefined
+                      : (target) => onOpenInbox({ ...target, messageId: message.id })
+                  }
                   t={t}
                 />
                 <div className="bh-bubble-meta">
@@ -1313,6 +1327,7 @@ function ConversationView({
   const [reactionMenu, setReactionMenu] = useScopedState<MessageMenuRequest | undefined>(scopeKey);
   const [feedbackMessage, setFeedbackMessage] = useScopedState<string | undefined>(scopeKey);
   const [avatarMenu, setAvatarMenu] = useScopedState<AvatarMenuRequest | undefined>(scopeKey);
+  const [inboxTarget, setInboxTarget] = useScopedState<InboxTarget | undefined>(scopeKey);
   const [selectedMessages, setSelectedMessages] = useScopedState<
     { channelId: string; ids: readonly string[] } | undefined
   >(scopeKey);
@@ -2822,6 +2837,9 @@ function ConversationView({
                           message={first}
                           bots={state.bots}
                           humanMembers={channel?.humanMembers ?? []}
+                          onOpenInbox={(target) =>
+                            setInboxTarget({ ...target, messageId: first.id })
+                          }
                           t={t}
                         />
                       </div>
@@ -2951,6 +2969,7 @@ function ConversationView({
                                 }
                               : undefined
                           }
+                          onOpenInbox={setInboxTarget}
                           onReply={readOnlyDm ? undefined : (message) => setReplyTarget(message)}
                           onReact={reactToMessage}
                           onJumpReply={(messageId) => {
@@ -3322,6 +3341,21 @@ function ConversationView({
               onMention={mentionBot}
               onProfile={(botSlug) => void actions.openBot(botSlug, 'profile')}
               onClose={() => setAvatarMenu(undefined)}
+            />
+          )}
+          {inboxTarget === undefined ? null : (
+            <BotInboxDialog
+              key={inboxTarget.botSlug + ':' + inboxTarget.messageId}
+              botSlug={inboxTarget.botSlug}
+              botName={
+                state.bots.find((bot) => bot.slug === inboxTarget.botSlug)?.displayName ??
+                inboxTarget.botSlug
+              }
+              messageId={inboxTarget.messageId}
+              missing={inboxTarget.missing}
+              actions={actions}
+              t={t}
+              onClose={() => setInboxTarget(undefined)}
             />
           )}
           {selectionImage === undefined ? null : (
