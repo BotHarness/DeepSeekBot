@@ -25,6 +25,7 @@ vi.mock('react-native-worklets', () => ({
     native.queue.push(() => callback(...args)),
 }));
 vi.mock('react-native-reanimated', () => ({
+  useReducedMotion: () => false,
   useSharedValue: (value: number | boolean) => useRef({ value }).current,
   useAnimatedReaction: () => undefined,
   useAnimatedStyle: (compute: () => unknown) => compute(),

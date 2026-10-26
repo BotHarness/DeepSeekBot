@@ -1,6 +1,6 @@
 import { useCallback, useState, type RefObject } from 'react';
 import type { FlatList, LayoutChangeEvent } from 'react-native';
-import { useSharedValue } from 'react-native-reanimated';
+import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 
 import type { ConversationMessage } from '../../host/conversation';
 import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
@@ -12,8 +12,17 @@ export function useChannelViewport<Row>(
   onFollowingChange: ((following: boolean) => void) | undefined,
   start: number,
   empty: boolean,
+  streaming = false,
 ) {
-  const latest = useFollowLatest(list, messages, onFollowingChange, start, empty);
+  const reducedMotion = useReducedMotion();
+  const latest = useFollowLatest(
+    list,
+    messages,
+    onFollowingChange,
+    start,
+    empty,
+    streaming && !reducedMotion,
+  );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);
   const [composerHeight, setComposerHeight] = useState(0);

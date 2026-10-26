@@ -49,6 +49,7 @@ export function useFollowLatest<Row>(
   onFollowingChange?: (following: boolean) => void,
   start = 0,
   empty = false,
+  animateGrowth = false,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
@@ -68,6 +69,7 @@ export function useFollowLatest<Row>(
   const startInset = useRef(start);
   startInset.current = start;
   const metrics = useRef<ListMetrics>({ content: 0, layout: 0, offset: 0 });
+  const reportedContent = useRef(0);
   const frame = useRef<number | undefined>(undefined);
   const confirmation = useRef<number | undefined>(undefined);
   const sizes = useRef(0);
@@ -166,15 +168,18 @@ export function useFollowLatest<Row>(
     check(0);
   }, []);
 
-  const pin = useCallback(() => {
-    if (keyboardMoving.current || frame.current !== undefined) return;
-    if (!followingNow.current && settled.current) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = undefined;
-      if (followingNow.current && metrics.current.layout > 0) scrollToLatest(false);
-      if (!settled.current) confirm(sizes.current);
-    });
-  }, [scrollToLatest, confirm]);
+  const pin = useCallback(
+    (animated = false) => {
+      if (keyboardMoving.current || frame.current !== undefined) return;
+      if (!followingNow.current && settled.current) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = undefined;
+        if (followingNow.current && metrics.current.layout > 0) scrollToLatest(animated);
+        if (!settled.current) confirm(sizes.current);
+      });
+    },
+    [scrollToLatest, confirm],
+  );
 
   const onKeyboardStart = useCallback(() => {
     keyboardMoving.current = true;
@@ -244,15 +249,18 @@ export function useFollowLatest<Row>(
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      const previous = reportedContent.current;
+      reportedContent.current = height;
+      if (animateGrowth && previous === height && settled.current) return;
       if (metrics.current.content !== height) {
         metrics.current = { ...metrics.current, content: height };
         sizes.current += 1;
         attempts.current = 0;
         setCanRetry(false);
       }
-      pin();
+      pin(animateGrowth && settled.current && height > previous);
     },
-    [pin],
+    [pin, animateGrowth],
   );
 
   const onLayout = useCallback(
