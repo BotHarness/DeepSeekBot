@@ -98,7 +98,7 @@ describe('Home conversations', () => {
       expect(row.createdAt).toBe(createdAt);
       expect(shortTime(row.at ?? row.createdAt, new Date(createdAt))).not.toBe('');
     }
-    const withCreation = { ...roster, activityChannels: empty.activityChannels };
+    const withCreation = { ...roster, activityChannels: empty.activityChannels ?? [] };
     expect(conversations(withCreation, []).map((row) => row.key)).toEqual(
       conversations(roster, []).map((row) => row.key),
     );
