@@ -57,14 +57,17 @@ const styles = stylex.create({
   chip: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: space.x1,
-    paddingBlock: 0,
-    paddingInline: space.x2,
-    borderWidth: border.focus,
-    borderStyle: 'solid',
-    borderColor: 'var(--bh-chat-ground, var(--dsw-alias-bg-base))',
+    gap: space.x2,
+    paddingBlock: space.x1,
+    paddingInline: space.x4,
+    borderWidth: 0,
     borderRadius: radius.lg,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
+    backgroundColor: 'var(--dsw-alias-bg-base)',
+    boxShadow: '0 1px 4px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent)',
+    backgroundImage: {
+      default: 'none',
+      ':hover': `linear-gradient(${color.hover}, ${color.hover})`,
+    },
     color: color.muted,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
@@ -72,7 +75,10 @@ const styles = stylex.create({
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
   },
   chipMine: {
-    backgroundColor: { default: color.selected, ':hover': color.hover },
+    backgroundImage: {
+      default: `linear-gradient(${color.selected}, ${color.selected})`,
+      ':hover': `linear-gradient(${color.hover}, ${color.hover}), linear-gradient(${color.selected}, ${color.selected})`,
+    },
     color: color.fg,
   },
   chipEmoji: {

@@ -16,6 +16,16 @@ export function reactionSummary(
   return t.reactionSummary(names.join(t.reactionSeparator), reaction.emoji);
 }
 
+export function chipShadow(ink: string) {
+  return {
+    shadowColor: ink,
+    shadowOpacity: 0.14,
+    shadowRadius: space.x2,
+    shadowOffset: { width: 0, height: edge.hairline },
+    elevation: edge.hairline,
+  } as const;
+}
+
 export function ReactionChips({
   reactions,
   human,
@@ -29,7 +39,7 @@ export function ReactionChips({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x1 * 2) / 2);
+  const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x2 * 2) / 2);
   return (
     <View
       style={{
@@ -52,17 +62,16 @@ export function ReactionChips({
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
-              gap: space.x1,
-              paddingHorizontal: space.x2,
-              paddingVertical: space.x1,
+              gap: space.x2,
+              paddingHorizontal: space.x4,
+              paddingVertical: space.x2,
               borderRadius: radius.round,
-              borderWidth: edge.hairline,
-              borderColor: mine ? theme.color.accent : theme.layer.canvas.fill,
               backgroundColor: mine
                 ? theme.layer.canvas.chosen
                 : pressed
-                  ? theme.layer.raised.pressed
-                  : theme.layer.raised.fill,
+                  ? theme.layer.canvas.pressed
+                  : theme.layer.canvas.fill,
+              ...chipShadow(theme.color.fg),
             })}
           >
             <Text variant="meta">{reaction.emoji}</Text>

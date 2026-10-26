@@ -3546,7 +3546,7 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   z-index: 1;
   left: ${space.x4};
   right: ${space.x4};
-  bottom: -14px;
+  bottom: calc(-1 * ${space.x4});
   display: flex;
   align-items: center;
   gap: ${space.x2};
@@ -3569,10 +3569,10 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   display: inline-flex;
   align-items: center;
   gap: ${space.x1};
-  padding: ${space.x1} ${space.x2} ${space.x1} ${space.x1};
-  border: ${border.focus} solid var(--dsw-alias-bg-base);
+  padding: ${space.x1} ${space.x3} ${space.x1} ${space.x1};
   border-radius: 999px;
-  background: ${color.surface};
+  background: var(--dsw-alias-bg-base);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent);
   color: var(--dsw-alias-label-tertiary);
   pointer-events: auto;
 }
@@ -3587,7 +3587,7 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   margin-left: calc(-1 * ${space.x3});
 }
 .bh-reading .bh-stack-avatar {
-  outline: ${border.hairline} solid ${color.surface};
+  outline: ${border.hairline} solid var(--dsw-alias-bg-base);
 }
 .bh-stack-human {
   display: grid;

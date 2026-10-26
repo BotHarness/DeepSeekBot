@@ -49,7 +49,11 @@ describe('delivery receipt', () => {
   });
 
   it('shows each Bot reading only on its newest message in the turn', () => {
-    const at = (id: string, deliveries: ConversationMessage['deliveries'], extra = {}) => ({
+    const at = (
+      id: string,
+      deliveries: NonNullable<ConversationMessage['deliveries']>,
+      extra = {},
+    ): ConversationMessage => ({
       ...message,
       id,
       deliveries,
