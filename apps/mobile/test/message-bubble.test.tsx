@@ -148,8 +148,9 @@ vi.mock('react-native-enriched-markdown', () => ({
 }));
 
 vi.mock('react-native-svg', () => ({
-  default: () => <svg />,
-  Path: () => null,
+  default: ({ children }: { children?: unknown }) => <svg>{children as never}</svg>,
+  Circle: ({ fill }: { fill: string }) => <circle fill={fill} />,
+  Path: ({ fill }: { fill?: string }) => (fill === undefined ? null : <path fill={fill} />),
   Rect: () => null,
 }));
 
@@ -180,6 +181,50 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('message delivery receipt', () => {
+  const mentioned = human({
+    revision: 4,
+    body: '@ADA @BEA check',
+    mentions: [
+      { botSlug: 'ada', label: 'ADA', start: 0, end: 4 },
+      { botSlug: 'bea', label: 'BEA', start: 5, end: 9 },
+    ],
+    deliveries: [{ botSlug: 'ada', state: 'handled' }],
+  });
+
+  it('opens the receipt for a Human message with Bot recipients', () => {
+    const open = vi.fn();
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    try {
+      act(() => root.render(<MessageBubble message={mentioned} onOpenDelivery={open} />));
+      const label = t.delivery.summary(
+        `1 ${t.delivery.state.handled} · 1 ${t.delivery.state.missing}`,
+      );
+      const button = container.querySelector<HTMLElement>(`[data-accessibilitylabel="${label}"]`);
+      expect(button?.querySelectorAll('path')).toHaveLength(2);
+      act(() => button!.click());
+      expect(open).toHaveBeenCalledWith(mentioned);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('keeps the receipt off messages without recipients or while sending', () => {
+    for (const message of [
+      human({ revision: 4 }),
+      { ...mentioned, delivery: 'pending' as const },
+      { ...mentioned, delivery: 'failed' as const },
+    ]) {
+      const html = renderToStaticMarkup(
+        <MessageBubble message={message} onOpenDelivery={() => {}} />,
+      );
+      expect(html).not.toContain(t.delivery.summary(''));
+      expect(html).not.toContain('<svg');
+    }
+  });
 });
 
 describe('message states', () => {

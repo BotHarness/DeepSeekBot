@@ -14,6 +14,7 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
+vi.mock('../src/ui/chat/delivery-sheet', () => ({ DeliverySheet: () => null }));
 
 const state = vi.hoisted(() => ({
   history: [] as string[],

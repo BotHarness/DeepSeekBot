@@ -103,6 +103,7 @@ import { useMarkRead } from './mark-read';
 import { useBotNames } from './use-bot-names';
 import { ImageViewer } from './image-viewer';
 import { JumpToLatest } from './jump-to-latest';
+import { DeliverySheet } from './delivery-sheet';
 import { MessageActions, type MessageMenuTarget } from './message-actions';
 import {
   activeMentionQuery,
@@ -819,6 +820,25 @@ function ChatConversation({
 
   const roster = host.roster;
   const botName = useBotNames(roster?.bots);
+  const [deliveryFor, setDeliveryFor] = useState<string>();
+  const openDelivery = useCallback(
+    (message: ConversationMessage) => setDeliveryFor(message.id),
+    [],
+  );
+  const openInbox = (target: { botSlug: string; missing: boolean }) => {
+    const messageId = deliveryFor;
+    setDeliveryFor(undefined);
+    if (!saved || messageId === undefined) return;
+    router.push({
+      pathname: '/bot/[slug]/inbox',
+      params: {
+        slug: target.botSlug,
+        hostId: saved.hostId,
+        messageId,
+        missing: target.missing ? '1' : '0',
+      },
+    });
+  };
 
   const speakerOf = useCallback(
     (id: string, row: { key: string; first: boolean; last: boolean }): Speaker => ({
@@ -970,6 +990,7 @@ function ChatConversation({
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm ? {} : { onReact: react })}
+          onOpenDelivery={openDelivery}
           botName={botName}
           speaker={
             !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
@@ -1566,6 +1587,16 @@ function ChatConversation({
         />
       ) : null}
       <ImageViewer attachment={viewing} onClose={() => setViewing(undefined)} onShare={share} />
+      <DeliverySheet
+        message={
+          deliveryFor === undefined
+            ? undefined
+            : snapshot.messages.find((message) => message.id === deliveryFor)
+        }
+        botName={botName}
+        onClose={() => setDeliveryFor(undefined)}
+        onOpenInbox={openInbox}
+      />
       <MessageActions
         target={actionsFor}
         readOnly={botDm}
