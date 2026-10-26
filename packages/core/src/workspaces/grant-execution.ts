@@ -8,25 +8,37 @@ import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-too
 
 type AccessCore = { assignmentAccess?: Pick<BotHarnessCore['assignmentAccess'], 'get'> };
 
+type Owner = NonNullable<ReturnType<BotHarnessCore['ownership']['resolve']>>;
+
+function rootOwner(core: Pick<BotHarnessCore, 'ownership'>, sessionId: string): Owner | undefined {
+  let owner = core.ownership.resolve(sessionId);
+  const seen = new Set<string>();
+  while (owner?.parentSessionId !== undefined) {
+    if (seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    const parent = core.ownership.resolve(owner.parentSessionId);
+    if (parent === undefined || parent.botSlug !== owner.botSlug) return undefined;
+    owner = parent;
+  }
+  return owner;
+}
+
 export function alignOrchestratorSubagentPermission(
-  core: Pick<BotHarnessCore, 'ownership'>,
+  core: Pick<BotHarnessCore, 'ownership'> & AccessCore,
   session: Session,
   policy: SandboxPolicyService | undefined,
   approval: ApprovalService | undefined,
 ): void {
-  let owner = core.ownership.resolve(session.id);
-  if (owner?.provenance !== 'subagent' || policy === undefined || approval === undefined) return;
-  const seen = new Set<string>();
-  while (owner.parentSessionId !== undefined) {
-    if (seen.has(owner.sessionId)) return;
-    seen.add(owner.sessionId);
-    const parent = core.ownership.resolve(owner.parentSessionId);
-    if (parent === undefined || parent.botSlug !== owner.botSlug) return;
-    owner = parent;
-  }
-  if (owner.rootRole !== 'orchestrator') return;
-  if (policy.resolve({ session }).mode !== 'workspace-write')
-    setSandboxMode(session, 'workspace-write');
+  if (
+    core.ownership.resolve(session.id)?.provenance !== 'subagent' ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return;
+  const owner = rootOwner(core, session.id);
+  if (owner?.rootRole !== 'orchestrator') return;
+  const mode = orchestratorPermission(core, owner.botSlug).mode;
+  if (policy.resolve({ session }).mode !== mode) setSandboxMode(session, mode);
   if (approval.overrideOf(session) !== 'never') setApprovalPolicy(session, 'never');
 }
 
@@ -44,7 +56,7 @@ export function sessionHasFullAccess(
   core: Pick<BotHarnessCore, 'ownership' | 'runtime'> & AccessCore,
   sessionId: string,
 ): boolean {
-  const owner = core.ownership.resolve(sessionId);
+  const owner = rootOwner(core, sessionId);
   if (owner === undefined) return false;
   if (owner.rootRole === 'assignment')
     return (
@@ -53,7 +65,6 @@ export function sessionHasFullAccess(
     );
   return (
     owner.rootRole === 'orchestrator' &&
-    owner.provenance !== 'subagent' &&
     orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access'
   );
 }
@@ -108,8 +119,8 @@ export function grantExecutionDenial(
   const approvalPolicy = approval.overrideOf(session);
   if (owner.rootRole === 'orchestrator') {
     if (delegatedSubagent) {
-      if (mode !== 'workspace-write' || approvalPolicy !== 'never')
-        return 'Orchestrator Subagent requires workspace-write and never approval';
+      if (mode !== orchestratorPermission(core, owner.botSlug).mode || approvalPolicy !== 'never')
+        return "Orchestrator Subagent permission differs from this PersonaBot's access setting";
     } else {
       const expected = orchestratorPermission(core, owner.botSlug);
       if (mode !== expected.mode || approvalPolicy !== expected.approval)
@@ -284,19 +295,7 @@ export function grantToolExecutionDenial(
   if (BOT_TOOL_NAMES.has(name)) return undefined;
 
   if (core.hostTools.has(name)) return undefined;
-  const owner = core.ownership.resolve(session.id);
-  if (
-    owner?.rootRole === 'assignment' &&
-    core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission?.mode ===
-      'danger-full-access'
-  )
-    return undefined;
-  if (
-    owner?.rootRole === 'orchestrator' &&
-    owner.provenance !== 'subagent' &&
-    orchestratorPermission(core, owner.botSlug).mode === 'danger-full-access'
-  )
-    return undefined;
+  if (sessionHasFullAccess(core, session.id)) return undefined;
   if (NATIVE_FILE_TOOL_NAMES.has(name)) return nativeFileToolDenial(core, session, name, args);
   if (requiresHumanToolApproval(name, args, approvalTemplateInUse(core.registry)) && !allowedOnce)
     return name + ' requires Human approval';
