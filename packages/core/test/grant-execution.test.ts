@@ -87,12 +87,13 @@ describe('Workspace Grant execution boundary', () => {
     { fork: true, nested: false },
     { fork: false, nested: true },
   ])(
-    'does not block a delegated child under Full access (fork: $fork, nested: $nested)',
+    'keeps Full access for a delegated Orchestrator child (fork: $fork, nested: $nested)',
     ({ fork, nested }) => {
       const state = fixture();
       const rootId = 'botharness-orchestrator';
       const childId = 'dsh-full-access-child';
       const parentId = nested ? 'dsh-parent-child' : rootId;
+      const access = { mode: 'danger-full-access', scope: 'chat' };
       const core = {
         ...(state.core as object),
         ownership: {
@@ -117,7 +118,7 @@ describe('Workspace Grant execution boundary', () => {
                   ? { sessionId, botSlug, rootRole: 'orchestrator' }
                   : undefined,
         },
-        assignmentAccess: { get: () => ({ mode: 'danger-full-access', scope: 'chat' }) },
+        assignmentAccess: { get: () => access },
       } as never;
       const append = vi.fn((type: string, data: { mode?: string; policy?: string }) => {
         if (type === 'sandbox/mode' && data.mode !== undefined)
@@ -146,20 +147,38 @@ describe('Workspace Grant execution boundary', () => {
         },
       } as never;
       appendDelegatedPolicyOverrides(child, captureDelegatedPolicyOverrides(parent));
-      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toContain(
-        'requires workspace-write',
-      );
+      expect(state.resolvePolicy()).toEqual({ mode: 'danger-full-access' });
       append.mockClear();
       alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
+      expect(append).not.toHaveBeenCalledWith('sandbox/mode', expect.anything());
       expect(grantExecutionDenial(core, child, state.policy, state.approval)).toBeUndefined();
-      expect(append).toHaveBeenCalledExactlyOnceWith('sandbox/mode', { mode: 'workspace-write' });
-      expect(sessionHasFullAccess(core, childId)).toBe(false);
+      expect(sessionHasFullAccess(core, childId)).toBe(true);
+      expect(
+        grantToolExecutionDenial(core, child, state.policy, state.approval, 'write', {
+          file_path: '/outside/project/file',
+          content: 'x',
+        }),
+      ).toBeUndefined();
+      const calls = append.mock.calls.length;
       alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
-      expect(append).toHaveBeenCalledTimes(1);
+      expect(append).toHaveBeenCalledTimes(calls);
       state.overrideOf.mockReturnValue('ask');
       alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
       expect(append).toHaveBeenLastCalledWith('approval/policy', { policy: 'never' });
-      expect(append).toHaveBeenCalledTimes(2);
+      access.mode = 'workspace-write';
+      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toMatch(
+        /differs from this PersonaBot's access setting/,
+      );
+      alignOrchestratorSubagentPermission(core, child, state.policy, state.approval);
+      expect(append).toHaveBeenLastCalledWith('sandbox/mode', { mode: 'workspace-write' });
+      expect(grantExecutionDenial(core, child, state.policy, state.approval)).toBeUndefined();
+      expect(sessionHasFullAccess(core, childId)).toBe(false);
+      expect(
+        grantToolExecutionDenial(core, child, state.policy, state.approval, 'write', {
+          file_path: '/outside/project/file',
+          content: 'x',
+        }),
+      ).toBeDefined();
       state.memoryDirFor.mockReturnValue('/another-memory');
       expect(grantExecutionDenial(core, child, state.policy, state.approval)).toContain(
         'requires its Memory working directory',
@@ -527,6 +546,51 @@ describe('Workspace Grant execution boundary', () => {
         command: 'pwd',
       }),
     ).toMatch(/revoked/);
+  });
+
+  it('extends a dangerous Assignment snapshot to its delegated Subagents (#2870)', () => {
+    const state = fixture();
+    const childId = 'dsh-assignment-child';
+    const child = { id: childId, header: { cwd, parentSession: assignmentSessionId } } as never;
+    const resolve = (state.core as { ownership: { resolve: ReturnType<typeof vi.fn> } }).ownership
+      .resolve;
+    resolve.mockImplementation((sessionId: string) =>
+      sessionId === childId
+        ? {
+            sessionId,
+            botSlug,
+            rootRole: 'assignment',
+            provenance: 'subagent',
+            parentSessionId: assignmentSessionId,
+          }
+        : sessionId === assignmentSessionId
+          ? { sessionId, botSlug, rootRole: 'assignment', parentSessionId: undefined }
+          : undefined,
+    );
+    const outside = { file_path: '/outside/project/file', content: 'x' };
+    state.overrideOf.mockReturnValue('never');
+    expect(sessionHasFullAccess(state.core, childId)).toBe(false);
+    expect(
+      grantToolExecutionDenial(state.core, child, state.policy, state.approval, 'write', outside),
+    ).toBeDefined();
+    state.getAssignment.mockImplementation(((_slug: string, sessionId: string) =>
+      sessionId === assignmentSessionId
+        ? {
+            permission: {
+              grantId,
+              workspaceId: 'workspace-1',
+              primaryCwd: cwd,
+              mode: 'danger-full-access',
+              approval: 'ask',
+              presetRevision: 1,
+            },
+          }
+        : undefined) as never);
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    expect(sessionHasFullAccess(state.core, childId)).toBe(true);
+    expect(
+      grantToolExecutionDenial(state.core, child, state.policy, state.approval, 'write', outside),
+    ).toBeUndefined();
   });
 
   it('lets only the Orchestrator reach the native Human-question answerer', () => {
