@@ -1,6 +1,6 @@
 import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { AppState, View, type ViewInstance } from 'react-native';
+import { AppState, Platform, View, type ViewInstance } from 'react-native';
 import { useHostSession } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
@@ -178,6 +178,7 @@ function CreationForm({ initialSource = 'blank' }: { initialSource?: CreationEnt
       />
       <View style={{ flex: 1 }}>
         <KeyboardFormScroll
+          mode={Platform.OS === 'ios' ? 'layout' : 'insets'}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
         >
