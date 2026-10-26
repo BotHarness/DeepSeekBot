@@ -7,6 +7,7 @@ import { isChannelAttachmentRef } from '../attachments/ref.js';
 import { createHash } from 'node:crypto';
 import { SendReviewRequired, GroupReplySourceRevoked } from '../channels/send-review.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
+import { MAX_BOT_HOPS, type ChannelMessage } from '../channels/channel.js';
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 
 export class BotMessageError extends Error {
@@ -17,6 +18,18 @@ export class BotMessageError extends Error {
     super(message);
     this.name = 'BotMessageError';
   }
+}
+
+const NOT_WOKEN_NOTICE =
+  'These colleagues did not wake and will not see this message on their own. Tell the Humans in this conversation where the work stands and what is needed to continue; do not resend the same @.';
+
+function notWoken(message: ChannelMessage, targets: readonly string[]) {
+  const woken = new Set((message.deliveries ?? []).map((delivery) => delivery.botSlug));
+  const reason =
+    (message.botCausation?.hop ?? 0) > MAX_BOT_HOPS ? 'collaboration-hop-limit' : 'not-admitted';
+  return [...new Set(targets)]
+    .filter((botSlug) => !woken.has(botSlug))
+    .map((botId) => ({ botId, reason }));
 }
 
 export function createBotMessageTool(
@@ -219,6 +232,7 @@ export function createBotMessageTool(
         );
       let messageId: string;
       let intentId: string | undefined;
+      let unwoken: ReturnType<typeof notWoken> = [];
       if (args.bot_id !== undefined) {
         const sent = await run.channels.sendToBot({
           botSlug: args.bot_id,
@@ -227,6 +241,7 @@ export function createBotMessageTool(
         });
         messageId = sent.message.id;
         channelId = sent.channelId;
+        unwoken = notWoken(sent.message, [args.bot_id]);
         drafts?.settle(channelId, sent.message.body);
       } else if (external) {
         const messaging = run.externalMessaging;
@@ -306,6 +321,14 @@ export function createBotMessageTool(
               : { replyTo: reply.messageId, replySourceEventId: args.source_event_id! }),
           });
           messageId = message.id;
+          unwoken = notWoken(
+            message,
+            channel?.kind === 'bot-dm'
+              ? channel.members
+                  .map((member) => member.botId)
+                  .filter((botId) => message.author.kind === 'bot' && botId !== message.author.slug)
+              : (message.mentions ?? []).map((mention) => mention.botSlug),
+          );
           drafts?.settle(channelId!, message.body);
         } catch (error) {
           if (error instanceof SendReviewRequired) {
@@ -356,6 +379,7 @@ export function createBotMessageTool(
         channelId,
         messageId,
         ...(intentId === undefined ? {} : { intentId }),
+        ...(unwoken.length === 0 ? {} : { notWoken: unwoken, notice: NOT_WOKEN_NOTICE }),
         inboxResolution,
       });
     },

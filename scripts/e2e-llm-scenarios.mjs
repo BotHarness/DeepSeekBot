@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -261,6 +261,57 @@ export const SCENARIOS = [
         );
       if (woken.length > 0)
         throw new Error(`a colleague woke without a mention: ${JSON.stringify(woken)}`);
+    },
+  },
+  {
+    id: 'long-task-reports',
+    summary:
+      'A multi-phase DM task with a one-minute step gets a receipt before the work starts, progress while it runs and a final result.',
+    areas: [...RUNTIME_AREAS, 'packages/core/src/runtime/dsh-bot-agent-adapter.ts'],
+    bots: ['aura'],
+    async run(ctx) {
+      const dm = await ctx.dm('aura');
+      const files = ['drafts/palette.md', 'drafts/render.log', 'drafts/summary.md'];
+      await ctx.humanSend(
+        dm,
+        `这是一个分三个阶段的长任务，请在你的记忆仓库里依次完成：阶段 1：写 ${files[0]}，列出 5 个像素风配色，每个含 3 个十六进制色值和一句说明；阶段 2：在记忆仓库目录运行 \`sleep 60 && echo rendered > ${files[1]}\` 模拟导出预览图，这一步大约要一分钟；阶段 3：写 ${files[2]}，挑出最好的一组并说明理由。全部完成后告诉我结果。`,
+      );
+      const [first, , last] = await ctx.waitFor('all three phase files are written', () => {
+        const times = files.map((file) => ctx.memoryFileTime('aura', file));
+        return times.every((time) => time !== undefined) ? times : undefined;
+      });
+      const replies = await ctx.waitFor('a final report after the last phase', () => {
+        const messages = ctx.messages(dm).filter((message) => ctx.isBot(message, 'aura'));
+        return messages.some((message) => Date.parse(message.at) > last) ? messages : undefined;
+      });
+      const at = replies.map((message) => Date.parse(message.at));
+      if (!at.some((time) => time < first))
+        throw new Error('no receipt was sent before the first phase started');
+      if (!at.some((time) => time > first && time < last))
+        throw new Error('no progress was reported while the later phases ran');
+    },
+  },
+  {
+    id: 'review-rounds',
+    summary:
+      'A reviewer sends the work back to a colleague three times from one Human kickoff, and every round wakes the colleague (#2872).',
+    areas: RUNTIME_AREAS,
+    bots: ['nexus', 'aura'],
+    async run(ctx) {
+      const group = await ctx.mentionsOnlyGroup(['nexus', 'aura']);
+      await ctx.humanSend(
+        group,
+        '请你和美工 Aura 迭代一个像素风 logo 的配色，一共三轮：第 1 轮请她给出初版；第 2 轮无论初版如何都请她改成暖色调；第 3 轮请她再加一个强调色。每一轮都在群里 @美工 Aura 提出要求，等她 @ 你汇报后再提下一轮。第三版完成后在群里简短总结。大家都只在被 @ 时才会被唤醒，Aura 每次改完必须 @总控 Nexus 汇报。',
+        ['nexus'],
+      );
+      await ctx.waitFor('Nexus wakes Aura three times and Aura reports back each time', () => {
+        const messages = ctx.messages(group);
+        const asks = messages.filter((message) => ctx.mentionedAndWoken(message, 'nexus', 'aura'));
+        const reports = messages.filter((message) =>
+          ctx.mentionedAndWoken(message, 'aura', 'nexus'),
+        );
+        return asks.length >= 3 && reports.length >= 3 ? [...asks, ...reports] : undefined;
+      });
     },
   },
 ];
@@ -632,6 +683,14 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       }
     },
     slug: (key) => slugs[key],
+    memoryFileTime(key, path) {
+      try {
+        return statSync(join(instance.home, 'botharness', 'bots', slugs[key], 'memory', path))
+          .mtimeMs;
+      } catch {
+        return undefined;
+      }
+    },
     isBot: (message, key) =>
       message.author.kind === 'bot' &&
       message.author.slug === slugs[key] &&

@@ -523,6 +523,24 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
       },
     ],
   ],
+  'panel-right': [
+    [
+      'rect',
+      {
+        width: '18',
+        height: '18',
+        x: '3',
+        y: '3',
+        rx: '2',
+      },
+    ],
+    [
+      'path',
+      {
+        d: 'M15 3v18',
+      },
+    ],
+  ],
   'panels-top-left': [
     [
       'rect',

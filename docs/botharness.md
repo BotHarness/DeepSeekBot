@@ -167,7 +167,7 @@
 | SQLite 与 DSH/provider 无法原子提交 | minimal stable-id intent、idempotent acceptance、bounded reconciliation、`needs-repair` / `unknown-outcome`；不假装 exactly-once |
 | 多 Host 同时写同一 profile          | OS-backed writer lease；第二 writer fail closed，只允许 diagnostics（ADR-0041）                                                  |
 | 外部消息 edit/recall/乱序/echo      | immutable revision chain、trusted provider identity、unresolved/conflict、provider reconciliation（ADR-0036/0039）               |
-| Bot 循环互相唤醒                    | `(causation chain, recipient PersonaBot)` 去重 + trusted hop limit 8；超限保留事实但不自动 admission/wake                        |
+| Bot 循环互相唤醒                    | 直接 @ 与 Bot DM 每轮唤醒，trusted hop limit 8 兜底；超限保留事实、不唤醒，并以 `notWoken` 告知发送方（ADR-0261）                |
 | 主动外部动作越权                    | capability 与 Human Service Grant 分离，并在 intent/execute 两次校验；credentials 永不进 DB/backup（ADR-0038）                   |
 | Orchestrator 中枢成本与单点         | Attention coalescing、digest、按需 Assignment query；replacement 继承 PersonaBot-scoped authority，不依赖内存句柄                |
 | profile transfer split-brain        | source fencing、Transfer Generation、target activation receipt；Disaster Restore 显式风险确认（ADR-0043）                        |

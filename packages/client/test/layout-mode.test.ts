@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { CHANNEL_BODY_PANEL, CHANNEL_DOCK_STORAGE_KEY } from '../src/client/channel-dock-layout.js';
 import {
   DEFAULT_SIMPLE_CHANNELS_WIDTH,
+  DEFAULT_SUBPANEL_COLUMN,
   LAYOUT_MODE_STORAGE_KEY,
   readLayoutMode,
   writeLayoutMode,
@@ -24,6 +25,7 @@ describe('Layout mode preference', () => {
       mode: 'simple',
       view: CHANNEL_BODY_PANEL,
       channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
+      column: DEFAULT_SUBPANEL_COLUMN,
     });
   });
 
@@ -33,22 +35,42 @@ describe('Layout mode preference', () => {
 
   it('prefers the saved choice over the saved layout', () => {
     const storage = memory({ [CHANNEL_DOCK_STORAGE_KEY]: '{}' });
-    writeLayoutMode({ mode: 'simple', view: 'bh:home', channelsWidth: 0.3 }, storage);
+    const column = {
+      open: true,
+      width: 0.4,
+      expanded: ['sessions', 'botharness-browser'],
+      hidden: ['schedules'],
+      heights: { sessions: 260 },
+    };
+    writeLayoutMode({ mode: 'simple', view: 'bh:home', channelsWidth: 0.3, column }, storage);
     expect(readLayoutMode(storage)).toEqual({
       mode: 'simple',
       view: 'bh:home',
       channelsWidth: 0.3,
+      column,
     });
   });
 
   it('falls back field by field on damaged records', () => {
     const storage = memory({
-      [LAYOUT_MODE_STORAGE_KEY]: JSON.stringify({ mode: 'grid', view: '', channelsWidth: 4 }),
+      [LAYOUT_MODE_STORAGE_KEY]: JSON.stringify({
+        mode: 'grid',
+        view: '',
+        channelsWidth: 4,
+        column: {
+          open: 'yes',
+          width: 2,
+          expanded: 'sessions',
+          hidden: [3, 'x'],
+          heights: { a: 10, b: 'tall', c: 200 },
+        },
+      }),
     });
     expect(readLayoutMode(storage)).toEqual({
       mode: 'simple',
       view: CHANNEL_BODY_PANEL,
       channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
+      column: { ...DEFAULT_SUBPANEL_COLUMN, hidden: ['x'], heights: { c: 200 } },
     });
     storage.setItem(LAYOUT_MODE_STORAGE_KEY, 'not json');
     expect(readLayoutMode(storage).mode).toBe('simple');
@@ -63,7 +85,15 @@ describe('Layout mode preference', () => {
       removeItem: () => {},
     };
     expect(
-      writeLayoutMode({ mode: 'advanced', view: CHANNEL_BODY_PANEL, channelsWidth: 0.2 }, storage),
+      writeLayoutMode(
+        {
+          mode: 'advanced',
+          view: CHANNEL_BODY_PANEL,
+          channelsWidth: 0.2,
+          column: DEFAULT_SUBPANEL_COLUMN,
+        },
+        storage,
+      ),
     ).toBe(false);
   });
 });
