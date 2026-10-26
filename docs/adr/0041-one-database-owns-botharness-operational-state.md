@@ -5,7 +5,7 @@ Date: 2026-09-20
 
 # One database owns all BotHarness operational state
 
-> Amended by [ADR-0257](0257-foreign-key-orphans-do-not-block-the-operational-database.md): foreign key orphans left by an outside writer no longer put the profile into recovery mode; page integrity failures still do.
+> Amended by [ADR-0258](0258-foreign-key-orphans-do-not-block-the-operational-database.md): foreign key orphans left by an outside writer no longer put the profile into recovery mode; page integrity failures still do.
 
 Each DSH profile has one BotHarness-owned SQLite database at `$DSH_HOME/botharness/botharness.db`. It is the physical home for all BotHarness operational state: the local PersonaBot registry and archive state, bindings and access policy, roster arrangement, Channel and Membership facts, explicit Session ownership references, Source Events and revisions, Inbox Admissions and Attention Decisions, Messaging Policies, provider account references, Service Grants, Outbox and audit facts, and export/backup metadata.
 
