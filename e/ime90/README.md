@@ -24,16 +24,27 @@ This material covers input-method behavior only. The extension of the existing C
 
 ## Verified scope
 
+| Functional case | Confirmed final draft | Canonical messages | Timing scope |
+| --- | --- | --- | --- |
+| Short Chinese draft + fixed prose reply | `QA 中文` | 120→122 | Confirmation, new composition and cancellation overlapped the producer interval. |
+| Short Japanese draft + fixed prose reply | `QA 日本語` | 120→122 | Confirmation, new composition and cancellation overlapped the producer interval. |
+| 10k Chinese draft, idle conversation | Exact 10k fixture + `中文`; 10,002 code points | Remained zero | Idle functional check. |
+| 10k Chinese draft + fixed prose reply | Exact 10k fixture + `中文`; 10,002 code points | 124→126 | Confirmation and fresh `ni` composition completed during production; Delete cancellation straddled producer completion. |
+| 10k Japanese draft + fixed prose reply | Exact 10k fixture + `日本語`; 10,003 code points | 126→128 | Confirmation and fresh `か` composition completed during production; Delete followed producer completion while visible playback continued around paragraph 41. |
+
 - **Chinese, during a fixed prose reply:** real Pinyin candidate confirmation produced `QA 中文`. A new `ni` composition was entered and cancelled with Delete. Candidate confirmation and cancellation overlapped the recorded producer interval; the captured native surface also shows reply content progressing.
 - **Japanese, during a fixed prose reply:** real candidate confirmation produced `QA 日本語`. Real `k` and `a` keys started a fresh `か` composition, which was cancelled with Delete. These actions overlapped the recorded producer interval.
-- **Canonical messages for each streaming run:** count changed from 120 to 122, comprising only the fixture trigger and the fixed reply. Candidate confirmation/cancellation introduced no additional canonical message in these runs. This conclusion comes from canonical readback, not from counting visible rows in a screenshot.
+- **Canonical messages for the two short-draft streaming runs:** count changed from 120 to 122, comprising only the fixture trigger and the fixed reply. Candidate confirmation/cancellation introduced no additional canonical message in these runs. This conclusion comes from canonical readback, not from counting visible rows in a screenshot.
 - **Long Chinese draft, idle conversation:** full-text readback confirms the exact original 10,000-code-point fixture followed by `中文`, for 10,002 code points total. A subsequent unconfirmed `ni` suffix was cancelled. Canonical message count remained zero. The final native state is preserved in the original recording and accessibility readback; `long.png` shows only the successful preload.
+- **Long drafts with streaming replies:** separate Chinese and Japanese runs confirmed full final-text equality with the unchanged 10k fixture plus `中文` and `日本語`, respectively. Each run added only its fixture trigger and fixed reply to canonical history, with no extra message from input-method actions. Real software-keyboard candidates were visible while reply content grew. Confirmation and a new composition occurred within the producer interval. The Delete actions did not all finish within that interval: Chinese cancellation crossed its end, and Japanese cancellation occurred after its end while local visible playback continued. These results do not claim that every cancellation happened while upstream production was active.
+
+The five published images are unchanged. `cn.png`/`jp.png` and their later-state images document the short-draft runs. `long.png` remains the successful preload image only. The additional long-draft streaming results above are text summaries of separate full-text and canonical readbacks, not new screenshot claims.
 
 The long-draft fixture's UTF-8 SHA256 is `cf0a05e7b0cde427d176cf7d3df32e3a02df16e00c2953d1f246c6b3ab0dd481`. Full-text equality was checked against that frozen fixture plus the confirmed suffix; a screenshot of its visible tail alone would not establish equality.
 
 ## Limits
 
-These results establish the listed functional behavior on the Simulator. They do not establish physical-device or Human acceptance, input latency, frame-rate performance, equal cache/draft-store conditions for a benchmark, or complete visible playback through the final reply paragraph. The long-draft Chinese run was idle and does not establish 10k-plus-stream overlap.
+These results establish the listed functional behavior on the Simulator, including the separately recorded 10k Chinese and Japanese draft runs with streaming replies. They do not establish physical-device or Human acceptance, input latency, frame-rate performance, equal cache/draft-store conditions for a benchmark, or complete visible playback through the final reply paragraph. The long-draft streaming checks reused reserve conversations and are functional observations, not matched A/B or performance samples. The earlier idle long-draft check remains a separate case.
 
 ## Image integrity and privacy review
 
