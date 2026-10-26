@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { botDmChannelId } from '../src/channels/channel.js';
+import { botDmChannelId, MAX_BOT_HOPS } from '../src/channels/channel.js';
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import type {
@@ -404,11 +404,11 @@ describe('Bot-to-Bot DM tracer', () => {
         id: 'bot-over-hop',
         at: '2026-09-25T00:00:00.000Z',
         author: { kind: 'bot', slug: 'ada' },
-        body: '第九跳',
+        body: '超过跳数上限',
         botCausation: {
           rootSourceEventId: 'root-over-hop',
           parentSourceEventId: 'parent-over-hop',
-          hop: 9,
+          hop: MAX_BOT_HOPS + 1,
         },
       });
       expect(core.channels.message(dm.id, 'bot-over-hop')?.deliveries).toBeUndefined();

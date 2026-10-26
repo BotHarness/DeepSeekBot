@@ -2164,6 +2164,7 @@ describe('DSH Bot Agent adapter', () => {
     expect(rolePrompt).toContain('report at real milestones');
     expect(rolePrompt).toContain('Never stop with work half done and no status');
     expect(rolePrompt).toContain('If bot_send_message returns notWoken');
+    expect(rolePrompt).not.toContain('speak only to move it forward');
     expect(rolePrompt).toContain('Respect requests for silence');
     expect(rolePrompt).toContain('Use the same tool for Group/Bot DM, attachments and external IM');
     expect(rolePrompt).toContain('do not retry uncertain sends blindly');

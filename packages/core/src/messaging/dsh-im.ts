@@ -179,7 +179,7 @@ const inboundSchema = z
     eventId: identifier,
     messageId: identifier,
     actor: z
-      .object({ kind: z.literal('user'), id: identifier, name: identifier.optional() })
+      .object({ kind: z.enum(['user', 'bot']), id: identifier, name: identifier.optional() })
       .strict()
       .transform(({ name, ...actor }) => ({ ...actor, ...(name === undefined ? {} : { name }) })),
     conversation: z
@@ -302,6 +302,12 @@ const inboundSchema = z
     {
       message: 'Invalid voice source',
     },
+  )
+  .refine(
+    (event) =>
+      event.actor.kind === 'user' ||
+      (event.conversation.kind === 'group' && event.mentionedAccount),
+    { message: 'Bot senders are accepted only when they mention this account in a group' },
   );
 
 function providerFailure(error: unknown): MessagingProviderError {

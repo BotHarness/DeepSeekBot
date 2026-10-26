@@ -2146,9 +2146,9 @@
       "path": "scripts/e2e-llm-scenarios.mjs",
       "category": "mapped",
       "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step); classification unchanged.",
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged.",
       "task": 2872,
-      "sha256": "0e651053c6f862aa20ff3e341be1503a94d14cb9905f056ba759e6164806919c"
+      "sha256": "f26d7a2fb7e4340c59d7897c454c4cc7f15e9412a436da2e61fbb5edfec9b3d2"
     },
     {
       "path": "scripts/e2e-tob-channel-management.mjs",

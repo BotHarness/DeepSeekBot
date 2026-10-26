@@ -374,7 +374,7 @@ export interface ChannelMessagePerf {
   estimated: boolean;
 }
 
-export const MAX_BOT_HOPS = 8;
+export const MAX_BOT_HOPS = 32;
 
 export const CHANNEL_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const MAX_CHANNEL_SLUG_LENGTH = 64;

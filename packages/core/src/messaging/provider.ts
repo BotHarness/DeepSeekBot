@@ -81,7 +81,7 @@ export interface MessagingInboundEvent {
   fingerprint: string;
   eventId: string;
   messageId: string;
-  actor: { kind: 'user' | 'agent'; id: string; name?: string };
+  actor: { kind: 'user' | 'agent' | 'bot'; id: string; name?: string };
   cloudWork?: WorkRequest;
   conversation: { kind: 'group' | 'dm'; id: string; name?: string };
   mentions: { id: string; key: string; name?: string }[];
