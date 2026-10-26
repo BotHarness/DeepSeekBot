@@ -72,8 +72,22 @@ describe('prompt inspection', () => {
     );
   });
 
-  it('reads the logged system prompt and ignores empty system nodes', () => {
+  it('reads the latest logged system prompt and ignores empty system nodes', () => {
     expect(systemPromptFromLog(events)).toBe('You are Ada.');
+    expect(
+      systemPromptFromLog([
+        ...events,
+        {
+          type: 'system/message',
+          time: 2_000,
+          data: {
+            turn: 2,
+            step: 1,
+            message: { role: 'system', content: [text('You are Ada 2.')] },
+          },
+        },
+      ] as never),
+    ).toBe('You are Ada 2.');
     expect(systemPromptFromLog([])).toBeNull();
   });
 });

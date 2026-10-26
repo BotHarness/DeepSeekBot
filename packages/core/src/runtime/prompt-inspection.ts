@@ -60,7 +60,7 @@ export function systemPromptFromLog(events: readonly DshSessionEvent[]): string 
     .filter((event) => event.type === 'system/message')
     .map((event) => messageText(object(event.data)['message']))
     .filter((text) => text !== '');
-  return texts.length === 0 ? null : texts.join('\n\n');
+  return texts.at(-1) ?? null;
 }
 
 export function summarizeTurnInput(

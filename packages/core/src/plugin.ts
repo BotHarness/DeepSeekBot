@@ -2367,7 +2367,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .filter((event) => event?.type === 'system/message')
         .map((event) => messageText((event!.data as { message: unknown }).message))
         .filter((text) => text !== '');
-      const effectiveText = nodes.length === 0 ? null : nodes.join('\n\n');
+      const effectiveText = nodes.at(-1) ?? null;
       const assembly = await agent.ctx.systemPrompt.assemble(assembleContextFor(agent));
       const text = renderPrompt(assembly);
       return {
