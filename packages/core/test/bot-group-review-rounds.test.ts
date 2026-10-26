@@ -74,7 +74,7 @@ describe('Bot-to-Bot review rounds in one Group', () => {
   });
 
   it('tells the sender when the hop limit stops the colleague from waking', async () => {
-    const { runs, receipts } = await reviewRounds(10);
+    const { runs, receipts } = await reviewRounds(MAX_BOT_HOPS);
     const lastRound = Math.ceil(MAX_BOT_HOPS / 2) + 1;
     expect(runs.filter((slug) => slug === 'aura')).toHaveLength(lastRound - 1);
     expect(receipts).toHaveLength(lastRound);
@@ -86,8 +86,8 @@ describe('Bot-to-Bot review rounds in one Group', () => {
   });
 });
 
-describe('Ordinary Group delivery later in one Bot exchange', () => {
-  it('keeps a seen colleague informed without waking it again', async () => {
+describe('Ordinary Group delivery throughout one Bot exchange', () => {
+  it('wakes an all-messages colleague on every later message in the exchange', async () => {
     const runs: string[] = [];
     let groupId = '';
     const core = createCore({
@@ -129,7 +129,7 @@ describe('Ordinary Group delivery later in one Bot exchange', () => {
         .filter((message) => message.author.kind === 'bot')
         .map((message) => message.deliveries?.some((delivery) => delivery.botSlug === 'atlas'));
       expect(atlas.every(Boolean)).toBe(true);
-      expect(runs.filter((slug) => slug === 'atlas').length).toBeLessThan(atlas.length);
+      expect(runs.filter((slug) => slug === 'atlas').length).toBeGreaterThan(1);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

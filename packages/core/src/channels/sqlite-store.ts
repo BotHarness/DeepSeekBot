@@ -878,16 +878,6 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               origin.sessionId,
               durable.author.slug,
             );
-          const botAlreadyAdmitted = (targetSlug: string, rootId: string): boolean =>
-            db
-              .prepare(`
-              SELECT 1 FROM inbox_admissions a
-              JOIN source_events e ON e.source_event_id = a.source_event_id
-              WHERE a.bot_slug = ? AND e.source_kind = 'bot-message'
-                AND json_extract(e.payload_json, '$.botCausation.rootSourceEventId') = ?
-              LIMIT 1
-            `)
-              .get(targetSlug, rootId) !== undefined;
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
@@ -938,20 +928,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                   const sourceRule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
                   const policy =
                     channel.wakePolicies?.[botSlug] ?? defaultGroupWakePolicy(sourceRule);
-                  const chainSeen =
-                    durable.author.kind === 'bot' &&
-                    durable.botCausation !== undefined &&
-                    botAlreadyAdmitted(botSlug, durable.botCausation.rootSourceEventId);
-                  return [
-                    {
-                      botSlug,
-                      policy:
-                        chainSeen && policy.mode !== 'silent'
-                          ? { ...policy, mode: 'mentions' as const }
-                          : policy,
-                      sourceRule,
-                    },
-                  ];
+                  return [{ botSlug, policy, sourceRule }];
                 })
               : [];
           for (const recipient of recipients)

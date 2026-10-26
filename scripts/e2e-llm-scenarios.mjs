@@ -72,6 +72,10 @@ const CAST = {
     displayName: '叙事 Atlas',
     persona: '你是叙事策划 Atlas，负责故事和文案。任务很小就直接在群里给出结果。',
   },
+  vera: {
+    displayName: '质检 Vera',
+    persona: '你是质检 Vera，负责审核同事的产出并指出需要修改的地方。',
+  },
 };
 
 const REPORT_RULE = '大家都只在被 @ 时才会被唤醒，所以完成后必须在群消息里 @总控 Nexus 汇报结果。';
@@ -289,6 +293,61 @@ export const SCENARIOS = [
         throw new Error('no receipt was sent before the first phase started');
       if (!at.some((time) => time > first && time < last))
         throw new Error('no progress was reported while the later phases ran');
+    },
+  },
+  {
+    id: 'department-task',
+    summary:
+      'A Human hands one task to a Group where every Bot wakes on every message; the colleagues start, work it through together, deliver, and then go quiet.',
+    areas: [...RUNTIME_AREAS, 'packages/core/src/runtime/dsh-bot-agent-adapter.ts'],
+    bots: ['nexus', 'aura', 'atlas', 'vera'],
+    async run(ctx) {
+      const group = await ctx.group(['nexus', 'aura', 'atlas', 'vera'], 'all');
+      await ctx.humanSend(
+        group,
+        '部门任务：为新游戏《像素远征》做一份发布方案。美工 Aura 给出一套像素风配色（3 个色值），叙事 Atlas 写 3 句宣传口号，质检 Vera 审核两份产出并对每份至少提一条修改意见，Aura 和 Atlas 按意见修改，最后总控 Nexus 汇总成最终方案发在群里，以「【最终方案】」开头。由 Nexus 负责推进，大家自己协调。',
+      );
+      const isBot = (message) =>
+        ['nexus', 'aura', 'atlas', 'vera'].some((key) => ctx.isBot(message, key));
+      const final = await ctx.waitFor(
+        'Nexus posts the final plan after everyone contributed',
+        () => {
+          const messages = ctx.messages(group);
+          const done = messages.find(
+            (message) =>
+              ctx.isBot(message, 'nexus') && /^(?:@\S+\s*)*【最终方案】/.test(message.body.trim()),
+          );
+          const everyone = ['aura', 'atlas', 'vera'].every((key) =>
+            messages.some((message) => ctx.isBot(message, key)),
+          );
+          return done && everyone ? done : undefined;
+        },
+      );
+      const revised = ['aura', 'atlas'].every(
+        (key) =>
+          ctx
+            .messages(group)
+            .filter(
+              (message) =>
+                ctx.isBot(message, key) && message.channelRevision < final.channelRevision,
+            ).length >= 2,
+      );
+      if (!revised) throw new Error('Aura and Atlas did not both revise after the review');
+      const quietBy = Date.now() + 300_000;
+      for (;;) {
+        await ctx.settle(10);
+        const newest = Date.parse(ctx.messages(group).filter(isBot).at(0)?.at ?? final.at);
+        if (Date.now() - newest >= 60_000) break;
+        if (Date.now() >= quietBy)
+          throw new Error('the Group had not gone quiet five minutes after the final plan');
+      }
+      const after = ctx
+        .messages(group)
+        .filter((message) => isBot(message) && message.channelRevision > final.channelRevision);
+      const total = ctx.messages(group).filter(isBot).length;
+      ctx.note({ botMessages: total, afterFinal: after.length });
+      if (after.length > 2)
+        throw new Error(`the Group kept talking after the final plan: ${after.length} messages`);
     },
   },
   {
@@ -683,6 +742,9 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       }
     },
     slug: (key) => slugs[key],
+    note(values) {
+      log.notes = { ...log.notes, ...values };
+    },
     memoryFileTime(key, path) {
       try {
         return statSync(join(instance.home, 'botharness', 'bots', slugs[key], 'memory', path))
@@ -703,6 +765,9 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       return dm.channel.id;
     },
     async mentionsOnlyGroup(keys) {
+      return ctx.group(keys, 'mentions');
+    },
+    async group(keys, mode) {
       const created = await call('channelCreate', {
         name: `LLM e2e ${scenario.id} ${Date.now()}`,
         members: keys.map((key) => slugs[key]),
@@ -712,7 +777,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
         await call('channelGroupWakeSet', {
           channelId,
           botSlug: slugs[key],
-          mode: 'mentions',
+          mode,
           count: 5,
           intervalSeconds: 30,
         });
