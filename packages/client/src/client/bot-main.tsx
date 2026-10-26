@@ -115,6 +115,8 @@ import {
   readingBots,
 } from './channel-delivery-receipt.js';
 import { BotInboxDialog } from './bot-inbox-dialog.js';
+import { StreamReplies } from './stream-replies.js';
+import { useMessageArrivals } from './message-arrivals.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -395,15 +397,18 @@ function ReplyIcon(): ReactElement {
 
 const SEARCH_PANEL_GAP_PX = 8;
 const BUBBLE_LONG_PRESS_MS = 500;
+const WORKING_ROWS_TRANSITION_MS = 260;
 const BUBBLE_LONG_PRESS_TOLERANCE_PX = 10;
 
 export function MessageBubbleWrap({
   message,
+  entering = false,
   focused,
   onContextMenu,
   children,
 }: {
   message: ChannelMessage;
+  entering?: boolean;
   focused: boolean;
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   children?: ReactNode;
@@ -433,7 +438,7 @@ export function MessageBubbleWrap({
   return (
     <div
       ref={mount}
-      className={`bh-bubble-wrap${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
+      className={`bh-bubble-wrap${entering ? ' bh-bubble-enter' : ''}${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
       data-message-id={message.id}
       {...(selection?.active === true && selectable
         ? {
@@ -544,6 +549,7 @@ const NO_HUMAN_MEMBERS: readonly ChannelHumanMember[] = [];
 const MessageGroupView = memo(function MessageGroupView({
   humanMembers = [],
   group,
+  arrivals,
   channelId,
   bots,
   focusMessageId,
@@ -567,6 +573,7 @@ const MessageGroupView = memo(function MessageGroupView({
   humanMembers?: readonly ChannelHumanMember[];
   gallery?: Gallery | undefined;
   group: MessageGroup;
+  arrivals?: ReadonlySet<string> | undefined;
   channelId?: string | undefined;
   focusMessageId?: string | undefined;
   currentDmBotSlug?: string | undefined;
@@ -742,6 +749,7 @@ const MessageGroupView = memo(function MessageGroupView({
             <MessageBubbleWrap
               key={message.id}
               message={message}
+              entering={arrivals?.has(message.id) === true}
               focused={focusMessageId === message.id}
               onContextMenu={onContextMenu}
             >
@@ -1122,6 +1130,7 @@ function ConversationView({
     return () => window.clearInterval(timer);
   }, [inboxOpen, dockBotSlug, actions]);
   const sendKey = useContext(ComposerSendKeyContext);
+  const streamReplies = useContext(StreamReplies);
   const settingsScope = resolveChannelSidebarContext(state)?.scope ?? 'channel';
   const settingsEntries = useSyncExternalStore(
     channelSidebar.subscribe,
@@ -1254,6 +1263,7 @@ function ConversationView({
     return true;
   };
   const followingLatest = useScopedRef(scopeKey, true);
+  const pinnedWorkingRows = useScopedRef<string | undefined>(scopeKey, undefined);
   const companionReadMount = useMountedResource<HTMLElement>(
     (pane) => {
       let visible: boolean | undefined;
@@ -1339,7 +1349,8 @@ function ConversationView({
     () => dmMemoryDisplaySnapshot(dmBotSlug),
   );
   const messages = conversation.messages;
-  const timelineDrafts = conversation.timeline.hasNewer ? undefined : conversation.drafts;
+  const timelineDrafts =
+    conversation.timeline.hasNewer || !streamReplies ? undefined : conversation.drafts;
   const displayMessages = useMemo<readonly ChannelMessage[]>(() => {
     const visible = visibleDmMessages(messages, hiddenActions);
     if (timelineDrafts === undefined || timelineDrafts.length === 0) return visible;
@@ -1456,7 +1467,7 @@ function ConversationView({
                 ? `${composerFacepile[0]?.name ?? 'PersonaBot'} ${personaBotPresentationSummary(composerFacepile[0]?.state ?? 'idle', composerFacepile[0]?.activity, composerFacepile[0]?.attention, t)}`
                 : t('main.activity.bots', { count: composerFacepile.length }),
           };
-  const streamingBotSlugs = new Set(conversation.drafts.map((item) => item.botSlug));
+  const streamingBotSlugs = new Set(timelineDrafts?.map((item) => item.botSlug));
   const latestMessage = messages.findLast(
     (item) =>
       item.botDmAction === undefined &&
@@ -2107,6 +2118,14 @@ function ConversationView({
     () => groupChannelMessages(displayMessages, unreadAfter),
     [displayMessages, unreadAfter],
   );
+  const arrivalIds = useMemo(
+    () =>
+      displayMessages
+        .filter((item) => !streamReplies || item.author.kind !== 'bot')
+        .map((item) => item.id),
+    [displayMessages, streamReplies],
+  );
+  const arrivals = useMessageArrivals(channelId, arrivalIds, conversation.status === 'ready');
   const galleryImages = useMemo<GalleryImage[]>(
     () =>
       channelId === undefined
@@ -2217,8 +2236,23 @@ function ConversationView({
         }
         if (conversation.status === 'ready') scheduleReadMark();
       });
+      const pinUntil = performance.now() + WORKING_ROWS_TRANSITION_MS;
+      let pin = 0;
+      const follow = (): void => {
+        if (!followingLatest.current) return;
+        element.scrollTop = element.scrollHeight;
+        if (performance.now() < pinUntil) pin = window.requestAnimationFrame(follow);
+      };
+      if (
+        followingLatest.current &&
+        pinnedWorkingRows.current !== undefined &&
+        pinnedWorkingRows.current !== workingRowsKey
+      )
+        pin = window.requestAnimationFrame(follow);
+      pinnedWorkingRows.current = workingRowsKey;
       return () => {
         window.cancelAnimationFrame(frame);
+        window.cancelAnimationFrame(pin);
         window.clearTimeout(focusTimer);
         scrollRef.current = null;
       };
@@ -3031,6 +3065,7 @@ function ConversationView({
                         <MessageGroupView
                           humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
                           group={group}
+                          arrivals={arrivals}
                           reading={reading}
                           channelId={channelId}
                           actions={actions}
@@ -3709,19 +3744,26 @@ export function BotMain({
     () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
     () => false,
   );
+  const streamReplies = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().streamReplies ?? false,
+    () => false,
+  );
   return (
     <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
-      <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-        <MessageDeveloperMode.Provider value={developerMode}>
-          <ComposerSendKeyContext.Provider value={sendKey}>
-            <AppearanceContext.Provider value={appearance}>
-              <Workspace options={workspace} t={props.t ?? zhTranslate}>
-                <BotMainContent {...props} />
-              </Workspace>
-            </AppearanceContext.Provider>
-          </ComposerSendKeyContext.Provider>
-        </MessageDeveloperMode.Provider>
-      </AutoCollapseMessages.Provider>
+      <StreamReplies.Provider value={streamReplies}>
+        <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+          <MessageDeveloperMode.Provider value={developerMode}>
+            <ComposerSendKeyContext.Provider value={sendKey}>
+              <AppearanceContext.Provider value={appearance}>
+                <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                  <BotMainContent {...props} />
+                </Workspace>
+              </AppearanceContext.Provider>
+            </ComposerSendKeyContext.Provider>
+          </MessageDeveloperMode.Provider>
+        </AutoCollapseMessages.Provider>
+      </StreamReplies.Provider>
     </DeliveryReceiptsVisible.Provider>
   );
 }

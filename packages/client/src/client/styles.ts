@@ -3332,10 +3332,29 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 /* Client-only working rows under the latest message: the composer status
    stays the live region, so these rows are hidden from assistive tech. */
 .bh-timeline-working {
-  margin-top: ${space.x3};
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: scale(0.92);
+  transform-origin: left bottom;
+  transition:
+    grid-template-rows 220ms var(--ds-ease-in-out),
+    opacity 180ms var(--ds-ease-in-out),
+    transform 220ms var(--ds-ease-in-out);
 }
+.bh-timeline-working[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: none;
+}
+.bh-timeline-working-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+html[data-botharness-motion='reduce'] .bh-timeline-working { transition: none; }
 .bh-timeline-working-row {
   display: flex;
+  padding-top: ${space.x3};
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
@@ -3483,6 +3502,16 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 }
 .bh-bubble-wrap + .bh-bubble-wrap {
   margin-top: ${space.x1};
+}
+.bh-bubble-enter {
+  transform-origin: left bottom;
+  animation: bh-bubble-enter 240ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.bh-message-group-me .bh-bubble-enter { transform-origin: right bottom; }
+html[data-botharness-motion='reduce'] .bh-bubble-enter { animation: none; }
+@keyframes bh-bubble-enter {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
 }
 .bh-bubble {
   text-align: left;

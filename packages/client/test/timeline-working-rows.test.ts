@@ -141,7 +141,7 @@ describe('TimelineWorkingRowsView', () => {
         t: zhTranslate,
       }),
     );
-    expect(html).toContain('<div class="bh-timeline-working" aria-hidden="true">');
+    expect(html).toContain('<div class="bh-timeline-working" data-open="true" aria-hidden="true">');
     expect(html).toContain('data-state="working"');
     expect(html).toContain('data-effect="searching"');
     expect(html).toContain('width:28px;height:28px');
@@ -165,12 +165,14 @@ describe('TimelineWorkingRowsView', () => {
     expect(html).toContain('summary">正在工作<span');
   });
 
-  it('renders nothing without active Bots and counts Bots past the cap', () => {
+  it('collapses without active Bots and counts Bots past the cap', () => {
     expect(
       renderToStaticMarkup(
         createElement(TimelineWorkingRowsView, { rows: { items: [], more: 0 }, t: zhTranslate }),
       ),
-    ).toBe('');
+    ).toBe(
+      '<div class="bh-timeline-working" data-open="false" aria-hidden="true"><div class="bh-timeline-working-clip"></div></div>',
+    );
     expect(
       renderToStaticMarkup(
         createElement(TimelineWorkingRowsView, {

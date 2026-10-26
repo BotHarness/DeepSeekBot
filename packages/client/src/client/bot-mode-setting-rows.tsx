@@ -317,6 +317,27 @@ export function DeliveryReceiptsSetting({
   );
 }
 
+export function StreamRepliesSetting({
+  t,
+  useBotModePrefs,
+  setStreamReplies,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.streamReplies);
+  return (
+    <SettingsRow
+      title={t('message.stream.row.title')}
+      description={t('message.stream.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setStreamReplies}
+          label={t('message.stream.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeveloperModeSetting({
   t,
   useBotModePrefs,

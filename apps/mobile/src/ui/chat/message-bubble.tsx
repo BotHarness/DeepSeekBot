@@ -42,7 +42,6 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
 import { haptic } from '../haptics';
-import { useMounted } from '../mounted';
 import { useStrings, t } from '../strings';
 import {
   BADGE_OVERLAP,
@@ -57,6 +56,7 @@ import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
+import { PopIn, usePopIn } from './pop-in';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
 
@@ -351,16 +351,12 @@ export const MessageBubble = memo(function MessageBubble({
     entered.add(rowKey);
     return fresh;
   });
-  const reduced = useReducedMotion();
-  const appear = useSharedValue(enter && !reduced ? 0 : 1);
-  const appearing = useAnimatedStyle(() => ({
-    opacity: appear.value,
-    transform: [{ scale: 0.6 + 0.4 * appear.value }],
-  }));
-  const reveal = useMounted<ViewInstance>(() => {
-    if (appear.value < 1)
-      appear.value = withTiming(1, { duration: motion.bubble, easing: Easing.out(Easing.quad) });
-  }, []);
+  const pop = usePopIn(enter);
+  const [readingStill, setReadingStill] = useState(readers.length > 0);
+  if (readingStill && readers.length === 0) setReadingStill(false);
+  const [reactionsStill] = useState(
+    () => new Set((message.reactions ?? []).map((reaction) => reaction.emoji)),
+  );
   if (message.author === 'system')
     return (
       <View
@@ -433,14 +429,14 @@ export const MessageBubble = memo(function MessageBubble({
   const badged = reactions.length > 0 || reading.length > 0;
   const framed = (
     <Animated.View
-      ref={reveal}
+      ref={pop.ref}
       style={[
         {
           alignSelf: human ? 'flex-end' : 'flex-start',
           maxWidth: BUBBLE_MAX,
           transformOrigin: human ? 'right bottom' : 'left bottom',
         },
-        appearing,
+        pop.style,
       ]}
     >
       {content}
@@ -460,6 +456,7 @@ export const MessageBubble = memo(function MessageBubble({
           {reactions.length === 0 ? null : (
             <ReactionChips
               reactions={reactions}
+              still={reactionsStill}
               human={human}
               botName={botName}
               {...(onReact === undefined
@@ -471,9 +468,12 @@ export const MessageBubble = memo(function MessageBubble({
             />
           )}
           {reading.length === 0 ? null : (
-            <View style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}>
+            <PopIn
+              enabled={!readingStill}
+              style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}
+            >
               <ReadingBadge messageId={message.id} readers={reading} bots={bots} />
-            </View>
+            </PopIn>
           )}
         </View>
       ) : null}

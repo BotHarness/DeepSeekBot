@@ -106,6 +106,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotMain } from '../src/client/bot-main.js';
+import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
@@ -150,6 +151,7 @@ async function open(
   bots: BotSummary[],
   from: 'bot' | 'channel' = 'bot',
   companion?: WindowCompanions,
+  prefs?: BotModePrefs,
 ): Promise<HTMLElement> {
   await act(async () => {
     store.setRoster(bots, [channel]);
@@ -170,6 +172,7 @@ async function open(
         actions,
         channelSidebar: createChannelSidebarRegistry(),
         companion,
+        prefs,
       }),
     );
   });
@@ -187,7 +190,9 @@ function layout(element: HTMLElement, scrollHeight: number, clientHeight = 400):
 
 const rowNames = (): string[] =>
   Array.from(
-    container.querySelectorAll<HTMLElement>('.bh-timeline-working .bh-persona-avatar'),
+    container.querySelectorAll<HTMLElement>(
+      '.bh-timeline-working[data-open="true"] .bh-persona-avatar',
+    ),
   ).map((avatar) => (avatar.getAttribute('title') ?? '').split(' · ')[0]!.toLowerCase());
 
 beforeEach(() => {
@@ -224,7 +229,8 @@ describe('timeline working rows in the Channel body', () => {
     expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe('停止 Mira');
 
     await setBots([bot('mira', 'Mira', 'idle')], dm);
-    expect(chat.querySelector('.bh-timeline-working')).toBeNull();
+    expect(chat.querySelector('.bh-timeline-working')?.getAttribute('data-open')).toBe('false');
+    expect(rowNames()).toEqual([]);
     expect(container.querySelector('.bh-stop-btn')).toBeNull();
   });
 
@@ -247,11 +253,39 @@ describe('timeline working rows in the Channel body', () => {
     expect(container.querySelectorAll('.bh-timeline-working-row')).toHaveLength(1);
   });
 
-  it('replaces the row with the Bot streaming draft', async () => {
+  it('keeps the Bot in the row and hides its draft until the reply is complete', async () => {
     const chat = await open(group, [
       bot('mira', 'Mira', 'working'),
       bot('nova', 'Nova', 'working'),
     ]);
+    await act(async () =>
+      store.setConversation({
+        drafts: [
+          {
+            channelId: group.id,
+            draftId: 'draft-mira',
+            attemptId: 'attempt-1',
+            revision: 1,
+            botSlug: 'mira',
+            body: 'Found three sources',
+          },
+        ],
+      }),
+    );
+    expect(rowNames()).toEqual(['mira', 'nova']);
+    expect(chat.querySelector('[data-message-id="draft-mira"]')).toBeNull();
+  });
+
+  it('replaces the row with the Bot streaming draft when streaming is on', async () => {
+    const prefs = new BotModePrefs();
+    prefs.setStreamReplies(true);
+    const chat = await open(
+      group,
+      [bot('mira', 'Mira', 'working'), bot('nova', 'Nova', 'working')],
+      'bot',
+      undefined,
+      prefs,
+    );
     await act(async () =>
       store.setConversation({
         drafts: [

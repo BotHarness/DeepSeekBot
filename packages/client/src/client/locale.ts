@@ -1821,6 +1821,9 @@ export const zh = {
   'message.delivery.history': '收件记录',
   'message.delivery.row.title': '显示收件与已读状态',
   'message.delivery.row.description': '在消息旁用头像显示每个 Bot 和成员的收件、处理和已读状态',
+  'message.stream.row.title': '逐字显示 Bot 回复',
+  'message.stream.row.description':
+    '关闭时，Bot 写完整条回复后再出现，写作期间在消息列表底部显示正在输入',
   'message.reading': '{names} 正在阅读',
   'message.failed': '发送失败',
   'message.failedRestore': '将失败消息放回输入框修改后重发',
@@ -6339,6 +6342,9 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.delivery.row.title': 'Show delivery and read status',
   'message.delivery.row.description':
     'Show avatars beside messages for whether each Bot and member received, handled or read them',
+  'message.stream.row.title': 'Stream Bot replies as they are written',
+  'message.stream.row.description':
+    'When off, a Bot reply appears once it is complete, and the bottom of the list shows that the Bot is typing meanwhile',
   'message.reading': '{names} reading',
   'message.failed': 'Failed to send',
   'message.failedRestore': 'Restore failed message to composer to edit and resend',
