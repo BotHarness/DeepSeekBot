@@ -35,3 +35,11 @@ For each changed flow, reviewers verify:
 - The flow works with the platform's input methods, large text, both themes and maintained languages. Record untested platforms and accessibility modes separately.
 
 Use the relevant platform's runtime verification and PR evidence requirements. A shorter paragraph or an attractive screenshot alone does not demonstrate a usable interaction.
+
+## Message actions and read failures
+
+Use the Web `ds/action-button` module or the native `primitives/button` adapter for card actions. Callers supply a semantic icon, a short action label, tone, pending state and their existing callback. The adapter owns the filled surface, icon colour, wrapping, disabled treatment and accessible pending state. Secondary actions must remain distinguishable from their containing message bubble. Keep the action name visible while pending; do not turn every action into an identical loading label.
+
+Use `ds/read-failure` or native `primitives/read-failure` for standalone failed reads. Keep the summary short and native diagnostic details behind a disclosure. Reloading a failed read is valid; it must not replay an approval, message or other mutation. Approval and question cards retain their owning request guards and keyboard/focus contract.
+
+Session maintenance uses the shared `session-maintenance` controller, scoped to a Host client and Bot DM. Failure cards and usage panels observe the same in-flight operation and outcome. Compact and new Session never resend messages. Group channels and Assignment failures do not expose these actions; the Host remains authoritative for busy and permission refusals.

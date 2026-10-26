@@ -1,3 +1,4 @@
+import { sessionMaintenanceFor } from '../../../../packages/client/src/shared/session-maintenance';
 export interface SessionFailure {
   role: 'orchestrator' | 'assignment';
   sessionId: string;
@@ -32,26 +33,15 @@ export function sessionFailure(value: unknown): SessionFailure | undefined {
   };
 }
 
-export async function maintainSessionFailure(
+export function createFailureMaintenance(
   client: { call(method: string, args: Record<string, unknown>): Promise<unknown> },
   channelId: string,
   failure: SessionFailure,
-  action: 'compact' | 'new-session',
-): Promise<'new' | 'compacted' | 'nothing'> {
-  if (failure.role !== 'orchestrator' || !channelId.startsWith('dm-') || channelId.length === 3)
-    throw new Error('Session maintenance is only available in a Bot DM');
-  const slug = channelId.slice(3);
-  if (action === 'new-session') {
-    await client.call('botNewSession', { slug });
-    return 'new';
-  }
-  const result = await client.call('botCompact', { slug });
-  if (
-    result &&
-    typeof result === 'object' &&
-    'outcome' in result &&
-    (result.outcome === 'compacted' || result.outcome === 'nothing')
-  )
-    return result.outcome;
-  throw new Error('Compaction did not finish');
+) {
+  const slug =
+    failure.role === 'orchestrator' && channelId.startsWith('dm-') ? channelId.slice(3) : undefined;
+  return sessionMaintenanceFor(client, channelId, slug, {
+    compact: (slug) => client.call('botCompact', { slug }),
+    newSession: (slug) => client.call('botNewSession', { slug }),
+  });
 }

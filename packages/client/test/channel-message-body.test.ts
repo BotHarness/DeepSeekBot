@@ -38,6 +38,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconDownloadOutlineRegular: () => null,
   IconPlayOutlineRegular: () => null,
   IconPauseOutlineRegular: () => null,
+  IconRefreshOutlineRegular: () => null,
   IconEllipsisOutlineRegular: () => null,
   IconFolderOpenOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,

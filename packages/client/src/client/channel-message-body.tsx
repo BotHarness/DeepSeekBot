@@ -1,4 +1,5 @@
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
@@ -13,7 +14,6 @@ import { ClearedMessageAttachment, MessageAttachment } from './message-attachmen
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
-  Button,
   FileTypeIcon,
   fileSizeText,
   MarkdownText,
@@ -22,7 +22,7 @@ import {
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { BridgeCallError, errorMessage } from './bridge.js';
+import { errorMessage } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { botNameSource, paintBotName } from './bot-primary-color.js';
 import { openModelsSettings } from './bot-settings-open.js';
@@ -92,51 +92,16 @@ function SessionFailureNotice({
 }): ReactElement {
   const host = useMessageHost();
   const failure = message.sessionFailure!;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
   const [reportOpen, setReportOpen] = useState(false);
-  const submitting = useRef(false);
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
-  const canRecover =
-    failure.role === 'orchestrator' && botSlug && channelId === `dm-${botSlug}` && actions;
-  const recover = (action: 'compact' | 'new-session') => {
-    if (submitting.current || !canRecover || !botSlug) return;
-    submitting.current = true;
-    setBusy(true);
-    setError(undefined);
-    setNotice(undefined);
-    void (async () => {
-      if (action === 'new-session') {
-        await actions.newBotSession(botSlug);
-        setNotice(t('composerCommand.newSessionDone'));
-      } else {
-        const result = await actions.compactBot(botSlug);
-        setNotice(
-          t(
-            result.outcome === 'compacted'
-              ? 'composerContext.compacted'
-              : result.outcome === 'nothing'
-                ? 'composerContext.compactNothing'
-                : result.outcome === 'busy'
-                  ? 'failure.recoveryBusy'
-                  : 'composerCompact.failed',
-          ),
-        );
-      }
-    })()
-      .catch((cause) =>
-        setError(
-          cause instanceof BridgeCallError && cause.code === 'bot-busy'
-            ? t('failure.recoveryBusy')
-            : errorMessage(cause),
-        ),
-      )
-      .finally(() => {
-        submitting.current = false;
-        setBusy(false);
-      });
-  };
+  const maintenance = useSessionMaintenance(
+    actions,
+    channelId,
+    failure.role === 'orchestrator' ? botSlug : undefined,
+  );
+  const busy = maintenance.pending !== undefined;
+  const canRecover = maintenance.available;
+  const recover = maintenance.run;
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
   const needsModels =
     host === undefined &&
@@ -173,41 +138,41 @@ function SessionFailureNotice({
         <div className="bh-session-failure-raw">{failure.detail}</div>
         <code>{failure.sessionId}</code>
       </details>
-      <div className="bh-message-card-actions">
+      <ActionGroup>
         {canRecover ? (
           <>
-            <Button
-              className="bh-request-secondary"
+            <ActionButton
+              icon="archive"
               disabled={busy}
+              busy={maintenance.pending === 'compact'}
               onClick={() => recover('compact')}
             >
-              <ChannelSidebarIcon name="archive" />
               {t('composerContext.compactNow')}
-            </Button>
-            <Button
-              className="bh-request-secondary"
+            </ActionButton>
+            <ActionButton
+              icon="plus"
+              busy={maintenance.pending === 'new-session'}
               disabled={busy}
               onClick={() => recover('new-session')}
             >
-              <ChannelSidebarIcon name="plus" />
               {t('composerCommand.newSession')}
-            </Button>
+            </ActionButton>
           </>
         ) : null}
         {channelId && host === undefined ? (
-          <Button className="bh-request-secondary" onClick={() => setReportOpen(true)}>
-            <ChannelSidebarIcon name="message-square" />
+          <ActionButton icon="message-square" onClick={() => setReportOpen(true)}>
             {t('feedback.reportFailure')}
-          </Button>
+          </ActionButton>
         ) : null}
         {needsModels ? (
-          <Button className="bh-request-secondary" onClick={() => openModelsSettings()}>
-            <ChannelSidebarIcon name="settings" />
+          <ActionButton icon="settings" onClick={() => openModelsSettings()}>
             {t('failure.openModels')}
-          </Button>
+          </ActionButton>
         ) : null}
-      </div>
-      {notice ? <p role="status">{notice}</p> : null}
+      </ActionGroup>
+      {maintenance.notice ? (
+        <p role="status">{sessionMaintenanceText(maintenance.notice, t)}</p>
+      ) : null}
       {reportOpen && channelId ? (
         <MessageFeedbackDialog
           channelId={channelId}
@@ -217,7 +182,6 @@ function SessionFailureNotice({
           t={t}
         />
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
     </div>
   );
 }
@@ -311,16 +275,16 @@ export function GrantRequestCard({
     }
   }, [workspacePickerRequest]);
   const chooseButton = (
-    <Button
-      variant="primary"
+    <ActionButton
+      icon="folder-key"
+      tone="primary"
       size={compact ? 'sm' : 'md'}
+      busy={opening}
       disabled={busy || opening}
       onClick={() => open()}
     >
-      {opening
-        ? t('grant.loading')
-        : t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
-    </Button>
+      {t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
+    </ActionButton>
   );
   return (
     <div

@@ -5380,8 +5380,6 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.bh-session-failure-row .bh-message-card-actions button { border-radius: ${radius.lg}; gap: ${space.x2}; }
-.bh-session-failure-row .bh-message-card-actions svg { width: ${space.x4}; height: ${space.x4}; flex: none; }
 .bh-session-failure-details { color: var(--dsw-alias-label-tertiary); }
 .bh-session-failure-details summary { cursor: pointer; }
 .bh-session-failure-details > div, .bh-session-failure-details > code {
@@ -5436,12 +5434,6 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-tool-approval-card .bh-message-card-actions button, .bh-question-card .bh-message-card-actions button { border-color: transparent; border-radius: 999px; }
 .bh-message-card-actions[data-stack] { flex-direction: column; }
 .bh-message-card-actions[data-stack] > button { width: 100%; }
-.bh-message-card-actions .bh-request-primary { border-color: transparent; background: ${color.fg}; color: ${color.base}; }
-.bh-message-card-actions .bh-request-primary:hover:not(:disabled) { background: color-mix(in srgb, ${color.fg} 86%, ${color.base}); }
-.bh-message-card-actions .bh-request-secondary { border-color: transparent; background: var(--bh-surface-selected); color: ${color.fg}; }
-.bh-message-card-actions .bh-request-secondary:hover:not(:disabled) { background: var(--bh-surface-pressed); }
-.bh-message-card-actions .bh-request-danger { border-color: transparent; color: var(--bh-on-surface-danger); background: var(--bh-surface-danger); }
-.bh-message-card-actions .bh-request-danger:hover:not(:disabled) { background: color-mix(in srgb, ${color.danger} 16%, ${color.surface}); }
 .bh-request-done { overflow: hidden; color: var(--dsw-alias-label-secondary); white-space: nowrap; text-overflow: ellipsis; --bh-request-dot: var(--dsw-alias-label-tertiary, currentColor); }
 .bh-request-done::before { content: ''; display: inline-block; width: ${space.x2}; height: ${space.x2}; margin-right: ${space.x2}; border-radius: 999px; background: var(--bh-request-dot); vertical-align: middle; }
 .bh-request-done[data-state='allowed'], .bh-request-done[data-state='remembered'], .bh-request-done[data-state='answered'] { --bh-request-dot: ${color.success}; }
@@ -5471,7 +5463,6 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-tool-approval-diff-mark { display: inline-block; width: 1.5ch; color: var(--dsw-alias-label-tertiary); user-select: none; }
 .bh-tool-approval-confirm { display: grid; gap: ${space.x3}; padding: ${space.x3}; border: ${border.hairline} solid ${color.borderStrong}; border-radius: ${radius.sm}; }
 .bh-tool-approval-confirm { border: 0; border-radius: ${radius.md}; background: ${color.well}; }
-.bh-tool-approval-confirm .bh-request-secondary { background: var(--bh-well-inset); }
 .bh-tool-approval-confirm { --bh-message-card-gap: var(--bh-chat-card-inset); width: 100%; gap: var(--bh-message-card-gap); padding: var(--bh-chat-card-inset); }
 .bh-bot-create-preview { display: grid; gap: ${space.x3}; min-width: 0; padding: ${space.x3}; border-radius: ${radius.md}; background: ${color.well}; }
 .bh-bot-create-identity { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; }

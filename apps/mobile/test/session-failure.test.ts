@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { sessionFailure, maintainSessionFailure } from '../src/host/session-failure';
+import { sessionFailure, createFailureMaintenance } from '../src/host/session-failure';
 
 it('preserves failure identity for recovery without interpreting max-tokens as overflow', () => {
   const failure = sessionFailure({
@@ -26,13 +26,15 @@ it('runs DM maintenance without submitting the failed message again', async () =
     requestMessageId: 'm',
     detail: 'Full',
   };
-  expect(await maintainSessionFailure({ call }, 'dm-ada', failure, 'compact')).toBe('nothing');
+  const maintenance = createFailureMaintenance({ call }, 'dm-ada', failure);
+  await maintenance.run('compact');
+  expect(maintenance.getSnapshot().notice).toBe('nothing');
   expect(call).toHaveBeenLastCalledWith('botCompact', { slug: 'ada' });
-  expect(await maintainSessionFailure({ call }, 'dm-ada', failure, 'new-session')).toBe('new');
+  await maintenance.run('new-session');
+  expect(maintenance.getSnapshot().notice).toBe('new');
   expect(call).toHaveBeenLastCalledWith('botNewSession', { slug: 'ada' });
-  expect(call).toHaveBeenCalledTimes(2);
-  await expect(maintainSessionFailure({ call }, 'group', failure, 'compact')).rejects.toThrow(
-    'Bot DM',
-  );
+  const group = createFailureMaintenance({ call }, 'group', failure);
+  await group.run('compact');
+  expect(group.getSnapshot().notice).toBe('unavailable');
   expect(call).toHaveBeenCalledTimes(2);
 });

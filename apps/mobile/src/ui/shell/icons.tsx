@@ -321,3 +321,27 @@ export function ArchiveIcon(props: IconProps) {
 export function UndoIcon(props: IconProps) {
   return <Glyph {...props} d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />;
 }
+
+export function RefreshIcon(props: IconProps) {
+  return (
+    <Glyph {...props} d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1" />
+  );
+}
+
+export function ShieldCheckIcon(props: IconProps) {
+  return <Glyph {...props} d="M12 3 3 7v5c0 5 9 9 9 9s9-4 9-9V7l-9-4Zm-4 9 3 3 5-5" />;
+}
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M15 3h6v6m0-6L10 14M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-4"
+    />
+  );
+}
+export function TerminalIcon(props: IconProps) {
+  return <Glyph {...props} d="m4 5 6 7-6 7m9 0h7" />;
+}
+export function InfoIcon(props: IconProps) {
+  return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 11v6m0-10v1" />;
+}

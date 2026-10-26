@@ -1,3 +1,4 @@
+import { ActionButton } from './ds/action-button.js';
 import {
   useId,
   useRef,
@@ -6,7 +7,6 @@ import {
   type MouseEvent,
   type ReactElement,
 } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { errorMessage, type ToolApprovalExecutionState } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -486,44 +486,37 @@ export function ToolApprovalCard({
           className="bh-tool-approval-actions bh-message-card-actions"
           data-stack
         >
-          <Button
-            variant="primary"
+          <ActionButton
+            icon="check"
+            tone="primary"
             size={size}
-            className="bh-request-primary"
             disabled={disabled}
-            aria-busy={busy && busyChoice === 'allowed-once'}
+            busy={busy && busyChoice === 'allowed-once'}
             onClick={() => decide('allowed-once')}
           >
-            {t(
-              busy && busyChoice === 'allowed-once'
-                ? 'activityInbox.submitting'
-                : 'approval.allowOnce',
-            )}
-          </Button>
-          <Button
-            variant="outline"
+            {t('approval.allowOnce')}
+          </ActionButton>
+          <ActionButton
+            icon="shield-check"
+
             size={size}
-            className="bh-request-secondary"
             disabled={disabled || !canAlwaysAllow}
-            aria-busy={busy && busyChoice === 'allowed-always-tool'}
+            busy={busy && busyChoice === 'allowed-always-tool'}
             onClick={() => decide('allowed-always-tool')}
           >
-            {t(
-              busy && busyChoice === 'allowed-always-tool'
-                ? 'activityInbox.submitting'
-                : 'approval.allowAlways',
-            )}
-          </Button>
-          <Button
-            variant="outline"
+            {t('approval.allowAlways')}
+          </ActionButton>
+          <ActionButton
+            icon="x"
+
             size={size}
-            className="bh-request-danger"
+            tone="danger"
             disabled={disabled}
-            aria-busy={busy && busyChoice === 'rejected'}
+            busy={busy && busyChoice === 'rejected'}
             onClick={() => decide('rejected')}
           >
-            {t(busy && busyChoice === 'rejected' ? 'activityInbox.submitting' : 'approval.reject')}
-          </Button>
+            {t('approval.reject')}
+          </ActionButton>
         </div>
       ) : status === 'loading' || status === 'unavailable' ? (
         <div role="status" className="bh-note">
@@ -532,13 +525,14 @@ export function ToolApprovalCard({
       ) : null}
       {status === 'unavailable' ? (
         <div className="bh-message-card-actions">
-          <Button
-            variant="outline"
+          <ActionButton
+            icon="refresh"
+
             disabled={companionTarget !== undefined && !qualified()}
             onClick={() => setRetry((value) => value + 1)}
           >
             {t('companion.retryRequest')}
-          </Button>
+          </ActionButton>
         </div>
       ) : null}
       {error === undefined ? null : (

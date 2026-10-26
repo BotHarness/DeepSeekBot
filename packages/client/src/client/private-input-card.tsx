@@ -1,16 +1,11 @@
+import { ActionButton } from './ds/action-button.js';
 import { MethodRefused } from '../../../../apps/mobile/src/host/client.js';
 import { isConnectRoute } from '../../../../apps/mobile/src/host/route.js';
 import { BridgeCallError } from './bridge.js';
 import { useMessageHost } from './message-host.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
-import {
-  Button,
-  Input,
-  Tag,
-  IconCheckOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
@@ -220,38 +215,40 @@ export function PrivateInputCard({
       )}
       {status === 'pending' ? (
         <div className="bh-private-input-actions bh-message-card-actions">
-          <Button
+          <ActionButton
+            icon="check"
             type="submit"
-            variant="primary"
+            tone="primary"
             size="sm"
-            icon={<IconCheckOutlineRegular size={14} />}
+            busy={busy}
             disabled={disabled || connectBlocked}
           >
-            {busy ? t('approval.loading') : t('privateInput.submit')}
-          </Button>
-          <Button
+            {t('privateInput.submit')}
+          </ActionButton>
+          <ActionButton
+            icon="x"
             type="button"
-            variant="toolbar"
+
             size="sm"
-            icon={<IconCloseOutlineRegular size={14} />}
             disabled={disabled}
             onClick={() => void settle(true)}
           >
             {t('privateInput.cancel')}
-          </Button>
+          </ActionButton>
         </div>
       ) : null}
       {error && !routeRefused ? (
         <div className="bh-error" role="alert">
           {t('privateInput.error')}{' '}
-          <Button
+          <ActionButton
+            icon="refresh"
             type="button"
-            variant="primary"
+            tone="primary"
             size="sm"
             onClick={() => setRetry((value) => value + 1)}
           >
             {t('question.retry')}
-          </Button>
+          </ActionButton>
         </div>
       ) : null}
       {status === 'configured' && actions.privateAccountStatus !== undefined ? (

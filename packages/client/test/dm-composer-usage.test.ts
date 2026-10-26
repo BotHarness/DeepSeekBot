@@ -6,6 +6,9 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconChevronRightOutlineRegular: () => null,
   IconCloseOutlineRegular: () => null,
+  IconRefreshOutlineRegular: () => null,
+  Button: ({ children, ...props }: import('react').ButtonHTMLAttributes<HTMLButtonElement>) =>
+    createElement('button', props, children),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';

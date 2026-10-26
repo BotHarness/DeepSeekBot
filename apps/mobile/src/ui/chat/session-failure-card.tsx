@@ -1,8 +1,6 @@
-import { useRef, useState } from 'react';
-import { MethodRefused, type HostClient } from '../../host/client';
-import { maintainSessionFailure, type SessionFailure } from '../../host/session-failure';
-import { useDesignTheme } from '../design/theme';
-import { ArchiveIcon, PlusIcon, MessageIcon } from '../shell/icons';
+import { useMemo, useSyncExternalStore } from 'react';
+import type { HostClient } from '../../host/client';
+import { createFailureMaintenance, type SessionFailure } from '../../host/session-failure';
 import { Text } from '../primitives/text';
 import { Button } from '../primitives/button';
 import { t } from '../strings';
@@ -20,50 +18,24 @@ export function SessionFailureCard({
   failure: SessionFailure;
   onReport?: (() => void) | undefined;
 }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
-  const [notice, setNotice] = useState<string>();
-  const theme = useDesignTheme();
-  const submitting = useRef(false);
-  const maintain = (recovery: 'compact' | 'new-session') => {
-    if (submitting.current) return;
-    submitting.current = true;
-    setBusy(true);
-    setError(undefined);
-    setNotice(undefined);
-    void maintainSessionFailure(client, channelId, failure, recovery)
-      .then((result) =>
-        setNotice(
-          result === 'new'
-            ? t.sessionRecovery.newDone
-            : result === 'compacted'
-              ? t.sessionRecovery.compacted
-              : t.sessionRecovery.nothing,
-        ),
-      )
-      .catch((cause: unknown) =>
-        setError(
-          cause instanceof MethodRefused
-            ? cause.code === 'session-changed'
-              ? t.sessionRecovery.changed
-              : cause.code === 'bot-busy'
-                ? t.sessionRecovery.busy
-                : cause.code === 'compaction-failed'
-                  ? t.sessionRecovery.compactionFailed
-                  : cause.message
-            : cause instanceof Error
-              ? cause.message
-              : t.sessionRecovery.failed,
-        ),
-      )
-      .finally(() => {
-        submitting.current = false;
-        setBusy(false);
-      });
+  const maintenance = useMemo(
+    () => createFailureMaintenance(client, channelId, failure),
+    [client, channelId, failure.role],
+  );
+  const state = useSyncExternalStore(
+    maintenance.subscribe,
+    maintenance.getSnapshot,
+    maintenance.getSnapshot,
+  );
+  const busy = state.pending !== undefined;
+  const notices = {
+    new: t.sessionRecovery.newDone,
+    compacted: t.sessionRecovery.compacted,
+    nothing: t.sessionRecovery.nothing,
+    busy: t.sessionRecovery.busy,
+    failed: t.sessionRecovery.compactionFailed,
+    unavailable: t.sessionRecovery.failed,
   };
-  const recoverable =
-    failure.role === 'orchestrator' && channelId.startsWith('dm-') && channelId.length > 3;
-  const iconProps = { color: theme.color.fg, size: theme.type.body.size };
   return (
     <ActionCard
       category={t.sessionRecovery.failed}
@@ -74,39 +46,39 @@ export function SessionFailureCard({
             ? t.sessionRecovery.outputLimit
             : t.sessionRecovery.details
       }
-      busy={busy}
-      {...(error === undefined ? {} : { error })}
       details={<DetailRow label={t.sessionRecovery.details} value={failure.detail} />}
     >
       <CardButtons>
-        {recoverable ? (
+        {maintenance.available ? (
           <>
             <Button
               label={t.sessionRecovery.compact}
-              icon={<ArchiveIcon {...iconProps} />}
+              symbol="archive"
+              busy={state.pending === 'compact'}
               testID="session-compact"
               disabled={busy}
-              onPress={() => maintain('compact')}
+              onPress={() => void maintenance.run('compact')}
             />
             <Button
               label={t.sessionRecovery.newSession}
-              icon={<PlusIcon {...iconProps} />}
+              symbol="plus"
+              busy={state.pending === 'new-session'}
               testID="session-new"
               disabled={busy}
-              onPress={() => maintain('new-session')}
+              onPress={() => void maintenance.run('new-session')}
             />
           </>
         ) : null}
         {onReport ? (
           <Button
             label={t.sessionRecovery.report}
-            icon={<MessageIcon {...iconProps} />}
+            symbol="message-square"
             testID="session-report"
             onPress={onReport}
           />
         ) : null}
       </CardButtons>
-      {notice ? <Text>{notice}</Text> : null}
+      {state.notice ? <Text accessibilityLiveRegion="polite">{notices[state.notice]}</Text> : null}
     </ActionCard>
   );
 }

@@ -1,17 +1,11 @@
-import {
-  useId,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactElement,
-  type RefObject,
-} from 'react';
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
+import { useId, useState, type CSSProperties, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import {
   IconChevronRightOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
-import { errorMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity, ProfileSessionUsage } from './bridge.js';
 import { botNameSource, paintBotName, paintBotScale } from './bot-primary-color.js';
@@ -43,37 +37,7 @@ export function DmComposerUsagePopover({
   onDetails(): void;
 }): ReactElement {
   const titleId = useId();
-  const [maintenance, setMaintenance] = useState(false);
-  const [notice, setNotice] = useState<string>();
-  const maintenancePending = useRef(false);
-  const maintain = (action: 'compact' | 'new') => {
-    if (maintenancePending.current || channelId !== `dm-${bot.slug}`) return;
-    maintenancePending.current = true;
-    setMaintenance(true);
-    setNotice(undefined);
-    void (async () => {
-      if (action === 'new') {
-        await actions.newBotSession(bot.slug);
-        setNotice(t('composerCommand.newSessionDone'));
-      } else {
-        const value = await actions.compactBot(bot.slug);
-        setNotice(
-          t(
-            value.outcome === 'compacted'
-              ? 'composerContext.compacted'
-              : value.outcome === 'nothing'
-                ? 'composerContext.compactNothing'
-                : 'composerCompact.failed',
-          ),
-        );
-      }
-    })()
-      .catch((error: unknown) => setNotice(errorMessage(error)))
-      .finally(() => {
-        maintenancePending.current = false;
-        setMaintenance(false);
-      });
-  };
+  const maintenance = useSessionMaintenance(actions, channelId, bot.slug);
   const [result, setResult] = useState<ProfileSessionUsage>();
   const [failed, setFailed] = useState(false);
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
@@ -215,19 +179,29 @@ export function DmComposerUsagePopover({
           </>
         )}
       </section>
-      {channelId === `dm-${bot.slug}` ? (
-        <div className="bh-composer-usage-row">
-          <button type="button" disabled={maintenance} onClick={() => maintain('compact')}>
+      {maintenance.available ? (
+        <ActionGroup>
+          <ActionButton
+            icon="archive"
+            busy={maintenance.pending === 'compact'}
+            disabled={maintenance.pending !== undefined}
+            onClick={() => void maintenance.run('compact')}
+          >
             {t('composerContext.compactNow')}
-          </button>
-          <button type="button" disabled={maintenance} onClick={() => maintain('new')}>
+          </ActionButton>
+          <ActionButton
+            icon="plus"
+            busy={maintenance.pending === 'new-session'}
+            disabled={maintenance.pending !== undefined}
+            onClick={() => void maintenance.run('new-session')}
+          >
             {t('composerCommand.newSession')}
-          </button>
-        </div>
+          </ActionButton>
+        </ActionGroup>
       ) : null}
-      {notice ? (
+      {maintenance.notice ? (
         <p role="status" className="bh-composer-usage-caption">
-          {notice}
+          {sessionMaintenanceText(maintenance.notice, t)}
         </p>
       ) : null}
       <h3>{t('composerContext.cumulativeUsage')}</h3>

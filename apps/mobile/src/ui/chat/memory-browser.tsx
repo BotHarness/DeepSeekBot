@@ -1,3 +1,4 @@
+import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
@@ -115,17 +116,7 @@ export function Status({
     );
   return (
     <View style={{ padding: space.x5, gap: space.x3 }}>
-      <Text variant="meta" tone="danger">{`${t.profileFailed} ${state.error}`}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.tryAgain}
-        onPress={onRetry}
-        style={{ minHeight: theme.touch, justifyContent: 'center', alignSelf: 'flex-start' }}
-      >
-        <Text tone="accent" strong>
-          {t.tryAgain}
-        </Text>
-      </Pressable>
+      <ReadFailure title={t.profileFailed} detail={state.error} onRetry={onRetry} />
     </View>
   );
 }

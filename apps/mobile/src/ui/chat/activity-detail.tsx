@@ -1,3 +1,4 @@
+import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, View, type ScrollViewInstance } from 'react-native';
 
@@ -421,21 +422,7 @@ export function ActivityDetailView({
           </View>
         ) : (
           <View style={{ gap: space.x3, paddingTop: space.x3 }}>
-            <Text variant="meta" tone="danger">{`${t.profileFailed} ${state.error}`}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t.tryAgain}
-              onPress={() => read(query)}
-              style={{
-                minHeight: theme.touch,
-                justifyContent: 'center',
-                alignSelf: 'flex-start',
-              }}
-            >
-              <Text tone="accent" strong>
-                {t.tryAgain}
-              </Text>
-            </Pressable>
+            <ReadFailure title={t.profileFailed} detail={state.error} onRetry={() => read(query)} />
           </View>
         )}
       </ScrollView>

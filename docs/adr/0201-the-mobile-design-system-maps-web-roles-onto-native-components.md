@@ -54,3 +54,7 @@ The owner asked for a design system that works on iOS and Android, uses native c
 - New mobile UI reads `useDesignTheme()`. The legacy `src/ui/theme.ts` palette is migrated screen by screen and then deleted.
 - A DSH theme upgrade changes the mobile palette only through `pnpm --filter @botharness/mobile generate:palette`, and the test makes a forgotten regeneration fail.
 - Moving to native tabs, native headers and form sheets touches the app's layouts. It follows the in-flight mobile slices rather than racing them.
+
+## 2026-10-26: shared action semantics
+
+Web and native share semantic action symbols and the transient Bot DM Session-maintenance controller; each platform keeps its rendering adapter. Message cards and failed-read surfaces use the owning action primitive for icon, fill, pending and accessibility rules. Callbacks, permission checks and durable authority stay with their original owners. A Host-client-scoped controller prevents competing compact/new operations across surfaces without introducing a second Session store.
