@@ -87,6 +87,7 @@ export function useFollowLatest<Row>(
   const frame = useRef<number | undefined>(undefined);
   const confirmation = useRef<number | undefined>(undefined);
   const sizes = useRef(0);
+  const hasLayout = useRef(false);
   const settled = useRef(false);
   const attempts = useRef(0);
   useLayoutEffect(() => {
@@ -106,13 +107,12 @@ export function useFollowLatest<Row>(
     const native = event.nativeEvent;
     metrics.current = {
       content:
-        !settled.current && metrics.current.content > 0
+        sizes.current > 0
           ? metrics.current.content
           : (native.contentSize?.height ?? metrics.current.content),
-      layout:
-        !settled.current && metrics.current.layout > 0
-          ? metrics.current.layout
-          : (native.layoutMeasurement?.height ?? metrics.current.layout),
+      layout: hasLayout.current
+        ? metrics.current.layout
+        : (native.layoutMeasurement?.height ?? metrics.current.layout),
       offset: native.contentOffset.y,
     };
     return distanceFromLatest(metrics.current);
@@ -247,6 +247,7 @@ export function useFollowLatest<Row>(
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
+      hasLayout.current = true;
       metrics.current = { ...metrics.current, layout: event.nativeEvent.layout.height };
       pin();
     },

@@ -138,6 +138,71 @@ describe('history-reading gesture ownership', () => {
 });
 
 describe('following a growing conversation', () => {
+  it('keeps the final measured growth when an older scroll arrives after initial placement', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.listProps.onContentSizeChange(0, CONTENT + 79);
+      view.current.listProps.onScroll(event(0));
+    });
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 79, animated: false });
+    expect(view.current.away).toBe(false);
+    view.unmount();
+  });
+
+  it.each([
+    { height: 600, offset: 1400 },
+    { height: 900, offset: 1100 },
+  ])(
+    'pins a measured viewport height of $height despite an older scroll event',
+    ({ height, offset }) => {
+      const view = mount([message('a', 'bot')]);
+      act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+      act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+      flushFrames();
+      act(() => view.current.listProps.onScroll(event(0)));
+      flushFrames();
+      expect(view.current.ready).toBe(true);
+      view.scrollToOffset.mockClear();
+      act(() => {
+        view.current.listProps.onLayout(layout(height));
+        view.current.listProps.onScroll(event(0));
+      });
+      flushFrames();
+      expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset, animated: false });
+      view.unmount();
+    },
+  );
+
+  it('cancels a queued final-growth pin when the Human starts dragging', () => {
+    const view = mount([message('a', 'bot')]);
+    act(() => view.current.listProps.onLayout(layout(LAYOUT)));
+    act(() => view.current.listProps.onContentSizeChange(0, CONTENT));
+    flushFrames();
+    act(() => view.current.listProps.onScroll(event(0)));
+    flushFrames();
+    expect(view.current.ready).toBe(true);
+    view.scrollToOffset.mockClear();
+    act(() => {
+      view.current.listProps.onContentSizeChange(0, CONTENT + 79);
+      view.current.listProps.onScrollBeginDrag();
+      view.current.listProps.onScrollEndDrag(event(200, 0, CONTENT + 79));
+    });
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    expect(view.current.away).toBe(true);
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: END + 79, animated: true });
+    view.unmount();
+  });
+
   it('pins growth to the end at most once per frame without animation while following', () => {
     const view = mount([message('a', 'bot')]);
     act(() => view.current.listProps.onLayout(layout(LAYOUT)));
