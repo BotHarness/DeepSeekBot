@@ -507,6 +507,13 @@ window.__ModuleLoader__.load({
 				["path", { d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" }],
 				["path", { d: "M2 12h20" }]
 			],
+			"panel-right": [["rect", {
+				width: "18",
+				height: "18",
+				x: "3",
+				y: "3",
+				rx: "2"
+			}], ["path", { d: "M15 3v18" }]],
 			"panels-top-left": [
 				["rect", {
 					width: "18",
