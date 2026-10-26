@@ -287,6 +287,9 @@ describe('Orchestrator Assignment Directory query', () => {
         },
       });
       expect(methods.assignments({ slug: 'ada', limit: 0 })).toMatchObject({ ok: false });
+      expect(
+        methods.assignments({ slug: 'ada', query: 'onboarding', activity: [], limit: 20 }),
+      ).toMatchObject({ ok: true, value: { assignments: [{ sessionId: beta }] } });
       expect(methods.assignment({ slug: 'ada', sessionId: delta })).toMatchObject({
         ok: true,
         value: { assignment: { title: 'Startup profiling' } },

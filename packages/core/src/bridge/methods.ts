@@ -5776,7 +5776,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         })
         .safeParse(asObject(payload));
       if (!filter.success) return invalidInput('invalid Assignment Directory query');
-      const { query, activity, includeArchived, limit, cursor } = filter.data;
+      const { query, includeArchived, limit, cursor } = filter.data;
+      const activity = filter.data.activity?.length === 0 ? undefined : filter.data.activity;
       if ([query, activity, includeArchived, limit, cursor].every((value) => value === undefined))
         return { ok: true, value: { assignments } };
       try {
