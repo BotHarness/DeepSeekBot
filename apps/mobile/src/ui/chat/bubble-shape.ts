@@ -8,7 +8,7 @@ export const BUBBLE_MAX = '88%';
 
 export const BADGE_HEIGHT = space.x6 + space.x2;
 
-export const BADGE_OVERLAP = BADGE_HEIGHT / 2;
+export const BADGE_OVERLAP = BADGE_HEIGHT / 2 + space.x2;
 
 export function bubbleCorners(human: boolean, { first, last, avatar = false }: BubbleGroup) {
   return {
