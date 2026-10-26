@@ -81,6 +81,7 @@ vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('../src/ui/haptics', () => ({ haptic: () => {} }));
 
 import { MessageBubble } from '../src/ui/chat/message-bubble';
+import wideTable from './fixtures/markdown-wide-table.json';
 
 beforeEach(() => {
   native.width = 390;
@@ -244,3 +245,21 @@ it('keeps multiple and quoted tables independently scrollable alongside prose', 
   for (const body of ['Before', 'Between', 'After'])
     expect(nodes.some((node) => node.body === body)).toBe(true);
 });
+
+it.each([false, true])(
+  'keeps the shared native QA fixture scrollable (streaming=%s)',
+  (streaming) => {
+    const nodes = layout(wideTable, streaming);
+    const viewport = nodes.find((node) => node.body === 'TABLE_VIEWPORT')!;
+    const content = nodes.find((node) => node.body === 'TABLE_CONTENT')!;
+    expect(content.width).toBeGreaterThan(viewport.width);
+    expect(viewport.width).toBeLessThan(native.width * 0.8);
+    for (const body of [
+      'TABLE_BEFORE_2850',
+      'TABLE_AFTER_2850',
+      'LAST_CELL_2850',
+      'FINAL_CELL_2850',
+    ])
+      expect(nodes.some((node) => node.body === body)).toBe(true);
+  },
+);
