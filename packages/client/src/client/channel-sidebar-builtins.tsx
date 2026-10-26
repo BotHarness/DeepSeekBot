@@ -473,7 +473,7 @@ export function BotInboxItemRow({
       }
       titleClassName="bh-inbox-item-head"
       badge={<Tag tone={INBOX_STATE_TONE[item.state]}>{t(`inbox.state.${item.state}`)}</Tag>}
-      summary={summary || item.assignmentPurpose || t('inbox.system')}
+      summary={summary || item.assignmentTitle || t('inbox.system')}
       hint={summary}
       mainClassName={memoryChange ? 'bh-inbox-item bh-inbox-item-info' : 'bh-inbox-item'}
       state={item.state}
@@ -794,7 +794,7 @@ function BotInboxEntry({ actions, t, botSlug, flush }: ChannelSidebarEntryProps)
           : `external:${item.externalOrigin.platform}:${item.externalOrigin.conversationId}`))
       : `assignment:${item.assignmentSessionId}`;
   const sourceLabel = (item: BotAttentionItem): string =>
-    item.assignmentPurpose ??
+    item.assignmentTitle ??
     item.externalOrigin?.conversationName ??
     sourceName(item) ??
     item.sourceChannelId ??

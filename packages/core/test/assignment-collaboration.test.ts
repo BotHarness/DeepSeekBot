@@ -31,7 +31,7 @@ import type { WorkspaceGrantStore } from '../src/workspaces/grants.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 class ManualAgents implements BotAgentAdapter {
-  readonly started: Array<{ sessionId: string; purpose: string; run: AssignmentAgentRun }> = [];
+  readonly started: Array<{ sessionId: string; description: string; run: AssignmentAgentRun }> = [];
   readonly resumed: Array<{ sessionId: string; text: string }> = [];
   readonly inboxTurns: string[] = [];
   readonly allInboxTurns: string[] = [];
@@ -50,7 +50,11 @@ class ManualAgents implements BotAgentAdapter {
       throw new Error('no agent factory registered (load an agent-loop plugin)');
     }
     if (this.failInbox === 'after-side-effect') {
-      const created = run.assignments.create({ grantId: TEST_GRANT_ID, purpose: 'Follow-up work' });
+      const created = run.assignments.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Follow-up work',
+      });
       if (created.outcome === 'created') this.finish(created.assignment.sessionId);
     }
     if (this.failInbox !== undefined) throw new Error('Inbox turn failed');
@@ -58,13 +62,13 @@ class ManualAgents implements BotAgentAdapter {
   }
 
   runAssignment(run: AssignmentAgentRun): Promise<void> {
-    this.started.push({ sessionId: run.sessionId, purpose: run.purpose, run });
+    this.started.push({ sessionId: run.sessionId, description: run.text, run });
     return new Promise<void>((resolve) => this.#finish.set(run.sessionId, resolve));
   }
 
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery {
-    this.resumed.push({ sessionId: run.sessionId, text: run.purpose });
-    this.started.push({ sessionId: run.sessionId, purpose: run.purpose, run });
+    this.resumed.push({ sessionId: run.sessionId, text: run.text });
+    this.started.push({ sessionId: run.sessionId, description: run.text, run });
     return {
       delivery: 'followup',
       accepted: Promise.resolve(),
@@ -212,7 +216,11 @@ describe('Assignment collaboration', () => {
     const { runtime, agents, admit, close } = await setup({ assignmentConcurrencyLimit: 1 });
     try {
       await admit('Start', 'capacity-start');
-      const original = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Original' });
+      const original = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Original',
+      });
       if (original.outcome !== 'created') throw new Error('Original missing');
       const signal = new AbortController().signal;
       const wait = runtime.beginAssignmentApprovalWait!(
@@ -224,12 +232,20 @@ describe('Assignment collaboration', () => {
         'waiting-human',
       );
       await admit('Unrelated conversation', 'capacity-unrelated');
-      const other = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Other work' });
+      const other = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Other work',
+      });
       if (other.outcome !== 'created') throw new Error('Other missing');
       expect(agents.started).toHaveLength(2);
-      expect(agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Overflow' }).outcome).toBe(
-        'capacity',
-      );
+      expect(
+        agents.access!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Overflow',
+        }).outcome,
+      ).toBe('capacity');
       const resumed = vi.fn();
       const resume = wait.resume().then(resumed);
       await Promise.resolve();
@@ -260,7 +276,11 @@ describe('Assignment collaboration', () => {
     });
     try {
       await admit('Start', 'capacity-revoke');
-      const original = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Original' });
+      const original = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Original',
+      });
       if (original.outcome !== 'created') throw new Error('Original missing');
       const signal = new AbortController().signal;
       const wait = runtime.beginAssignmentApprovalWait!(
@@ -268,7 +288,11 @@ describe('Assignment collaboration', () => {
         'call',
         signal,
       )!;
-      agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Competitor' });
+      agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Competitor',
+      });
       const refused = expect(wait.resume()).rejects.toThrow('authority');
       grants.revoke('ada', TEST_GRANT_ID);
       await refused;
@@ -287,7 +311,11 @@ describe('Assignment collaboration', () => {
     const { runtime, agents, owner, admit, close, channels } = await setup();
     try {
       await admit('Start', 'completion-start');
-      agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Complete' });
+      agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Complete',
+      });
       const run = agents.started[0]!.run;
       await run.report({ state: 'completed', summary: 'Verified release' }, { turn: 7 });
       await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
@@ -342,7 +370,11 @@ describe('Assignment collaboration', () => {
     const { runtime, agents, owner, admit, close } = await setup();
     try {
       await admit('Start', 'paired-start');
-      agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Complete' });
+      agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Complete',
+      });
       const run = agents.started[0]!.run;
       const reporting = run.report(
         { state: 'completed', summary: 'The result is verified' },
@@ -376,8 +408,9 @@ describe('Assignment collaboration', () => {
       try {
         await admit('Start cancellation QA', 'human-native-cancel');
         const created = agents.access!.create({
+          title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          purpose: 'Cancelled work',
+          description: 'Cancelled work',
           key: 'cancel-direction',
         });
         if (created.outcome !== 'created') throw new Error('Assignment missing');
@@ -490,7 +523,11 @@ describe('Assignment collaboration', () => {
     const coldAgents = new ManualAgents();
     try {
       await admit('Check the unavailable result', 'failed-semantic-start');
-      agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Unavailable result' });
+      agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Unavailable result',
+      });
       const run = agents.started[0]!.run;
       await run.report({ state: 'failed', summary: 'Required input is unavailable' }, { turn: 1 });
       await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
@@ -582,7 +619,11 @@ describe('Assignment collaboration', () => {
     const { runtime, agents, owner, admit, close } = await setup();
     try {
       await admit('Start', 'unpaired-start');
-      agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Complete' });
+      agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Complete',
+      });
       const run = agents.started[0]!.run;
       await run.report({ state: 'progress', summary: 'Still checking' }, { turn: 1 });
       run.completedTurn!({ turn: 1, endSeq: 20 });
@@ -602,7 +643,7 @@ describe('Assignment collaboration', () => {
   it('keeps a late paired notice pending through restart without a replay wake', async () => {
     const { runtime, agents, owner, home, admit, close } = await setup();
     await admit('Start', 'late-start');
-    agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Complete' });
+    agents.access!.create({ title: 'Assignment', grantId: TEST_GRANT_ID, description: 'Complete' });
     const run = agents.started[0]!.run;
     await run.report({ state: 'completed', summary: 'Verified before settlement' }, { turn: 1 });
     await vi.waitFor(() => expect(agents.inboxTurns).toHaveLength(1));
@@ -663,7 +704,12 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start', 'human-live-limit');
       const access = agents.access!;
-      const a = access.create({ grantId: TEST_GRANT_ID, purpose: 'idle A', key: 'live-A' });
+      const a = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'idle A',
+        key: 'live-A',
+      });
       if (a.outcome !== 'created') throw new Error('A missing');
       await agents.started[0]!.run.report({
         state: 'waiting-human',
@@ -673,10 +719,14 @@ describe('Assignment collaboration', () => {
       agents.finish(a.assignment.sessionId);
       await runtime.whenIdle();
       for (const purpose of ['B', 'C'])
-        expect(access.create({ grantId: TEST_GRANT_ID, purpose }).outcome).toBe('created');
+        expect(
+          access.create({ grantId: TEST_GRANT_ID, title: purpose, description: purpose }).outcome,
+        ).toBe('created');
       const before = runtime.getAssignment('ada', a.assignment.sessionId);
       limit = 1;
-      expect(access.create({ grantId: TEST_GRANT_ID, purpose: 'denied' })).toMatchObject({
+      expect(
+        access.create({ title: 'Assignment', grantId: TEST_GRANT_ID, description: 'denied' }),
+      ).toMatchObject({
         outcome: 'capacity',
         activeCount: 2,
         limit: 1,
@@ -695,9 +745,16 @@ describe('Assignment collaboration', () => {
       );
       limit = 3;
       expect(
-        access.create({ grantId: TEST_GRANT_ID, purpose: 'reuse A', key: 'live-A' }),
+        access.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'reuse A',
+          key: 'live-A',
+        }),
       ).toMatchObject({ outcome: 'reused', assignment: { sessionId: a.assignment.sessionId } });
-      expect(access.create({ grantId: TEST_GRANT_ID, purpose: 'denied again' })).toMatchObject({
+      expect(
+        access.create({ title: 'Assignment', grantId: TEST_GRANT_ID, description: 'denied again' }),
+      ).toMatchObject({
         outcome: 'capacity',
         activeCount: 3,
         limit: 3,
@@ -715,8 +772,9 @@ describe('Assignment collaboration', () => {
       await setup({ assignmentConcurrencyLimit: 1 });
     await admit('Prepare cold wake', 'human-cold-prepare');
     const original = agents.access!.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: 'Choose a route',
+      description: 'Choose a route',
       key: 'cold',
     });
     if (original.outcome !== 'created') throw new Error('Cold Assignment missing');
@@ -748,9 +806,10 @@ describe('Assignment collaboration', () => {
       if (!admission.admitted) throw new Error('Cold admission missing');
       await admission.settled;
       const access = coldAgents.access!;
-      expect(access.create({ grantId: TEST_GRANT_ID, purpose: 'Active work' }).outcome).toBe(
-        'created',
-      );
+      expect(
+        access.create({ title: 'Assignment', grantId: TEST_GRANT_ID, description: 'Active work' })
+          .outcome,
+      ).toBe('created');
       expect(
         access.request({
           sessionId: before.sessionId,
@@ -773,7 +832,11 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start', 'human-answer-refusal');
       const access = agents.access!;
-      const created = access.create({ grantId: TEST_GRANT_ID, purpose: 'Choose a direction' });
+      const created = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Choose a direction',
+      });
       if (created.outcome !== 'created') throw new Error('Missing Assignment');
       await agents.started[0]!.run.report({
         state: 'waiting-human',
@@ -807,7 +870,11 @@ describe('Assignment collaboration', () => {
       try {
         await admit('Start', 'human-delayed-refusal');
         const access = agents.access!;
-        const created = access.create({ grantId: TEST_GRANT_ID, purpose: 'Answer delivery' });
+        const created = access.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Answer delivery',
+        });
         if (created.outcome !== 'created') throw new Error('Missing Assignment');
         await agents.started[0]!.run.report({
           state: 'waiting-human',
@@ -891,7 +958,11 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start', 'human-newer-ask');
       const access = agents.access!;
-      const created = access.create({ grantId: TEST_GRANT_ID, purpose: 'Question race' });
+      const created = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Question race',
+      });
       if (created.outcome !== 'created') throw new Error('Missing Assignment');
       const run = agents.started[0]!.run;
       await run.report({ state: 'waiting-human', summary: 'First question', expectsReply: true });
@@ -929,7 +1000,11 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start', 'human-steer-uncertain');
       const access = agents.access!;
-      const created = access.create({ grantId: TEST_GRANT_ID, purpose: 'Active steering' });
+      const created = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Active steering',
+      });
       if (created.outcome !== 'created') throw new Error('Missing Assignment');
       const run = agents.started[0]!.run;
       await run.report({ state: 'waiting-human', summary: 'Question', expectsReply: true });
@@ -974,7 +1049,11 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start', 'human-after-accept');
       const access = agents.access!;
-      const created = access.create({ grantId: TEST_GRANT_ID, purpose: 'Accepted failure' });
+      const created = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Accepted failure',
+      });
       if (created.outcome !== 'created') throw new Error('Missing Assignment');
       const run = agents.started[0]!.run;
       await run.report({ state: 'waiting-human', summary: 'Question', expectsReply: true });
@@ -1005,7 +1084,11 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start wake rejection test', 'human-wake-rejection');
       const access = agents.access!;
-      const idle = access.create({ grantId: TEST_GRANT_ID, purpose: 'Idle work' });
+      const idle = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Idle work',
+      });
       if (idle.outcome !== 'created') throw new Error('Idle Assignment missing');
       agents.finish(idle.assignment.sessionId);
       await runtime.whenIdle();
@@ -1020,9 +1103,10 @@ describe('Assignment collaboration', () => {
         }),
       ).toThrow('DSH delivery unavailable');
       expect(runtime.getAssignment('ada', idle.assignment.sessionId)?.activity).toBe('idle');
-      expect(access.create({ grantId: TEST_GRANT_ID, purpose: 'Next work' }).outcome).toBe(
-        'created',
-      );
+      expect(
+        access.create({ title: 'Assignment', grantId: TEST_GRANT_ID, description: 'Next work' })
+          .outcome,
+      ).toBe('created');
       expect(agents.resumed).toHaveLength(0);
     } finally {
       await close();
@@ -1036,7 +1120,11 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start Ada', 'human-ada-capacity');
       const ada = agents.access!;
-      const idle = ada.create({ grantId: TEST_GRANT_ID, purpose: 'Ada work' });
+      const idle = ada.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Ada work',
+      });
       if (idle.outcome !== 'created') throw new Error('Ada Assignment missing');
       agents.finish(idle.assignment.sessionId);
       await runtime.whenIdle();
@@ -1053,9 +1141,13 @@ describe('Assignment collaboration', () => {
       });
       if (!incoming.admitted) throw new Error('Bob admission missing');
       await incoming.settled;
-      expect(agents.access!.create({ grantId: bobGrant.id, purpose: 'Bob work' }).outcome).toBe(
-        'created',
-      );
+      expect(
+        agents.access!.create({
+          title: 'Assignment',
+          grantId: bobGrant.id,
+          description: 'Bob work',
+        }).outcome,
+      ).toBe('created');
       expect(
         ada.request({
           sessionId: idle.assignment.sessionId,
@@ -1074,13 +1166,21 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start reservation test', 'human-reservation');
       const access = agents.access!;
-      const idle = access.create({ grantId: TEST_GRANT_ID, purpose: 'Idle work' });
+      const idle = access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Idle work',
+      });
       if (idle.outcome !== 'created') throw new Error('Idle Assignment missing');
       agents.finish(idle.assignment.sessionId);
       await runtime.whenIdle();
       let competitor: string | undefined;
       vi.spyOn(agents, 'requestAssignment').mockImplementationOnce(() => {
-        competitor = access.create({ grantId: TEST_GRANT_ID, purpose: 'Competing work' }).outcome;
+        competitor = access.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Competing work',
+        }).outcome;
         return { delivery: 'steer' };
       });
       expect(
@@ -1118,8 +1218,9 @@ describe('Assignment collaboration', () => {
         await admit('Start capacity test', 'human-capacity');
         const access = agents.access!;
         const idle = access.create({
+          title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          purpose: 'Choose route',
+          description: 'Choose route',
           key: 'capacity-idle',
         });
         if (idle.outcome !== 'created') throw new Error('Idle Assignment missing');
@@ -1133,15 +1234,20 @@ describe('Assignment collaboration', () => {
         const before = runtime.getAssignment('ada', idle.assignment.sessionId)!;
         const activeIds: string[] = [];
         for (let index = 0; index < limit; index++) {
-          const other = access.create({ grantId: TEST_GRANT_ID, purpose: `Other work ${index}` });
+          const other = access.create({
+            title: 'Assignment',
+            grantId: TEST_GRANT_ID,
+            description: `Other work ${index}`,
+          });
           if (other.outcome !== 'created') throw new Error('Capacity fixture missing');
           activeIds.push(other.assignment.sessionId);
         }
         const refused =
           path === 'keyed'
             ? access.create({
+                title: 'Assignment',
                 grantId: TEST_GRANT_ID,
-                purpose: 'Continue route',
+                description: 'Continue route',
                 key: 'capacity-idle',
               })
             : access.request({
@@ -1187,7 +1293,11 @@ describe('Assignment collaboration', () => {
     const { agents, owner, admit, close } = await setup();
     try {
       await admit('Start research', 'human-policy-edit');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       const run = agents.started[0]!.run;
       await run.report({ state: 'progress', summary: 'First quiet progress' });
@@ -1241,7 +1351,11 @@ describe('Assignment collaboration', () => {
     });
     try {
       await admit('Start research', 'human-spill-boundary');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       const run = agents.started[0]!.run;
       await run.report({ state: 'progress', summary: 'a'.repeat(2_048) });
@@ -1267,7 +1381,11 @@ describe('Assignment collaboration', () => {
     });
     try {
       await admit('Start research', 'human-spill');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Long research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Long research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       const content = `Report start ${'α'.repeat(1200)} FINAL-MARKER`;
       await agents.started[0]!.run.report({ state: 'completed', summary: content });
@@ -1329,7 +1447,11 @@ describe('Assignment collaboration', () => {
     const { agents, admit, close } = await setup({ readAssignmentTail });
     try {
       await admit('Start', 'human-tail');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       await expect(agents.access!.tail?.(created.assignment.sessionId)).resolves.toMatchObject({
         indexedEvents: 0,
@@ -1358,7 +1480,11 @@ describe('Assignment collaboration', () => {
     const { agents, admit, close } = await setup({ readAssignmentReportPage });
     try {
       await admit('Start', 'human-report-page');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       const sessionId = created.assignment.sessionId;
       await agents.started[0]!.run.report({ state: 'completed', summary: 'first page' });
@@ -1480,19 +1606,21 @@ describe('Assignment collaboration', () => {
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
 
     const first = agents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '调研 A 方向',
+      description: '调研 A 方向',
       key: 'research-a',
     });
     const second = agents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '调研 B 方向',
+      description: '调研 B 方向',
       key: 'research-b',
     });
 
     expect(first.outcome).toBe('created');
     expect(second.outcome).toBe('created');
-    expect(agents.started.map((run) => run.purpose)).toEqual(
+    expect(agents.started.map((run) => run.description)).toEqual(
       expect.arrayContaining(['调研 A 方向', '调研 B 方向']),
     );
     expect(runtime.listAssignments('ada')).toHaveLength(2);
@@ -1505,8 +1633,9 @@ describe('Assignment collaboration', () => {
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
 
     const created = agents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '调研 A 方向',
+      description: '调研 A 方向',
       key: 'research-a',
     });
     if (created.outcome !== 'created') throw new Error('create failed');
@@ -1517,8 +1646,9 @@ describe('Assignment collaboration', () => {
     expect(runtime.getAssignment('ada', sessionId)?.activity).toBe('idle');
 
     const reused = agents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '继续调研 A 方向',
+      description: '继续调研 A 方向',
       key: 'research-a',
     });
     expect(reused.outcome).toBe('reused');
@@ -1526,8 +1656,9 @@ describe('Assignment collaboration', () => {
     expect(agents.resumed).toEqual([{ sessionId, text: '继续调研 A 方向' }]);
 
     const busy = agents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '再次调研 A 方向',
+      description: '再次调研 A 方向',
       key: 'research-a',
     });
     expect(busy.outcome).toBe('key-busy');
@@ -1543,8 +1674,9 @@ describe('Assignment collaboration', () => {
     const access = agents.access;
     if (access === undefined) throw new Error('Orchestrator never ran');
     const created = access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '持续调研 A 方向',
+      description: '持续调研 A 方向',
       key: 'research-a',
     });
     if (created.outcome !== 'created') throw new Error('create failed');
@@ -1565,8 +1697,9 @@ describe('Assignment collaboration', () => {
     expect((await access.stop(sessionId)).activity).toBe('stopped');
 
     const next = access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '重新开始 A 方向',
+      description: '重新开始 A 方向',
       key: 'research-a',
     });
     expect(next.outcome).toBe('created');
@@ -1589,8 +1722,9 @@ describe('Assignment collaboration', () => {
     const access = agents.access;
     if (access === undefined) throw new Error('Orchestrator never ran');
     const created = access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '调查一个可以取消的方向',
+      description: '调查一个可以取消的方向',
       key: 'cancel-me',
     });
     if (created.outcome !== 'created') throw new Error('create failed');
@@ -1622,7 +1756,11 @@ describe('Assignment collaboration', () => {
     await admit('开始调研', 'human-stop-notice-restart');
     const access = agents.access;
     if (access === undefined) throw new Error('Orchestrator never ran');
-    const created = access.create({ grantId: TEST_GRANT_ID, purpose: '等待停止的方向' });
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '等待停止的方向',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
 
     agents.failInbox = 'before-side-effect';
@@ -1676,7 +1814,11 @@ describe('Assignment collaboration', () => {
     await admit('开始调研', 'human-stop-notice-interrupted');
     const access = agents.access;
     if (access === undefined) throw new Error('Orchestrator never ran');
-    const created = access.create({ grantId: TEST_GRANT_ID, purpose: '等待停止的方向' });
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '等待停止的方向',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
 
     agents.failInbox = 'before-side-effect';
@@ -1725,8 +1867,9 @@ describe('Assignment collaboration', () => {
     const access = agents.access;
     if (access === undefined) throw new Error('Orchestrator never ran');
     const created = access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '可复用的事项',
+      description: '可复用的事项',
       key: 'stopping-key',
     });
     if (created.outcome !== 'created') throw new Error('create failed');
@@ -1743,19 +1886,28 @@ describe('Assignment collaboration', () => {
     ).toHaveLength(0);
     expect(
       access.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: '不得复用停止中的续接键',
+        description: '不得复用停止中的续接键',
         key: 'stopping-key',
       }).outcome,
     ).toBe('key-busy');
-    expect(access.create({ grantId: TEST_GRANT_ID, purpose: '不得抢占停止中的名额' }).outcome).toBe(
-      'capacity',
-    );
+    expect(
+      access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: '不得抢占停止中的名额',
+      }).outcome,
+    ).toBe('capacity');
 
     expect((await access.stop(sessionId)).activity).toBe('stopped');
-    expect(access.create({ grantId: TEST_GRANT_ID, purpose: '停止完成后可新建' }).outcome).toBe(
-      'created',
-    );
+    expect(
+      access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: '停止完成后可新建',
+      }).outcome,
+    ).toBe('created');
     await close();
   });
   it('revocation blocks new and resumed work without rewriting an already running turn', async () => {
@@ -1764,8 +1916,9 @@ describe('Assignment collaboration', () => {
     const access = agents.access;
     if (access === undefined) throw new Error('Orchestrator never ran');
     const created = access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '调研 A 方向',
+      description: '调研 A 方向',
       key: 'research-a',
     });
     if (created.outcome !== 'created') throw new Error('create failed');
@@ -1774,14 +1927,19 @@ describe('Assignment collaboration', () => {
     expect(permission?.mode).toBe('workspace-write');
 
     grants.revoke('ada', TEST_GRANT_ID);
-    expect(() => access.create({ grantId: TEST_GRANT_ID, purpose: '新方向' })).toThrow(
-      /missing or revoked/,
-    );
+    expect(() =>
+      access.create({ title: 'Assignment', grantId: TEST_GRANT_ID, description: '新方向' }),
+    ).toThrow(/missing or revoked/);
     expect(() => access.request({ sessionId, mode: 'next-turn', text: '继续' })).toThrow(
       /missing or revoked/,
     );
     expect(() =>
-      access.create({ grantId: TEST_GRANT_ID, purpose: '继续', key: 'research-a' }),
+      access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: '继续',
+        key: 'research-a',
+      }),
     ).toThrow(/missing or revoked/);
     expect(runtime.getAssignment('ada', sessionId)?.permission).toEqual(permission);
 
@@ -1797,7 +1955,11 @@ describe('Assignment collaboration', () => {
     await admit('开始调研', 'human-1');
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
 
-    const created = agents.access.create({ grantId: TEST_GRANT_ID, purpose: '调研 A 方向' });
+    const created = agents.access.create({
+      title: '调研 A 方向',
+      grantId: TEST_GRANT_ID,
+      description: '调研 A 方向',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
     const sessionId = created.assignment.sessionId;
     const run = agents.started[0]?.run;
@@ -1817,7 +1979,7 @@ describe('Assignment collaboration', () => {
           state: 'pending',
           sourceKind: 'assignment-report',
           assignmentSessionId: sessionId,
-          assignmentPurpose: '调研 A 方向',
+          assignmentTitle: '调研 A 方向',
           assignmentReportState: 'progress',
           sourceAvailable: true,
           summary: '里程碑 1',
@@ -1870,7 +2032,11 @@ describe('Assignment collaboration', () => {
     await admit('开始调研', 'human-1');
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
 
-    const created = agents.access.create({ grantId: TEST_GRANT_ID, purpose: '调研 A 方向' });
+    const created = agents.access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '调研 A 方向',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
     const sessionId = created.assignment.sessionId;
     const run = agents.started[0]?.run;
@@ -1912,7 +2078,11 @@ describe('Assignment collaboration', () => {
       let release = (): void => undefined;
       try {
         await admit('Start research', 'human-1');
-        const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Choose route' });
+        const created = agents.access!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Choose route',
+        });
         if (created.outcome !== 'created') throw new Error('create failed');
         const sessionId = created.assignment.sessionId;
         const run = agents.started[0]!.run;
@@ -1979,8 +2149,9 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start research', 'human-1');
       const created = agents.access!.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: 'Choose a direction',
+        description: 'Choose a direction',
       });
       if (created.outcome !== 'created') throw new Error('create failed');
       const sessionId = created.assignment.sessionId;
@@ -2030,8 +2201,9 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start research', 'human-1');
       const created = agents.access!.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: 'Choose release route',
+        description: 'Choose release route',
       });
       if (created.outcome !== 'created') throw new Error('create failed');
       const sessionId = created.assignment.sessionId;
@@ -2098,7 +2270,11 @@ describe('Assignment collaboration', () => {
     let sessionId = '';
     try {
       await admit('Start research', 'human-1');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       sessionId = created.assignment.sessionId;
       const run = agents.started[0]!.run;
@@ -2194,7 +2370,11 @@ describe('Assignment collaboration', () => {
     const { runtime, agents, owner, home, admit, close } = await setup();
     await admit('开始调研', 'human-1');
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
-    const created = agents.access.create({ grantId: TEST_GRANT_ID, purpose: '调研 A 方向' });
+    const created = agents.access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '调研 A 方向',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
     const sessionId = created.assignment.sessionId;
     const run = agents.started[0]?.run;
@@ -2237,8 +2417,9 @@ describe('Assignment collaboration', () => {
       try {
         await admit('Start one direction', 'active-crash-start');
         const created = agents.access!.create({
+          title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          purpose: 'Unfinished investigation',
+          description: 'Unfinished investigation',
           key: 'unfinished-direction',
         });
         if (created.outcome !== 'created') throw new Error('Assignment was not created');
@@ -2374,8 +2555,9 @@ describe('Assignment collaboration', () => {
           }),
         ).toThrow('failed; start a new Assignment');
         const replacement = secondAgents.access!.create({
+          title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          purpose: 'Replacement investigation',
+          description: 'Replacement investigation',
           key: 'unfinished-direction',
         });
         secondAgents.finishAll();
@@ -2399,8 +2581,9 @@ describe('Assignment collaboration', () => {
     await admit('开始调研', 'human-restart-capacity');
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
     const created = agents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '原事项',
+      description: '原事项',
       key: 'restart-direction',
     });
     if (created.outcome !== 'created') throw new Error('create failed');
@@ -2436,8 +2619,9 @@ describe('Assignment collaboration', () => {
     await admission.settled;
     if (resumedAgents.access === undefined) throw new Error('Orchestrator never resumed');
     const replacement = resumedAgents.access.create({
+      title: 'Assignment',
       grantId: TEST_GRANT_ID,
-      purpose: '新事项',
+      description: '新事项',
       key: 'restart-direction',
     });
     expect(replacement.outcome).toBe('created');
@@ -2454,10 +2638,18 @@ describe('Assignment collaboration', () => {
     await admit('开始调研', 'human-1');
     if (agents.access === undefined) throw new Error('Orchestrator never ran');
 
-    expect(agents.access.create({ grantId: TEST_GRANT_ID, purpose: '调研 A 方向' }).outcome).toBe(
-      'created',
-    );
-    const refused = agents.access.create({ grantId: TEST_GRANT_ID, purpose: '调研 B 方向' });
+    expect(
+      agents.access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: '调研 A 方向',
+      }).outcome,
+    ).toBe('created');
+    const refused = agents.access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: '调研 B 方向',
+    });
     expect(refused.outcome).toBe('capacity');
     expect(refused.outcome === 'capacity' && refused.message).toContain('retryable: true');
     expect(runtime.listAssignments('ada')).toHaveLength(1);
@@ -2466,7 +2658,11 @@ describe('Assignment collaboration', () => {
   it('recovers an unobserved due report once after restart', async () => {
     const { agents, owner, home, admit, close } = await setup();
     await admit('Start research', 'human-1');
-    const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+    const created = agents.access!.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: 'Research',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
     const run = agents.started[0]!.run;
     await run.report({ state: 'progress', summary: 'Phase one' });
@@ -2526,7 +2722,11 @@ describe('Assignment collaboration', () => {
       const { runtime, agents, owner, admit, close } = await setup();
       try {
         await admit('Start research', 'human-1');
-        const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+        const created = agents.access!.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Research',
+        });
         if (created.outcome !== 'created') throw new Error('create failed');
         const run = agents.started[0]!.run;
         agents.failInbox = failure;
@@ -2571,8 +2771,9 @@ describe('Assignment collaboration', () => {
     try {
       await admit('Start research', 'human-1');
       const created = agents.access!.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: 'Research',
+        description: 'Research',
         key: 'research',
       });
       if (created.outcome !== 'created') throw new Error('create failed');
@@ -2600,8 +2801,9 @@ describe('Assignment collaboration', () => {
       expect(query.list({ category: 'info' }).items).toEqual([]);
 
       const reused = agents.access!.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: 'Continue research',
+        description: 'Continue research',
         key: 'research',
       });
       if (reused.outcome !== 'reused') throw new Error('Assignment was not reused');
@@ -2644,7 +2846,11 @@ describe('Assignment collaboration', () => {
     let repairSource;
     try {
       await admit('Start research', 'human-start');
-      const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+      const created = agents.access!.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'Research',
+      });
       if (created.outcome !== 'created') throw new Error('create failed');
       const run = agents.started[0]!.run;
       await run.report({ state: 'progress', summary: 'Report needing review' });
@@ -2728,7 +2934,11 @@ describe('Assignment collaboration', () => {
   it('shows an interrupted observed report as needs-repair instead of waking it twice', async () => {
     const { agents, owner, home, admit, close } = await setup();
     await admit('Start research', 'human-1');
-    const created = agents.access!.create({ grantId: TEST_GRANT_ID, purpose: 'Research' });
+    const created = agents.access!.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: 'Research',
+    });
     if (created.outcome !== 'created') throw new Error('create failed');
     await agents.started[0]!.run.report({ state: 'progress', summary: 'Read this report' });
     const reportId = sourceEvents(owner).find(

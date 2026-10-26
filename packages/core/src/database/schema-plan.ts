@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite';
 
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
 import { INBOX_HISTORY_INDEX_SQL } from './inbox-history-index.js';
+import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
   generation: 2,
@@ -2497,6 +2498,26 @@ const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
+  generation: 108,
+  module: 'assignments',
+  description: 'Give Assignments a Title and turn purpose into their Description (ADR-0262)',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE assignments RENAME COLUMN purpose TO description;
+      ALTER TABLE assignments ADD COLUMN title TEXT NOT NULL DEFAULT '';
+    `);
+    const rows = database
+      .prepare('SELECT session_id, description FROM assignments')
+      .all() as Array<{
+      session_id: string;
+      description: string;
+    }>;
+    const update = database.prepare('UPDATE assignments SET title = ? WHERE session_id = ?');
+    for (const row of rows) update.run(deriveAssignmentTitle(row.description), row.session_id);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2604,4 +2625,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   PUSH_APP_RENDER_MIGRATION,
   DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
   DEVICE_LIVE_ACTIVITY_MIGRATION,
+  ASSIGNMENT_TITLE_MIGRATION,
 ]);
