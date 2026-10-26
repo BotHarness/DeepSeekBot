@@ -29,16 +29,12 @@ export function ReactionChips({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x2 * 2) / 2);
+  const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x1 * 2) / 2);
   return (
     <View
       style={{
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: space.x2,
-        justifyContent: human ? 'flex-end' : 'flex-start',
-        maxWidth: '80%',
-        alignSelf: human ? 'flex-end' : 'flex-start',
+        flexDirection: human ? 'row-reverse' : 'row',
+        gap: space.x1,
       }}
     >
       {reactions.map((reaction) => {
@@ -56,12 +52,12 @@ export function ReactionChips({
             style={({ pressed }) => ({
               flexDirection: 'row',
               alignItems: 'center',
-              gap: space.x2,
-              paddingHorizontal: space.x3,
-              paddingVertical: space.x2,
+              gap: space.x1,
+              paddingHorizontal: space.x2,
+              paddingVertical: space.x1,
               borderRadius: radius.round,
               borderWidth: edge.hairline,
-              borderColor: mine ? theme.color.accent : theme.layer.canvas.edge,
+              borderColor: mine ? theme.color.accent : theme.layer.canvas.fill,
               backgroundColor: mine
                 ? theme.layer.canvas.chosen
                 : pressed

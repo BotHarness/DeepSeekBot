@@ -38,6 +38,7 @@ import { visibleDmActivity } from '../../host/dm-activity';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
+import { readingBots } from '../../host/delivery-receipt';
 import {
   shownInChat,
   type CardResolution,
@@ -823,6 +824,7 @@ function ChatConversation({
 
   const roster = host.roster;
   const botName = useBotNames(roster?.bots);
+  const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
     (message: ConversationMessage) => setDeliveryFor(message.id),
@@ -994,6 +996,8 @@ function ChatConversation({
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm ? {} : { onReact: react })}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
+          readers={reading.get(item.message.id)}
+          bots={roster?.bots}
           botName={botName}
           speaker={
             !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
@@ -1028,6 +1032,7 @@ function ChatConversation({
       botDm,
       router,
       receipts,
+      reading,
     ],
   );
 
