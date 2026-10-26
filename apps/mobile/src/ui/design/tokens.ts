@@ -91,8 +91,6 @@ export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {
   gutter: tabHeader.gutter,
-  sourceLabelMaxWidth: '30%',
-  sourceLabelShrink: 3,
 } as const;
 export const environmentTab = { widthRatio: 0.6 } as const;
 export const tabLabel = { minimumFontScale: 0.6 } as const;
