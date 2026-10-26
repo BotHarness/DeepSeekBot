@@ -64,7 +64,7 @@ export function ChannelDeliveryReceipt({
   );
   const admitted = new Set(deliveries.map((delivery) => delivery.botSlug));
   const missing =
-    message.author.kind === 'human'
+    message.author.kind === 'human' && message.failed === undefined && message.unconfirmed !== true
       ? [...new Set((message.mentions ?? []).map((mention) => mention.botSlug))].filter(
           (botSlug) => !admitted.has(botSlug),
         )

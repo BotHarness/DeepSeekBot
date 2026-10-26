@@ -14,7 +14,7 @@ import { SidebarCardList } from './sidebar-card.js';
 type InboxPage =
   | { status: 'loading'; items: BotAttentionItem[]; nextCursor?: string | undefined }
   | { status: 'ready'; items: BotAttentionItem[]; nextCursor?: string | undefined }
-  | { status: 'error'; items: BotAttentionItem[]; error: string };
+  | { status: 'error'; items: BotAttentionItem[]; error: string; cursor?: string | undefined };
 
 export function BotInboxDialog({
   botSlug,
@@ -54,6 +54,7 @@ export function BotInboxDialog({
       setPage((prior) => ({
         status: 'error',
         items: prior.items,
+        cursor,
         error: error instanceof Error ? error.message : String(error),
       }));
     }
@@ -103,7 +104,7 @@ export function BotInboxDialog({
       {page.status === 'error' ? (
         <div className="bh-error" role="alert">
           {t('inbox.error', { error: page.error })}
-          <button type="button" onClick={() => void load()}>
+          <button type="button" onClick={() => void load(page.cursor)}>
             {t('inbox.retry')}
           </button>
         </div>

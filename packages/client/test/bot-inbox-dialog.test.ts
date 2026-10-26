@@ -205,4 +205,32 @@ describe('Bot Inbox dialog', () => {
       await view.cleanup();
     }
   });
+
+  it('retries a failed later page without dropping the rows already loaded', async () => {
+    const botInboxPage = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [item('first', 'm0')], nextCursor: 'page-2' })
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ items: [item('second', 'm-1')] });
+    const view = await render({
+      botSlug: 'ada',
+      botName: 'ADA',
+      missing: false,
+      actions: { botInboxPage } as unknown as BridgeActions,
+    });
+    try {
+      const button = (label: string) =>
+        [...(view.dialog()?.querySelectorAll('button') ?? [])].find(
+          (node) => node.textContent === label,
+        );
+      await act(async () => button('加载更多')?.click());
+      expect(view.dialog()?.textContent).toContain('offline');
+      expect(view.dialog()?.querySelectorAll('.bh-card-list > li')).toHaveLength(1);
+      await act(async () => button(zhTranslate('inbox.retry'))?.click());
+      expect(botInboxPage).toHaveBeenLastCalledWith('ada', 'page-2');
+      expect(view.dialog()?.querySelectorAll('.bh-card-list > li')).toHaveLength(2);
+    } finally {
+      await view.cleanup();
+    }
+  });
 });

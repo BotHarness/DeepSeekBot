@@ -122,4 +122,21 @@ describe('Channel delivery receipt Inbox drill-down', () => {
       await view.cleanup();
     }
   });
+
+  it('does not mark Bots as not received on a failed or unconfirmed send', async () => {
+    for (const variant of [{ failed: 'offline' }, { unconfirmed: true }]) {
+      const view = await render(
+        createElement(ChannelDeliveryReceipt, {
+          message: { ...message, ...variant, deliveries: [] },
+          bots,
+          t: zhTranslate,
+        }),
+      );
+      try {
+        expect(view.host.querySelector('.bh-delivery-trigger')).toBeNull();
+      } finally {
+        await view.cleanup();
+      }
+    }
+  });
 });
