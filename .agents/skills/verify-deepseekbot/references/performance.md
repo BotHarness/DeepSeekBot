@@ -28,6 +28,8 @@ mounted (`--no-load-all` keeps only the opening window), waits three seconds and
 | `scriptMs`, `layoutMs`, `recalcStyleMs` | Where idle main-thread time went |
 | `styleRecalcs` | ~60 per second means something re-styles every frame |
 | `nodes`, `mountedMessages` | DOM size; cost per frame and per render scales with it |
+| `skippedBlocks` | Message blocks marked `data-offscreen` (rendering skipped); near all of them when the whole history is mounted and you sit at the latest message |
+| `scroll` | `--scroll-check` (default with `--load-all`): steps one viewport at a time from the latest message to the top. `jumps`/`maxJumpPx` count steps where the first visible message moved after the scroll settled; `skippedInView`/`emptyInView` count blocks in view that were still skipped or had zero height. All four must be 0 |
 | `typing.p50/p95/max` | Percentiles over the Event Timing entries (`keydown`, `keypress`, `input`, `keyup`) of at least 16 ms recorded while typing 43 characters; each entry runs from the input to the next paint. Entries under 16 ms are not recorded, and one key yields several entries |
 | `typing.scriptMs` | Script time spent while typing; a high value means each key re-renders far too much |
 | `idleHottest`, `typing.hottest` | Top self-time functions from the CPU profile (`--profile`) |
@@ -66,8 +68,17 @@ Paint, Layerize and style work per frame. Profiles are `<label>.idle.cpuprofile`
 - Headless Chromium does not run the desktop-only paths (`dsh-app://app` window zoom and its
   tooltip observer). A clean headless result does not clear a desktop report; say which paths
   ran.
-- `content-visibility: auto` on `.bh-message-block` cut the DOM work sharply but broke opening
-  at the latest message and loading older history, because the scroll-anchoring code reads real
-  heights. It needs the scroll logic reworked first (#2413 follow-up).
+- Far message blocks are skipped by `timeline-offscreen.ts`: `content-visibility: hidden` plus
+  the measured height inline, toggled on scroll. Three traps it avoids, each seen on a real run:
+  a skipped flex item has no content-based minimum height, so the column shrinks it to 0 unless
+  it has `flex-shrink: 0`; `content-visibility: auto` registers an internal
+  IntersectionObserver per block, recomputed on every animation frame; and `scrollIntoView` or
+  `getBoundingClientRect` on content inside a skipped block is wrong, so call
+  `revealOffscreen(element)` before scrolling to or measuring a message.
+- `IntersectionObserverController::computeIntersections` high in a trace means too many observed
+  targets: every target is recomputed each frame while anything animates. Timeline avatars use
+  `observeVisibility`, which stops observing while their block is skipped.
+- Summarize a trace by thread and event name before guessing; most idle cost is native (style,
+  intersections, commit), not JavaScript, and does not show in a CPU profile.
 - Seeding 600 messages takes about two minutes. Reuse the fixture.
 - Stop the Host with `verify-app stop` when done; see resource cleanup in the skill.

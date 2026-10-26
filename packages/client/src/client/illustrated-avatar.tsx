@@ -23,6 +23,7 @@ import {
 } from './line-morph.js';
 import { useMountedResource } from './mounted-resource.js';
 import { AvatarSpeech } from './avatar-speech.js';
+import { observeVisibility } from './timeline-offscreen.js';
 import type { PersonaBotActivityEffect, PersonaBotActivityState } from './avatar.js';
 
 type Step = readonly [number, number];
@@ -458,16 +459,11 @@ export function IllustratedAvatar({
           })
           .catch(() => undefined);
       };
-      const observer =
-        typeof IntersectionObserver === 'undefined'
-          ? undefined
-          : new IntersectionObserver((entries) => {
-              const next = entries.some((entry) => entry.isIntersecting);
-              if (next === visible) return;
-              seen.current = visible = next;
-              sync();
-            });
-      observer?.observe(node);
+      const stopVisibility = observeVisibility(node, (next) => {
+        if (next === visible) return;
+        seen.current = visible = next;
+        sync();
+      });
       const motion = new MutationObserver(sync);
       motion.observe(document.documentElement, {
         attributes: true,
@@ -488,7 +484,7 @@ export function IllustratedAvatar({
           gaze.style.transform = gazePose;
           head.style.opacity = headOpacity;
         }
-        observer?.disconnect();
+        stopVisibility?.();
         motion.disconnect();
         document.removeEventListener('visibilitychange', sync);
       };
