@@ -403,7 +403,6 @@ export const MessageBubble = memo(function MessageBubble({
       style={{
         alignSelf: human ? 'flex-end' : 'flex-start',
         maxWidth: BUBBLE_MAX,
-        paddingBottom: badged ? BADGE_OVERLAP : 0,
       }}
     >
       {content}
@@ -412,7 +411,7 @@ export const MessageBubble = memo(function MessageBubble({
           pointerEvents="box-none"
           style={{
             position: 'absolute',
-            bottom: 0,
+            bottom: -BADGE_OVERLAP,
             left: space.x4,
             right: space.x4,
             flexDirection: human ? 'row-reverse' : 'row',
@@ -455,7 +454,7 @@ export const MessageBubble = memo(function MessageBubble({
         style={{
           minWidth: space.x6,
           alignItems: 'center',
-          paddingBottom: space.x1 + (badged ? BADGE_OVERLAP : 0),
+          paddingBottom: space.x1,
         }}
       >
         {failed ? (
@@ -487,7 +486,7 @@ export const MessageBubble = memo(function MessageBubble({
   ) : (
     framed
   );
-  const row = bubbleRow(first);
+  const row = { ...bubbleRow(first), ...(last ? { paddingBottom: space.x2 } : {}) };
   if (speaker !== undefined)
     return (
       <SpeakerRow

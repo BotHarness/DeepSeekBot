@@ -140,6 +140,7 @@ import { Button } from '../primitives/button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
+const cellLayer = ({ index }: { index: number }) => ({ zIndex: -index });
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
@@ -1377,6 +1378,7 @@ function ChatConversation({
               <Animated.FlatList
                 ref={attachList}
                 removeClippedSubviews={false}
+                CellRendererComponentStyle={cellLayer}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
                 pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
                 accessibilityElementsHidden={!latest.ready && rows.length > 0}
