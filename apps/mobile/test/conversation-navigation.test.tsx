@@ -39,6 +39,7 @@ const state = vi.hoisted(() => ({
   target: undefined as Conversation | undefined,
   focused: true,
   display: { mode: 'streaming', loaded: true },
+  receipts: false,
   glassHeader: true,
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
@@ -194,6 +195,13 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
+vi.mock('../src/host/native-delivery-receipts', () => ({
+  useDeliveryReceiptPreferences: () => ({
+    enabled: state.receipts,
+    loaded: true,
+    storageError: false,
+  }),
+}));
 vi.mock('../src/host/native-chat-background', () => ({
   useChatBackgrounds: () => undefined,
   chatBackgrounds: { resolve: () => ({ kind: 'default' }) },
@@ -275,11 +283,19 @@ vi.mock('../src/ui/chat/clipboard-image', () => ({
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/chat/message-actions', () => ({ MessageActions: () => null }));
 vi.mock('../src/ui/chat/message-bubble', () => ({
-  PlaybackBubble: ({ message }: { message?: { body: string } }) =>
+  PlaybackBubble: ({
+    message,
+    onOpenDelivery,
+  }: {
+    message?: { body: string };
+    onOpenDelivery?: unknown;
+  }) =>
     message === undefined ? (
       <span data-testid="draft">visible draft</span>
     ) : (
-      <span data-testid="message">{message.body}</span>
+      <span data-testid="message" data-receipt={onOpenDelivery === undefined ? 'off' : 'on'}>
+        {message.body}
+      </span>
     ),
 }));
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: vi.fn(), shareText: vi.fn() }));
@@ -322,6 +338,7 @@ beforeEach(() => {
   delete state.conversation.olderError;
   state.focused = true;
   state.display = { mode: 'streaming', loaded: true };
+  state.receipts = false;
   state.glassHeader = true;
 });
 
@@ -638,6 +655,27 @@ it('refuses a retained route after switching Computers even when its Bot slug co
   );
   expect(view.textContent).toContain(t.sourceChanged);
   expect(view.querySelector('[data-testid="chat-controls"]')).toBeNull();
+});
+
+it('shows delivery receipts on bubbles only after the setting turns them on', async () => {
+  state.active = true;
+  state.conversation.messages = [
+    {
+      id: 'asked',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'asked',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  const view = await render(place);
+  const receipt = () => view.querySelector('[data-testid="message"]')?.getAttribute('data-receipt');
+  expect(receipt()).toBe('off');
+  state.receipts = true;
+  await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
+  expect(receipt()).toBe('on');
 });
 
 it('shows a message-shaped skeleton only while an empty history is opening', async () => {

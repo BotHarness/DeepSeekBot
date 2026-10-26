@@ -10,6 +10,7 @@ import { StatisticsSettings } from '../../src/ui/shell/statistics-settings';
 import { MessageDisplaySettings } from '../../src/ui/shell/message-display-settings';
 import { ActivityCountLink } from '../../src/ui/shell/activity-count-settings';
 import { HapticFeedbackSetting } from '../../src/ui/shell/haptic-feedback-setting';
+import { DeliveryReceiptSetting } from '../../src/ui/shell/delivery-receipt-setting';
 import { SHEET_GROUP } from '../../src/ui/chat/sheet';
 import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow } from '../../src/ui/primitives/settings-row';
@@ -33,6 +34,7 @@ export default function SettingsScreen() {
       messageDisplay={<MessageDisplaySettings />}
       activityCount={<ActivityCountLink />}
       hapticFeedback={<HapticFeedbackSetting />}
+      deliveryReceipts={<DeliveryReceiptSetting />}
       chatBackground={
         <SettingsRow
           on={SHEET_GROUP}

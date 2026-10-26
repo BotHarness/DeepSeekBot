@@ -41,6 +41,9 @@ const en = {
   },
   delivery: {
     label: 'Delivery status',
+    setting: 'Delivery status',
+    settingHint: 'Show whether mentioned Bots received your message.',
+    settingStorageError: 'Could not save this choice. Toggle again to retry.',
     summary: (parts: string) => `Delivery status: ${parts}`,
     state: {
       pending: 'Delivered',
@@ -1828,6 +1831,9 @@ const zh: typeof en = {
   },
   delivery: {
     label: '投递状态',
+    setting: '投递状态',
+    settingHint: '在消息旁显示被 @ 的 Bot 是否收到。',
+    settingStorageError: '未能保存此选择，请重新切换以重试。',
     summary: (parts: string) => `投递状态：${parts}`,
     state: {
       pending: '已投递',

@@ -384,12 +384,12 @@ export const MessageBubble = memo(function MessageBubble({
     <View
       style={{
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         justifyContent: 'flex-end',
         gap: space.x2,
       }}
     >
-      <View style={{ width: space.x6, alignItems: 'center' }}>
+      <View style={{ width: space.x6, alignItems: 'center', paddingBottom: space.x1 }}>
         {failed ? (
           <Pressable
             testID={`message-retry-${message.id}`}

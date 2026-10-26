@@ -37,6 +37,7 @@ import type { HostClient } from '../../host/client';
 import { visibleDmActivity } from '../../host/dm-activity';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
+import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
 import {
   shownInChat,
   type CardResolution,
@@ -369,6 +370,8 @@ function ChatConversation({
     saved && activeChannel ? { hostId: saved.hostId, channelId: activeChannel } : undefined,
   );
   const display = useMessageDisplay();
+  const receiptPreference = useDeliveryReceiptPreferences();
+  const receipts = receiptPreference.loaded && receiptPreference.enabled;
   const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
   const snapshot = useConversationTimelineSnapshot(conversation, playback);
   const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
@@ -990,7 +993,7 @@ function ChatConversation({
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm ? {} : { onReact: react })}
-          onOpenDelivery={openDelivery}
+          {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           botName={botName}
           speaker={
             !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
@@ -1024,6 +1027,7 @@ function ChatConversation({
       roster,
       botDm,
       router,
+      receipts,
     ],
   );
 
