@@ -17,8 +17,14 @@ interface Attention {
 }
 
 export type Conversation =
-  | ({ kind: 'bot'; key: string; bot: RosterBot; at?: string } & Attention)
-  | ({ kind: 'channel'; key: string; channel: RosterChannel; at?: string } & Attention);
+  | ({ kind: 'bot'; key: string; bot: RosterBot; at?: string; createdAt?: string } & Attention)
+  | ({
+      kind: 'channel';
+      key: string;
+      channel: RosterChannel;
+      at?: string;
+      createdAt?: string;
+    } & Attention);
 
 export type UnreadCounts = Readonly<Record<string, number>>;
 
@@ -114,11 +120,19 @@ export function conversations(
     unread: channelId === undefined ? 0 : (unread[channelId] ?? 0),
     muted: channelId !== undefined && muted.has(channelId),
   });
+  const channelCreatedAt = new Map(
+    roster.activityChannels?.map((channel) => [channel.id, channel.createdAt]),
+  );
+  const creationTime = (channelId: string | undefined): { createdAt?: string } => {
+    const createdAt = channelId === undefined ? undefined : channelCreatedAt.get(channelId);
+    return createdAt === undefined ? {} : { createdAt };
+  };
   const rows: Conversation[] = [
     ...roster.bots.map((bot): Conversation => ({
       kind: 'bot',
       key: `bot:${bot.slug}`,
       bot,
+      ...creationTime(bot.dmChannelId),
       ...(bot.previewAt === undefined ? {} : { at: bot.previewAt }),
       ...attention(bot.dmChannelId, needsYouFor(bot, action)),
     })),
@@ -126,6 +140,7 @@ export function conversations(
       kind: 'channel',
       key: `channel:${channel.id}`,
       channel,
+      ...creationTime(channel.id),
       ...(channel.previewAt === undefined ? {} : { at: channel.previewAt }),
       ...attention(channel.id, action.filter((item) => item.channelId === channel.id).length),
     })),

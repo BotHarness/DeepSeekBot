@@ -70,7 +70,8 @@ vi.mock('../src/ui/shell/icons', async () => ({
 }));
 
 import { View } from 'react-native';
-import { ConversationRowFrame } from '../src/ui/chat/conversation-row';
+import { ConversationRow, ConversationRowFrame } from '../src/ui/chat/conversation-row';
+import { conversations, shortTime } from '../src/ui/chat/conversations';
 import { useDesignTheme } from '../src/ui/design/theme';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -185,4 +186,64 @@ it('reserves visible heading space for the name and icon while retaining accessi
   expect(source.getAttribute('aria-label')).toContain('Research');
   expect(source.querySelector('i')).not.toBeNull();
   expect(row.view.textContent).not.toContain('Research');
+});
+
+describe.each(['android', 'ios'])('Empty conversation time on %s', (os) => {
+  it.each(['dm', 'group'] as const)(
+    'renders creation time then replaces it with the first message time for %s',
+    (type) => {
+      device.os = os;
+      const createdAt = '2026-10-14T07:00:00.000Z';
+      const messageAt = '2026-10-14T09:00:00.000Z';
+      const now = new Date(messageAt);
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      for (const at of [undefined, messageAt]) {
+        const preview = at === undefined ? {} : { preview: 'First reply', previewAt: at };
+        const rows = conversations(
+          {
+            bots:
+              type === 'dm'
+                ? [
+                    {
+                      slug: 'qa',
+                      displayName: 'QA Bot',
+                      roles: [],
+                      computerAccess: false,
+                      browserAccess: false,
+                      state: 'idle',
+                      paused: false,
+                      dmChannelId: 'qa-channel',
+                      ...preview,
+                    },
+                  ]
+                : [],
+            channels:
+              type === 'group'
+                ? [
+                    {
+                      id: 'qa-channel',
+                      name: 'QA group',
+                      memberCount: 1,
+                      members: ['qa'],
+                      ...preview,
+                    },
+                  ]
+                : [],
+            activityChannels: [{ id: 'qa-channel', name: 'QA', type, members: ['qa'], createdAt }],
+          },
+          [],
+        );
+        act(() => root!.render(<ConversationRow row={rows[0]!} now={now} />));
+        const time = shortTime(at ?? createdAt, now);
+        const text = [...host.querySelectorAll('span')].find(
+          (element) => element.textContent === time,
+        );
+        expect(text).toBeDefined();
+        expect(style(text!)).toMatchObject({ flexShrink: 0 });
+        if (at !== undefined) expect(host.textContent).not.toContain(shortTime(createdAt, now));
+      }
+    },
+  );
 });

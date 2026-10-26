@@ -63,7 +63,7 @@ export function ConversationRow({
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
   const preview = previewText(latest, copy);
   const badge = countBadge(row);
-  const time = shortTime(row.at, now);
+  const time = shortTime(row.at ?? row.createdAt, now);
   const description = rowLabel(row, title, status, preview);
   const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
