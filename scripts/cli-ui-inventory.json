@@ -26,6 +26,7 @@
       "surfaces": [
         "setting:packages/client/src/client/workspace.tsx:{t('dock.reset')}",
         "setting:packages/client/src/client/workspace.tsx:{t('workspace.gap')}",
+        "setting:packages/client/src/client/workspace.tsx:{t('workspace.layoutMode')}",
         "storage:packages/client/src/client/activity-feed.ts:setItem(preferenceKey)",
         "storage:packages/client/src/client/bot-session-folders.tsx:setItem(BOT_FOLDER_PREFERENCES_KEY)",
         "storage:packages/client/src/client/channel-activity-view.tsx:setItem('botharness/overview-statistics-collapsed.v1')",
@@ -35,6 +36,7 @@
         "storage:packages/client/src/client/channel-dock-layout.ts:setItem(key)",
         "storage:packages/client/src/client/channel-sidebar-prefs.ts:setItem(STORAGE_KEY)",
         "storage:packages/client/src/client/inbox-view-prefs.ts:setItem(INBOX_VIEW_PREFERENCES_KEY)",
+        "storage:packages/client/src/client/layout-mode.ts:setItem(LAYOUT_MODE_STORAGE_KEY)",
         "storage:packages/client/src/client/last-view.ts:setItem(LAST_VIEW_KEY)",
         "storage:packages/client/src/client/marketplace.tsx:setItem(SORT_STORAGE_KEY)",
         "storage:packages/client/src/client/memory-view-prefs.ts:setItem(MEMORY_VIEW_PREFERENCES_KEY)",

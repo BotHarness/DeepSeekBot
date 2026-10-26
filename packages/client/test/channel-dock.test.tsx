@@ -2,6 +2,7 @@
 import { act, createElement, useState, type ContextType, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
@@ -130,7 +131,7 @@ beforeEach(() => {
       disconnect() {}
     },
   );
-  values = new Map();
+  values = new Map([[LAYOUT_MODE_STORAGE_KEY, JSON.stringify({ mode: 'advanced' })]]);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -1418,4 +1419,107 @@ it('refuses a newly registered Bot-bound Panel in a Group before the registry re
   act(() => registry.open('new-character'));
   await settle();
   expect(host.querySelector('[data-new-character]')).not.toBeNull();
+});
+
+it('switches Simple views without adding panels and restores the Advanced arrangement', async () => {
+  const { WorkspaceContext, WORKSPACE_CHANNELS, WORKSPACE_HOME, WORKSPACE_RAIL } =
+    await import('../src/client/workspace-context.js');
+  values = new Map();
+  let dock: import('dockview-react').DockviewApi | undefined;
+  let layoutMode: { mode: 'simple' | 'advanced'; setMode(mode: 'simple' | 'advanced'): void };
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    [CHANNEL_BODY_PANEL, 'Messages'],
+    [WORKSPACE_CHANNELS, 'Channels'],
+    [WORKSPACE_HOME, 'Home'],
+    ['activity-center', 'Activity'],
+  ])
+    registry.register({
+      id: id!,
+      title: title!,
+      scope: 'global',
+      component: () => createElement('input', { 'data-content': id, defaultValue: title }),
+    });
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      {
+        value: {
+          rail: (api, _gap, _setGap, _reset, _order, _setOrder, _hidden, _setVisible, mode) => {
+            dock = api;
+            layoutMode = mode;
+            return createElement('nav');
+          },
+        },
+      },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        panels: registry.panels(),
+        registry,
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  act(() => dock!.layout(1500, 900));
+  await settle();
+  const shown = () =>
+    dock!.groups
+      .filter((group) => group.api.isVisible)
+      .flatMap((group) => group.panels.map((panel) => panel.id))
+      .filter((id) => id !== WORKSPACE_RAIL);
+  expect(layoutMode!.mode).toBe('simple');
+  expect(shown()).toEqual([WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL]);
+  expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(true);
+  expect(registry.isOpen(WORKSPACE_HOME)).toBe(false);
+
+  const draft = host.querySelector<HTMLInputElement>('[data-message-draft]')!;
+  draft.value = 'unsent message';
+  act(() => registry.toggle(WORKSPACE_HOME));
+  await settle();
+  expect(shown()).toEqual([WORKSPACE_HOME]);
+  expect(registry.isOpen(CHANNEL_BODY_PANEL)).toBe(false);
+  act(() => registry.toggle(WORKSPACE_HOME));
+  await settle();
+  expect(shown()).toEqual([WORKSPACE_HOME]);
+  act(() => registry.open('activity-center'));
+  await settle();
+  expect(shown()).toEqual(['activity-center']);
+  act(() => registry.open(CHANNEL_BODY_PANEL));
+  await settle();
+  expect(shown()).toEqual([WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL]);
+  expect(host.querySelector('[data-message-draft]')).toBe(draft);
+  expect(draft.value).toBe('unsent message');
+  expect(readChannelDock(storage)?.layout.panels).toEqual({});
+
+  act(() => registry.open(WORKSPACE_HOME));
+  act(() => layoutMode!.setMode('advanced'));
+  await settle();
+  act(() => dock!.layout(1500, 900));
+  await settle();
+  expect(layoutMode!.mode).toBe('advanced');
+  act(() => {
+    registry.open(CHANNEL_BODY_PANEL);
+    dock!.getPanel(WORKSPACE_CHANNELS)!.group.api.setSize({ width: 300 });
+  });
+  await settle();
+  const advanced = readChannelDock(storage)!.layout;
+  expect(Object.keys(advanced.panels)).toEqual(
+    expect.arrayContaining([WORKSPACE_HOME, CHANNEL_BODY_PANEL]),
+  );
+
+  act(() => layoutMode!.setMode('simple'));
+  await settle();
+  act(() => dock!.layout(1500, 900));
+  await settle();
+  expect(shown()).toEqual([WORKSPACE_HOME]);
+  expect(readChannelDock(storage)!.layout).toEqual(advanced);
+  act(() => layoutMode!.setMode('advanced'));
+  await settle();
+  expect(dock!.getPanel(WORKSPACE_HOME)).toBeDefined();
+  expect(dock!.getPanel(CHANNEL_BODY_PANEL)).toBeDefined();
+  expect(dock!.groups.every((group) => group.api.isVisible)).toBe(true);
 });

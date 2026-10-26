@@ -15,6 +15,8 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
 import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
 import { useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
+import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
+import type { LayoutMode } from './layout-mode.js';
 import { ActionButton } from './ds/action-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
@@ -175,6 +177,7 @@ export function Workspace({
                   setOrder,
                   hiddenControls,
                   setControlVisible,
+                  layoutMode,
                 ) => (
                   <WorkspaceRail
                     options={options}
@@ -186,6 +189,7 @@ export function Workspace({
                     setOrder={setOrder}
                     hiddenControls={hiddenControls}
                     setControlVisible={setControlVisible}
+                    layoutMode={layoutMode}
                     t={t}
                   />
                 ),
@@ -209,6 +213,7 @@ function WorkspaceRail({
   setOrder,
   hiddenControls,
   setControlVisible,
+  layoutMode,
   t,
 }: {
   options: WorkspaceOptions;
@@ -220,8 +225,10 @@ function WorkspaceRail({
   setOrder(ids: readonly string[]): void;
   hiddenControls: readonly string[];
   setControlVisible(id: string, visible: boolean): void;
+  layoutMode: { mode: LayoutMode; setMode(mode: LayoutMode): void };
   t: BotHarnessTranslate;
 }): ReactElement {
+  const simple = layoutMode.mode === 'simple';
   const icon = useSyncExternalStore(
     options.prefs.source.subscribe,
     () => options.prefs.source.getSnapshot().botIcon,
@@ -318,6 +325,7 @@ function WorkspaceRail({
                 ...panels.filter((p) => p.binding === 'current-bot').map((p) => p.id),
                 ...botOnlyHidden,
                 ...hiddenControls,
+                ...(simple ? [WORKSPACE_CHANNELS] : []),
               ]}
               shortcut={(id) => shortcuts.find((row) => row.id === workspaceShortcutId(id))?.keys}
               collapsed
@@ -340,7 +348,7 @@ function WorkspaceRail({
         </div>
       </div>
       {indicatorMenu.menu}
-      <span className="bh-workspace-grip">
+      <span className="bh-workspace-grip" hidden={simple}>
         <Menu
           open={menu}
           portal
@@ -381,6 +389,22 @@ function WorkspaceRail({
       {settingsTarget &&
         createPortal(
           <SettingsSection title={t('workspace.appearance')}>
+            <SettingsRow
+              title={t('workspace.layoutMode')}
+              description={t('workspace.layoutModeHint')}
+              control={
+                <SegmentedControl
+                  id="bh-layout-mode"
+                  label={t('workspace.layoutMode')}
+                  value={layoutMode.mode}
+                  options={[
+                    { value: 'simple', label: t('workspace.layoutMode.simple') },
+                    { value: 'advanced', label: t('workspace.layoutMode.advanced') },
+                  ]}
+                  onChange={(mode) => layoutMode.setMode(mode as LayoutMode)}
+                />
+              }
+            />
             <SettingsRow
               title={t('workspace.gap')}
               control={
