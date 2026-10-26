@@ -661,42 +661,8 @@ const MessageGroupView = memo(function MessageGroupView({
       ? bots.find((candidate) => candidate.slug === currentDmBotSlug)
       : undefined;
   const bubbleStyle = humanBubbleStyle(botNameSource(dmBot), surface.background);
-  const lastMessage = group.messages[group.messages.length - 1];
-  const lastReactions = (lastMessage?.reactions ?? [])
-    .map((reaction) => `${reaction.emoji}${String(reaction.actors.length)}`)
-    .join(' ');
-  const groupMount = useMountedResource<HTMLDivElement>(
-    (node) => {
-      if (avatar === undefined || lastMessage === undefined || lastReactions === '') return;
-      const chips = Array.from(
-        node.querySelectorAll<HTMLElement>(
-          `.bh-bubble-wrap[data-message-id] > .bh-bubble-surface > [data-message-reactions]`,
-        ),
-      ).find(
-        (element) =>
-          element.closest<HTMLElement>('.bh-bubble-wrap')?.dataset.messageId === lastMessage.id,
-      );
-      if (chips === undefined) return;
-      const lift = (): void => {
-        const margin = Number.parseFloat(getComputedStyle(chips).marginTop) || 0;
-        node.style.setProperty(
-          '--bh-avatar-lift',
-          `${String(chips.getBoundingClientRect().height + margin)}px`,
-        );
-      };
-      lift();
-      const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(lift);
-      observer?.observe(chips);
-      return () => {
-        observer?.disconnect();
-        node.style.removeProperty('--bh-avatar-lift');
-      };
-    },
-    [avatar === undefined, lastMessage?.id, lastReactions],
-  );
   return (
     <div
-      ref={groupMount}
       className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}

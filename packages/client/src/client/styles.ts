@@ -3312,7 +3312,6 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   height: 28px;
   display: flex;
   align-items: flex-end;
-  margin-bottom: var(--bh-avatar-lift, 0px);
   border: 0;
   border-radius: ${radius.round};
   padding: 0;
