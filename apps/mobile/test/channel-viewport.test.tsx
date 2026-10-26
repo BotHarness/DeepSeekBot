@@ -93,17 +93,9 @@ afterEach(() => {
 function mount() {
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
-  const offset = { value: 1200 };
   let current!: ReturnType<typeof useChannelViewport<unknown>>;
   function Probe() {
-    current = useChannelViewport(
-      list,
-      rows,
-      offset as Parameters<typeof useChannelViewport>[2],
-      undefined,
-      0,
-      false,
-    );
+    current = useChannelViewport(list, rows, undefined, 0, false);
     return current.renderScrollComponent?.({}) ?? null;
   }
   root = createRoot(document.createElement('div'));

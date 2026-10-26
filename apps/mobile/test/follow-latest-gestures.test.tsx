@@ -58,26 +58,17 @@ function message(id: string, author: ConversationMessage['author']): Conversatio
 
 function mount(messages: readonly ConversationMessage[] = [], start = 0, empty = false) {
   const following = vi.fn();
-  const latestChange = vi.fn();
   const scrollToOffset = vi.fn();
   const list = { current: { scrollToOffset } as unknown as FlatList<unknown> };
   const probe: { current?: ReturnType<typeof useFollowLatest<unknown>> } = {};
   function Probe({ rows, known }: { rows: readonly ConversationMessage[]; known: boolean }) {
-    probe.current = useFollowLatest(
-      list,
-      rows,
-      following,
-      start,
-      known && rows.length === 0,
-      latestChange,
-    );
+    probe.current = useFollowLatest(list, rows, following, start, known && rows.length === 0);
     return null;
   }
   const root = createRoot(document.createElement('div'));
   act(() => root.render(<Probe rows={messages} known={empty} />));
   return {
     following,
-    latestChange,
     scrollToOffset,
     get current() {
       return probe.current!;
@@ -413,7 +404,6 @@ describe('following a growing conversation', () => {
         const content = geometry === 'content' ? CONTENT + 200 : CONTENT;
         const viewport = geometry === 'viewport' ? LAYOUT - 200 : LAYOUT;
         view.scrollToOffset.mockClear();
-        view.latestChange.mockClear();
         const reportGeometry = () => {
           const scrollEvent = event(0);
           view.current.listProps.onScroll({
@@ -433,7 +423,6 @@ describe('following a growing conversation', () => {
           offset: END + 200,
           animated: false,
         });
-        expect(view.latestChange).toHaveBeenLastCalledWith(END + 200);
         act(() => view.current.hold());
         view.scrollToOffset.mockClear();
         act(reportGeometry);

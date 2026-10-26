@@ -617,7 +617,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
 
     state.host.roster.bots = [{ ...bot, state: 'thinking' }];
     render();
-    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
     expect(container.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
     visible();
     act(() => stream.publish({ drafts: [{ draftId: 'first', botSlug: 'ada' }] }));
@@ -631,7 +631,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     act(() => stream.publish({ messages: [human, reply], drafts: [] }));
     visible();
     expect(rows()).toEqual(['first-human', 'first-reply']);
-    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
     state.host.roster.bots = [bot];
     render();
     expect(container.querySelector('[data-testid="pending"]')).toBeNull();
