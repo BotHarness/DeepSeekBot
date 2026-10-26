@@ -94,7 +94,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelHeader } from './ds/panel-header.js';
-import { space, color, radius } from './ds/tokens.stylex.js';
+import { space, color, radius, text } from './ds/tokens.stylex.js';
 import { EntryPart, useStableProps } from './entry-part.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
@@ -124,7 +124,14 @@ const styles = stylex.create({
   workspaceBody: { paddingTop: space.x1, paddingBottom: space.x1, paddingInline: space.x1 },
   panel: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
   breadcrumb: { display: 'flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
-  channelName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
+  channelName: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    minWidth: 0,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+  },
   breadcrumbIcon: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
   actions: { display: 'inline-flex', alignItems: 'center', minWidth: 0, gap: space.x1 },
 });
