@@ -54,7 +54,11 @@ export interface WindowZoomSetupOptions {
     command: string,
     args: readonly string[],
     options: SpawnOptions,
-  ) => { pid?: number | undefined; unref(): void };
+  ) => {
+    pid?: number | undefined;
+    unref(): void;
+    on?(event: 'error', listener: (error: Error) => void): unknown;
+  };
   log?: (phase: string, detail: Record<string, string | number | boolean>) => void;
 }
 
@@ -238,6 +242,16 @@ export function createWindowZoomSetup(options: WindowZoomSetupOptions) {
       ],
       { cwd: desktop, env, detached: true, stdio: 'ignore', windowsHide: true },
     );
+    child.on?.('error', (error) => {
+      record('spawn-failed', { message: error.message });
+      if (readState()?.id === request.id)
+        writeState({
+          ...request,
+          status: 'failed',
+          code: 'zoom-setup-helper-spawn-failed',
+          finishedAt: now().toISOString(),
+        });
+    });
     child.unref();
     writeState({ ...request, ...(child.pid === undefined ? {} : { pid: child.pid }) });
     record('scheduled', { action, request: request.id, pid: child.pid ?? 0 });

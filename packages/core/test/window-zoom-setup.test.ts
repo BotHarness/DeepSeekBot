@@ -30,7 +30,11 @@ function fixture(link?: string) {
   const spawn = vi.fn((_command: string, _args: readonly string[], _options: object) => ({
     pid: 4242,
     unref: vi.fn(),
+    on: vi.fn((_event: 'error', listener: (error: Error) => void) => {
+      spawnError = listener;
+    }),
   }));
+  let spawnError: ((error: Error) => void) | undefined;
   const alive = vi.fn(() => true);
   const setup = createWindowZoomSetup({
     dshHome: home,
@@ -42,7 +46,7 @@ function fixture(link?: string) {
     spawn,
     alive,
   });
-  return { home, profile, app, execPath, spawn, alive, setup };
+  return { home, profile, app, execPath, spawn, alive, setup, fail: (e: Error) => spawnError?.(e) };
 }
 const post = (body: unknown) =>
   new Request('http://host/api/botharness/window-zoom-setup', {
@@ -100,6 +104,15 @@ describe('Desktop window zoom setup after quit', () => {
     expect(await refused.json()).toMatchObject({ error: { code: 'zoom-setup-already-enabled' } });
     await setup.fetch(post({ action: 'disable' }));
     expect(spawn.mock.calls[0]![1][1]).toBe('disable');
+  });
+
+  it('records an asynchronous spawn failure instead of crashing the Host', async () => {
+    const { setup, fail } = fixture();
+    await setup.fetch(post({ action: 'enable' }));
+    fail(new Error('EACCES'));
+    expect(setup.status()).toMatchObject({
+      last: { action: 'enable', status: 'failed', code: 'zoom-setup-helper-spawn-failed' },
+    });
   });
 
   it('reports a helper that exited without an outcome as failed', async () => {

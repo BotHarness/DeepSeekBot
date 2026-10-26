@@ -273,9 +273,12 @@ export async function configureDesktopZoomAfterQuit({
     }
     const latest = readState(state);
     if (latest?.id !== id) return { status: 'superseded' };
-    writeState(state, { ...latest, ...outcome, finishedAt: new Date(now()).toISOString() });
-    if (outcome.code !== 'desktop-zoom-setup-wait-expired')
-      relaunch(options.desktopApp, options.platform);
+    try {
+      writeState(state, { ...latest, ...outcome, finishedAt: new Date(now()).toISOString() });
+    } finally {
+      if (outcome.code !== 'desktop-zoom-setup-wait-expired')
+        relaunch(options.desktopApp, options.platform);
+    }
     return outcome;
   }
 }
