@@ -383,6 +383,7 @@ describe('CI test plan drift checks', () => {
         'scripts/sync-slides.mjs',
         'packages/a/test/x.test.tsx',
         'apps/site/test/y.test.ts',
+        '.agents/skills/vendored/scripts/z.test.ts',
       ],
       ['packages/*/test/**/*.test.ts', 'apps/docs/test/**/*.test.ts'],
     );

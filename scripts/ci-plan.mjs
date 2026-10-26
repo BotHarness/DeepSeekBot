@@ -434,7 +434,12 @@ export function checkClassification(files, rules = RULES) {
 export function checkTestInclude(files, include) {
   const problems = [];
   for (const file of files) {
-    if (!/\.test\.[cm]?[jt]sx?$/.test(file) || file.includes('/fixtures/')) continue;
+    if (
+      !/\.test\.[cm]?[jt]sx?$/.test(file) ||
+      file.includes('/fixtures/') ||
+      file.startsWith('.agents/')
+    )
+      continue;
     if (!include.some((glob) => matchesGlob(file, glob)))
       problems.push(`${file} is a test outside the Vitest include in vitest.config.ts`);
   }
