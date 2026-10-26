@@ -62,13 +62,22 @@ const bot = (primaryColor?: BotSummary['primaryColor']): BotSummary => ({
   ...(primaryColor === undefined ? {} : { primaryColor }),
 });
 
-async function show(summary: BotSummary) {
-  const actions = { profileSessionUsage: vi.fn(async () => usage) } as unknown as BridgeActions;
+async function show(
+  summary: BotSummary,
+  context?: Awaited<ReturnType<BridgeActions['botContext']>>,
+  channelId = 'dm-ada',
+) {
+  const actions = {
+    profileSessionUsage: vi.fn(async () => usage),
+    compactBot: vi.fn(async () => ({ outcome: 'compacted' })),
+    newBotSession: vi.fn(async () => undefined),
+  } as unknown as BridgeActions;
   await act(async () =>
     root.render(
       createElement(DmComposerUsagePopover, {
         bot: summary,
-        channelId: 'dm-ada',
+        context,
+        channelId,
         actions,
         activity: undefined,
         t: zhTranslate,
@@ -79,6 +88,7 @@ async function show(summary: BotSummary) {
     ),
   );
   await act(async () => new Promise((done) => setTimeout(done, 0)));
+  return actions;
 }
 const name = () => document.querySelector<HTMLElement>('.bh-composer-usage-total > span')!;
 const meters = () => [...document.querySelectorAll<HTMLElement>('.bh-composer-usage-meter')];
@@ -106,4 +116,51 @@ it('shows the Bot name and session share meters in the saved Bot Primary Color',
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe('#1d1b22');
   expect(meters().map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['75', '25']);
+});
+
+it('shows current context details separately from cumulative usage', async () => {
+  await show(bot(), {
+    sessionId: 's1',
+    usedTokens: 28039,
+    contextWindow: 1000000,
+    thresholdTokens: 800000,
+    capacitySource: 'model',
+  });
+  const section = document.querySelector('[aria-label="当前会话上下文"]')!;
+  expect(section.textContent).toContain('28,039');
+  expect(section.textContent).toContain('1,000,000');
+  expect(section.textContent).toContain('971,961');
+  expect(section.textContent).toContain('800,000');
+  expect(section.textContent).toContain('模型声明');
+  expect(document.body.textContent).toContain('累计用量');
+});
+
+it('labels fallback capacity and never presents unloaded usage as zero', async () => {
+  await show(bot(), {
+    sessionId: 's1',
+    usedTokens: null,
+    contextWindow: 200000,
+    thresholdTokens: 102464,
+    capacitySource: 'estimate',
+  });
+  const section = document.querySelector('[aria-label="当前会话上下文"]')!;
+  expect(section.textContent).toContain('200,000');
+  expect(section.textContent).toContain('容量估算');
+  expect(section.textContent).toContain(zhTranslate('profile.usage.unknown'));
+});
+
+it('runs manual maintenance only in the Bot DM without retrying messages', async () => {
+  const actions = await show(bot());
+  const button = (label: string) =>
+    [...document.querySelectorAll('button')].find((node) => node.textContent === label)!;
+  await act(async () => button('压缩上下文').click());
+  expect(actions.compactBot).toHaveBeenCalledWith('ada');
+  await act(async () => button('开启新会话').click());
+  expect(actions.newBotSession).toHaveBeenCalledWith('ada');
+});
+
+it('does not offer session maintenance in a group', async () => {
+  await show(bot(), undefined, 'group-test');
+  expect(document.body.textContent).not.toContain('压缩上下文');
+  expect(document.body.textContent).not.toContain('开启新会话');
 });

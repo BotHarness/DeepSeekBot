@@ -48,3 +48,13 @@ The implementation reuses native compaction and the runtime's per-Bot queue. Rec
 - Clicking New session and retry produced a different canonical Session ID and a failure associated with the same original Human message; history remained present. The provider returned QUOTA, so this proves replacement and retry routing, not a successful model reply.
 - After restarting the isolated Host, the context query correctly returned unknown usage until loading. The real bot-compact command loaded the original Session and returned nothing-to-compact with 28,039 tokens before/after, without a Human message.
 - Successful provider-backed summary generation and actual unknown-capacity overflow remain unverified because the configured provider rejected model calls for quota. Native mobile device checks are queued, not qualified. Whole-workspace type checks still contain existing dependency/type failures; focused changed-file checks and lint found no new errors.
+
+## Confirmed PR refinements
+
+The footer shows only `28K / 1M`, with neither an approximation mark nor a Context label. Its popover separates current estimated occupancy, capacity, remaining space, automatic threshold and capacity source from cumulative usage. Compact and New session actions are available only in the Bot Human DM; neither action retries an old message. Groups do not expose these controls.
+
+Failed-message feedback reuses the existing Web/mobile form and POST endpoint. The explicit failure entry preselects negative feedback. The upload adds only the canonically matched turn input and tool calls/results; the full diagnostic archive remains a separate download. Missing or ambiguous turn identity refuses, secrets use the existing redactor, and evidence over 128 KiB refuses. These refinements were requested after the original runtime verification; current-head evidence supersedes earlier screenshots.
+
+## Current PR verification
+
+The PR is rebased onto main `ff51ffcb1e3d87cfb5ca1b2ef999eed39a810d03` with DSH 0.2.1-rc.3. 133 focused tests pass, the root TypeScript check passes, the build passes, and CLI parity/source-policy checks pass. Native mobile type checking still has existing React type/dependency errors; device QA is pending. Matched 1440×1000 English/light before/after captures use the same isolated synthetic Bot and Channel. The real failed-turn preview identified the request and exposed redacted upload evidence; ingestion is covered by mocked contract tests, not a production upload. Provider quota continues to block successful summary generation.

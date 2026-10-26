@@ -10,11 +10,13 @@ export function SessionFailureCard({
   channelId,
   messageId,
   failure,
+  onReport,
 }: {
   client: HostClient;
   channelId: string;
   messageId: string;
   failure: SessionFailure;
+  onReport?: (() => void) | undefined;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -63,6 +65,9 @@ export function SessionFailureCard({
       details={<DetailRow label={t.sessionRecovery.details} value={failure.detail} />}
     >
       <CardButtons stack>
+        {onReport ? (
+          <Button label={t.sessionRecovery.report} testID="session-report" onPress={onReport} />
+        ) : null}
         {failure.requestMessageId ? (
           <Button label={t.sessionRecovery.retry} testID="session-retry" onPress={() => retry()} />
         ) : null}

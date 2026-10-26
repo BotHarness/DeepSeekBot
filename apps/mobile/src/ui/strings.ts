@@ -295,6 +295,9 @@ const en = {
     refused: `The computer could not finish creation. Check ${productName.en} on that computer, then try again.`,
   },
   sessionRecovery: {
+    report: 'Report this error',
+    uploadScope:
+      'Submit uploads this turn’s input and tool calls after redaction. The diagnostic archive is downloaded separately.',
     changed: 'The session has changed. Retry this message directly.',
     busy: 'Wait for the current reply or stop the Bot first.',
     compactionFailed: 'Compaction did not finish. You can start a new session and retry.',
@@ -2024,6 +2027,8 @@ const zh: typeof en = {
     refused: `电脑无法完成创建。请检查电脑上的 ${productName.zh} 后重试。`,
   },
   sessionRecovery: {
+    report: '上报此错误',
+    uploadScope: '提交会上传本轮输入及工具调用（已脱敏）。诊断包另行下载。',
     changed: '会话已更新，可直接重试这条消息',
     busy: '请等待当前回复结束，或先停止 Bot',
     compactionFailed: '压缩未完成，可以开新会话并重试',

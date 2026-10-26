@@ -911,6 +911,20 @@ function ChatConversation({
             channelId={activeChannel}
             messageId={item.message.id}
             failure={item.message.sessionFailure}
+            onReport={
+              saved
+                ? () =>
+                    router.push({
+                      pathname: '/message-feedback',
+                      params: {
+                        hostId: saved.hostId,
+                        channelId: activeChannel,
+                        messageId: item.message.id,
+                        failureTurn: '1',
+                      },
+                    })
+                : undefined
+            }
           />
         );
       if (

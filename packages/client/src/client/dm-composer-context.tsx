@@ -1,7 +1,6 @@
 import { useScopedState } from './scoped-state.js';
 import {
   useCallback,
-  useEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -324,37 +323,36 @@ function DmComposerContextView({
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [context, setContext] = useState<Awaited<ReturnType<BridgeActions['botContext']>>>();
-  useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    setContext(undefined);
-    const refresh = async () => {
-      try {
-        const value = await actions.botContext(bot.slug);
-        if (active) setContext(value);
-      } catch {
-        if (active) setContext(undefined);
-      } finally {
-        if (active)
-          timer = setTimeout(() => {
-            void refresh();
-          }, 5000);
-      }
-    };
-    void refresh();
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [actions, bot.slug, route?.provider, route?.model]);
   const usageTrigger = useRef<HTMLButtonElement | null>(null);
-  const usageMount = useMountedResource<HTMLButtonElement>((node) => {
-    usageTrigger.current = node;
-    return () => {
-      usageTrigger.current = null;
-      setUsageOpen(false);
-    };
-  }, []);
+  const usageMount = useMountedResource<HTMLButtonElement>(
+    (node) => {
+      usageTrigger.current = node;
+      let active = true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      setContext(undefined);
+      const refresh = async () => {
+        try {
+          const value = await actions.botContext(bot.slug);
+          if (active) setContext(value);
+        } catch {
+          if (active) setContext(undefined);
+        } finally {
+          if (active)
+            timer = setTimeout(() => {
+              void refresh();
+            }, 5000);
+        }
+      };
+      void refresh();
+      return () => {
+        active = false;
+        clearTimeout(timer);
+        usageTrigger.current = null;
+        setUsageOpen(false);
+      };
+    },
+    [actions, bot.slug, route?.provider, route?.model],
+  );
   const subscribeGrants = useCallback(
     (listener: () => void) => subscribeWorkspaceGrantChanges(bot.slug, listener),
     [bot.slug],
@@ -415,14 +413,11 @@ function DmComposerContextView({
     }).format(tokens);
   const compactUsage =
     context === undefined
-      ? t('composerContext.contextUnknown')
+      ? '— / —'
       : t('composerContext.contextWindow', {
-          used: context.usedTokens === null ? '?' : `≈${shortTokens(context.usedTokens)}`,
+          used: context.usedTokens === null ? '?' : shortTokens(context.usedTokens),
           capacity: shortTokens(context.contextWindow),
-        }) +
-        (context.capacitySource === 'estimate'
-          ? ` · ${t('composerContext.capacityEstimate')}`
-          : '');
+        });
   return (
     <>
       <ComposerContextBar
@@ -474,6 +469,7 @@ function DmComposerContextView({
       </ComposerContextBar>
       {usageOpen ? (
         <DmComposerUsagePopover
+          context={context}
           bot={bot}
           channelId={channelId}
           actions={actions}

@@ -26,6 +26,7 @@ export const feedbackSelectionSchema = z
     deliveries: z.boolean().default(true),
     relatedChats: z.boolean().default(true),
     wholeSessions: z.boolean().default(false),
+    failureTurn: z.boolean().default(false),
   })
   .strict();
 

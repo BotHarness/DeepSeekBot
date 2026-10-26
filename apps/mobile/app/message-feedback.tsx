@@ -6,10 +6,11 @@ import { SheetPage } from '../src/ui/primitives/sheet-page';
 import { Text } from '../src/ui/primitives/text';
 import { useStrings } from '../src/ui/strings';
 export default function MessageFeedbackScreen() {
-  const { channelId, messageId, hostId } = useLocalSearchParams<{
+  const { channelId, messageId, hostId, failureTurn } = useLocalSearchParams<{
     channelId: string;
     messageId: string;
     hostId: string;
+    failureTurn?: string;
   }>();
   const { client, saved } = useHostSession();
   const router = useRouter();
@@ -24,6 +25,7 @@ export default function MessageFeedbackScreen() {
           client={client}
           channelId={channelId}
           messageId={messageId}
+          failureTurn={failureTurn === '1'}
           onBusyChange={setBusy}
           onClose={() => {
             if (!busy) router.back();

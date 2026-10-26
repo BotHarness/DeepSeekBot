@@ -1,9 +1,17 @@
-import { useId, useState, type CSSProperties, type ReactElement, type RefObject } from 'react';
+import {
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactElement,
+  type RefObject,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   IconChevronRightOutlineRegular,
   IconCloseOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { errorMessage } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { ProfileActivity, ProfileSessionUsage } from './bridge.js';
 import { botNameSource, paintBotName, paintBotScale } from './bot-primary-color.js';
@@ -15,6 +23,7 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 
 export function DmComposerUsagePopover({
   bot,
+  context,
   channelId,
   actions,
   activity,
@@ -24,6 +33,7 @@ export function DmComposerUsagePopover({
   onDetails,
 }: {
   bot: BotSummary;
+  context?: Awaited<ReturnType<BridgeActions['botContext']>> | undefined;
   channelId: string;
   actions: BridgeActions;
   activity: ProfileActivity | undefined;
@@ -33,6 +43,37 @@ export function DmComposerUsagePopover({
   onDetails(): void;
 }): ReactElement {
   const titleId = useId();
+  const [maintenance, setMaintenance] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const maintenancePending = useRef(false);
+  const maintain = (action: 'compact' | 'new') => {
+    if (maintenancePending.current || channelId !== `dm-${bot.slug}`) return;
+    maintenancePending.current = true;
+    setMaintenance(true);
+    setNotice(undefined);
+    void (async () => {
+      if (action === 'new') {
+        await actions.newBotSession(bot.slug);
+        setNotice(t('composerCommand.newSessionDone'));
+      } else {
+        const value = await actions.compactBot(bot.slug);
+        setNotice(
+          t(
+            value.outcome === 'compacted'
+              ? 'composerContext.compacted'
+              : value.outcome === 'nothing'
+                ? 'composerContext.compactNothing'
+                : 'composerCompact.failed',
+          ),
+        );
+      }
+    })()
+      .catch((error: unknown) => setNotice(errorMessage(error)))
+      .finally(() => {
+        maintenancePending.current = false;
+        setMaintenance(false);
+      });
+  };
   const [result, setResult] = useState<ProfileSessionUsage>();
   const [failed, setFailed] = useState(false);
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
@@ -131,6 +172,65 @@ export function DmComposerUsagePopover({
           <IconCloseOutlineRegular size={16} />
         </button>
       </div>
+      <section
+        className="bh-composer-usage-section"
+        aria-label={t('composerContext.contextDetails')}
+      >
+        <h3>{t('composerContext.contextDetails')}</h3>
+        {context === undefined ? (
+          <p role="status">{t('composerContext.unavailable')}</p>
+        ) : (
+          <>
+            {(
+              [
+                [t('composerContext.contextUsed'), context.usedTokens],
+                [t('composerContext.contextCapacity'), context.contextWindow],
+                [
+                  t('composerContext.contextRemaining'),
+                  context.usedTokens === null
+                    ? null
+                    : Math.max(0, context.contextWindow - context.usedTokens),
+                ],
+                [t('composerContext.contextThreshold'), Math.max(0, context.thresholdTokens)],
+              ] as const
+            ).map(([label, value]) => (
+              <div className="bh-composer-usage-row" key={label}>
+                <span>{label}</span>
+                <strong>
+                  {value === null ? t('profile.usage.unknown') : value.toLocaleString('en-US')}
+                </strong>
+              </div>
+            ))}
+            <div className="bh-composer-usage-row">
+              <span>{t('composerContext.contextSource')}</span>
+              <strong>
+                {t(
+                  context.capacitySource === 'model'
+                    ? 'composerContext.capacityModel'
+                    : 'composerContext.capacityEstimate',
+                )}
+              </strong>
+            </div>
+            <p className="bh-composer-usage-caption">{t('composerContext.contextHint')}</p>
+          </>
+        )}
+      </section>
+      {channelId === `dm-${bot.slug}` ? (
+        <div className="bh-composer-usage-row">
+          <button type="button" disabled={maintenance} onClick={() => maintain('compact')}>
+            {t('composerContext.compactNow')}
+          </button>
+          <button type="button" disabled={maintenance} onClick={() => maintain('new')}>
+            {t('composerCommand.newSession')}
+          </button>
+        </div>
+      ) : null}
+      {notice ? (
+        <p role="status" className="bh-composer-usage-caption">
+          {notice}
+        </p>
+      ) : null}
+      <h3>{t('composerContext.cumulativeUsage')}</h3>
       <div className="bh-composer-usage-total">
         <span ref={(element) => paintBotName(element, source)}>{bot.displayName}</span>
         <strong>
@@ -169,7 +269,7 @@ export function DmComposerUsagePopover({
                         </span>
                         <strong>
                           {sessionCount(row)}
-                          {sessionShare(row) === undefined ? '' : ` · ${sessionShare(row)}%`}
+                          {sessionShare(row) === undefined ? '' : ` 路 ${sessionShare(row)}%`}
                         </strong>
                       </div>
                       {sessionShare(row) === undefined ? null : (

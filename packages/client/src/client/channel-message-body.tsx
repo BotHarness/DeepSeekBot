@@ -1,3 +1,4 @@
+import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
@@ -93,6 +94,7 @@ function SessionFailureNotice({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [moreRecovery, setMoreRecovery] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const submitting = useRef(false);
   const recover = (action: 'compact' | 'new-session') => {
     if (submitting.current || !actions || !channelId || !failure.requestMessageId) return;
@@ -197,6 +199,20 @@ function SessionFailureNotice({
             </>
           ) : null}
         </div>
+      ) : null}
+      {channelId && host === undefined ? (
+        <Button variant="outline" onClick={() => setReportOpen(true)}>
+          {t('feedback.reportFailure')}
+        </Button>
+      ) : null}
+      {reportOpen && channelId ? (
+        <MessageFeedbackDialog
+          channelId={channelId}
+          messageId={message.id}
+          failureTurn
+          onClose={() => setReportOpen(false)}
+          t={t}
+        />
       ) : null}
       {error ? <p role="alert">{error}</p> : null}
     </div>

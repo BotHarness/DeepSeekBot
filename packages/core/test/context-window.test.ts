@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { Session, SessionId } from '@deepseek-ai/dsh-session';
-import { createUserMessage } from '@deepseek-ai/dsh-llm';
+import { createUserMessage, createSystemMessage } from '@deepseek-ai/dsh-llm';
 import { contextCapacity, fallbackCompactionRange } from '../src/runtime/context-window.js';
 import { compactionThresholdTokens } from '../src/runtime/idle-compaction.js';
 
@@ -20,7 +20,7 @@ it('retains the latest message and never selects the system prompt', () => {
   const session = Session.create(SessionId('context-window-test'));
   session.append(
     'system/message',
-    { turn: 0, step: 0, message: { role: 'system', content: [{ type: 'text', text: 'System' }] } },
+    { turn: 0, step: 0, message: createSystemMessage('System') },
     { surfaceOp: 'append' },
   );
   expect(fallbackCompactionRange(session)).toBeUndefined();

@@ -141,6 +141,8 @@ function stubActions(): BridgeActions {
     introEvent: vi.fn(),
     retryMessage: vi.fn(),
     stopBot: vi.fn(),
+    botContext: vi.fn(),
+    newBotSession: vi.fn(),
     compactBot: vi.fn(),
     validateComposerDraft: vi.fn(),
     deletionPreview: vi.fn(),
