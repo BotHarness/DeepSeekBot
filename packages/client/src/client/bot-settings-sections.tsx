@@ -27,6 +27,7 @@ import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
+import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
@@ -77,6 +78,7 @@ export function ModelsSection(
     <Rows>
       <DefaultModelSettings actions={props.actions} t={props.t} />
       <IdleCompactionSetting call={props.call} t={props.t} />
+      <CompactionThresholdSetting call={props.call} t={props.t} />
       <AssignmentConcurrencyRow {...props} />
       <BotSessionsVisibilitySetting {...props} />
       <ApprovalReviewSessionsVisibilitySetting {...props} />

@@ -225,6 +225,7 @@ import {
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import {
   compactionThresholdTokens,
+  type CompactionThresholdPolicy,
   createIdleCompaction,
   IdleCompactionError,
   runCompactCommand,
@@ -1608,10 +1609,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .catch(() => undefined);
   };
   const reviewing = new Set<string>();
+  const idleCompactionSettings = createIdleCompactionSettings(join(dshHome, 'botharness'));
+  const compactionPolicy = (): CompactionThresholdPolicy => {
+    const value = idleCompactionSettings.read();
+    if (value === 'invalid') return {};
+    return {
+      ...(value.thresholdRatio === undefined ? {} : { thresholdRatio: value.thresholdRatio }),
+      ...(value.headroomTokens === undefined ? {} : { headroomTokens: value.headroomTokens }),
+    };
+  };
+  let compactionBaseConfig: Record<string, unknown> | undefined;
+  const applyCompactionPolicy = (): void => {
+    const engine = ctx.get('compaction') as unknown as
+      | { config?: Record<string, unknown> }
+      | undefined;
+    const config = engine?.config;
+    if (engine === undefined || typeof config !== 'object' || !('thresholdRatio' in config)) return;
+    compactionBaseConfig ??= config;
+    const policy = compactionPolicy();
+    const thresholdRatio = policy.thresholdRatio ?? compactionBaseConfig['thresholdRatio'];
+    const headroomTokens = policy.headroomTokens ?? compactionBaseConfig['headroomTokens'];
+    if (config['thresholdRatio'] === thresholdRatio && config['headroomTokens'] === headroomTokens)
+      return;
+    engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
+  };
   installNativeSubagentWake(ctx, core.runtime);
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
+      applyCompactionPolicy();
       if (isApprovalReviewSession(agent.session.id))
         return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
       try {
@@ -1629,7 +1655,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (permissionDenial(agent.session) !== undefined) return { kind: 'reject' };
       const contextOwner = core.ownership.resolve(agent.session.id);
       if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
-        await compactUnknownContext(agent, signal);
+        await compactUnknownContext(agent, signal, compactionPolicy());
       return next();
     },
     { global: true },
@@ -1638,7 +1664,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     join(dshHome, 'botharness', 'approval-templates'),
   );
   const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
-  const idleCompactionSettings = createIdleCompactionSettings(join(dshHome, 'botharness'));
   const liveAgent = (sessionId: string) =>
     ctx.agents.list().find((agent) => agent.session.id === sessionId);
   const idleCompaction = createIdleCompaction({
@@ -1664,7 +1689,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     threshold: async (agent, route) => {
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
       return compactionThresholdTokens(
-        {},
+        compactionPolicy(),
         route,
         contextCapacity(info.context?.contextWindow).contextWindow,
         agent.session.requestHeader()?.config.maxTokens ?? info.defaultMaxTokens ?? 0,
@@ -2340,7 +2365,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           : null,
         ...capacity,
         thresholdTokens: compactionThresholdTokens(
-          {},
+          compactionPolicy(),
           route,
           capacity.contextWindow,
           request?.maxTokens ?? info.defaultMaxTokens ?? 0,
@@ -2401,6 +2426,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     idleCompaction: {
       settings: idleCompactionSettings,
       scheduler: idleCompaction,
+      applyThreshold: applyCompactionPolicy,
       routes: () => {
         let fallback: { provider: string; model: string } | undefined;
         try {

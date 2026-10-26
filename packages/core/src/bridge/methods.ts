@@ -20,7 +20,11 @@ import {
   type ManualCompactionResult,
 } from '../runtime/idle-compaction.js';
 import {
+  COMPACTION_HEADROOM_TOKENS,
+  COMPACTION_THRESHOLD_RATIO,
   isCacheLifetimeSeconds,
+  isCompactionHeadroomTokens,
+  isCompactionThresholdRatio,
   MAX_CACHE_LIFETIME_SECONDS,
   type IdleCompactionRoute,
   type IdleCompactionSettings,
@@ -883,6 +887,7 @@ export interface BridgeMethods {
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
+  compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -936,6 +941,14 @@ export interface IdleCompactionView {
   minimumIdleSeconds: number;
   scheduled: number;
   routes: IdleCompactionRouteView[];
+  threshold: {
+    ratio: number;
+    headroomTokens: number;
+    ratioSet: boolean;
+    headroomSet: boolean;
+    ratioRange: { defaultValue: number; min: number; max: number };
+    headroomRange: { defaultValue: number; min: number; max: number };
+  };
 }
 
 export interface IdleCompactionDeps {
@@ -943,6 +956,7 @@ export interface IdleCompactionDeps {
   scheduler: Pick<IdleCompaction, 'describe' | 'scheduled'>;
   routes(): IdleCompactionRoute[];
   rescan(): void;
+  applyThreshold?(): void;
   compactBot?(slug: string): Promise<ManualCompactionResult>;
   compactReservedSession?(sessionId: string): Promise<ManualCompactionResult>;
 }
@@ -1429,6 +1443,18 @@ function idleCompactionView(deps: IdleCompactionDeps): IdleCompactionView {
     minimumIdleSeconds: MIN_IDLE_MS / 1000,
     scheduled: deps.scheduler.scheduled(),
     routes: deps.scheduler.describe(deps.routes()),
+    threshold: {
+      ratio:
+        (setting === 'invalid' ? undefined : setting.thresholdRatio) ??
+        COMPACTION_THRESHOLD_RATIO.defaultValue,
+      headroomTokens:
+        (setting === 'invalid' ? undefined : setting.headroomTokens) ??
+        COMPACTION_HEADROOM_TOKENS.defaultValue,
+      ratioSet: setting !== 'invalid' && setting.thresholdRatio !== undefined,
+      headroomSet: setting !== 'invalid' && setting.headroomTokens !== undefined,
+      ratioRange: COMPACTION_THRESHOLD_RATIO,
+      headroomRange: COMPACTION_HEADROOM_TOKENS,
+    },
   };
 }
 
@@ -3939,6 +3965,31 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
+      deps.idleCompaction.rescan();
+      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
+    },
+    compactionThresholdSet(payload) {
+      if (deps.idleCompaction === undefined) return unavailable();
+      const object = asObject(payload);
+      const ratio = object['thresholdRatio'];
+      const headroom = object['headroomTokens'];
+      if (
+        (ratio === undefined && headroom === undefined) ||
+        (ratio !== undefined && ratio !== null && !isCompactionThresholdRatio(ratio)) ||
+        (headroom !== undefined && headroom !== null && !isCompactionHeadroomTokens(headroom))
+      )
+        return invalidInput(
+          `thresholdRatio (${COMPACTION_THRESHOLD_RATIO.min}-${COMPACTION_THRESHOLD_RATIO.max}) and/or headroomTokens (integer ${COMPACTION_HEADROOM_TOKENS.min}-${COMPACTION_HEADROOM_TOKENS.max}) are required; null restores the default`,
+        );
+      try {
+        deps.idleCompaction.settings.setThreshold({
+          ...(ratio === undefined ? {} : { thresholdRatio: ratio as number | null }),
+          ...(headroom === undefined ? {} : { headroomTokens: headroom as number | null }),
+        });
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
+      }
+      deps.idleCompaction.applyThreshold?.();
       deps.idleCompaction.rescan();
       return { ok: true, value: idleCompactionView(deps.idleCompaction) };
     },

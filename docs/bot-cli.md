@@ -703,9 +703,12 @@ deepseekbot idle-compaction
 deepseekbot idle-compaction-set on|off
 deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
 deepseekbot idle-compaction-cache-set deepseek/<model> auto
+deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|default|keep>
 ```
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
+
+DSH compacts any Session automatically once its context reaches the smaller of the context window × `ratio` and the window minus the route's output limit minus `headroom-tokens`. `compaction-threshold-set` changes both for every Bot on the Host from the next step: the ratio from 0.5 to 0.95 (default 0.8) and the headroom from 8192 to 262144 tokens (default 65536). `default` restores one value and `keep` leaves it, so `compaction-threshold-set 0.7 keep` changes only the ratio. Idle compaction uses the same threshold. `idle-compaction` reports both under `threshold` with `ratioSet`/`headroomSet` and their ranges.
 
 ### Encrypted LAN phone access
 

@@ -772,6 +772,7 @@ describe('plugin entry', () => {
       'idleCompaction',
       'idleCompactionSet',
       'idleCompactionCacheLifetimeSet',
+      'compactionThresholdSet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',

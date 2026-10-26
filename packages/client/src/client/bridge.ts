@@ -2295,16 +2295,69 @@ export async function startGitInstall(call: BridgeCall): Promise<GitAvailability
   return parseGitAvailability(await unwrap(call, 'gitInstall', {}));
 }
 
+export interface CompactionThresholdRange {
+  defaultValue: number;
+  min: number;
+  max: number;
+}
+
+export interface CompactionThreshold {
+  ratio: number;
+  headroomTokens: number;
+  ratioSet: boolean;
+  headroomSet: boolean;
+  ratioRange: CompactionThresholdRange;
+  headroomRange: CompactionThresholdRange;
+}
+
 export interface IdleCompactionStatus {
   enabled: boolean;
   settingReadable: boolean;
+  threshold?: CompactionThreshold;
+}
+
+function parseThresholdRange(value: unknown): CompactionThresholdRange | undefined {
+  const item = asRecord(value);
+  const numbers = [item?.['defaultValue'], item?.['min'], item?.['max']];
+  if (!numbers.every((entry) => typeof entry === 'number' && Number.isFinite(entry)))
+    return undefined;
+  const [defaultValue, min, max] = numbers as number[];
+  return { defaultValue: defaultValue!, min: min!, max: max! };
+}
+
+function parseCompactionThreshold(value: unknown): CompactionThreshold | undefined {
+  const item = asRecord(value);
+  const ratioRange = parseThresholdRange(item?.['ratioRange']);
+  const headroomRange = parseThresholdRange(item?.['headroomRange']);
+  const ratio = item?.['ratio'];
+  const headroomTokens = item?.['headroomTokens'];
+  if (
+    ratioRange === undefined ||
+    headroomRange === undefined ||
+    typeof ratio !== 'number' ||
+    typeof headroomTokens !== 'number'
+  )
+    return undefined;
+  return {
+    ratio,
+    headroomTokens,
+    ratioSet: item?.['ratioSet'] === true,
+    headroomSet: item?.['headroomSet'] === true,
+    ratioRange,
+    headroomRange,
+  };
 }
 
 export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus {
   const item =
     typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
   if (typeof item['enabled'] !== 'boolean') throw new Error('invalid idle compaction status');
-  return { enabled: item['enabled'], settingReadable: item['settingReadable'] !== false };
+  const threshold = parseCompactionThreshold(item['threshold']);
+  return {
+    enabled: item['enabled'],
+    settingReadable: item['settingReadable'] !== false,
+    ...(threshold === undefined ? {} : { threshold }),
+  };
 }
 
 export interface BotCompactResult {
@@ -2345,6 +2398,13 @@ export async function setIdleCompaction(
   enabled: boolean,
 ): Promise<IdleCompactionStatus> {
   return parseIdleCompactionStatus(await unwrap(call, 'idleCompactionSet', { enabled }));
+}
+
+export async function setCompactionThreshold(
+  call: BridgeCall,
+  threshold: { thresholdRatio?: number | null; headroomTokens?: number | null },
+): Promise<IdleCompactionStatus> {
+  return parseIdleCompactionStatus(await unwrap(call, 'compactionThresholdSet', threshold));
 }
 
 export interface DataResetPreview {

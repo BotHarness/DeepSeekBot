@@ -249,6 +249,15 @@
       "commands": ["idle-compaction", "idle-compaction-set", "idle-compaction-cache-set"]
     },
     {
+      "id": "compaction-threshold",
+      "description": "Host automatic context compaction threshold (window ratio and headroom).",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.row.title')}"
+      ],
+      "commands": ["idle-compaction", "compaction-threshold-set"]
+    },
+    {
       "id": "messaging-defaults",
       "description": "External messaging default routing and identities.",
       "scope": "Host",

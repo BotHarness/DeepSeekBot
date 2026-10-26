@@ -1157,6 +1157,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.idleCompactionSet({ enabled }));
   }
 
+  compactionThresholdSet(
+    thresholdRatio?: number | null,
+    headroomTokens?: number | null,
+  ): IdleCompactionView {
+    return unwrap(
+      this.methods.compactionThresholdSet({
+        ...(thresholdRatio === undefined ? {} : { thresholdRatio }),
+        ...(headroomTokens === undefined ? {} : { headroomTokens }),
+      }),
+    );
+  }
+
   idleCompactionCacheLifetimeSet(
     provider: string,
     model: string,
@@ -2398,6 +2410,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
+  'compactionThresholdSet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',

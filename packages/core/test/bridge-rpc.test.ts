@@ -823,6 +823,7 @@ describe('bridge typert service', () => {
       'idleCompaction',
       'idleCompactionSet',
       'idleCompactionCacheLifetimeSet',
+      'compactionThresholdSet',
       'standingLimitsSet',
       'botAvatarSet',
       'botAppearanceSet',
