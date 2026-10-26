@@ -49,12 +49,6 @@ export function profileMemoryFiles(
   });
 }
 
-/**
- * Attachment hashes that Memory text still mentions, for storage cleanup and the
- * attachment sweep. Unlike a backup capture this is a best-effort read: links,
- * sockets, missing folders and incomplete Git repositories are skipped instead
- * of failing, so an unrelated quirk in one Bot's Memory cannot block cleanup.
- */
 export function memoryAttachmentReferences(
   registry: PersonaBotRegistry,
   deletions: PersonaBotDeletions,
