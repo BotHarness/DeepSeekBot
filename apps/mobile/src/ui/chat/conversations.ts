@@ -49,9 +49,13 @@ export function rowStatus(row: Conversation, now: Date): RowStatus {
   return Number.isFinite(at) && now.getTime() - at < DONE_WINDOW_MS ? 'done' : 'none';
 }
 
-export function previewText(preview: string): string {
+export function previewText(
+  preview: string | undefined,
+  copy: Pick<typeof t, 'noMessagesYet' | 'approvalPreview'> = t,
+): string {
+  if (preview === undefined || preview === '') return copy.noMessagesYet;
   const tool = approvalSummaryTool(preview);
-  return tool === undefined ? preview : t.approvalPreview(tool);
+  return tool === undefined ? preview : copy.approvalPreview(tool);
 }
 
 export function rowLabel(

@@ -57,18 +57,11 @@ export function ConversationRow({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
 }) {
-  const t = useStrings();
+  const copy = useStrings();
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
-  const preview =
-    latest !== undefined
-      ? previewText(latest)
-      : row.kind === 'bot'
-        ? row.bot.paused
-          ? t.paused
-          : ''
-        : t.members(row.channel.memberCount);
+  const preview = previewText(latest, copy);
   const badge = countBadge(row);
   const time = shortTime(row.at, now);
   const description = rowLabel(row, title, status, preview);

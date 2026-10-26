@@ -248,6 +248,8 @@ The two-tab shell follows [ADR-0211](../../docs/adr/0211-the-mobile-app-has-two-
 
 **Conversation row**
 
+- Local Bot and Channel rows with no message preview (missing or empty) share the localized “No messages yet” / “暂无消息” copy. Bot lifecycle status stays on the status glyph and accessible row label. Cloud rows whose history has not loaded keep “Open to load messages”; unknown history is not a confirmed empty conversation.
+
 - Names use regular-weight 18/24 type in `fg`; message previews use 15/20 in `muted` (or `fg` when unread). These row-specific tokens leave timestamps and other app text unchanged. Names use the native headline scaling ramp and previews use subheadline; retain the single-line truncation and full accessible labels at every system text size.
 
 - On the Activity and Chats root lists, deliberate downward content scrolling hides the global bottom navigation; upward travel or reaching the top restores it. Clamp elastic overscroll so bounce does not toggle chrome. Activity also collapses its title/filter/search row, leaving the three tabs pinned below the safe area; no gradient covers rows beneath the tabs. Searching and filtering keep controls visible. Page changes restore chrome without discarding each page's scroll position. Scroll intent and transforms run on the UI thread; only native visibility/accessibility boundaries cross to React. List geometry stays fixed during the animation.
