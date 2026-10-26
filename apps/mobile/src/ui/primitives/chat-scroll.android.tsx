@@ -1,7 +1,12 @@
 import { useCallback, type Ref } from 'react';
 import type { ScrollViewInstance, ScrollViewProps } from 'react-native';
-import { KeyboardChatScrollView, useKeyboardHandler } from 'react-native-keyboard-controller';
+import {
+  KeyboardChatScrollView,
+  useKeyboardHandler,
+  useReanimatedKeyboardAnimation,
+} from 'react-native-keyboard-controller';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useAnimatedStyle } from 'react-native-reanimated';
 
 import type { ChatKeyboardCoordination } from './chat-scroll';
 
@@ -56,4 +61,9 @@ export function useChatScrollAdapter(keyboard: ChatKeyboardCoordination, held: b
     ),
     [held, onStart, onEnd, onInsetChange],
   );
+}
+
+export function useChatOverlayStyle() {
+  const { height } = useReanimatedKeyboardAnimation();
+  return useAnimatedStyle(() => ({ bottom: -height.value }));
 }

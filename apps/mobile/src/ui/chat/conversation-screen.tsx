@@ -1308,12 +1308,7 @@ function ChatConversation({
             ) : null}
           </View>
         )}
-        <Animated.View
-          ref={viewport}
-          collapsable={false}
-          style={{ flex: 1 }}
-          onLayout={latest.onViewportLayout}
-        >
+        <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
           <MarkdownViewportContext.Provider value={markdownViewport}>
             <SpeakerStageContext.Provider value={dm ? undefined : stage}>
               <Animated.FlatList
@@ -1432,83 +1427,96 @@ function ChatConversation({
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
-          {(!latest.ready && rows.length > 0) ||
-          (snapshot.status === 'opening' && rows.length === 0) ? (
-            <View
-              pointerEvents={latest.canRetry ? 'auto' : 'none'}
-              style={{
-                position: 'absolute',
-                top: listTop,
-                bottom: composerHeight + edgeFade.bottom + workingReserve,
-                left: 0,
-                right: 0,
-                justifyContent: 'flex-end',
-              }}
-            >
-              <ListSkeleton layout="messages" />
-              {latest.canRetry ? (
-                <Button
-                  label={t.retry}
-                  variant="text"
-                  testID="history-loading-retry"
-                  onPress={latest.retry}
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {working.length > 0 ? (
-            <Animated.View
-              pointerEvents="none"
-              onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
-              style={[
-                {
+          <Animated.View
+            ref={viewport}
+            collapsable={false}
+            pointerEvents="box-none"
+            style={[
+              { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+              latest.overlayStyle,
+            ]}
+            onLayout={() => {
+              viewportLayout.value += 1;
+            }}
+          >
+            {(!latest.ready && rows.length > 0) ||
+            (snapshot.status === 'opening' && rows.length === 0) ? (
+              <View
+                pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                style={{
                   position: 'absolute',
-                  bottom: composerHeight + edgeFade.bottom,
+                  top: listTop,
+                  bottom: composerHeight + edgeFade.bottom + workingReserve,
                   left: 0,
                   right: 0,
-                },
-                workingStyle,
-              ]}
-            >
-              <WorkingStatus bots={working} />
-            </Animated.View>
-          ) : null}
-          {topFade > 0 ? (
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <ListSkeleton layout="messages" />
+                {latest.canRetry ? (
+                  <Button
+                    label={t.retry}
+                    variant="text"
+                    testID="history-loading-retry"
+                    onPress={latest.retry}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+            {working.length > 0 ? (
+              <Animated.View
+                pointerEvents="none"
+                onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
+                style={[
+                  {
+                    position: 'absolute',
+                    bottom: composerHeight + edgeFade.bottom,
+                    left: 0,
+                    right: 0,
+                  },
+                  workingStyle,
+                ]}
+              >
+                <WorkingStatus bots={working} />
+              </Animated.View>
+            ) : null}
+            {topFade > 0 ? (
+              <EdgeFade
+                edge="top"
+                height={topFade + edgeFade.reach}
+                cover={topFade}
+                color={fadeColor}
+              />
+            ) : null}
             <EdgeFade
-              edge="top"
-              height={topFade + edgeFade.reach}
-              cover={topFade}
+              edge="bottom"
+              height={composerCover + edgeFade.bottom + workingReserve}
+              cover={composerCover}
+              solid={composerCover}
               color={fadeColor}
             />
-          ) : null}
-          <EdgeFade
-            edge="bottom"
-            height={composerCover + edgeFade.bottom + workingReserve}
-            cover={composerCover}
-            solid={composerCover}
-            color={fadeColor}
-          />
-          {composable && Platform.OS === 'ios' ? (
-            <PullToComposeHint
-              progress={pull.progress}
-              ready={pull.ready}
-              bottom={composerHeight + space.x3}
-            />
-          ) : null}
-          {latest.away ? (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                bottom: composerHeight + space.x2,
-                left: 0,
-                right: space.x4,
-                alignItems: 'flex-end',
-              }}
-            >
-              <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-            </View>
-          ) : null}
+            {composable && Platform.OS === 'ios' ? (
+              <PullToComposeHint
+                progress={pull.progress}
+                ready={pull.ready}
+                bottom={composerHeight + space.x3}
+              />
+            ) : null}
+            {latest.away ? (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: 'absolute',
+                  bottom: composerHeight + space.x2,
+                  left: 0,
+                  right: space.x4,
+                  alignItems: 'flex-end',
+                }}
+              >
+                <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+              </View>
+            ) : null}
+          </Animated.View>
         </Animated.View>
       </KeyboardChatFrame>
       {imageSelection?.scope === selectionScope ? (

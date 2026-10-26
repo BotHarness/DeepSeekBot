@@ -3,7 +3,7 @@ import type { FlatList, LayoutChangeEvent } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 
 import type { ConversationMessage } from '../../host/conversation';
-import { useChatScrollAdapter } from '../primitives/chat-scroll';
+import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
 import { useFollowLatest } from './follow-latest';
 
 export function useChannelViewport<Row>(
@@ -15,6 +15,7 @@ export function useChannelViewport<Row>(
   onLatestChange: (offset: number) => void,
 ) {
   const latest = useFollowLatest(list, messages, onFollowingChange, start, empty, onLatestChange);
+  const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -32,6 +33,7 @@ export function useChannelViewport<Row>(
   return {
     ...latest,
     renderScrollComponent,
+    overlayStyle,
     composerHeight,
     viewportHeight,
     viewportLayout,

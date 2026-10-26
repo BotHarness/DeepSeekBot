@@ -13,3 +13,7 @@ export function useChatScrollAdapter(
 ): ((props: ScrollViewProps) => ReactElement) | undefined {
   return undefined;
 }
+
+export function useChatOverlayStyle(): undefined {
+  return undefined;
+}
