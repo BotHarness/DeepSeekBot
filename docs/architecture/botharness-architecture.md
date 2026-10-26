@@ -1332,6 +1332,10 @@ Under ADR-0245, `scroll-motion` travels through the existing Local Computer vide
 
 后台 Subagent 的原生回报在 prompt assembly 前进入现有 BotRuntime 队列，以实际 Adapter 工具上下文就绪为准恢复父 Agent；与普通用户输入竞争时共用已准备的回合，清理间隙则等待。新回合不继承上一条用户消息的 Source Event 或 Channel，消息仍由模型按需显式发送。CLI direct 调用单独标记，停止与追加只选择真实 Orchestrator 回合（ADR-0252）。
 
+### Profile Backup compatibility (ADR-0257)
+
+Profile Backup owns archive interpretation behind the existing preview/export/inspect/Managed Restore interface. Historical v1 archives remain readable. New v2 archives record the running Host and plugin-resolved DSH tools versions separately, with explicit unknown values; release labels are provenance, not data compatibility gates. Format version, Schema Generation and Host-owned Dependency Contracts govern readability. The operational database owner performs staged migrations; Activation Readiness separately gates execution. A required core contract cannot be removed or downgraded by the archive. Web and CLI adapters preserve refusal reasons and the UI displays each failure beside its operation. See [ADR-0257](../adr/0257-profile-backup-compatibility-is-owned-by-the-data-contract.md).
+
 ### Explicit iPhone request status
 
 [ADR-0255](../adr/0255-live-activities-project-one-admitted-dm-request.md) adds a display-only projection of one phone-initiated, canonically admitted Human DM request. Source Event/Inbox resolution remains the completion authority; idle, handled turns and failed attempts do not close a request. The Device Gateway admits registration using its existing pairing identity, and the existing signed-in Connect owner delegates delivery to an account/Host/Device-scoped opaque handle. Only the managed Worker holds APNs signing material; it fixes the app topic and Apple environment. No Task ledger, execution authority, ordinary Expo Push replacement or arbitrary destination sender is added.

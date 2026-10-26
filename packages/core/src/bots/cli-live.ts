@@ -1,5 +1,10 @@
 import { runDeviceActivity } from './cli-live-activity.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
+import {
+  PROFILE_BACKUP_COMMANDS,
+  isProfileBackupCommand,
+  runProfileBackupCommand,
+} from './cli-profile-backup.js';
 import { runPhoneNotifications } from './cli-phone-notifications.js';
 import {
   WINDOW_ZOOM_COMMANDS,
@@ -137,6 +142,8 @@ import {
 export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
+  'new-home': { type: 'string' },
+
   'connection-id': { type: 'string' },
   fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
@@ -241,6 +248,7 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...PROFILE_BACKUP_COMMANDS,
   ...BROWSER_NOTIFICATION_COMMANDS,
   ...CONNECTION_COMMANDS,
   ...HOST_LOOK_COMMANDS,
@@ -452,6 +460,7 @@ interface LiveValues
     TodoValues,
     ApprovalTemplateValues,
     ApprovalReviewerValues {
+  'new-home'?: string;
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
@@ -777,6 +786,10 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (isProfileBackupCommand(command))
+    return runProfileBackupCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (CONNECTION_COMMANDS.some((entry) => entry.command === command))
     return runConnectionCommand(
       command,

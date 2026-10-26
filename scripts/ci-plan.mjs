@@ -50,6 +50,10 @@ export const RULES = [
   ),
   related('packages/*/src/**', 'Package source'),
   full(
+    'packages/core/test/fixtures/profile-backup/**',
+    'Historical backup archives are loaded dynamically by restore and CLI tests',
+  ),
+  full(
     'packages/core/test/fixtures/memory-images/**',
     'Binary image fixtures are loaded dynamically by Host, CLI and mobile tests',
   ),
