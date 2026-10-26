@@ -198,7 +198,7 @@ export function MessageFeedbackDialog({
       const url = URL.createObjectURL(blob),
         anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = 'message-feedback.zip';
+      anchor.download = `message-feedback-${preview.token}.zip`;
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     });

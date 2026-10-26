@@ -979,7 +979,7 @@ _避免使用_：secret、API key、token
 ### 遥测与推广活动
 
 **Message Feedback**：
-依据 ADR-0249，Human 从一条 Channel 消息发起、针对 Bot 表现的评价，包含好／不好、可选分类标签与短评，以及 Human 选择的对话和执行证据。它与匿名 Telemetry、用于分享的多选消息复制或截图相互独立。
+依据 ADR-0256，Human 从一条 Channel 消息发起评价；仅好／不好、可选标签、脱敏短评、随机编号与版本发送到 PostHog。对话与执行诊断仅提供本地下载，由 Human 自行决定是否发送，独立于匿名 Telemetry。
 _避免使用_：Telemetry、多选消息导出、自动错误上报
 
 **Mobile Telemetry**：

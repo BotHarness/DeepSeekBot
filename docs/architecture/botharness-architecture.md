@@ -1082,9 +1082,9 @@ Pages contain at most 50 items and 300 Unicode characters per snippet. Literal s
 
 ### Message Feedback
 
-[消息反馈设计](../proposals/message-feedback.md) 与 [ADR-0254](../adr/0254-message-feedback-separates-private-evidence-from-telemetry.md) 记录主动上报的目标边界。Human 从单条消息进入反馈，选择好／不好、可选分类和短评；Host 的 application-defined diagnostics owner 在现有权限下读取 Channel、Source Event、Bot Inbox Admission、Outbox 和 DSH Session Persistence，准备可查看、可取消类别的冻结脱敏快照。默认包含前后各 20 条消息、关联完整执行轮次与 Assignment／Subagent 记录；整个长寿命 Session 需要明确选择。下载和提交使用同一快照，不修改源事实，也不形成新的执行历史权威。
+[ADR-0256](../adr/0256-message-feedback-sends-ratings-and-keeps-diagnostics-local.md) replaces the remote-evidence design in ADR-0254. Human-initiated feedback sends only rating, fixed tags, a redacted short comment, version and random feedback ID to the existing PostHog ingest proxy. It never sends conversation, Session, Bot Inbox, delivery records or archive bytes. A stable event UUID supports retries without creating a user profile. Anonymous Telemetry remains independent.
 
-Application-defined feedback service 拥有持久接收结果、幂等反馈编号、私有诊断包与删除生命周期。PostHog 只存评分、标签、版本和不含正文的索引概况；消息、执行内容和短评仅供授权维护者查看，30 天后删除，可按反馈编号申请提前删除。详情入口需鉴权，不暴露公开包链接。诊断包可靠保存后才返回提交成功，统计索引失败不要求 Human 再上传；匿名 Telemetry 关闭时仍可主动反馈且不会重新开启统计。多选只保留复制和截图，本地诊断下载移入反馈面板。桌面、手机单消息反馈、CLI 与私有接收服务现已接线；手机沿用已配对设备的 API Gateway 转发，读取同一个 Host diagnostics owner 的冻结材料。多选状态只在当前 Host／Channel 的 Client 中保留，切换时清空；复制与截图不生成诊断记录。接收地址需显式配置，正式服务尚未部署。当前关联通过 Source Event、输出来源、Assignment 与持久化执行输入解析；无法关联的执行材料明确列为缺失。接收服务首次尝试 PostHog 索引，失败记录诊断日志且不撤销回执。原生手机反馈与两端多选交互仍待桌面首个切片的 Human 反馈后推进，现有多选导出暂保留。
+The application-defined Host diagnostics owner still collects a frozen, bounded preview from canonical Channel and DSH Session Persistence under existing permissions. Desktop, paired mobile and CLI use the same preview/download routes. Selected diagnostics download to the Human's device for optional manual sharing; the feedback ID appears in the filename. No dedicated feedback service, private storage, admin page or server-side evidence retention is needed. Multi-selection remains copy/screenshot only and scoped to the current Host and Channel.
 
 ### AX Client 启动证据
 

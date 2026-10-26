@@ -54,7 +54,6 @@ describe('phone feedback through the authenticated Host client', () => {
     await expect(feedback.submit(report)).rejects.toThrow('upload-failed');
     expect(await feedback.submit(report)).toEqual({
       reportId: 'report-1',
-      expiresAt: '2026-11-25',
     });
     expect(requests[0]?.url).toBe(
       'https://example.ts.net/botharness-device/api/botharness/message-feedback/preview',

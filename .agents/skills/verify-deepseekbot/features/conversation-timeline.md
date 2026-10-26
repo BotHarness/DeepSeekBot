@@ -48,19 +48,23 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 
 ### Single-message feedback (#2811)
 
-Use an isolated Host with `BOTHARNESS_FEEDBACK_ENDPOINT=http://127.0.0.1:<receiver-port>/feedback`
-and a local receiver from `packages/ingest/wrangler.feedback.jsonc`. Use synthetic messages only.
-Right-click a saved Human or Bot message → **Give feedback**. Verify default nearby selection,
-Good/Bad, optional tags/comment, category deselection, and Refresh evidence before submission.
-Inspect expanded preview files, then submit and capture the receipt. Read the private receiver with
-maintainer authorization and compare its archive bytes with `feedback-download` for the same token.
-Unauthorized GET must refuse. Retry a lost response with the same ID; deletion/expiry must prevent
-resurrection. `packages/core/test/message-feedback.test.ts`,
-`packages/ingest/test/message-feedback.test.ts` and `packages/client/test/message-feedback.test.ts`
-cover these seams. A model failure is a valid no-response case but does not prove normal Bot replies.
+Use an isolated Host with synthetic messages only. Right-click a saved Human or Bot message →
+**Give feedback**. Verify rating/tags/comment are described as the only PostHog submission fields.
+Review the local diagnostic scope, deselect categories, expand files, and download the ZIP without
+submitting. Submit a synthetic rating, inspect the receipt, and download again: the archive remains
+local and its filename carries the feedback ID. Outbound request inspection must show no chat,
+Session, Inbox, delivery content or archive bytes. No dedicated receiver is needed.
+`packages/core/test/message-feedback.test.ts`, `packages/core/test/feedback-posthog.test.ts` and
+`packages/client/test/message-feedback.test.ts` cover these seams. A model failure is a valid
+no-response case but does not prove normal Bot replies.
 Mobile: pair the Expo Web export with this isolated Host, open the synthetic DM, long-press the
 saved message and choose **Give feedback**. Change evidence scope, verify stale material cannot
-submit, refresh, rate and submit; inspect the receipt. Long-press → **Select messages**, toggle
+submit, refresh, rate and submit; inspect the receipt. Rating and local diagnostics occupy separate
+groups; file contents start collapsed. Open **View files**, check the actual included chats/Inbox
+summary, then hide files. Confirm download remains after the receipt and after a failed save/refresh
+its filename still uses the original receipt ID. On native platforms check SwiftUI buttons/tags and
+Compose Material buttons/chips, operation progress, keyboard reachability and maximum text size.
+Long-press → **Select messages**, toggle
 another saved message, copy, open **Screenshot** and inspect the preview, then cancel. Switch
 Channels and verify selection clears. Web previews are layout/browser evidence only; native
 capture/share, keyboard and accessibility checks remain tracked in #2811 for both device lanes.

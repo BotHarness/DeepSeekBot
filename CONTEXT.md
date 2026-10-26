@@ -982,7 +982,7 @@ _Avoid_: secret, API key, token
 ### Telemetry and campaigns
 
 **Message Feedback**:
-Under ADR-0249, a Human-initiated evaluation of a Bot's performance anchored to one Channel message, with a good/bad rating, optional classification tags and comment, and Human-selected conversation and execution evidence. It is distinct from anonymous Telemetry and from copying or capturing selected messages for sharing.
+Under ADR-0256, a Human-initiated evaluation anchored to one Channel message. Only good/bad rating, optional tags and a redacted short comment go to PostHog with a random reference and version. Conversation and execution diagnostics remain a separate local download for the Human to share manually. It is independent of anonymous Telemetry.
 _Avoid_: Telemetry, multi-message export, automatic error reporting
 
 **Mobile Telemetry**:

@@ -1398,8 +1398,6 @@ printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-r
 评分为 `good` 或 `bad`，固定标签可选，评价最多 500 个 Unicode 字符。内容通过 stdin 或文件输入，
 不要放在命令参数中。预览令牌属于当前 Host 连接，30 分钟后失效，最多保留最近四份。
 `preview-stale` 需要重新预览。提交失败后材料与评分被冻结，重试原请求沿用同一反馈编号；
-修改内容时请主动刷新预览。成功返回 `reportId` 和 `expiresAt`。
+修改内容时请主动刷新预览。成功返回 `reportId`。仅评分、标签、短评、编号与版本发送到 PostHog，诊断包仍是本地下载。
 
-Host 通过 `BOTHARNESS_FEEDBACK_ENDPOINT` 显式启用提交，否则仍可预览和下载，提交返回
-`feedback-unavailable`。只接受 `https://feedback.botharness.ai/feedback` 与回环 HTTP `/feedback`，
-拒绝重定向。接收服务配置见[运维说明](message-feedback.md)。
+提交沿用现有 PostHog 接入地址，无需额外配置，不部署专用接收服务或私有诊断存储。见[反馈与本地诊断](message-feedback.md)。

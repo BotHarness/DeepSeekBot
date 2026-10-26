@@ -1,6 +1,8 @@
 # Message selection and feedback
 
-Status: Q1–Q13 and final shared understanding confirmed on 2026-10-26. Design accepted; implementation has not started.
+Status: Historical interview. Storage/upload portions superseded by the Human on 2026-10-26; current behavior is defined by ADR-0256 and docs/message-feedback.md.
+
+Current decision: only rating/tags/comment go to PostHog; all diagnostic Session/chat/Inbox content is downloaded locally for user-controlled sharing. No dedicated receiver, private evidence store or feedback domain. The original interview below is retained as rationale, not current requirements.
 Date: 2026-10-26
 
 ## Confirmed behavior

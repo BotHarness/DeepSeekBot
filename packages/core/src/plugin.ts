@@ -2732,11 +2732,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       log: (message) => ctx.logger.info(message),
     };
     const diagnosticBundleHttp = createDiagnosticBundleHttp(diagnosticOptions);
-    const feedbackEndpoint = process.env['BOTHARNESS_FEEDBACK_ENDPOINT'];
     const feedbackHttp = createMessageFeedbackHttp({
       ...diagnosticOptions,
       readTimeline: (id, request) => core.channels.readHumanTimeline(id, request),
-      ...(feedbackEndpoint ? { submit: feedbackUploader(feedbackEndpoint) } : {}),
+      submit: feedbackUploader(),
     });
     for (const action of MESSAGE_FEEDBACK_ACTIONS)
       connectionCtx.effect(
