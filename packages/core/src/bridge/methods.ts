@@ -338,7 +338,7 @@ import {
   type HumanAttentionPage,
   type HumanAttentionCategory,
 } from '../runtime/human-attention.js';
-import { DirectBotToolError } from '../runtime/bot-runtime.js';
+import { DirectBotToolError, queryAssignmentDirectory } from '../runtime/bot-runtime.js';
 import type {
   AssignmentActivity,
   AssignmentDetail,
@@ -383,7 +383,8 @@ export interface ActivityOverview {
       sessionId: string;
       role: SessionRootRole;
       state: 'thinking' | 'working';
-      purpose?: string;
+      title?: string;
+      description?: string;
     }>;
   }>;
 }
@@ -507,7 +508,8 @@ export interface OwnedSessionSummary {
   assignmentReportState?: AssignmentReportState;
   assignmentExecutionWait?: AssignmentExecutionWait;
   assignmentArchived?: true;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
+  assignmentDescription?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
 }
@@ -3001,7 +3003,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
               sessionId: root.sessionId,
               role: root.rootRole,
               state,
-              ...(assignment === undefined ? {} : { purpose: assignment.purpose }),
+              ...(assignment === undefined
+                ? {}
+                : { title: assignment.title, description: assignment.description }),
             });
         }
         return {
@@ -5761,10 +5765,35 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      return {
-        ok: true,
-        value: { assignments: deps.runtime?.listAssignments(slug) ?? [] },
-      };
+      const assignments = deps.runtime?.listAssignments(slug) ?? [];
+      const filter = z
+        .object({
+          query: z.string().max(200).optional(),
+          activity: z.array(z.enum(['working', 'idle', 'error', 'stopping', 'stopped'])).optional(),
+          includeArchived: z.boolean().optional(),
+          limit: z.number().int().optional(),
+          cursor: z.string().optional(),
+        })
+        .safeParse(asObject(payload));
+      if (!filter.success) return invalidInput('invalid Assignment Directory query');
+      const { query, includeArchived, limit, cursor } = filter.data;
+      const activity = filter.data.activity?.length === 0 ? undefined : filter.data.activity;
+      if ([query, activity, includeArchived, limit, cursor].every((value) => value === undefined))
+        return { ok: true, value: { assignments } };
+      try {
+        return {
+          ok: true,
+          value: queryAssignmentDirectory(assignments, {
+            ...(query === undefined ? {} : { query }),
+            ...(activity === undefined ? {} : { activity }),
+            ...(includeArchived === undefined ? {} : { includeArchived }),
+            ...(limit === undefined ? {} : { limit }),
+            ...(cursor === undefined ? {} : { cursor }),
+          }),
+        };
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
+      }
     },
     channelAssignments(payload) {
       const parsed = z.object({ channelId: z.string().min(1) }).safeParse(asObject(payload));
@@ -6417,7 +6446,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ? {}
             : { assignmentExecutionWait: assignment.executionWait }),
           ...(assignment?.archivedAt === undefined ? {} : { assignmentArchived: true as const }),
-          ...(assignment === undefined ? {} : { assignmentPurpose: assignment.purpose }),
+          ...(assignment === undefined
+            ? {}
+            : {
+                assignmentTitle: assignment.title,
+                assignmentDescription: assignment.description,
+              }),
         };
       });
       return { ok: true, value: { sessions } };
@@ -6869,7 +6903,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...summary,
             sessionId: root.sessionId,
             role: root.rootRole,
-            label: assignments.get(root.sessionId)?.purpose.slice(0, 160) ?? root.rootRole,
+            label: assignments.get(root.sessionId)?.title.slice(0, 160) ?? root.rootRole,
             updatedAt: updatedAt(root),
           });
         }

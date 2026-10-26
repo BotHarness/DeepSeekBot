@@ -121,6 +121,7 @@ import type { TopOrderEntry } from '../roster/spec.js';
 import type { ChannelTimelinePage, TimelineDirection } from '../channels/timeline.js';
 import type {
   AssignmentDetail,
+  AssignmentActivity,
   AssignmentSummary,
   ChannelAssignmentSummary,
   DirectBotToolSpec,
@@ -1568,8 +1569,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.humanAttentionSnooze({ itemId, sourceKey, until }));
   }
 
-  assignments(slug: string): { assignments: AssignmentSummary[] } {
-    return unwrap(this.methods.assignments({ slug }));
+  assignments(
+    slug: string,
+    query?: string,
+    activity?: AssignmentActivity[],
+    includeArchived?: boolean,
+    limit?: number,
+    cursor?: string,
+  ): { assignments: AssignmentSummary[]; nextCursor?: string } {
+    return unwrap(
+      this.methods.assignments({ slug, query, activity, includeArchived, limit, cursor }),
+    );
   }
 
   channelAssignments(channelId: string): { assignments: ChannelAssignmentSummary[] } {

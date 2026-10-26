@@ -1831,8 +1831,11 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'assignment' && record['assignmentArchived'] === true
           ? { assignmentArchived: true as const }
           : {}),
-        ...(role === 'assignment' && typeof record['assignmentPurpose'] === 'string'
-          ? { assignmentPurpose: record['assignmentPurpose'] }
+        ...(role === 'assignment' && typeof record['assignmentTitle'] === 'string'
+          ? { assignmentTitle: record['assignmentTitle'] }
+          : {}),
+        ...(role === 'assignment' && typeof record['assignmentDescription'] === 'string'
+          ? { assignmentDescription: record['assignmentDescription'] }
           : {}),
       },
     ];
@@ -2968,7 +2971,8 @@ export async function loadChannelAssignments(
       (row) =>
         typeof row?.sessionId !== 'string' ||
         typeof row.botSlug !== 'string' ||
-        typeof row.purpose !== 'string' ||
+        typeof row.title !== 'string' ||
+        typeof row.description !== 'string' ||
         !ASSIGNMENT_ACTIVITIES.includes(row.activity) ||
         typeof row.updatedAt !== 'string' ||
         (row.latestReport !== undefined &&
@@ -3207,7 +3211,8 @@ export async function loadHumanAssignmentContext(
     context['botSlug'] !== slug ||
     context['sessionId'] !== sessionId ||
     context['sourceEventId'] !== sourceEventId ||
-    typeof context['purpose'] !== 'string' ||
+    typeof context['title'] !== 'string' ||
+    typeof context['description'] !== 'string' ||
     typeof context['canReply'] !== 'boolean' ||
     !Array.isArray(context['reports']) ||
     context['reports'].length > 5
@@ -3253,7 +3258,9 @@ export async function loadHumanAssignmentContext(
     botSlug: slug,
     sessionId,
     sourceEventId,
-    purpose: context['purpose'],
+    title: context['title'],
+    description: context['description'],
+    purpose: context['description'],
     canReply: context['canReply'],
     reports,
     ...(typeof context['hasOlder'] === 'boolean' ? { hasOlder: context['hasOlder'] } : {}),
@@ -3922,7 +3929,7 @@ function parseBotAttentionItem(value: unknown): BotAttentionItem | undefined {
     'sourceChannelName',
     'sourceMessageId',
     'assignmentSessionId',
-    'assignmentPurpose',
+    'assignmentTitle',
     'authorBotSlug',
     'scheduleId',
   ])
