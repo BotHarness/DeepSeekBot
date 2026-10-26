@@ -97,6 +97,10 @@ function RootNavigator() {
                   }}
                 />
                 <Stack.Screen
+                  name="channel-details"
+                  options={{ ...sheetScreenOptions(design, Platform.OS === 'android') }}
+                />
+                <Stack.Screen
                   name="group/[id]"
                   options={{
                     title: t.groupInfo,

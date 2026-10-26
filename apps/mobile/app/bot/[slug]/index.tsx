@@ -6,6 +6,8 @@ import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
 import { setBotAvatar } from '../../../src/host/bot-avatar';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
+import { RequestActivityControl } from '../../../src/ui/chat/request-activity-control';
+import { ChannelFilesAction } from '../../../src/ui/chat/channel-files-action';
 import { BotProfileSheet } from '../../../src/ui/chat/bot-profile';
 import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
 import { useDesignTheme } from '../../../src/ui/design/theme';
@@ -16,7 +18,12 @@ import { navigateChannel } from '../../../src/ui/shell/channel-navigation';
 
 export default function BotProfileScreen() {
   const t = useStrings();
-  const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
+  const { slug, hostId, channelId, activityMessageId } = useLocalSearchParams<{
+    slug: string;
+    hostId?: string;
+    channelId?: string;
+    activityMessageId?: string;
+  }>();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const theme = useDesignTheme();
@@ -58,7 +65,37 @@ export default function BotProfileScreen() {
       initialProfile={profile.peek()}
       load={profile.refresh}
       avatar={{ pick: pickAvatarImage, save: (avatar) => setBotAvatar(client, bot, avatar) }}
-      settings={client === undefined ? undefined : <BotSettingsPanel client={client} bot={bot} />}
+      conversationActions={
+        <View style={{ gap: space.x3 }}>
+          {saved &&
+          bot.dmChannelId &&
+          snapshot.connection.status !== 'refused' &&
+          (channelId === undefined || channelId === bot.dmChannelId) ? (
+            <ChannelFilesAction
+              hostId={saved.hostId}
+              channelId={bot.dmChannelId}
+              botSlug={bot.slug}
+            />
+          ) : null}
+          <RequestActivityControl
+            target={
+              saved &&
+              activityMessageId &&
+              channelId &&
+              channelId === bot.dmChannelId &&
+              snapshot.connection.status !== 'refused'
+                ? {
+                    hostId: saved.hostId,
+                    channelId,
+                    botSlug: bot.slug,
+                    messageId: activityMessageId,
+                  }
+                : undefined
+            }
+          />
+        </View>
+      }
+      settings={<BotSettingsPanel client={client} bot={bot} />}
       actions={{
         onOpenRoutine: (routine) =>
           router.push({

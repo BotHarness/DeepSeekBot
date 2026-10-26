@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Platform, Alert } from 'react-native';
 import { act, use, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -33,12 +34,20 @@ const fixture = vi.hoisted(() => {
   };
   return {
     snapshot,
+    params: {} as Record<string, string>,
+    activity: { ready: true, busy: false, tracking: false },
+    startActivity: vi.fn(async () => {}),
+    stopActivity: vi.fn(async () => {}),
     hostId: 'host-a',
     pairedSourceAvailable: false,
     client: { call: async () => ({}), subscribe: () => () => {} },
     otherClient: { call: async () => ({}), subscribe: () => () => {} },
   };
 });
+vi.mock('../src/host/native-live-activity', () => ({
+  useRequestActivity: () => fixture.activity,
+  requestActivitySession: { start: fixture.startActivity, stop: fixture.stopActivity },
+}));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-file-system', () => ({
   File: class {
@@ -48,7 +57,10 @@ vi.mock('expo-file-system', () => ({
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Alert: { alert: vi.fn() },
+}));
 vi.mock('react-native-svg', () => ({
   default: () => null,
   Path: () => null,
@@ -93,7 +105,7 @@ vi.mock('../src/ui/shell/channel-notification-screen', () => ({
   ),
 }));
 vi.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ slug: 'ada', id: 'group-a', hostId: 'host-a' }),
+  useLocalSearchParams: () => ({ slug: 'ada', id: 'group-a', hostId: 'host-a', ...fixture.params }),
   useNavigationContainerRef: () => navigation,
   useNavigation: () => ({ addListener: () => () => {} }),
   useFocusEffect: (work: () => (() => void) | undefined) => useLayoutEffect(work, [work]),
@@ -108,6 +120,7 @@ vi.mock('expo-router', () => ({
   }),
 }));
 import BotProfileScreen from '../app/bot/[slug]/index';
+import { ChannelDetailsScreen } from '../src/ui/chat/channel-details-screen';
 import GroupInfoScreen from '../app/group/[id]/index';
 import GroupNotificationsScreen from '../app/group/[id]/notifications';
 
@@ -124,6 +137,8 @@ const options = {
     'bot/[slug]',
     'dm/[slug]',
     'channel/[id]',
+    'channel-files',
+    'channel-details',
   ],
   routeParamList: {},
   routeGetIdList: {
@@ -148,6 +163,13 @@ afterEach(() => {
   act(() => root?.unmount());
   node?.remove();
   fixture.hostId = 'host-a';
+  fixture.params = {};
+  fixture.snapshot.roster!.activityChannels = [];
+  fixture.startActivity.mockClear();
+  fixture.activity.busy = false;
+  fixture.activity.ready = true;
+  fixture.snapshot.connection = { status: 'connected', route: 'https://qa.test' };
+  vi.restoreAllMocks();
   fixture.pairedSourceAvailable = false;
   fixture.snapshot.roster!.channels = [];
 });
@@ -424,4 +446,208 @@ it('a native preview commit over Profile preserves the Profile origin', () => {
   expect(state.routes.map((route) => route.name)).toEqual(['(tabs)', 'bot/[slug]', 'channel/[id]']);
   navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes[state.index]?.key).toBe('profile');
+});
+
+it('opens DM files from Profile and returns to the retained profile and conversation', async () => {
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 3,
+    index: 2,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      { key: 'original-dm', name: 'dm/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+      { key: 'original-profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+    ],
+  };
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => root!.render(<BotProfileScreen />));
+  const files = node.querySelector<HTMLButtonElement>('[data-testid="channel-files-open"]');
+  expect(files).not.toBeNull();
+  await act(async () => files!.click());
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'channel-files',
+    params: { hostId: 'host-a', channelId: 'dm-ada', botSlug: 'ada' },
+  });
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('original-profile');
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('original-dm');
+});
+
+it('opens the exact group files from details without changing the parent Channel', async () => {
+  fixture.snapshot.roster!.channels = [
+    { id: 'group-a', name: 'Group', members: [], memberCount: 0 },
+  ];
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 3,
+    index: 2,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      {
+        key: 'original-channel',
+        name: 'channel/[id]',
+        params: { id: 'group-a', hostId: 'host-a' },
+      },
+      { key: 'group-details', name: 'group/[id]', params: { id: 'group-a', hostId: 'host-a' } },
+    ],
+  };
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => root!.render(<GroupInfoScreen />));
+  const files = node.querySelector<HTMLButtonElement>('[data-testid="channel-files-open"]');
+  expect(files).not.toBeNull();
+  await act(async () => files!.click());
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'channel-files',
+    params: { hostId: 'host-a', channelId: 'group-a' },
+  });
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('group-details');
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('original-channel');
+});
+
+it('keeps iOS tracking explicit and scoped to the request passed from the chat Chip', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    fixture.params = { channelId: 'dm-ada', activityMessageId: 'request-a' };
+    const alert = vi.spyOn(Alert, 'alert');
+    node = document.createElement('div');
+    document.body.append(node);
+    root = createRoot(node);
+    await act(async () => root!.render(<BotProfileScreen />));
+    const control = node.querySelector<HTMLButtonElement>('[data-testid="request-activity"]');
+    expect(control).not.toBeNull();
+    expect(control!.disabled).toBe(false);
+    await act(async () => control!.click());
+    expect(alert).toHaveBeenCalledWith(
+      t.lockScreen.title,
+      t.lockScreen.startBody,
+      expect.any(Array),
+    );
+    expect(fixture.startActivity).not.toHaveBeenCalled();
+    await act(async () =>
+      alert.mock.lastCall![2]!.find((action) => action.text === t.lockScreen.track)!.onPress!(),
+    );
+    expect(fixture.startActivity).toHaveBeenCalledWith({
+      hostId: 'host-a',
+      channelId: 'dm-ada',
+      botSlug: 'ada',
+      messageId: 'request-a',
+    });
+    fixture.activity.busy = true;
+    await act(async () => root!.render(<BotProfileScreen />));
+    expect(
+      node.querySelector<HTMLButtonElement>('[data-testid="request-activity"]')!.disabled,
+    ).toBe(true);
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it.each(['refused', 'other-channel', 'other-host'])(
+  'does not expose DM files for %s context',
+  async (reason) => {
+    if (reason === 'refused')
+      fixture.snapshot.connection = {
+        status: 'refused',
+        reason: 'denied',
+        route: 'https://qa.test',
+        code: 'device-revoked',
+      };
+    if (reason === 'other-channel') fixture.params = { channelId: 'someone-else' };
+    if (reason === 'other-host') fixture.hostId = 'host-b';
+    node = document.createElement('div');
+    document.body.append(node);
+    root = createRoot(node);
+    await act(async () => root!.render(<BotProfileScreen />));
+    expect(node.querySelector('[data-testid="channel-files-open"]')).toBeNull();
+  },
+);
+
+it('does not add lock-screen actions on Android', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  try {
+    fixture.params = { channelId: 'dm-ada', activityMessageId: 'request-a' };
+    node = document.createElement('div');
+    document.body.append(node);
+    root = createRoot(node);
+    await act(async () => root!.render(<BotProfileScreen />));
+    expect(node.querySelector('[data-testid="request-activity"]')).toBeNull();
+    expect(node.querySelector('[data-testid="channel-files-open"]')).not.toBeNull();
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it('disables iOS tracking without a committed request supplied by the chat', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    node = document.createElement('div');
+    document.body.append(node);
+    root = createRoot(node);
+    await act(async () => root!.render(<BotProfileScreen />));
+    expect(
+      node.querySelector<HTMLButtonElement>('[data-testid="request-activity"]')!.disabled,
+    ).toBe(true);
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
+
+it('keeps Bot-to-Bot details limited to its own files and refuses removed access', async () => {
+  fixture.snapshot.roster!.activityChannels = [
+    { id: 'bot-dm', type: 'dm', name: 'Ada and Bob', members: ['ada', 'bob'] },
+  ];
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 2,
+    index: 1,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'chat', name: 'channel/[id]', params: { id: 'bot-dm', hostId: 'host-a' } },
+      {
+        key: 'details',
+        name: 'channel-details',
+        params: { channelId: 'bot-dm', hostId: 'host-a' },
+      },
+    ],
+  };
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />));
+  expect(node.textContent).not.toContain(t.groupDisband);
+  expect(node.textContent).not.toContain(t.groupRename);
+  await act(async () =>
+    node!.querySelector<HTMLButtonElement>('[data-testid="channel-files-open"]')!.click(),
+  );
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'channel-files',
+    params: { channelId: 'bot-dm', hostId: 'host-a' },
+  });
+  fixture.snapshot.connection = {
+    status: 'refused',
+    reason: 'denied',
+    route: 'https://qa.test',
+    code: 'device-revoked',
+  };
+  await act(async () => root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />));
+  expect(node.querySelector('[data-testid="channel-files-open"]')).toBeNull();
+  expect(node.textContent).toContain(t.refused);
 });
