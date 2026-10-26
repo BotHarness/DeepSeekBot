@@ -78,10 +78,14 @@ import {
 } from './channel-dock-layout.js';
 import {
   DEFAULT_SIMPLE_CHANNELS_WIDTH,
+  DEFAULT_SUBPANEL_COLUMN,
+  DEFAULT_SUBPANEL_HEIGHT,
+  MIN_SUBPANEL_HEIGHT,
   readLayoutMode,
   writeLayoutMode,
   type LayoutMode,
   type SimpleLayout,
+  type SubpanelColumn,
 } from './layout-mode.js';
 import { NARROW_CHANNEL_SIDEBAR_QUERY } from './channel-sidebar-layout.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -202,8 +206,19 @@ interface SubpanelState {
   toggle(): void;
 }
 
+interface SubpanelColumnView {
+  state: SubpanelColumn;
+  focus: { id: string; nonce: number } | undefined;
+  setOpen(open: boolean): void;
+  toggleEntry(id: string): void;
+  setHidden(id: string, hidden: boolean): void;
+  setWidth(width: number): void;
+  setHeight(id: string, height: number): void;
+}
+
 interface DockContextValue {
   channelPanelIds: readonly string[];
+  column?: SubpanelColumnView | undefined;
   childLayout: { tree: ChannelSplit; setTree(next: ChannelSplit): void };
   botWorkspaces?: Readonly<Record<string, SubpanelState>> | undefined;
   sessionWorkspace?: SubpanelState | undefined;
@@ -346,6 +361,7 @@ function ChannelBodyPanel(): ReactElement {
   const remote = useRemoteHosts().open;
   if (remote !== undefined)
     return <RemoteConversationView key={conversationKey(remote)} target={remote} t={dock.t} />;
+  if (dock.column) return <SimpleMessageContent column={dock.column} />;
   const panels: Record<string, { label: string; header?: ReactNode; content: ReactNode }> = {
     [MESSAGE_LEAF]: { label: dock.t('workspace.messages'), content: <ChannelMessageContent /> },
   };
@@ -471,6 +487,244 @@ function ChannelMessageContent(): ReactElement {
   );
 }
 
+const GENERATED_FILES = 'generated-files';
+
+interface ColumnEntry {
+  id: string;
+  label: string;
+  icon: string | undefined;
+}
+
+function columnEntries(dock: DockContextValue): ColumnEntry[] {
+  const channel = dock.channel;
+  if (channel === undefined) return [];
+  const bot = channel.type === 'dm' && !!channel.botSlug;
+  const builtIn: readonly string[] = BOT_WORKSPACE_PANELS;
+  const registered = (id: string): ColumnEntry[] => {
+    const panel = dock.panels.get(id);
+    return panel ? [{ id, label: panel.title, icon: panel.icon }] : [];
+  };
+  return [
+    ...registered('sessions'),
+    ...(bot ? builtIn.flatMap(registered) : []),
+    ...(channel.type === 'group' && dock.members && dock.panels.has('members')
+      ? [{ id: 'members', label: dock.t('entry.members'), icon: 'users' }]
+      : []),
+    ...(dock.files
+      ? [{ id: GENERATED_FILES, label: dock.t('generatedFiles.title'), icon: 'file' }]
+      : []),
+    ...(channel.type === 'dm' && dock.inbox && dock.panels.has('bot-inbox')
+      ? [{ id: 'bot-inbox', label: dock.t('entry.botInbox'), icon: 'inbox' }]
+      : []),
+    ...(bot
+      ? dock.channelPanelIds
+          .filter((id) => id !== 'sessions' && !builtIn.includes(id))
+          .flatMap(registered)
+      : []),
+  ];
+}
+
+function SimpleMessageContent({ column }: { column: SubpanelColumnView }): ReactElement {
+  const dock = useDock();
+  const entries = columnEntries(dock).filter((entry) => !column.state.hidden.includes(entry.id));
+  const label = dock.t('workspace.subpanelColumn');
+  return (
+    <div className="bh-dock-body bh-message-split">
+      <div className="bh-message-content">
+        <DockBodySlot />
+      </div>
+      {column.state.open && dock.channel && (
+        <>
+          <div
+            className="bh-message-member-divider"
+            role="separator"
+            tabIndex={0}
+            aria-label={label}
+            aria-orientation="vertical"
+            aria-valuemin={20}
+            aria-valuemax={60}
+            aria-valuenow={Math.round(column.state.width * 100)}
+            onKeyDown={(event) => {
+              if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+              event.preventDefault();
+              column.setWidth(column.state.width + (event.key === 'ArrowLeft' ? 0.02 : -0.02));
+            }}
+            onPointerDown={(event) => {
+              if (event.button === 0) event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              const box = event.currentTarget.parentElement!.getBoundingClientRect();
+              column.setWidth((box.right - event.clientX) / box.width);
+            }}
+            onPointerUp={(event) => {
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+          />
+          <aside
+            className="bh-subpanel-column"
+            data-subpanel-column=""
+            aria-label={label}
+            style={{ width: `${column.state.width * 100}%` }}
+          >
+            {entries.length === 0 ? (
+              <PanelEmptyState icon="panel-right">{dock.t('dock.empty')}</PanelEmptyState>
+            ) : (
+              entries.map((entry) => (
+                <SubpanelColumnEntry key={entry.id} entry={entry} column={column} />
+              ))
+            )}
+          </aside>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SubpanelColumnEntry({
+  entry,
+  column,
+}: {
+  entry: ColumnEntry;
+  column: SubpanelColumnView;
+}): ReactElement {
+  const dock = useDock();
+  const panel = dock.panels.get(entry.id);
+  const part = panel?.entry;
+  const props = useEntryProps(entry.id);
+  const expanded = column.state.expanded.includes(entry.id);
+  const height = column.state.heights[entry.id] ?? DEFAULT_SUBPANEL_HEIGHT;
+  const bodyId = `bh-subpanel-${entry.id}`;
+  const focused = column.focus?.id === entry.id;
+  const focusMount = useMountedResource<HTMLElement>(
+    (node) => {
+      if (focused) node.scrollIntoView?.({ block: 'nearest' });
+    },
+    [focused, column.focus?.nonce],
+  );
+  const drag = useRef<{ y: number; height: number } | undefined>(undefined);
+  const contextMenu = usePanelMenu({
+    items: [
+      {
+        id: 'hide',
+        label: dock.t('workspace.subpanelColumn.hide', { label: entry.label }),
+        icon: <ChannelSidebarIcon name="eye-off" />,
+      },
+    ],
+    onSelect: () => column.setHidden(entry.id, true),
+  });
+  const shown = part !== undefined && props !== undefined && dock.visible.has(entry.id);
+  const Badge = shown ? part.badge : undefined;
+  const HeaderAction = shown ? part.headerAction : undefined;
+  const PanelAction = panel?.headerAction;
+  return (
+    <section
+      ref={focusMount}
+      className="bh-subpanel-entry"
+      data-subpanel-entry={entry.id}
+      data-expanded={expanded ? '' : undefined}
+    >
+      <div className="bh-subpanel-entry-header" {...contextMenu.triggerProps}>
+        {contextMenu.menu}
+        <PanelHeader
+          icon={<ChannelSidebarIcon name={entry.icon} />}
+          label={entry.label}
+          disclosure={{
+            expanded,
+            controls: bodyId,
+            disabled: false,
+            chevron: true,
+            onToggle: () => column.toggleEntry(entry.id),
+          }}
+          badge={
+            Badge === undefined || props === undefined ? undefined : (
+              <EntryPart key={entryScopeKey(props)} part={Badge} props={props} />
+            )
+          }
+          action={
+            HeaderAction === undefined && PanelAction === undefined ? undefined : (
+              <span
+                data-dock-actions=""
+                {...stylex.props(styles.actions)}
+                onPointerDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                {HeaderAction === undefined || props === undefined ? null : (
+                  <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
+                )}
+                {PanelAction && (
+                  <PanelAction
+                    key={panel?.scope === 'channel' ? dock.channel?.id : undefined}
+                    channel={panel?.scope === 'channel' ? dock.channel : undefined}
+                  />
+                )}
+              </span>
+            )
+          }
+        />
+      </div>
+      {expanded && (
+        <>
+          <div
+            id={bodyId}
+            className="bh-subpanel-entry-body"
+            data-appearance-body={entry.id}
+            style={{ height }}
+          >
+            {entry.id === GENERATED_FILES ? (
+              <DockFilesSlot />
+            ) : (
+              <ChannelEntryContent entryId={entry.id} />
+            )}
+            {entry.id === 'bot-inbox' && <InboxSync />}
+          </div>
+          <div
+            className="bh-subpanel-entry-resize"
+            role="separator"
+            tabIndex={0}
+            aria-label={entry.label}
+            aria-orientation="horizontal"
+            aria-valuemin={MIN_SUBPANEL_HEIGHT}
+            aria-valuenow={Math.round(height)}
+            onKeyDown={(event) => {
+              if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+              event.preventDefault();
+              column.setHeight(entry.id, height + (event.key === 'ArrowDown' ? 16 : -16));
+            }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return;
+              drag.current = { y: event.clientY, height };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => {
+              const start = drag.current;
+              if (!start || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+              column.setHeight(entry.id, start.height + event.clientY - start.y);
+            }}
+            onPointerUp={(event) => {
+              drag.current = undefined;
+              if (event.currentTarget.hasPointerCapture(event.pointerId))
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+function InboxSync(): ReactElement {
+  const dock = useDock();
+  const setOpen = dock.inbox?.setOpen;
+  const mount = useMountedResource<HTMLSpanElement>(() => {
+    if (!setOpen) return;
+    setOpen(true);
+    return () => setOpen(false);
+  }, [dock.channel?.id, setOpen]);
+  return <span ref={mount} hidden />;
+}
+
 function DockPanelBody({ panel }: { panel: DockPanelRegistration }): ReactElement {
   const dock = useDock();
   const channel = panel.scope === 'channel' ? dock.channel : undefined;
@@ -553,7 +807,31 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                   icon: <ChannelSidebarIcon name="x" />,
                 },
               ]),
-          ...(entryId === CHANNEL_BODY_PANEL && dock.channel && dock.sessionWorkspace
+          ...(entryId === CHANNEL_BODY_PANEL && dock.column && dock.channel
+            ? [
+                { type: 'separator' as const, id: 'channel-controls-separator' },
+                {
+                  type: 'label' as const,
+                  id: 'channel-controls',
+                  text: dock.t('workspace.channelPanels'),
+                },
+                ...columnEntries(dock).map((child) => ({
+                  id: `column:${child.id}`,
+                  icon: <ChannelSidebarIcon name={child.icon} />,
+                  label: (
+                    <PanelVisibilityLabel
+                      label={child.label}
+                      checked={!dock.column!.state.hidden.includes(child.id)}
+                      t={dock.t}
+                    />
+                  ),
+                })),
+              ]
+            : []),
+          ...(entryId === CHANNEL_BODY_PANEL &&
+          !dock.column &&
+          dock.channel &&
+          dock.sessionWorkspace
             ? [
                 { type: 'separator' as const, id: 'channel-controls-separator' },
                 {
@@ -597,7 +875,10 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
     onSelect: (id) => {
       if (id === 'appearance') setAppearanceOpen(true);
       else if (id === 'close') dock.close(panelId);
-      else if (id.startsWith('control:')) {
+      else if (id.startsWith('column:')) {
+        const child = id.slice('column:'.length);
+        dock.column?.setHidden(child, !dock.column.state.hidden.includes(child));
+      } else if (id.startsWith('control:')) {
         const child = workspaceState(dock, id.slice('control:'.length));
         if (child)
           child.setState({
@@ -681,7 +962,26 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
               onPointerDown={(event) => event.stopPropagation()}
               onMouseDown={(event) => event.stopPropagation()}
             >
+              {entryId === CHANNEL_BODY_PANEL && dock.column && (
+                <Tooltip
+                  label={dock.t('workspace.subpanelColumn')}
+                  side="bottom"
+                  portal
+                  delayMs={500}
+                >
+                  <IconButton
+                    aria-label={dock.t('workspace.subpanelColumn')}
+                    aria-pressed={dock.column.state.open}
+                    data-subpanel-column-toggle=""
+                    disabled={!dock.channel}
+                    onClick={() => dock.column?.setOpen(!dock.column.state.open)}
+                  >
+                    <ChannelSidebarIcon name="panel-right" />
+                  </IconButton>
+                </Tooltip>
+              )}
               {entryId === CHANNEL_BODY_PANEL &&
+                !dock.column &&
                 dock.channelPanelIds.map((id) =>
                   workspaceState(dock, id) &&
                   dock.panels.has(id) &&
@@ -689,7 +989,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                     <SubpanelControl key={id} id={id} />
                   ) : null,
                 )}
-              {entryId === CHANNEL_BODY_PANEL && dock.channel && dock.files && (
+              {entryId === CHANNEL_BODY_PANEL && !dock.column && dock.channel && dock.files && (
                 <Tooltip label={dock.t('generatedFiles.title')} side="bottom" portal delayMs={500}>
                   <IconButton
                     aria-label={dock.t('generatedFiles.title')}
@@ -706,31 +1006,37 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                   </IconButton>
                 </Tooltip>
               )}
-              {entryId === CHANNEL_BODY_PANEL && dock.channel?.type === 'dm' && dock.inbox && (
-                <Tooltip label={dock.t('entry.botInbox')} side="bottom" portal delayMs={500}>
-                  <IconButton
-                    aria-label={dock.t('entry.botInbox')}
-                    aria-expanded={dock.inbox.open}
-                    onClick={() => {
-                      if (!dock.inbox?.open) dock.files?.setOpen(false);
-                      dock.inbox?.setOpen(!dock.inbox.open);
-                    }}
-                  >
-                    <ChannelSidebarIcon name="inbox" />
-                  </IconButton>
-                </Tooltip>
-              )}
-              {entryId === CHANNEL_BODY_PANEL && dock.channel?.type === 'group' && dock.members && (
-                <Tooltip label={dock.t('entry.members')} side="bottom" portal delayMs={500}>
-                  <IconButton
-                    aria-label={dock.t('entry.members')}
-                    aria-pressed={dock.members.open}
-                    onClick={() => dock.members?.setOpen(!dock.members.open)}
-                  >
-                    <ChannelSidebarIcon name="users" />
-                  </IconButton>
-                </Tooltip>
-              )}
+              {entryId === CHANNEL_BODY_PANEL &&
+                !dock.column &&
+                dock.channel?.type === 'dm' &&
+                dock.inbox && (
+                  <Tooltip label={dock.t('entry.botInbox')} side="bottom" portal delayMs={500}>
+                    <IconButton
+                      aria-label={dock.t('entry.botInbox')}
+                      aria-expanded={dock.inbox.open}
+                      onClick={() => {
+                        if (!dock.inbox?.open) dock.files?.setOpen(false);
+                        dock.inbox?.setOpen(!dock.inbox.open);
+                      }}
+                    >
+                      <ChannelSidebarIcon name="inbox" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              {entryId === CHANNEL_BODY_PANEL &&
+                !dock.column &&
+                dock.channel?.type === 'group' &&
+                dock.members && (
+                  <Tooltip label={dock.t('entry.members')} side="bottom" portal delayMs={500}>
+                    <IconButton
+                      aria-label={dock.t('entry.members')}
+                      aria-pressed={dock.members.open}
+                      onClick={() => dock.members?.setOpen(!dock.members.open)}
+                    >
+                      <ChannelSidebarIcon name="users" />
+                    </IconButton>
+                  </Tooltip>
+                )}
               {entryId === CHANNEL_BODY_PANEL && dock.hasHeader && <ChannelHeaderActions />}
               {HeaderAction === undefined || props === undefined ? null : (
                 <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
@@ -1003,10 +1309,36 @@ export function ChannelDock({
   const known = useRef(byId);
   known.current = byId;
 
+  const [columnFocus, setColumnFocus] = useState<{ id: string; nonce: number }>();
+  const inColumn = (panelId: string): boolean =>
+    channelPanelIds.includes(panelId) ||
+    panelId === 'members' ||
+    panelId === 'bot-inbox' ||
+    (byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId))?.binding ===
+      'current-bot';
+  const columnOpenIds = (ids: readonly string[]): string[] => {
+    const column = simpleRef.current.column;
+    const current = channelRef.current;
+    if (!column.open || !current || !ids.includes(CHANNEL_BODY_PANEL)) return [];
+    const bot = current.type === 'dm' && !!current.botSlug;
+    return column.expanded.filter(
+      (id) =>
+        !column.hidden.includes(id) &&
+        ((id === 'sessions' && known.current.has(id)) ||
+          (bot && id !== 'sessions' && channelPanelIds.includes(id) && known.current.has(id)) ||
+          (id === 'members' && current.type === 'group') ||
+          (id === 'bot-inbox' && current.type === 'dm' && inbox !== undefined)),
+    );
+  };
+
   const reportOpen = (target: DockviewApi): void => {
     const ids = isSimple()
       ? simpleViewIds(simpleRef.current.view).filter((id) => target.getPanel(id))
       : target.panels.map((panel) => panel.id);
+    if (isSimple()) {
+      registry?.reportOpen([...ids.filter((id) => id !== WORKSPACE_RAIL), ...columnOpenIds(ids)]);
+      return;
+    }
     registry?.reportOpen([
       ...ids.filter((id) => id !== WORKSPACE_RAIL && (workspace || id !== CHANNEL_BODY_PANEL)),
       ...(workspace &&
@@ -1192,6 +1524,13 @@ export function ChannelDock({
     target.getPanel(CHANNEL_BODY_PANEL)?.api.updateParameters({ entryId: CHANNEL_BODY_PANEL });
     hideBodyHeader(target);
     showSimpleView(target, revealBody ? CHANNEL_BODY_PANEL : simpleRef.current.view);
+  };
+
+  const setColumn = (next: SubpanelColumn, focus?: string): void => {
+    setSimpleLayout({ ...simpleRef.current, column: next });
+    if (focus !== undefined)
+      setColumnFocus((current) => ({ id: focus, nonce: (current?.nonce ?? 0) + 1 }));
+    if (api) reportOpen(api);
   };
 
   const setMode = (mode: LayoutMode): void => {
@@ -1406,7 +1745,7 @@ export function ChannelDock({
 
   const inboxStateMount = useMountedResource<HTMLSpanElement>(() => {
     if (api) {
-      if (workspace && (channel?.type !== 'dm' || !channel.botSlug))
+      if (workspace && !isSimple() && (channel?.type !== 'dm' || !channel.botSlug))
         for (const id of BOT_ONLY_CHANNEL_PANELS) layout.current.close(id);
       reportOpen(api);
     }
@@ -1435,6 +1774,11 @@ export function ChannelDock({
   const subpanelState = (id: string) =>
     id === 'sessions' ? sessionStateRef.current : botStatesRef.current[id]!;
   const close = (panelId: string): void => {
+    if (isSimple() && inColumn(panelId)) {
+      const column = simpleRef.current.column;
+      setColumn({ ...column, expanded: column.expanded.filter((id) => id !== panelId) });
+      return;
+    }
     if (workspace && channelPanelIds.includes(panelId)) {
       setSubpanelState(panelId, { ...subpanelState(panelId), open: false });
       return;
@@ -1491,6 +1835,24 @@ export function ChannelDock({
       panelId !== 'members'
     ) {
       showSimpleView(api, panelId);
+      save(api);
+      return;
+    }
+    if (isSimple() && api && inColumn(panelId)) {
+      if (!channel) return;
+      if (panelId === 'bot-inbox' && (channel.type !== 'dm' || !inbox)) return;
+      if (panelId === 'members' && channel.type !== 'group') return;
+      showSimpleView(api, CHANNEL_BODY_PANEL);
+      const column = simpleRef.current.column;
+      setColumn(
+        {
+          ...column,
+          open: true,
+          expanded: [...new Set([...column.expanded, panelId])],
+          hidden: column.hidden.filter((id) => id !== panelId),
+        },
+        panelId,
+      );
       save(api);
       return;
     }
@@ -1581,6 +1943,7 @@ export function ChannelDock({
         ...simpleRef.current,
         view: CHANNEL_BODY_PANEL,
         channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
+        column: DEFAULT_SUBPANEL_COLUMN,
       });
       buildSimpleLayout(api);
       save(api);
@@ -1652,6 +2015,34 @@ export function ChannelDock({
     },
     setFilesOpen: (open: boolean) => files?.setOpen(open),
     setInboxOpen: (open: boolean) => inbox?.setOpen(open),
+    setColumnOpen: (open: boolean) => setColumn({ ...simpleRef.current.column, open }),
+    toggleColumnEntry: (id: string) => {
+      const column = simpleRef.current.column;
+      setColumn({
+        ...column,
+        expanded: column.expanded.includes(id)
+          ? column.expanded.filter((item) => item !== id)
+          : [...column.expanded, id],
+      });
+    },
+    setColumnHidden: (id: string, hidden: boolean) => {
+      const column = simpleRef.current.column;
+      setColumn({
+        ...column,
+        hidden: hidden
+          ? [...new Set([...column.hidden, id])]
+          : column.hidden.filter((item) => item !== id),
+      });
+    },
+    setColumnWidth: (width: number) =>
+      setColumn({ ...simpleRef.current.column, width: Math.min(0.6, Math.max(0.2, width)) }),
+    setColumnHeight: (id: string, height: number) => {
+      const column = simpleRef.current.column;
+      setColumn({
+        ...column,
+        heights: { ...column.heights, [id]: Math.max(MIN_SUBPANEL_HEIGHT, Math.round(height)) },
+      });
+    },
     close,
   };
   const actions = useRef(handlers);
@@ -1660,6 +2051,11 @@ export function ChannelDock({
     setTree: (next: ChannelSplit) => actions.current.setTree(next),
     setFilesOpen: (open: boolean) => actions.current.setFilesOpen(open),
     setInboxOpen: (open: boolean) => actions.current.setInboxOpen(open),
+    setColumnOpen: (open: boolean) => actions.current.setColumnOpen(open),
+    toggleColumnEntry: (id: string) => actions.current.toggleColumnEntry(id),
+    setColumnHidden: (id: string, hidden: boolean) => actions.current.setColumnHidden(id, hidden),
+    setColumnWidth: (width: number) => actions.current.setColumnWidth(width),
+    setColumnHeight: (id: string, height: number) => actions.current.setColumnHeight(id, height),
     setMembersOpen: (open: boolean) => actions.current.setMembers({ open }),
     setMembersRatio: (ratio: number) => actions.current.setMembers({ ratio }),
     subpanel: (id: string) => ({
@@ -1710,6 +2106,22 @@ export function ChannelDock({
         : undefined,
     [workspaceMode, members, stable],
   );
+  const simpleMode = workspaceMode && layoutMode.mode === 'simple';
+  const columnValue = useMemo(
+    () =>
+      simpleMode
+        ? {
+            state: layoutMode.column,
+            focus: columnFocus,
+            setOpen: stable.setColumnOpen,
+            toggleEntry: stable.toggleColumnEntry,
+            setHidden: stable.setColumnHidden,
+            setWidth: stable.setColumnWidth,
+            setHeight: stable.setColumnHeight,
+          }
+        : undefined,
+    [simpleMode, layoutMode.column, columnFocus, stable],
+  );
   const hasFiles = files !== undefined;
   const filesValue = useMemo(
     () => (hasFiles ? { open: files.open, setOpen: stable.setFilesOpen } : undefined),
@@ -1759,6 +2171,7 @@ export function ChannelDock({
   const value = useSame<DockContextValue>(
     {
       channelPanelIds: stablePanelIds,
+      column: columnValue,
       childLayout,
       botWorkspaces: botWorkspaceValue,
       sessionWorkspace,
@@ -1776,7 +2189,7 @@ export function ChannelDock({
       runtimes,
       setRuntime: stable.setRuntime,
       close: stable.close,
-      simple: workspaceMode && layoutMode.mode === 'simple',
+      simple: simpleMode,
       t,
     },
     shallowEqual,

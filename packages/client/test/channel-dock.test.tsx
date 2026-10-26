@@ -1523,3 +1523,131 @@ it('switches Simple views without adding panels and restores the Advanced arrang
   expect(dock!.getPanel(CHANNEL_BODY_PANEL)).toBeDefined();
   expect(dock!.groups.every((group) => group.api.isVisible)).toBe(true);
 });
+
+it('shows Channel subpanels as one Simple column with global collapse state', async () => {
+  const { WorkspaceContext, WORKSPACE_CHANNELS } =
+    await import('../src/client/workspace-context.js');
+  const { readLayoutMode } = await import('../src/client/layout-mode.js');
+  values = new Map();
+  const registry = createDockPanelRegistry();
+  for (const [id, title] of [
+    [CHANNEL_BODY_PANEL, 'Messages'],
+    [WORKSPACE_CHANNELS, 'Channels'],
+  ])
+    registry.register({ id: id!, title: title!, scope: 'global', component: () => null });
+  for (const id of ['sessions', 'schedules', 'botharness-browser', 'bot-inbox'])
+    registry.registerEntry(entry(id));
+  registry.registerEntry(entry('members', 'channel'));
+  let inboxOpen = false;
+  let group = false;
+  const view = () =>
+    createElement(
+      WorkspaceContext.Provider,
+      { value: { rail: () => createElement('nav') } },
+      createElement(ChannelDock, {
+        body: createElement('input', { 'data-message-draft': '' }),
+        inbox: group
+          ? undefined
+          : {
+              open: inboxOpen,
+              setOpen: (open: boolean) => {
+                inboxOpen = open;
+                root.render(view());
+              },
+            },
+        files: {
+          open: false,
+          setOpen: () => {},
+          content: createElement('div', { 'data-files': '' }),
+        },
+        panels: registry.panels(),
+        registry,
+        channel: group
+          ? { id: 'group', type: 'group', botSlug: undefined }
+          : { id: 'dm', type: 'dm', botSlug: 'ada' },
+        entryProps,
+        shows: () => true,
+        t: zhTranslate,
+        storage,
+      }),
+    );
+  act(() => root.render(view()));
+  await settle();
+  const entries = () =>
+    [...host.querySelectorAll('[data-subpanel-entry]')].map((node) =>
+      node.getAttribute('data-subpanel-entry'),
+    );
+  const toggle = host.querySelector<HTMLButtonElement>('[data-subpanel-column-toggle]')!;
+  expect(toggle.getAttribute('aria-pressed')).toBe('false');
+  expect(host.querySelector('[data-subpanel-column]')).toBeNull();
+  expect(registry.isOpen('sessions')).toBe(false);
+
+  await click('[data-subpanel-column-toggle]');
+  expect(entries()).toEqual([
+    'sessions',
+    'schedules',
+    'botharness-browser',
+    'generated-files',
+    'bot-inbox',
+  ]);
+  expect(host.querySelector('[data-subpanel-entry="sessions"] [data-body]')).not.toBeNull();
+  expect(host.querySelector('[data-subpanel-entry="schedules"] [data-body]')).toBeNull();
+  expect(registry.isOpen('sessions')).toBe(true);
+  expect(readLayoutMode(storage).column.open).toBe(true);
+
+  act(() => registry.toggle('botharness-browser'));
+  await settle();
+  expect(
+    host.querySelector('[data-subpanel-entry="botharness-browser"] [data-body]'),
+  ).not.toBeNull();
+  expect(registry.isOpen('botharness-browser')).toBe(true);
+  act(() => registry.toggle('botharness-browser'));
+  await settle();
+  expect(host.querySelector('[data-subpanel-entry="botharness-browser"] [data-body]')).toBeNull();
+  expect(host.querySelector('[data-subpanel-column]')).not.toBeNull();
+
+  await click('[data-subpanel-entry="bot-inbox"] [data-panel-head]');
+  expect(inboxOpen).toBe(true);
+  await click('[data-subpanel-entry="bot-inbox"] [data-panel-head]');
+  expect(inboxOpen).toBe(false);
+
+  const resize = host.querySelector<HTMLElement>(
+    '[data-subpanel-entry="sessions"] .bh-subpanel-entry-resize',
+  )!;
+  act(() =>
+    resize.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+  );
+  await settle();
+  expect(readLayoutMode(storage).column.heights['sessions']).toBe(336);
+
+  const header = host.querySelector<HTMLElement>(
+    '[data-subpanel-entry="schedules"] .bh-subpanel-entry-header',
+  )!;
+  act(() =>
+    header.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
+    ),
+  );
+  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="hide"]')!.click());
+  await settle();
+  expect(entries()).not.toContain('schedules');
+
+  group = true;
+  act(() => root.render(view()));
+  await settle();
+  expect(entries()).toEqual(['sessions', 'members', 'generated-files']);
+  act(() => registry.open('botharness-browser'));
+  await settle();
+  expect(entries()).toEqual(['sessions', 'members', 'generated-files']);
+  expect(readLayoutMode(storage).column.expanded).toEqual(['sessions']);
+
+  act(() => registry.toggle('members'));
+  await settle();
+  expect(host.querySelector('[data-subpanel-entry="members"] [data-body]')).not.toBeNull();
+  await click('[data-subpanel-column-toggle]');
+  expect(host.querySelector('[data-subpanel-column]')).toBeNull();
+  expect(registry.isOpen('members')).toBe(false);
+  act(() => registry.open('schedules'));
+  await settle();
+  expect(host.querySelector('[data-subpanel-column]')).toBeNull();
+});
