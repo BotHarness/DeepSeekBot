@@ -116,7 +116,7 @@ export function GrantRequestCard({
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
           <CardButtons>
-            <Button label={t.tryAgain} onPress={() => void load()} />
+            <Button symbol="refresh" label={t.tryAgain} onPress={() => void load()} />
           </CardButtons>
         </ActionCard>
       </View>
@@ -175,6 +175,7 @@ export function GrantRequestCard({
         <CardNote>{t.grantScopeNote}</CardNote>
         <CardButtons stack>
           <Button
+            symbol="folder-key"
             label={t.grantChoose}
             testID="grant-choose-folder"
             tone="primary"

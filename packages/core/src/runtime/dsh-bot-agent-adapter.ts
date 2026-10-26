@@ -350,6 +350,10 @@ function requireCompletedTurn(
     }
     throw failure;
   }
+  if (reason.kind === 'max-tokens')
+    throw new Error(
+      'OUTPUT_TOKEN_LIMIT: The model reached its output limit before completing this reply',
+    );
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 
@@ -665,6 +669,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#runs.clear();
     this.#stopping.clear();
     await Promise.all(handles.map(async (handle) => handle.dispose()));
+  }
+
+  async loadOrchestrator(run: OrchestratorAgentRun): Promise<void> {
+    this.#assertOpen();
+    if (this.#hasSession && !(await this.#hasSession(run.sessionId)))
+      throw new Error('Original Session is unavailable');
+    await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
+    await this.#orchestratorHandle(run);
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun): Promise<AgentHandle> {

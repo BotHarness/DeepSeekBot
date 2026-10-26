@@ -1,3 +1,4 @@
+import { ReadFailure } from './ds/read-failure.js';
 import {
   useId,
   useMemo,
@@ -33,6 +34,7 @@ import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { Note } from './ds/note.js';
+import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
@@ -386,16 +388,9 @@ function MarketplaceDetailView({
         </div>
       ) : null}
       {state.status === 'error' ? (
-        <div className="bh-market-state" role="alert">
-          <span>
-            {t('market.detail.error', {
-              error: marketplaceError(state.cause, t),
-            })}
-          </span>
-          <Button variant="outline" onClick={onRetry}>
-            {t('market.retry')}
-          </Button>
-        </div>
+        <ReadFailure retryLabel={t('market.retry')} onRetry={onRetry}>
+          {t('market.detail.error', { error: marketplaceError(state.cause, t) })}
+        </ReadFailure>
       ) : null}
       {state.status === 'ready' && state.detail.readme === null ? (
         <div className="bh-market-state">{t('market.detail.noReadme')}</div>
@@ -597,6 +592,11 @@ export function MarketplaceBrowseControls({
 }): ReactElement {
   const sortId = useId();
   const { filters, topics } = browse;
+  const sortOptions = [
+    { value: 'created' as const, label: t('market.sort.created') },
+    { value: 'updated' as const, label: t('market.sort.updated') },
+    { value: 'stars' as const, label: t('market.sort.stars') },
+  ];
   return (
     <>
       <div className="bh-market-browse">
@@ -616,18 +616,26 @@ export function MarketplaceBrowseControls({
           }}
         />
         {action}
-        <SegmentedControl
-          id={sortId}
-          label={t('market.sort.label')}
-          value={filters.sort}
-          options={[
-            { value: 'created', label: t('market.sort.created') },
-            { value: 'updated', label: t('market.sort.updated') },
-            { value: 'stars', label: t('market.sort.stars') },
-          ]}
-          disabled={filters.query.length > 0}
-          onChange={browse.chooseSort}
-        />
+        <div className="bh-market-sort">
+          <SegmentedControl
+            id={sortId}
+            label={t('market.sort.label')}
+            value={filters.sort}
+            options={sortOptions}
+            disabled={filters.query.length > 0}
+            onChange={browse.chooseSort}
+          />
+          <span className="bh-market-sort-menu">
+            <Select
+              label={t('market.sort.label')}
+              value={filters.sort}
+              options={sortOptions}
+              disabled={filters.query.length > 0}
+              align="start"
+              onChange={browse.chooseSort}
+            />
+          </span>
+        </div>
       </div>
       {filters.query.length > 0 ? (
         <span className="bh-market-hint">{t('market.search.relevance')}</span>
@@ -678,12 +686,9 @@ export function MarketplaceListStatus({
   }
   if (list.status === 'error') {
     return (
-      <div className="bh-market-state" role="alert">
-        <span>{t('market.error.load', { error: marketplaceError(list.cause, t) })}</span>
-        <Button variant="outline" onClick={browse.retry}>
-          {t('market.retry')}
-        </Button>
-      </div>
+      <ReadFailure retryLabel={t('market.retry')} onRetry={browse.retry}>
+        {t('market.error.load', { error: marketplaceError(list.cause, t) })}
+      </ReadFailure>
     );
   }
   if (list.bots.length > 0) return null;

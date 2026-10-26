@@ -599,6 +599,7 @@ describe('plugin entry', () => {
       'channelRetry',
       'botNewSession',
       'botCompact',
+      'botContext',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',

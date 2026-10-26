@@ -1,3 +1,6 @@
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
+import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
@@ -11,7 +14,6 @@ import { ClearedMessageAttachment, MessageAttachment } from './message-attachmen
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
-  Button,
   FileTypeIcon,
   fileSizeText,
   MarkdownText,
@@ -68,6 +70,8 @@ function failureSummary(
       return t('failure.server');
     case 'CONTEXT_WINDOW_EXCEEDED':
       return t('failure.contextWindow');
+    case 'OUTPUT_TOKEN_LIMIT':
+      return t('failure.outputLimit');
     default:
       return t('failure.generic');
   }
@@ -88,8 +92,16 @@ function SessionFailureNotice({
 }): ReactElement {
   const host = useMessageHost();
   const failure = message.sessionFailure!;
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+  const [reportOpen, setReportOpen] = useState(false);
+  const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
+  const maintenance = useSessionMaintenance(
+    actions,
+    channelId,
+    failure.role === 'orchestrator' ? botSlug : undefined,
+  );
+  const busy = maintenance.pending !== undefined;
+  const canRecover = maintenance.available;
+  const recover = maintenance.run;
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
   const needsModels =
     host === undefined &&
@@ -126,32 +138,50 @@ function SessionFailureNotice({
         <div className="bh-session-failure-raw">{failure.detail}</div>
         <code>{failure.sessionId}</code>
       </details>
-      {needsModels || (failure.requestMessageId && actions && channelId) ? (
-        <div className="bh-message-card-actions">
-          {needsModels ? (
-            <Button variant="outline" onClick={() => openModelsSettings()}>
-              {t('failure.openModels')}
-            </Button>
-          ) : null}
-          {failure.requestMessageId && actions && channelId ? (
-            <Button
-              variant="outline"
+      <ActionGroup>
+        {canRecover ? (
+          <>
+            <ActionButton
+              icon="archive"
               disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                setError(undefined);
-                void actions
-                  .retryMessage(channelId, failure.requestMessageId!)
-                  .catch((cause) => setError(errorMessage(cause)))
-                  .finally(() => setBusy(false));
-              }}
+              busy={maintenance.pending === 'compact'}
+              onClick={() => recover('compact')}
             >
-              {t('onboarding.retryMessage')}
-            </Button>
-          ) : null}
-        </div>
+              {t('composerContext.compactNow')}
+            </ActionButton>
+            <ActionButton
+              icon="plus"
+              busy={maintenance.pending === 'new-session'}
+              disabled={busy}
+              onClick={() => recover('new-session')}
+            >
+              {t('composerCommand.newSession')}
+            </ActionButton>
+          </>
+        ) : null}
+        {channelId && host === undefined ? (
+          <ActionButton icon="message-square" onClick={() => setReportOpen(true)}>
+            {t('feedback.reportFailure')}
+          </ActionButton>
+        ) : null}
+        {needsModels ? (
+          <ActionButton icon="settings" onClick={() => openModelsSettings()}>
+            {t('failure.openModels')}
+          </ActionButton>
+        ) : null}
+      </ActionGroup>
+      {maintenance.notice ? (
+        <p role="status">{sessionMaintenanceText(maintenance.notice, t)}</p>
       ) : null}
-      {error ? <p role="alert">{error}</p> : null}
+      {reportOpen && channelId ? (
+        <MessageFeedbackDialog
+          channelId={channelId}
+          messageId={message.id}
+          failureTurn
+          onClose={() => setReportOpen(false)}
+          t={t}
+        />
+      ) : null}
     </div>
   );
 }
@@ -245,16 +275,16 @@ export function GrantRequestCard({
     }
   }, [workspacePickerRequest]);
   const chooseButton = (
-    <Button
-      variant="primary"
+    <ActionButton
+      icon="folder-key"
+      tone="primary"
       size={compact ? 'sm' : 'md'}
+      busy={opening}
       disabled={busy || opening}
       onClick={() => open()}
     >
-      {opening
-        ? t('grant.loading')
-        : t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
-    </Button>
+      {t(compact ? 'humanInbox.grant.handle' : 'grant.requestChoose')}
+    </ActionButton>
   );
   return (
     <div

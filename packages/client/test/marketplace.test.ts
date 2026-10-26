@@ -6,9 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  IconRefreshOutlineRegular: () => null,
   Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
     createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
   Input: (props: Record<string, unknown>) => createElement('input', props),
+  IconChevronDownOutlineRegular: () => null,
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),

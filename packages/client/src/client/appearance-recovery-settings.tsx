@@ -1,6 +1,6 @@
 import { useState, useSyncExternalStore } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { ActionButton } from './ds/action-button.js';
 import { AppearanceError, type Appearance } from './appearance.js';
 import type { Wallpaper } from './wallpaper.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -46,8 +46,9 @@ export function AppearanceRecoverySettings({
           </Note>
         )}
         <div {...stylex.props(styles.actions)}>
-          <Button
-            variant="outline"
+          <ActionButton
+            icon="refresh"
+
             disabled={busy}
             onClick={() => {
               try {
@@ -62,9 +63,10 @@ export function AppearanceRecoverySettings({
             }}
           >
             {t('recovery.clear')}
-          </Button>
-          <Button
-            variant="outline"
+          </ActionButton>
+          <ActionButton
+            icon="refresh"
+
             disabled={busy}
             onClick={() => {
               setResult(undefined);
@@ -75,7 +77,7 @@ export function AppearanceRecoverySettings({
             }}
           >
             {t('recovery.reset')}
-          </Button>
+          </ActionButton>
         </div>
       </SettingsSection>
       {confirmation && (
@@ -88,12 +90,15 @@ export function AppearanceRecoverySettings({
           data={{ 'data-appearance-reset-confirmation': '' }}
           actions={
             <>
-              <Button variant="outline" disabled={busy} onClick={() => setConfirmation(undefined)}>
+              <ActionButton icon="x" disabled={busy} onClick={() => setConfirmation(undefined)}>
                 {t('common.cancel')}
-              </Button>
-              <Button
-                variant="outline"
+              </ActionButton>
+              <ActionButton
+                icon="refresh"
+
                 disabled={busy}
+                tone="danger"
+                busy={busy}
                 onClick={() => {
                   setBusy(true);
                   void resetAppearance(
@@ -122,7 +127,7 @@ export function AppearanceRecoverySettings({
                 }}
               >
                 {t('recovery.confirm')}
-              </Button>
+              </ActionButton>
             </>
           }
         >

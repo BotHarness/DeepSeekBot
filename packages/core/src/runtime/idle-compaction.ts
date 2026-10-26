@@ -268,7 +268,7 @@ export interface ManualCompactionResult {
 }
 
 export interface IdleCompaction {
-  compactNow(sessionId: string): Promise<ManualCompactionResult>;
+  compactNow(sessionId: string, runtimeReserved?: boolean): Promise<ManualCompactionResult>;
   observeEvent(sessionId: string, event: DshSessionEvent): void;
   agentStatus(sessionId: string, status: string): void;
   rescan(sessionIds: readonly string[]): void;
@@ -497,12 +497,16 @@ export function createIdleCompaction<Agent extends IdleCompactionAgent>(
   };
 
   return {
-    async compactNow(sessionId) {
+    async compactNow(sessionId, runtimeReserved = false) {
       const botSlug = ports.orchestratorBot(sessionId);
       const agent = ports.agent(sessionId);
       if (closed || botSlug === undefined || agent === undefined)
         return { outcome: 'not-loaded', tokensBefore: null, tokensAfter: null };
-      if (running.has(sessionId) || agent.status !== 'idle' || ports.botBusy(botSlug))
+      if (
+        running.has(sessionId) ||
+        agent.status !== 'idle' ||
+        (!runtimeReserved && ports.botBusy(botSlug))
+      )
         return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
       cancel(sessionId);
       const anchor = anchorOf(sessionId, agent);

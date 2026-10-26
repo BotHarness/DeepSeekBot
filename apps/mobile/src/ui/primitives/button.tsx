@@ -1,3 +1,18 @@
+import type { ActionSymbol } from '../../../../../packages/client/src/shared/action-presentation';
+import {
+  ArchiveIcon,
+  CheckIcon,
+  CloseIcon,
+  PlusIcon,
+  MessageIcon,
+  SettingsIcon,
+  FolderIcon,
+  ShieldCheckIcon,
+  ExternalLinkIcon,
+  TerminalIcon,
+  InfoIcon,
+  RefreshIcon,
+} from '../shell/icons';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -19,6 +34,7 @@ export function Button({
   on = 'raised',
   variant = 'filled',
   icon,
+  symbol,
   testID,
 }: {
   label: string;
@@ -29,6 +45,7 @@ export function Button({
   on?: LayerName;
   variant?: 'filled' | 'text';
   icon?: ReactNode;
+  symbol?: ActionSymbol;
   testID?: string;
 }) {
   const theme = useDesignTheme();
@@ -65,18 +82,34 @@ export function Button({
     >
       {busy ? (
         <LoadingIndicator size="control" color={labelColor} />
-      ) : (
-        <>
-          {icon === undefined ? null : (
-            <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              {icon}
-            </View>
-          )}
-          <Text strong style={{ color: labelColor, textAlign: 'center', flexShrink: 1 }}>
-            {label}
-          </Text>
-        </>
+      ) : symbol ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {(() => {
+            const Icon = {
+              refresh: RefreshIcon,
+              check: CheckIcon,
+              'shield-check': ShieldCheckIcon,
+              x: CloseIcon,
+              archive: ArchiveIcon,
+              plus: PlusIcon,
+              'message-square': MessageIcon,
+              settings: SettingsIcon,
+              'folder-key': FolderIcon,
+              'external-link': ExternalLinkIcon,
+              terminal: TerminalIcon,
+              info: InfoIcon,
+            }[symbol];
+            return <Icon color={labelColor} size={theme.type.body.size} />;
+          })()}
+        </View>
+      ) : icon === undefined ? null : (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          {icon}
+        </View>
       )}
+      <Text strong style={{ color: labelColor, textAlign: 'center', flexShrink: 1 }}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

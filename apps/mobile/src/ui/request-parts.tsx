@@ -1,3 +1,5 @@
+import { ReadFailure } from './primitives/read-failure';
+import { space } from './design/tokens';
 import { Text } from './primitives/system-text';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
@@ -88,11 +90,8 @@ export function Loading() {
 export function LoadFailed({ error, onRetry }: { error: string; onRetry: () => void }) {
   const t = useStrings();
   return (
-    <View style={{ padding: 16, gap: 12 }}>
-      <Notice tone="danger">{`${t.loadFailed} ${error}`}</Notice>
-      <View style={{ flexDirection: 'row' }}>
-        <ActionButton label={t.tryAgain} tone="secondary" onPress={onRetry} />
-      </View>
+    <View style={{ padding: space.x5 }}>
+      <ReadFailure title={t.loadFailed} detail={error} onRetry={onRetry} />
     </View>
   );
 }

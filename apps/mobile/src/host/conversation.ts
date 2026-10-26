@@ -1,4 +1,5 @@
 import type { HostClient, RemoteSource } from './client';
+import { sessionFailure } from './session-failure';
 import { activityOf, type ChannelActivity } from './channel-activity';
 import { approvalCommand } from './requests';
 import type {
@@ -125,6 +126,7 @@ export function shownInChat(message: ConversationMessage): boolean {
 
 export interface ConversationMessage {
   source?: JournalEntry;
+  sessionFailure?: import('./session-failure').SessionFailure;
   id: string;
   revision?: number;
   at: string;
@@ -427,6 +429,7 @@ function present(
   const card = cardOf(entry.channelId, message);
   const resolves = resolvesOf(message);
   const activity = activityOf(message);
+  const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
   return {
     id: message.id,
     source: entry,
@@ -440,6 +443,7 @@ function present(
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
     ...(activity === undefined ? {} : { activity }),
+    ...(failure === undefined ? {} : { sessionFailure: failure }),
     ...(message.reactions === undefined || message.reactions.length === 0
       ? {}
       : { reactions: message.reactions }),

@@ -15,8 +15,9 @@ import { SettingsRow, SettingsSection } from './ds/settings-row.js';
 
 import { workspaceColumns, moveWorkspaceRail } from './workspace-layout.js';
 import { useState, useSyncExternalStore, type ReactNode, type ReactElement } from 'react';
-import { Button, SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
+import { SegmentedControl } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { LayoutMode } from './layout-mode.js';
+import { ActionButton } from './ds/action-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { DockviewApi } from 'dockview-react';
 import type { BotModeSidebarProps } from './bot-mode-sidebar.js';
@@ -423,7 +424,11 @@ function WorkspaceRail({
             />
             <SettingsRow
               title={t('dock.reset')}
-              control={<Button onClick={reset}>{t('dock.reset')}</Button>}
+              control={
+                <ActionButton icon="refresh" onClick={reset}>
+                  {t('dock.reset')}
+                </ActionButton>
+              }
             />
           </SettingsSection>,
           settingsTarget,

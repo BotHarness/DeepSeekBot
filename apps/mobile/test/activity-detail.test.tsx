@@ -6,7 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChevronLeftIcon: () => null,
   ChevronRightIcon: () => null,
 }));
@@ -136,7 +137,14 @@ describe('Bot Activity screen', () => {
         }}
       />,
     );
-    expect(view.textContent).toContain(`${t.profileFailed} The Host did not answer in time.`);
+    expect(view.textContent).toContain(t.profileFailed);
+    expect(view.textContent).not.toContain('The Host did not answer in time.');
+    await act(async () =>
+      [...view.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(view.textContent).toContain('The Host did not answer in time.');
     await act(async () => button(view, t.tryAgain).click());
     await act(async () => undefined);
     expect(view.textContent).toContain('deepseek-v4');

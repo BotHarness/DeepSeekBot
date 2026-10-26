@@ -1,3 +1,5 @@
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import { useId, useState, type CSSProperties, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -15,6 +17,7 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 
 export function DmComposerUsagePopover({
   bot,
+  context,
   channelId,
   actions,
   activity,
@@ -24,6 +27,7 @@ export function DmComposerUsagePopover({
   onDetails,
 }: {
   bot: BotSummary;
+  context?: Awaited<ReturnType<BridgeActions['botContext']>> | undefined;
   channelId: string;
   actions: BridgeActions;
   activity: ProfileActivity | undefined;
@@ -33,6 +37,7 @@ export function DmComposerUsagePopover({
   onDetails(): void;
 }): ReactElement {
   const titleId = useId();
+  const maintenance = useSessionMaintenance(actions, channelId, bot.slug);
   const [result, setResult] = useState<ProfileSessionUsage>();
   const [failed, setFailed] = useState(false);
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' });
@@ -131,6 +136,75 @@ export function DmComposerUsagePopover({
           <IconCloseOutlineRegular size={16} />
         </button>
       </div>
+      <section
+        className="bh-composer-usage-section"
+        aria-label={t('composerContext.contextDetails')}
+      >
+        <h3>{t('composerContext.contextDetails')}</h3>
+        {context === undefined ? (
+          <p role="status">{t('composerContext.unavailable')}</p>
+        ) : (
+          <>
+            {(
+              [
+                [t('composerContext.contextUsed'), context.usedTokens],
+                [t('composerContext.contextCapacity'), context.contextWindow],
+                [
+                  t('composerContext.contextRemaining'),
+                  context.usedTokens === null
+                    ? null
+                    : Math.max(0, context.contextWindow - context.usedTokens),
+                ],
+                [t('composerContext.contextThreshold'), Math.max(0, context.thresholdTokens)],
+              ] as const
+            ).map(([label, value]) => (
+              <div className="bh-composer-usage-row" key={label}>
+                <span>{label}</span>
+                <strong>
+                  {value === null ? t('profile.usage.unknown') : value.toLocaleString('en-US')}
+                </strong>
+              </div>
+            ))}
+            <div className="bh-composer-usage-row">
+              <span>{t('composerContext.contextSource')}</span>
+              <strong>
+                {t(
+                  context.capacitySource === 'model'
+                    ? 'composerContext.capacityModel'
+                    : 'composerContext.capacityEstimate',
+                )}
+              </strong>
+            </div>
+            <p className="bh-composer-usage-caption">{t('composerContext.contextHint')}</p>
+          </>
+        )}
+      </section>
+      {maintenance.available ? (
+        <ActionGroup>
+          <ActionButton
+            icon="archive"
+            busy={maintenance.pending === 'compact'}
+            disabled={maintenance.pending !== undefined}
+            onClick={() => void maintenance.run('compact')}
+          >
+            {t('composerContext.compactNow')}
+          </ActionButton>
+          <ActionButton
+            icon="plus"
+            busy={maintenance.pending === 'new-session'}
+            disabled={maintenance.pending !== undefined}
+            onClick={() => void maintenance.run('new-session')}
+          >
+            {t('composerCommand.newSession')}
+          </ActionButton>
+        </ActionGroup>
+      ) : null}
+      {maintenance.notice ? (
+        <p role="status" className="bh-composer-usage-caption">
+          {sessionMaintenanceText(maintenance.notice, t)}
+        </p>
+      ) : null}
+      <h3>{t('composerContext.cumulativeUsage')}</h3>
       <div className="bh-composer-usage-total">
         <span ref={(element) => paintBotName(element, source)}>{bot.displayName}</span>
         <strong>
@@ -169,7 +243,7 @@ export function DmComposerUsagePopover({
                         </span>
                         <strong>
                           {sessionCount(row)}
-                          {sessionShare(row) === undefined ? '' : ` · ${sessionShare(row)}%`}
+                          {sessionShare(row) === undefined ? '' : ` 路 ${sessionShare(row)}%`}
                         </strong>
                       </div>
                       {sessionShare(row) === undefined ? null : (

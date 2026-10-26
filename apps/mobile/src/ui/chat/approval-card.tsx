@@ -202,7 +202,7 @@ export function ApprovalCard({
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
           <CardButtons>
-            <Button label={t.tryAgain} onPress={() => void load()} />
+            <Button symbol="refresh" label={t.tryAgain} onPress={() => void load()} />
           </CardButtons>
         </ActionCard>
       </View>
@@ -316,6 +316,7 @@ export function ApprovalCard({
         <CardNote>{alwaysNote(request)}</CardNote>
         <CardButtons stack>
           <Button
+            symbol="check"
             label={t.allowOnce}
             testID="approval-allow-once"
             tone="primary"
@@ -324,6 +325,7 @@ export function ApprovalCard({
             onPress={() => void decide('allowed-once')}
           />
           <Button
+            symbol="shield-check"
             label={t.alwaysAllow}
             testID="approval-always-allow"
             disabled={phase.busy !== undefined || !request.allowAlways}
@@ -331,6 +333,7 @@ export function ApprovalCard({
             onPress={() => void decide('allowed-always-tool')}
           />
           <Button
+            symbol="x"
             label={t.reject}
             testID="approval-deny"
             tone="danger"

@@ -3,6 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('expo-symbols', () => ({ SymbolView: () => createElement('i') }));
 vi.mock(

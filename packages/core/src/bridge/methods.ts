@@ -1,4 +1,6 @@
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
+import { SessionRecoveryError } from '../runtime/session-recovery.js';
+import type { BotContextWindow } from '../runtime/context-window.js';
 import {
   approveGrantRequest,
   type GrantRequestApprovalResult,
@@ -543,6 +545,7 @@ export interface BridgeMethods {
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
+  botContext(payload: unknown): Promise<BridgeResult<BotContextWindow>>;
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
@@ -903,6 +906,7 @@ export interface IdleCompactionDeps {
   routes(): IdleCompactionRoute[];
   rescan(): void;
   compactBot?(slug: string): Promise<ManualCompactionResult>;
+  compactReservedSession?(sessionId: string): Promise<ManualCompactionResult>;
 }
 
 const storageCleanupScope = z
@@ -944,6 +948,7 @@ function storageFailure(error: unknown, message: string): BridgeResult<never> {
 }
 
 export interface BridgeMethodsDeps {
+  botContext?(slug: string): Promise<BotContextWindow>;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
@@ -2424,12 +2429,33 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');
       const messageId = asNonBlank(source, 'messageId');
+      const recovery = source['recovery'];
+      const failureMessageId = asNonBlank(source, 'failureMessageId');
+      if (recovery !== undefined && recovery !== 'compact' && recovery !== 'new-session')
+        return invalidInput('recovery must be compact or new-session');
       if (!channelId || !messageId || !deps.runtime?.retryDmMessage)
         return invalidInput('Original message is required');
       try {
-        await deps.runtime.retryDmMessage(channelId, messageId);
+        if (recovery !== undefined) {
+          if (!failureMessageId || !deps.runtime.recoverDmMessage)
+            return invalidInput('Original failure message is required');
+          const failure = deps.channels.message(channelId, failureMessageId)?.sessionFailure;
+          if (failure?.requestMessageId !== messageId)
+            return invalidInput('Failure does not belong to this message');
+          await deps.runtime.recoverDmMessage({
+            channelId,
+            failureMessageId,
+            action: recovery,
+            compact: async (sessionId) => {
+              const result = await deps.idleCompaction?.compactReservedSession?.(sessionId);
+              return result?.outcome === 'compacted';
+            },
+          });
+        } else await deps.runtime.retryDmMessage(channelId, messageId);
         return { ok: true, value: { accepted: true } };
       } catch (error) {
+        if (error instanceof SessionRecoveryError)
+          return { ok: false, error: { code: error.code, message: error.message } };
         return invalidInput(error instanceof Error ? error.message : 'Retry unavailable');
       }
     },
@@ -2466,11 +2492,24 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             error: { code: 'bot-busy', message: 'Stop the Bot before compacting its Session' },
           };
         return { ok: true, value: result };
-      } catch {
+      } catch (error) {
+        if (error instanceof SessionRecoveryError)
+          return { ok: false, error: { code: error.code, message: error.message } };
         return {
           ok: false,
           error: { code: 'compaction-failed', message: 'Could not compact the Session' },
         };
+      }
+    },
+    async botContext(payload) {
+      const slug = asSlug(payload);
+      if (!slug) return invalidInput('slug is required');
+      if (!deps.registry.get(slug)) return unknownBot(slug);
+      if (!deps.botContext) return unavailable();
+      try {
+        return { ok: true, value: await deps.botContext(slug) };
+      } catch {
+        return unavailable();
       }
     },
     async channelBotStop(payload) {

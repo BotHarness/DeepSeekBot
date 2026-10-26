@@ -47,7 +47,8 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ b
 vi.mock('expo-router', () => ({ usePreventRemove: () => {} }));
 vi.mock('../src/ui/chat/voice-button', () => ({ VoiceButton: () => null }));
 vi.mock('../src/ui/chat/draft-editor', () => ({ DraftEditor: () => null }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ArrowUpIcon: () => null,
   CameraIcon: () => null,
   ChevronUpIcon: () => null,

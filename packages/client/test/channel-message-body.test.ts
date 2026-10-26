@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import type { BridgeActions } from '../src/client/actions.js';
+import { createActions, type BridgeActions } from '../src/client/actions.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { attachmentReferenceText } from '../src/client/attachment-refs.js';
 import { parseChannelMessage } from '../src/client/bridge.js';
@@ -38,6 +38,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconDownloadOutlineRegular: () => null,
   IconPlayOutlineRegular: () => null,
   IconPauseOutlineRegular: () => null,
+  IconRefreshOutlineRegular: () => null,
   IconEllipsisOutlineRegular: () => null,
   IconFolderOpenOutlineRegular: () => null,
   Tooltip: ({ children }: { children: ReactNode }) => children,
@@ -49,6 +50,70 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
 }));
+
+it('maintains the DM session without retrying a failed message', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const call = vi.fn(async (_method: string, _args?: unknown) => ({
+    ok: true as const,
+    value: { outcome: 'nothing', tokensBefore: null, tokensAfter: null },
+  }));
+  const actions = createActions(call, store);
+  const message: ChannelMessage = {
+    id: 'failure',
+    at: '2026-10-26T00:00:00Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Failed',
+    sessionFailure: {
+      role: 'orchestrator',
+      sessionId: 's',
+      requestMessageId: 'request',
+      code: 'CONTEXT_WINDOW_EXCEEDED',
+      detail: 'Full',
+    },
+  };
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ChannelMessageBody, {
+          message,
+          channelId: 'dm-ada',
+          actions,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    const button = [...container.querySelectorAll('button')].find(
+      (node) => node.textContent === '压缩上下文',
+    );
+    expect(button).toBeDefined();
+    expect(container.textContent).toContain('开启新会话');
+    expect(container.textContent).not.toContain('重试');
+    await act(async () => button?.click());
+    expect(call).toHaveBeenCalledWith('botCompact', { slug: 'ada' });
+    expect(container.textContent).toContain('当前没有可压缩的内容');
+    const newButton = [...container.querySelectorAll('button')].find(
+      (node) => node.textContent === '开启新会话',
+    );
+    await act(async () => newButton?.click());
+    expect(call).toHaveBeenCalledWith('botNewSession', { slug: 'ada' });
+    expect(call.mock.calls.map((args) => args[0])).not.toContain('channelRetry');
+    await act(async () =>
+      root.render(
+        createElement(ChannelMessageBody, { message, channelId: 'group', actions, t: zhTranslate }),
+      ),
+    );
+    expect(container.textContent).not.toContain('压缩上下文');
+    expect([...container.querySelectorAll('button')].map((node) => node.textContent)).not.toContain(
+      '开启新会话',
+    );
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
 
 it('renders the restored Host tombstone as purged content', () => {
   const message = parseChannelMessage({
@@ -959,7 +1024,7 @@ describe('Channel message body', () => {
       },
     });
     expect(markup).toContain('对话上下文已满');
-    expect(markup).toContain('自动压缩未能恢复。请缩小请求后重试');
+    expect(markup).toContain('可压缩当前上下文，或开启新会话。');
     expect(markup).toContain('Raw overflow diagnostic');
     expect(markup).not.toContain('请查看错误详情');
     expect(markup).not.toContain('打开模型设置');

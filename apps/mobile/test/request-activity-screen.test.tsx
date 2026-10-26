@@ -110,6 +110,7 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => navigation,
   Stack: { Screen: () => null },
 }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 import { RequestActivityScreen } from '../src/ui/chat/request-activity-screen';

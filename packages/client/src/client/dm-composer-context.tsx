@@ -37,7 +37,7 @@ import {
   subscribeWorkspaceGrantChanges,
   workspaceGrantRevision,
 } from './workspace-grant-events.js';
-import { profileTokenChipText, profileTokenSummaryText } from './profile-token-summary.js';
+import { profileTokenSummaryText } from './profile-token-summary.js';
 import type { AveragePerfView } from './message-perf.js';
 import { PROFILE_ACTIVITY_WEEKS } from './profile-cards-builtins.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -322,14 +322,37 @@ function DmComposerContextView({
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [context, setContext] = useState<Awaited<ReturnType<BridgeActions['botContext']>>>();
   const usageTrigger = useRef<HTMLButtonElement | null>(null);
-  const usageMount = useMountedResource<HTMLButtonElement>((node) => {
-    usageTrigger.current = node;
-    return () => {
-      usageTrigger.current = null;
-      setUsageOpen(false);
-    };
-  }, []);
+  const usageMount = useMountedResource<HTMLButtonElement>(
+    (node) => {
+      usageTrigger.current = node;
+      let active = true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      setContext(undefined);
+      const refresh = async () => {
+        try {
+          const value = await actions.botContext(bot.slug);
+          if (active) setContext(value);
+        } catch {
+          if (active) setContext(undefined);
+        } finally {
+          if (active)
+            timer = setTimeout(() => {
+              void refresh();
+            }, 5000);
+        }
+      };
+      void refresh();
+      return () => {
+        active = false;
+        clearTimeout(timer);
+        usageTrigger.current = null;
+        setUsageOpen(false);
+      };
+    },
+    [actions, bot.slug, route?.provider, route?.model],
+  );
   const subscribeGrants = useCallback(
     (listener: () => void) => subscribeWorkspaceGrantChanges(bot.slug, listener),
     [bot.slug],
@@ -383,10 +406,18 @@ function DmComposerContextView({
         ? t('composerContext.loading')
         : profileTokenSummaryText(activity, t),
   });
+  const shortTokens = (tokens: number) =>
+    new Intl.NumberFormat('en', {
+      notation: 'compact',
+      maximumFractionDigits: 1,
+    }).format(tokens);
   const compactUsage =
-    loading && activity === undefined
-      ? t('composerContext.loading')
-      : profileTokenChipText(activity, t);
+    context === undefined
+      ? '— / —'
+      : t('composerContext.contextWindow', {
+          used: context.usedTokens === null ? '?' : shortTokens(context.usedTokens),
+          capacity: shortTokens(context.contextWindow),
+        });
   return (
     <>
       <ComposerContextBar
@@ -400,7 +431,8 @@ function DmComposerContextView({
             icon={<ChannelSidebarIcon name="ruler" size={14} />}
             label={compactUsage}
             onClick={() => setUsageOpen((open) => !open)}
-            aria-label={usageLabel}
+            aria-label={`${compactUsage}. ${usageLabel}`}
+            title={`${compactUsage}. ${usageLabel}`}
             aria-haspopup="dialog"
             aria-expanded={usageOpen}
           />
@@ -437,6 +469,7 @@ function DmComposerContextView({
       </ComposerContextBar>
       {usageOpen ? (
         <DmComposerUsagePopover
+          context={context}
           bot={bot}
           channelId={channelId}
           actions={actions}

@@ -355,7 +355,7 @@ export function QuestionCard({
           {...(phase.kind === 'failed' ? { error: t.cardLoadFailed } : {})}
         >
           <CardButtons>
-            <Button label={t.tryAgain} onPress={() => void load()} />
+            <Button symbol="refresh" label={t.tryAgain} onPress={() => void load()} />
           </CardButtons>
         </ActionCard>
       </View>
@@ -440,6 +440,7 @@ export function QuestionCard({
         {instant && !typed ? null : (
           <CardButtons>
             <Button
+              symbol="check"
               label={t.submitChoice}
               tone="primary"
               disabled={answer === undefined}
