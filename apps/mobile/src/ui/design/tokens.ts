@@ -89,7 +89,11 @@ export const materialDrawer = { width: 360, scrimGutter: 56, addressMinScale: 0.
 export const loadingIndicator = { size: 48, control: 20, controlStroke: 2.5 } as const;
 export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
-export const chatList = { gutter: tabHeader.gutter } as const;
+export const chatList = {
+  gutter: tabHeader.gutter,
+  sourceLabelMaxWidth: '30%',
+  sourceLabelShrink: 3,
+} as const;
 export const environmentTab = { widthRatio: 0.6 } as const;
 export const tabLabel = { minimumFontScale: 0.6 } as const;
 export const modalRail = { maxWidth: 360 } as const;
