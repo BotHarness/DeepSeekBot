@@ -113,7 +113,6 @@ const server = createServer(async (req, res) => {
       if (consumed.size > 64) consumed.delete(consumed.values().next().value);
     }
     const body = fixtures[fixture];
-    // Tool IDs must stay unique in a Bot session when the replay process restarts.
     const id = 'qa_replay_' + randomUUID();
     const argumentsText = JSON.stringify({ channel_id: 'dm-' + config.slug, body });
     const toolCalls = [
