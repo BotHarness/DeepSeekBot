@@ -4,6 +4,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { channelNavigationHarness } from './channel-navigation-harness';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let profileHistory = channelNavigationHarness();
+import type { ChannelListItem } from '../src/host/wire';
 import type { RosterBot, RosterChannel } from '../src/host/client';
 import type { Conversation, ConversationSnapshot } from '../src/host/conversation';
 
@@ -19,7 +20,11 @@ const state = vi.hoisted(() => ({
   hostId: 'computer_a',
   host: {
     connection: { status: 'connected' },
-    roster: { bots: [] as RosterBot[], channels: [] as RosterChannel[] },
+    roster: {
+      bots: [] as RosterBot[],
+      channels: [] as RosterChannel[],
+      activityChannels: [] as ChannelListItem[],
+    },
   },
   conversation: {
     status: 'live',
@@ -102,11 +107,13 @@ vi.mock('expo-router', () => ({
         )) ??
           options.headerLeft?.() ??
           null}
-        {options.unstable_headerRightItems?.().map((item) => (
-          <button key={item.label} type="button" onClick={item.onPress}>
-            {item.label}
-          </button>
-        )) ?? options.headerRight?.()}
+        <aside data-testid="trailing-header">
+          {options.unstable_headerRightItems?.().map((item) => (
+            <button key={item.label} type="button" onClick={item.onPress}>
+              {item.label}
+            </button>
+          )) ?? options.headerRight?.()}
+        </aside>
       </header>
     ),
   },
@@ -308,6 +315,7 @@ beforeEach(() => {
   state.conversation.fromCache = false;
   state.host.roster.bots = [];
   state.host.roster.channels = [];
+  state.host.roster.activityChannels = [];
   state.active = false;
   state.target = undefined;
   delete state.conversation.olderError;
@@ -584,46 +592,30 @@ it('retries source paging only after a new history boundary or an explicit repea
   expect(navigation.loadOlder).toHaveBeenCalledTimes(3);
 });
 
-it.each(['ios', 'android'])(
-  'opens Channel files from the %s header with the exact Computer and DM',
-  async (os) => {
-    const previousOS = Platform.OS;
-    Object.assign(Platform, { OS: os });
-    try {
-      state.host.roster.bots = [
-        {
-          slug: 'ada',
-          displayName: 'Ada',
-          dmChannelId: 'dm-a',
-          state: 'idle',
-          description: '',
-          roles: [],
-          computerAccess: false,
-          browserAccess: false,
-          paused: false,
-        },
-      ];
-      const view = await render({ kind: 'dm', slug: 'ada' });
-      const button = [...view.querySelectorAll('button')].find(
-        (item) => item.textContent === t.channelFiles.title,
-      )!;
-      expect(button).toBeDefined();
-      if (os === 'ios')
-        expect(
-          [...view.querySelectorAll('header button')].filter(
-            (item) => item.textContent === t.lockScreen.track,
-          ),
-        ).toHaveLength(1);
-      await act(async () => button.click());
-      expect(navigation.push).toHaveBeenCalledWith({
-        pathname: '/channel-files',
-        params: { hostId: 'computer_a', channelId: 'dm-a', botSlug: 'ada' },
-      });
-    } finally {
-      Object.assign(Platform, { OS: previousOS });
-    }
-  },
-);
+it.each(['ios', 'android'])('keeps the %s chat trailing header empty', async (os) => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: os });
+  try {
+    state.host.roster.bots = [
+      {
+        slug: 'ada',
+        displayName: 'Ada',
+        dmChannelId: 'dm-a',
+        state: 'idle',
+        roles: [],
+        computerAccess: false,
+        browserAccess: false,
+        paused: false,
+      },
+    ];
+    const view = await render({ kind: 'dm', slug: 'ada' });
+    expect(view.querySelector('[data-testid="trailing-header"]')!.childElementCount).toBe(0);
+    expect(view.querySelector('header')!.textContent).not.toContain(t.channelFiles.title);
+    expect(view.querySelector('header')!.textContent).not.toContain(t.lockScreen.track);
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
+  }
+});
 
 it('shows a missing source message after the existing history owner reaches the beginning', async () => {
   const place: ChatPlace = { kind: 'channel', channelId: 'group-a' };
@@ -1092,5 +1084,26 @@ it('the real conversation title opens a source-scoped Bot Profile', async () => 
     expect(profileHistory.state.routes.at(-1)!.name).toBe('dm/[slug]');
   } finally {
     Object.assign(Platform, { OS: os });
+  }
+});
+
+it('opens scoped Bot-to-Bot details from its title without exposing group management', async () => {
+  const previousOS = Platform.OS;
+  Object.assign(Platform, { OS: 'ios' });
+  try {
+    state.host.roster.activityChannels = [
+      { id: 'bots-a', type: 'dm', name: 'Bot conversation', members: ['ada', 'bob'] },
+    ];
+    const view = await render({ kind: 'channel', channelId: 'bots-a' });
+    const chip = view.querySelector<HTMLButtonElement>('[data-testid="channel-details-chip"]');
+    expect(chip).not.toBeNull();
+    await act(async () => chip!.click());
+    expect(navigation.push).toHaveBeenCalledWith({
+      pathname: '/channel-details',
+      params: { channelId: 'bots-a', hostId: 'computer_a' },
+    });
+    expect(view.querySelector('header')!.textContent).not.toContain(t.channelFiles.title);
+  } finally {
+    Object.assign(Platform, { OS: previousOS });
   }
 });

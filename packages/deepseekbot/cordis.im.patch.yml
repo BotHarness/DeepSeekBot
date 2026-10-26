@@ -1,8 +1,4 @@
-# The Loader keeps the last row for each id. Retain ui-theme so later
-# Profile settings still target the original native namespace.
 - insert:
-    - id: ui-theme
-      name: ./desktop-theme/lib/index.js
     - id: xmanrui-dsh-im
       name: '@botharness/im-provider'
     - id: botharness-core

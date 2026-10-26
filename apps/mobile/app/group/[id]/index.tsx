@@ -6,6 +6,7 @@ import { groupActions, groupInfo } from '../../../src/host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { SettingsRow, SettingsSection } from '../../../src/ui/primitives/settings-row';
+import { ChannelFilesAction } from '../../../src/ui/chat/channel-files-action';
 import { GroupInfoSheet } from '../../../src/ui/chat/group-info';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
@@ -21,7 +22,8 @@ export default function GroupInfoScreen() {
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const sourceChanged = (hostId ?? openedOn) !== saved?.hostId;
-  const roster = useHostSnapshot(sourceChanged ? undefined : client).roster;
+  const snapshot = useHostSnapshot(sourceChanged ? undefined : client);
+  const roster = snapshot.roster;
   const info = useMemo(
     () => (sourceChanged ? undefined : groupInfo(roster, id ?? '')),
     [sourceChanged, roster, id],
@@ -51,6 +53,9 @@ export default function GroupInfoScreen() {
       background={
         saved && id ? (
           <>
+            {snapshot.connection.status !== 'refused' ? (
+              <ChannelFilesAction hostId={saved.hostId} channelId={id} />
+            ) : null}
             <SettingsSection>
               <SettingsRow
                 title={t.chatBackground.title}

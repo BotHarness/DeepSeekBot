@@ -9,7 +9,7 @@
 
 ## How to get to it (user POV)
 
-Open a Human/Bot DM or Channel → header folder button (**Channel files** / **会话文件**). Tap an image to preview it, or another file to download and share through the system. A row's More menu offers sharing and **View message** / **查看原消息**. **Load older files** / **加载更早的文件** reads the next history page.
+Open a Human/Bot DM or Channel → top identity Chip → existing Bot Profile or Channel details → **Channel files** / **频道文件** (`channel-files-open`). Bot-to-Bot Channels open a minimal conversation details sheet from the same Chip, without group management. The chat trailing header has no product actions on either platform; iOS request tracking is in the Bot Profile (`request-activity`), retaining explicit confirmation and request scope. Tap an image to preview it, or another file to download and share through the system. A row's More menu offers sharing and **View message** / **查看原消息**. **Load older files** / **加载更早的文件** reads the next history page.
 
 ## Driving it with verify-app
 
@@ -30,3 +30,11 @@ The visible filename and original-message destination agree with the canonical C
 - No new artifact store, editable HTML surface or version history is introduced. Memory is separate.
 - Host authorization remains authoritative for every file read. This screen's projection is discarded when it closes or changes source.
 - Pending native iOS/Android checks remain **UNTESTED** until the shared-device owner supplies evidence. Do not boot a competing Host, Metro or simulator from this feature branch.
+
+
+## Chip navigation regression (#2857)
+
+- Check both native headers through connecting, connected and refused states: no independent trailing product action, including an overflow or text replacement. The connection indicator remains after the Chip name.
+- Open files through each supported Chip, then Back to details and Back to the original chat. Retain the draft, pending/failed send and held reading position. Use colliding Bot names on two Hosts to verify exact Host and Channel identity; refuse missing or revoked access.
+- On iOS, start/stop/switch request tracking from the Bot Profile with its original confirmation and busy/disabled state. Android does not gain this iOS feature.
+- Native acceptance requires default/intermediate/maximum system text in light/dark and a keyboard-open draft. Record iOS, Android, physical-device and spoken screen-reader results separately; source navigation tests alone do not qualify them.

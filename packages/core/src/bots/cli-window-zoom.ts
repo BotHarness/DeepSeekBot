@@ -10,7 +10,25 @@ export const WINDOW_ZOOM_COMMANDS = [
     command: 'window-zoom-reset',
     description: 'restore the explicit Client window to its saved default zoom',
   },
+  {
+    command: 'window-zoom-setup-status',
+    description: 'read whether Desktop window zoom is installed or waiting for the app to quit',
+  },
+  {
+    command: 'window-zoom-setup-enable',
+    description: 'install Desktop window zoom after the app quits, then reopen it',
+  },
+  {
+    command: 'window-zoom-setup-disable',
+    description: 'remove Desktop window zoom after the app quits, then reopen it',
+  },
+  { command: 'window-zoom-setup-cancel', description: 'cancel a waiting window zoom setup' },
 ] as const;
+const SETUP_ACTIONS: Record<string, string | undefined> = {
+  'window-zoom-setup-enable': 'enable',
+  'window-zoom-setup-disable': 'disable',
+  'window-zoom-setup-cancel': 'cancel',
+};
 export const WINDOW_ZOOM_OPTIONS = {
   'client-id': { type: 'string' },
   'zoom-level': { type: 'string' },
@@ -29,6 +47,21 @@ export async function runWindowZoomCommand(
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;
   }>,
 ): Promise<unknown> {
+  if (command.startsWith('window-zoom-setup-')) {
+    if (
+      rest.length ||
+      values['client-id'] ||
+      values['zoom-level'] !== undefined ||
+      values['zoom-default'] ||
+      values['expected-revision']
+    )
+      throw new CliLiveError('usage', 'Window zoom setup acts on this Host; it takes no Client.');
+    const action = SETUP_ACTIONS[command];
+    const result = await (
+      await connect()
+    ).http('/api/botharness/window-zoom-setup', action === undefined ? undefined : { action });
+    return JSON.parse(new TextDecoder().decode(result.bytes)) as unknown;
+  }
   const list = command === 'window-zoom-clients';
   const write = command === 'window-zoom-set' || command === 'window-zoom-reset';
   if (rest.length || (list ? !!values['client-id'] : !values['client-id']))

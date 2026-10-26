@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   attachOperationalModule,
@@ -255,5 +256,38 @@ describe('roster database authority', () => {
     database.close();
     expect(() => createCore({ dshHome: root })).toThrow(RosterUnavailableError);
     expect(mount(root).mode).toBe('ready');
+  });
+
+  it('logs why Core started with the operational database in recovery mode', () => {
+    const root = home();
+    const holder = mount(root);
+    const warn = vi.fn();
+    const core = createCore({ dshHome: root, warn });
+    expect(core.operationalDatabase.mode).toBe('recovery');
+    expect(warn).toHaveBeenCalledWith(
+      `operational-database initiator=host-startup phase=recovery code=lease-unavailable path=${JSON.stringify(core.operationalDatabase.databasePath)} reason="Profile writer lease is held"`,
+    );
+    core.operationalDatabase.close();
+    holder.close();
+  });
+
+  it('starts Core on a database with orphaned rows and logs them', () => {
+    const root = home();
+    const database = mount(root);
+    const path = database.databasePath;
+    database.close();
+    const external = new DatabaseSync(path, { enableForeignKeyConstraints: false });
+    external
+      .prepare('INSERT INTO persona_bot_memory_ownership VALUES (?, ?)')
+      .run('bot-removed-outside-host', '{}');
+    external.close();
+
+    const warn = vi.fn();
+    const core = createCore({ dshHome: root, warn });
+    expect(core.operationalDatabase.mode).toBe('ready');
+    expect(warn).toHaveBeenCalledWith(
+      `operational-database initiator=host-startup phase=foreign-key-orphans path=${JSON.stringify(path)} orphans="persona_bot_memory_ownership -> persona_bots x1"`,
+    );
+    core.operationalDatabase.close();
   });
 });

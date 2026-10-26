@@ -193,11 +193,13 @@ function ProfileHeader({
   bot,
   actions,
   settings,
+  conversationActions,
   avatar,
 }: {
   bot: RosterBot;
   actions: BotProfileActions;
   settings: ReactNode;
+  conversationActions?: ReactNode;
   avatar: ReturnType<typeof useAvatarEditor>;
 }) {
   const t = useStrings();
@@ -258,6 +260,9 @@ function ProfileHeader({
         portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
         testID="bot-avatar-settings"
       />
+      {conversationActions === undefined ? null : (
+        <View style={{ alignSelf: 'stretch' }}>{conversationActions}</View>
+      )}
       {settings === undefined ? null : (
         <View style={{ alignSelf: 'stretch', paddingTop: space.x3 }}>{settings}</View>
       )}
@@ -432,6 +437,7 @@ export function BotProfileSheet({
   load,
   actions: given,
   settings,
+  conversationActions,
   initialProfile,
   avatar,
 }: {
@@ -440,6 +446,7 @@ export function BotProfileSheet({
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
   settings?: ReactNode;
+  conversationActions?: ReactNode;
   initialProfile?: BotProfile | undefined;
   avatar: AvatarActions;
 }) {
@@ -485,6 +492,7 @@ export function BotProfileSheet({
             bot={bot}
             actions={actions}
             avatar={avatarEditor}
+            conversationActions={conversationActions}
             settings={content.ready ? settings : undefined}
           />
         }

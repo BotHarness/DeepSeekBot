@@ -268,6 +268,7 @@ it('opens B with A selected, sends through its real composer, and retains an off
     }),
   );
   const { hostSession } = await import('../src/host/host-session');
+  const { RequestActivityControl } = await import('../src/ui/chat/request-activity-control');
   const { ConversationScreen } = await import('../src/ui/chat/conversation-screen');
   const { t } = await import('../src/ui/strings');
   const view = document.createElement('div');
@@ -281,11 +282,14 @@ it('opens B with A selected, sends through its real composer, and retains an off
     });
     await act(async () =>
       root.render(
-        <ConversationScreen
-          expectedHostId="b"
-          place={{ kind: 'dm', slug: 'same' }}
-          focus={undefined}
-        />,
+        <>
+          {' '}
+          <ConversationScreen
+            expectedHostId="b"
+            place={{ kind: 'dm', slug: 'same' }}
+            focus={undefined}
+          />{' '}
+        </>,
       ),
     );
     const field = () => view.querySelector<HTMLTextAreaElement>('[data-testid="composer-input"]')!;
@@ -320,6 +324,32 @@ it('opens B with A selected, sends through its real composer, and retains an off
     });
     expect(a.channel('dm-same').messages).toEqual([]);
     expect(hostSession.getState().saved?.hostId).toBe('a');
+    await act(async () =>
+      [...view.querySelectorAll<HTMLButtonElement>('button')]
+        .find((node) => node.textContent === 'Open profile')!
+        .click(),
+    );
+    const profile = push.mock.lastCall![0].params;
+    const source = hostSession.getHost('b')!;
+    await act(async () =>
+      root.render(
+        <>
+          <ConversationScreen
+            expectedHostId="b"
+            place={{ kind: 'dm', slug: 'same' }}
+            focus={undefined}
+          />
+          <RequestActivityControl
+            client={source.client}
+            bot={source.snapshot.roster!.bots[0]!}
+            hostId={profile.hostId}
+            messageId={profile.activityMessageId}
+            channelId={profile.channelId}
+            refused={false}
+          />
+        </>,
+      ),
+    );
     await act(async () => {
       const track = [...view.querySelectorAll<HTMLButtonElement>('button')].find(
         (node) => node.textContent === t.lockScreen.track,

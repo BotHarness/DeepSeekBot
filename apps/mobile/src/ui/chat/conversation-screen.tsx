@@ -1,9 +1,5 @@
-import {
-  activityStartTarget,
-  type InitiatedActivityRequest,
-} from '../../host/live-activity-routing';
-import { useRequestActivityAction } from './request-activity-action';
-import { useConnectionProgress } from '../primitives/connection-progress';
+import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
+import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
 import { selectionText, toggleMessageSelection } from './message-selection';
 import { HostScope } from '../../host/host-scope';
@@ -90,8 +86,7 @@ import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, HeaderCircleButton, titleChipFill } from './header-chrome';
-import { FolderIcon } from '../shell/icons';
+import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
 import {
   barLabelStyle,
   floatingHeader,
@@ -128,7 +123,7 @@ import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
 import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
-import { AccentProvider, useDesignTheme } from '../design/theme';
+import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
@@ -409,22 +404,6 @@ function ChatConversation({
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
-  const lockTarget = useMemo(() => {
-    if (!dm || !initiatedRequest || initiatedRequest.botSlug !== slug) return undefined;
-    const committed = snapshot.messages.find(
-      (message) =>
-        message.id === initiatedRequest.messageId &&
-        message.author === 'human' &&
-        message.delivery === 'committed',
-    );
-    return activityStartTarget(
-      initiatedRequest,
-      saved?.hostId,
-      committed?.source?.channelId,
-      committed ? [initiatedRequest.messageId] : [],
-    );
-  }, [dm, initiatedRequest, saved?.hostId, slug, snapshot.messages]);
-  const lockScreen = useRequestActivityAction(lockTarget);
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
   const [picked, setPicked] = useState<{ scope: string; ids: readonly string[] }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
@@ -1036,6 +1015,14 @@ function ChatConversation({
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
   const canGoBack = router.canGoBack();
+  const botDmName =
+    channelDetails?.members
+      .map(
+        (member) =>
+          roster?.bots.find((entry) => entry.slug === member)?.displayName ??
+          t.activityRow.unavailableBot,
+      )
+      .join('、') ?? '';
   const title = dm ? (
     <ChatTitle
       bot={bot}
@@ -1044,30 +1031,49 @@ function ChatConversation({
       onPress={() =>
         router.push({
           pathname: '/bot/[slug]',
-          params: { slug: bot?.slug ?? slug, hostId: saved?.hostId },
+          params: {
+            slug: bot?.slug ?? slug,
+            hostId: saved?.hostId,
+            ...(activeChannel ? { channelId: activeChannel } : {}),
+            ...(initiatedRequest?.hostId === saved?.hostId && initiatedRequest?.botSlug === slug
+              ? { activityMessageId: initiatedRequest?.messageId }
+              : {}),
+          },
         })
       }
     />
   ) : botDm ? (
-    <View
-      style={{
+    <Pressable
+      testID="channel-details-chip"
+      accessibilityRole="button"
+      accessibilityLabel={[botDmName, connectionLabel].filter(Boolean).join(', ')}
+      android_ripple={{ color: pressTint(theme.color.fg), borderless: false }}
+      accessibilityState={{ busy: connectionLabel !== undefined }}
+      disabled={!saved || hostRefused}
+      onPress={() =>
+        saved &&
+        router.push({
+          pathname: '/channel-details',
+          params: { channelId: channelDetails.id, hostId: saved.hostId },
+        })
+      }
+      style={({ pressed }) => ({
         minHeight: theme.touch,
-        justifyContent: 'center',
+        flexShrink: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x3,
         paddingHorizontal: theme.touch / 2,
         borderRadius: radius.round,
-        ...titleChipFill(theme, false),
-      }}
+        ...titleChipFill(theme, pressed),
+        overflow: 'hidden',
+      })}
     >
-      <Text strong numberOfLines={1} style={barLabelStyle}>
-        {channelDetails.members
-          .map(
-            (member) =>
-              roster?.bots.find((entry) => entry.slug === member)?.displayName ??
-              t.activityRow.unavailableBot,
-          )
-          .join('、')}
+      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+        {botDmName}
       </Text>
-    </View>
+      <ConnectionProgress active={connectionLabel !== undefined} />
+    </Pressable>
   ) : (
     <ChannelTitle
       channel={channel}
@@ -1082,21 +1088,9 @@ function ChatConversation({
     />
   );
   const ios = Platform.OS === 'ios';
-  const openFiles = () => {
-    if (activeChannel === undefined || !saved) return;
-    router.push({
-      pathname: '/channel-files',
-      params: {
-        channelId: activeChannel,
-        hostId: saved.hostId,
-        ...(slug === undefined ? {} : { botSlug: slug }),
-      },
-    });
-  };
-  const filesAvailable = activeChannel !== undefined && saved != null && !hostRefused && !missing;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
-    <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 3 }}>{title}</View>
+    <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 2 }}>{title}</View>
   );
   const notice = hostRefused
     ? t.refused
@@ -1158,38 +1152,7 @@ function ChatConversation({
                 title: '',
                 headerTitle: '',
                 headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () => [
-                  ...(filesAvailable
-                    ? [
-                        {
-                          type: 'button' as const,
-                          label: t.channelFiles.title,
-                          icon: { type: 'sfSymbol' as const, name: 'folder' as const },
-                          onPress: openFiles,
-                        },
-                      ]
-                    : []),
-                  ...(dm
-                    ? [
-                        {
-                          type: 'button' as const,
-                          label: lockScreen.label,
-                          accessibilityLabel: lockScreen.label,
-                          identifier: 'request-activity',
-                          ...(lockScreen.busy
-                            ? {}
-                            : {
-                                icon: {
-                                  type: 'sfSymbol' as const,
-                                  name: 'lock.rectangle' as const,
-                                },
-                              }),
-                          disabled: lockScreen.disabled,
-                          onPress: lockScreen.onPress,
-                        },
-                      ]
-                    : []),
-                ],
+                unstable_headerRightItems: () => [],
                 unstable_headerLeftItems: () => [
                   ...(headerIslands
                     ? [{ type: 'custom' as const, element: back }]
@@ -1209,17 +1172,12 @@ function ChatConversation({
               }
             : {
                 headerTitleAlign: 'left' as const,
-                headerRight: () =>
-                  filesAvailable ? (
-                    <HeaderCircleButton label={t.channelFiles.title} plain onPress={openFiles}>
-                      <FolderIcon color={theme.color.fg} size={theme.type.title.line} />
-                    </HeaderCircleButton>
-                  ) : null,
+                headerRight: () => null,
                 headerTitle: () => (
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                     style={{
-                      maxWidth: windowWidth - (theme.touch + space.x5) * 3,
+                      maxWidth: windowWidth - (theme.touch + space.x5) * 2,
                       marginHorizontal: space.x3,
                     }}
                   >

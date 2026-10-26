@@ -289,7 +289,7 @@ flowchart TD
   Rebuild --> Ready["Enable admissions, wakes and commands"]
 ```
 
-一个 DSH profile 同时只允许一个 BotHarness writer。所有 module migration 合并成单调递增的 Schema Generation；迁移只在临时副本上完成，校验后原子替换。打开、迁移或完整性检查失败时进入 recovery mode，不回退到 NDJSON、storage domain 或内存写入。
+一个 DSH profile 同时只允许一个 BotHarness writer。所有 module migration 合并成单调递增的 Schema Generation；迁移只在临时副本上完成，校验后原子替换。打开、迁移或页完整性检查失败时进入 recovery mode，不回退到 NDJSON、storage domain 或内存写入。外部工具留下的外键孤儿行不阻止挂载，只记录在诊断和启动日志中；迁移不得新增孤儿（ADR-0258）。
 
 ## 4 · Messaging 事务与外部副作用
 
@@ -1260,13 +1260,17 @@ explicitly addressed CLI share its versioned local default/current-primary-windo
 the authenticated Host route is an ephemeral delivery relay with no preference copy. A pinned,
 MIT-preserving downstream theme composition leases only the original font-shortcut Fiber,
 then returns it on disposal. The product build carries that licensed theme and a portable ESM
-schema module. Both product Bundle patches now select the packaged theme as the final Loader
-row under the existing `ui-theme` identity, so normal installation enables the native
-macOS/Windows lease. Later Profile settings keep their namespace; removing the Bundle and restarting Desktop restores
-the upstream row. The scoped Tobs package carries its own relative schema module. Existing
-manual theme links remain an explicit legacy cleanup before removing their target package.
-No new Profile link or package-manager transaction is needed. Native qualification is tracked
-separately in #2775; Linux remains disabled.
+schema module. Bundle patches retain the original `ui-theme` row and canonical Settings
+namespace. An explicit `deepseekbot-zoom-setup enable` command installs one Profile-local
+package link through the selected Desktop's bundled package manager and requires a restart.
+The macOS path and Windows candidate check adapter protocol and content integrity, without a Desktop release-label gate; foreign overrides are still refused.
+Windows reads executable FileVersion, checks live processes with CIM, and validates owned
+junctions under the same Profile writer lock. The Client checks a matching platform lease
+before registering the same native Shortcut commands; Ctrl+0 restores the saved default.
+`disable` removes only this dependency and its exact owned link, preserving font preferences;
+run it before product removal. Installing the Bundle alone does not activate compatibility;
+a Bundle-inserted second `ui-theme` row made native Settings refuse theme writes (#2788).
+Windows native qualification remains in #2270; Linux remains disabled.
 It does not edit the installed desktop shell. Ordinary Web zoom is unchanged. Native-input,
 packaged-install and Human QA evidence remain separate from source coverage; numberpad,
 broader reliability and other desktop platforms are tracked in #2269/#2270.

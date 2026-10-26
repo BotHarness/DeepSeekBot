@@ -29,6 +29,7 @@ export function ChannelTitle({
   const members = channel === undefined ? undefined : t.members(channel.memberCount);
   return (
     <Pressable
+      testID="channel-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[name, members, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}

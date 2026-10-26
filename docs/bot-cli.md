@@ -1184,11 +1184,9 @@ Use the exact metadata from the selected file/diff side. The authenticated Host 
 
 ## Desktop window zoom (controlled S1)
 
-New Tobs Bundles load native macOS/Windows window zoom by default; the setup commands below apply only to legacy manually enabled Profiles. Use Bot Settings → General → Window zoom. Browser zoom is unchanged. Native qualification is tracked in #2775.
+Tobs 1.5.2 briefly loaded zoom by default by inserting a second `ui-theme` Loader row; DSH 0.2.1-rc.3 Settings then refused every appearance and font write ([#2788](https://github.com/BotHarness/DeepSeekBot/issues/2788)). Product Bundles again leave the native `ui-theme` row alone, so zoom needs the explicit setup below.
 
-### Legacy manual setup
-
-Earlier product versions included a separate opt-in configuration command. Install the product normally,
+The product includes a separate opt-in configuration command. Install the product normally,
 quit the target macOS Desktop, then point setup at that application's bundle and explicit
 Profile. Setup uses the selected application's bundled pnpm with scripts disabled, under the
 same Profile writer lock as the native plugin manager. It refuses a running Desktop Host,
@@ -1207,10 +1205,23 @@ the managed `desktop` Profile; the native plugin manager also refuses this plain
 replacement, because it resolves the installation-owned theme before Profile Bundle metadata.
 Those two paths do not establish Desktop activation.
 
-For a legacy manually enabled Profile, run `disable` before uninstalling the product and restart to restore native package resolution. This cleans up the legacy link; it does not turn off zoom while the new Bundle remains installed.
+Run `disable` before uninstalling the product and restart to restore native package resolution.
 Manual font preferences remain in the same native `ui-theme` Patch. JSON stdout reports
 `restartRequired:true` and `runtimeVerified:false`; a successful package change does not prove
 the native window has loaded it. An uncertain package operation is not retried automatically.
+
+### Enable from Bot Settings
+
+On the macOS or Windows Desktop, Bot Settings → General shows **Enable window zoom** (or **Turn off window zoom** once installed). The button asks the Host to start the same `deepseekbot-zoom-setup enable|disable --after-quit <state-file> --request <id>` transaction as a detached helper. The helper waits until the Desktop is fully quit, runs the unchanged checks and Profile change, records the outcome, then reopens the app. Cancel before quitting withdraws it; a newer request supersedes an older one. If the app is not quit within 30 minutes, the helper stops without changes and without reopening. The next Settings visit shows a failed outcome code. The Host reads the target app from its own runtime path and only offers this in the native `desktop` Profile.
+
+```sh
+deepseekbot window-zoom-setup-status --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-enable --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-disable --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-cancel --host <host> --token-file <private-file>
+```
+
+Status is `{supported:false, code}` outside the Desktop Profile, or `{supported:true, enabled, pending?, last?}`. Refusals include `zoom-setup-not-desktop`, `zoom-setup-desktop-app-unresolved`, `zoom-setup-command-unavailable`, `zoom-setup-already-enabled|disabled` and `zoom-setup-not-pending`; a helper that ended without an outcome reports `zoom-setup-helper-exited`.
 
 `window-zoom-clients` lists active targets. Select one `--client-id`; commands never choose a
 window implicitly. `window-zoom-get` reads the Client-owned snapshot. A write requires the
@@ -1236,12 +1247,12 @@ Restarting the Client changes its delivery ID; list again. The desktop's primary
 survives independently. See [S1](https://github.com/BotHarness/DeepSeekBot/issues/2268) for native
 qualification limits. No model or Host-side preference copy is involved.
 
-Legacy Windows manual-link setup uses the installed product's `deepseekbot-zoom-setup` command with
+The Windows candidate uses the installed product's `deepseekbot-zoom-setup` command with
 `--home <isolated-home> --profile desktop --desktop-app "<app-directory>/DeepSeek Harness.exe"`.
 Keep the selected Desktop closed throughout `enable` or `disable`; setup refuses any running
 process of that executable. Admission checks the protocol, platform and payload integrity,
 not a fixed FileVersion. The native `ui-theme` row and font settings remain in place.
-For manually enabled Profiles, run `disable` before removing the product. After every cold boot, enumerate Client IDs again.
+Run `disable` before removing the product. After every cold boot, enumerate Client IDs again.
 Ctrl+0 restores the saved default, including 120%; numberpad codes are unsupported by the
 pinned protocol. See [Windows qualification #2270](https://github.com/BotHarness/DeepSeekBot/issues/2270)
 for the separate native input, guest foreground, DPI and Human-QA gates.

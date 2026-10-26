@@ -1807,6 +1807,10 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
 }
 .bh-market-browse > button { border: 0; }
 .bh-market-browse [role='tab'] { height: calc(${size.row} - ${space.x3}); }
+.bh-market-sort { display: flex; min-width: 0; }
+.bh-market-sort-menu { display: none; }
+/* The pill's StyleX height outranks plain classes; match the 32px toolbar row. */
+.bh-market-sort-menu > button { height: 100% !important; }
 .bh-market-topics {
   display: flex;
   flex-wrap: wrap;
@@ -1858,11 +1862,17 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   overflow-y: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
+  container: bh-market / inline-size;
 }
 .bh-market-panel > .bh-market-browse { flex-wrap: wrap; }
 .bh-market-panel > .bh-market-browse > :first-child { flex-basis: 160px; }
 .bh-market-panel > .bh-market-browse > button { flex-shrink: 0; }
 .bh-market-panel > .bh-market-browse > :last-child { max-width: 100%; overflow-x: auto; }
+/* The three sort tabs need about 330px in English; below that a menu keeps every choice reachable. */
+@container bh-market (max-width: 380px) {
+  .bh-market-sort > [role='tablist'] { display: none; }
+  .bh-market-sort-menu { display: flex; }
+}
 .bh-market-panel > .bh-market-topics {
   flex-wrap: nowrap;
   flex-shrink: 0;

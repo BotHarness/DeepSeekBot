@@ -21,6 +21,7 @@ import { FOUNDATION_SCHEMA_GENERATION, FOUNDATION_SCHEMA_PLAN, type SchemaPlan }
 export const OPERATIONAL_DATABASE_FILENAME = 'botharness.db';
 
 const SCHEMA_TABLE = '_botharness_schema';
+const INTEGRITY_FINDINGS_SHOWN = 5;
 
 export type OperationalDatabaseMode = 'ready' | 'recovery' | 'closed';
 
@@ -88,6 +89,7 @@ export interface OperationalDatabaseDiagnostics {
   databasePath: string;
   generation?: number;
   recovery?: OperationalDatabaseErrorDetails;
+  foreignKeyOrphans?: string;
   leaseHolder?: ProfileWriterLeaseMetadata;
   databaseBytes: number;
   walBytes: number;
@@ -106,6 +108,7 @@ export interface OperationalDatabaseOwner {
   readonly databasePath: string;
   readonly generation: number | undefined;
   readonly recovery: OperationalDatabaseErrorDetails | undefined;
+  readonly foreignKeyOrphans?: string | undefined;
   subscribe(listener: (notification: PostCommitNotification) => unknown): () => void;
   diagnostics(): OperationalDatabaseDiagnostics;
   close(): void;
@@ -155,6 +158,7 @@ class OwnerImplementation implements OperationalDatabaseOwner {
   mode: OperationalDatabaseMode = 'recovery';
   generation: number | undefined;
   recovery: OperationalDatabaseErrorDetails | undefined;
+  foreignKeyOrphans: string | undefined;
   readonly databasePath: string;
   readonly #listeners = new Set<(notification: PostCommitNotification) => unknown>();
 
@@ -191,6 +195,9 @@ class OwnerImplementation implements OperationalDatabaseOwner {
       databasePath: this.databasePath,
       ...(this.generation === undefined ? {} : { generation: this.generation }),
       ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+      ...(this.foreignKeyOrphans === undefined
+        ? {}
+        : { foreignKeyOrphans: this.foreignKeyOrphans }),
       ...(leaseHolder === undefined ? {} : { leaseHolder }),
       databaseBytes: fileSize(this.databasePath),
       walBytes: fileSize(`${this.databasePath}-wal`),
@@ -279,6 +286,7 @@ export function mountOperationalDatabase(
     const mounted = prepareDatabase(databasePath, plan, internal);
     internal.database = mounted.database;
     owner.generation = mounted.generation;
+    owner.foreignKeyOrphans = summarizeOrphans(mounted.orphans);
     owner.mode = 'ready';
     owner.recovery = undefined;
   } catch (error) {
@@ -447,7 +455,7 @@ export function withOperationalBackup<T>(
 export function validateOperationalSnapshot(path: string): number {
   const database = new DatabaseSync(path, { readOnly: true });
   try {
-    assertIntegrity(database);
+    assertPageIntegrity(database);
     return readSchemaGeneration(database);
   } finally {
     database.close();
@@ -481,15 +489,17 @@ function prepareDatabase(
   databasePath: string,
   plan: SchemaPlan,
   internal: InternalOwner,
-): { database: DatabaseSync; generation: number } {
+): { database: DatabaseSync; generation: number; orphans: Map<string, number> } {
   validateSchemaPlan(plan);
 
   let sourceGeneration = 0;
+  let sourceOrphans = new Map<string, number>();
   if (existsSync(databasePath)) {
     let source: DatabaseSync | undefined;
     try {
       source = openDatabase(databasePath);
-      assertIntegrity(source);
+      assertPageIntegrity(source);
+      sourceOrphans = foreignKeyOrphans(source);
       sourceGeneration = readSchemaGeneration(source);
       if (sourceGeneration > plan.targetGeneration) {
         throw new OperationalDatabaseError(
@@ -517,13 +527,14 @@ function prepareDatabase(
   }
 
   if (sourceGeneration < plan.targetGeneration) {
-    migrateInStaging(databasePath, sourceGeneration, plan, internal);
+    migrateInStaging(databasePath, sourceGeneration, sourceOrphans, plan, internal);
   }
 
   try {
     const database = openDatabase(databasePath);
     configureActiveDatabase(database);
-    assertIntegrity(database);
+    assertPageIntegrity(database);
+    const orphans = foreignKeyOrphans(database);
     const generation = readSchemaGeneration(database);
     if (generation !== plan.targetGeneration) {
       closeDatabase(database);
@@ -532,7 +543,7 @@ function prepareDatabase(
         `Expected schema generation ${plan.targetGeneration}, found ${generation}`,
       );
     }
-    return { database, generation };
+    return { database, generation, orphans };
   } catch (error) {
     if (error instanceof OperationalDatabaseError) throw error;
     throw toOperationalError('open-failed', 'Could not mount operational database', error);
@@ -542,6 +553,7 @@ function prepareDatabase(
 function migrateInStaging(
   databasePath: string,
   sourceGeneration: number,
+  sourceOrphans: ReadonlyMap<string, number>,
   plan: SchemaPlan,
   internal: InternalOwner,
 ): void {
@@ -591,7 +603,8 @@ function migrateInStaging(
     let validation: DatabaseSync | undefined;
     try {
       validation = openDatabase(stagingPath);
-      assertIntegrity(validation);
+      assertPageIntegrity(validation);
+      assertNoNewOrphans(foreignKeyOrphans(validation), sourceOrphans);
       const generation = readSchemaGeneration(validation);
       if (generation !== plan.targetGeneration) {
         throw new Error(
@@ -645,19 +658,49 @@ function writeSchemaGeneration(database: DatabaseSync, generation: number): void
   database.prepare(`UPDATE ${SCHEMA_TABLE} SET generation = ? WHERE singleton = 1`).run(generation);
 }
 
-function assertIntegrity(database: DatabaseSync): void {
+function assertPageIntegrity(database: DatabaseSync): void {
   const rows = database.prepare('PRAGMA integrity_check').all() as Array<Record<string, unknown>>;
-  const values = rows.flatMap((row) => Object.values(row));
+  const values = rows.flatMap((row) => Object.values(row)).map(String);
   if (values.length !== 1 || values[0] !== 'ok') {
     throw new OperationalDatabaseError(
       'integrity-failed',
-      `SQLite integrity check failed: ${values.map(String).join(', ')}`,
+      `SQLite integrity check failed: ${summarizeFindings(values)}`,
     );
   }
-  const foreignKeys = database.prepare('PRAGMA foreign_key_check').all();
-  if (foreignKeys.length > 0) {
-    throw new OperationalDatabaseError('integrity-failed', 'SQLite foreign key check failed');
+}
+
+function foreignKeyOrphans(database: DatabaseSync): Map<string, number> {
+  const orphans = new Map<string, number>();
+  const rows = database.prepare('PRAGMA foreign_key_check').all() as Array<Record<string, unknown>>;
+  for (const row of rows) {
+    const edge = `${String(row.table)} -> ${String(row.parent)}`;
+    orphans.set(edge, (orphans.get(edge) ?? 0) + 1);
   }
+  return orphans;
+}
+
+function assertNoNewOrphans(
+  orphans: ReadonlyMap<string, number>,
+  tolerated: ReadonlyMap<string, number>,
+): void {
+  const added = new Map([...orphans].filter(([edge, count]) => count > (tolerated.get(edge) ?? 0)));
+  if (added.size > 0) {
+    throw new OperationalDatabaseError(
+      'integrity-failed',
+      `SQLite foreign key check failed: ${summarizeOrphans(added)}`,
+    );
+  }
+}
+
+function summarizeOrphans(orphans: ReadonlyMap<string, number>): string | undefined {
+  if (orphans.size === 0) return undefined;
+  return summarizeFindings([...orphans].map(([edge, count]) => `${edge} x${count}`));
+}
+
+function summarizeFindings(findings: readonly string[]): string {
+  const shown = findings.slice(0, INTEGRITY_FINDINGS_SHOWN).join('; ');
+  const hidden = findings.length - INTEGRITY_FINDINGS_SHOWN;
+  return hidden > 0 ? `${shown}; +${hidden} more` : shown;
 }
 
 function openDatabase(path: string): DatabaseSync {
@@ -688,7 +731,7 @@ function readyDatabase(internal: InternalOwner): DatabaseSync {
       'recovery-mode',
       owner.recovery === undefined
         ? 'Operational database is not ready'
-        : `Operational database is in recovery mode: ${owner.recovery.code}`,
+        : `Operational database is in recovery mode: ${owner.recovery.code} (${owner.recovery.message})`,
     );
   }
   return database;
