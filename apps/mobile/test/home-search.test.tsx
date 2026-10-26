@@ -998,9 +998,11 @@ describe('Search in the Chats header', () => {
     });
 
     await type(view, '小明');
-    expect(rows(view)).toEqual(['小明, studio']);
+    expect(rows(view)).toEqual([`小明, ${t.noMessagesYet}, studio`]);
 
     await type(view, 'launch');
+    expect(rows(view)).toEqual([`Launch team, ${t.noMessagesYet}, studio`]);
+    expect(view.textContent).toContain(t.noMessagesYet);
     await act(async () =>
       [...view.querySelectorAll('button')]
         .find((node) => node.getAttribute('aria-label')?.startsWith('Launch team'))!
