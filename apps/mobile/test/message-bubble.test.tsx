@@ -716,7 +716,10 @@ describe('outgoing delivery presentation through Conversation', () => {
       });
       await flush();
     };
-    const surface = () => container.querySelector<HTMLElement>('[style*="opacity"]')!;
+    const surface = () =>
+      Array.from(container.querySelectorAll<HTMLElement>('[data-native="View"]')).findLast(
+        (node) => node.textContent === 'A quiet message',
+      )!;
     return {
       container,
       target,
@@ -736,15 +739,18 @@ describe('outgoing delivery presentation through Conversation', () => {
     };
   }
 
-  it('keeps a send normal for three seconds, then mutes only that pending bubble', async () => {
+  it('keeps a send normal for three seconds, then shows feedback beside that pending bubble', async () => {
     const view = await open();
     await view.send();
     expect(view.container.textContent).not.toContain(t.sending);
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(2_999));
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(1));
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
     expect(
       view.container
         .querySelector('[data-accessibilitystate]')
@@ -755,19 +761,22 @@ describe('outgoing delivery presentation through Conversation', () => {
     expect(view.surface()).toBe(bubble);
     expect(view.container.querySelector('[data-accessibilityvalue]')).toBeNull();
     expect(view.container.querySelector('[data-accessibilitystate]')).toBeNull();
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     expect(view.host.channel('quiet-dm').messages).toHaveLength(1);
     expect(view.target.getSnapshot().messages).toHaveLength(1);
   });
 
-  it('never mutes a fast committed send when its old deadline passes', async () => {
+  it('never shows feedback for a fast committed send when its old deadline passes', async () => {
     const view = await open();
     await view.send();
     act(() => vi.advanceTimersByTime(2_900));
     await view.settle();
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(3_100));
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     expect(view.container.textContent).not.toContain(t.sending);
   });
 
@@ -779,22 +788,27 @@ describe('outgoing delivery presentation through Conversation', () => {
       act(() => vi.advanceTimersByTime(delay));
       const originalAt = view.target.getSnapshot().messages[0]!.at;
       await view.settle(true);
-      expect(view.container.textContent).toContain(t.notSent);
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.container.textContent).toContain('!');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       const retry = Array.from(
         view.container.querySelectorAll<HTMLElement>('[data-accessibilityrole="button"]'),
       ).find((element) => element.dataset.accessibilitylabel?.includes(t.retrySend));
       expect(retry).toBeDefined();
       act(() => retry!.click());
       await view.flush();
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       expect(view.container.textContent).not.toContain(t.notSent);
       act(() => vi.advanceTimersByTime(2_999));
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       act(() => vi.advanceTimersByTime(1));
-      expect(view.surface().style.opacity).toBe('0.7');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).toContain('…');
       await view.settle();
-      expect(view.surface().style.opacity).toBe('1');
+      expect(view.surface().style.opacity).not.toBe('0.7');
+      expect(view.container.textContent).not.toContain('…');
       expect(view.host.channel('quiet-dm').messages).toHaveLength(1);
       expect(view.target.getSnapshot().messages).toHaveLength(1);
       expect(
@@ -811,11 +825,14 @@ describe('outgoing delivery presentation through Conversation', () => {
     await view.send();
     act(() => vi.advanceTimersByTime(2_000));
     view.remount();
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
     act(() => vi.advanceTimersByTime(1_000));
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
     view.remount();
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
   });
 
   it('rechecks a pending attempt on foreground return even when its timer was suspended', async () => {
@@ -830,12 +847,14 @@ describe('outgoing delivery presentation through Conversation', () => {
       native.appState = 'active';
       for (const listener of native.appStateListeners) listener('active');
     });
-    expect(view.surface().style.opacity).toBe('0.7');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).toContain('…');
     await view.settle();
     act(() => {
       for (const listener of native.appStateListeners) listener('active');
       vi.advanceTimersByTime(3_000);
     });
-    expect(view.surface().style.opacity).toBe('1');
+    expect(view.surface().style.opacity).not.toBe('0.7');
+    expect(view.container.textContent).not.toContain('…');
   });
 });

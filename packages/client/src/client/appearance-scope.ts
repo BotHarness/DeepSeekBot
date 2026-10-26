@@ -1,3 +1,4 @@
+import { BUBBLE_SURFACES, readable } from './bot-name-color.js';
 import { space } from './ds/tokens.stylex.js';
 import { panelMaterials, validTargetId } from './appearance-panels.js';
 import { appearanceMaterials } from './appearance-materials.js';
@@ -25,6 +26,7 @@ export function appearanceCss(snapshot: AppearanceSnapshot): string {
     tokens[`--bh-global-${part}-blur`] = `${material.blur}px`;
   }
   tokens['--dsw-alias-state-business-primary'] = primary;
+  tokens['--dsw-alias-link'] = readable(primary, BUBBLE_SURFACES[mode].surface, 4.6);
   tokens['--dsw-alias-state-business-secondary'] =
     `color-mix(in srgb, ${primary} 45%, transparent)`;
   tokens['--dsw-alias-state-business-tertiary'] = `color-mix(in srgb, ${primary} 14%, transparent)`;

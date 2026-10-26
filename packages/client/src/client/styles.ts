@@ -918,7 +918,7 @@ span:has(> [data-session-schedule-mark]) > .bh-native-session-owner {
   width: 16px;
   height: 16px;
   border-radius: ${radius.xs};
-  color: var(--bh-accent);
+  color: ${color.accentText};
   background: var(--dsw-alias-bg-base);
   pointer-events: none;
 }
@@ -2147,7 +2147,7 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
 }
 .bh-market-github {
   flex: none;
-  color: var(--bh-accent);
+  color: ${color.accentText};
   font-size: ${text.bodySize};
   text-decoration: none;
 }
@@ -2677,7 +2677,7 @@ canvas.bh-banner-art { image-rendering: pixelated; }
 }
 .bh-profile-action-primary {
   border-color: var(--bh-accent);
-  color: var(--bh-accent);
+  color: ${color.accentText};
 }
 .bh-profile-action:disabled {
   opacity: 0.5;
@@ -2965,7 +2965,7 @@ canvas.bh-banner-art { image-rendering: pixelated; }
   color: var(--dsw-alias-label-primary);
 }
 .bh-profile-pin[aria-pressed='true'] {
-  color: var(--bh-accent);
+  color: ${color.accentText};
 }
 .bh-profile-heat {
   position: relative;
@@ -3457,10 +3457,17 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-message-group-me .bh-bubble-surface {
   margin-left: auto;
 }
-.bh-bubble-surface-failed {
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
+.bh-bubble-delivery,
+.bh-bubble-failed-action {
+  position: absolute;
+  right: calc(100% + ${space.x2});
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+.bh-bubble-delivery {
+  color: ${color.fg};
+  font-size: ${text.metaSize};
 }
 .bh-bubble-failed-action {
   flex: none;
@@ -3526,12 +3533,6 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-bubble-me {
   background: var(--bh-bubble-me-fill);
   color: var(--bh-bubble-me-ink);
-}
-.bh-bubble-pending {
-  opacity: 0.7;
-}
-.bh-bubble-failed {
-  opacity: 0.8;
 }
 .bh-bubble-focused .bh-bubble {
   outline: ${border.focus} solid var(--bh-accent);
@@ -3801,11 +3802,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   cursor: pointer;
 }
 .bh-timeline-new:hover {
-  color: ${color.accent};
+  color: ${color.accentText};
   background: color-mix(in srgb, ${color.fg} 8%, ${color.elevated});
 }
 .bh-timeline-new:active {
-  color: ${color.accent};
+  color: ${color.accentText};
   background: color-mix(in srgb, ${color.fg} 16%, ${color.elevated});
 }
 .bh-timeline-new-count {
@@ -5459,7 +5460,7 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 .bh-request-link:hover:not(:disabled) { color: var(--dsw-alias-label-primary); text-decoration: underline; }
 .bh-tool-approval-input-block { display: grid; gap: ${space.x2}; min-width: 0; margin: 0; }
 .bh-tool-approval-input[data-folded] { max-height: none; overflow: hidden; }
-.bh-tool-approval-fold { justify-self: start; padding: 0; border: 0; background: transparent; color: ${color.accent}; font: inherit; font-size: ${text.metaSize}; cursor: pointer; }
+.bh-tool-approval-fold { justify-self: start; padding: 0; border: 0; background: transparent; color: ${color.accentText}; font: inherit; font-size: ${text.metaSize}; cursor: pointer; }
 .bh-tool-approval-shell figcaption { color: var(--dsw-alias-label-secondary); font-size: ${text.metaSize}; }
 .bh-tool-approval-diff figcaption { display: flex; align-items: center; gap: ${space.x3}; min-width: 0; font-size: ${text.metaSize}; }
 .bh-tool-approval-diff figcaption code { min-width: 0; overflow-wrap: anywhere; }
@@ -6211,7 +6212,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   padding: ${space.x1} ${space.x2};
   border-radius: ${radius.sm};
   background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--bh-accent);
+  color: ${color.accentText};
   font-size: inherit;
 }
 .bh-human-inbox-reply-source {
@@ -6294,7 +6295,7 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
   pointer-events: auto;
   margin: 0 ${space.x3} 0 0;
   vertical-align: middle;
-  accent-color: ${color.accent};
+  accent-color: ${color.accentText};
   cursor: pointer;
 }
 .bh-human-inbox-row[data-checked] { background: ${color.selected}; }
@@ -6659,7 +6660,7 @@ button.bh-card-main:disabled {cursor:default;}
 .bh-card-row[data-muted="true"] .bh-card-icon,
 .bh-card-row[data-muted="true"] .bh-card-title {color:var(--dsw-alias-label-secondary);}
 .bh-card-trailing .bh-workspace-folder-remove {width:28px;height:28px;border-radius:${radius.sm};}
-.bh-workspace-folder-add, .bh-workspace-folder-add .bh-card-title, .bh-workspace-folder-add .bh-card-leading {color:${color.accent};}
+.bh-workspace-folder-add, .bh-workspace-folder-add .bh-card-title, .bh-workspace-folder-add .bh-card-leading {color:${color.accentText};}
 .bh-workspace-folder-write {display:inline-flex;align-items:center;gap:${space.x2};font-size:${text.metaSize};line-height:${text.metaLine};white-space:nowrap;}
 .bh-card-detail > .bh-workspace-folder-detail {padding:0;}
 .bh-schedule-switch {display:inline-flex;}
