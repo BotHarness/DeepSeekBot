@@ -1,4 +1,4 @@
-# ADR-0258: Desktop layout has Simple and Advanced modes
+# ADR-0259: Desktop layout has Simple and Advanced modes
 
 - Status: Accepted (design; delivery in four slices)
 - Date: 2026-10-26
