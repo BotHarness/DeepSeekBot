@@ -3,9 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 import { palette as dshPalette, render } from '../scripts/generate-palette.mjs';
 import { palette } from '../src/ui/design/palette.generated';
-import { BUTTON_TONES, buttonColors, settingsColors } from '../src/ui/design/controls';
+import {
+  BUTTON_TONES,
+  buttonColors,
+  settingsColors,
+  messageColors,
+} from '../src/ui/design/controls';
 import { distance, LAYER_PARENT, LAYERS, SEPARATION } from '../src/ui/design/layers';
-import { headerBand, resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
+import { contrast, headerBand, resolveTheme, withAccent } from '../src/ui/design/resolve-theme';
 import { botColor } from '../src/ui/bot-color';
 import { edge, radius, space } from '../src/ui/design/tokens';
 
@@ -62,8 +67,12 @@ describe('mobile design tokens', () => {
 
 describe('resolveTheme', () => {
   it('follows the system scheme unless the Human picks one', () => {
-    expect(resolveTheme('dark').color).toMatchObject(palette.dark);
-    expect(resolveTheme('dark', { scheme: 'light' }).color).toMatchObject(palette.light);
+    expect(resolveTheme('dark').color.base).toBe(palette.dark.base);
+    expect(resolveTheme('dark', { scheme: 'light' }).color.base).toBe(palette.light.base);
+    for (const scheme of ['light', 'dark'] as const) {
+      const color = resolveTheme(scheme).color;
+      expect(contrast(color.accent, color.onAccent)).toBeGreaterThanOrEqual(4.5);
+    }
     expect(resolveTheme('light', { scheme: 'system' }).scheme).toBe('light');
   });
 
@@ -266,4 +275,20 @@ describe('Bot colour on the Human bubble', () => {
     expect(withAccent(palette.light, '#fbf6ec').accent).not.toBe('#fbf6ec');
     expect(withAccent(palette.light, undefined)).toEqual(palette.light);
   });
+});
+
+describe('message text across custom themes', () => {
+  for (const scheme of ['light', 'dark'] as const) {
+    it.each(['#f5c400', '#00ff00', '#ff0000', '#4176e6', '#ffffff', '#000000'])(
+      `${scheme} keeps links and secondary text readable for %s`,
+      (accent) => {
+        const theme = resolveTheme(scheme, { accent });
+        const original = { ...theme.color };
+        const colors = messageColors(theme);
+        expect(contrast(colors.link, theme.color.surface)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(colors.muted, theme.color.surface)).toBeGreaterThanOrEqual(4.5);
+        expect(theme.color).toEqual(original);
+      },
+    );
+  }
 });

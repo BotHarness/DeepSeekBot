@@ -35,7 +35,7 @@ export const WINDOW_COMPANION_CSS = `
 .bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row:nth-child(2) { animation-delay: 40ms; }
 .bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row:nth-child(3) { animation-delay: 80ms; }
 .bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row:nth-child(n + 4) { animation-delay: 120ms; }
-.bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row:hover, .bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row[data-selected='true'] { border-color: ${color.accent}; }
+.bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row:hover, .bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row[data-selected='true'] { border-color: ${color.accentText}; }
 .bh-companion-pending [data-compact] .bh-message-card-list > .bh-card-row[data-selected='true'] { background: color-mix(in srgb, ${color.accent} 12%, ${color.base}); }
 .bh-companion-pending [data-compact] .bh-message-card-list .bh-card-main { min-height: ${size.row}; gap: ${space.x3}; padding: ${space.x2} ${space.x4}; }
 .bh-companion-pending [data-compact] .bh-message-card-list button.bh-card-main::before { content: counter(bh-companion-option); flex: none; display: grid; place-items: center; width: 18px; height: 18px; border: ${border.hairline} solid ${color.accent}; border-radius: ${radius.round}; font: ${text.strong} ${text.metaSize}/1 ${COMPANION_FONT}; color: ${color.fg}; }

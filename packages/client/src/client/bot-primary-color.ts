@@ -1,5 +1,5 @@
 import { readBotColorScheme } from './bot-color-scheme.js';
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import {
   resolveBotPrimaryColor,
@@ -12,14 +12,15 @@ import {
   botNameColor,
   parseColor,
   toHex,
-  contrastRatio,
   readable,
   REFERENCE_SURFACES,
-  NAME_TARGET,
   type Rgb,
   type ThemeName,
 } from './bot-name-color.js';
 export {
+  BUBBLE_SURFACES,
+  BUBBLE_SEPARATION,
+  humanBubbleColors,
   parseColor,
   toHex,
   contrastRatio,
@@ -29,45 +30,6 @@ export {
   type Rgb,
   type ThemeName,
 } from './bot-name-color.js';
-
-export const BUBBLE_SURFACES: Record<ThemeName, { base: string; surface: string; fg: string }> = {
-  light: { base: '#ffffff', surface: '#f5f6f7', fg: '#0f1115' },
-  dark: { base: '#151517', surface: '#353638', fg: '#f9fafb' },
-};
-export const BUBBLE_SEPARATION = 1.3;
-const INK_LIGHT: Rgb = [255, 255, 255];
-const INK_DARK: Rgb = [15, 17, 21];
-const LIGHT_INK_FLOOR = 3;
-
-function mixRgb(from: Rgb, to: Rgb, amount: number): Rgb {
-  return [0, 1, 2].map((index) => from[index]! + (to[index]! - from[index]!) * amount) as [
-    number,
-    number,
-    number,
-  ];
-}
-
-export function humanBubbleColors(
-  source: string,
-  theme: ThemeName,
-): { fill: string; ink: string } | undefined {
-  const from = parseColor(source)?.rgb;
-  if (from === undefined) return undefined;
-  const reference = BUBBLE_SURFACES[theme];
-  const fg = parseColor(reference.fg)!.rgb;
-  const behind = [reference.base, reference.surface].map((value) => parseColor(value)!.rgb);
-  const steps = Array.from({ length: 41 }, (_, step) => step / 40);
-  const separatedStep = steps.find((step) =>
-    behind.every((rgb) => contrastRatio(mixRgb(from, fg, step), rgb) >= BUBBLE_SEPARATION),
-  );
-  const separated = mixRgb(from, fg, separatedStep ?? 1);
-  if (contrastRatio(separated, INK_LIGHT) < LIGHT_INK_FLOOR)
-    return { fill: toHex(separated), ink: toHex(INK_DARK) };
-  const darkStep = steps.find(
-    (step) => contrastRatio(mixRgb(separated, [0, 0, 0], step), INK_LIGHT) >= NAME_TARGET,
-  );
-  return { fill: toHex(mixRgb(separated, [0, 0, 0], darkStep ?? 1)), ink: toHex(INK_LIGHT) };
-}
 
 export const CHART_CONTRAST = 3;
 export const CHART_TONE_LEVELS = { cached: 1, uncached: 0.62, output: 0.36 } as const;
@@ -143,21 +105,11 @@ export function renderedBackground(element: Element): string | undefined {
   return undefined;
 }
 
-let surface: string | undefined;
-let probe: WeakRef<Element> | undefined;
 let observer: MutationObserver | undefined;
 const listeners = new Set<() => void>();
 
-function surfaceSnapshot(): string {
-  return surface ?? REFERENCE_SURFACES[currentTheme()].background;
-}
-
-function measureSurface(): void {
-  const element = probe?.deref();
-  const next = element?.isConnected ? renderedBackground(element) : undefined;
-  if (next === surface) return;
-  surface = next;
-  listeners.forEach((listener) => listener());
+function notifySurfaces(): void {
+  listeners.forEach((notify) => notify());
 }
 
 function subscribeSurface(listener: () => void): () => void {
@@ -167,10 +119,7 @@ function subscribeSurface(listener: () => void): () => void {
     typeof MutationObserver === 'function' &&
     typeof document !== 'undefined'
   ) {
-    observer = new MutationObserver(() => {
-      measureSurface();
-      listeners.forEach((notify) => notify());
-    });
+    observer = new MutationObserver(notifySurfaces);
     observer.observe(document.body, { attributes: true });
     observer.observe(document.documentElement, { attributes: true });
   }
@@ -179,8 +128,6 @@ function subscribeSurface(listener: () => void): () => void {
     if (listeners.size > 0) return;
     observer?.disconnect();
     observer = undefined;
-    surface = undefined;
-    probe = undefined;
   };
 }
 
@@ -188,11 +135,17 @@ export function useConversationSurface(): {
   background: string;
   probe(element: Element | null): void;
 } {
-  const background = useSyncExternalStore(subscribeSurface, surfaceSnapshot, surfaceSnapshot);
+  const probe = useRef<Element | null>(null);
+  const snapshot = useCallback(
+    () =>
+      (probe.current?.isConnected ? renderedBackground(probe.current) : undefined) ??
+      REFERENCE_SURFACES[currentTheme()].background,
+    [],
+  );
+  const background = useSyncExternalStore(subscribeSurface, snapshot, snapshot);
   const attach = useCallback((element: Element | null) => {
-    if (element === null || probe?.deref()?.isConnected) return;
-    probe = new WeakRef(element);
-    queueMicrotask(measureSurface);
+    probe.current = element;
+    if (element !== null) queueMicrotask(notifySurfaces);
   }, []);
   return { background, probe: attach };
 }
@@ -226,6 +179,7 @@ export function paintBotName(element: HTMLElement | null, source: string | undef
 
 export function refreshBotPrimaryColors(): void {
   if (typeof document === 'undefined') return;
+  notifySurfaces();
   document.querySelectorAll<HTMLElement>('[data-bot-name-source]').forEach(paint);
   document.querySelectorAll<HTMLElement>('[data-bot-scale-source]').forEach(paintScale);
 }

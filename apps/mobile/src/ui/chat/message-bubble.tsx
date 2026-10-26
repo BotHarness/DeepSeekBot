@@ -111,7 +111,6 @@ export function BubbleBody({
   const t = useStrings();
   const theme = useDesignTheme();
   const human = message.author === 'human';
-  const mutedPending = usePendingFeedback(message);
   const ink = human ? 'onAccent' : 'fg';
   return (
     <View
@@ -121,7 +120,6 @@ export function BubbleBody({
         overflow: fill?.maxHeight === undefined ? 'visible' : 'hidden',
         backgroundColor: human ? theme.color.accent : theme.color.surface,
         gap: space.x2,
-        opacity: mutedPending ? 0.7 : 1,
       }}
     >
       {deliveryAccessibility && human && message.delivery === 'pending' ? (
@@ -313,6 +311,7 @@ export const MessageBubble = memo(function MessageBubble({
   const human = message.author === 'human';
   const failed = message.delivery === 'failed';
   const label = deliveryLabel(message);
+  const pendingFeedback = usePendingFeedback(message);
   if (message.author === 'system')
     return (
       <View
@@ -343,7 +342,7 @@ export const MessageBubble = memo(function MessageBubble({
       streaming={streaming}
     />
   );
-  const surface =
+  const content =
     failed || actionable || streaming ? (
       <PressableBubble
         human={human}
@@ -378,6 +377,42 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       bubble
     );
+  const surface = human ? (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: space.x2,
+      }}
+    >
+      <View style={{ width: space.x6, alignItems: 'center' }}>
+        {failed ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={label}
+            onPress={() => onRetry?.(message.id)}
+          >
+            <Text variant="meta" tone="danger">
+              !
+            </Text>
+          </Pressable>
+        ) : pendingFeedback ? (
+          <Text
+            accessibilityLabel={t.sending}
+            accessibilityLiveRegion="polite"
+            variant="meta"
+            tone="muted"
+          >
+            …
+          </Text>
+        ) : null}
+      </View>
+      {content}
+    </View>
+  ) : (
+    content
+  );
   const after = (
     <>
       {reactions.length === 0 ? null : (
@@ -389,16 +424,6 @@ export const MessageBubble = memo(function MessageBubble({
             ? {}
             : { onToggle: (emoji: string, active: boolean) => onReact(message.id, emoji, active) })}
         />
-      )}
-      {label === undefined ? null : (
-        <Text
-          accessibilityLiveRegion="polite"
-          variant="meta"
-          tone={failed ? 'danger' : 'muted'}
-          style={{ alignSelf: 'flex-end' }}
-        >
-          {label}
-        </Text>
       )}
     </>
   );

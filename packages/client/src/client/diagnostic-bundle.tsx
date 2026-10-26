@@ -97,7 +97,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderRadius: radius.sm,
     backgroundColor: 'transparent',
-    color: color.accent,
+    color: color.accentText,
     font: 'inherit',
     cursor: 'pointer',
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },

@@ -27,7 +27,7 @@ export function Text({
       {...props}
       style={[
         {
-          color: theme.color[tone],
+          color: theme.color[tone === 'accent' ? 'accentText' : tone],
           fontSize: role.size,
           lineHeight: role.line,
           fontWeight: strong ? theme.weight.strong : theme.weight.regular,
