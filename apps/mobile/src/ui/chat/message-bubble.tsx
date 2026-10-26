@@ -3,6 +3,7 @@ import {
   useCallback,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type ComponentProps,
   type ReactNode,
@@ -13,8 +14,10 @@ import {
   Platform,
   Pressable,
   View,
+  useWindowDimensions,
   type AccessibilityRole,
   type DimensionValue,
+  type LayoutChangeEvent,
   type ViewInstance,
 } from 'react-native';
 import Animated, {
@@ -39,9 +42,11 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
 import { haptic } from '../haptics';
+import { useMounted } from '../mounted';
 import { useStrings, t } from '../strings';
 import {
   BADGE_OVERLAP,
+  singleLine,
   BUBBLE_MAX,
   bubbleCorners,
   bubbleRow,
@@ -111,7 +116,9 @@ export function BubbleBody({
   streaming = false,
   deliveryAccessibility = true,
   onImageReady,
+  onLayout,
 }: {
+  onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
   group: BubbleGroup;
@@ -127,6 +134,7 @@ export function BubbleBody({
   const ink = human ? 'onAccent' : 'fg';
   return (
     <View
+      {...(onLayout === undefined ? {} : { onLayout })}
       style={{
         ...bubbleShape(human, group),
         ...fill,
@@ -287,6 +295,8 @@ function PressableBubble({
   );
 }
 
+const entered = new Set<string>();
+
 export function secondTap(last: number | undefined, now: number): boolean {
   return last !== undefined && now - last <= doubleTap.window;
 }
@@ -308,7 +318,9 @@ export const MessageBubble = memo(function MessageBubble({
   lifted = false,
   streaming = false,
   rowKey = message.id,
+  entering = false,
 }: {
+  entering?: boolean;
   message: ConversationMessage;
   first?: boolean;
   last?: boolean;
@@ -331,6 +343,24 @@ export const MessageBubble = memo(function MessageBubble({
   const failed = message.delivery === 'failed';
   const label = deliveryLabel(message);
   const pendingFeedback = usePendingFeedback(message);
+  const theme = useDesignTheme();
+  const { fontScale } = useWindowDimensions();
+  const [compact, setCompact] = useState(false);
+  const [enter] = useState(() => {
+    const fresh = entering && !entered.has(rowKey);
+    entered.add(rowKey);
+    return fresh;
+  });
+  const reduced = useReducedMotion();
+  const appear = useSharedValue(enter && !reduced ? 0 : 1);
+  const appearing = useAnimatedStyle(() => ({
+    opacity: appear.value,
+    transform: [{ scale: 0.6 + 0.4 * appear.value }],
+  }));
+  const reveal = useMounted<ViewInstance>(() => {
+    if (appear.value < 1)
+      appear.value = withTiming(1, { duration: motion.bubble, easing: Easing.out(Easing.quad) });
+  }, []);
   if (message.author === 'system')
     return (
       <View
@@ -346,11 +376,14 @@ export const MessageBubble = memo(function MessageBubble({
     !streaming &&
     (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
   const reactions = streaming ? [] : (message.reactions ?? []);
-  const group = { first, last, avatar: speaker?.last === true };
+  const group = { first, last, avatar: speaker?.last === true, compact };
   const bubble = (
     <BubbleBody
       message={message}
       group={group}
+      onLayout={(event) =>
+        setCompact(singleLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
+      }
       onOpenImage={onOpenImage}
       onShare={onShare}
       deliveryAccessibility={
@@ -399,11 +432,16 @@ export const MessageBubble = memo(function MessageBubble({
   const reading = streaming ? NO_READERS : readers;
   const badged = reactions.length > 0 || reading.length > 0;
   const framed = (
-    <View
-      style={{
-        alignSelf: human ? 'flex-end' : 'flex-start',
-        maxWidth: BUBBLE_MAX,
-      }}
+    <Animated.View
+      ref={reveal}
+      style={[
+        {
+          alignSelf: human ? 'flex-end' : 'flex-start',
+          maxWidth: BUBBLE_MAX,
+          transformOrigin: human ? 'right bottom' : 'left bottom',
+        },
+        appearing,
+      ]}
     >
       {content}
       {badged ? (
@@ -439,7 +477,7 @@ export const MessageBubble = memo(function MessageBubble({
           )}
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
   const surface = human ? (
     <View

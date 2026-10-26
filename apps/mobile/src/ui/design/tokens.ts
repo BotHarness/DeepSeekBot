@@ -190,6 +190,7 @@ export const motion = {
   composer: 160,
   lift: 500,
   menu: 160,
+  bubble: 240,
 } as const;
 
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;

@@ -119,6 +119,7 @@ import {
 } from './mention-draft';
 import { MentionSuggestions } from './mention-suggestions';
 import { PlaybackBubble, type Speaker } from './message-bubble';
+import { useArrivals } from './arrivals';
 import { MessageIdentities } from './message-identities';
 import { copyMessage, shareText } from './message-menu';
 import type { Rect } from './menu-placement';
@@ -624,6 +625,8 @@ function ChatConversation({
     ],
     [shownDrafts, chronological],
   );
+  const rowKeys = useMemo(() => rows.map((row) => row.key), [rows]);
+  const arrivals = useArrivals(rowKeys, latest.ready);
 
   const firstMessageId = snapshot.messages[0]?.id ?? '';
   const jump = useCallback(() => {
@@ -864,6 +867,7 @@ function ChatConversation({
             playback={playback}
             focused={focused}
             queueKey={item.key}
+            entering={arrivals.has(item.key)}
             speaker={
               dm
                 ? undefined
@@ -986,6 +990,7 @@ function ChatConversation({
           playback={playback}
           focused={focused}
           queueKey={item.key}
+          entering={arrivals.has(item.key)}
           message={item.message}
           first={item.first}
           last={item.last}
@@ -1033,6 +1038,7 @@ function ChatConversation({
       router,
       receipts,
       reading,
+      arrivals,
     ],
   );
 
