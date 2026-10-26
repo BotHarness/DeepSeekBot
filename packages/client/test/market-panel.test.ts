@@ -18,6 +18,31 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       props.children,
     ),
   Input: (props: Record<string, unknown>) => createElement('input', props),
+  IconChevronDownOutlineRegular: () => null,
+  Menu: (props: {
+    open: boolean;
+    items: readonly { id: string; label: ReactNode }[];
+    selectedId?: string;
+    onSelect(id: string): void;
+  }) =>
+    createElement(
+      'span',
+      { role: 'menu' },
+      props.open
+        ? props.items.map((item) =>
+            createElement(
+              'button',
+              {
+                key: item.id,
+                role: 'menuitemradio',
+                'aria-checked': item.id === props.selectedId,
+                onClick: () => props.onSelect(item.id),
+              },
+              item.label,
+            ),
+          )
+        : null,
+    ),
   Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
   MarkdownText: (props: { text: string }) => createElement('div', null, props.text),
   SegmentedControl: (props: {
@@ -72,6 +97,7 @@ import { zhTranslate } from '../src/client/locale.js';
 import { MarketPanelView, createMarketPanel, MARKET_PANEL } from '../src/client/market-panel.js';
 import { MARKET_SHARE_PROMPT } from '../src/client/market-share-prompt.js';
 import { store, type BotSummary } from '../src/client/store.js';
+import { CSS } from '../src/client/styles.js';
 
 function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): MarketplaceEntry {
   return {
@@ -189,6 +215,33 @@ describe('Market panel', () => {
       async () => ({ bots: [] }),
       async ({ list }) => {
         expect(list).toHaveBeenLastCalledWith({ sort: 'stars', lang: 'zh' });
+      },
+    );
+  });
+
+  it('keeps every sort reachable from a menu when the panel is too narrow for the tabs', async () => {
+    expect(CSS).toMatch(
+      /@container bh-market \(max-width: 380px\) \{\s*\.bh-market-sort > \[role='tablist'\] \{ display: none; \}\s*\.bh-market-sort-menu \{ display: flex; \}/u,
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, list }) => {
+        const menu = host.querySelector<HTMLButtonElement>(
+          '.bh-market-sort-menu > button[aria-label="排序"]',
+        )!;
+        expect(menu.textContent).toBe('最多 Star');
+        await act(async () => menu.click());
+        const items = [...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]')];
+        expect(items.map((item) => item.textContent)).toEqual([
+          '最新创建',
+          '最近更新',
+          '最多 Star',
+        ]);
+        expect(items[2]?.getAttribute('aria-checked')).toBe('true');
+        await act(async () => items[1]!.click());
+        expect(list).toHaveBeenLastCalledWith({ sort: 'updated', lang: 'zh' });
+        expect(menu.textContent).toBe('最近更新');
+        expect(button(host, '最近更新').getAttribute('aria-selected')).toBe('true');
       },
     );
   });
