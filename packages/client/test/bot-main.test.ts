@@ -1398,7 +1398,7 @@ describe('DM usage refresh', () => {
         root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
       );
       const before = node.querySelector('[data-composer-chip="usage"]')!.textContent;
-      expect(before).toContain('0');
+      expect(before).toContain('— / —');
       await act(async () => {
         store.setConversation({
           messages: [

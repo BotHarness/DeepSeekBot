@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { ActionButton } from './ds/action-button.js';
 import type { Appearance } from './appearance.js';
 import { panelMaterials, type PanelMaterialPatch } from './appearance-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -38,8 +38,9 @@ export function PanelAppearanceSettings({
       scroll
       data={{ 'data-panel-appearance': id }}
       actions={
-        <Button
-          variant="outline"
+        <ActionButton
+          icon="refresh"
+
           onClick={() => {
             try {
               owner.update({ mode, panel: { id, reset: true } });
@@ -47,7 +48,7 @@ export function PanelAppearanceSettings({
           }}
         >
           {t('appearance.resetPanel')}
-        </Button>
+        </ActionButton>
       }
     >
       <Note>
@@ -121,14 +122,14 @@ export function PanelAppearanceSettings({
                           onChange={(value) => change({ [part]: { [field]: value } })}
                         />
                       )}
-                      <Button
-                        variant="ghost"
+                      <ActionButton
+                        icon="refresh"
                         disabled={!overridden}
                         aria-label={t('appearance.followGlobalField', { field: label })}
                         onClick={() => change({ [part]: { [field]: null } })}
                       >
                         {t('appearance.followGlobal')}
-                      </Button>
+                      </ActionButton>
                     </>
                   }
                 />

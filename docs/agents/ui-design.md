@@ -38,7 +38,7 @@ Use the relevant platform's runtime verification and PR evidence requirements. A
 
 ## Message actions and read failures
 
-Use the Web `ds/action-button` module or the native `primitives/button` adapter for card actions. Callers supply a semantic icon, a short action label, tone, pending state and their existing callback. The adapter owns the filled surface, icon colour, wrapping, disabled treatment and accessible pending state. Secondary actions must remain distinguishable from their containing message bubble. Keep the action name visible while pending; do not turn every action into an identical loading label.
+Use the Web `ds/action-button` module or the native `primitives/button` adapter for card actions. Callers supply a semantic icon, a short action label, tone, pending state and their existing callback. The adapter owns the filled surface, icon colour, wrapping, disabled treatment and accessible pending state. Secondary actions must remain distinguishable from their containing message bubble or settings surface. Derived action colours resolve from global DSH tokens so portaled settings do not depend on Bot-mode ancestor variables. Keep the action name visible while pending; do not turn every action into an identical loading label.
 
 Use `ds/read-failure` or native `primitives/read-failure` for standalone failed reads. Keep the summary short and native diagnostic details behind a disclosure. Reloading a failed read is valid; it must not replay an approval, message or other mutation. Approval and question cards retain their owning request guards and keyboard/focus contract.
 

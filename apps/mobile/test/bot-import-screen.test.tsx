@@ -50,6 +50,7 @@ const controller = createBotCreationController({
     },
   },
 });
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/primitives/sheet-content', () => ({
   useSheetContent: () => ({ ready: fixture.routeReady, mount: undefined }),
 }));

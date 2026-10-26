@@ -35,7 +35,8 @@ vi.mock('../src/ui/shell/host-drawer', () => ({
 vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ChatsIcon: () => null,
   CloudIcon: () => null,
   ChevronDownIcon: () => null,

@@ -1,5 +1,5 @@
 import { useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
+import { ActionButton } from './ds/action-button.js';
 import * as stylex from '@stylexjs/stylex';
 import { Note } from './ds/note.js';
 import { TextField } from './ds/field.js';
@@ -139,14 +139,15 @@ export function HostLookSettings({
                   : 'remoteHosts.look.failed',
               )}
             </Note>
-            <Button
-              variant="outline"
+            <ActionButton
+              icon="refresh"
+
               onClick={() => {
                 void refresh();
               }}
             >
               {t('remoteHosts.look.refresh')}
-            </Button>
+            </ActionButton>
           </div>
         ) : null}
         <HostNameField key={look.name ?? ''} name={name} saved={look.name} change={change} t={t} />

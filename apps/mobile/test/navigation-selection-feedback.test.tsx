@@ -85,7 +85,10 @@ vi.mock('../src/ui/shell/navigation-destinations', () => ({
 vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
 vi.mock('../src/ui/shell/navigation-material', () => ({ NavigationMaterial: () => null }));
 vi.mock('../src/ui/shell/creation-panel', () => ({ CreationPanel: () => null }));
-vi.mock('../src/ui/shell/icons', () => ({ PlusIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  PlusIcon: () => null,
+}));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 import { BottomNavigation } from '../src/ui/shell/bottom-navigation';

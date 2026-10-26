@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { Button, IconRefreshOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
-import { color, radius, size, space, text } from './tokens.stylex.js';
+import { actionColor, color, radius, size, space, text } from './tokens.stylex.js';
 
 const spin = stylex.keyframes({ to: { transform: 'rotate(360deg)' } });
 const styles = stylex.create({
@@ -29,11 +29,11 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
   },
   secondary: {
-    backgroundColor: { default: color.actionSecondary, ':hover': color.actionHover },
+    backgroundColor: { default: actionColor.secondary, ':hover': actionColor.hover },
     color: color.fg,
   },
   primary: { backgroundColor: color.fg, color: color.base },
-  danger: { backgroundColor: color.actionDanger, color: color.actionDangerLabel },
+  danger: { backgroundColor: actionColor.danger, color: actionColor.dangerLabel },
   icon: { display: 'inline-flex', flexShrink: 0, width: space.x5, height: space.x5 },
   label: { minWidth: 0 },
   group: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },

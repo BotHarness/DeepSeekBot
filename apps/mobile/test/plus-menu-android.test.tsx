@@ -7,7 +7,10 @@ vi.mock('react-native', async () => ({
   Keyboard: { dismiss: vi.fn() },
 }));
 vi.mock('../src/cloud/available', () => ({ cloudAvailable: true }));
-vi.mock('../src/ui/shell/icons', () => ({ PlusIcon: () => null }));
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
+  PlusIcon: () => null,
+}));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('@expo/ui/jetpack-compose/modifiers', async () => ({
   ...(await import('./compose-menu-shim')).modifiers,

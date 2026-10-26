@@ -26,7 +26,8 @@ vi.mock('../src/ui/bot-avatar', () => ({
   BotAvatar: ({ bot }: { bot: { slug: string } }) =>
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   ActivityIcon: () => null,
   ChevronRightIcon: () => null,
   FileIcon: () => null,
@@ -359,7 +360,14 @@ describe('Bot profile sheet', () => {
         actions={handlers}
       />,
     );
-    expect(view.textContent).toContain(`${t.profileFailed} The Host did not answer in time.`);
+    expect(view.textContent).toContain(t.profileFailed);
+    expect(view.textContent).not.toContain('The Host did not answer in time.');
+    await act(async () =>
+      [...view.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(view.textContent).toContain('The Host did not answer in time.');
     await act(async () => button(view, t.tryAgain)!.click());
     await act(async () => undefined);
     expect(view.textContent).toContain('Morning digest');
@@ -515,7 +523,13 @@ describe('Bot profile sheet', () => {
         actions={actions()}
       />,
     );
-    expect(failed.textContent).toContain(`${t.profileFailed} Unknown PersonaBot`);
+    expect(failed.textContent).toContain(t.profileFailed);
+    await act(async () =>
+      [...failed.querySelectorAll<HTMLButtonElement>('button')]
+        .find((button) => button.textContent === t.details)!
+        .click(),
+    );
+    expect(failed.textContent).toContain('Unknown PersonaBot');
     expect(failed.textContent).toContain('Morning digest');
     await act(async () => button(failed, t.tryAgain)!.click());
     await act(async () => undefined);

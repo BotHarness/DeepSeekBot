@@ -218,9 +218,7 @@ describe('compact Human Inbox interactions', () => {
       botSlug: 'ada',
     });
     try {
-      const action = view.host.querySelector<HTMLButtonElement>(
-        '.bh-human-inbox-row-actions [data-variant="primary"]',
-      )!;
+      const action = workspaceAction(view.host)!;
       expect(action.textContent).toBe('选择工作区');
       await act(async () => action.click());
       expect(view.actions.humanInboxContext).toHaveBeenCalledTimes(1);
@@ -239,11 +237,7 @@ describe('compact Human Inbox interactions', () => {
       await act(async () =>
         view.host.querySelector<HTMLButtonElement>('.bh-human-inbox-row-open')!.click(),
       );
-      await act(async () =>
-        view.host
-          .querySelector<HTMLButtonElement>('.bh-human-inbox-row-actions [data-variant="primary"]')!
-          .click(),
-      );
+      await act(async () => workspaceAction(view.host)!.click());
       expect(view.actions.listHostFolders).toHaveBeenCalledTimes(2);
       await act(async () =>
         Array.from(view.host.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'))
@@ -269,11 +263,7 @@ describe('compact Human Inbox interactions', () => {
       botSlug: 'ada',
     });
     try {
-      await act(async () =>
-        view.host
-          .querySelector<HTMLButtonElement>('.bh-human-inbox-row-actions [data-variant="primary"]')!
-          .click(),
-      );
+      await act(async () => workspaceAction(view.host)!.click());
       await act(async () =>
         Array.from(view.host.querySelectorAll<HTMLButtonElement>('button'))
           .find((button) => button.textContent === 'Close picker')!
@@ -289,11 +279,7 @@ describe('compact Human Inbox interactions', () => {
           grantRequestResolved: true,
         },
       ]);
-      await act(async () =>
-        view.host
-          .querySelector<HTMLButtonElement>('.bh-human-inbox-row-actions [data-variant="primary"]')!
-          .click(),
-      );
+      await act(async () => workspaceAction(view.host)!.click());
       expect(view.actions.listHostFolders).toHaveBeenCalledTimes(1);
       expect(view.host.querySelector('[role="dialog"]')).toBeNull();
       expect(view.actions.resolveWorkspaceGrantRequest).not.toHaveBeenCalled();
@@ -314,11 +300,7 @@ describe('compact Human Inbox interactions', () => {
       }),
     );
     try {
-      await act(async () =>
-        view.host
-          .querySelector<HTMLButtonElement>('.bh-human-inbox-row-actions [data-variant="primary"]')!
-          .click(),
-      );
+      await act(async () => workspaceAction(view.host)!.click());
       expect(view.actions.pickWorkspaceFolder).toHaveBeenCalledTimes(1);
       expect(view.actions.resolveWorkspaceGrantRequest).not.toHaveBeenCalled();
     } finally {
@@ -331,11 +313,7 @@ describe('compact Human Inbox interactions', () => {
       true,
     );
     try {
-      await act(async () =>
-        view.host
-          .querySelector<HTMLButtonElement>('.bh-human-inbox-row-actions [data-variant="primary"]')!
-          .click(),
-      );
+      await act(async () => workspaceAction(view.host)!.click());
       expect(view.actions.listHostFolders).not.toHaveBeenCalled();
       expect(view.host.querySelector('[role="dialog"]')).toBeNull();
     } finally {
@@ -365,3 +343,9 @@ describe('compact Human Inbox interactions', () => {
     }
   });
 });
+
+function workspaceAction(host: HTMLElement) {
+  return [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+    (button) => button.textContent === '选择工作区',
+  );
+}

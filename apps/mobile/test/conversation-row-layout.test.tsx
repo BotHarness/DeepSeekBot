@@ -63,7 +63,8 @@ vi.mock('../src/ui/chat/row-status-glyph', () => ({
     status === 'none' ? null : createElement('i', { 'data-status': status }),
 }));
 vi.mock('../src/ui/shell/host-tile', () => ({ HostGlyph: () => createElement('i') }));
-vi.mock('../src/ui/shell/icons', () => ({
+vi.mock('../src/ui/shell/icons', async () => ({
+  ...(await import('./shell-icons-shim')),
   CloudIcon: () => createElement('i'),
   ComputerIcon: () => createElement('i'),
 }));
