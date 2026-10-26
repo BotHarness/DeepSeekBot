@@ -19,13 +19,7 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import Animated, {
-  useAnimatedReaction,
-  useAnimatedRef,
-  useAnimatedStyle,
-  useScrollOffset,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useScrollOffset } from 'react-native-reanimated';
 
 import {
   chatBackgrounds,
@@ -38,6 +32,7 @@ import { visibleDmActivity } from '../../host/dm-activity';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
+import { readingBots } from '../../host/delivery-receipt';
 import {
   shownInChat,
   type CardResolution,
@@ -83,6 +78,7 @@ import { ActivityRow } from './activity-row';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
+import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -96,7 +92,7 @@ import {
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
-import { anchorShift, anchorStep, useFollowLatest } from './follow-latest';
+import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -123,7 +119,6 @@ import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
-import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
@@ -139,6 +134,7 @@ import { Button } from '../primitives/button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
+const cellLayer = ({ index }: { index: number }) => ({ zIndex: -index });
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
@@ -431,9 +427,6 @@ function ChatConversation({
   );
 
   const [reactError, setReactError] = useState(false);
-  const [composerHeight, setComposerHeight] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
-  const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const focusPage = useRef<string | undefined>(undefined);
@@ -507,7 +500,15 @@ function ChatConversation({
     },
     [list, content],
   );
-  const viewportLayout = useSharedValue(0);
+  const latest = useChannelViewport(
+    list,
+    visible,
+    playback?.setFollowing,
+    headerOverlap,
+    snapshot.status === 'live' && visible.length === 0,
+    shownDrafts.length > 0,
+  );
+  const { composerHeight, viewportHeight, viewportLayout } = latest;
   const stage = useMemo(
     () => ({
       registry: speakers,
@@ -517,40 +518,6 @@ function ChatConversation({
       floor: composerHeight + edgeFade.bottom,
     }),
     [speakers, scroll, viewport, viewportLayout, composerHeight],
-  );
-  const followingLatest = useSharedValue(true);
-  const latestEnd = useSharedValue(0);
-  const workingAnchor = useSharedValue(0);
-  const setPlaybackFollowing = playback?.setFollowing;
-  const followChange = useCallback(
-    (following: boolean) => {
-      followingLatest.value = following;
-      setPlaybackFollowing?.(following);
-    },
-    [followingLatest, setPlaybackFollowing],
-  );
-  const latestChange = useCallback(
-    (offset: number) => {
-      latestEnd.value = offset;
-    },
-    [latestEnd],
-  );
-  useAnimatedReaction(
-    () => [scroll.value, latestEnd.value, followingLatest.value] as const,
-    ([offset, end, following]) => {
-      workingAnchor.value = anchorStep(workingAnchor.value, offset, end, following);
-    },
-  );
-  const workingStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: anchorShift(workingAnchor.value, scroll.value) }],
-  }));
-  const latest = useFollowLatest(
-    list,
-    visible,
-    followChange,
-    headerOverlap,
-    snapshot.status === 'live' && visible.length === 0,
-    latestChange,
   );
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
@@ -823,6 +790,7 @@ function ChatConversation({
 
   const roster = host.roster;
   const botName = useBotNames(roster?.bots);
+  const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
     (message: ConversationMessage) => setDeliveryFor(message.id),
@@ -994,6 +962,8 @@ function ChatConversation({
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm ? {} : { onReact: react })}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
+          readers={reading.get(item.message.id)}
+          bots={roster?.bots}
           botName={botName}
           speaker={
             !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
@@ -1028,6 +998,7 @@ function ChatConversation({
       botDm,
       router,
       receipts,
+      reading,
     ],
   );
 
@@ -1098,10 +1069,12 @@ function ChatConversation({
         {botDmName}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
+      <WorkingStatus bots={working} />
     </Pressable>
   ) : (
     <ChannelTitle
       channel={channel}
+      working={working}
       connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
       onPress={() =>
@@ -1115,7 +1088,14 @@ function ChatConversation({
   const ios = Platform.OS === 'ios';
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
-    <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 2 }}>{title}</View>
+    <View
+      style={{
+        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+      }}
+    >
+      {title}
+    </View>
   );
   const notice = hostRefused
     ? t.refused
@@ -1157,7 +1137,6 @@ function ChatConversation({
   const topFade =
     notice !== undefined ? 0 : floatingHeader ? headerPadding : glassHeader ? 0 : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
-  const workingReserve = working.length > 0 ? workingHeight : 0;
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
@@ -1202,6 +1181,7 @@ function ChatConversation({
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                     style={{
+                      width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
                       maxWidth: windowWidth - (theme.touch + space.x5) * 2,
                       marginHorizontal: space.x3,
                     }}
@@ -1221,7 +1201,7 @@ function ChatConversation({
             <ChatBackground choice={background} imageUri={backgroundImageUri} />
           ) : undefined
         }
-        onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+        onComposerLayout={latest.onComposerLayout}
         composer={
           selected !== undefined ? (
             <SelectionBar
@@ -1358,20 +1338,14 @@ function ChatConversation({
             ) : null}
           </View>
         )}
-        <Animated.View
-          ref={viewport}
-          collapsable={false}
-          style={{ flex: 1 }}
-          onLayout={(event) => {
-            viewportLayout.value += 1;
-            setViewportHeight(event.nativeEvent.layout.height);
-          }}
-        >
+        <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
           <MarkdownViewportContext.Provider value={markdownViewport}>
             <SpeakerStageContext.Provider value={dm ? undefined : stage}>
               <Animated.FlatList
                 ref={attachList}
+                renderScrollComponent={latest.renderScrollComponent}
                 removeClippedSubviews={false}
+                CellRendererComponentStyle={cellLayer}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
                 pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
                 accessibilityElementsHidden={!latest.ready && rows.length > 0}
@@ -1391,7 +1365,7 @@ function ChatConversation({
                   ),
                   justifyContent: 'flex-end',
                   paddingTop: space.x3 + listTop,
-                  paddingBottom: composerHeight + edgeFade.bottom + workingReserve,
+                  paddingBottom: composerHeight + edgeFade.bottom,
                 }}
                 data={rows}
                 keyExtractor={(row) => row.key}
@@ -1484,83 +1458,79 @@ function ChatConversation({
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
-          {(!latest.ready && rows.length > 0) ||
-          (snapshot.status === 'opening' && rows.length === 0) ? (
-            <View
-              pointerEvents={latest.canRetry ? 'auto' : 'none'}
-              style={{
-                position: 'absolute',
-                top: listTop,
-                bottom: composerHeight + edgeFade.bottom + workingReserve,
-                left: 0,
-                right: 0,
-                justifyContent: 'flex-end',
-              }}
-            >
-              <ListSkeleton layout="messages" />
-              {latest.canRetry ? (
-                <Button
-                  label={t.retry}
-                  variant="text"
-                  testID="history-loading-retry"
-                  onPress={latest.retry}
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {working.length > 0 ? (
-            <Animated.View
-              pointerEvents="none"
-              onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
-              style={[
-                {
+          <Animated.View
+            ref={viewport}
+            collapsable={false}
+            pointerEvents="box-none"
+            style={[
+              { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+              latest.overlayStyle,
+            ]}
+            onLayout={() => {
+              viewportLayout.value += 1;
+            }}
+          >
+            {(!latest.ready && rows.length > 0) ||
+            (snapshot.status === 'opening' && rows.length === 0) ? (
+              <View
+                pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                style={{
                   position: 'absolute',
+                  top: listTop,
                   bottom: composerHeight + edgeFade.bottom,
                   left: 0,
                   right: 0,
-                },
-                workingStyle,
-              ]}
-            >
-              <WorkingStatus bots={working} />
-            </Animated.View>
-          ) : null}
-          {topFade > 0 ? (
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <ListSkeleton layout="messages" />
+                {latest.canRetry ? (
+                  <Button
+                    label={t.retry}
+                    variant="text"
+                    testID="history-loading-retry"
+                    onPress={latest.retry}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+            {topFade > 0 ? (
+              <EdgeFade
+                edge="top"
+                height={topFade + edgeFade.reach}
+                cover={topFade}
+                color={fadeColor}
+              />
+            ) : null}
             <EdgeFade
-              edge="top"
-              height={topFade + edgeFade.reach}
-              cover={topFade}
+              edge="bottom"
+              height={composerCover + edgeFade.bottom}
+              cover={composerCover}
+              solid={composerCover}
               color={fadeColor}
             />
-          ) : null}
-          <EdgeFade
-            edge="bottom"
-            height={composerCover + edgeFade.bottom + workingReserve}
-            cover={composerCover}
-            solid={composerCover}
-            color={fadeColor}
-          />
-          {composable && Platform.OS === 'ios' ? (
-            <PullToComposeHint
-              progress={pull.progress}
-              ready={pull.ready}
-              bottom={composerHeight + space.x3}
-            />
-          ) : null}
-          {latest.away ? (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                bottom: composerHeight + space.x2,
-                left: 0,
-                right: space.x4,
-                alignItems: 'flex-end',
-              }}
-            >
-              <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-            </View>
-          ) : null}
+            {composable && Platform.OS === 'ios' ? (
+              <PullToComposeHint
+                progress={pull.progress}
+                ready={pull.ready}
+                bottom={composerHeight + space.x3}
+              />
+            ) : null}
+            {latest.away ? (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: 'absolute',
+                  bottom: composerHeight + space.x2,
+                  left: 0,
+                  right: space.x4,
+                  alignItems: 'flex-end',
+                }}
+              >
+                <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+              </View>
+            ) : null}
+          </Animated.View>
         </Animated.View>
       </KeyboardChatFrame>
       {imageSelection?.scope === selectionScope ? (

@@ -80,10 +80,11 @@ async function fixture(options: { nativeRefusal?: Error; nativeGate?: Promise<vo
   await admission.settled;
   const access = live.access();
   if (access === undefined) throw new Error('Missing Orchestrator');
-  function create(purpose: string, key?: string) {
+  function create(description: string, key?: string, title = description) {
     const created = access!.create({
       grantId: TEST_GRANT_ID,
-      purpose,
+      title,
+      description,
       ...(key === undefined ? {} : { key }),
     });
     if (created.outcome !== 'created') throw new Error(`Not created: ${created.outcome}`);
@@ -170,7 +171,12 @@ describe('Orchestrator Assignment archive', () => {
         /archived/,
       );
       expect(() =>
-        f.access.create({ grantId: TEST_GRANT_ID, purpose: 'Reuse', key: 'racing' }),
+        f.access.create({
+          title: 'Assignment',
+          grantId: TEST_GRANT_ID,
+          description: 'Reuse',
+          key: 'racing',
+        }),
       ).toThrow(/archived/);
       open();
       await expect(archiving).resolves.toMatchObject({ outcome: 'archived' });
@@ -203,12 +209,91 @@ describe('Orchestrator Assignment archive', () => {
 });
 
 describe('Orchestrator Assignment Directory query', () => {
-  it('searches purpose, key and latest report, filters activity, and pages with a cursor', async () => {
+  it('requires a bounded Title and Description and names the missing field', async () => {
+    const f = await fixture();
+    try {
+      const create = (input: { title: string; description: string }) =>
+        f.access.create({ ...input, grantId: TEST_GRANT_ID });
+      expect(() => create({ title: '  ', description: 'Check the release.' })).toThrow(
+        'create_assignment: title is required and must not be blank',
+      );
+      expect(() => create({ title: 'Check release', description: '' })).toThrow(
+        'create_assignment: description is required and must not be blank',
+      );
+      expect(() => create({ title: 'x'.repeat(81), description: 'Check the release.' })).toThrow(
+        'create_assignment: title must be at most 80 characters',
+      );
+      const created = create({ title: ' Check release ', description: ' Check the release. ' });
+      expect(created).toMatchObject({
+        outcome: 'created',
+        assignment: { title: 'Check release', description: 'Check the release.' },
+      });
+      const sessionId = created.outcome === 'created' ? created.assignment.sessionId : '';
+      expect(f.live.runs.find((run) => run.sessionId === sessionId)?.text).toBe(
+        'Check the release.',
+      );
+      const instructed = f.access.create({
+        title: 'Audit exports',
+        description: 'Audit the billing exports.',
+        instructions: 'Compare March with the ledger and list every gap.',
+        grantId: TEST_GRANT_ID,
+      });
+      const instructedId = instructed.outcome === 'created' ? instructed.assignment.sessionId : '';
+      expect(f.live.runs.find((run) => run.sessionId === instructedId)?.text).toBe(
+        'Compare March with the ledger and list every gap.',
+      );
+      expect(f.access.inspect(instructedId)).toMatchObject({
+        title: 'Audit exports',
+        description: 'Audit the billing exports.',
+      });
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('searches Title, Description, key and latest report, filters activity, and pages with a cursor', async () => {
     const f = await fixture();
     try {
       const alpha = f.create('Fix login redirect', 'login');
       const beta = f.create('Write onboarding docs', 'docs');
       const gamma = f.create('Benchmark search index');
+      const delta = f.create('Measure cold start on Android', undefined, 'Startup profiling');
+
+      expect(f.access.query!({ query: 'startup' }).assignments.map((a) => a.sessionId)).toEqual([
+        delta,
+      ]);
+      expect(f.access.query!({ query: 'cold start' }).assignments.map((a) => a.sessionId)).toEqual([
+        delta,
+      ]);
+      await f.settle(delta);
+      await f.access.archive!(delta);
+      const methods = createBridgeMethods({ ...f.core });
+      expect(methods.assignments({ slug: 'ada', query: 'startup' })).toEqual({
+        ok: true,
+        value: { assignments: [] },
+      });
+      expect(
+        methods.assignments({ slug: 'ada', query: 'STARTUP', includeArchived: true, limit: 5 }),
+      ).toMatchObject({
+        ok: true,
+        value: {
+          assignments: [
+            {
+              sessionId: delta,
+              title: 'Startup profiling',
+              description: 'Measure cold start on Android',
+            },
+          ],
+        },
+      });
+      expect(methods.assignments({ slug: 'ada', limit: 0 })).toMatchObject({ ok: false });
+      expect(
+        methods.assignments({ slug: 'ada', query: 'onboarding', activity: [], limit: 20 }),
+      ).toMatchObject({ ok: true, value: { assignments: [{ sessionId: beta }] } });
+      expect(methods.assignment({ slug: 'ada', sessionId: delta })).toMatchObject({
+        ok: true,
+        value: { assignment: { title: 'Startup profiling' } },
+      });
       const gammaRun = f.live.runs.find((run) => run.sessionId === gamma)!;
       await gammaRun.report({ state: 'progress', summary: 'Latency regression found in Login' });
       await f.settle(beta);
@@ -259,7 +344,7 @@ describe('Human Assignment archive from the Sessions view', () => {
       };
       expect(listed()).toMatchObject({
         assignmentReportState: 'waiting-human',
-        assignmentPurpose: 'Ship the release notes',
+        assignmentTitle: 'Ship the release notes',
       });
       expect(listed()?.assignmentArchived).toBeUndefined();
       await expect(
@@ -282,7 +367,11 @@ describe('Assignment Concurrency Limit default', () => {
     const f = await fixture();
     try {
       for (let index = 0; index < 8; index += 1) f.create(`Parallel ${index}`);
-      const ninth = f.access.create({ grantId: TEST_GRANT_ID, purpose: 'One too many' });
+      const ninth = f.access.create({
+        title: 'Assignment',
+        grantId: TEST_GRANT_ID,
+        description: 'One too many',
+      });
       expect(ninth).toMatchObject({ outcome: 'capacity', limit: 8, activeCount: 8 });
     } finally {
       await f.close();

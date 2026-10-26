@@ -52,7 +52,8 @@ const sourceProof = (i) =>
 const assignmentProof = (a) => ({
   sessionId: a.sessionId,
   activity: a.activity,
-  purpose: a.purpose,
+  title: a.title,
+  description: a.description,
   latestReport: a.latestReport,
   permission: { grantId: a.permission.grantId, workspaceId: a.permission.workspaceId },
   ...(a.continuityKey === undefined ? {} : { continuityKey: a.continuityKey }),

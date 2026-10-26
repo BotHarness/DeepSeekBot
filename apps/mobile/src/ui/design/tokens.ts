@@ -91,8 +91,6 @@ export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {
   gutter: tabHeader.gutter,
-  sourceLabelMaxWidth: '30%',
-  sourceLabelShrink: 3,
 } as const;
 export const environmentTab = { widthRatio: 0.6 } as const;
 export const tabLabel = { minimumFontScale: 0.6 } as const;
@@ -115,6 +113,11 @@ export const androidSettings = {
 } as const;
 
 export type TypeRole = { size: number; line: number };
+
+export const conversationType = {
+  name: { fontSize: 18, lineHeight: 24 },
+  preview: { fontSize: 15, lineHeight: 20 },
+} as const;
 
 export const typeScale: Record<
   PlatformOS,
@@ -200,6 +203,7 @@ export const markdownTable = { minColumnWidth: 96, maxColumnWidth: 280 } as cons
 export const drawerSpring = { duration: 280, dampingRatio: 1 } as const;
 
 export const streamReveal = {
+  surfaceDuration: 120,
   duration: 180,
   stagger: 72,
   maxGlyphs: 48,

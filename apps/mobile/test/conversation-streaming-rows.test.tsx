@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type {
@@ -387,6 +388,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   state.os = 'web';
   state.clientEnabled = false;
   state.hostId = 'computer_a';
@@ -615,7 +617,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
 
     state.host.roster.bots = [{ ...bot, state: 'thinking' }];
     render();
-    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
     expect(container.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
     visible();
     act(() => stream.publish({ drafts: [{ draftId: 'first', botSlug: 'ada' }] }));
@@ -629,7 +631,7 @@ it('keeps a first DM visible through send, working, streaming and commit, then r
     act(() => stream.publish({ messages: [human, reply], drafts: [] }));
     visible();
     expect(rows()).toEqual(['first-human', 'first-reply']);
-    expect(container.querySelector('[data-testid="pending"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="pending"]')).toBeNull();
     state.host.roster.bots = [bot];
     render();
     expect(container.querySelector('[data-testid="pending"]')).toBeNull();

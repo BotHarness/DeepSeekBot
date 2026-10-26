@@ -2254,7 +2254,8 @@ describe('bridge methods', () => {
       listAssignments: () => [
         {
           sessionId: 'assignment-1',
-          purpose: '核对发布状态',
+          title: '核对发布状态',
+          description: '核对发布状态',
           activity: 'idle' as const,
           latestReport: {
             state: 'completed' as const,
@@ -2271,7 +2272,8 @@ describe('bridge methods', () => {
               sessionId,
               botSlug: 'ada',
               sourceEventId: 'source-1',
-              purpose: '核对发布状态',
+              title: '核对发布状态',
+              description: '核对发布状态',
               activity: 'idle' as const,
               latestReport: {
                 state: 'completed' as const,
@@ -2315,7 +2317,7 @@ describe('bridge methods', () => {
         assignments: [
           expect.objectContaining({
             sessionId: 'assignment-1',
-            purpose: '核对发布状态',
+            description: '核对发布状态',
             activity: 'idle',
           }),
         ],
@@ -2489,7 +2491,8 @@ describe('bridge methods', () => {
         listAssignments: () =>
           (['session-safe', 'session-danger'] as const).map((sessionId) => ({
             sessionId,
-            purpose: 'Inspect files',
+            title: 'Inspect files',
+            description: 'Inspect files',
             activity: 'idle' as const,
             createdAt: '2026-09-19T00:00:00.000Z',
             updatedAt: '2026-09-19T00:00:00.000Z',
@@ -3092,4 +3095,35 @@ it('resolves attachment identity within its current message and keeps resend ide
       fileId: ref.hash,
     }).ok,
   ).toBe(false);
+});
+
+it('logs why storage cleanup failed instead of hiding it behind storage-unavailable (#2882)', () => {
+  const h = setup();
+  const warn = vi.fn();
+  const methods = createBridgeMethods({
+    registry: h.registry,
+    states: h.states,
+    channels: h.channels,
+    ownership: createTestOwnership(),
+    roster: createTestRosterStore(),
+    warn,
+    storage: {
+      usage: () => {
+        throw new Error('usage broke');
+      },
+      preview: () => {
+        throw new Error('Managed files contain a link');
+      },
+      confirm: () => {
+        throw new Error('unused');
+      },
+    },
+  });
+  expect(methods.storageCleanupPreview({ before: '2026-01-01T00:00:00.000Z' })).toEqual({
+    ok: false,
+    error: { code: 'storage-unavailable', message: 'Storage cleanup preview is unavailable' },
+  });
+  expect(warn).toHaveBeenCalledWith(
+    'Storage cleanup preview is unavailable: Managed files contain a link',
+  );
 });

@@ -4,28 +4,34 @@ export type BubbleGroup = { first: boolean; last: boolean; avatar?: boolean };
 
 export const AVATAR_CORNER = radius.sm;
 
+export const BUBBLE_MAX = '88%';
+
+export const BADGE_HEIGHT = space.x6 + space.x2;
+
+export const BADGE_OVERLAP = BADGE_HEIGHT / 2 + space.x2;
+
 export function bubbleCorners(human: boolean, { first, last, avatar = false }: BubbleGroup) {
   return {
     borderRadius: radius.lg,
     ...(human
       ? {
-          borderTopRightRadius: first ? radius.lg : radius.xs,
-          borderBottomRightRadius: last ? radius.lg : radius.xs,
+          borderTopRightRadius: first ? radius.lg : radius.sm,
+          borderBottomRightRadius: last ? radius.lg : radius.sm,
         }
       : {
-          borderTopLeftRadius: first ? radius.lg : radius.xs,
-          borderBottomLeftRadius: last ? (avatar ? AVATAR_CORNER : radius.lg) : radius.xs,
+          borderTopLeftRadius: first ? radius.lg : radius.sm,
+          borderBottomLeftRadius: last ? (avatar ? AVATAR_CORNER : radius.lg) : radius.sm,
         }),
   } as const;
 }
 
 export function bubbleShape(human: boolean, group: BubbleGroup) {
   return {
-    maxWidth: '80%',
+    maxWidth: BUBBLE_MAX,
     alignSelf: human ? 'flex-end' : 'flex-start',
     ...bubbleCorners(human, group),
-    paddingHorizontal: space.x4,
-    paddingVertical: space.x3,
+    paddingHorizontal: space.x5,
+    paddingVertical: space.x3 + space.x1,
   } as const;
 }
 

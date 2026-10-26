@@ -12,33 +12,18 @@ export const LATEST_SLOP = 40;
 export const SETTLE_FRAMES = 45;
 export const STABLE_FRAMES = 6;
 
-export type ListMetrics = { content: number; layout: number; offset: number };
+export type ListMetrics = { content: number; layout: number; offset: number; inset?: number };
 
 export function atLatest(distance: number): boolean {
   return distance <= LATEST_SLOP;
 }
 
 export function distanceFromLatest(metrics: ListMetrics): number {
-  return metrics.content - metrics.layout - metrics.offset;
+  return metrics.content + (metrics.inset ?? 0) - metrics.layout - metrics.offset;
 }
 
 export function latestOffset(metrics: Omit<ListMetrics, 'offset'>, start: number): number {
-  return Math.max(0 - start, metrics.content - metrics.layout);
-}
-
-export function anchorStep(
-  anchor: number,
-  offset: number,
-  latest: number,
-  following: boolean,
-): number {
-  'worklet';
-  return following ? Math.min(latest, Math.max(anchor, offset)) : latest;
-}
-
-export function anchorShift(anchor: number, offset: number): number {
-  'worklet';
-  return Math.max(0, anchor - offset);
+  return Math.max(0 - start, metrics.content + (metrics.inset ?? 0) - metrics.layout);
 }
 
 export function unseenSince(
@@ -64,7 +49,7 @@ export function useFollowLatest<Row>(
   onFollowingChange?: (following: boolean) => void,
   start = 0,
   empty = false,
-  onLatestChange?: (offset: number) => void,
+  animateGrowth = false,
 ) {
   const [following, setFollowing] = useState(true);
   const [away, setAway] = useState(false);
@@ -75,6 +60,7 @@ export function useFollowLatest<Row>(
   if (!ready && empty) setReady(true);
   const followingNow = useRef(true);
   const dragging = useRef(false);
+  const keyboardMoving = useRef(false);
   const momentumFromDrag = useRef(false);
   const latestId = useRef<string | undefined>(undefined);
   latestId.current = messages.at(-1)?.id;
@@ -82,9 +68,8 @@ export function useFollowLatest<Row>(
   hasRows.current = messages.length > 0;
   const startInset = useRef(start);
   startInset.current = start;
-  const latestChange = useRef(onLatestChange);
-  latestChange.current = onLatestChange;
   const metrics = useRef<ListMetrics>({ content: 0, layout: 0, offset: 0 });
+  const reportedContent = useRef(0);
   const frame = useRef<number | undefined>(undefined);
   const confirmation = useRef<number | undefined>(undefined);
   const sizes = useRef(0);
@@ -106,6 +91,7 @@ export function useFollowLatest<Row>(
   const measureEvent = useCallback((event: ScrollEvent): number => {
     const native = event.nativeEvent;
     metrics.current = {
+      ...metrics.current,
       content:
         !settled.current && metrics.current.content > 0
           ? metrics.current.content
@@ -121,6 +107,7 @@ export function useFollowLatest<Row>(
 
   const scrollToLatest = useCallback(
     (animated: boolean) => {
+      if (keyboardMoving.current) return;
       const offset = latestOffset(metrics.current, startInset.current);
       list.current?.scrollToOffset({ offset, animated });
     },
@@ -163,7 +150,8 @@ export function useFollowLatest<Row>(
         attempts.current += 1;
         const target = latestOffset(metrics.current, startInset.current);
         const fits =
-          metrics.current.content + startInset.current <= metrics.current.layout + 1 &&
+          metrics.current.content + (metrics.current.inset ?? 0) + startInset.current <=
+            metrics.current.layout + 1 &&
           metrics.current.offset >= target &&
           metrics.current.offset <= 0;
         const positioned =
@@ -180,16 +168,35 @@ export function useFollowLatest<Row>(
     check(0);
   }, []);
 
-  const pin = useCallback(() => {
-    latestChange.current?.(latestOffset(metrics.current, startInset.current));
-    if (frame.current !== undefined) return;
-    if (!followingNow.current && settled.current) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = undefined;
-      if (followingNow.current && metrics.current.layout > 0) scrollToLatest(false);
-      if (!settled.current) confirm(sizes.current);
-    });
-  }, [scrollToLatest, confirm]);
+  const pin = useCallback(
+    (animated = false) => {
+      if (keyboardMoving.current || frame.current !== undefined) return;
+      if (!followingNow.current && settled.current) return;
+      frame.current = requestAnimationFrame(() => {
+        frame.current = undefined;
+        if (followingNow.current && metrics.current.layout > 0) scrollToLatest(animated);
+        if (!settled.current) confirm(sizes.current);
+      });
+    },
+    [scrollToLatest, confirm],
+  );
+
+  const onKeyboardStart = useCallback(() => {
+    keyboardMoving.current = true;
+    if (frame.current !== undefined) cancelAnimationFrame(frame.current);
+    if (confirmation.current !== undefined) cancelAnimationFrame(confirmation.current);
+    frame.current = undefined;
+    confirmation.current = undefined;
+  }, []);
+
+  const onKeyboardEnd = useCallback(() => {
+    keyboardMoving.current = false;
+    pin();
+  }, [pin]);
+
+  const onKeyboardInsetChange = useCallback((insets: { bottom: number }) => {
+    metrics.current = { ...metrics.current, inset: insets.bottom };
+  }, []);
 
   const settle = useCallback(
     (distance: number) => {
@@ -242,15 +249,18 @@ export function useFollowLatest<Row>(
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      const previous = reportedContent.current;
+      reportedContent.current = height;
+      if (animateGrowth && previous === height && settled.current) return;
       if (metrics.current.content !== height) {
         metrics.current = { ...metrics.current, content: height };
         sizes.current += 1;
         attempts.current = 0;
         setCanRetry(false);
       }
-      pin();
+      pin(animateGrowth && settled.current && height > previous);
     },
-    [pin],
+    [pin, animateGrowth],
   );
 
   const onLayout = useCallback(
@@ -282,6 +292,11 @@ export function useFollowLatest<Row>(
   }, [pin]);
 
   return {
+    keyboard: {
+      onStart: onKeyboardStart,
+      onEnd: onKeyboardEnd,
+      onInsetChange: onKeyboardInsetChange,
+    },
     away,
     ready,
     canRetry,

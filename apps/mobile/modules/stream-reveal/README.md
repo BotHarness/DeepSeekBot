@@ -35,3 +35,24 @@ timing, Unicode boundaries, replacements, corrections, bounded work, reduced
 motion, cleanup and preservation of externally assigned child measurement and bounds. They do not
 qualify Fabric mounting on hardware, scrolling, TalkBack or native text selection: use the shared Android
 device lane and the `stream-text-reveal` / `stream-window` journeys for those.
+
+## Streaming bubble surface
+
+`StreamSurface` is a separate Android paint adapter in this package. Yoga/Fabric
+still owns the final bubble and child bounds. On height growth at a stable width,
+the surface paints a rounded background and clips the existing children to the
+same 120ms expanding path. New text cannot appear outside its background. There
+is no duplicate text, bitmap allocation, per-frame bridge event, measurement or
+layout request; each animation tick only invalidates drawing. Subsequent wraps
+continue from the currently painted edge. Initial layout, width changes and
+shrinks settle immediately. Detach finishes pending motion.
+
+The JS adapter uses an ordinary View for committed messages, reduced motion,
+unsupported percentage corners and old native builds. iOS retains its existing
+surface; Android evidence does not qualify an iOS animation. Registration of this
+additional native view requires a fresh native build, not an OTA-only update.
+
+`SurfaceGrowthTest` checks the boundary clock and interruption. The Robolectric
+surface test checks actual drawing/clipping and proves child measurement/bounds
+remain untouched across paint frames. Device recordings and alternating Release
+frame measurements are still required for visual/performance acceptance.

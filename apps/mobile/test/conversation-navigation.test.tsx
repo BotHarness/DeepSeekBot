@@ -271,7 +271,7 @@ vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => nu
 vi.mock('../src/ui/chat/activity-row', () => ({ ActivityRow: () => null }));
 vi.mock('../src/ui/chat/question-card', () => ({ QuestionCard: () => null }));
 vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
-vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
+vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () => null }));
 vi.mock('../src/ui/chat/composer', () => ({ Composer: () => null }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
@@ -834,7 +834,7 @@ it('switches a live reply between buffered streaming and complete bubbles withou
   state.display = { mode: 'complete', loaded: true };
   await act(async () => root!.render(<ConversationScreen place={place} focus={undefined} />));
   expect(view.querySelector('[data-testid="draft"]')).toBeNull();
-  expect(view.querySelector('[data-testid="pending"]')).not.toBeNull();
+  expect(view.querySelector('[data-testid="pending"]')).toBeNull();
   expect(view.querySelector('[data-testid="chat-list"] [data-testid="pending"]')).toBeNull();
   expect(view.textContent).toContain('history');
   state.conversation.drafts = [];

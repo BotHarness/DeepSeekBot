@@ -296,6 +296,27 @@ export function AutoCollapseMessagesSetting({
   );
 }
 
+export function DeliveryReceiptsSetting({
+  t,
+  useBotModePrefs,
+  setShowDeliveryReceipts,
+}: BotModeSettingRowProps): ReactElement {
+  const enabled = useBotModePrefs((value) => value.showDeliveryReceipts);
+  return (
+    <SettingsRow
+      title={t('message.delivery.row.title')}
+      description={t('message.delivery.row.description')}
+      control={
+        <Switch
+          checked={enabled}
+          onChange={setShowDeliveryReceipts}
+          label={t('message.delivery.row.title')}
+        />
+      }
+    />
+  );
+}
+
 export function DeveloperModeSetting({
   t,
   useBotModePrefs,

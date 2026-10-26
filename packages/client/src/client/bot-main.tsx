@@ -8,6 +8,7 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { Workspace, type WorkspaceOptions } from './workspace.js';
 import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
+import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
@@ -108,7 +109,12 @@ import {
   humanBubbleColors,
   useConversationSurface,
 } from './bot-primary-color.js';
-import { ChannelDeliveryReceipt } from './channel-delivery-receipt.js';
+import {
+  ChannelDeliveryReceipt,
+  DeliveryReceiptsVisible,
+  MessageReading,
+  readingBots,
+} from './channel-delivery-receipt.js';
 import { BotInboxDialog } from './bot-inbox-dialog.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
@@ -550,6 +556,7 @@ const MessageGroupView = memo(function MessageGroupView({
   onReact,
   onJumpReply,
   onRestoreFailed,
+  reading,
   actions,
   resolvedGrantRequests,
   toolApprovalDecisions,
@@ -572,6 +579,7 @@ const MessageGroupView = memo(function MessageGroupView({
   onReact?: ((message: ChannelMessage, emoji: string, active: boolean) => void) | undefined;
   onRestoreFailed?: ((message: ChannelMessage) => void) | undefined;
   onJumpReply(messageId: string): void;
+  reading?: ReadonlyMap<string, readonly string[]> | undefined;
   actions: BridgeActions;
   resolvedGrantRequests: ReadonlySet<string>;
   toolApprovalDecisions: ReadonlyMap<
@@ -654,42 +662,8 @@ const MessageGroupView = memo(function MessageGroupView({
       ? bots.find((candidate) => candidate.slug === currentDmBotSlug)
       : undefined;
   const bubbleStyle = humanBubbleStyle(botNameSource(dmBot), surface.background);
-  const lastMessage = group.messages[group.messages.length - 1];
-  const lastReactions = (lastMessage?.reactions ?? [])
-    .map((reaction) => `${reaction.emoji}${String(reaction.actors.length)}`)
-    .join(' ');
-  const groupMount = useMountedResource<HTMLDivElement>(
-    (node) => {
-      if (avatar === undefined || lastMessage === undefined || lastReactions === '') return;
-      const chips = Array.from(
-        node.querySelectorAll<HTMLElement>(
-          `.bh-bubble-wrap[data-message-id] > .bh-bubble-surface > [data-message-reactions]`,
-        ),
-      ).find(
-        (element) =>
-          element.closest<HTMLElement>('.bh-bubble-wrap')?.dataset.messageId === lastMessage.id,
-      );
-      if (chips === undefined) return;
-      const lift = (): void => {
-        const margin = Number.parseFloat(getComputedStyle(chips).marginTop) || 0;
-        node.style.setProperty(
-          '--bh-avatar-lift',
-          `${String(chips.getBoundingClientRect().height + margin)}px`,
-        );
-      };
-      lift();
-      const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(lift);
-      observer?.observe(chips);
-      return () => {
-        observer?.disconnect();
-        node.style.removeProperty('--bh-avatar-lift');
-      };
-    },
-    [avatar === undefined, lastMessage?.id, lastReactions],
-  );
   return (
     <div
-      ref={groupMount}
       className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}
@@ -837,17 +811,23 @@ const MessageGroupView = memo(function MessageGroupView({
                     </span>
                   ) : null}
                 </div>
-                <MessageReactionChips
-                  reactions={message.reactions ?? []}
-                  mine={human}
-                  names={reactorName}
-                  onReact={
-                    onReact === undefined || !reactableMessage(message)
-                      ? undefined
-                      : (emoji, active) => onReact(message, emoji, active)
-                  }
-                  t={t}
-                />
+                {(message.reactions ?? []).length > 0 ||
+                (reading?.get(message.id)?.length ?? 0) > 0 ? (
+                  <div className="bh-bubble-badges">
+                    <MessageReactionChips
+                      reactions={message.reactions ?? []}
+                      mine={human}
+                      names={reactorName}
+                      onReact={
+                        onReact === undefined || !reactableMessage(message)
+                          ? undefined
+                          : (emoji, active) => onReact(message, emoji, active)
+                      }
+                      t={t}
+                    />
+                    <MessageReading readers={reading?.get(message.id) ?? []} bots={bots} t={t} />
+                  </div>
+                ) : null}
                 <div className="bh-bubble-toolbar">
                   <div className="bh-bubble-actions">
                     {onReact !== undefined && reactableMessage(message) ? (
@@ -1397,6 +1377,7 @@ function ConversationView({
     }),
     [displayMessages],
   );
+  const reading = useMemo(() => readingBots(messages), [messages]);
   const selection = state.selection;
   const bot =
     selection?.kind === 'bot'
@@ -2149,6 +2130,20 @@ function ConversationView({
     [channelId, displayMessages],
   );
   const imageGallery = useMessageImageGallery(galleryImages, t);
+  const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
+  const pinnedGroups = useMemo(() => {
+    const pinned = new Set<string>();
+    const focus = conversation.focusMessageId;
+    messageGroups.forEach((group, index) => {
+      if (
+        (focus !== undefined && group.messages.some((message) => message.id === focus)) ||
+        (unreadAfter !== undefined && messageGroups[index - 1]?.messages.at(-1)?.id === unreadAfter)
+      )
+        pinned.add(group.key);
+    });
+    return pinned;
+  }, [messageGroups, unreadAfter, conversation.focusMessageId]);
+  const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
     if (divider === null) return false;
@@ -2164,6 +2159,7 @@ function ConversationView({
   const timelineMount = useMountedResource<HTMLDivElement>(
     (element) => {
       scrollRef.current = element;
+      timelineWindow.rootRef(element);
       if (conversation.timeline.olderError !== undefined) prependAnchor.current = null;
       if (conversation.status === 'ready') {
         if (conversation.focusMessageId !== undefined && conversation.timeline.hasNewer) {
@@ -2861,6 +2857,7 @@ function ConversationView({
           <div
             className="bh-chat-body"
             ref={timelineMount}
+            data-loaded-messages={displayMessages.length}
             onScroll={onTimelineScroll}
             onTransitionEnd={(event) => {
               if (
@@ -2904,7 +2901,19 @@ function ConversationView({
               <EmptyConversation channel={channel} bot={bot} t={t} />
             ) : null}
             <MessageSelectionContext.Provider value={messageSelection}>
-              {messageGroups.map((group, index, groups) => {
+              {timelineWindow.runs.map((run) => {
+                const groups = messageGroups;
+                if (run.kind === 'gap')
+                  return (
+                    <div
+                      key={`gap:${groups[run.from]!.key}`}
+                      className="bh-timeline-gap"
+                      aria-hidden="true"
+                      style={{ height: run.height }}
+                    />
+                  );
+                const index = run.index;
+                const group = groups[index]!;
                 const first = group.messages[0]!;
                 const previous = groups[index - 1]?.messages.at(-1);
                 const firstDay = Number.isFinite(Date.parse(first.at))
@@ -2915,7 +2924,13 @@ function ConversationView({
                     ? new Date(previous.at).toDateString()
                     : undefined;
                 return (
-                  <div key={group.key} className="bh-message-block">
+                  <div
+                    key={group.key}
+                    ref={timelineWindow.blockRef(group.key)}
+                    className="bh-message-block"
+                    data-group-key={group.key}
+                    data-follows={index > 0 ? '' : undefined}
+                  >
                     {unreadAfter !== undefined && previous?.id === unreadAfter ? (
                       <TimelineUnreadDivider label={t('messages.newDivider')} />
                     ) : null}
@@ -3051,6 +3066,7 @@ function ConversationView({
                         <MessageGroupView
                           humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
                           group={group}
+                          reading={reading}
                           channelId={channelId}
                           actions={actions}
                           gallery={imageGallery.gallery}
@@ -3723,18 +3739,25 @@ export function BotMain({
     () => prefs?.source.getSnapshot().autoCollapseMessages ?? false,
     () => false,
   );
+  const showDeliveryReceipts = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
+    () => false,
+  );
   return (
-    <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-      <MessageDeveloperMode.Provider value={developerMode}>
-        <ComposerSendKeyContext.Provider value={sendKey}>
-          <AppearanceContext.Provider value={appearance}>
-            <Workspace options={workspace} t={props.t ?? zhTranslate}>
-              <BotMainContent {...props} />
-            </Workspace>
-          </AppearanceContext.Provider>
-        </ComposerSendKeyContext.Provider>
-      </MessageDeveloperMode.Provider>
-    </AutoCollapseMessages.Provider>
+    <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
+      <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+        <MessageDeveloperMode.Provider value={developerMode}>
+          <ComposerSendKeyContext.Provider value={sendKey}>
+            <AppearanceContext.Provider value={appearance}>
+              <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                <BotMainContent {...props} />
+              </Workspace>
+            </AppearanceContext.Provider>
+          </ComposerSendKeyContext.Provider>
+        </MessageDeveloperMode.Provider>
+      </AutoCollapseMessages.Provider>
+    </DeliveryReceiptsVisible.Provider>
   );
 }
 

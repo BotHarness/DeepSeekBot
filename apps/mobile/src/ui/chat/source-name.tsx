@@ -1,6 +1,6 @@
 import { View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
-import { chatList, space } from '../design/tokens';
+import { conversationType, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { hostColorInk, type HostLook } from '../design/host-look';
 import { HostGlyph } from '../shell/host-tile';
@@ -33,7 +33,12 @@ export function SourceName({
         gap: space.x2,
       }}
     >
-      <Text strong numberOfLines={1} ellipsizeMode="tail" style={{ flexShrink: 1 }}>
+      <Text
+        dynamicTypeRamp="headline"
+        numberOfLines={1}
+        ellipsizeMode="tail"
+        style={[conversationType.name, { flex: 1, minWidth: 0 }]}
+      >
         {name}
       </Text>
       <View
@@ -51,21 +56,6 @@ export function SourceName({
           <Icon color={theme.color.subtle} size={size} />
         )}
       </View>
-      {sourceLabel ? (
-        <Text
-          variant="meta"
-          tone="subtle"
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          style={{
-            minWidth: 0,
-            maxWidth: chatList.sourceLabelMaxWidth,
-            flexShrink: chatList.sourceLabelShrink,
-          }}
-        >
-          {sourceLabel}
-        </Text>
-      ) : null}
     </View>
   );
 }

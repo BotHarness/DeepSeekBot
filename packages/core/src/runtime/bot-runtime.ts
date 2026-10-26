@@ -124,6 +124,10 @@ import {
   type BotSourcePolicy,
   type BotSourcePolicyStore,
 } from './source-policy.js';
+import {
+  ASSIGNMENT_DESCRIPTION_MAX_LENGTH,
+  ASSIGNMENT_TITLE_MAX_LENGTH,
+} from './assignment-title.js';
 import type { AssignmentReportPage } from './assignment-tail.js';
 import type {
   BotSchedule,
@@ -169,7 +173,8 @@ export interface AssignmentOpenAsk {
 
 export interface AssignmentSummary {
   sessionId: string;
-  purpose: string;
+  title: string;
+  description: string;
   activity: AssignmentActivity;
   executionWait?: AssignmentExecutionWait;
   latestReport?: AssignmentReport;
@@ -222,7 +227,8 @@ export interface NativeSessionArchive {
 export interface ChannelAssignmentSummary {
   sessionId: string;
   botSlug: string;
-  purpose: string;
+  title: string;
+  description: string;
   activity: AssignmentActivity;
   latestReport?: AssignmentReport;
   createdAt: string;
@@ -269,7 +275,9 @@ export type AssignmentRequestOutcome =
 export interface OrchestratorAssignmentAccess {
   wait?(sessionId: string, signal: AbortSignal, timeoutMs?: number): Promise<AssignmentWaitOutcome>;
   create(input: {
-    purpose: string;
+    title: string;
+    description: string;
+    instructions?: string;
     key?: string;
     grantId: string;
     model?: ModelRoute;
@@ -425,7 +433,7 @@ export interface AssignmentAgentRun {
   requireContent?(): void;
   sessionId: string;
   bot: PersonaBotRecord;
-  purpose: string;
+  text: string;
 
   resume?: boolean;
   permission: AssignmentPermissionSnapshot;
@@ -861,7 +869,8 @@ interface AssignmentRow {
   session_id: string;
   source_event_id: string;
   bot_slug: string;
-  purpose: string;
+  title: string;
+  description: string;
   activity: 'working' | 'idle' | 'error';
   stop_state: 'running' | 'requested' | 'stopped';
   latest_report_state: AssignmentReportState | null;
@@ -1052,7 +1061,8 @@ function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
     sessionId: row.session_id,
     sourceEventId: row.source_event_id,
     botSlug: row.bot_slug,
-    purpose: row.purpose,
+    title: row.title,
+    description: row.description,
     activity:
       row.stop_state === 'requested'
         ? 'stopping'
@@ -1125,7 +1135,8 @@ export function queryAssignmentDirectory(
     if (activity !== undefined && !activity.has(assignment.activity)) return false;
     if (text !== undefined && text !== '') {
       const haystack = [
-        assignment.purpose,
+        assignment.title,
+        assignment.description,
         assignment.continuityKey ?? '',
         assignment.latestReport?.summary ?? '',
       ]
@@ -1268,6 +1279,17 @@ function renderInbox(units: InboxUnit[]): string {
     'context. Do not repeat these summaries back verbatim.',
     ...lines,
   ].join('\n');
+}
+
+function requireBoundedText(value: unknown, field: string, maxLength: number): string {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  if (normalized === '')
+    throw new TypeError(`create_assignment: ${field} is required and must not be blank`);
+  if ([...normalized].length > maxLength)
+    throw new TypeError(
+      `create_assignment: ${field} must be at most ${maxLength} characters; keep it short`,
+    );
+  return normalized;
 }
 
 function requireNonBlank(value: string, name: string): string {
@@ -4055,7 +4077,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const rows = this.#database.read((database) =>
       database
         .prepare(
-          `SELECT session_id, source_event_id, bot_slug, purpose, activity, stop_state,
+          `SELECT session_id, source_event_id, bot_slug, title, description, activity, stop_state,
                   latest_report_state, latest_report_summary, latest_report_at,
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
@@ -4082,7 +4104,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const rows = this.#database.read((database) =>
       database
         .prepare(
-          `SELECT a.session_id, a.source_event_id, a.bot_slug, a.purpose, a.activity, a.stop_state,
+          `SELECT a.session_id, a.source_event_id, a.bot_slug, a.title, a.description, a.activity, a.stop_state,
                   a.latest_report_state, a.latest_report_summary, a.latest_report_at,
                   a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
                   a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
@@ -4101,7 +4123,8 @@ class BotRuntimeImplementation implements BotRuntime {
       return {
         sessionId: assignment.sessionId,
         botSlug: assignment.botSlug,
-        purpose: assignment.purpose,
+        title: assignment.title,
+        description: assignment.description,
         activity: assignment.activity,
         ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
         createdAt: assignment.createdAt,
@@ -4202,7 +4225,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const row = this.#database.read((database) =>
       database
         .prepare(
-          `SELECT session_id, source_event_id, bot_slug, purpose, activity, stop_state,
+          `SELECT session_id, source_event_id, bot_slug, title, description, activity, stop_state,
                   latest_report_state, latest_report_summary, latest_report_at,
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
@@ -7216,9 +7239,26 @@ class BotRuntimeImplementation implements BotRuntime {
   #createOrReuseAssignment(
     bot: PersonaBotRecord,
     sourceEventId: string,
-    input: { purpose: string; key?: string; grantId: string; model?: ModelRoute },
+    input: {
+      title: string;
+      description: string;
+      instructions?: string;
+      key?: string;
+      grantId: string;
+      model?: ModelRoute;
+    },
   ): AssignmentCreateOutcome {
-    const purpose = requireNonBlank(input.purpose, 'Assignment purpose');
+    const title = requireBoundedText(input.title, 'title', ASSIGNMENT_TITLE_MAX_LENGTH);
+    const description = requireBoundedText(
+      input.description,
+      'description',
+      ASSIGNMENT_DESCRIPTION_MAX_LENGTH,
+    );
+    const instructions =
+      input.instructions === undefined || input.instructions.trim() === ''
+        ? undefined
+        : input.instructions.trim();
+    const text = instructions ?? description;
     const grantId = requireNonBlank(input.grantId, 'Workspace Grant id');
     if (this.#registry.get(bot.slug) === undefined) throw new Error('PersonaBot is deleted');
     const plan = this.#registry.get(bot.slug)?.modelPlan ?? bot.modelPlan;
@@ -7255,7 +7295,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const request = this.#requestAssignment(bot, {
           sessionId: holder.session_id,
           mode: 'next-turn',
-          text: purpose,
+          text,
         });
         if (request.delivery === 'capacity') {
           const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
@@ -7290,16 +7330,17 @@ class BotRuntimeImplementation implements BotRuntime {
         database
           .prepare(
             `INSERT INTO assignments (
-               session_id, source_event_id, bot_slug, purpose, activity, continuity_key,
-               grant_id, workspace_id, primary_cwd, permission_mode, approval_policy,
-               preset_revision, model_route_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               session_id, source_event_id, bot_slug, title, description, activity,
+               continuity_key, grant_id, workspace_id, primary_cwd, permission_mode,
+               approval_policy, preset_revision, model_route_json, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             sessionId,
             sourceEventId,
             bot.slug,
-            purpose,
+            title,
+            description,
             key ?? null,
             permission.grantId,
             permission.workspaceId,
@@ -7320,7 +7361,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug)),
         sessionId,
         bot,
-        purpose,
+        text,
         permission,
         ...(modelRoute === undefined ? {} : { modelRoute }),
         report: async (report, execution) =>
@@ -7410,7 +7451,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#database.read((db) => requireSourceEffects(db, row.source_event_id, bot.slug)),
       sessionId: input.sessionId,
       bot,
-      purpose: text,
+      text,
       resume: true,
       permission,
       ...(modelRoute === undefined ? {} : { modelRoute }),
@@ -7664,7 +7705,7 @@ class BotRuntimeImplementation implements BotRuntime {
       sessionId: row.session_id,
       role: 'assignment',
       error,
-      context: row.purpose,
+      context: row.title,
       ...(error instanceof AssignmentInboxAcceptanceUncertainError ||
       row.open_ask_source_event_id === null
         ? {}
@@ -7724,7 +7765,7 @@ class BotRuntimeImplementation implements BotRuntime {
               sessionId,
               role: 'assignment',
               error,
-              context: row.purpose,
+              context: row.title,
               ...(refused.answerTo === undefined ? {} : { assignmentAnswerTo: refused.answerTo }),
             });
           }

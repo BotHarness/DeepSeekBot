@@ -45,6 +45,8 @@ const en = {
     settingHint: 'Show whether mentioned Bots received your message.',
     settingStorageError: 'Could not save this choice. Toggle again to retry.',
     summary: (parts: string) => `Delivery status: ${parts}`,
+    reading: (names: string) => `${names} reading`,
+    more: (count: number) => `+${count}`,
     state: {
       pending: 'Delivered',
       observed: 'Read',
@@ -366,6 +368,7 @@ const en = {
     'This conversation belongs to a different cloud sign-in. Open it again from your conversation list.',
   conversationDetails: 'Conversation details',
   recentNotLoaded: 'Open to load messages',
+  noMessagesYet: 'No messages yet',
   dialogFailed: 'That did not go through. Try again.',
   openMention: (name: string) => `Open chat with ${name}`,
   connectionName: 'Name on this phone',
@@ -1835,6 +1838,8 @@ const zh: typeof en = {
     settingHint: '在消息旁显示被 @ 的 Bot 是否收到。',
     settingStorageError: '未能保存此选择，请重新切换以重试。',
     summary: (parts: string) => `投递状态：${parts}`,
+    reading: (names: string) => `${names} 正在阅读`,
+    more: (count: number) => `+${count}`,
     state: {
       pending: '已投递',
       observed: '已读',
@@ -2133,6 +2138,7 @@ const zh: typeof en = {
   cloudSourceChanged: '此会话属于另一个云端登录身份，请从会话列表重新打开。',
   conversationDetails: '会话详情',
   recentNotLoaded: '打开以加载消息',
+  noMessagesYet: '暂无消息',
   dialogFailed: '操作没有成功，请重试。',
   openMention: (name: string) => `打开与${name}的私聊`,
   connectionName: '在这台手机上的名称',

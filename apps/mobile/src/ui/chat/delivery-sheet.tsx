@@ -7,7 +7,7 @@ import { radius, rowGlyph, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
-import { receiptColor, useReceiptCounts } from './delivery-pie';
+import { receiptColor, useReceiptCounts } from './delivery-stack';
 import { Sheet } from './sheet';
 
 export function DeliverySheet({

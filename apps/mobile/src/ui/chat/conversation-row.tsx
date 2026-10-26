@@ -5,7 +5,7 @@ import { Platform, Pressable, View, type ViewInstance } from 'react-native';
 
 import { BotAvatar } from '../bot-avatar';
 import type { HostLook } from '../design/host-look';
-import { chatList, edge, radius, space } from '../design/tokens';
+import { chatList, conversationType, edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -57,20 +57,13 @@ export function ConversationRow({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
 }) {
-  const t = useStrings();
+  const copy = useStrings();
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
-  const preview =
-    latest !== undefined
-      ? previewText(latest)
-      : row.kind === 'bot'
-        ? row.bot.paused
-          ? t.paused
-          : ''
-        : t.members(row.channel.memberCount);
+  const preview = previewText(latest, copy);
   const badge = countBadge(row);
-  const time = shortTime(row.at, now);
+  const time = shortTime(row.at ?? row.createdAt, now);
   const description = rowLabel(row, title, status, preview);
   const label = sourceLabel ? `${description}, ${sourceLabel}` : description;
   const act = onAction ?? (() => undefined);
@@ -287,7 +280,7 @@ export function ConversationRowFrame({
         >
           <SourceName name={title} source={source} look={look} sourceLabel={sourceLabel} />
           {time === '' ? null : (
-            <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 0 }}>
+            <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
               {time}
             </Text>
           )}
@@ -295,10 +288,11 @@ export function ConversationRowFrame({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text
             variant="meta"
+            dynamicTypeRamp="subheadline"
             tone={unread ? 'fg' : 'muted'}
             numberOfLines={1}
             ellipsizeMode="tail"
-            style={{ flex: 1 }}
+            style={[conversationType.preview, { flex: 1 }]}
           >
             {preview}
           </Text>

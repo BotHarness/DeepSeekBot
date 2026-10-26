@@ -12,6 +12,7 @@ export interface PersonaBotSessionRow {
   role: OwnedSessionSummary['role'];
   assignmentAccessMode?: OwnedSessionSummary['assignmentAccessMode'];
   title: string;
+  description?: string;
   cwd: string | undefined;
   updatedAt: number;
   status: 'running' | 'stopping' | 'attention' | 'stopped' | 'idle' | 'unavailable';
@@ -84,7 +85,13 @@ export function personaBotSessionRows(
         ...(item.role === 'assignment' && item.assignmentAccessMode !== undefined
           ? { assignmentAccessMode: item.assignmentAccessMode }
           : {}),
-        title: native?.displayTitle || item.assignmentPurpose || item.sessionId,
+        title:
+          (item.role === 'assignment' ? item.assignmentTitle : undefined) ||
+          native?.displayTitle ||
+          item.sessionId,
+        ...(item.role === 'assignment' && item.assignmentDescription
+          ? { description: item.assignmentDescription }
+          : {}),
         cwd: native?.cwd ?? item.cwdReference,
         updatedAt: native?.updatedAt ?? Date.parse(item.createdAt),
         status,

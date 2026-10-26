@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, useLayoutEffect, useSyncExternalStore, type ReactNode, type Ref } from 'react';
+import { act, memo, useLayoutEffect, useSyncExternalStore, type ReactNode, type Ref } from 'react';
 import { createHostClient, type HostClient } from '../src/host/client';
 import { FakeHost } from './fake-host';
 import { createRoot, type Root } from 'react-dom/client';
@@ -350,6 +350,9 @@ import { sectionCollapse } from '../src/host/native-section-collapse';
 import HomeScreen from '../app/(tabs)/(home)/index';
 import ActivityScreen from '../app/(tabs)/(activity)/activity';
 import { t } from '../src/ui/strings';
+import { interfacePreferences } from '../src/ui/interface-preferences';
+import { ConversationRow } from '../src/ui/chat/conversation-row';
+import type { Conversation } from '../src/ui/chat/conversations';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -983,6 +986,32 @@ describe('Search in the Chats header', () => {
     expect(rows(view)).toHaveLength(3);
   });
 
+  it('updates an unchanged memoized empty row when the app language changes', async () => {
+    const language = interfacePreferences.getSnapshot().language;
+    const MemoRow = memo(ConversationRow);
+    const row: Conversation = {
+      kind: 'channel',
+      key: 'channel:empty',
+      channel: { id: 'empty', name: 'Empty channel', memberCount: 0, members: [] },
+      needsYou: 0,
+      unread: 0,
+      muted: false,
+    };
+    try {
+      await act(async () => interfacePreferences.setLanguage('en'));
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      await act(async () => root!.render(<MemoRow row={row} now={new Date()} />));
+      expect(host.textContent).toContain('No messages yet');
+      await act(async () => interfacePreferences.setLanguage('zh'));
+      expect(host.textContent).toContain('暂无消息');
+      expect(host.textContent).not.toContain('No messages yet');
+    } finally {
+      await act(async () => interfacePreferences.setLanguage(language));
+    }
+  });
+
   it('filters the list in place and opens the chat the Human taps', async () => {
     const view = await home();
     expect(rows(view)).toHaveLength(3);
@@ -998,9 +1027,11 @@ describe('Search in the Chats header', () => {
     });
 
     await type(view, '小明');
-    expect(rows(view)).toEqual(['小明, studio']);
+    expect(rows(view)).toEqual([`小明, ${t.noMessagesYet}, studio`]);
 
     await type(view, 'launch');
+    expect(rows(view)).toEqual([`Launch team, ${t.noMessagesYet}, studio`]);
+    expect(view.textContent).toContain(t.noMessagesYet);
     await act(async () =>
       [...view.querySelectorAll('button')]
         .find((node) => node.getAttribute('aria-label')?.startsWith('Launch team'))!

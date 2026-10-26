@@ -43,3 +43,39 @@ export function receiptGroups(
     return members.length === 0 ? [] : [{ state, recipients: members }];
   });
 }
+
+const readingSince = new Map<string, number>();
+
+export function readingBots(
+  messages: readonly ConversationMessage[],
+): Map<string, readonly string[]> {
+  const claimed = new Set<string>();
+  const result = new Map<string, readonly string[]>();
+  const live = new Set<string>();
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index]!;
+    if (message.delivery === 'pending' || message.delivery === 'failed') continue;
+    const readers = (message.deliveries ?? [])
+      .filter(
+        (delivery) =>
+          delivery.state === 'running' &&
+          delivery.botSlug !== message.bot &&
+          !claimed.has(delivery.botSlug),
+      )
+      .map((delivery) => delivery.botSlug);
+    if (readers.length === 0) continue;
+    for (const botSlug of readers) {
+      claimed.add(botSlug);
+      const key = `${message.id}:${botSlug}`;
+      live.add(key);
+      if (!readingSince.has(key)) readingSince.set(key, Date.now());
+    }
+    const since = (botSlug: string) => readingSince.get(`${message.id}:${botSlug}`) ?? 0;
+    result.set(
+      message.id,
+      readers.sort((left, right) => since(right) - since(left)),
+    );
+  }
+  for (const key of readingSince.keys()) if (!live.has(key)) readingSince.delete(key);
+  return result;
+}

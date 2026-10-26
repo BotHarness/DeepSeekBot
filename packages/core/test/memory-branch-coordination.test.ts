@@ -74,8 +74,9 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
       orchestratorSessions.push(run.sessionId);
       if (run.message.endsWith('start assignment')) {
         const created = run.assignments.create({
+          title: 'Assignment',
           grantId: TEST_GRANT_ID,
-          purpose: 'Continue related project work while Memory is being updated',
+          description: 'Continue related project work while Memory is being updated',
           key: 'related-work',
         });
         expect(created.outcome).toBe('created');
@@ -128,7 +129,7 @@ it('coordinates a dirty Memory switch with an addressed Assignment and retries i
       });
     },
     requestAssignment(run) {
-      requests.push({ sessionId: run.sessionId, text: run.purpose });
+      requests.push({ sessionId: run.sessionId, text: run.text });
       return { delivery: 'steer' };
     },
     async close() {},

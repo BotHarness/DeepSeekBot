@@ -1819,6 +1819,9 @@ export const zh = {
   'message.delivery.thisMessage': '这条消息',
   'message.delivery.notInInbox': '这条消息没有进入 {name} 的收件箱。',
   'message.delivery.history': '收件记录',
+  'message.delivery.row.title': '显示收件与已读状态',
+  'message.delivery.row.description': '在消息旁用头像显示每个 Bot 和成员的收件、处理和已读状态',
+  'message.reading': '{names} 正在阅读',
   'message.failed': '发送失败',
   'message.failedRestore': '将失败消息放回输入框修改后重发',
   'message.unconfirmed': '结果未确认',
@@ -2482,7 +2485,7 @@ export const zh = {
   'sourcePolicy.immediateOption': '每条报告立即唤醒',
   'sourcePolicy.groupEditTitle': '普通群消息默认唤醒',
   'sourcePolicy.groupEditDescription':
-    '影响之后进入 Bot 收件箱的普通群消息；已设置的单群唤醒设置优先，直接 @ 始终即时送达。',
+    '影响之后进入 Bot 收件箱的普通群消息；单群设置优先，但选了仅直接 @ 或静默时，单群设置不会让它更常被唤醒。直接 @ 始终即时送达。',
   'sourcePolicy.groupAllOption': '每条普通消息立即唤醒',
   'sourcePolicy.groupDigestOption': '汇总后唤醒',
   'sourcePolicy.groupMentionsOption': '仅直接 @ 唤醒',
@@ -6333,6 +6336,10 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'message.delivery.thisMessage': 'This message',
   'message.delivery.notInInbox': "This message never reached {name}'s Inbox.",
   'message.delivery.history': 'Inbox history',
+  'message.delivery.row.title': 'Show delivery and read status',
+  'message.delivery.row.description':
+    'Show avatars beside messages for whether each Bot and member received, handled or read them',
+  'message.reading': '{names} reading',
   'message.failed': 'Failed to send',
   'message.failedRestore': 'Restore failed message to composer to edit and resend',
   'message.unconfirmed': 'Not confirmed',
@@ -7047,7 +7054,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sourcePolicy.immediateOption': 'Wake for every report',
   'sourcePolicy.groupEditTitle': 'Ordinary Group default wake',
   'sourcePolicy.groupEditDescription':
-    'Applies to later ordinary Group messages. A saved per-Group preference takes priority, and direct mentions always arrive immediately.',
+    'Applies to later ordinary Group messages. A saved per-Group preference takes priority, but cannot wake the Bot more often than Only direct mentions or Silent. Direct mentions always arrive immediately.',
   'sourcePolicy.groupAllOption': 'Wake for every ordinary message',
   'sourcePolicy.groupDigestOption': 'Wake after digest threshold',
   'sourcePolicy.groupMentionsOption': 'Only direct mentions wake',

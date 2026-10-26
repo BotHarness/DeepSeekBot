@@ -193,6 +193,7 @@ vi.mock('../src/ui/chat/speaker-row', async () => {
     createSpeakerRegistry: () => ({ setGroups() {} }),
   };
 });
+vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () => null }));
 vi.mock('../src/ui/chat/approval-card', () => ({ ApprovalCard: () => null }));
 vi.mock('../src/ui/chat/grant-request-card', () => ({ GrantRequestCard: () => null }));
 vi.mock('../src/ui/chat/private-input-card', () => ({ PrivateInputCard: () => null }));
