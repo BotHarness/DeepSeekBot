@@ -57,7 +57,6 @@ export function ConversationRow({
   actions?: readonly ConversationAction[];
   onAction?: (key: ConversationActionKey) => void;
 }) {
-  const t = useStrings();
   const title = titleOf(row);
   const status = rowStatus(row, now);
   const latest = row.kind === 'bot' ? row.bot.preview : row.channel.preview;
