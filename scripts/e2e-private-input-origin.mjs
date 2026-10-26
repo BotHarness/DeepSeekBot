@@ -320,12 +320,16 @@ try {
           .at(-1)?.event.type === 'turn/end',
       'recovery turn end',
     );
+    const replies = await fixture('replies', bot.slug);
+    const recovered = replies.filter((reply) => reply.recovered);
+    assert.equal(recovered.length, 1);
+    assert.equal(recovered[0].messageId, first.messageIds[0]);
     const cli = (tool, args) =>
       new Promise((done, reject) => {
         const login = new URL(instance.url);
         const child = spawn(
           process.execPath,
-          ['packages/core/cli/index.mjs', 'bot-tool', bot.slug, tool, '--args-stdin'],
+          ['packages/deepseekbot/src/deepseekbot.mjs', 'bot-tool', bot.slug, tool, '--args-stdin'],
           {
             env: {
               ...process.env,
@@ -363,6 +367,7 @@ try {
       args: ['--version'],
       env: [{ name: 'GH_TOKEN', value: '{{token}}' }],
     });
+    direct.catch(() => {});
     const directApproval = await waitFor(pending, 'direct CLI native approval');
     await call('toolApprovalDecide', {
       channelId,
@@ -374,6 +379,7 @@ try {
       synthetic: true,
       firstRefusal: 'private-source-required',
       selectedOriginalRequest: true,
+      repliedToOriginalRequest: true,
       correctedExitCode: 0,
       inputCards: 1,
       directCliExitCode: 0,

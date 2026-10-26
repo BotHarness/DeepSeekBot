@@ -881,13 +881,17 @@ export class PrivateInputs {
         this.#completed.delete(this.#accounts.key(scope));
         const promise = Promise.resolve()
           .then(() => {
-            if (controller.signal.aborted || (origin !== undefined && !origin.current()))
-              throw new Error('Protected credential consumer was cancelled');
+            if (origin !== undefined && !origin.current())
+              throw new PrivateInputRefusal('private-source-revoked');
+            if (controller.signal.aborted)
+              throw controller.signal.reason instanceof PrivateInputRefusal
+                ? controller.signal.reason
+                : new Error('Protected credential consumer was cancelled');
             return run(resolved, controller.signal);
           })
           .then(
             (result) => {
-              if (origin !== undefined && (controller.signal.aborted || !origin.current())) {
+              if (origin !== undefined && !origin.current()) {
                 settle('completed');
                 throw new PrivateInputRefusal('private-source-revoked');
               }
@@ -896,6 +900,10 @@ export class PrivateInputs {
             },
             (error: unknown) => {
               settle(controller.signal.aborted ? 'stopped' : 'completed');
+              if (origin !== undefined && !origin.current())
+                throw new PrivateInputRefusal('private-source-revoked');
+              if (controller.signal.reason instanceof PrivateInputRefusal)
+                throw controller.signal.reason;
               throw error;
             },
           )
@@ -1138,7 +1146,8 @@ export class PrivateInputs {
       completed: uses.length === 0 && this.#completed.has(this.#accounts.key(scope)) ? 1 : 0,
       uncertain: 0,
     };
-    for (const use of uses) use.controller.abort();
+    for (const use of uses)
+      use.controller.abort(new PrivateInputRefusal('private-account-unavailable'));
     this.deps.log('consumer-stop-requested', {
       botSlug: scope.botSlug,
       initiator,

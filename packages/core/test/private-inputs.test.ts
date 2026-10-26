@@ -139,28 +139,28 @@ describe('private input card in the Channel the task came from', () => {
   });
 });
 
-describe('IM private input origin leases', () => {
-  function origin() {
-    const controller = new AbortController();
-    let current = true;
-    let applies = true;
-    return {
-      lease: {
-        sourceEventId: 'im-source',
-        signal: controller.signal,
-        current: () => current && !controller.signal.aborted,
-        applies: () => applies,
-      },
-      revoke: () => {
-        current = false;
-        controller.abort();
-      },
-      nextTurn: () => {
-        applies = false;
-      },
-    };
-  }
+function origin() {
+  const controller = new AbortController();
+  let current = true;
+  let applies = true;
+  return {
+    lease: {
+      sourceEventId: 'im-source',
+      signal: controller.signal,
+      current: () => current && !controller.signal.aborted,
+      applies: () => applies,
+    },
+    revoke: () => {
+      current = false;
+      controller.abort();
+    },
+    nextTurn: () => {
+      applies = false;
+    },
+  };
+}
 
+describe('IM private input origin leases', () => {
   it('opens only an Owner Web card, notifies the captured source, and revokes result delivery with the account', async () => {
     const source = origin();
     const notify = vi.fn(async () => {});
@@ -291,46 +291,54 @@ describe('IM private input origin leases', () => {
     }
   });
 
-  it('stops in-flight IM consumption and permits later unattended reuse independently of its old source', async () => {
-    const source = origin();
-    const f = await fixture(true, undefined, {
-      origin: () => (source.lease.applies() ? source.lease : undefined),
-      notify: async () => {},
-    });
-    try {
-      const result = f.owner.ask(f.agent, declaration, new AbortController().signal);
-      await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
-      const id = f.channels.readMessages('dm-ada')[0]!.id;
-      await f.owner.submit(true, { channelId: 'dm-ada', messageId: id, values });
-      const configured = await result;
-      let active: AbortSignal | undefined;
-      const consume = f.owner.consume(
-        f.agent,
-        declaration.account,
-        configured.references,
-        async (_values, signal) => {
-          active = signal;
-          return new Promise((resolve) =>
-            signal.addEventListener('abort', () => resolve('late result'), { once: true }),
-          );
-        },
-      );
-      const rejected = expect(consume).rejects.toMatchObject({ code: 'private-source-revoked' });
-      await vi.waitFor(() => expect(active).toBeDefined());
-      source.revoke();
-      await rejected;
-      expect(active?.aborted).toBe(true);
-      source.nextTurn();
-      f.unattended();
-      const reused = await f.owner.ask(f.agent, declaration, new AbortController().signal);
-      expect(reused.references).toEqual(configured.references);
-      expect(
-        await f.owner.consume(f.agent, declaration.account, reused.references, async () => 200),
-      ).toBe(200);
-    } finally {
-      await f.close();
-    }
-  });
+  it.each(['resolve', 'reject'])(
+    'stops in-flight IM consumption (%s) and permits later unattended reuse independently of its old source',
+    async (outcome) => {
+      const source = origin();
+      const f = await fixture(true, undefined, {
+        origin: () => (source.lease.applies() ? source.lease : undefined),
+        notify: async () => {},
+      });
+      try {
+        const result = f.owner.ask(f.agent, declaration, new AbortController().signal);
+        await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
+        const id = f.channels.readMessages('dm-ada')[0]!.id;
+        await f.owner.submit(true, { channelId: 'dm-ada', messageId: id, values });
+        const configured = await result;
+        let active: AbortSignal | undefined;
+        const consume = f.owner.consume(
+          f.agent,
+          declaration.account,
+          configured.references,
+          async (_values, signal) => {
+            active = signal;
+            return new Promise((resolve, reject) =>
+              signal.addEventListener(
+                'abort',
+                () =>
+                  outcome === 'resolve' ? resolve('late result') : reject(new Error('aborted')),
+                { once: true },
+              ),
+            );
+          },
+        );
+        const rejected = expect(consume).rejects.toMatchObject({ code: 'private-source-revoked' });
+        await vi.waitFor(() => expect(active).toBeDefined());
+        source.revoke();
+        await rejected;
+        expect(active?.aborted).toBe(true);
+        source.nextTurn();
+        f.unattended();
+        const reused = await f.owner.ask(f.agent, declaration, new AbortController().signal);
+        expect(reused.references).toEqual(configured.references);
+        expect(
+          await f.owner.consume(f.agent, declaration.account, reused.references, async () => 200),
+        ).toBe(200);
+      } finally {
+        await f.close();
+      }
+    },
+  );
 });
 
 describe('private input native authority and reference contract', () => {
@@ -552,7 +560,11 @@ describe('private input native authority and reference contract', () => {
   });
 
   it('revocation stops an active consumer and invalidates a pending replacement without affecting another Bot', async () => {
-    const f = await fixture();
+    const source = origin();
+    const f = await fixture(true, undefined, {
+      origin: () => source.lease,
+      notify: async () => {},
+    });
     const a = f.owner.ask(f.agent, declaration, new AbortController().signal);
     const b = f.owner.ask(f.bea, declaration, new AbortController().signal);
     await vi.waitFor(() => expect(f.channels.readMessages('dm-bea')).toHaveLength(1));
@@ -578,7 +590,7 @@ describe('private input native authority and reference contract', () => {
         );
       },
     );
-    const refused = expect(use).rejects.toThrow(/cancelled/);
+    const refused = expect(use).rejects.toMatchObject({ code: 'private-account-unavailable' });
     await entered;
     expect(await f.owner.revoke(true, 'dm-ada', aId)).toEqual({
       accepted: true,
@@ -601,8 +613,12 @@ describe('private input native authority and reference contract', () => {
     await f.close();
   });
 
-  it('reports a consumer that completes despite a stop signal as completed, not stopped', async () => {
-    const f = await fixture();
+  it('reports a consumer that completes despite an account stop as completed while its IM source remains current', async () => {
+    const source = origin();
+    const f = await fixture(true, undefined, {
+      origin: () => source.lease,
+      notify: async () => {},
+    });
     const waiting = f.owner.ask(f.agent, declaration, new AbortController().signal);
     await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
     const id = f.channels.readMessages('dm-ada')[0]!.id;

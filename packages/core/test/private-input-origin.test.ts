@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { setImmediate as tick } from 'node:timers/promises';
 import { Context } from '@deepseek-ai/cordis';
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -279,17 +280,19 @@ it('recovers a registered secret_cli multi-IM refusal by selecting the configure
     const source = await f.im();
     await f.started();
     await f.im();
+    const marker = join(f.home, 'command-starts.txt');
     const args = {
       account: declaration.account,
       references: Object.values(result.references),
-      program: 'gh',
-      args: ['--version'],
+      program: 'git',
+      args: ['config', '--file', marker, '--add', 'qa.started', 'once'],
       env: [{ name: 'GH_TOKEN', value: '{{token}}' }],
     };
     await expect(mounted.call('secret_cli', args)).rejects.toMatchObject({
       code: 'private-source-required',
       message: expect.stringContaining('ask_secret'),
     });
+    await expect(readFile(marker, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
     const cards = f.core.channels
       .readMessages('dm-ada')
       .filter((message) => message.privateInputRequest).length;
@@ -297,6 +300,7 @@ it('recovers a registered secret_cli multi-IM refusal by selecting the configure
       mounted.call('ask_secret', { ...declaration, source_event_id: source }),
     ).resolves.toContain('configured');
     await expect(mounted.call('secret_cli', args)).resolves.toContain('"exitCode":0');
+    expect((await readFile(marker, 'utf8')).match(/started = once/g)).toHaveLength(1);
     expect(
       f.core.channels.readMessages('dm-ada').filter((message) => message.privateInputRequest),
     ).toHaveLength(cards);

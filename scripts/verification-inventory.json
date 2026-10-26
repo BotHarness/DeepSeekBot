@@ -2348,7 +2348,7 @@
       "behaviors": ["credentials.private-input-origin"],
       "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
       "task": 2290,
-      "sha256": "5b2a73a53ddce04f498429d3c22f9a11c3e0cc03d127c6ea82985c579f013f94"
+      "sha256": "b633a28c55407d48f7c1a732f5cbbbcf4268f558d0d24628dbb00b8a779fefe7"
     },
     {
       "path": "scripts/e2e-desktop-zoom-windows.mjs",

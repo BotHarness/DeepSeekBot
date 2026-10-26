@@ -15,6 +15,7 @@ export function apply(ctx, config) {
   let sequence = 0;
   const generation = randomUUID();
   let grant;
+  const replies = [];
   const provider = createDshImProvider({
     contractVersion: 1,
     replyContextVersion: 1,
@@ -50,8 +51,9 @@ export function apply(ctx, config) {
       return () => {};
     },
     qualifyReplyChecked: async (_account, route) => route,
-    replyChecked: async (_account, route, _text, options) => {
+    replyChecked: async (_account, route, text, options) => {
       if (options.beforeSend?.() === false) throw new Error('stale-route');
+      replies.push({ messageId: route.messageId, recovered: text.includes('QA-2847-RECOVERED') });
       return {
         sent: true,
         receipt: {
@@ -69,6 +71,7 @@ export function apply(ctx, config) {
   const execute = async (request) => {
     const bot = core.registry.get(request.botSlug);
     if (!bot?.displayName.startsWith('Secret origin QA')) throw new Error('QA Bot required');
+    if (request.action === 'replies') return replies;
     if (request.action === 'prepare') {
       const target = (await core.externalMessaging.targets(provider.id, 'synthetic-2290'))[0];
       grant =
@@ -92,8 +95,10 @@ export function apply(ctx, config) {
     if (!['steer', 'request'].includes(request.action) || !grant || !consumer)
       throw new Error('QA command unavailable');
     const before = new Set(core.attention.list({ botSlug: bot.slug }).items.map((item) => item.id));
+    const messageIds = [];
     for (let n = 0; n < (request.action === 'request' ? 1 : 2); n++) {
       const id = 'synthetic-2290-' + generation + '-' + ++sequence;
+      messageIds.push(id);
       await consumer.onEvent(
         {
           version: 1,
@@ -132,6 +137,7 @@ export function apply(ctx, config) {
       automatic = error.message;
     }
     return {
+      messageIds,
       acceptedSources: sources.length,
       selectedLive,
       automatic,
