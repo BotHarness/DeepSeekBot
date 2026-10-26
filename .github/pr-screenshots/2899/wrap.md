@@ -11,14 +11,14 @@ Result: **experiment rejected; product source restored**. This does not resolve 
 
 ## Findings
 
-| Check | Result |
-|---|---|
-| Real-time streamed Bot reply commits | PASS both |
-| Baseline discrete line-wrap growth | Reproduced |
-| Streaming-only layout transition eliminates visible discontinuity | FAIL |
-| Direct overlap of bubble and thinking indicator | UNCONFIRMED in inspected excerpts |
-| Keyboard/held-history regression on experimental package | UNTESTED; candidate rejected before expansion |
-| Light/large-font/iOS/reduced-motion device matrix | UNTESTED |
+| Check                                                             | Result                                        |
+| ----------------------------------------------------------------- | --------------------------------------------- |
+| Real-time streamed Bot reply commits                              | PASS both                                     |
+| Baseline discrete line-wrap growth                                | Reproduced                                    |
+| Streaming-only layout transition eliminates visible discontinuity | FAIL                                          |
+| Direct overlap of bubble and thinking indicator                   | UNCONFIRMED in inspected excerpts             |
+| Keyboard/held-history regression on experimental package          | UNTESTED; candidate rejected before expansion |
+| Light/large-font/iOS/reduced-motion device matrix                 | UNTESTED                                      |
 
 The experiment makes height growth gradual, but the list corrects its offset to the final content height first. The bubble bottom then catches up, producing a visibly enlarged gap above the thinking indicator which closes again. This is not a successful fix. The next implementation must coordinate content growth and follow offset, not merely animate the bubble independently. Existing keyboard coordination and immediate streaming remain constraints.
 
