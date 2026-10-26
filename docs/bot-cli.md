@@ -113,6 +113,14 @@ deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
 deepseekbot bot-system-prompt <bot-id>
 deepseekbot bot-turn-input <bot-id> --turns 1
+deepseekbot prompt-parts
+deepseekbot prompt-presets
+echo '{"triage":"Close what is done."}' | deepseekbot prompt-preset-create --name Quiet --parts-stdin
+deepseekbot prompt-preset-update <preset-id> --name Calm --expected-revision 1
+deepseekbot prompt-preset-delete <preset-id> --confirm
+deepseekbot prompt-global-set <preset-id>|built-in
+deepseekbot bot-prompt <bot-id>
+echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-id>|global --parts-stdin
 ```
 
 Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `steps` and `next`. The model preset is applied through its owner, never forwarded as a native Agent preset. A missing specified preset is rejected before creation; other model failures after creation preserve the Bot and return its known identity and steps with `outcome: created`. A lost creation/import response without a stable operation key can return `outcome: unknown`: inspect the Host before creating again; no automatic mutation retry is provided. For blank online creation, use the [receipt-backed operation key](#tob-bot-creation-profiles-and-lifecycle) to reconcile the same identity. A created Bot alone does not prove model usability: use `send` and its exact correlated committed reply.
@@ -128,6 +136,8 @@ Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `s
 `bot-system-prompt <bot-id>` returns the system prompt the Bot's Orchestrator Session uses now (`effectiveText`, read from the live Session surface, or from the Session log with `loaded: false` when it is not loaded), the freshly assembled `next` prompt with its named `sections` and per-step runtime `contexts`, and `pending`: true when `next` differs from what the Session uses, which happens until a new Session or the next compaction picks it up. `next` is null while the Session is not loaded.
 
 `bot-turn-input <bot-id> [--turns <1-20>] [--session <session-id>]` returns, for the newest turns (default 1), every input message the model received, in order, with its `step`, `source` (`user` for Inbox and steered input, `runtime-context` for the per-step environment note), time and exact `text`, including the reply reminder the Host appends. Steered messages appear at a later step of the same turn. The Web composer's usage popover opens both views.
+
+Prompt Presets let you edit the behavior text of the system prompt and the per-turn templates; the tool and delivery contracts around them stay fixed. `prompt-parts` lists each editable part with its `id`, `kind` (`system` or `turn`), owning `section` and built-in `defaultText`. A preset stores only the parts it changes. Each part resolves per Bot from the Bot's own overrides, then its chosen preset, then the global preset (`prompt-global-set`), then the built-in text; `bot-prompt` shows the result with each part's `source` (`bot`, `preset`, `global` or `built-in`). Part edits are a JSON object of `{"<part-id>": "text"}`; `null` or the built-in text removes the edit so the part inherits again. `bot-prompt-set --preset global` drops the Bot's preset. Deleting a preset returns `clearedBots`, whose Bots fall back to the global one. A running Session keeps the texts it started with: `pending: true` means a change waits for the Bot's next Session or compaction. An edited part reports `defaultChanged: true` when the built-in text changed after the edit; parts you did not edit follow built-in updates.
 
 For explicit cleanup, `bot-delete-preview <bot-id>` returns the owner's current scope and `preview.token`. Review it, then pipe `{"token":"<preview.token>"}` to `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`. Memory is retained unless `--erase-memory` explicitly selects the owner-reviewed directory, and it erases the Bot's private-input secrets during the stop phase. Inspect `deletion.phase`; an incomplete cleanup can be continued with `bot-delete-retry <bot-id> --confirm`. Scope changes remain owner refusals; deletion is not content purge or complete data erasure.
 

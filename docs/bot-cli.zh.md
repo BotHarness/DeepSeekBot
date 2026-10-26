@@ -113,6 +113,14 @@ deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
 deepseekbot bot-system-prompt <bot-id>
 deepseekbot bot-turn-input <bot-id> --turns 1
+deepseekbot prompt-parts
+deepseekbot prompt-presets
+echo '{"triage":"Close what is done."}' | deepseekbot prompt-preset-create --name Quiet --parts-stdin
+deepseekbot prompt-preset-update <preset-id> --name Calm --expected-revision 1
+deepseekbot prompt-preset-delete <preset-id> --confirm
+deepseekbot prompt-global-set <preset-id>|built-in
+deepseekbot bot-prompt <bot-id>
+echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-id>|global --parts-stdin
 ```
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
@@ -128,6 +136,8 @@ deepseekbot bot-turn-input <bot-id> --turns 1
 `bot-system-prompt <bot-id>` 返回 Bot 编排会话当前使用的 System Prompt（`effectiveText`，会话已加载时读自会话 surface，未加载时读自会话日志并返回 `loaded: false`）、最新组装出的 `next`（含具名分段 `sections` 和每步附加的运行时上下文 `contexts`），以及 `pending`：`next` 与会话正在使用的不同时为 true，直到新会话或下一次压缩采用它。会话未加载时 `next` 为 null。
 
 `bot-turn-input <bot-id> [--turns <1-20>] [--session <session-id>]` 返回最近几轮（默认 1 轮）模型收到的全部输入消息，按顺序给出 `step`、`source`（Inbox 和 steer 进来的输入为 `user`，每步的环境说明为 `runtime-context`）、时间和原文 `text`，包括 Host 附加的回复提醒。steer 进来的消息出现在同一轮的后续 step。Web 输入框的用量弹层可以打开这两个视图。
+
+Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围绕它们的工具与投递约定保持固定。`prompt-parts` 列出每个可编辑部件的 `id`、`kind`（`system` 或 `turn`）、所属 `section` 和内置 `defaultText`。预设只保存它改动的部件。每个部件按 Bot 解析：先取 Bot 自己的覆盖，再取它选的预设，再取全局预设（`prompt-global-set`），最后取内置文字；`bot-prompt` 返回结果和每个部件的 `source`（`bot`、`preset`、`global` 或 `built-in`）。部件改动是 `{"<part-id>": "text"}` 形式的 JSON 对象；`null` 或内置原文会删掉改动，让部件重新继承。`bot-prompt-set --preset global` 取消 Bot 的预设。删除预设会返回 `clearedBots`，这些 Bot 回到全局预设。运行中的会话保持它开始时的文字：`pending: true` 表示改动要等 Bot 的新会话或下一次压缩才生效。改过的部件在内置原文之后又更新时返回 `defaultChanged: true`；没改过的部件跟随内置更新。
 
 显式清理先用 `bot-delete-preview <bot-id>` 查看 owner 的当前范围与 `preview.token`，审核后将 `{"token":"<preview.token>"}` 从 stdin 交给 `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`。默认保留 Memory，仅显式 `--erase-memory` 才选择擦除 owner 审核的目录，并在停止阶段删除这个 Bot 通过私密输入保存的密钥。检查 `deletion.phase`；未完成的清理可用 `bot-delete-retry <bot-id> --confirm` 继续。范围变化由 owner 拒绝；删除身份不是内容清除或全部数据擦除。
 

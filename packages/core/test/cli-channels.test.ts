@@ -124,6 +124,56 @@ describe('Channel and group CLI commands', () => {
       (await invoke(['bot-turn-input', 'ada', '--session', 'direct'], live.url)).code,
     ).not.toBe(0);
   });
+  it('routes Prompt Preset commands with their part edits from stdin', async () => {
+    const live = await host(ok);
+    expect((await invoke(['prompt-parts'], live.url)).json).toMatchObject({
+      method: 'promptParts',
+    });
+    expect(
+      (
+        await invoke(
+          ['prompt-preset-create', '--name', 'Quiet', '--parts-stdin'],
+          live.url,
+          '{"triage":"Close it."}',
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'promptPresetCreate',
+      args: { name: 'Quiet', parts: { triage: 'Close it.' } },
+    });
+    expect(
+      (
+        await invoke(
+          ['prompt-preset-update', 'p1', '--name', 'Calm', '--expected-revision', '2'],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'promptPresetUpdate',
+      args: { id: 'p1', name: 'Calm', expectedRevision: 2 },
+    });
+    expect((await invoke(['prompt-preset-delete', 'p1'], live.url)).code).not.toBe(0);
+    expect((await invoke(['prompt-global-set', 'built-in'], live.url)).json).toMatchObject({
+      method: 'promptGlobalSet',
+      args: { presetId: null },
+    });
+    expect(
+      (
+        await invoke(
+          ['bot-prompt-set', 'ada', '--preset', 'global', '--parts-stdin'],
+          live.url,
+          '{"silence":null}',
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'botPromptSet',
+      args: { slug: 'ada', presetId: null, parts: { silence: null } },
+    });
+    expect((await invoke(['bot-prompt', 'ada'], live.url)).json).toMatchObject({
+      method: 'botPrompt',
+      args: { slug: 'ada' },
+    });
+  });
   it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
     const live = await host(ok);
     expect((await invoke(['channel', 'team'], live.url)).json).toMatchObject({

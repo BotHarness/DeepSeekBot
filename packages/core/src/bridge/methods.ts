@@ -370,6 +370,15 @@ import type {
   BotStateTracker,
   SessionState,
 } from '../state/bot-state.js';
+import { PROMPT_PARTS, promptTextHash, type PromptPartId } from '../prompts/prompt-parts.js';
+import {
+  applyPromptPartEdits,
+  parsePromptPartEdits,
+  type PromptPreset,
+  type PromptPresetFailure,
+  type ResolvedPromptPart,
+} from '../prompts/prompt-presets.js';
+import type { PromptSettings } from '../prompts/prompt-settings.js';
 
 export interface ActivityOverview {
   actionCount: number;
@@ -847,6 +856,16 @@ export interface BridgeMethods {
   ): BridgeResult<{ templates: ApprovalTemplateEntry[]; selected?: string | null }>;
   approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
   approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
+  promptParts(payload: unknown): BridgeResult<{ parts: PromptPartView[] }>;
+  promptPresets(
+    payload: unknown,
+  ): BridgeResult<{ presets: PromptPreset[]; globalPresetId: string | null }>;
+  promptPresetCreate(payload: unknown): BridgeResult<{ preset: PromptPreset }>;
+  promptPresetUpdate(payload: unknown): BridgeResult<{ preset: PromptPreset }>;
+  promptPresetDelete(payload: unknown): BridgeResult<{ id: string; clearedBots: string[] }>;
+  promptGlobalSet(payload: unknown): BridgeResult<{ presetId: string | null }>;
+  botPrompt(payload: unknown): BridgeResult<BotPromptView>;
+  botPromptSet(payload: unknown): BridgeResult<BotPromptView>;
   approvalTemplateDelete(
     payload: unknown,
   ): BridgeResult<{ template: { name: string }; clearedBots: string[] }>;
@@ -967,6 +986,7 @@ function storageFailure(
 export interface BridgeMethodsDeps {
   botContext?(slug: string): Promise<BotContextWindow>;
   botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
+  prompts?: PromptSettings;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
@@ -1228,6 +1248,50 @@ function telemetryUnavailable(): BridgeResult<never> {
   return {
     ok: false,
     error: { code: 'telemetry-unavailable', message: 'Usage statistics are unavailable' },
+  };
+}
+
+export interface PromptPartView {
+  id: PromptPartId;
+  kind: 'system' | 'turn';
+  section: string;
+  defaultText: string;
+  defaultHash: string;
+}
+
+export interface BotPromptView {
+  slug: string;
+  presetId: string | null;
+  globalPresetId: string | null;
+  sessionId: string | null;
+  pending: boolean;
+  parts: ResolvedPromptPart[];
+}
+
+function promptPresetFailure(reason: PromptPresetFailure): BridgeResult<never> {
+  const message: Record<PromptPresetFailure, string> = {
+    'invalid-input': 'The Prompt Preset name or part text is invalid',
+    'not-found': 'Unknown Prompt Preset',
+    'stale-revision': 'The Prompt Preset changed; read it again before editing',
+    'duplicate-name': 'Another Prompt Preset already has this name',
+    unavailable: 'Prompt Presets are unavailable',
+  };
+  return { ok: false, error: { code: `prompt-preset-${reason}`, message: message[reason] } };
+}
+
+function botPromptView(
+  deps: Pick<BridgeMethodsDeps, 'registry' | 'runtime'>,
+  prompts: PromptSettings,
+  slug: string,
+): BotPromptView {
+  const sessionId = deps.runtime?.currentOrchestratorSessionId?.(slug) ?? null;
+  return {
+    slug,
+    presetId: deps.registry.get(slug)?.promptPreset ?? null,
+    globalPresetId: prompts.library.globalPresetId() ?? null,
+    sessionId,
+    pending: prompts.pending(slug, sessionId ?? undefined),
+    parts: prompts.resolved(slug),
   };
 }
 
@@ -3627,6 +3691,118 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const result = approvalTemplateLibrary.update(name, text);
       if (!result.ok) return templateWriteFailure(name, result.reason);
       return { ok: true, value: { template: templateEntry(result.template) } };
+    },
+    promptParts() {
+      return {
+        ok: true,
+        value: {
+          parts: PROMPT_PARTS.map((part) => ({
+            id: part.id,
+            kind: part.kind,
+            section: part.section,
+            defaultText: part.defaultText,
+            defaultHash: promptTextHash(part.defaultText),
+          })),
+        },
+      };
+    },
+    promptPresets() {
+      if (deps.prompts === undefined) return unavailable();
+      const library = deps.prompts.library;
+      return {
+        ok: true,
+        value: { presets: library.list(), globalPresetId: library.globalPresetId() ?? null },
+      };
+    },
+    promptPresetCreate(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const source = asObject(payload);
+      const parts = source['parts'] === undefined ? {} : parsePromptPartEdits(source['parts']);
+      if (typeof source['name'] !== 'string' || parts === undefined)
+        return invalidInput('name and optional parts ({partId: text}) are required');
+      const result = deps.prompts.library.create({ name: source['name'], parts });
+      return result.ok
+        ? { ok: true, value: { preset: result.value } }
+        : promptPresetFailure(result.reason);
+    },
+    promptPresetUpdate(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const source = asObject(payload);
+      const parts =
+        source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
+      const expected = source['expectedRevision'];
+      if (
+        typeof source['id'] !== 'string' ||
+        (source['name'] !== undefined && typeof source['name'] !== 'string') ||
+        (source['parts'] !== undefined && parts === undefined) ||
+        (expected !== undefined && !Number.isSafeInteger(expected))
+      )
+        return invalidInput('id, and optional name, parts and expectedRevision are required');
+      const result = deps.prompts.library.update(source['id'], {
+        ...(typeof source['name'] === 'string' ? { name: source['name'] } : {}),
+        ...(parts === undefined ? {} : { parts }),
+        ...(expected === undefined ? {} : { expectedRevision: expected as number }),
+      });
+      return result.ok
+        ? { ok: true, value: { preset: result.value } }
+        : promptPresetFailure(result.reason);
+    },
+    promptPresetDelete(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const id = asObject(payload)['id'];
+      if (typeof id !== 'string') return invalidInput('id is required');
+      const result = deps.prompts.library.delete(id);
+      if (!result.ok) return promptPresetFailure(result.reason);
+      const clearedBots = deps.registry
+        .list()
+        .filter((record) => record.promptPreset === id)
+        .map((record) => record.slug);
+      for (const slug of clearedBots) deps.registry.setPromptSettings(slug, { preset: null });
+      return { ok: true, value: { id, clearedBots } };
+    },
+    promptGlobalSet(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const presetId = asObject(payload)['presetId'];
+      if (presetId !== null && typeof presetId !== 'string')
+        return invalidInput('presetId (a Prompt Preset id, or null for built-in) is required');
+      const result = deps.prompts.library.setGlobalPresetId(presetId ?? undefined);
+      return result.ok ? { ok: true, value: result.value } : promptPresetFailure(result.reason);
+    },
+    botPrompt(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      return { ok: true, value: botPromptView(deps, deps.prompts, slug) };
+    },
+    botPromptSet(payload) {
+      const prompts = deps.prompts;
+      if (prompts === undefined) return unavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const record = deps.registry.get(slug);
+      if (record === undefined) return unknownBot(slug);
+      const source = asObject(payload);
+      const presetId = source['presetId'];
+      const parts =
+        source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
+      if (
+        (presetId !== undefined && presetId !== null && typeof presetId !== 'string') ||
+        (source['parts'] !== undefined && parts === undefined)
+      )
+        return invalidInput(
+          'optional presetId (id or null) and parts ({partId: text|null}) are required',
+        );
+      if (typeof presetId === 'string' && prompts.library.get(presetId) === undefined)
+        return promptPresetFailure('not-found');
+      const result = deps.registry.setPromptSettings(slug, {
+        ...(presetId === undefined ? {} : { preset: presetId }),
+        ...(parts === undefined
+          ? {}
+          : { overrides: applyPromptPartEdits(record.promptOverrides ?? {}, parts) }),
+      });
+      if (!result.ok) return unknownBot(slug);
+      return { ok: true, value: botPromptView(deps, prompts, slug) };
     },
     approvalTemplateDelete(payload) {
       const name = asObject(payload)['name'];

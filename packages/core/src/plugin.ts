@@ -277,6 +277,9 @@ import {
   type BotSubagentPresetConfig,
 } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
+import { promptTextOf } from './prompts/prompt-parts.js';
+import { createPromptPresetLibrary, promptPartTexts } from './prompts/prompt-presets.js';
+import { createPromptSettings, type PromptSettings } from './prompts/prompt-settings.js';
 
 export const name = 'botharness-core';
 
@@ -314,6 +317,7 @@ export interface CompactionRefreshSink {
   memory: {
     refreshPersonaAfterCompaction(botSlug: string, sessionId: string): { refreshed: boolean };
   };
+  prompts?: { refreshAfterCompaction(sessionId: string): { refreshed: boolean } };
   warn(message: string): void;
 }
 
@@ -329,6 +333,11 @@ export function handleCompactionEvent(
     sink.memory.refreshPersonaAfterCompaction(owner.botSlug, sessionId);
   } catch (error) {
     sink.warn(`botharness: persona refresh after compaction failed: ${String(error)}`);
+  }
+  try {
+    sink.prompts?.refreshAfterCompaction(sessionId);
+  } catch (error) {
+    sink.warn(`botharness: prompt refresh after compaction failed: ${String(error)}`);
   }
 }
 
@@ -394,6 +403,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
@@ -929,7 +939,18 @@ export function createCore(
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
+  const prompts = createPromptSettings({
+    library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
+    registry,
+    ownership,
+  });
   runtime = createBotRuntime({
+    promptText: (slug) => {
+      const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
+      return sessionId === undefined
+        ? promptTextOf(promptPartTexts(prompts.resolved(slug)))
+        : prompts.textForSession(sessionId);
+    },
     tob,
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
@@ -1030,6 +1051,7 @@ export function createCore(
   });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
+    prompts,
     deletions,
     profileRecovery,
     contentPurge,
@@ -1183,6 +1205,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const agentAdapter = createDshBotAgentAdapter({
     agents: ctx.agents,
+    promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
@@ -2289,6 +2312,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     release: releaseService,
   });
   const bridgeMethods = createBridgeMethods({
+    prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
       const agent = sessionId === null ? undefined : liveAgent(sessionId);
@@ -2955,6 +2979,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         {
           ownership: core.ownership,
           memory: core.memory,
+          prompts: core.prompts,
           warn: (message) => ctx.logger.warn(message),
         },
         session.id,

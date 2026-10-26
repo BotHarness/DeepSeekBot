@@ -224,9 +224,15 @@ export class FakeAgentHost implements DshAgentHost {
         },
       },
       systemPrompt: {
-        section: (section: { name: string; text: string }) => {
-          scope.sections.push(section);
-          return () => void scope.sections.splice(scope.sections.indexOf(section), 1);
+        section: (section: { name: string; text: string | ((context: object) => string) }) => {
+          const entry = {
+            name: section.name,
+            get text() {
+              return typeof section.text === 'function' ? section.text({}) : section.text;
+            },
+          };
+          scope.sections.push(entry);
+          return () => void scope.sections.splice(scope.sections.indexOf(entry), 1);
         },
       },
     };

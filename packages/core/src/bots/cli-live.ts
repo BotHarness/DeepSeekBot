@@ -115,6 +115,12 @@ import {
   type ApprovalTemplateValues,
 } from './cli-approval-templates.js';
 import {
+  PROMPT_PRESET_COMMANDS,
+  PROMPT_PRESET_OPTIONS,
+  isPromptPresetCommand,
+  runPromptPresetCommand,
+} from './cli-prompt-presets.js';
+import {
   APPROVAL_REVIEWER_COMMANDS,
   APPROVAL_REVIEWER_OPTIONS,
   isApprovalReviewerCommand,
@@ -165,6 +171,7 @@ export const LIVE_OPTIONS = {
   ...PROFILE_OPTIONS,
   ...TODO_OPTIONS,
   ...APPROVAL_TEMPLATE_OPTIONS,
+  ...PROMPT_PRESET_OPTIONS,
   ...APPROVAL_REVIEWER_OPTIONS,
   ...STORAGE_OPTIONS,
   host: { type: 'string' },
@@ -286,6 +293,7 @@ export const LIVE_COMMANDS = [
   ...BOT_TOOL_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
+  ...PROMPT_PRESET_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
   ...STORAGE_COMMANDS,
@@ -926,6 +934,11 @@ export async function runLiveCli(
     });
   if (isIdleCompactionCommand(command))
     return runIdleCompactionCommand(command, rest, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isPromptPresetCommand(command))
+    return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
