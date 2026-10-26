@@ -484,9 +484,6 @@ export function resolveDockPosition(
     : { direction: 'right' };
 }
 
-// Global workspace panels without a remembered position open as full-height
-// columns: Messages beside the Channel list, Activity Center beside Messages,
-// everything else at the right edge (ADR-0259).
 function workspaceColumn(
   api: Pick<DockviewApi, 'getPanel'>,
   panelId: string | undefined,
