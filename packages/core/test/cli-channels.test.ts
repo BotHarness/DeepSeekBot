@@ -169,6 +169,24 @@ describe('Channel and group CLI commands', () => {
       method: 'botPromptSet',
       args: { slug: 'ada', presetId: null, parts: { silence: null } },
     });
+    expect(
+      (
+        await invoke(
+          [
+            'bot-prompt-set',
+            'ada',
+            '--prompt-limit',
+            'dm-context-chars=4000',
+            '--prompt-limit',
+            'review-tool-calls=default',
+          ],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({
+      method: 'botPromptSet',
+      args: { slug: 'ada', limits: { 'dm-context-chars': 4000, 'review-tool-calls': null } },
+    });
     expect((await invoke(['bot-prompt', 'ada'], live.url)).json).toMatchObject({
       method: 'botPrompt',
       args: { slug: 'ada' },

@@ -101,6 +101,16 @@ describe('Prompt Preset bridge methods', () => {
     expect(registry.get('ada')?.promptPreset).toBeUndefined();
     value(methods.botPromptSet({ slug: 'ada', parts: { silence: null } }));
     expect(registry.get('ada')?.promptOverrides).toBeUndefined();
+    const limited = value(
+      methods.botPromptSet({ slug: 'ada', limits: { 'review-timeout-seconds': 90 } }),
+    );
+    expect(limited.limits.find((limit) => limit.id === 'review-timeout-seconds')).toMatchObject({
+      value: 90,
+      source: 'bot',
+    });
+    expect(
+      methods.botPromptSet({ slug: 'ada', limits: { 'review-timeout-seconds': 5 } }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(methods.botPromptSet({ slug: 'ada', presetId: 'missing' })).toMatchObject({
       ok: false,
       error: { code: 'prompt-preset-not-found' },

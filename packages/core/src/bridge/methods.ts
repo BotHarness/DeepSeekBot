@@ -372,10 +372,16 @@ import type {
 } from '../state/bot-state.js';
 import { PROMPT_PARTS, promptTextHash, type PromptPartId } from '../prompts/prompt-parts.js';
 import {
+  PROMPT_LIMITS,
+  applyPromptLimitEdits,
+  parsePromptLimitEdits,
+} from '../prompts/prompt-limits.js';
+import {
   applyPromptPartEdits,
   parsePromptPartEdits,
   type PromptPreset,
   type PromptPresetFailure,
+  type ResolvedPromptLimit,
   type ResolvedPromptPart,
 } from '../prompts/prompt-presets.js';
 import type { PromptSettings } from '../prompts/prompt-settings.js';
@@ -856,7 +862,9 @@ export interface BridgeMethods {
   ): BridgeResult<{ templates: ApprovalTemplateEntry[]; selected?: string | null }>;
   approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
   approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
-  promptParts(payload: unknown): BridgeResult<{ parts: PromptPartView[] }>;
+  promptParts(
+    payload: unknown,
+  ): BridgeResult<{ parts: PromptPartView[]; limits: PromptLimitView[] }>;
   promptPresets(
     payload: unknown,
   ): BridgeResult<{ presets: PromptPreset[]; globalPresetId: string | null }>;
@@ -1266,6 +1274,15 @@ export interface BotPromptView {
   sessionId: string | null;
   pending: boolean;
   parts: ResolvedPromptPart[];
+  limits: ResolvedPromptLimit[];
+}
+
+export interface PromptLimitView {
+  id: (typeof PROMPT_LIMITS)[number]['id'];
+  group: 'inbox' | 'review';
+  defaultValue: number;
+  min: number;
+  max: number;
 }
 
 function promptPresetFailure(reason: PromptPresetFailure): BridgeResult<never> {
@@ -1292,6 +1309,7 @@ function botPromptView(
     sessionId,
     pending: prompts.pending(slug, sessionId ?? undefined),
     parts: prompts.resolved(slug),
+    limits: prompts.resolvedLimits(slug),
   };
 }
 
@@ -3703,6 +3721,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             defaultText: part.defaultText,
             defaultHash: promptTextHash(part.defaultText),
           })),
+          limits: PROMPT_LIMITS.map(({ id, group, defaultValue, min, max }) => ({
+            id,
+            group,
+            defaultValue,
+            min,
+            max,
+          })),
         },
       };
     },
@@ -3718,9 +3743,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (deps.prompts === undefined) return unavailable();
       const source = asObject(payload);
       const parts = source['parts'] === undefined ? {} : parsePromptPartEdits(source['parts']);
-      if (typeof source['name'] !== 'string' || parts === undefined)
-        return invalidInput('name and optional parts ({partId: text}) are required');
-      const result = deps.prompts.library.create({ name: source['name'], parts });
+      const limits = source['limits'] === undefined ? {} : parsePromptLimitEdits(source['limits']);
+      if (typeof source['name'] !== 'string' || parts === undefined || limits === undefined)
+        return invalidInput(
+          'name, optional parts ({partId: text}) and limits ({limitId: integer in range}) are required',
+        );
+      const result = deps.prompts.library.create({ name: source['name'], parts, limits });
       return result.ok
         ? { ok: true, value: { preset: result.value } }
         : promptPresetFailure(result.reason);
@@ -3730,17 +3758,23 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const source = asObject(payload);
       const parts =
         source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
+      const limits =
+        source['limits'] === undefined ? undefined : parsePromptLimitEdits(source['limits']);
       const expected = source['expectedRevision'];
       if (
         typeof source['id'] !== 'string' ||
         (source['name'] !== undefined && typeof source['name'] !== 'string') ||
         (source['parts'] !== undefined && parts === undefined) ||
+        (source['limits'] !== undefined && limits === undefined) ||
         (expected !== undefined && !Number.isSafeInteger(expected))
       )
-        return invalidInput('id, and optional name, parts and expectedRevision are required');
+        return invalidInput(
+          'id, and optional name, parts, limits and expectedRevision are required',
+        );
       const result = deps.prompts.library.update(source['id'], {
         ...(typeof source['name'] === 'string' ? { name: source['name'] } : {}),
         ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
         ...(expected === undefined ? {} : { expectedRevision: expected as number }),
       });
       return result.ok
@@ -3786,12 +3820,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const presetId = source['presetId'];
       const parts =
         source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
+      const limits =
+        source['limits'] === undefined ? undefined : parsePromptLimitEdits(source['limits']);
       if (
         (presetId !== undefined && presetId !== null && typeof presetId !== 'string') ||
-        (source['parts'] !== undefined && parts === undefined)
+        (source['parts'] !== undefined && parts === undefined) ||
+        (source['limits'] !== undefined && limits === undefined)
       )
         return invalidInput(
-          'optional presetId (id or null) and parts ({partId: text|null}) are required',
+          'optional presetId (id or null), parts ({partId: text|null}) and limits ({limitId: integer|null}) are required',
         );
       if (typeof presetId === 'string' && prompts.library.get(presetId) === undefined)
         return promptPresetFailure('not-found');
@@ -3800,6 +3837,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(parts === undefined
           ? {}
           : { overrides: applyPromptPartEdits(record.promptOverrides ?? {}, parts) }),
+        ...(limits === undefined
+          ? {}
+          : { limits: applyPromptLimitEdits(record.promptLimits ?? {}, limits) }),
       });
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: botPromptView(deps, prompts, slug) };

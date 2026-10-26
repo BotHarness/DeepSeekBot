@@ -10,6 +10,7 @@ import {
 } from './avatar-appearance.js';
 import { isBotBanner, type BotBanner } from './bot-banner.js';
 import { isBotPrimaryColor, type BotPrimaryColor } from './primary-color.js';
+import type { PromptLimitValues } from '../prompts/prompt-limits.js';
 import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface PersonaBotRecord {
@@ -45,6 +46,7 @@ export interface PersonaBotRecord {
 
   promptPreset?: string;
   promptOverrides?: PromptPartOverrides;
+  promptLimits?: PromptLimitValues;
 }
 
 export interface CreatePersonaBotInput {
@@ -170,6 +172,13 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
     (typeof record['promptOverrides'] !== 'object' ||
       record['promptOverrides'] === null ||
       Array.isArray(record['promptOverrides']))
+  )
+    return false;
+  if (
+    record['promptLimits'] !== undefined &&
+    (typeof record['promptLimits'] !== 'object' ||
+      record['promptLimits'] === null ||
+      Array.isArray(record['promptLimits']))
   )
     return false;
   if (

@@ -60,6 +60,7 @@ import type {
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
+import { parsePromptLimitValues, type PromptLimitValues } from '../prompts/prompt-limits.js';
 import { parsePromptPartOverrides, type PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface MemoryRepositoryInitialization {
@@ -127,7 +128,11 @@ export interface PersonaBotRegistry {
   setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
   setPromptSettings(
     slug: string,
-    settings: { preset?: string | null; overrides?: PromptPartOverrides },
+    settings: {
+      preset?: string | null;
+      overrides?: PromptPartOverrides;
+      limits?: PromptLimitValues;
+    },
   ): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
@@ -233,6 +238,10 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const overrides = parsePromptPartOverrides(record.promptOverrides);
       if (overrides !== undefined && Object.keys(overrides).length > 0)
         result.promptOverrides = overrides;
+    }
+    if (record.promptLimits !== undefined) {
+      const limits = parsePromptLimitValues(record.promptLimits);
+      if (Object.keys(limits).length > 0) result.promptLimits = limits;
     }
     if (record.standingLimits !== undefined)
       result.standingLimits = {
@@ -833,6 +842,10 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (settings.overrides !== undefined) {
         if (Object.keys(settings.overrides).length === 0) delete record.promptOverrides;
         else record.promptOverrides = settings.overrides;
+      }
+      if (settings.limits !== undefined) {
+        if (Object.keys(settings.limits).length === 0) delete record.promptLimits;
+        else record.promptLimits = settings.limits;
       }
       write(record);
       return { ok: true, record };

@@ -11,6 +11,16 @@ import {
   type PromptPartId,
   type PromptPartTexts,
 } from './prompt-parts.js';
+import {
+  DEFAULT_PROMPT_LIMITS,
+  PROMPT_LIMITS,
+  applyPromptLimitEdits,
+  parsePromptLimitValues,
+  type PromptLimitEdits,
+  type PromptLimitId,
+  type PromptLimitValues,
+  type PromptLimits,
+} from './prompt-limits.js';
 
 export interface PromptPartOverride {
   text: string;
@@ -24,6 +34,7 @@ export interface PromptPreset {
   name: string;
   revision: number;
   parts: PromptPartOverrides;
+  limits: PromptLimitValues;
   updatedAt: string;
 }
 
@@ -55,10 +66,19 @@ export type PromptPartEdits = Partial<Record<PromptPartId, string | null>>;
 export interface PromptPresetLibrary {
   list(): PromptPreset[];
   get(id: string): PromptPreset | undefined;
-  create(input: { name: string; parts?: PromptPartEdits }): PromptPresetResult<PromptPreset>;
+  create(input: {
+    name: string;
+    parts?: PromptPartEdits;
+    limits?: PromptLimitEdits;
+  }): PromptPresetResult<PromptPreset>;
   update(
     id: string,
-    input: { name?: string; parts?: PromptPartEdits; expectedRevision?: number },
+    input: {
+      name?: string;
+      parts?: PromptPartEdits;
+      limits?: PromptLimitEdits;
+      expectedRevision?: number;
+    },
   ): PromptPresetResult<PromptPreset>;
   delete(id: string): PromptPresetResult<{ id: string }>;
   globalPresetId(): string | undefined;
@@ -98,7 +118,7 @@ export function applyPromptPartEdits(
 ): PromptPartOverrides {
   const next: PromptPartOverrides = { ...current };
   for (const [id, text] of Object.entries(edits) as Array<[PromptPartId, string | null]>) {
-    if (text === null || text === defaultPromptText(id)) delete next[id];
+    if (text === null) delete next[id];
     else if (current[id]?.text !== text)
       next[id] = { text, base: promptTextHash(defaultPromptText(id)) };
   }
@@ -138,6 +158,7 @@ function parsePreset(value: unknown): PromptPreset | undefined {
     name: source['name'],
     revision: source['revision'],
     parts: parsePromptPartOverrides(source['parts']) ?? {},
+    limits: parsePromptLimitValues(source['limits']),
     updatedAt: source['updatedAt'],
   };
 }
@@ -165,6 +186,46 @@ export function resolvePromptParts(layers: {
       defaultChanged: override !== undefined && override.base !== promptTextHash(part.defaultText),
     };
   });
+}
+
+export interface ResolvedPromptLimit {
+  id: PromptLimitId;
+  group: 'inbox' | 'review';
+  value: number;
+  source: PromptPartSource;
+  defaultValue: number;
+  min: number;
+  max: number;
+}
+
+export function resolvePromptLimits(layers: {
+  global?: PromptPreset | undefined;
+  preset?: PromptPreset | undefined;
+  bot?: PromptLimitValues | undefined;
+}): ResolvedPromptLimit[] {
+  return PROMPT_LIMITS.map((limit) => {
+    const candidates: Array<[PromptPartSource, number | undefined]> = [
+      ['bot', layers.bot?.[limit.id]],
+      ['preset', layers.preset?.limits[limit.id]],
+      ['global', layers.global?.limits[limit.id]],
+    ];
+    const found = candidates.find(([, value]) => value !== undefined);
+    return {
+      id: limit.id,
+      group: limit.group,
+      value: found?.[1] ?? limit.defaultValue,
+      source: found?.[0] ?? 'built-in',
+      defaultValue: limit.defaultValue,
+      min: limit.min,
+      max: limit.max,
+    };
+  });
+}
+
+export function promptLimitValues(limits: readonly ResolvedPromptLimit[]): PromptLimits {
+  const values: PromptLimits = { ...DEFAULT_PROMPT_LIMITS };
+  for (const limit of limits) values[limit.id] = limit.value;
+  return values;
 }
 
 export function promptPartTexts(parts: readonly ResolvedPromptPart[]): PromptPartTexts {
@@ -228,6 +289,7 @@ export function createPromptPresetLibrary(
         name: input.name.trim(),
         revision: 1,
         parts: applyPromptPartEdits({}, input.parts ?? {}),
+        limits: applyPromptLimitEdits({}, input.limits ?? {}),
         updatedAt: now().toISOString(),
       };
       save(preset);
@@ -249,6 +311,10 @@ export function createPromptPresetLibrary(
           input.parts === undefined
             ? current.parts
             : applyPromptPartEdits(current.parts, input.parts),
+        limits:
+          input.limits === undefined
+            ? current.limits
+            : applyPromptLimitEdits(current.limits, input.limits),
         revision: current.revision + 1,
         updatedAt: now().toISOString(),
       };

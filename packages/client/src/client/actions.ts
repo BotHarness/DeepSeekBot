@@ -382,6 +382,7 @@ export interface BridgeActions {
   ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
   promptParts?(): Promise<{
     parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
+    limits: import('../../../core/src/bridge/methods.js').PromptLimitView[];
   }>;
   promptPresets?(): Promise<{
     presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
@@ -390,17 +391,27 @@ export interface BridgeActions {
   promptPresetCreate?(
     name: string,
     parts: Record<string, string | null>,
+    limits?: Record<string, number | null>,
   ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
   promptPresetUpdate?(
     id: string,
-    change: { name?: string; parts?: Record<string, string | null>; expectedRevision?: number },
+    change: {
+      name?: string;
+      parts?: Record<string, string | null>;
+      limits?: Record<string, number | null>;
+      expectedRevision?: number;
+    },
   ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
   promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
   promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
   botPromptSet?(
     slug: string,
-    change: { presetId?: string | null; parts?: Record<string, string | null> },
+    change: {
+      presetId?: string | null;
+      parts?: Record<string, string | null>;
+      limits?: Record<string, number | null>;
+    },
   ): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
   botTurnInput(
     botSlug: string,
@@ -1632,7 +1643,8 @@ export function createActions(
     },
     promptParts: () => invoke('promptParts', {}),
     promptPresets: () => invoke('promptPresets', {}),
-    promptPresetCreate: (name, parts) => invoke('promptPresetCreate', { name, parts }),
+    promptPresetCreate: (name, parts, limits) =>
+      invoke('promptPresetCreate', { name, parts, ...(limits === undefined ? {} : { limits }) }),
     promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
     promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
     promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),

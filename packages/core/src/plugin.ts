@@ -951,6 +951,7 @@ export function createCore(
         ? promptTextOf(promptPartTexts(prompts.resolved(slug)))
         : prompts.textForSession(sessionId);
     },
+    promptLimits: (slug) => prompts.limits(slug),
     tob,
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
@@ -1698,6 +1699,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return template === undefined ? undefined : { name: template.name, text: template.text };
     },
     templateInUse,
+    excerptLimits: (slug) => {
+      const limits = core.prompts.limits(slug);
+      return {
+        humanMessages: limits['review-human-messages'],
+        humanMessageChars: limits['review-human-message-chars'],
+        toolCalls: limits['review-tool-calls'],
+      };
+    },
     review: createApprovalReviewRunner({
       setting: () => approvalReviewer.model(),
       botRoute: (slug) => {
@@ -1722,6 +1731,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return {
           sessionId,
           cwd,
+          timeoutMs: core.prompts.limits(request.botSlug)['review-timeout-seconds'] * 1000,
           botName: core.registry.get(request.botSlug)?.displayName ?? request.botSlug,
           ...(typeof titles?.rename === 'function'
             ? { rename: (session, title) => titles.rename!(session, title) }

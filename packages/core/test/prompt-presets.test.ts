@@ -11,10 +11,12 @@ import {
   defaultPromptText,
   promptTextHash,
 } from '../src/prompts/prompt-parts.js';
+import { applyPromptLimitEdits, parsePromptLimitEdits } from '../src/prompts/prompt-limits.js';
 import {
   applyPromptPartEdits,
   createPromptPresetLibrary,
   parsePromptPartEdits,
+  resolvePromptLimits,
   resolvePromptParts,
   type PromptPreset,
 } from '../src/prompts/prompt-presets.js';
@@ -25,7 +27,7 @@ import { createTempRoot } from './helpers.js';
 const AT = '2026-10-26T00:00:00.000Z';
 
 function preset(parts: PromptPreset['parts'], id = 'p1'): PromptPreset {
-  return { id, name: id, revision: 1, parts, updatedAt: AT };
+  return { id, name: id, revision: 1, parts, limits: {}, updatedAt: AT };
 }
 
 function override(text: string, id: (typeof PROMPT_PARTS)[number]['id']) {
@@ -51,11 +53,13 @@ describe('Prompt Preset parts', () => {
     expect(parsePromptPartEdits([])).toBeUndefined();
   });
 
-  it('drops an edit equal to the default or null and records the default it was based on', () => {
+  it('drops an edit set to null and records the default it was based on', () => {
     const edited = applyPromptPartEdits({}, { triage: 'Close what is done.' });
     expect(edited).toEqual({ triage: override('Close what is done.', 'triage') });
     expect(applyPromptPartEdits(edited, { triage: null })).toEqual({});
-    expect(applyPromptPartEdits(edited, { triage: defaultPromptText('triage') })).toEqual({});
+    expect(applyPromptPartEdits(edited, { triage: defaultPromptText('triage') })).toEqual({
+      triage: override(defaultPromptText('triage'), 'triage'),
+    });
   });
 });
 
@@ -173,5 +177,33 @@ describe('Prompt settings per Session', () => {
     expect(settings.textForSession('s1')('attention')).toBe('Global attention.');
     expect(settings.textForSession('unknown')('attention')).toBe(defaultPromptText('attention'));
     owner.close();
+  });
+});
+
+describe('Prompt Preset limits', () => {
+  it('accepts only known limits within their range', () => {
+    expect(parsePromptLimitEdits({ 'dm-context-chars': 4000, 'review-tool-calls': null })).toEqual({
+      'dm-context-chars': 4000,
+      'review-tool-calls': null,
+    });
+    expect(parsePromptLimitEdits({ 'dm-context-chars': 10 })).toBeUndefined();
+    expect(parsePromptLimitEdits({ 'dm-context-chars': 4000.5 })).toBeUndefined();
+    expect(parsePromptLimitEdits({ nope: 1 })).toBeUndefined();
+    expect(
+      applyPromptLimitEdits({ 'dm-context-chars': 4000 }, { 'dm-context-chars': null }),
+    ).toEqual({});
+  });
+
+  it('takes each limit from the Bot, then its preset, then the global preset, then built-in', () => {
+    const limits = resolvePromptLimits({
+      global: { ...preset({}), limits: { 'group-context-chars': 30000, 'dm-context-chars': 9000 } },
+      preset: { ...preset({}, 'p2'), limits: { 'dm-context-chars': 5000 } },
+      bot: { 'review-timeout-seconds': 120 },
+    });
+    const byId = new Map(limits.map((limit) => [limit.id, limit]));
+    expect(byId.get('group-context-chars')).toMatchObject({ value: 30000, source: 'global' });
+    expect(byId.get('dm-context-chars')).toMatchObject({ value: 5000, source: 'preset' });
+    expect(byId.get('review-timeout-seconds')).toMatchObject({ value: 120, source: 'bot' });
+    expect(byId.get('review-tool-calls')).toMatchObject({ value: 12, source: 'built-in' });
   });
 });

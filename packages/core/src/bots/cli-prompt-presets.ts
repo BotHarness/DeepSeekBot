@@ -5,6 +5,7 @@ type Rpc = (method: string, payload: Record<string, unknown>) => Promise<unknown
 
 export const PROMPT_PRESET_OPTIONS = {
   'parts-stdin': { type: 'boolean' },
+  'prompt-limit': { type: 'string', multiple: true },
   'expected-revision': { type: 'string' },
   confirm: { type: 'boolean' },
 } as const;
@@ -13,6 +14,7 @@ export interface PromptPresetValues {
   name?: string;
   preset?: string;
   'parts-stdin'?: boolean;
+  'prompt-limit'?: string[];
   'expected-revision'?: string;
   confirm?: boolean;
 }
@@ -81,6 +83,18 @@ async function partsFrom(
   return parsed as Record<string, unknown>;
 }
 
+function limitsFrom(values: PromptPresetValues): Record<string, number | null> | undefined {
+  const entries = values['prompt-limit'];
+  if (entries === undefined || entries.length === 0) return undefined;
+  const limits: Record<string, number | null> = {};
+  for (const entry of entries) {
+    const match = /^([a-z-]+)=(default|\d+)$/u.exec(entry.trim());
+    if (match === null) usage('--prompt-limit takes <limit-id>=<integer> or <limit-id>=default.');
+    limits[match[1]!] = match[2] === 'default' ? null : Number(match[2]);
+  }
+  return limits;
+}
+
 function positionals(command: Command, rest: string[], count: number, what: string): string[] {
   if (rest.length !== count || rest.some((value) => !value.trim()))
     usage(count === 0 ? `${command} takes no positional arguments.` : `${command} needs ${what}.`);
@@ -103,9 +117,11 @@ export async function runPromptPresetCommand(
     const name = values.name?.trim();
     if (!name) usage('prompt-preset-create needs --name.');
     const parts = await partsFrom(values, io);
+    const limits = limitsFrom(values);
     return (await connect())('promptPresetCreate', {
       name,
       ...(parts === undefined ? {} : { parts }),
+      ...(limits === undefined ? {} : { limits }),
     });
   }
   if (command === 'prompt-preset-update') {
@@ -114,12 +130,14 @@ export async function runPromptPresetCommand(
     if (raw !== undefined && !/^\d+$/u.test(raw))
       usage('--expected-revision must be a nonnegative integer.');
     const parts = await partsFrom(values, io);
-    if (values.name === undefined && parts === undefined)
-      usage('prompt-preset-update needs --name or --parts-stdin.');
+    const limits = limitsFrom(values);
+    if (values.name === undefined && parts === undefined && limits === undefined)
+      usage('prompt-preset-update needs --name, --parts-stdin or --prompt-limit.');
     return (await connect())('promptPresetUpdate', {
       id,
       ...(values.name === undefined ? {} : { name: values.name }),
       ...(parts === undefined ? {} : { parts }),
+      ...(limits === undefined ? {} : { limits }),
       ...(raw === undefined ? {} : { expectedRevision: Number(raw) }),
     });
   }
@@ -137,11 +155,13 @@ export async function runPromptPresetCommand(
   if (command === 'bot-prompt') return (await connect())('botPrompt', { slug });
   const preset = values.preset?.trim();
   const parts = await partsFrom(values, io);
-  if (preset === undefined && parts === undefined)
-    usage('bot-prompt-set needs --preset <id>|global or --parts-stdin.');
+  const limits = limitsFrom(values);
+  if (preset === undefined && parts === undefined && limits === undefined)
+    usage('bot-prompt-set needs --preset <id>|global, --parts-stdin or --prompt-limit.');
   return (await connect())('botPromptSet', {
     slug,
     ...(preset === undefined ? {} : { presetId: preset === 'global' ? null : preset }),
     ...(parts === undefined ? {} : { parts }),
+    ...(limits === undefined ? {} : { limits }),
   });
 }

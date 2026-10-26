@@ -11,6 +11,8 @@ A Prompt Preset is a named set of part texts stored in the Profile. Each part re
 
 A Session uses one frozen set of texts. The first time a Session needs a part, the resolved non-default texts are written to its ownership row (`prompt_snapshot`). They are refreshed only on `compaction/end`, the same point where the Persona snapshot is refreshed. Until then `bot-prompt` reports `pending`.
 
+A preset also carries numeric limits: the Bot Inbox Group, DM and per-message context budgets, and the Approval Reviewer's timeout and excerpt sizes. They resolve through the same layers but apply from the next Inbox delivery or review, because they do not change the cached system prompt.
+
 Assignment and approval-reviewer prompts are out of scope for now.
 
 ## Why

@@ -141,6 +141,7 @@ import type {
   WorkspaceGrantStore,
 } from '../workspaces/grants.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
+import { DEFAULT_PROMPT_LIMITS, type PromptLimits } from '../prompts/prompt-limits.js';
 
 export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
 export type AssignmentReportState =
@@ -807,6 +808,7 @@ export interface BotRuntime {
 
 export interface BotRuntimeOptions {
   promptText?: (botSlug: string) => PromptText;
+  promptLimits?: (botSlug: string) => PromptLimits;
   tob?: TobService;
   inboxHistory?: InboxHistoryQuery;
   triageContinuation?: boolean;
@@ -960,6 +962,7 @@ interface GroupContext {
   channelId: string;
   rows: DigestRow[];
   omittedCount: number;
+  bodyLimit: number;
 }
 
 interface GroupPromptBudget {
@@ -967,10 +970,7 @@ interface GroupPromptBudget {
   includedByChannel: Map<string, number>;
 }
 
-const GROUP_PROMPT_CHARACTER_BUDGET = 24_000;
-const DM_CONTEXT_CHARACTER_BUDGET = 8_000;
 const GROUP_PROMPT_CHANNEL_LIMIT = 100;
-const GROUP_CONTEXT_BODY_LIMIT = 1_000;
 
 interface ScheduleFiringFacts {
   id: string;
@@ -1359,6 +1359,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #messagePerf: MessagePerfTracker | undefined;
   readonly #now: () => Date;
   readonly #promptText: (botSlug: string) => PromptText;
+  readonly #promptLimits: (botSlug: string) => PromptLimits;
   readonly #createSessionId: () => string;
   readonly #sessionArchived: ((sessionId: string) => boolean) | undefined;
   readonly #createEventId: () => string;
@@ -1458,6 +1459,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#messagePerf = options.messagePerf;
     this.#now = options.now ?? (() => new Date());
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
+    this.#promptLimits = options.promptLimits ?? (() => DEFAULT_PROMPT_LIMITS);
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
     this.#createEventId = options.createEventId ?? (() => randomUUID());
     this.#createMessageId = options.createMessageId ?? (() => randomUUID());
@@ -2021,7 +2023,11 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           continue;
         const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
-        if (context.grantId !== source.grantId || characters + context.body.length + 1600 > 24000)
+        if (
+          context.grantId !== source.grantId ||
+          characters + context.body.length + 1600 >
+            this.#promptLimits(botSlug)['group-context-chars']
+        )
           continue;
         characters += context.body.length + 1600;
         units.push({
@@ -2038,7 +2044,7 @@ class BotRuntimeImplementation implements BotRuntime {
               this.#claimGroupContext(db, botSlug, source.localChannelId!, {
                 remainingCharacters: Math.max(
                   0,
-                  GROUP_PROMPT_CHARACTER_BUDGET -
+                  this.#promptLimits(botSlug)['group-context-chars'] -
                     renderInbox(units, this.#promptText(botSlug)).length,
                 ),
                 includedByChannel: new Map(),
@@ -2346,20 +2352,22 @@ class BotRuntimeImplementation implements BotRuntime {
         excludeSourceEventId,
         GROUP_PROMPT_CHANNEL_LIMIT,
       ) as unknown as DigestRow[];
+    const limits = this.#promptLimits(botSlug);
+    const bodyLimit = limits['context-message-chars'];
     const rows: DigestRow[] = [];
     let characters = 0;
     for (const row of candidates) {
-      const cost = Math.min(row.body.length, GROUP_CONTEXT_BODY_LIMIT) + 80;
+      const cost = Math.min(row.body.length, bodyLimit) + 80;
       if (
         rows.length >= GROUP_PROMPT_CHANNEL_LIMIT ||
-        characters + cost > DM_CONTEXT_CHARACTER_BUDGET
+        characters + cost > limits['dm-context-chars']
       )
         break;
       rows.push(row);
       characters += cost;
     }
     if (rows.length === 0) return undefined;
-    const context = { channelId, rows, omittedCount: total.count - rows.length };
+    const context = { channelId, rows, omittedCount: total.count - rows.length, bodyLimit };
     for (const row of rows)
       database
         .prepare(`
@@ -2379,9 +2387,9 @@ class BotRuntimeImplementation implements BotRuntime {
           `${row.reply_session_id == null || row.reply_source_event_id == null ? '' : `[Human response to Assignment Session ${row.reply_session_id}, report Source Event ${row.reply_source_event_id}]\n`}` +
           `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${
             row.author_kind === 'bot' ? `PersonaBot ${row.author_slug ?? '?'}` : 'Human'
-          } at ${row.created_at}: ${row.body.slice(0, GROUP_CONTEXT_BODY_LIMIT)}${
-            row.body.length > GROUP_CONTEXT_BODY_LIMIT
-              ? ` [excerpt; ${row.body.length - GROUP_CONTEXT_BODY_LIMIT} more characters available with channel_read]`
+          } at ${row.created_at}: ${row.body.slice(0, context.bodyLimit)}${
+            row.body.length > context.bodyLimit
+              ? ` [excerpt; ${row.body.length - context.bodyLimit} more characters available with channel_read]`
               : ''
           }`
         );
@@ -2425,7 +2433,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ? this.#claimGroupContext(database, botSlug, channelId, {
               remainingCharacters: Math.max(
                 0,
-                GROUP_PROMPT_CHARACTER_BUDGET - mentionPrompt.length,
+                this.#promptLimits(botSlug)['group-context-chars'] - mentionPrompt.length,
               ),
               includedByChannel: new Map(),
             })
@@ -3061,7 +3069,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const budget: GroupPromptBudget = {
           remainingCharacters: Math.max(
             0,
-            GROUP_PROMPT_CHARACTER_BUDGET -
+            this.#promptLimits(botSlug)['group-context-chars'] -
               externalCharacters -
               itemRows.reduce(
                 (size, row) =>
@@ -3236,6 +3244,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const candidates = database
       .prepare(`${columns} ${base} ORDER BY e.created_at, e.rowid LIMIT ?`)
       .all(botSlug, channelId, GROUP_PROMPT_CHANNEL_LIMIT) as unknown as DigestRow[];
+    const bodyLimit = this.#promptLimits(botSlug)['context-message-chars'];
     const rows: DigestRow[] = [];
     for (const row of candidates) {
       if (!sourceSenderAllowed(database, botSlug, row.source_event_id, true)) continue;
@@ -3244,12 +3253,13 @@ class BotRuntimeImplementation implements BotRuntime {
         channelId,
         rows: [...rows, row],
         omittedCount: total.count - rows.length - 1,
+        bodyLimit,
       };
       if (this.#groupContextSection(candidateContext).length > budget.remainingCharacters) break;
       rows.push(row);
     }
     if (rows.length === 0) return undefined;
-    const context = { channelId, rows, omittedCount: total.count - rows.length };
+    const context = { channelId, rows, omittedCount: total.count - rows.length, bodyLimit };
     budget.remainingCharacters -= this.#groupContextSection(context).length;
     budget.includedByChannel.set(channelId, alreadyIncluded + rows.length);
     for (const row of rows)
@@ -3288,7 +3298,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, GROUP_CONTEXT_BODY_LIMIT)}${groupMessageBody(row).length > GROUP_CONTEXT_BODY_LIMIT ? ` [excerpt; ${groupMessageBody(row).length - GROUP_CONTEXT_BODY_LIMIT} more characters available with channel_read]` : ''}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -8327,7 +8337,7 @@ class BotRuntimeImplementation implements BotRuntime {
     for (const row of this.#pendingExternalRows(botSlug, true)) {
       if (!this.#externalMessaging?.inbound.available(botSlug, row.source_event_id, true)) continue;
       const cost = row.body.length + 1600;
-      if (externalCharacters + cost > 24000) break;
+      if (externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']) break;
       externalCharacters += cost;
       rows.push({
         ...row,

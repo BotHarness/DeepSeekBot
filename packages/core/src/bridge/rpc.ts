@@ -74,6 +74,7 @@ import type {
   BotPromptView,
   IdleCompactionView,
   OverviewUsage,
+  PromptLimitView,
   PromptPartView,
 } from './methods.js';
 import type { PromptPreset } from '../prompts/prompt-presets.js';
@@ -1064,7 +1065,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
   }
 
-  promptParts(): { parts: PromptPartView[] } {
+  promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
     return unwrap(this.methods.promptParts({}));
   }
 
@@ -1072,9 +1073,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.promptPresets({}));
   }
 
-  promptPresetCreate(name: string, parts?: Record<string, unknown>): { preset: PromptPreset } {
+  promptPresetCreate(
+    name: string,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
     return unwrap(
-      this.methods.promptPresetCreate({ name, ...(parts === undefined ? {} : { parts }) }),
+      this.methods.promptPresetCreate({
+        name,
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+      }),
     );
   }
 
@@ -1083,12 +1092,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     name?: string,
     parts?: Record<string, unknown>,
     expectedRevision?: number,
+    limits?: Record<string, unknown>,
   ): { preset: PromptPreset } {
     return unwrap(
       this.methods.promptPresetUpdate({
         id,
         ...(name === undefined ? {} : { name }),
         ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
         ...(expectedRevision === undefined ? {} : { expectedRevision }),
       }),
     );
@@ -1110,12 +1121,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     presetId?: string | null,
     parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
   ): BotPromptView {
     return unwrap(
       this.methods.botPromptSet({
         slug,
         ...(presetId === undefined ? {} : { presetId }),
         ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
       }),
     );
   }

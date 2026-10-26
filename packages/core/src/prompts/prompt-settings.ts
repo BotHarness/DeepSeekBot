@@ -7,9 +7,13 @@ import {
   type PromptPartTexts,
   type PromptText,
 } from './prompt-parts.js';
+import type { PromptLimits } from './prompt-limits.js';
 import {
+  promptLimitValues,
   promptPartTexts,
+  resolvePromptLimits,
   resolvePromptParts,
+  type ResolvedPromptLimit,
   type PromptPresetLibrary,
   type ResolvedPromptPart,
 } from './prompt-presets.js';
@@ -17,6 +21,8 @@ import {
 export interface PromptSettings {
   library: PromptPresetLibrary;
   resolved(botSlug: string): ResolvedPromptPart[];
+  resolvedLimits(botSlug: string): ResolvedPromptLimit[];
+  limits(botSlug: string): PromptLimits;
   textForSession(sessionId: string): PromptText;
   snapshotTexts(sessionId: string): PromptPartTexts | undefined;
   refreshAfterCompaction(sessionId: string): { refreshed: boolean };
@@ -55,11 +61,22 @@ export function createPromptSettings(options: {
       bot: bot?.promptOverrides,
     });
   };
+  const resolvedLimits = (botSlug: string): ResolvedPromptLimit[] => {
+    const bot = registry.get(botSlug);
+    const globalId = library.globalPresetId();
+    return resolvePromptLimits({
+      global: globalId === undefined ? undefined : library.get(globalId),
+      preset: bot?.promptPreset === undefined ? undefined : library.get(bot.promptPreset),
+      bot: bot?.promptLimits,
+    });
+  };
   const currentTexts = (botSlug: string) => promptPartTexts(resolved(botSlug));
   const snapshotTexts = (sessionId: string) => parseTexts(ownership.promptSnapshot(sessionId));
   return {
     library,
     resolved,
+    resolvedLimits,
+    limits: (botSlug) => promptLimitValues(resolvedLimits(botSlug)),
     snapshotTexts,
     textForSession(sessionId) {
       const recorded = snapshotTexts(sessionId);

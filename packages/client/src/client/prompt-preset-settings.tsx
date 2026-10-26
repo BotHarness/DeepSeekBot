@@ -241,16 +241,146 @@ function PartsEditor({
   );
 }
 
-type Library = { parts: PartView[]; presets: PresetView[]; globalPresetId: string | null };
+type LimitView = NonNullable<
+  Awaited<ReturnType<NonNullable<PromptActions['promptParts']>>>
+>['limits'][number];
+type LimitLayer = Partial<Record<string, number>>;
+type LimitDraft = Record<string, string>;
+
+function limitEdits(
+  catalog: readonly LimitView[],
+  layer: LimitLayer,
+  draft: LimitDraft,
+  inherited: (id: string) => number,
+): { edits: Record<string, number | null>; invalid: boolean } {
+  const result: Record<string, number | null> = {};
+  let invalid = false;
+  for (const [id, raw] of Object.entries(draft)) {
+    const limit = catalog.find((entry) => entry.id === id);
+    if (limit === undefined) continue;
+    if (raw.trim() === '') {
+      if (layer[id] !== undefined) result[id] = null;
+      continue;
+    }
+    const value = Number(raw);
+    if (!Number.isInteger(value) || value < limit.min || value > limit.max) {
+      invalid = true;
+      continue;
+    }
+    if (value === inherited(id) && layer[id] === undefined) continue;
+    if (value === inherited(id)) result[id] = null;
+    else if (value !== layer[id]) result[id] = value;
+  }
+  return { edits: result, invalid };
+}
+
+function LimitsEditor({
+  catalog,
+  layer,
+  draft,
+  inherited,
+  setDraft,
+  t,
+}: {
+  catalog: readonly LimitView[];
+  layer: LimitLayer;
+  draft: LimitDraft;
+  inherited: (id: string) => { value: number; source: Source };
+  setDraft(next: LimitDraft): void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const group = (kind: LimitView['group']) => (
+    <section aria-label={t(kind === 'inbox' ? 'prompts.limits.inbox' : 'prompts.limits.review')}>
+      <GroupHeading
+        quiet
+        label={t(kind === 'inbox' ? 'prompts.limits.inbox' : 'prompts.limits.review')}
+        count=""
+      />
+      <FieldStack>
+        {catalog
+          .filter((limit) => limit.group === kind)
+          .map((limit) => {
+            const fallback = inherited(limit.id);
+            const own = layer[limit.id];
+            const drafted = draft[limit.id];
+            const value = drafted ?? String(own ?? fallback.value);
+            const number = Number(value);
+            const edited =
+              drafted === undefined
+                ? own !== undefined
+                : value.trim() !== '' && number !== fallback.value;
+            const invalid =
+              value.trim() !== '' &&
+              (!Number.isInteger(number) || number < limit.min || number > limit.max);
+            return (
+              <div key={limit.id} data-prompt-limit={limit.id}>
+                <TextField
+                  label={
+                    <span {...stylex.props(styles.meta)}>
+                      {t(('prompts.limit.' + limit.id) as Parameters<BotHarnessTranslate>[0])}
+                      <Tag tone={edited ? 'success' : 'neutral'}>
+                        {edited ? t('prompts.source.here') : sourceLabel(t, fallback.source)}
+                      </Tag>
+                    </span>
+                  }
+                  hint={t('prompts.limits.range', {
+                    min: limit.min,
+                    max: limit.max,
+                    value: limit.defaultValue,
+                  })}
+                  error={
+                    invalid
+                      ? t('prompts.limits.invalid', { min: limit.min, max: limit.max })
+                      : undefined
+                  }
+                  inputMode="numeric"
+                  value={value}
+                  onChange={(next) => setDraft({ ...draft, [limit.id]: next.trim() })}
+                />
+                {edited ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDraft({ ...draft, [limit.id]: String(fallback.value) })}
+                  >
+                    {t('prompts.reset', { source: sourceLabel(t, fallback.source) })}
+                  </Button>
+                ) : null}
+              </div>
+            );
+          })}
+      </FieldStack>
+    </section>
+  );
+  return (
+    <details {...stylex.props(styles.part)} data-prompt-limits="">
+      <summary {...stylex.props(styles.summary)}>
+        <span>{t('prompts.limits.title')}</span>
+      </summary>
+      <div {...stylex.props(styles.body)}>
+        <Note>{t('prompts.limits.hint')}</Note>
+        {group('inbox')}
+        {group('review')}
+      </div>
+    </details>
+  );
+}
+
+type Library = {
+  parts: PartView[];
+  limits: LimitView[];
+  presets: PresetView[];
+  globalPresetId: string | null;
+};
 
 async function loadLibrary(actions: PromptActions): Promise<Library> {
   const [parts, presets] = await Promise.all([actions.promptParts!(), actions.promptPresets!()]);
-  return { parts: parts.parts, ...presets };
+  return { parts: parts.parts, limits: parts.limits, ...presets };
 }
 
 type Editor =
-  | { mode: 'create'; name: string; draft: Draft }
-  | { mode: 'edit'; preset: PresetView; name: string; draft: Draft };
+  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft }
+  | { mode: 'edit'; preset: PresetView; name: string; draft: Draft; limits: LimitDraft };
 
 export function PromptPresetSettings({
   actions,
@@ -299,6 +429,10 @@ export function PromptPresetSettings({
       .finally(() => setBusy(false));
   };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const builtInLimit = (id: string) => ({
+    value: library?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
+    source: 'built-in' as Source,
+  });
   const builtIn = (id: string) => ({
     text: library?.parts.find((part) => part.id === id)?.defaultText ?? '',
     source: 'built-in' as Source,
@@ -323,9 +457,19 @@ export function PromptPresetSettings({
     if (editor === undefined) return null;
     const layer: Layer = editor.mode === 'edit' ? editor.preset.parts : {};
     const changes = edits(layer, editor.draft, (id) => builtIn(id).text);
+    const limitLayer: LimitLayer = editor.mode === 'edit' ? editor.preset.limits : {};
+    const limitChanges = limitEdits(
+      library.limits,
+      limitLayer,
+      editor.limits,
+      (id) => builtInLimit(id).value,
+    );
     const name = editor.name.trim();
     const unchanged =
-      editor.mode === 'edit' && name === editor.preset.name && Object.keys(changes).length === 0;
+      editor.mode === 'edit' &&
+      name === editor.preset.name &&
+      Object.keys(changes).length === 0 &&
+      Object.keys(limitChanges.edits).length === 0;
     return (
       <FormDialog
         title={
@@ -338,17 +482,20 @@ export function PromptPresetSettings({
         labels={labels}
         submitLabel={editor.mode === 'create' ? t('prompts.create') : t('prompts.save')}
         submitData={{ 'data-prompt-preset-submit': editor.mode }}
-        submitDisabled={name === '' || unchanged}
+        submitDisabled={name === '' || unchanged || limitChanges.invalid}
         busy={busy}
         error={error}
         onCancel={close}
         onSubmit={() =>
           run(() =>
             editor.mode === 'create'
-              ? actions.promptPresetCreate!(name, changes)
+              ? actions.promptPresetCreate!(name, changes, limitChanges.edits)
               : actions.promptPresetUpdate!(editor.preset.id, {
                   ...(name === editor.preset.name ? {} : { name }),
                   ...(Object.keys(changes).length === 0 ? {} : { parts: changes }),
+                  ...(Object.keys(limitChanges.edits).length === 0
+                    ? {}
+                    : { limits: limitChanges.edits }),
                   expectedRevision: editor.preset.revision,
                 }),
           )
@@ -382,6 +529,14 @@ export function PromptPresetSettings({
             draft={editor.draft}
             inherited={builtIn}
             setDraft={(draft) => setEditor({ ...editor, draft })}
+            t={t}
+          />
+          <LimitsEditor
+            catalog={library.limits}
+            layer={limitLayer}
+            draft={editor.limits}
+            inherited={builtInLimit}
+            setDraft={(limits) => setEditor({ ...editor, limits })}
             t={t}
           />
         </FieldStack>
@@ -437,7 +592,7 @@ export function PromptPresetSettings({
                   size="sm"
                   onClick={() => {
                     setError(undefined);
-                    setEditor({ mode: 'create', name: '', draft: {} });
+                    setEditor({ mode: 'create', name: '', draft: {}, limits: {} });
                   }}
                 >
                   {t('prompts.create')}
@@ -445,7 +600,7 @@ export function PromptPresetSettings({
               }
             />
             {library.presets.map((preset) => {
-              const changed = Object.keys(preset.parts).length;
+              const changed = Object.keys(preset.parts).length + Object.keys(preset.limits).length;
               const stale = Object.entries(preset.parts).some(
                 ([id, part]) =>
                   part.base !== library.parts.find((entry) => entry.id === id)?.defaultHash,
@@ -470,7 +625,13 @@ export function PromptPresetSettings({
                       size="sm"
                       onClick={() => {
                         setError(undefined);
-                        setEditor({ mode: 'edit', preset, name: preset.name, draft: {} });
+                        setEditor({
+                          mode: 'edit',
+                          preset,
+                          name: preset.name,
+                          draft: {},
+                          limits: {},
+                        });
                       }}
                     >
                       {t('prompts.edit')}
@@ -500,6 +661,7 @@ export function BotPromptSettingsEntry({
   const [state, setState] = useState<BotState>();
   const [loadError, setLoadError] = useState<string>();
   const [draft, setDraft] = useState<Draft>();
+  const [limitDraft, setLimitDraft] = useState<LimitDraft>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const load = async (slug: string): Promise<BotState> => {
@@ -529,6 +691,7 @@ export function BotPromptSettingsEntry({
     void actions.botPromptSet!(botSlug, change)
       .then(async () => {
         setDraft(undefined);
+        setLimitDraft({});
         setState(await load(botSlug));
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))
@@ -578,6 +741,25 @@ export function BotPromptSettingsEntry({
       ]),
   );
   const own = Object.keys(layer).length;
+  const limitLayer: LimitLayer = Object.fromEntries(
+    view.limits.filter((limit) => limit.source === 'bot').map((limit) => [limit.id, limit.value]),
+  );
+  const limitBelow = (id: string): { value: number; source: Source } => {
+    const fromPreset = chosen?.limits[id as keyof typeof chosen.limits];
+    if (fromPreset !== undefined) return { value: fromPreset, source: 'preset' };
+    const fromGlobal = globalPreset?.limits[id as keyof typeof globalPreset.limits];
+    if (fromGlobal !== undefined) return { value: fromGlobal, source: 'global' };
+    return {
+      value: library.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
+      source: 'built-in',
+    };
+  };
+  const limitChanges = limitEdits(
+    library.limits,
+    limitLayer,
+    limitDraft,
+    (id) => limitBelow(id).value,
+  );
   const cards = [
     {
       id: FOLLOW,
@@ -587,7 +769,9 @@ export function BotPromptSettingsEntry({
     ...library.presets.map((preset) => ({
       id: preset.id,
       title: preset.name,
-      meta: t('prompts.changed', { count: Object.keys(preset.parts).length }),
+      meta: t('prompts.changed', {
+        count: Object.keys(preset.parts).length + Object.keys(preset.limits).length,
+      }),
     })),
   ];
   const selected = view.presetId ?? FOLLOW;
@@ -676,6 +860,32 @@ export function BotPromptSettingsEntry({
               </Button>
             </div>
           </FieldStack>
+        )}
+      </section>
+      <section aria-label={t('prompts.limits.title')}>
+        <LimitsEditor
+          catalog={library.limits}
+          layer={limitLayer}
+          draft={limitDraft}
+          inherited={limitBelow}
+          setDraft={setLimitDraft}
+          t={t}
+        />
+        {Object.keys(limitDraft).length === 0 ? null : (
+          <div {...stylex.props(styles.actions)}>
+            <Button
+              size="sm"
+              disabled={
+                busy || limitChanges.invalid || Object.keys(limitChanges.edits).length === 0
+              }
+              onClick={() => run({ limits: limitChanges.edits })}
+            >
+              {t('prompts.save')}
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => setLimitDraft({})}>
+              {t('common.cancel')}
+            </Button>
+          </div>
         )}
       </section>
       {view.parts.some((part) => part.source !== 'bot' && part.defaultChanged) ? (
