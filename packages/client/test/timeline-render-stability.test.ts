@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { botNameColor } from '../src/client/bot-name-color.js';
 import { visibleDmMessages } from '../src/client/dm-actions.js';
-import type { ChannelMessage } from '../src/shared/types.js';
+import type { ChannelMessage } from '../src/client/store.js';
 
 const messages: ChannelMessage[] = [
   { id: 'm1', at: '2026-10-26T10:00:00.000Z', author: { kind: 'human' }, body: 'hi' },
