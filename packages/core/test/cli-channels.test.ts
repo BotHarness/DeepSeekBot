@@ -109,6 +109,20 @@ describe('Channel and group CLI commands', () => {
       method: 'botContext',
       args: { slug: 'ada' },
     });
+    expect((await invoke(['bot-system-prompt', 'ada'], live.url)).json).toMatchObject({
+      method: 'botSystemPrompt',
+      args: { slug: 'ada' },
+    });
+    expect(
+      (await invoke(['bot-turn-input', 'ada', '--turns', '2', '--session', 'sess-1'], live.url))
+        .json,
+    ).toMatchObject({
+      method: 'botTurnInput',
+      args: { slug: 'ada', sessionId: 'sess-1', turns: 2 },
+    });
+    expect(
+      (await invoke(['bot-turn-input', 'ada', '--session', 'direct'], live.url)).code,
+    ).not.toBe(0);
   });
   it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
     const live = await host(ok);

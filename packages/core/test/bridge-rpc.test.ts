@@ -651,6 +651,8 @@ describe('bridge typert service', () => {
       'botNewSession',
       'botCompact',
       'botContext',
+      'botSystemPrompt',
+      'botTurnInput',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',

@@ -2,6 +2,11 @@ import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
 import {
+  summarizeTurnInput,
+  type BotSystemPromptView,
+  type TurnInputView,
+} from '../runtime/prompt-inspection.js';
+import {
   approveGrantRequest,
   type GrantRequestApprovalResult,
 } from '../workspaces/grant-requests.js';
@@ -548,6 +553,7 @@ export interface BridgeMethods {
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
   botContext(payload: unknown): Promise<BridgeResult<BotContextWindow>>;
+  botSystemPrompt(payload: unknown): Promise<BridgeResult<BotSystemPromptView>>;
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
@@ -762,6 +768,9 @@ export interface BridgeMethods {
   botToolTrace(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
+  botTurnInput(
+    payload: unknown,
+  ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnInputView[] }>>;
   botTools(payload: unknown): BridgeResult<{ sessionId: 'direct'; tools: DirectBotToolSpec[] }>;
   botToolRun(
     payload: unknown,
@@ -957,6 +966,7 @@ function storageFailure(
 
 export interface BridgeMethodsDeps {
   botContext?(slug: string): Promise<BotContextWindow>;
+  botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
@@ -2516,6 +2526,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!deps.botContext) return unavailable();
       try {
         return { ok: true, value: await deps.botContext(slug) };
+      } catch {
+        return unavailable();
+      }
+    },
+    async botSystemPrompt(payload) {
+      const slug = asSlug(payload);
+      if (!slug) return invalidInput('slug is required');
+      if (!deps.registry.get(slug)) return unknownBot(slug);
+      if (!deps.botSystemPrompt) return unavailable();
+      try {
+        return { ok: true, value: await deps.botSystemPrompt(slug) };
       } catch {
         return unavailable();
       }
@@ -6375,6 +6396,29 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const log = await deps.readUsageSessionLog(sessionId);
       if (log === undefined) return unavailable();
       return { ok: true, value: { slug, sessionId, ...summarizeToolTrace(log.events, { turns }) } };
+    },
+    async botTurnInput(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const source = asObject(payload) ?? {};
+      const turns = source['turns'] === undefined ? 1 : source['turns'];
+      if (typeof turns !== 'number' || !Number.isInteger(turns) || turns < 1 || turns > 20)
+        return invalidInput('turns must be an integer from 1 to 20');
+      const roots = deps.ownership.rootsFor(slug);
+      const requested = source['sessionId'];
+      if (requested !== undefined && typeof requested !== 'string')
+        return invalidInput('sessionId must be a string');
+      const sessionId =
+        requested ??
+        deps.runtime?.currentOrchestratorSessionId?.(slug) ??
+        [...roots].reverse().find((root) => root.rootRole === 'orchestrator')?.sessionId;
+      if (sessionId === undefined || !roots.some((root) => root.sessionId === sessionId))
+        return invalidInput('The Session does not belong to this PersonaBot');
+      if (deps.readUsageSessionLog === undefined) return unavailable();
+      const log = await deps.readUsageSessionLog(sessionId);
+      if (log === undefined) return unavailable();
+      return { ok: true, value: { slug, sessionId, ...summarizeTurnInput(log.events, { turns }) } };
     },
     botTools() {
       const tools = deps.runtime?.directBotTools?.();

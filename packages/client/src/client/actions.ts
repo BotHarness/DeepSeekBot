@@ -377,6 +377,17 @@ export interface BridgeActions {
   botContext(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/context-window.js').BotContextWindow>;
+  botSystemPrompt(
+    botSlug: string,
+  ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
+  botTurnInput(
+    botSlug: string,
+    turns?: number,
+  ): Promise<{
+    slug: string;
+    sessionId: string;
+    turns: import('../../../core/src/runtime/prompt-inspection.js').TurnInputView[];
+  }>;
 
   channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
@@ -1593,6 +1604,12 @@ export function createActions(
     },
     async botContext(botSlug) {
       return invoke('botContext', { slug: botSlug });
+    },
+    async botSystemPrompt(botSlug) {
+      return invoke('botSystemPrompt', { slug: botSlug });
+    },
+    async botTurnInput(botSlug, turns = 1) {
+      return invoke('botTurnInput', { slug: botSlug, turns });
     },
     async newBotSession(botSlug) {
       await invoke('botNewSession', { slug: botSlug });

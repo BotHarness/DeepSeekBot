@@ -439,6 +439,10 @@ export const LIVE_COMMANDS = [
     description: 'show which tools a Bot called in its recent turns, with outcomes',
   },
   {
+    command: 'bot-turn-input',
+    description: 'show the exact input messages a Bot received in its recent turns',
+  },
+  {
     command: 'computer-tools',
     description: 'list the Computer tools a Bot can call, with input schemas',
   },
@@ -942,17 +946,22 @@ export async function runLiveCli(
       io,
       () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
-  if (command === 'bot-trace') {
-    if (rest.length !== 1 || !rest[0]?.trim()) usage('bot-trace needs exactly one bot id.');
+  if (command === 'bot-trace' || command === 'bot-turn-input') {
+    if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one bot id.`);
     const turns = values.turns === undefined ? undefined : Number(values.turns);
     if (turns !== undefined && (!Number.isInteger(turns) || turns < 1 || turns > 20))
       usage('--turns must be an integer from 1 to 20.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-    return (await connectLiveHost(values, io, signal)).rpc('botToolTrace', {
-      slug: rest[0].trim(),
-      ...(values.session === undefined ? {} : { sessionId: values.session }),
-      ...(turns === undefined ? {} : { turns }),
-    });
+    if (command === 'bot-turn-input' && values.session === 'direct')
+      usage('bot-turn-input reads a model Session, not direct tool calls.');
+    return (await connectLiveHost(values, io, signal)).rpc(
+      command === 'bot-trace' ? 'botToolTrace' : 'botTurnInput',
+      {
+        slug: rest[0].trim(),
+        ...(values.session === undefined ? {} : { sessionId: values.session }),
+        ...(turns === undefined ? {} : { turns }),
+      },
+    );
   }
   if (isChannelCommand(command))
     return runChannelCommand(command, rest, values, io, connectLiveHost);

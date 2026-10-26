@@ -600,6 +600,8 @@ describe('plugin entry', () => {
       'botNewSession',
       'botCompact',
       'botContext',
+      'botSystemPrompt',
+      'botTurnInput',
       'channelBotStop',
       'modelCatalog',
       'modelPresets',

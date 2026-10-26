@@ -14,6 +14,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { compactTokenCount, profileTokenSummaryText } from './profile-token-summary.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import type { BotPromptView } from './bot-prompt-viewer.js';
 
 export function DmComposerUsagePopover({
   bot,
@@ -25,6 +26,7 @@ export function DmComposerUsagePopover({
   trigger,
   onClose,
   onDetails,
+  onInspect,
 }: {
   bot: BotSummary;
   context?: Awaited<ReturnType<BridgeActions['botContext']>> | undefined;
@@ -35,6 +37,7 @@ export function DmComposerUsagePopover({
   trigger: RefObject<HTMLButtonElement>;
   onClose(): void;
   onDetails(): void;
+  onInspect?(view: BotPromptView): void;
 }): ReactElement {
   const titleId = useId();
   const maintenance = useSessionMaintenance(actions, channelId, bot.slug);
@@ -199,6 +202,16 @@ export function DmComposerUsagePopover({
           </ActionButton>
         </ActionGroup>
       ) : null}
+      {onInspect === undefined ? null : (
+        <ActionGroup>
+          <ActionButton icon="terminal" onClick={() => onInspect('system-prompt')}>
+            {t('composerContext.viewSystemPrompt')}
+          </ActionButton>
+          <ActionButton icon="message-square" onClick={() => onInspect('turn-input')}>
+            {t('composerContext.viewTurnInput')}
+          </ActionButton>
+        </ActionGroup>
+      )}
       {maintenance.notice ? (
         <p role="status" className="bh-composer-usage-caption">
           {sessionMaintenanceText(maintenance.notice, t)}

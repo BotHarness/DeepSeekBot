@@ -1,5 +1,6 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
 import { nativeReleaseRuntime } from './release/compatibility.js';
@@ -83,9 +84,9 @@ import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
-import type {} from '@deepseek-ai/dsh-agent';
+import { assembleContextFor } from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-session';
-import type {} from '@deepseek-ai/dsh-system-prompt';
+import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
@@ -2310,6 +2311,52 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           capacity.contextWindow,
           request?.maxTokens ?? info.defaultMaxTokens ?? 0,
         ),
+      };
+    },
+    botSystemPrompt: async (slug) => {
+      const sessionId =
+        core.runtime.currentOrchestratorSessionId?.(slug) ??
+        [...core.ownership.rootsFor(slug)]
+          .reverse()
+          .find((root) => root.rootRole === 'orchestrator')?.sessionId ??
+        null;
+      const agent = sessionId === null ? undefined : liveAgent(sessionId);
+      if (agent === undefined) {
+        const query = ctx.get('sessionQuery') as unknown as
+          | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+          | undefined;
+        const logged =
+          sessionId === null || query === undefined
+            ? null
+            : systemPromptFromLog((await query.readSession(sessionId)).events);
+        return {
+          sessionId,
+          loaded: false,
+          effectiveText: logged,
+          effectiveSource: logged === null ? 'none' : 'log',
+          next: null,
+          pending: false,
+        };
+      }
+      const nodes = agent.session.surface.nodes
+        .map((seq) => agent.session.eventAt(seq))
+        .filter((event) => event?.type === 'system/message')
+        .map((event) => messageText((event!.data as { message: unknown }).message))
+        .filter((text) => text !== '');
+      const effectiveText = nodes.length === 0 ? null : nodes.join('\n\n');
+      const assembly = await agent.ctx.systemPrompt.assemble(assembleContextFor(agent));
+      const text = renderPrompt(assembly);
+      return {
+        sessionId,
+        loaded: true,
+        effectiveText,
+        effectiveSource: effectiveText === null ? 'none' : 'session',
+        next: {
+          text,
+          sections: assembly.sections.map(({ name, text }) => ({ name, text })),
+          contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
+        },
+        pending: effectiveText !== null && effectiveText !== text,
       };
     },
     cloudConnections,

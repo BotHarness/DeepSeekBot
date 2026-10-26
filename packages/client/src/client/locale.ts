@@ -3583,6 +3583,30 @@ export const zh = {
   'composerContext.cumulativeUsage': '累计用量',
   'composerContext.contextHint':
     '当前用量为估算；压缩会预留输出空间。累计用量包含历史请求，不代表当前占用。',
+  'composerContext.viewSystemPrompt': '查看 System Prompt',
+  'composerContext.viewTurnInput': '查看最近一轮输入',
+  'promptInspect.systemTitle': 'System Prompt',
+  'promptInspect.turnTitle': '最近一轮输入',
+  'promptInspect.effective': '当前会话生效的 System Prompt',
+  'promptInspect.fullText': '全文（{count} 字符）',
+  'promptInspect.sections': '组成分段（{count}）',
+  'promptInspect.contexts': '运行时上下文（每一步附加）',
+  'promptInspect.pending': '待生效',
+  'promptInspect.pendingHint':
+    '最新组装出的 System Prompt 与当前会话正在使用的不同，下面的分段是新版本。它会在新会话或下一次压缩后生效。',
+  'promptInspect.notLoaded':
+    'Bot 的会话当前没有加载，这里显示会话记录里的 System Prompt；分段明细要等 Bot 下次运行后才能看到。',
+  'promptInspect.none': '还没有记录。',
+  'promptInspect.howItWorks': '查看底层逻辑',
+  'promptInspect.systemInfo':
+    'System Prompt 由多个分段按固定顺序拼成：DSH 基础分段（工具说明等）在前，然后是 BotHarness 的角色说明、外部 IM 说明、SOUL.md 与 MEMORY.md、回复投递规则。\n\nSOUL.md 和 MEMORY.md 在一个会话里保持冻结，改动要到新会话或下一次压缩才进入。为保证模型缓存命中，已生效的前缀只追加不改写。\n\n运行时上下文（工作目录、沙箱和审批策略等）不在 System Prompt 里，而是在每一步作为一条单独的消息附加。',
+  'promptInspect.turnInfo':
+    'Bot 空闲时，新消息开启一轮：Host 把 Inbox 里到期的内容（私聊、群里的 @、Bot 私信、群消息摘要、外部 IM、定时任务、Assignment 汇报等）拼成这一轮的第一条用户消息，末尾附一句回复提醒。\n\nBot 正在运行时，按来源策略默认以 steer 方式在下一步开始前插入同样格式的消息，所以同一轮里可能出现第 2、3 步的输入。\n\n“运行时上下文”是 DSH 在每一步附加的环境说明。普通群消息会先攒到 5 条或 30 秒再一起送达。',
+  'promptInspect.turn': '第 {turn} 轮',
+  'promptInspect.step': '第 {step} 步',
+  'promptInspect.sourceUser': '用户消息',
+  'promptInspect.sourceRuntime': '运行时上下文',
+  'promptInspect.failed': '读取失败：{error}',
 
   'failure.compactRetry': '压缩并重试',
   'failure.outputLimit': '回复达到输出长度上限',
@@ -8192,6 +8216,30 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'composerContext.cumulativeUsage': 'Cumulative usage',
   'composerContext.contextHint':
     'Current usage is estimated; compaction reserves output space. Cumulative usage includes previous requests and is not current occupancy.',
+  'composerContext.viewSystemPrompt': 'View system prompt',
+  'composerContext.viewTurnInput': 'View latest turn input',
+  'promptInspect.systemTitle': 'System prompt',
+  'promptInspect.turnTitle': 'Latest turn input',
+  'promptInspect.effective': 'System prompt in use by this Session',
+  'promptInspect.fullText': 'Full text ({count} characters)',
+  'promptInspect.sections': 'Sections ({count})',
+  'promptInspect.contexts': 'Runtime context (added at every step)',
+  'promptInspect.pending': 'Pending',
+  'promptInspect.pendingHint':
+    'The newly assembled system prompt differs from the one this Session uses; the sections below are the new version. It takes effect in a new Session or after the next compaction.',
+  'promptInspect.notLoaded':
+    "The Bot's Session is not loaded, so this shows the system prompt recorded in its Session log; section details appear after the Bot runs again.",
+  'promptInspect.none': 'Nothing recorded yet.',
+  'promptInspect.howItWorks': 'How this works',
+  'promptInspect.systemInfo':
+    'The system prompt is built from sections in a fixed order: DSH base sections (tool guidance and so on) first, then the BotHarness role guidance, external IM guidance, SOUL.md and MEMORY.md, and reply delivery rules.\n\nSOUL.md and MEMORY.md stay frozen within a Session; edits arrive in a new Session or after the next compaction. To keep the model cache warm, the prefix already in use is only appended to, never rewritten.\n\nRuntime context (working directory, sandbox and approval policy, and so on) is not part of the system prompt; it is added as a separate message at every step.',
+  'promptInspect.turnInfo':
+    'When the Bot is idle, a new message starts a turn: the Host joins the due Inbox items (DMs, Group mentions, Bot DMs, Group digests, external IM, schedules, Assignment reports and so on) into the first user message of the turn and appends a short reply reminder.\n\nWhile the Bot is running, the source policy by default steers the same kind of message in before the next step, so one turn can show input at step 2 or 3.\n\nRuntime context is the environment note DSH adds at every step. Ordinary Group messages are collected until 5 messages or 30 seconds before they are delivered together.',
+  'promptInspect.turn': 'Turn {turn}',
+  'promptInspect.step': 'Step {step}',
+  'promptInspect.sourceUser': 'User message',
+  'promptInspect.sourceRuntime': 'Runtime context',
+  'promptInspect.failed': 'Could not read: {error}',
 
   'failure.compactRetry': 'Compact and retry',
   'failure.outputLimit': 'Reply reached the output limit',

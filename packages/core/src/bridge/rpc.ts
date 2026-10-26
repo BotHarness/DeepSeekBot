@@ -671,6 +671,28 @@ export class BotharnessBridgeService extends TypertRemoteService {
   botContext(slug: string): Promise<import('../runtime/context-window.js').BotContextWindow> {
     return unwrapAsync(this.methods.botContext({ slug }));
   }
+  botSystemPrompt(
+    slug: string,
+  ): Promise<import('../runtime/prompt-inspection.js').BotSystemPromptView> {
+    return unwrapAsync(this.methods.botSystemPrompt({ slug }));
+  }
+  botTurnInput(
+    slug: string,
+    sessionId?: string,
+    turns?: number,
+  ): Promise<{
+    slug: string;
+    sessionId: string;
+    turns: import('../runtime/prompt-inspection.js').TurnInputView[];
+  }> {
+    return unwrapAsync(
+      this.methods.botTurnInput({
+        slug,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(turns === undefined ? {} : { turns }),
+      }),
+    );
+  }
   channelBotStop(
     channelId: string,
     botSlug: string,
@@ -2128,6 +2150,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botNewSession',
   'botCompact',
   'botContext',
+  'botSystemPrompt',
+  'botTurnInput',
   'channelBotStop',
   'modelCatalog',
   'modelPresets',
