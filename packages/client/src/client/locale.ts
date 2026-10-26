@@ -468,7 +468,8 @@ export const zh = {
   'onboarding.short.columnHint':
     '在对话标题栏点子面板按钮，右侧会打开会话、记忆、浏览器等子面板。每一项都能折叠，也能拖动调整高度；折叠不会停止 Bot 的工作。',
   'onboarding.short.switchMode': '切换模式',
-  'onboarding.short.switchModeHint': '想自由拖拽面板？随时可以在 Bot 设置 › 界面设置里切换到高级模式。',
+  'onboarding.short.switchModeHint':
+    '想自由拖拽面板？随时可以在 Bot 设置 › 界面设置里切换到高级模式。',
   'onboarding.short.suggest': '填入示例问题',
   'onboarding.short.draft': '输入框里有草稿，可以继续编辑后发送。',
   'onboarding.short.tour': '看看怎么操作',
