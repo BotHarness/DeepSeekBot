@@ -13,6 +13,7 @@ import type {
   JournalPage,
   ToolApprovalOutcome,
   WireDraft,
+  WireDelivery,
   WireDraftAppend,
   WireReaction,
 } from './wire';
@@ -138,6 +139,7 @@ export interface ConversationMessage {
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
   reactions?: ConversationReaction[];
+  deliveries?: WireDelivery[];
   delivery: DeliveryState;
   attemptStartedAt?: number;
   error?: string;
@@ -447,6 +449,9 @@ function present(
     ...(message.reactions === undefined || message.reactions.length === 0
       ? {}
       : { reactions: message.reactions }),
+    ...(message.deliveries === undefined || message.deliveries.length === 0
+      ? {}
+      : { deliveries: message.deliveries }),
     delivery: 'committed',
     ...(kind === 'system' && message.onboardingWelcome !== undefined ? { welcome: true } : {}),
   };
@@ -639,7 +644,25 @@ export function createConversation(options: ConversationOptions): Conversation {
     return true;
   };
 
-  const applyNotification = (notification: ChannelNotification, current: number): void => {
+  const setDeliveries = (messageId: string, deliveries: readonly WireDelivery[]): boolean => {
+    const signature = (list: readonly WireDelivery[] | undefined) =>
+      (list ?? []).map((delivery) => delivery.botSlug + ':' + delivery.state).join('|');
+    const index = window.findIndex((entry) => entry.message.id === messageId);
+    const entry = window[index];
+    if (entry === undefined || signature(entry.message.deliveries) === signature(deliveries))
+      return false;
+    const next = { ...entry, message: { ...entry.message, deliveries: [...deliveries] } };
+    window = window.map((current, position) => (position === index ? next : current));
+    return true;
+  };
+
+  const applyNotification = (notification: ChannelNotification, current: number): boolean => {
+    if (notification.kind === 'admission')
+      return (
+        notification.channelId === channelId &&
+        notification.deliveries !== undefined &&
+        setDeliveries(notification.messageId, notification.deliveries)
+      );
     if (notification.kind === 'reaction') {
       if (notification.channelId === channelId)
         setReactions(notification.messageId, notification.reactions);
@@ -650,6 +673,7 @@ export function createConversation(options: ConversationOptions): Conversation {
     else if (notification.kind === 'draft-append') appendDraft(notification.append, current);
     else if (notification.kind === 'draft-settled' || notification.kind === 'draft-abandoned')
       deleteDraft(notification.event.draftId);
+    return false;
   };
 
   const upsertDraft = (draft: WireDraft): void => {
@@ -698,10 +722,10 @@ export function createConversation(options: ConversationOptions): Conversation {
         for (const [draftId, draft] of drafts)
           if (draft.botSlug === entry.message.author.slug) deleteDraft(draftId);
     } else {
-      applyNotification(frame.notification, current);
+      const admitted = applyNotification(frame.notification, current);
       const kind = frame.notification.kind;
       if (kind === 'draft' || kind === 'draft-append') return publishDrafts();
-      if (kind !== 'reaction') return publish(false);
+      if (kind !== 'reaction' && !admitted) return publish(false);
     }
     settleOutgoing();
     publish();

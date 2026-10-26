@@ -23,6 +23,7 @@ vi.mock('react-native-safe-area-context', () => ({
 vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
+vi.mock('../src/ui/chat/delivery-sheet', () => ({ DeliverySheet: () => null }));
 
 const state = vi.hoisted(() => ({
   history: [] as string[],
@@ -264,6 +265,9 @@ vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
+}));
+vi.mock('../src/host/native-delivery-receipts', () => ({
+  useDeliveryReceiptPreferences: () => ({ enabled: false, loaded: true, storageError: false }),
 }));
 vi.mock('../src/host/native-chat-background', () => ({
   useChatBackgrounds: () => undefined,

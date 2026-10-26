@@ -79,6 +79,10 @@ Automated seams: apps/mobile/test/message-feedback.test.ts,
 apps/mobile/test/message-feedback-form.test.tsx, apps/mobile/test/message-menu-feedback.test.ts,
 apps/mobile/test/message-selection.test.ts, packages/client/test/message-selection-bar.test.ts.
 
+### Performance (#2413)
+
+- `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/perf-idle-timeline.mjs --messages 600 --profile` seeds a 600-message Group with mixed Markdown, mounts all of it and reports idle main-thread time and typing latency. Run it with and without `--animate`. Typing must not re-render the timeline: `typing.hottest` should not contain `MessageGroupView`. See [the performance guide](../references/performance.md).
+
 ## Gotchas
 
 - **Expo Native Bot mentions (#2160).** Open a group with canonical `mentions` ranges (a Bot reply starting with `@nickname`, and a Human inline mention). The current avatar and primary-colored `@name` share the body text line. A leading mention joins the first supported Markdown paragraph; subsequent blocks keep the existing renderer. Tap the inline name and verify `/dm/<botSlug>` against the canonical ID, including after a rename. Missing IDs retain a readable stored label without navigation; unstructured `@name` stays plain text. Verify cached history, live and optimistic data through `apps/mobile/test/conversation.test.ts`; `apps/mobile/test/message-mentions.test.ts` covers ranges, identities, CRLF, references and streaming first paragraphs. Native checks: default/intermediate/maximum text × light/dark, inline wrapping, per-Bot name colors, long-press copy/reactions and keyboard draft retention. Follow the Human-confirmed inline-size exception in mobile DESIGN; do not restore a 44/48-point block height. The Human-selected presentation has no background: avatar + @ + primary-colored name, inline with body text. Record platforms separately; iOS remains unverified without its native lane. Bot mentions embedded later in Markdown retain Web's plain-Markdown behavior.

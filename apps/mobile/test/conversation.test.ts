@@ -1270,3 +1270,39 @@ it('records Host acceptance after leaving the conversation without observing hid
   await until(target, (s) => s.messages.at(-1)?.id === 'hidden-after-acceptance');
   expect(observed).not.toHaveBeenCalled();
 });
+
+describe('message deliveries', () => {
+  it('shows Inbox admissions on a Human message and follows their updates', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    channel.append(
+      {
+        id: 'human-1',
+        body: '@Probe check this',
+        author: { kind: 'human' },
+        deliveries: [{ botSlug: SLUG, state: 'pending' }],
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live' && s.messages.length === 1);
+    expect(live.messages[0]?.deliveries).toEqual([{ botSlug: SLUG, state: 'pending' }]);
+    const admission = (state: 'handled' | 'ignored') =>
+      channel.emit({
+        type: 'notification',
+        notification: {
+          kind: 'admission',
+          channelId: DM,
+          messageId: 'human-1',
+          deliveries: [{ botSlug: SLUG, state }],
+        },
+      });
+    admission('ignored');
+    const ignored = await until(target, (s) => s.messages[0]?.deliveries?.[0]?.state === 'ignored');
+    admission('ignored');
+    admission('handled');
+    const handled = await until(target, (s) => s.messages[0]?.deliveries?.[0]?.state === 'handled');
+    expect(handled.messages[0]).not.toBe(ignored.messages[0]);
+    expect(handled.messages[0]?.body).toBe('@Probe check this');
+  });
+});
