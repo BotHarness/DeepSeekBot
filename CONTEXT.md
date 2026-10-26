@@ -157,6 +157,14 @@ _Avoid_: binding, workspace mapping, cwd inference, session membership
 A Human-meaningful continuing line of activity that a PersonaBot's Orchestrator chooses to advance independently. It has no separate durable identity or lifecycle; its canonical runtime identity is the DSH Session id of its Assignment Session.
 _Avoid_: Work, work item, task entity, job entity, worker
 
+**Assignment Title**:
+The short Human-readable name of an Assignment, chosen by its Orchestrator when it creates the Assignment Session, which lets the Human recognize the line of work in a list at a glance.
+_Avoid_: purpose, task name, prompt, Continuity Key
+
+**Assignment Description**:
+The one- or two-sentence statement of what an Assignment sets out to do, chosen by its Orchestrator alongside the Assignment Title. It is neither the instructions sent to the Assignment Session nor a report of outcomes.
+_Avoid_: purpose (historical), prompt, Assignment Request, Assignment Report
+
 **Assignment Session**:
 A PersonaBot-owned independent root Session that executes exactly one Assignment in exactly one working directory in v1, created and managed by its Orchestrator without requiring the Human to open another Conversation. A PersonaBot may have several at once, and a DSH Subagent never counts as one.
 _Avoid_: Work Session, Worker Session, Executor Session, task Session, child Session
@@ -166,7 +174,7 @@ The DSH Agent executing inside one Assignment Session. It reports only to its Pe
 _Avoid_: worker, PersonaBot, Orchestrator, Assignment Session
 
 **Assignment Directory**:
-The PersonaBot-scoped durable read model through which its current Orchestrator explicitly lists and addresses owned Assignment Sessions, including purpose, Continuity Key, Workspace, DSH-derived activity/last-run facts, dependencies, latest semantic report, and aggregate descendant activity. It keeps execution facts separate from reported outcomes, is rebuilt from Session Ownership and DSH facts, and is queried when needed rather than injected wholesale into every turn. Listings use filtered, ordered, opaque-cursor pagination with text search, hide Archived Assignments by default, and never flatten DSH Subagents into top-level Assignment rows.
+The PersonaBot-scoped durable read model through which its current Orchestrator explicitly lists and addresses owned Assignment Sessions, including Assignment Title and Assignment Description, Continuity Key, Workspace, DSH-derived activity/last-run facts, dependencies, latest semantic report, and aggregate descendant activity. It keeps execution facts separate from reported outcomes, is rebuilt from Session Ownership and DSH facts, and is queried when needed rather than injected wholesale into every turn. Listings use filtered, ordered, opaque-cursor pagination with text search, search Assignment Titles and Descriptions among other text, hide Archived Assignments by default, and never flatten DSH Subagents into top-level Assignment rows.
 _Avoid_: task list, AgentHandle map, cwd scan, Orchestrator memory
 
 **Archived Assignment**:
