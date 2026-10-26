@@ -2882,7 +2882,11 @@ export async function runBotCreateCli(
       out.stdout(
         JSON.stringify(
           {
-            error: { code: error.code, message: error.message },
+            error: {
+              code: error.code,
+              message: error.message,
+              ...(error.operation === undefined ? {} : { operation: error.operation }),
+            },
             ...(error.receipt === undefined ? {} : { receipt: error.receipt }),
             ...(error.authorization === undefined ? {} : { authorization: error.authorization }),
             ...(error.creation === undefined ? {} : error.creation),

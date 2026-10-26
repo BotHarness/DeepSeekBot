@@ -110,6 +110,43 @@ const reportRun: OrchestratorAgentRun = {
 };
 
 describe('direct Subagent execution', () => {
+  it.each(['secret_cli', 'secret_http', 'protected_cli', 'secret_mcp_connect', 'ask_secret'])(
+    'executes %s through the live parent tool pipeline without a model turn',
+    async (name) => {
+      const agents = new FakeAgentHost();
+      const execute = vi.fn(async () => ({
+        isError: true,
+        error: { message: 'Select with ask_secret', info: { code: 'private-source-required' } },
+      }));
+      const parent = {
+        id: 'live-parent',
+        ctx: { tools: { execute, get: () => ({ name }) } },
+      } as unknown as Agent;
+      vi.spyOn(agents, 'get').mockReturnValue(parent);
+      const adapter = createDshBotAgentAdapter({
+        agents,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      });
+      try {
+        await expect(
+          adapter.runDirectTool!(
+            reportRun,
+            name,
+            { account: 'synthetic' },
+            new AbortController().signal,
+            'live-parent',
+          ),
+        ).rejects.toMatchObject({ code: 'private-source-required' });
+        expect(execute).toHaveBeenCalledOnce();
+        expect(execute).toHaveBeenCalledWith(
+          expect.objectContaining({ agent: parent, name, arguments: { account: 'synthetic' } }),
+        );
+        expect(agents.createOptions).toEqual([]);
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
   function deferred<T>() {
     let resolve!: (value: T | PromiseLike<T>) => void;
     const promise = new Promise<T>((accept) => {

@@ -548,7 +548,7 @@ To see what the Bot did in path A, read its tool-call trace right after `send`:
 deepseekbot bot-trace <bot-id> --turns 1
 ```
 
-Each turn lists the tools the model called with bounded arguments, the outcome (`ok`, `error`, `denied` when an approval was rejected, `cancelled`, or `pending`), the approval decision when there was one, and the first part of the result. Arguments and results of `secret_cli`, `secret_mcp_connect` and `ask_secret` are never returned. A `denied` call points at the Harness (access or approval); a missing or wrongly argued call points at the model; an `error` from the same tool that also fails in path B points at the Browser or Computer. `--session` reads another of the Bot's Sessions, such as an Assignment.
+Each turn lists the tools the model called with bounded arguments, the outcome (`ok`, `error`, `denied` when an approval was rejected, `cancelled`, or `pending`), the approval decision when there was one, and the first part of the result. Arguments and results of `secret_cli`, `secret_http`, `protected_cli`, `secret_mcp_connect` and `ask_secret` are never returned. A `denied` call points at the Harness (access or approval); a missing or wrongly argued call points at the model; an `error` from the same tool that also fails in path B points at the Browser or Computer. `--session` reads another of the Bot's Sessions, such as an Assignment.
 
 ### Harness Bot tools without the model
 
@@ -586,7 +586,7 @@ reaction references. It is available through `bot-tool` as well. The model sees 
 Proactive colleague text uses `bot_id`; reachable external posting uses `binding_id` with
 `conversation_id`. These target forms are exclusive with the other destination fields.
 
-`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, question and secret cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
+`bot-tools` lists the tools the runner can call with their input schemas. `bot-tool` reads the arguments as a JSON object on stdin and runs the same tool code a Bot turn runs, with the tool's own argument validation, membership and permission checks; it returns `{slug, tool, sessionId: "direct", result}`. There is no inbound Channel, so pass `channel_id` where a turn would default to it. A direct read does not mark Inbox items as seen, and a Bot-to-Bot send is refused because it has no Source Event to carry Bot causation. Failures exit non-zero with a code: `tool-not-direct` for a tool that only works inside a Bot turn (starting or waiting on an Assignment, question cards, Memory branch switches, workspace grant requests, images for the model), `invalid-args`, `unknown-bot`, `bot-paused`, or `tool-failed` with the tool's own message. Each call is kept in the Host's recent direct-call log, which `bot-trace --session direct` returns; it lasts until the Host restarts.
 
 `bot_create` creates a blank PersonaBot as that Bot would from chat: `display_name` is required; `description`, `tags`, `avatar_path` (an absolute PNG, JPEG or WebP path in the Bot's Memory Repository or a Workspace Grant), `soul`, `core_memory` and `memory_location` are optional. It returns `bot_id`, `display_name`, `dm_channel_id`, `memory_dir` and `model` (`host-default` when the new Bot answers on the Host default model, `set` once it has its own), opens the new Bot's DM and adds a notice in the creating Bot's Human DM. Refusals are coded: `invalid-input`, `invalid-avatar`, `invalid-memory-dir`, `git-not-found` and `memory-unavailable`. Run directly, it skips the tool approval a Bot turn goes through, because you are the Human running it.
 
@@ -1426,6 +1426,21 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.
 
+## Complete environment backup and restore
+
+The `profile-backup-*` commands use the same Profile Backup owner as Settings. Online commands use `--host` / `DEEPSEEKBOT_HOST` and the existing private token-file or environment authority. They print one JSON document; credential stores are excluded, but chats and Memory can contain secrets.
+
+```bash
+tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
+tobs profile-backup-export --host http://127.0.0.1:31967 --confirmation-stdin --out environment.botharness-backup < preview.json
+tobs profile-backup-inspect --host http://127.0.0.1:31967 --file environment.botharness-backup
+tobs profile-backup-restore --file environment.botharness-backup --new-home new-environment --confirm
+```
+
+Export consumes the current preview token and refuses to overwrite a file. Restore runs **locally and offline**, requires a new target directory, and leaves the Profile stopped. Omit `--host` and `--token-file` for restore. Start the target with a compatible trusted Tobs installation before querying `profile-backup-recovery`. Restored Bots remain cold; `profile-backup-authorize <bot> --confirm` authorizes the chosen target model, and `profile-backup-activate <bot> --confirm --acknowledge-risk` explicitly accepts possible duplicate source execution. These operations do not restore external account authority.
+
+Historical v1 archives remain readable. New v2 archives record Host and resolved DSH tools versions independently; `null` means unavailable provenance. Compatibility follows data contracts and schema migration, not an exact DSH release. An older reader must be upgraded to read an unsupported newer format. `format-upgrade-required`, `upgrade-required` and `dependency-incompatible` identify unsupported data interpretation; `core-contract-invalid` requires a complete backup with a valid required core declaration; `package-invalid` identifies failed validation. `source-unavailable` means the source database must be repaired before export. Existing preview expiry, integrity, cancellation and destination checks still apply.
+
 ### Message feedback (#2811)
 
 Single-message feedback is separate from automatic telemetry. The Host owner prepares one frozen,
@@ -1449,3 +1464,9 @@ preview. A failed submission freezes its rating and snapshot; retry that same re
 same report ID. To edit it, explicitly refresh the preview. Receipt returns `reportId`. Only rating/tags/comment, reference and version are sent to PostHog; diagnostic archives remain local downloads.
 
 Submission uses the existing PostHog ingest path without extra configuration. No dedicated receiver or private archive storage is deployed. See [feedback and local diagnostics](message-feedback.md).
+
+### Private credential tools in the direct runner
+
+After a Bot has a live Orchestrator Agent, `bot-tools` also lists its registered `ask_secret`, `protected_cli`, `secret_http`, `secret_cli` and `secret_mcp_connect` tools. Invoke them with `bot-tool <bot-id> <tool> --args-stdin`. Arguments are a JSON object on stdin; never put private values or references in shell arguments. The runner uses the existing Agent and native tool execution/approval pipeline without calling the model or creating a new source. Missing live registration is refused. An execution approval can be pending while the command waits; use the usual approval commands or Web card. Private arguments/results are omitted from both direct and native diagnostic traces.
+
+For several IM requests in one turn, call `ask_secret` with the existing account and field declaration plus the exact accepted `source_event_id` of the request being handled before consuming the references. Configured accounts reuse their values without another card or a Web notification address. Web and Schedule reuse omit the selector. `private-source-required` supplies this recovery; `private-source-invalid`, `private-source-unavailable`, `private-source-ambiguous`, `private-source-revoked` and `private-account-unavailable` distinguish the other refusals. Do not retry an unchanged operation, choose a historical source, or treat a Host refusal as a remote outage. Conflicting account associations require a new turn; revocation remains authoritative.

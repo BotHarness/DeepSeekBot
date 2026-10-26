@@ -5,6 +5,7 @@
 - Local Human DM and Group interaction can reuse an account with accepted IM context in the same turn.
 - Explicit IM selection retains source leases, same-account ambiguity and revocation checks.
 - Native approval waiting does not remove accepted local authority. Schedules reuse configured accounts in later turns.
+- IM-only multi-source refusals identify the `ask_secret` recovery path; configured reuse needs no Web notification address. Direct CLI calls retain the native approval pipeline and source checks.
 
 ## How to get to it (user POV)
 
@@ -43,6 +44,8 @@ Run the cross-module regression matrix for local DM, local Group, batch collecti
 ```bash
 pnpm exec vitest run packages/core/test/private-input-origin.test.ts packages/core/test/private-inputs.test.ts packages/core/test/native-question-runtime.test.ts --maxWorkers=1 --testTimeout=60000
 ```
+
+For #2847, use a fresh instance with the same synthetic Provider and run `node scripts/e2e-private-input-origin.mjs <name> recovery`. After the local proof, it sends a synthetic IM request, adds two context sources while approval is pending, verifies the coded refusal, and lets the real model follow the recovery instructions. It checks selection of the original request, one corrected successful command and no duplicate input card, then invokes `bot-tool` from the CLI and accepts its native approval. The allowlisted `recovery-proof.json` records outcomes without references or values. Registered-tool regression tests also drive controlled HTTP and MCP processes and assert zero requests before selection and exactly one after recovery.
 
 ## Gotchas
 
