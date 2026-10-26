@@ -32,6 +32,7 @@ import {
   type ConversationMessage,
   type MessageAttachment,
 } from '../../host/conversation';
+import type { RosterBot } from '../../host/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
 import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
@@ -39,8 +40,15 @@ import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
 import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
-import { bubbleCorners, bubbleRow, bubbleShape, type BubbleGroup } from './bubble-shape';
-import { DeliveryReceiptButton } from './delivery-pie';
+import {
+  BADGE_OVERLAP,
+  BUBBLE_MAX,
+  bubbleCorners,
+  bubbleRow,
+  bubbleShape,
+  type BubbleGroup,
+} from './bubble-shape';
+import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
@@ -57,6 +65,10 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
 }
 
 const PENDING_FEEDBACK_MS = 3_000;
+
+const NO_READERS: readonly string[] = [];
+
+const NO_BOTS: readonly RosterBot[] = [];
 
 function usePendingFeedback(message: ConversationMessage): boolean {
   const started =
@@ -205,7 +217,7 @@ function PressableBubble({
       style={[
         {
           ...bubbleCorners(human, group),
-          maxWidth: '80%',
+          maxWidth: '100%',
           alignSelf: human ? 'flex-end' : 'flex-start',
           overflow: 'hidden',
           opacity: lifted ? 0 : 1,
@@ -289,6 +301,8 @@ export const MessageBubble = memo(function MessageBubble({
   onLongPress = (pressed) => openMessageMenu(pressed.body),
   onReact,
   onOpenDelivery,
+  readers = NO_READERS,
+  bots = NO_BOTS,
   botName = (id) => id,
   speaker,
   lifted = false,
@@ -304,6 +318,8 @@ export const MessageBubble = memo(function MessageBubble({
   onLongPress?: (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => void;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
   onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
+  readers?: readonly string[] | undefined;
+  bots?: readonly RosterBot[] | undefined;
   botName?: (id: string) => string;
   speaker?: Speaker | undefined;
   lifted?: boolean;
@@ -341,7 +357,7 @@ export const MessageBubble = memo(function MessageBubble({
         (human && message.delivery === 'pending' && message.attachments.length > 0) ||
         !(failed || actionable || streaming)
       }
-      fill={failed || actionable || streaming ? { maxWidth: '100%' } : undefined}
+      fill={{ maxWidth: '100%' }}
       streaming={streaming}
     />
   );
@@ -380,6 +396,51 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       bubble
     );
+  const reading = streaming ? NO_READERS : readers;
+  const badged = reactions.length > 0 || reading.length > 0;
+  const framed = (
+    <View
+      style={{
+        alignSelf: human ? 'flex-end' : 'flex-start',
+        maxWidth: BUBBLE_MAX,
+      }}
+    >
+      {content}
+      {badged ? (
+        <View
+          pointerEvents="box-none"
+          style={{
+            position: 'absolute',
+            bottom: -BADGE_OVERLAP,
+            left: space.x4,
+            right: space.x4,
+            flexDirection: human ? 'row-reverse' : 'row',
+            alignItems: 'center',
+            gap: space.x2,
+          }}
+        >
+          {reactions.length === 0 ? null : (
+            <ReactionChips
+              reactions={reactions}
+              human={human}
+              botName={botName}
+              {...(onReact === undefined
+                ? {}
+                : {
+                    onToggle: (emoji: string, active: boolean) =>
+                      onReact(message.id, emoji, active),
+                  })}
+            />
+          )}
+          {reading.length === 0 ? null : (
+            <View style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}>
+              <ReadingBadge messageId={message.id} readers={reading} bots={bots} />
+            </View>
+          )}
+        </View>
+      ) : null}
+    </View>
+  );
   const surface = human ? (
     <View
       style={{
@@ -389,7 +450,13 @@ export const MessageBubble = memo(function MessageBubble({
         gap: space.x2,
       }}
     >
-      <View style={{ width: space.x6, alignItems: 'center', paddingBottom: space.x1 }}>
+      <View
+        style={{
+          minWidth: space.x6,
+          alignItems: 'center',
+          paddingBottom: space.x1,
+        }}
+      >
         {failed ? (
           <Pressable
             testID={`message-retry-${message.id}`}
@@ -411,29 +478,15 @@ export const MessageBubble = memo(function MessageBubble({
             …
           </Text>
         ) : onOpenDelivery !== undefined && !streaming ? (
-          <DeliveryReceiptButton message={message} onOpen={onOpenDelivery} />
+          <DeliveryReceiptButton message={message} bots={bots} onOpen={onOpenDelivery} />
         ) : null}
       </View>
-      {content}
+      {framed}
     </View>
   ) : (
-    content
+    framed
   );
-  const after = (
-    <>
-      {reactions.length === 0 ? null : (
-        <ReactionChips
-          reactions={reactions}
-          human={human}
-          botName={botName}
-          {...(onReact === undefined
-            ? {}
-            : { onToggle: (emoji: string, active: boolean) => onReact(message.id, emoji, active) })}
-        />
-      )}
-    </>
-  );
-  const row = bubbleRow(first);
+  const row = { ...bubbleRow(first), ...(last ? { paddingBottom: space.x2 } : {}) };
   if (speaker !== undefined)
     return (
       <SpeakerRow
@@ -442,15 +495,9 @@ export const MessageBubble = memo(function MessageBubble({
         inset={row.paddingTop}
         style={row}
         bubble={surface}
-        after={after}
       />
     );
-  return (
-    <View style={{ ...row, gap: space.x1 }}>
-      {surface}
-      {after}
-    </View>
-  );
+  return <View style={row}>{surface}</View>;
 });
 
 export const DraftBubble = memo(function DraftBubble({

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { ConversationMessage } from '../src/host/conversation';
-import { receiptGroups, receiptRecipients } from '../src/host/delivery-receipt';
+import { readingBots, receiptGroups, receiptRecipients } from '../src/host/delivery-receipt';
 
 const message: ConversationMessage = {
   id: 'm1',
@@ -46,5 +46,32 @@ describe('delivery receipt', () => {
     expect(receiptRecipients({ ...message, author: 'bot', bot: 'ada' })).toEqual([]);
     expect(receiptRecipients({ ...message, delivery: 'pending' })).toEqual([]);
     expect(receiptRecipients({ ...message, delivery: 'failed' })).toEqual([]);
+  });
+
+  it('shows each Bot reading only on its newest message in the turn', () => {
+    const at = (
+      id: string,
+      deliveries: NonNullable<ConversationMessage['deliveries']>,
+      extra = {},
+    ): ConversationMessage => ({
+      ...message,
+      id,
+      deliveries,
+      ...extra,
+    });
+    const reading = readingBots([
+      at('m1', [
+        { botSlug: 'ada', state: 'running' },
+        { botSlug: 'bea', state: 'running' },
+      ]),
+      at('m2', [{ botSlug: 'ada', state: 'running' }]),
+      at('m3', [{ botSlug: 'bea', state: 'handled' }]),
+      at('m4', [{ botSlug: 'cee', state: 'running' }], { delivery: 'pending' }),
+      at('m5', [{ botSlug: 'dee', state: 'running' }], { author: 'bot', bot: 'dee' }),
+    ]);
+    expect([...reading.entries()]).toEqual([
+      ['m2', ['ada']],
+      ['m1', ['bea']],
+    ]);
   });
 });

@@ -5,6 +5,7 @@ import { edge, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { useStrings, t } from '../strings';
+import { BADGE_HEIGHT } from './bubble-shape';
 
 export function reactionSummary(
   reaction: ConversationReaction,
@@ -29,16 +30,12 @@ export function ReactionChips({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const slop = Math.max(0, (theme.touch - theme.type.meta.line - space.x2 * 2) / 2);
+  const slop = Math.max(0, (theme.touch - theme.type.meta.line - (space.x2 + space.x1) * 2) / 2);
   return (
     <View
       style={{
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: space.x2,
-        justifyContent: human ? 'flex-end' : 'flex-start',
-        maxWidth: '80%',
-        alignSelf: human ? 'flex-end' : 'flex-start',
+        flexDirection: human ? 'row-reverse' : 'row',
+        gap: space.x1,
       }}
     >
       {reactions.map((reaction) => {
@@ -57,13 +54,13 @@ export function ReactionChips({
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.x2,
-              paddingHorizontal: space.x3,
-              paddingVertical: space.x2,
+              paddingHorizontal: space.x4,
+              minHeight: BADGE_HEIGHT,
               borderRadius: radius.round,
-              borderWidth: edge.hairline,
-              borderColor: mine ? theme.color.accent : theme.layer.canvas.edge,
+              borderWidth: edge.focus,
+              borderColor: theme.color.base,
               backgroundColor: mine
-                ? theme.layer.canvas.chosen
+                ? theme.layer.raised.chosen
                 : pressed
                   ? theme.layer.raised.pressed
                   : theme.layer.raised.fill,

@@ -45,6 +45,8 @@ const en = {
     settingHint: 'Show whether mentioned Bots received your message.',
     settingStorageError: 'Could not save this choice. Toggle again to retry.',
     summary: (parts: string) => `Delivery status: ${parts}`,
+    reading: (names: string) => `${names} reading`,
+    more: (count: number) => `+${count}`,
     state: {
       pending: 'Delivered',
       observed: 'Read',
@@ -1836,6 +1838,8 @@ const zh: typeof en = {
     settingHint: '在消息旁显示被 @ 的 Bot 是否收到。',
     settingStorageError: '未能保存此选择，请重新切换以重试。',
     summary: (parts: string) => `投递状态：${parts}`,
+    reading: (names: string) => `${names} 正在阅读`,
+    more: (count: number) => `+${count}`,
     state: {
       pending: '已投递',
       observed: '已读',

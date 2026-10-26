@@ -3,7 +3,10 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-import { ChannelDeliveryReceipt } from '../src/client/channel-delivery-receipt.js';
+import {
+  ChannelDeliveryReceipt,
+  DeliveryReceiptsVisible,
+} from '../src/client/channel-delivery-receipt.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { BotSummary, ChannelMessage } from '../src/client/store.js';
 
@@ -15,6 +18,13 @@ const bots: BotSummary[] = ['ada', 'bea'].map((slug) => ({
   workspaces: [],
   createdAt: '2026-10-26T00:00:00.000Z',
 }));
+
+const receipt = (props: Parameters<typeof ChannelDeliveryReceipt>[0]) =>
+  createElement(
+    DeliveryReceiptsVisible.Provider,
+    { value: true },
+    createElement(ChannelDeliveryReceipt, props),
+  );
 
 const message: ChannelMessage = {
   id: 'm1',
@@ -45,14 +55,12 @@ async function render(element: ReturnType<typeof createElement>) {
 
 describe('Channel delivery receipt Inbox drill-down', () => {
   it('marks an @-mentioned Bot without an Inbox admission as not received', async () => {
-    const view = await render(
-      createElement(ChannelDeliveryReceipt, { message, bots, t: zhTranslate }),
-    );
+    const view = await render(receipt({ message, bots, t: zhTranslate }));
     try {
       const trigger = view.host.querySelector<HTMLButtonElement>('.bh-delivery-trigger');
       expect(trigger?.getAttribute('aria-label')).toContain('1 未收到');
       expect(trigger?.getAttribute('aria-label')).toContain('1 已忽略');
-      expect(view.host.querySelector('.bh-delivery-pie')?.getAttribute('style')).toContain(
+      expect(view.host.querySelector('.bh-delivery-stack')?.innerHTML).toContain(
         'var(--dsw-alias-state-warn-primary)',
       );
       await act(async () => trigger?.click());
@@ -62,9 +70,9 @@ describe('Channel delivery receipt Inbox drill-down', () => {
     }
   });
 
-  it('shows the pie for a Human message whose only mention was never admitted', async () => {
+  it('shows the receipt for a Human message whose only mention was never admitted', async () => {
     const view = await render(
-      createElement(ChannelDeliveryReceipt, {
+      receipt({
         message: { ...message, deliveries: [] },
         bots,
         t: zhTranslate,
@@ -80,7 +88,7 @@ describe('Channel delivery receipt Inbox drill-down', () => {
 
   it('does not invent missing recipients for a Bot-authored mention', async () => {
     const view = await render(
-      createElement(ChannelDeliveryReceipt, {
+      receipt({
         message: { ...message, author: { kind: 'bot', slug: 'ada' }, deliveries: [] },
         bots,
         t: zhTranslate,
@@ -95,9 +103,7 @@ describe('Channel delivery receipt Inbox drill-down', () => {
 
   it('reports the clicked Bot and whether it ever received the message', async () => {
     const onOpenInbox = vi.fn();
-    const view = await render(
-      createElement(ChannelDeliveryReceipt, { message, bots, onOpenInbox, t: zhTranslate }),
-    );
+    const view = await render(receipt({ message, bots, onOpenInbox, t: zhTranslate }));
     try {
       await act(async () =>
         view.host.querySelector<HTMLButtonElement>('.bh-delivery-trigger')?.click(),
@@ -126,7 +132,7 @@ describe('Channel delivery receipt Inbox drill-down', () => {
   it('does not mark Bots as not received on a failed or unconfirmed send', async () => {
     for (const variant of [{ failed: 'offline' }, { unconfirmed: true }]) {
       const view = await render(
-        createElement(ChannelDeliveryReceipt, {
+        receipt({
           message: { ...message, ...variant, deliveries: [] },
           bots,
           t: zhTranslate,

@@ -204,9 +204,27 @@ describe('message delivery receipt', () => {
         `1 ${t.delivery.state.handled} · 1 ${t.delivery.state.missing}`,
       );
       const button = container.querySelector<HTMLElement>(`[data-accessibilitylabel="${label}"]`);
-      expect(button?.querySelectorAll('path')).toHaveLength(2);
+      expect(button?.textContent).toBe('AB');
       act(() => button!.click());
       expect(open).toHaveBeenCalledWith(mentioned);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
+
+  it('shows the Bots reading a message until their turn ends', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const reading = `[data-accessibilitylabel="${t.delivery.reading('ada, bea')}"]`;
+    try {
+      act(() => root.render(<MessageBubble message={mentioned} readers={['ada', 'bea']} />));
+      expect(container.querySelector(reading)?.textContent).toBe('AB');
+      act(() => root.render(<MessageBubble message={mentioned} readers={[]} />));
+      expect(container.querySelector(reading)).toBeNull();
+      act(() =>
+        root.render(<MessageBubble message={mentioned} readers={['ada', 'bea']} streaming />),
+      );
+      expect(container.querySelector(reading)).toBeNull();
     } finally {
       act(() => root.unmount());
     }

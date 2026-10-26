@@ -3312,7 +3312,6 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   height: 28px;
   display: flex;
   align-items: flex-end;
-  margin-bottom: var(--bh-avatar-lift, 0px);
   border: 0;
   border-radius: ${radius.round};
   padding: 0;
@@ -3370,7 +3369,7 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
   flex-direction: column;
   align-items: flex-start;
   min-width: 0;
-  max-width: min(560px, calc(100% - 84px));
+  max-width: min(720px, calc(100% - 56px));
 }
 .bh-message-group-me .bh-message-stack {
   align-items: flex-end;
@@ -3498,30 +3497,128 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-bubble:has(> .bh-bubble-body) {
   padding: ${space.x3} ${space.x4};
 }
+.bh-bubble {
+  --bh-bubble-radius: ${radius.lg};
+  border-radius: var(--bh-bubble-radius);
+}
+.bh-bubble:has(> .bh-bubble-body) {
+  --bh-bubble-radius: 20px;
+}
+.bh-bubble[data-group-position='solo'],
+.bh-bubble[data-group-position='last'] {
+  border-bottom-left-radius: ${radius.sm};
+}
 .bh-bubble[data-group-position='first'] {
-  border-bottom-left-radius: ${radius.xs};
+  border-bottom-left-radius: ${radius.sm};
 }
 .bh-bubble[data-group-position='middle'] {
-  border-top-left-radius: ${radius.xs};
-  border-bottom-left-radius: ${radius.xs};
+  border-top-left-radius: ${radius.sm};
+  border-bottom-left-radius: ${radius.sm};
 }
 .bh-bubble[data-group-position='last'] {
-  border-top-left-radius: ${radius.xs};
+  border-top-left-radius: ${radius.sm};
+}
+.bh-message-group-me .bh-bubble[data-group-position='solo'] {
+  border-bottom-left-radius: var(--bh-bubble-radius);
+  border-bottom-right-radius: ${radius.sm};
 }
 .bh-message-group-me .bh-bubble[data-group-position='first'] {
-  border-bottom-left-radius: ${radius.lg};
-  border-bottom-right-radius: ${radius.xs};
+  border-bottom-left-radius: var(--bh-bubble-radius);
+  border-bottom-right-radius: ${radius.sm};
 }
 .bh-message-group-me .bh-bubble[data-group-position='middle'] {
-  border-top-left-radius: ${radius.lg};
-  border-bottom-left-radius: ${radius.lg};
-  border-top-right-radius: ${radius.xs};
-  border-bottom-right-radius: ${radius.xs};
+  border-top-left-radius: var(--bh-bubble-radius);
+  border-bottom-left-radius: var(--bh-bubble-radius);
+  border-top-right-radius: ${radius.sm};
+  border-bottom-right-radius: ${radius.sm};
 }
 .bh-message-group-me .bh-bubble[data-group-position='last'] {
-  border-top-left-radius: ${radius.lg};
-  border-top-right-radius: ${radius.xs};
+  border-top-left-radius: var(--bh-bubble-radius);
+  border-bottom-left-radius: var(--bh-bubble-radius);
+  border-top-right-radius: ${radius.sm};
+  border-bottom-right-radius: ${radius.sm};
 }
+/* Reactions and live reading avatars hang over the bubble's bottom edge:
+   reactions on the author's side, readers on the other. */
+.bh-bubble-badges {
+  position: absolute;
+  z-index: 1;
+  left: ${space.x4};
+  right: ${space.x4};
+  bottom: calc(-1 * ${space.x5});
+  display: flex;
+  align-items: center;
+  gap: ${space.x2};
+  pointer-events: none;
+}
+.bh-message-group-me .bh-bubble-badges {
+  flex-direction: row-reverse;
+}
+.bh-bubble-badges .bh-reading {
+  margin-left: auto;
+}
+.bh-message-group-me .bh-bubble-badges .bh-reading {
+  margin-left: 0;
+  margin-right: auto;
+}
+.bh-message-stack > .bh-bubble-wrap:last-child,
+.bh-message-group > .bh-message-group-avatar {
+  margin-bottom: ${space.x2};
+}
+.bh-reading {
+  display: inline-flex;
+  align-items: center;
+  gap: ${space.x1};
+  padding: ${space.x2} ${space.x3} ${space.x2} ${space.x2};
+  border: ${border.focus} solid var(--dsw-alias-bg-base);
+  border-radius: 999px;
+  background: ${color.surface};
+  color: var(--dsw-alias-label-tertiary);
+  pointer-events: auto;
+}
+.bh-stack-avatar {
+  display: inline-flex;
+  flex: none;
+  border-radius: ${radius.round};
+  background: var(--dsw-alias-bg-base);
+  overflow: hidden;
+}
+.bh-stack-avatar + .bh-stack-avatar {
+  margin-left: calc(-1 * ${space.x3});
+}
+.bh-reading .bh-stack-avatar {
+  outline: ${border.hairline} solid ${color.surface};
+}
+.bh-stack-human {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  color: var(--dsw-alias-label-primary);
+  font-size: calc(${text.metaSize} - ${space.x1});
+  font-weight: ${text.strong};
+}
+.bh-stack-more {
+  margin-left: ${space.x1};
+  color: var(--dsw-alias-label-tertiary);
+  font-size: ${text.metaSize};
+  line-height: 1;
+}
+.bh-reading-dots {
+  display: inline-flex;
+  gap: ${space.x1};
+  margin-left: ${space.x1};
+}
+.bh-reading-dots i {
+  width: 3px;
+  height: 3px;
+  border-radius: ${radius.round};
+  background: currentColor;
+  animation: bh-timeline-working-dot 1.2s ease-in-out infinite;
+}
+.bh-reading-dots i:nth-child(2) { animation-delay: 0.2s; }
+.bh-reading-dots i:nth-child(3) { animation-delay: 0.4s; }
+html[data-botharness-motion='reduce'] .bh-reading-dots i { animation: none; }
 .bh-message-group-me {
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-light, color-mix(in srgb, ${color.accent} 90%, ${color.fg}));
   --bh-bubble-me-ink: var(--bh-bubble-me-ink-light, ${color.onAccent});
@@ -3675,7 +3772,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   flex: none;
   display: flex;
   align-items: center;
-  margin-bottom: var(--bh-reaction-row, 0px);
 }
 .bh-bubble-side .bh-delivery-trigger {
   position: static;
@@ -3928,11 +4024,11 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   bottom: 2px;
   display: grid;
   place-items: center;
-  width: 22px;
+  min-width: 22px;
   height: 22px;
-  padding: 0;
+  padding: 0 ${space.x1};
   border: 0;
-  border-radius: ${radius.round};
+  border-radius: 999px;
   background: var(--dsw-alias-bg-base);
   cursor: pointer;
 }
@@ -3948,21 +4044,13 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   outline-offset: 2px;
 }
 
-.bh-delivery-badge {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  box-sizing: border-box;
+.bh-delivery-stack {
+  display: inline-flex;
+  align-items: center;
   padding: ${space.x1};
-  border: ${border.hairline} solid ${color.border};
-  border-radius: ${radius.round};
 }
-.bh-delivery-pie {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: ${radius.round};
+.bh-delivery-stack .bh-stack-avatar + .bh-stack-avatar {
+  margin-left: calc(-1 * ${space.x2});
 }
 .bh-delivery-legend-handled {
   color: var(--dsw-alias-state-success-primary);

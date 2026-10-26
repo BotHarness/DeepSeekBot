@@ -11,6 +11,7 @@ import {
   BOT_MODE_MOTION_FIELD,
   BOT_MODE_SEND_KEY_FIELD,
   BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD,
+  BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD,
   BOT_MODE_SORT_FIELD,
   BOT_MODE_SORT_MODES_FIELD,
   BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS_FIELD,
@@ -72,6 +73,7 @@ export interface BotModePrefsSnapshot {
   botIcon: BotModeIcon;
   sendKey: BotModeSendKey;
   autoCollapseMessages: boolean;
+  showDeliveryReceipts: boolean;
   effectiveMotion: EffectiveMotion;
   sortMode: BotModeSortMode;
   sortModes: Record<string, BotModeSortMode>;
@@ -97,6 +99,7 @@ export interface BotModePrefsFace {
   setBotIcon: (icon: BotModeIcon) => void;
   setSendKey: (sendKey: BotModeSendKey) => void;
   setAutoCollapseMessages: (enabled: boolean) => void;
+  setShowDeliveryReceipts: (enabled: boolean) => void;
   setDeveloperMode: (enabled: boolean) => void;
   setShowBotSessions: (enabled: boolean) => void;
   setShowApprovalReviewSessions: (enabled: boolean) => void;
@@ -120,6 +123,7 @@ export function botModePrefsFace(prefs: BotModePrefs): BotModePrefsFace {
       prefs.setSendKey(sendKey);
     },
     setAutoCollapseMessages: (enabled) => prefs.setAutoCollapseMessages(enabled),
+    setShowDeliveryReceipts: (enabled) => prefs.setShowDeliveryReceipts(enabled),
     setDeveloperMode: (enabled) => {
       prefs.setDeveloperMode(enabled);
     },
@@ -188,6 +192,7 @@ export class BotModePrefs {
       botIcon: DEFAULT_BOT_MODE_ICON,
       sendKey: DEFAULT_BOT_MODE_SEND_KEY,
       autoCollapseMessages: false,
+      showDeliveryReceipts: false,
       developerMode: DEFAULT_BOT_MODE_DEVELOPER,
       showBotSessions: DEFAULT_BOT_MODE_SHOW_BOT_SESSIONS,
       showApprovalReviewSessions: DEFAULT_BOT_MODE_SHOW_APPROVAL_REVIEW_SESSIONS,
@@ -275,6 +280,15 @@ export class BotModePrefs {
     });
     if (this.host !== undefined)
       this.persist(this.host.set(BOT_MODE_AUTO_COLLAPSE_MESSAGES_FIELD, enabled));
+  }
+
+  setShowDeliveryReceipts(enabled: boolean): void {
+    if (this.source.getSnapshot().showDeliveryReceipts === enabled) return;
+    this.source.update((draft) => {
+      draft.showDeliveryReceipts = enabled;
+    });
+    if (this.host !== undefined)
+      this.persist(this.host.set(BOT_MODE_SHOW_DELIVERY_RECEIPTS_FIELD, enabled));
   }
 
   async setAssignmentConcurrencyLimit(limit: number): Promise<boolean> {
@@ -420,6 +434,7 @@ export class BotModePrefs {
           : DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT;
         draft.developerMode = section.developerMode === true;
         draft.autoCollapseMessages = section.autoCollapseMessages === true;
+        draft.showDeliveryReceipts = section.showDeliveryReceipts === true;
         draft.showBotSessions = section.showBotSessions !== false;
         draft.showApprovalReviewSessions = section.showApprovalReviewSessions === true;
         draft.autoAcceptGroupInvites = section.autoAcceptGroupInvites !== false;

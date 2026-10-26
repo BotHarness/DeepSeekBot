@@ -38,6 +38,7 @@ import { visibleDmActivity } from '../../host/dm-activity';
 import { useHiddenDmActivity } from '../../host/native-dm-activity';
 import { useMessageDisplay } from '../../host/native-message-display';
 import { useDeliveryReceiptPreferences } from '../../host/native-delivery-receipts';
+import { readingBots } from '../../host/delivery-receipt';
 import {
   shownInChat,
   type CardResolution,
@@ -140,6 +141,7 @@ import { Button } from '../primitives/button';
 
 type Row = ChatRow | { kind: 'draft'; key: string; draft: ConversationDraftReference };
 const NO_DRAFTS: ConversationDraftReference[] = [];
+const cellLayer = ({ index }: { index: number }) => ({ zIndex: -index });
 
 type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
@@ -822,6 +824,7 @@ function ChatConversation({
 
   const roster = host.roster;
   const botName = useBotNames(roster?.bots);
+  const reading = useMemo(() => readingBots(snapshot.messages), [snapshot.messages]);
   const [deliveryFor, setDeliveryFor] = useState<string>();
   const openDelivery = useCallback(
     (message: ConversationMessage) => setDeliveryFor(message.id),
@@ -993,6 +996,8 @@ function ChatConversation({
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm ? {} : { onReact: react })}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
+          readers={reading.get(item.message.id)}
+          bots={roster?.bots}
           botName={botName}
           speaker={
             !dm && item.message.bot !== undefined ? speakerOf(item.message.bot, item) : undefined
@@ -1027,6 +1032,7 @@ function ChatConversation({
       botDm,
       router,
       receipts,
+      reading,
     ],
   );
 
@@ -1364,6 +1370,7 @@ function ChatConversation({
                 ref={attachList}
                 renderScrollComponent={latest.renderScrollComponent}
                 removeClippedSubviews={false}
+                CellRendererComponentStyle={cellLayer}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
                 pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
                 accessibilityElementsHidden={!latest.ready && rows.length > 0}
