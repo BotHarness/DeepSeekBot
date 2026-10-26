@@ -1,7 +1,8 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { PersonaBotDeletions } from '../bots/deletion.js';
-import { ProfileBackupError, fixedFile, treeFiles } from '../portability/files.js';
+import { ProfileBackupError, treeFiles } from '../portability/files.js';
 
 export interface BackupMemory {
   slug: string;
@@ -48,17 +49,52 @@ export function profileMemoryFiles(
   });
 }
 
+/**
+ * Attachment hashes that Memory text still mentions, for storage cleanup and the
+ * attachment sweep. Unlike a backup capture this is a best-effort read: links,
+ * sockets, missing folders and incomplete Git repositories are skipped instead
+ * of failing, so an unrelated quirk in one Bot's Memory cannot block cleanup.
+ */
 export function memoryAttachmentReferences(
   registry: PersonaBotRegistry,
   deletions: PersonaBotDeletions,
 ): Set<string> {
   const references = new Set<string>();
-  for (const repo of profileMemoryFiles(registry, deletions))
-    for (const file of repo.files)
-      if (/\.(md|json|txt)$/iu.test(file.local))
-        for (const match of fixedFile(file.path)
-          .data.toString('utf8')
-          .matchAll(/sha256:[0-9a-f]{64}/gu))
-          references.add(match[0]);
+  const roots = new Set<string>();
+  for (const bot of registry.listHistorical()) {
+    const deletion = deletions.get(bot.slug);
+    if (deletion?.memory === 'erased') continue;
+    roots.add(deletion?.memoryDir ?? bot.memoryDir ?? join(registry.rootDir, bot.slug, 'memory'));
+  }
+  const walk = (dir: string): void => {
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+      if (missing(error)) return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== '.git') walk(path);
+      } else if (entry.isFile() && /\.(md|json|txt)$/iu.test(entry.name)) {
+        let text;
+        try {
+          text = readFileSync(path, 'utf8');
+        } catch (error) {
+          if (missing(error)) continue;
+          throw error;
+        }
+        for (const match of text.matchAll(/sha256:[0-9a-f]{64}/gu)) references.add(match[0]);
+      }
+    }
+  };
+  for (const root of roots) walk(root);
   return references;
+}
+
+function missing(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === 'ENOENT' || code === 'ENOTDIR';
 }
