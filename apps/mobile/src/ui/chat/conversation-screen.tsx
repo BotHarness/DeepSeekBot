@@ -19,13 +19,7 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import Animated, {
-  useAnimatedReaction,
-  useAnimatedRef,
-  useAnimatedStyle,
-  useScrollOffset,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useScrollOffset } from 'react-native-reanimated';
 
 import {
   chatBackgrounds,
@@ -96,7 +90,6 @@ import {
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
-import { anchorShift, anchorStep } from './follow-latest';
 import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -506,41 +499,15 @@ function ChatConversation({
     },
     [list, content],
   );
-  const followingLatest = useSharedValue(true);
-  const latestEnd = useSharedValue(0);
-  const workingAnchor = useSharedValue(0);
-  const setPlaybackFollowing = playback?.setFollowing;
-  const followChange = useCallback(
-    (following: boolean) => {
-      followingLatest.value = following;
-      setPlaybackFollowing?.(following);
-    },
-    [followingLatest, setPlaybackFollowing],
-  );
-  const latestChange = useCallback(
-    (offset: number) => {
-      latestEnd.value = offset;
-    },
-    [latestEnd],
-  );
-  useAnimatedReaction(
-    () => [scroll.value, latestEnd.value, followingLatest.value] as const,
-    ([offset, end, following]) => {
-      workingAnchor.value = anchorStep(workingAnchor.value, offset, end, following);
-    },
-  );
-  const workingStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: anchorShift(workingAnchor.value, scroll.value) }],
-  }));
   const latest = useChannelViewport(
     list,
     visible,
-    followChange,
+    scroll,
+    playback?.setFollowing,
     headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
-    latestChange,
   );
-  const { composerHeight, viewportHeight, viewportLayout } = latest;
+  const { composerHeight, viewportHeight, viewportLayout, workingStyle } = latest;
   const stage = useMemo(
     () => ({
       registry: speakers,
