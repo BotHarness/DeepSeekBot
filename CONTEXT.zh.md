@@ -832,6 +832,14 @@ _避免使用_：sidebar roster、dashboard、bot list
 桌面端 Bot mode 的两层呈现布局：Global workspace，以及唯一消息面板内当前频道的 Channel workspace。关闭全局面板或频道子面板时，保留其已保存的尺寸比例；重新打开及刷新后，按当前工作区尺寸恢复。Human 可以在所属工作区内移动面板、调整大小；面板不组成标签页，也不浮出所属工作区。符合条件的 Web/macOS shell 释放原生侧栏占位；窄屏和不符合条件的 shell 保留响应式回退。
 _避免使用_：workbench、panel layout、dock
 
+**Layout mode**：
+布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下 Workspace Control Rail 每次只显示一个全局面板，频道子面板纵向排列在 Subpanel column 中；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
+_避免使用_：Bot mode、DSB mode、简单视图、专家模式
+
+**Subpanel column**：
+子面板列。Simple 布局模式下，消息面板内可展开收起的右侧一列，按固定顺序纵向列出当前频道可用的子面板。每个子面板可折叠，整列可滚动；折叠只卸载呈现，不会停止正在运行的浏览器、电脑或会话。
+_避免使用_：Channel sidebar、右侧栏、inspector
+
 以下布局术语描述 [#2048](https://github.com/BotHarness/DeepSeekBot/issues/2048) 与 ADR-0221 中已确认的目标设计。[#2049](https://github.com/BotHarness/DeepSeekBot/issues/2049) 已交付会话子面板，[#2067](https://github.com/BotHarness/DeepSeekBot/issues/2067) 迁入记忆文件、记忆演化和定时任务。[#2069](https://github.com/BotHarness/DeepSeekBot/issues/2069) 将浏览器控制与电脑控制迁入同一 Bot 专属频道工作区。临时文件、收件箱和成员区域尚未统一为持久化子面板布局。
 
 **Global workspace**：
