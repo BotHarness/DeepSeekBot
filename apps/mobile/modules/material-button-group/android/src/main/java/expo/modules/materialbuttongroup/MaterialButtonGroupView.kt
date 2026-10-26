@@ -65,7 +65,7 @@ class MaterialButtonGroupView(context: Context, appContext: AppContext) : ExpoVi
   var items by mutableStateOf<List<ButtonGroupItem>>(emptyList())
   var selected by mutableStateOf("")
   var dark by mutableStateOf(false)
-  var foreground by mutableStateOf("")
+  var foregroundColor by mutableStateOf("")
   var container by mutableStateOf("")
   var checkedContainer by mutableStateOf("")
   var checkedForeground by mutableStateOf("")
@@ -90,7 +90,7 @@ class MaterialButtonGroupView(context: Context, appContext: AppContext) : ExpoVi
         ) {
           val colors = ToggleButtonDefaults.colors(
             containerColor = color(container, scheme.surfaceContainer),
-            contentColor = color(foreground, scheme.onSurface),
+            contentColor = color(foregroundColor, scheme.onSurface),
             checkedContainerColor = color(checkedContainer, scheme.secondaryContainer),
             checkedContentColor = color(checkedForeground, scheme.onSecondaryContainer),
           )
