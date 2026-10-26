@@ -195,6 +195,7 @@ export class FakeAgentHost implements DshAgentHost {
         return () => void scope.listeners.delete(event);
       },
       tools: {
+        get: (name: string) => scope.tools.find((tool) => tool.name === name),
         schemas: (viewingAgent: unknown) =>
           viewingAgent === undefined
             ? []

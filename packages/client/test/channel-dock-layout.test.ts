@@ -10,8 +10,15 @@ import {
   pruneChannelDock,
   dockPanelGap,
   readChannelDock,
+  resolveDefaultPosition,
   writeChannelDock,
 } from '../src/client/channel-dock-layout.js';
+import { ACTIVITY_CENTER_PANEL } from '../src/client/dock-panels.js';
+import {
+  WORKSPACE_CHANNELS,
+  WORKSPACE_HOME,
+  WORKSPACE_RAIL,
+} from '../src/client/workspace-context.js';
 
 const leaf = (id: string, ...views: string[]) => ({
   type: 'leaf' as const,
@@ -702,5 +709,73 @@ describe('Home v8 upgrade', () => {
         },
       ),
     ).toBe(false);
+  });
+});
+
+describe('workspace default placement', () => {
+  const dock = (...ids: string[]) => ({
+    getPanel: (id: string) => (ids.includes(id) ? ({ id } as never) : undefined),
+    panels: ids.map((id) => ({
+      id,
+      api: { location: { type: 'grid' } },
+    })) as never,
+  });
+
+  it('opens Messages as a column beside the Channel list', () => {
+    expect(
+      resolveDefaultPosition(
+        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, WORKSPACE_HOME),
+        undefined,
+        CHANNEL_BODY_PANEL,
+      ),
+    ).toEqual({ referencePanel: WORKSPACE_CHANNELS, direction: 'right' });
+  });
+
+  it('opens Activity Center as a column beside Messages', () => {
+    expect(
+      resolveDefaultPosition(
+        dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL, WORKSPACE_HOME),
+        { zone: 'right' },
+        ACTIVITY_CENTER_PANEL,
+      ),
+    ).toEqual({ referencePanel: CHANNEL_BODY_PANEL, direction: 'right' });
+  });
+
+  it('opens Home, plugin right panels and orphaned Activity Center at the right edge', () => {
+    const api = dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, 'market');
+    expect(resolveDefaultPosition(api, { zone: 'right' }, WORKSPACE_HOME)).toEqual({
+      direction: 'right',
+    });
+    expect(resolveDefaultPosition(api, { zone: 'right' }, 'vendor:panel')).toEqual({
+      direction: 'right',
+    });
+    expect(resolveDefaultPosition(api, { zone: 'right' }, ACTIVITY_CENTER_PANEL)).toEqual({
+      direction: 'right',
+    });
+  });
+
+  it('keeps bottom and anchored placement unchanged', () => {
+    const api = dock(WORKSPACE_RAIL, WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL);
+    expect(resolveDefaultPosition(api, { zone: 'bottom' }, 'vendor:panel')).toEqual({
+      referencePanel: CHANNEL_BODY_PANEL,
+      direction: 'below',
+    });
+    expect(
+      resolveDefaultPosition(
+        api,
+        { zone: 'right', relativeTo: WORKSPACE_CHANNELS },
+        'vendor:panel',
+      ),
+    ).toEqual({ referencePanel: WORKSPACE_CHANNELS, direction: 'below' });
+  });
+
+  it('keeps stacking right panels outside the workspace', () => {
+    expect(
+      resolveDefaultPosition(
+        dock(CHANNEL_BODY_PANEL, 'sessions'),
+        { zone: 'right' },
+        'vendor:panel',
+      ),
+    ).toEqual({ referencePanel: 'sessions', direction: 'below' });
   });
 });
