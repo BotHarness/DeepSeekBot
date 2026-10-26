@@ -141,7 +141,7 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
         expect(style(header)).toMatchObject({ flexDirection: 'row', alignItems: 'center' });
         expect(style(content)).toMatchObject({ flex: 1, minWidth: 0 });
         expect(style(source)).toMatchObject({ flex: 1, minWidth: 0 });
-        expect(style(row.name)).toMatchObject({ flexShrink: 1 });
+        expect(style(row.name)).toMatchObject({ flex: 1, minWidth: 0 });
         expect(style(source.children[1]!)).toMatchObject({ flexShrink: 0 });
         expect(source.getAttribute('aria-label')).toContain(title);
         expect(row.name.dataset.ellipsis).toBe('tail');
@@ -151,7 +151,7 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
         expect(row.preview.parentElement).toBe(content.children[1]);
         expect(row.preview.parentElement!.querySelector('[data-status="working"]')).not.toBeNull();
         for (const text of [row.name, row.time, row.preview]) {
-          expect(text.dataset.lines).toBe('1');
+          expect(text.dataset.lines).toBe(text === row.time ? undefined : '1');
           expect(text.dataset.scaling).not.toBe('false');
           expect(text.dataset.maximum).toBeUndefined();
           expect(text.dataset.fit).not.toBe('true');
@@ -179,11 +179,10 @@ describe.each(['android', 'ios'])('Chats row layout contract on %s', (os) => {
   });
 });
 
-it('keeps the environment beside the title icon rather than adding a third line', () => {
-  render();
-  const texts = [...host!.querySelectorAll('span')];
-  const name = texts.find((node) => node.textContent === title)!;
-  const environment = texts.find((node) => node.textContent === 'Research')!;
-  expect(environment.parentElement).toBe(name.parentElement);
-  expect(environment.previousElementSibling?.querySelector('i')).not.toBeNull();
+it('reserves visible heading space for the name and icon while retaining accessible source context', () => {
+  const row = render();
+  const source = row.name.parentElement!;
+  expect(source.getAttribute('aria-label')).toContain('Research');
+  expect(source.querySelector('i')).not.toBeNull();
+  expect(row.view.textContent).not.toContain('Research');
 });

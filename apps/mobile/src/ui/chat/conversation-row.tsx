@@ -287,7 +287,7 @@ export function ConversationRowFrame({
         >
           <SourceName name={title} source={source} look={look} sourceLabel={sourceLabel} />
           {time === '' ? null : (
-            <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 0 }}>
+            <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
               {time}
             </Text>
           )}
