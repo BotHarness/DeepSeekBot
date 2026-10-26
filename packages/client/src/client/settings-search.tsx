@@ -32,6 +32,7 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'icon.row.title',
     'settings.language',
     'workspace.appearance',
+    'workspace.layoutMode',
     'workspace.gap',
     'dock.reset',
   ],
@@ -171,7 +172,9 @@ export function searchSettings(
     for (const key of SETTINGS_INDEX[row.id] ?? []) {
       if (
         row.layoutAvailable === false &&
-        ['workspace.appearance', 'workspace.gap', 'dock.reset'].includes(key)
+        ['workspace.appearance', 'workspace.layoutMode', 'workspace.gap', 'dock.reset'].includes(
+          key,
+        )
       )
         continue;
       const own = [t(key), en[key], zh[key], ...(SEARCH_ALIASES[key] ?? '').split(' ')];

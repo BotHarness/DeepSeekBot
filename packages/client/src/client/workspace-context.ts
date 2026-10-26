@@ -17,6 +17,7 @@ export const WorkspaceContext = createContext<
         setOrder: (ids: readonly string[]) => void,
         hiddenControls: readonly string[],
         setControlVisible: (id: string, visible: boolean) => void,
+        layoutMode: { mode: 'simple' | 'advanced'; setMode(mode: 'simple' | 'advanced'): void },
       ): ReactNode;
     }
   | undefined
