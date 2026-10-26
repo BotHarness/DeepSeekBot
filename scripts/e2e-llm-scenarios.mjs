@@ -266,15 +266,15 @@ export const SCENARIOS = [
   {
     id: 'long-task-reports',
     summary:
-      'A multi-phase DM task gets a receipt before the work starts, a progress report between phases and a final result.',
+      'A multi-phase DM task with a one-minute step gets a receipt before the work starts, progress while it runs and a final result.',
     areas: [...RUNTIME_AREAS, 'packages/core/src/runtime/dsh-bot-agent-adapter.ts'],
     bots: ['aura'],
     async run(ctx) {
       const dm = await ctx.dm('aura');
-      const files = ['drafts/palette.md', 'drafts/slogans.md', 'drafts/summary.md'];
+      const files = ['drafts/palette.md', 'drafts/render.log', 'drafts/summary.md'];
       await ctx.humanSend(
         dm,
-        `这是一个分三个阶段的长任务，请在你的记忆仓库里依次完成：阶段 1：写 ${files[0]}，列出 5 个像素风配色，每个含 3 个十六进制色值和一句说明；阶段 2：写 ${files[1]}，为每个配色各写 2 句游戏口号；阶段 3：写 ${files[2]}，挑出最好的一组并说明理由。全部完成后告诉我结果。`,
+        `这是一个分三个阶段的长任务，请在你的记忆仓库里依次完成：阶段 1：写 ${files[0]}，列出 5 个像素风配色，每个含 3 个十六进制色值和一句说明；阶段 2：在记忆仓库目录运行 \`sleep 60 && echo rendered > ${files[1]}\` 模拟导出预览图，这一步大约要一分钟；阶段 3：写 ${files[2]}，挑出最好的一组并说明理由。全部完成后告诉我结果。`,
       );
       const [first, , last] = await ctx.waitFor('all three phase files are written', () => {
         const times = files.map((file) => ctx.memoryFileTime('aura', file));
@@ -288,7 +288,7 @@ export const SCENARIOS = [
       if (!at.some((time) => time < first))
         throw new Error('no receipt was sent before the first phase started');
       if (!at.some((time) => time > first && time < last))
-        throw new Error('no progress was reported between the first and the last phase');
+        throw new Error('no progress was reported while the later phases ran');
     },
   },
   {

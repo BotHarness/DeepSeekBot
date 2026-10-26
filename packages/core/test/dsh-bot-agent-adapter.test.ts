@@ -2160,7 +2160,7 @@ describe('DSH Bot Agent adapter', () => {
       rolePrompt.indexOf('Use three complementary sources'),
     );
     expect(rolePrompt).toContain('Your assistant text is private Session output');
-    expect(rolePrompt).toContain('send one short receipt in that conversation');
+    expect(rolePrompt).toContain('make your first call a short receipt');
     expect(rolePrompt).toContain('report at real milestones');
     expect(rolePrompt).toContain('Never stop with work half done and no status');
     expect(rolePrompt).toContain('If bot_send_message returns notWoken');
