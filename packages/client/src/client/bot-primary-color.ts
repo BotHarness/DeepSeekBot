@@ -112,6 +112,16 @@ function notifySurfaces(): void {
   listeners.forEach((notify) => notify());
 }
 
+let surfaceNotificationQueued = false;
+function scheduleSurfaceNotification(): void {
+  if (surfaceNotificationQueued) return;
+  surfaceNotificationQueued = true;
+  queueMicrotask(() => {
+    surfaceNotificationQueued = false;
+    notifySurfaces();
+  });
+}
+
 function subscribeSurface(listener: () => void): () => void {
   listeners.add(listener);
   if (
@@ -145,7 +155,7 @@ export function useConversationSurface(): {
   const background = useSyncExternalStore(subscribeSurface, snapshot, snapshot);
   const attach = useCallback((element: Element | null) => {
     probe.current = element;
-    if (element !== null) queueMicrotask(notifySurfaces);
+    if (element !== null) scheduleSurfaceNotification();
   }, []);
   return { background, probe: attach };
 }

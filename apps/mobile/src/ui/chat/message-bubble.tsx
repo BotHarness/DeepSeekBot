@@ -389,6 +389,7 @@ export const MessageBubble = memo(function MessageBubble({
       <View style={{ width: space.x6, alignItems: 'center' }}>
         {failed ? (
           <Pressable
+            testID={`message-retry-${message.id}`}
             accessibilityRole="button"
             accessibilityLabel={label}
             onPress={() => onRetry?.(message.id)}
