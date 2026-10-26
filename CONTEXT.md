@@ -988,7 +988,7 @@ One sidebar destination of Bot Settings: a stable id, label, order, and a render
 _Avoid_: tab, page, settings item, Panel
 
 **Prompt Part**:
-One named piece of behavior text in a Bot's system prompt or per-turn templates, such as how to report progress, that a Human may rewrite. The tool, delivery and Inbox contracts around it are not Prompt Parts and stay fixed (ADR-0262).
+One named piece of behavior text in a Bot's system prompt or per-turn templates, such as how to report progress, that a Human may rewrite. The tool, delivery and Inbox contracts around it are not Prompt Parts and stay fixed (ADR-0263).
 _Avoid_: prompt section (a DSH system prompt section holds several parts plus fixed contract text), template
 
 **Prompt Preset**:
