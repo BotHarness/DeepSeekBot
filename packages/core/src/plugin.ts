@@ -506,6 +506,14 @@ export function createCore(
     dshHome,
     schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
   });
+  if (operationalDatabase.recovery !== undefined)
+    options.warn?.(
+      `operational-database initiator=host-startup phase=recovery code=${operationalDatabase.recovery.code} path=${JSON.stringify(operationalDatabase.databasePath)} reason=${JSON.stringify(operationalDatabase.recovery.message)}`,
+    );
+  if (operationalDatabase.foreignKeyOrphans !== undefined)
+    options.warn?.(
+      `operational-database initiator=host-startup phase=foreign-key-orphans path=${JSON.stringify(operationalDatabase.databasePath)} orphans=${JSON.stringify(operationalDatabase.foreignKeyOrphans)}`,
+    );
   let usage: UsageProjection | undefined;
   const partLibrary = createPartLibrary({
     database: attachOperationalModule(operationalDatabase, 'avatar-part-library'),

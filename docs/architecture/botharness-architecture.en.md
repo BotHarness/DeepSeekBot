@@ -203,7 +203,7 @@ flowchart TD
   Rebuild --> Ready["Enable admissions, wakes and commands"]
 ```
 
-Only one BotHarness writer may own a DSH profile at a time. Module migrations combine into one monotonically increasing Schema Generation. Migration runs against a temporary copy and atomically replaces the active database only after validation. Open, migration, or integrity failure enters recovery mode; the Host never falls back to NDJSON, a storage domain, or in-memory writes.
+Only one BotHarness writer may own a DSH profile at a time. Module migrations combine into one monotonically increasing Schema Generation. Migration runs against a temporary copy and atomically replaces the active database only after validation. Open, migration, or page-integrity failure enters recovery mode; the Host never falls back to NDJSON, a storage domain, or in-memory writes. Foreign key orphans left by an outside writer do not block the mount; they are recorded in diagnostics and the startup log, and a migration may not add new ones (ADR-0258).
 
 ## 4 · Messaging transaction and external side effects
 
