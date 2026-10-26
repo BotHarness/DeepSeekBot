@@ -1,4 +1,4 @@
-import { WORKSPACE_HOME, WORKSPACE_RAIL } from './workspace-context.js';
+import { WORKSPACE_CHANNELS, WORKSPACE_HOME, WORKSPACE_RAIL } from './workspace-context.js';
 import {
   BOT_WORKSPACE_PANELS,
   parseChannelSplit,
@@ -11,6 +11,7 @@ import type {
   SerializedGridObject,
 } from 'dockview-react';
 
+import { ACTIVITY_CENTER_PANEL } from './dock-panels.js';
 import type { DockPanelPosition, DockPanelInstance } from './dock-panels.js';
 
 export const CHANNEL_DOCK_STORAGE_KEY = 'botharness.bot-mode-layout';
@@ -483,14 +484,34 @@ export function resolveDockPosition(
     : { direction: 'right' };
 }
 
+// Global workspace panels without a remembered position open as full-height
+// columns: Messages beside the Channel list, Activity Center beside Messages,
+// everything else at the right edge (ADR-0259).
+function workspaceColumn(
+  api: Pick<DockviewApi, 'getPanel'>,
+  panelId: string | undefined,
+): AddPanelPositionOptions {
+  const anchor =
+    panelId === CHANNEL_BODY_PANEL
+      ? WORKSPACE_CHANNELS
+      : panelId === ACTIVITY_CENTER_PANEL
+        ? CHANNEL_BODY_PANEL
+        : undefined;
+  return anchor !== undefined && api.getPanel(anchor)
+    ? { referencePanel: anchor, direction: 'right' }
+    : { direction: 'right' };
+}
+
 export function resolveDefaultPosition(
   api: Pick<DockviewApi, 'getPanel' | 'panels'>,
   position: DockPanelPosition | undefined,
+  panelId?: string,
 ): AddPanelPositionOptions {
   const zone = position?.zone ?? 'right';
   const anchor = position?.relativeTo;
   if (anchor !== undefined && api.getPanel(anchor) !== undefined)
     return { referencePanel: anchor, direction: zone === 'bottom' ? 'right' : 'below' };
+  if (api.getPanel(WORKSPACE_RAIL) && zone === 'right') return workspaceColumn(api, panelId);
   if (zone === 'left') return { direction: 'left' };
   if (zone === 'bottom' && !api.getPanel('bh:workspace-rail')) return { direction: 'below' };
   if (zone === 'bottom' || zone === 'center') {

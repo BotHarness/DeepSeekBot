@@ -823,7 +823,7 @@ function restoreEntryPanel(
     params: { entryId: panel.id },
     position:
       remembered === undefined
-        ? resolveDefaultPosition(api, panel.defaultPosition)
+        ? resolveDefaultPosition(api, panel.defaultPosition, panel.id)
         : resolveDockPosition(api, remembered),
   });
   if (remembered?.size) {

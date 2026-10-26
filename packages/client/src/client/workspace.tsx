@@ -123,7 +123,7 @@ export function Workspace({
         icon: 'house',
         scope: 'global',
         order: 1000,
-        defaultPosition: { zone: 'center' },
+        defaultPosition: { zone: 'right' },
         onTitleHide: () =>
           void onboardingFor(options.actions).finishFromHomeTitle(() =>
             registry.open(CHANNEL_BODY_PANEL),
