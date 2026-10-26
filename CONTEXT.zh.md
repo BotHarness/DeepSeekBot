@@ -736,6 +736,10 @@ _避免使用_：reply mode、answer position、visibility
 
 ### Host（宿主）与设置
 
+**Environment**：
+移动端列出、添加和选择一个已配对 Host 时，面向用户的名称（中文为「环境」）；一个 PersonaBot 只在一个 Environment 中创建。
+_避免使用_：computer、电脑、machine、device（Computer 已指 PersonaBot 的工作界面）
+
 **PersonaBot registry**：
 拥有 PersonaBot definition、archive state、binding 与 Session ownership 的 Host module；其 operational record 存储在 BotHarness operational database 中，而 Soul content 仍保存在文件中。
 _避免使用_：config file、database、fleet
