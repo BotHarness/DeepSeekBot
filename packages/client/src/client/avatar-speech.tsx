@@ -1,6 +1,7 @@
 import { useRef, type ReactElement } from 'react';
 import type { PixelMouthState } from '../../../core/src/bots/avatar-appearance.js';
 import { useMountedResource } from './mounted-resource.js';
+import { observeVisibility } from './timeline-offscreen.js';
 
 export function AvatarSpeech({
   markup,
@@ -81,17 +82,11 @@ export function AvatarSpeech({
         }
       };
       const refresh = () => sync(true);
-      const observer =
-        typeof IntersectionObserver === 'undefined'
-          ? undefined
-          : new IntersectionObserver((entries) => {
-              if (!active) return;
-              const next = entries.some((entry) => entry.isIntersecting);
-              if (next === visible.current) return;
-              visible.current = next;
-              refresh();
-            });
-      observer?.observe(root);
+      const stopVisibility = observeVisibility(root, (next) => {
+        if (!active || next === visible.current) return;
+        visible.current = next;
+        refresh();
+      });
       const motion = new MutationObserver(refresh);
       motion.observe(document.documentElement, {
         attributes: true,
@@ -104,7 +99,7 @@ export function AvatarSpeech({
         active = false;
         speak.current = undefined;
         cancel();
-        observer?.disconnect();
+        stopVisibility?.();
         motion.disconnect();
         document.removeEventListener('visibilitychange', refresh);
       };

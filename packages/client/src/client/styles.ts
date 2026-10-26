@@ -3283,6 +3283,12 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-message-block + .bh-message-block {
   margin-top: ${space.x4};
 }
+/* Far from the viewport: skip style, layout and paint; the measured height is kept inline.
+   A skipped block has no content-based minimum height, so the column must not shrink it. */
+.bh-message-block[data-offscreen] {
+  content-visibility: hidden;
+  flex-shrink: 0;
+}
 .bh-message-day {
   width: fit-content;
   margin: ${space.x3} auto ${space.x5};

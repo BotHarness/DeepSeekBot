@@ -1,4 +1,5 @@
 import type { ChannelMessage } from './store.js';
+import { insideOffscreenBlock, revealOffscreen } from './timeline-offscreen.js';
 
 export function unreadAfterAnchor(
   messages: readonly ChannelMessage[],
@@ -51,6 +52,7 @@ export function timelineScrollAnchor(
 ): TimelineScroll | undefined {
   const top = viewport.getBoundingClientRect().top;
   for (const candidate of viewport.querySelectorAll<HTMLElement>('[data-message-id]')) {
+    if (insideOffscreenBlock(candidate)) continue;
     const bounds = candidate.getBoundingClientRect();
     if (bounds.bottom <= top) continue;
     const messageId = candidate.dataset['messageId'];
@@ -66,6 +68,6 @@ export function restoreTimelineScroll(viewport: HTMLElement, scroll: TimelineScr
   );
   if (target === undefined) return false;
   const top = viewport.getBoundingClientRect().top;
-  viewport.scrollTop += target.getBoundingClientRect().top - top - scroll.offset;
+  viewport.scrollTop += revealOffscreen(target).getBoundingClientRect().top - top - scroll.offset;
   return true;
 }

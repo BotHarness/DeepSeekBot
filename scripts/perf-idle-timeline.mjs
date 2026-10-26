@@ -20,6 +20,9 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json (from verify-app launch)
                       working indicator, so per-frame cost becomes visible.
   --trace             Save a Chrome trace of the idle window (open in DevTools).
   --profile           Save a CPU profile of the idle window and list the hottest functions.
+  --scroll-check      After mounting, scroll from the latest message to the top one viewport at a
+                      time and report scroll jumps and skipped blocks left in view (on by
+                      default with --load-all; --no-scroll-check turns it off).
   --label <name>      Evidence label (default "run"); use main/fix for AB pairs.
   --out <dir>         Evidence directory (default .humanlayer/perf/idle-timeline).
 
@@ -35,6 +38,8 @@ const { values: options } = parseArgs({
     animate: { type: 'boolean', default: false },
     trace: { type: 'boolean', default: false },
     profile: { type: 'boolean', default: false },
+    'scroll-check': { type: 'boolean', default: true },
+    'no-scroll-check': { type: 'boolean', default: false },
     label: { type: 'string', default: 'run' },
     out: { type: 'string', default: '.humanlayer/perf/idle-timeline' },
     help: { type: 'boolean', default: false },
@@ -68,6 +73,55 @@ const bodies = [
   (i) =>
     `Short reply ${i}. 中文内容也要覆盖：这条消息用来测试中英文混排的渲染成本，以及较长段落的换行。`,
 ];
+
+async function scrollCheck() {
+  const result = await page.$eval('.bh-chat-body', async (body) => {
+    const frame = () => new Promise((done) => requestAnimationFrame(() => done(undefined)));
+    const firstVisible = () => {
+      const top = body.getBoundingClientRect().top;
+      for (const node of body.querySelectorAll('[data-message-id]')) {
+        if (node.closest('[data-offscreen]')) continue;
+        const bounds = node.getBoundingClientRect();
+        if (bounds.bottom > top) return { id: node.dataset.messageId, y: bounds.top };
+      }
+      return undefined;
+    };
+    body.scrollTop = body.scrollHeight;
+    await frame();
+    await frame();
+    let steps = 0;
+    let jumps = 0;
+    let maxJumpPx = 0;
+    let skippedInView = 0;
+    let emptyInView = 0;
+    while (body.scrollTop > 0 && steps < 2000) {
+      body.scrollTop = Math.max(0, body.scrollTop - body.clientHeight);
+      steps += 1;
+      await frame();
+      const before = firstVisible();
+      await frame();
+      await frame();
+      const after = firstVisible();
+      if (before && after && before.id === after.id) {
+        const moved = Math.abs(after.y - before.y);
+        if (moved > 1) jumps += 1;
+        maxJumpPx = Math.max(maxJumpPx, moved);
+      }
+      const view = body.getBoundingClientRect();
+      for (const block of body.querySelectorAll('.bh-message-block')) {
+        const bounds = block.getBoundingClientRect();
+        if (bounds.bottom < view.top || bounds.top > view.bottom) continue;
+        if (block.dataset.offscreen !== undefined) skippedInView += 1;
+        if (bounds.height === 0) emptyInView += 1;
+      }
+    }
+    body.scrollTop = body.scrollHeight;
+    await frame();
+    return { steps, jumps, maxJumpPx: Math.round(maxJumpPx), skippedInView, emptyInView };
+  });
+  await sleep(1000);
+  return result;
+}
 
 const browser = await puppeteer.launch({
   headless: true,
@@ -227,6 +281,10 @@ try {
       node.scrollTop = node.scrollHeight;
     });
   }
+  const scroll =
+    loadAll && options['scroll-check'] && !options['no-scroll-check']
+      ? await scrollCheck()
+      : undefined;
   if (options.animate)
     await page.evaluate(() => {
       const style = document.createElement('style');
@@ -261,6 +319,7 @@ try {
   const dom = await page.evaluate(() => ({
     mountedMessages: document.querySelectorAll('.bh-chat-body [data-message-id]').length,
     nodes: document.getElementsByTagName('*').length,
+    skippedBlocks: document.querySelectorAll('.bh-message-block[data-offscreen]').length,
   }));
 
   await page.$eval('.bh-chat-body', (node) => {
@@ -316,6 +375,7 @@ try {
       recalcStyleMs: Math.round(typed('RecalcStyleDuration') * 1000),
       hottest: typingHottest,
     },
+    scroll,
     idleHottest,
     trace: options.trace ? traceFile : undefined,
     pageErrors: errors,
