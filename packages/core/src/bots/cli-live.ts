@@ -167,6 +167,8 @@ export const LIVE_OPTIONS = {
   'image-reference': { type: 'string' },
   timeout: { type: 'string' },
   'message-id': { type: 'string' },
+  'failure-message-id': { type: 'string' },
+  recovery: { type: 'string' },
   outcome: { type: 'string' },
   'answer-stdin': { type: 'boolean' },
   'values-stdin': { type: 'boolean' },
@@ -467,6 +469,8 @@ interface LiveValues
   'image-reference'?: string;
   timeout?: string;
   'message-id'?: string;
+  'failure-message-id'?: string;
+  recovery?: string;
   body?: string;
   'body-stdin'?: boolean;
   'answer-stdin'?: boolean;

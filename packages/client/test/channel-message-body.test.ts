@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import type { BridgeActions } from '../src/client/actions.js';
+import { createActions, type BridgeActions } from '../src/client/actions.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { attachmentReferenceText } from '../src/client/attachment-refs.js';
 import { parseChannelMessage } from '../src/client/bridge.js';
@@ -49,6 +49,50 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Button: ({ children, ...props }: { children: ReactNode }) =>
     createElement('button', props, children),
 }));
+
+it('offers explicit context recovery and sends the canonical failure reference', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  const call = vi.fn(async () => ({ ok: true as const, value: { accepted: true } }));
+  const actions = createActions(call, store);
+  const message: ChannelMessage = {
+    id: 'failure',
+    at: '2026-10-26T00:00:00Z',
+    author: { kind: 'bot', slug: 'ada' },
+    body: 'Failed',
+    sessionFailure: {
+      role: 'orchestrator',
+      sessionId: 's',
+      requestMessageId: 'request',
+      code: 'CONTEXT_WINDOW_EXCEEDED',
+      detail: 'Full',
+    },
+  };
+  try {
+    await act(async () =>
+      root.render(
+        createElement(ChannelMessageBody, { message, channelId: 'dm', actions, t: zhTranslate }),
+      ),
+    );
+    const button = [...container.querySelectorAll('button')].find(
+      (node) => node.textContent === '压缩并重试',
+    );
+    expect(button).toBeDefined();
+    expect(container.textContent).toContain('开新会话并重试');
+    await act(async () => button?.click());
+    expect(call).toHaveBeenCalledWith('channelRetry', {
+      channelId: 'dm',
+      messageId: 'request',
+      recovery: 'compact',
+      failureMessageId: 'failure',
+    });
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+  }
+});
 
 it('renders the restored Host tombstone as purged content', () => {
   const message = parseChannelMessage({

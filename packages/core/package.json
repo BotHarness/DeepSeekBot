@@ -20,6 +20,7 @@
     "@noble/ciphers": "2.4.0",
     "@noble/curves": "2.4.0",
     "@noble/hashes": "2.4.0",
+    "@deepseek-ai/dsh-compaction": "0.2.1-rc.2",
     "@resvg/resvg-js": "2.6.2",
     "css-tree": "3.2.1",
     "saxes": "6.0.0",

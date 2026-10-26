@@ -1,4 +1,5 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -1589,7 +1590,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ctx.get('sandboxPolicy'),
         ctx.get('approval'),
       );
-      return permissionDenial(agent.session) === undefined ? next() : { kind: 'reject' };
+      if (permissionDenial(agent.session) !== undefined) return { kind: 'reject' };
+      const contextOwner = core.ownership.resolve(agent.session.id);
+      if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
+        await compactUnknownContext(agent, signal);
+      return next();
     },
     { global: true },
   );
@@ -1622,11 +1627,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )?.measure(agent.session).totalTokens,
     threshold: async (agent, route) => {
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
-      if (info.context === undefined) return undefined;
       return compactionThresholdTokens(
         {},
         route,
-        info.context.contextWindow,
+        contextCapacity(info.context?.contextWindow).contextWindow,
         agent.session.requestHeader()?.config.maxTokens ?? info.defaultMaxTokens ?? 0,
       );
     },
@@ -1639,12 +1643,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(`idle-compaction ${JSON.stringify(event)}`),
   });
   ctx.effect(() => () => idleCompaction.close(), 'botharness: idle compaction');
-  const compactBot = (slug: string) => {
-    const sessionId = core.runtime.currentOrchestratorSessionId?.(slug);
-    return sessionId === undefined
-      ? Promise.resolve({ outcome: 'not-loaded' as const, tokensBefore: null, tokensAfter: null })
-      : idleCompaction.compactNow(sessionId);
-  };
+  const compactReservedSession = (sessionId: string) => idleCompaction.compactNow(sessionId, true);
+  const compactBot = (slug: string) =>
+    core.runtime.compactOrchestrator
+      ? core.runtime.compactOrchestrator(slug, compactReservedSession)
+      : Promise.resolve({ outcome: 'not-loaded' as const, tokensBefore: null, tokensAfter: null });
   let reviewLogs: LogDatabase | undefined;
   try {
     reviewLogs = openLogDatabase({ dir: join(dshHome, 'botharness') });
@@ -2274,6 +2277,30 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     release: releaseService,
   });
   const bridgeMethods = createBridgeMethods({
+    botContext: async (slug) => {
+      const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
+      const agent = sessionId === null ? undefined : liveAgent(sessionId);
+      const request = agent?.session.requestHeader()?.config;
+      const route =
+        request ??
+        core.registry.get(slug)?.modelPlan?.orchestrator ??
+        defaultModel.currentSelection();
+      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
+      const capacity = contextCapacity(info.context?.contextWindow);
+      return {
+        sessionId,
+        usedTokens: agent
+          ? (agent.ctx.get('tokenMeter')?.measure(agent.session).totalTokens ?? null)
+          : null,
+        ...capacity,
+        thresholdTokens: compactionThresholdTokens(
+          {},
+          route,
+          capacity.contextWindow,
+          request?.maxTokens ?? info.defaultMaxTokens ?? 0,
+        ),
+      };
+    },
     cloudConnections,
     cloudWork,
     approvalReviewer,
@@ -2295,6 +2322,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
       rescan: () => idleCompaction.rescan(ctx.agents.list().map((agent) => agent.session.id)),
       compactBot,
+      compactReservedSession,
     },
     composerIdentity: () =>
       composerRecoveryIdentity(

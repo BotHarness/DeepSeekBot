@@ -110,6 +110,7 @@ deepseekbot bot-sessions <bot-id> --limit 20
 deepseekbot bot-activity <bot-id> --limit 20
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
+deepseekbot bot-context <bot-id>
 ```
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
@@ -118,7 +119,9 @@ deepseekbot bot-compact <bot-id>
 
 `bot-new-session <bot-id>` 通过与 IM `/new` 相同的 Host 运行时退役空闲 Bot 的编排会话，下一条消息开启新会话。成功返回 `{"started":true}`；Bot 正在工作时以 `bot-busy` 拒绝，需先停止当前轮次。
 
-`bot-compact <bot-id>` 通过 DSH `/compact` 立即压缩空闲 Bot 的编排会话，与 IM `/compact`、Bot 私信输入框的 `/compact` 和空闲压缩走同一路径。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；DSH 没有可压缩内容、或摘要不会更小时返回 `nothing`；会话尚未在 Host 中加载（例如 Host 重启后、下一条消息之前）时返回 `not-loaded`。Bot 有进行中的轮次或待处理的 Inbox Admission 时以 `bot-busy` 拒绝。
+`bot-compact <bot-id>` 通过 DSH `/compact` 压缩空闲 Bot 的编排会话；Host 重启后会加载原会话，无需先发消息。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；没有可用的更小摘要时返回 `nothing`。有运行中或排队轮次时返回 `bot-busy`；原会话不可用时返回明确错误。
+
+`bot-context <bot-id>` 返回当前 `sessionId`、估算占用 `usedTokens`（会话未加载时为 null）、`contextWindow`、容量来源 `capacitySource`（`model` 或 `estimate`）及压缩阈值 `thresholdTokens`。模型容量缺失时按 200,000 tokens 估算，再扣除输出预留和安全余量；该估算不是已验证的服务商上限。Web 输入框显示当前上下文数据，点击后仍可查看累计用量。
 
 显式清理先用 `bot-delete-preview <bot-id>` 查看 owner 的当前范围与 `preview.token`，审核后将 `{"token":"<preview.token>"}` 从 stdin 交给 `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`。默认保留 Memory，仅显式 `--erase-memory` 才选择擦除 owner 审核的目录，并在停止阶段删除这个 Bot 通过私密输入保存的密钥。检查 `deletion.phase`；未完成的清理可用 `bot-delete-retry <bot-id> --confirm` 继续。范围变化由 owner 拒绝；删除身份不是内容清除或全部数据擦除。
 
@@ -196,6 +199,8 @@ deepseekbot channel-search <channel> --query <text> [--cursor <cursor>] [--limit
 deepseekbot channel-unread
 deepseekbot channel-mute <channel> [--off]
 deepseekbot channel-retry <dm-channel> --message-id <human-message-id>
+deepseekbot channel-retry <dm-channel> --message-id <human-message-id> --recovery compact --failure-message-id <failure-card-id>
+deepseekbot channel-retry <dm-channel> --message-id <human-message-id> --recovery new-session --failure-message-id <failure-card-id>
 deepseekbot channel-bot-stop <channel> --bot <id>
 deepseekbot channel-history
 deepseekbot channel-history-sources <channel> [--before <cursor>]

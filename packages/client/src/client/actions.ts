@@ -366,9 +366,17 @@ export interface BridgeActions {
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
   introEvent(event: string, properties?: Record<string, string | boolean>): void;
-  retryMessage(channelId: string, messageId: string): Promise<void>;
+  retryMessage(
+    channelId: string,
+    messageId: string,
+    recovery?: { action: 'compact' | 'new-session'; failureMessageId: string },
+  ): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
   compactBot(botSlug: string): Promise<BotCompactResult>;
+  newBotSession(botSlug: string): Promise<void>;
+  botContext(
+    botSlug: string,
+  ): Promise<import('../../../core/src/runtime/context-window.js').BotContextWindow>;
 
   channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
@@ -1582,8 +1590,20 @@ export function createActions(
     introEvent: (event, properties = {}) => {
       void invoke('introEvent', { ...properties, event }).catch(() => {});
     },
-    async retryMessage(channelId, messageId) {
-      await invoke('channelRetry', { channelId, messageId });
+    async botContext(botSlug) {
+      return invoke('botContext', { slug: botSlug });
+    },
+    async newBotSession(botSlug) {
+      await invoke('botNewSession', { slug: botSlug });
+    },
+    async retryMessage(channelId, messageId, recovery) {
+      await invoke('channelRetry', {
+        channelId,
+        messageId,
+        ...(recovery
+          ? { recovery: recovery.action, failureMessageId: recovery.failureMessageId }
+          : {}),
+      });
       await actions.refreshChannelMessages(channelId);
     },
     async compactBot(botSlug) {

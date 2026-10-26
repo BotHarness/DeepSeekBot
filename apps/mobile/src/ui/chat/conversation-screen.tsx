@@ -8,6 +8,7 @@ import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './messag
 import { selectionText, toggleMessageSelection } from './message-selection';
 import { HostScope } from '../../host/host-scope';
 import { useSourceDraft } from '../../host/native-source-drafts';
+import { SessionFailureCard } from './session-failure-card';
 import { hostDraftKey } from '../../host/source-drafts';
 import { takeSharedFiles } from '../share/incoming-share';
 import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-router';
@@ -903,6 +904,15 @@ function ChatConversation({
           />,
         );
       const author = item.message.bot ?? slug;
+      if (client && activeChannel && item.message.sessionFailure)
+        return (
+          <SessionFailureCard
+            client={client}
+            channelId={activeChannel}
+            messageId={item.message.id}
+            failure={item.message.sessionFailure}
+          />
+        );
       if (
         client !== undefined &&
         author !== undefined &&

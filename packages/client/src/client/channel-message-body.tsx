@@ -20,7 +20,7 @@ import {
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { botNameSource, paintBotName } from './bot-primary-color.js';
 import { openModelsSettings } from './bot-settings-open.js';
@@ -68,6 +68,8 @@ function failureSummary(
       return t('failure.server');
     case 'CONTEXT_WINDOW_EXCEEDED':
       return t('failure.contextWindow');
+    case 'OUTPUT_TOKEN_LIMIT':
+      return t('failure.outputLimit');
     default:
       return t('failure.generic');
   }
@@ -90,6 +92,36 @@ function SessionFailureNotice({
   const failure = message.sessionFailure!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [moreRecovery, setMoreRecovery] = useState(false);
+  const submitting = useRef(false);
+  const recover = (action: 'compact' | 'new-session') => {
+    if (submitting.current || !actions || !channelId || !failure.requestMessageId) return;
+    submitting.current = true;
+    setBusy(true);
+    setError(undefined);
+    void actions
+      .retryMessage(channelId, failure.requestMessageId, { action, failureMessageId: message.id })
+      .catch((cause) =>
+        setError(
+          cause instanceof BridgeCallError
+            ? cause.code === 'session-changed'
+              ? t('failure.sessionChanged')
+              : cause.code === 'bot-busy'
+                ? t('failure.recoveryBusy')
+                : cause.code === 'compaction-failed'
+                  ? t('failure.compactionFailed')
+                  : errorMessage(cause)
+            : errorMessage(cause),
+        ),
+      )
+      .finally(() => {
+        submitting.current = false;
+        setBusy(false);
+      });
+  };
+  const canRecover =
+    failure.role === 'orchestrator' && failure.requestMessageId && actions && channelId;
+  const showRecovery = canRecover && (failure.code === 'CONTEXT_WINDOW_EXCEEDED' || moreRecovery);
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
   const needsModels =
     host === undefined &&
@@ -148,6 +180,21 @@ function SessionFailureNotice({
             >
               {t('onboarding.retryMessage')}
             </Button>
+          ) : null}
+          {canRecover && !showRecovery ? (
+            <Button variant="outline" disabled={busy} onClick={() => setMoreRecovery(true)}>
+              {t('failure.moreRecovery')}
+            </Button>
+          ) : null}
+          {showRecovery ? (
+            <>
+              <Button variant="outline" disabled={busy} onClick={() => recover('compact')}>
+                {t('failure.compactRetry')}
+              </Button>
+              <Button variant="outline" disabled={busy} onClick={() => recover('new-session')}>
+                {t('failure.newSessionRetry')}
+              </Button>
+            </>
           ) : null}
         </div>
       ) : null}

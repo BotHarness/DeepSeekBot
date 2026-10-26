@@ -650,8 +650,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
   modelPlanInherit(slug: string, expectedRevision: number): { revision: number } {
     return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
   }
-  channelRetry(channelId: string, messageId: string): Promise<{ accepted: true }> {
-    return unwrapAsync(this.methods.channelRetry({ channelId, messageId }));
+  channelRetry(
+    channelId: string,
+    messageId: string,
+    recovery?: 'compact' | 'new-session',
+    failureMessageId?: string,
+  ): Promise<{ accepted: true }> {
+    return unwrapAsync(
+      this.methods.channelRetry({ channelId, messageId, recovery, failureMessageId }),
+    );
   }
   botNewSession(slug: string): Promise<{ started: true }> {
     return unwrapAsync(this.methods.botNewSession({ slug }));
@@ -659,6 +666,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   botCompact(slug: string): Promise<ManualCompactionResult> {
     return unwrapAsync(this.methods.botCompact({ slug }));
+  }
+  botContext(slug: string): Promise<import('../runtime/context-window.js').BotContextWindow> {
+    return unwrapAsync(this.methods.botContext({ slug }));
   }
   channelBotStop(
     channelId: string,
@@ -2107,6 +2117,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelRetry',
   'botNewSession',
   'botCompact',
+  'botContext',
   'channelBotStop',
   'modelCatalog',
   'modelPresets',

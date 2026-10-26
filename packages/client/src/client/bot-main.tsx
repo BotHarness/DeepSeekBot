@@ -1880,6 +1880,33 @@ function ConversationView({
             disabled: compacting,
             run: () => void compactProfileBot(),
           },
+          {
+            id: 'new' as const,
+            label: t('composerCommand.newSession'),
+            icon: <ChannelSidebarIcon name="text-quote" />,
+            disabled: compacting,
+            run: () => {
+              if (!profileBot || compacting) return;
+              setCompacting(true);
+              void actions
+                .newBotSession(profileBot.slug)
+                .then(() => {
+                  setCompactNotice({
+                    seq: ++compactSeq.current,
+                    text: t('composerCommand.newSessionDone'),
+                    holdMs: 4000,
+                  });
+                })
+                .catch(() => {
+                  setCompactNotice({
+                    seq: ++compactSeq.current,
+                    text: t('composerCompact.failed'),
+                    holdMs: 6000,
+                  });
+                })
+                .finally(() => setCompacting(false));
+            },
+          },
         ]),
     {
       id: 'profile',
