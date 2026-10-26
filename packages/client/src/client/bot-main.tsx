@@ -161,7 +161,8 @@ import {
 import {
   timelineWorkingRows,
   timelineWorkingRowsCover,
-  TimelineWorkingRowsView,
+  HeaderWorkingStatus,
+  WorkingSummary,
 } from './timeline-working-rows.js';
 import { groupComposerActivity } from './group-composer-activity.js';
 import { attentionCount } from './activity-attention.js';
@@ -398,7 +399,6 @@ function ReplyIcon(): ReactElement {
 
 const SEARCH_PANEL_GAP_PX = 8;
 const BUBBLE_LONG_PRESS_MS = 500;
-const WORKING_ROWS_TRANSITION_MS = 260;
 const BUBBLE_LONG_PRESS_TOLERANCE_PX = 10;
 
 export function MessageBubbleWrap({
@@ -1264,7 +1264,6 @@ function ConversationView({
     return true;
   };
   const followingLatest = useScopedRef(scopeKey, true);
-  const pinnedWorkingRows = useScopedRef<string | undefined>(scopeKey, undefined);
   const companionReadMount = useMountedResource<HTMLElement>(
     (pane) => {
       let visible: boolean | undefined;
@@ -1481,18 +1480,14 @@ function ConversationView({
       item.toolAutoApprovalPause === undefined,
   );
   const workingRows = timelineWorkingRows(
-    conversation.status === 'ready' && !conversation.timeline.hasNewer
-      ? composerActivity
-      : undefined,
+    conversation.status === 'ready' ? composerActivity : undefined,
     streamingBotSlugs,
     latestMessage?.author.kind === 'bot' ? latestMessage.author.slug : undefined,
   );
+  const dmWorking = channel?.type !== 'group' && workingRows.items.length > 0;
   const composerActivityConcealed =
-    atLatest &&
     conversation.status === 'ready' &&
-    !conversation.timeline.hasNewer &&
     timelineWorkingRowsCover(composerActivity, workingRows, streamingBotSlugs);
-  const workingRowsKey = `${workingRows.items.map((item) => item.personaBotId).join(',')}+${workingRows.more}`;
   const channelId = channel?.id;
   const reactToMessage =
     readOnlyDm || channelId === undefined || actions.reactToMessage === undefined
@@ -2243,23 +2238,8 @@ function ConversationView({
         }
         if (conversation.status === 'ready') scheduleReadMark();
       });
-      const pinUntil = performance.now() + WORKING_ROWS_TRANSITION_MS;
-      let pin = 0;
-      const follow = (): void => {
-        if (!followingLatest.current) return;
-        element.scrollTop = element.scrollHeight;
-        if (performance.now() < pinUntil) pin = window.requestAnimationFrame(follow);
-      };
-      if (
-        followingLatest.current &&
-        pinnedWorkingRows.current !== undefined &&
-        pinnedWorkingRows.current !== workingRowsKey
-      )
-        pin = window.requestAnimationFrame(follow);
-      pinnedWorkingRows.current = workingRowsKey;
       return () => {
         window.cancelAnimationFrame(frame);
-        window.cancelAnimationFrame(pin);
         window.clearTimeout(focusTimer);
         scrollRef.current = null;
       };
@@ -2280,7 +2260,6 @@ function ConversationView({
       conversation.timeline.olderError,
       conversation.timeline.newerError,
       messages,
-      workingRowsKey,
     ],
   );
 
@@ -2680,6 +2659,7 @@ function ConversationView({
                       t={t}
                       onOpenActivity={openProfileView}
                       onToggleProfile={openProfileView}
+                      status={<HeaderWorkingStatus rows={workingRows} t={t} />}
                     />
                   ),
                 )}
@@ -2732,7 +2712,9 @@ function ConversationView({
                       ) : (
                         <ChannelMark />
                       )}
-                      <ConversationTitle>{title}</ConversationTitle>
+                      <ConversationTitle>
+                        {dmWorking ? <WorkingSummary rows={workingRows} t={t} /> : title}
+                      </ConversationTitle>
                       {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
                     </button>
                   ),
@@ -2773,7 +2755,9 @@ function ConversationView({
                         size={22}
                         indicator={false}
                       />
-                      <ConversationTitle>{title}</ConversationTitle>
+                      <ConversationTitle>
+                        {dmWorking ? <WorkingSummary rows={workingRows} t={t} /> : title}
+                      </ConversationTitle>
                       {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
                     </button>
                   ),
@@ -3127,7 +3111,6 @@ function ConversationView({
               })}
             </MessageSelectionContext.Provider>
             {imageGallery.lightbox}
-            <TimelineWorkingRowsView rows={workingRows} t={t} />
             {conversation.timeline.hasNewer ? (
               <div className="bh-timeline-newer-sentinel">
                 {conversation.timeline.loadingNewer ? (
@@ -3470,6 +3453,11 @@ function ConversationView({
                 workspaceEnabled && channel !== undefined
                   ? {
                       title,
+                      ...(dmWorking
+                        ? { label: <WorkingSummary rows={workingRows} t={t} /> }
+                        : channel.type === 'group'
+                          ? { status: <HeaderWorkingStatus rows={workingRows} t={t} /> }
+                          : {}),
                       icon:
                         channel.type === 'group' || botDm ? (
                           <GroupChannelIcon

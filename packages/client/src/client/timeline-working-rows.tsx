@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react';
+import type { ReactElement } from 'react';
 import {
   PersonaBotFacepile,
   personaBotActivitySummary,
@@ -58,50 +58,54 @@ export function timelineWorkingRowsCover(
   );
 }
 
-export function TimelineWorkingRowsView({
+function workingSummary(rows: TimelineWorkingRows, t: BotHarnessTranslate): string {
+  const [only] = rows.items;
+  if (only === undefined) return '';
+  const summary =
+    rows.items.length === 1 && rows.more === 0
+      ? personaBotActivitySummary(only.state ?? 'idle', rowActivity(only.activity), t)
+      : personaBotActivitySummary('working', undefined, t);
+  return rows.more > 0 ? `${summary} · ${t('main.activity.more', { count: rows.more })}` : summary;
+}
+
+export function WorkingSummary({
   rows,
   t,
 }: {
   rows: TimelineWorkingRows;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const open = rows.items.length > 0;
-  const [kept, setKept] = useState(rows);
-  if (open && kept !== rows) setKept(rows);
-  const shown = open ? rows : kept;
-  const [only] = shown.items;
-  const summary =
-    only === undefined
-      ? ''
-      : shown.items.length === 1 && shown.more === 0
-        ? personaBotActivitySummary(only.state ?? 'idle', rowActivity(only.activity), t)
-        : personaBotActivitySummary('working', undefined, t);
   return (
-    <div className="bh-timeline-working" data-open={open} aria-hidden="true">
-      <div className="bh-timeline-working-clip">
-        {only === undefined ? null : (
-          <div className="bh-timeline-working-row">
-            <PersonaBotFacepile
-              className="bh-timeline-working-avatars"
-              items={shown.items}
-              size={28}
-              max={MAX_WORKING_ROWS}
-              indicator={false}
-              t={t}
-            />
-            <span className="bh-timeline-working-summary">
-              {shown.more > 0
-                ? `${summary} · ${t('main.activity.more', { count: shown.more })}`
-                : summary}
-              <span className="bh-timeline-working-ellipsis">
-                <i>.</i>
-                <i>.</i>
-                <i>.</i>
-              </span>
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
+    <span className="bh-header-working-summary" aria-hidden="true">
+      {workingSummary(rows, t)}
+      <span className="bh-header-working-ellipsis">
+        <i>.</i>
+        <i>.</i>
+        <i>.</i>
+      </span>
+    </span>
+  );
+}
+
+export function HeaderWorkingStatus({
+  rows,
+  t,
+}: {
+  rows: TimelineWorkingRows;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  if (rows.items.length === 0) return null;
+  return (
+    <span className="bh-header-working" aria-hidden="true">
+      <PersonaBotFacepile
+        className="bh-header-working-avatars"
+        items={rows.items}
+        size={22}
+        max={MAX_WORKING_ROWS}
+        indicator={false}
+        t={t}
+      />
+      <WorkingSummary rows={rows} t={t} />
+    </span>
   );
 }

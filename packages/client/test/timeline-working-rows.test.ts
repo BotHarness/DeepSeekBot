@@ -5,7 +5,8 @@ import type { PersonaBotFacepileItem } from '../src/client/avatar.js';
 import { groupComposerActivity } from '../src/client/group-composer-activity.js';
 import { zhTranslate } from '../src/client/locale.js';
 import {
-  TimelineWorkingRowsView,
+  HeaderWorkingStatus,
+  WorkingSummary,
   timelineWorkingRows,
   timelineWorkingRowsCover,
 } from '../src/client/timeline-working-rows.js';
@@ -64,7 +65,7 @@ describe('timelineWorkingRows', () => {
 
   it('keeps the row text to the action, tool and public detail', () => {
     const html = renderToStaticMarkup(
-      createElement(TimelineWorkingRowsView, {
+      createElement(WorkingSummary, {
         rows: {
           items: [
             {
@@ -82,7 +83,7 @@ describe('timelineWorkingRows', () => {
         t: zhTranslate,
       }),
     );
-    expect(html).toContain('summary">正在搜索 · web_search · deepseek.com<span');
+    expect(html).toContain('summary" aria-hidden="true">正在搜索 · web_search · deepseek.com<span');
   });
 
   it('skips a thinking row for the Bot that wrote the latest message but keeps its tool row', () => {
@@ -133,49 +134,46 @@ describe('timelineWorkingRowsCover', () => {
   });
 });
 
-describe('TimelineWorkingRowsView', () => {
+describe('HeaderWorkingStatus', () => {
   it('renders the morphing avatar without a name, with the safe summary, hidden from assistive tech', () => {
     const html = renderToStaticMarkup(
-      createElement(TimelineWorkingRowsView, {
+      createElement(HeaderWorkingStatus, {
         rows: { items: [mira], more: 0 },
         t: zhTranslate,
       }),
     );
-    expect(html).toContain('<div class="bh-timeline-working" data-open="true" aria-hidden="true">');
+    expect(html).toContain('<span class="bh-header-working" aria-hidden="true">');
     expect(html).toContain('data-state="working"');
     expect(html).toContain('data-effect="searching"');
-    expect(html).toContain('width:28px;height:28px');
-    expect(html).toContain('summary">正在搜索 · web_search<span');
+    expect(html).toContain('width:22px;height:22px');
+    expect(html).toContain('summary" aria-hidden="true">正在搜索 · web_search<span');
     expect(html).not.toContain('Mira</span>');
-    expect(html).toContain('bh-timeline-working-ellipsis');
+    expect(html).toContain('bh-header-working-ellipsis');
     expect(html).not.toContain('role="status"');
     expect(html).not.toContain('aria-live');
   });
 
-  it('stacks several Bots in one row with a shared status and counts the rest', () => {
+  it('stacks several Bots with a shared status and counts the rest', () => {
     const html = renderToStaticMarkup(
-      createElement(TimelineWorkingRowsView, {
+      createElement(HeaderWorkingStatus, {
         rows: { items: [mira, nova, kai], more: 0 },
         t: zhTranslate,
       }),
     );
-    expect(html.match(/class="bh-timeline-working-row"/g)).toHaveLength(1);
     expect(html.match(/class="bh-persona-avatar"/g)).toHaveLength(3);
-    expect(html).toContain('bh-avatar-facepile bh-timeline-working-avatars');
-    expect(html).toContain('summary">正在工作<span');
+    expect(html).toContain('bh-avatar-facepile bh-header-working-avatars');
+    expect(html).toContain('正在工作<span');
   });
 
-  it('collapses without active Bots and counts Bots past the cap', () => {
+  it('renders nothing without active Bots and counts Bots past the cap', () => {
     expect(
       renderToStaticMarkup(
-        createElement(TimelineWorkingRowsView, { rows: { items: [], more: 0 }, t: zhTranslate }),
+        createElement(HeaderWorkingStatus, { rows: { items: [], more: 0 }, t: zhTranslate }),
       ),
-    ).toBe(
-      '<div class="bh-timeline-working" data-open="false" aria-hidden="true"><div class="bh-timeline-working-clip"></div></div>',
-    );
+    ).toBe('');
     expect(
       renderToStaticMarkup(
-        createElement(TimelineWorkingRowsView, {
+        createElement(WorkingSummary, {
           rows: { items: [mira, nova], more: 2 },
           t: zhTranslate,
         }),

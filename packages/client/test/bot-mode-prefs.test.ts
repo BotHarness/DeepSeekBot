@@ -385,6 +385,22 @@ describe('BOT-mode policy store', () => {
     });
   });
 
+  it('restores the saved value when the Host refuses or fails a write', async () => {
+    const scope = fakeHost();
+    scope.host.set = async () => false;
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    prefs.setStreamReplies(true);
+    expect(prefs.source.getSnapshot().streamReplies).toBe(true);
+    await vi.waitFor(() => expect(prefs.source.getSnapshot().streamReplies).toBe(false));
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    scope.host.set = async () => Promise.reject(new Error('offline'));
+    prefs.setShowDeliveryReceipts(true);
+    await vi.waitFor(() => expect(prefs.source.getSnapshot().showDeliveryReceipts).toBe(false));
+    warn.mockRestore();
+  });
+
   it('warns on a rejected write instead of dropping it silently', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const scope = fakeHost();

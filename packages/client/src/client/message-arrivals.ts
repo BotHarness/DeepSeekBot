@@ -27,7 +27,8 @@ export function trackMessageArrivals(
   const tail = ids.findLastIndex((id) => seen.has(id));
   const arrived = ids.filter((id, index) => index > tail && !seen.has(id));
   ids.forEach((id) => seen.add(id));
-  if (arrived.length <= MAX_ANIMATED_ARRIVALS) arrived.forEach((id) => state.fresh.add(id));
+  if (arrived.length > 0)
+    state.fresh = new Set(arrived.length <= MAX_ANIMATED_ARRIVALS ? arrived : []);
   return state.fresh;
 }
 

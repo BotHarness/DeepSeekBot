@@ -112,6 +112,7 @@ export function GroupChannelHeader({
   onOpenActivity,
   onToggleProfile,
   menu,
+  status,
 }: {
   channel: ChannelSummary;
   title: string;
@@ -121,6 +122,7 @@ export function GroupChannelHeader({
   onOpenActivity(): void;
   onToggleProfile(): void;
   menu?: ChannelMenuTrigger | undefined;
+  status?: ReactNode;
 }): ReactElement {
   return (
     <span className="bh-channel-island bh-group-channel-header">
@@ -178,6 +180,7 @@ export function GroupChannelHeader({
         <ConversationTitle>{title}</ConversationTitle>
         {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
       </button>
+      {status}
     </span>
   );
 }

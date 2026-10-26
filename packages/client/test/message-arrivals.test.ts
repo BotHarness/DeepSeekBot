@@ -10,6 +10,11 @@ describe('trackMessageArrivals', () => {
     expect([...trackMessageArrivals(state, 'a', ['m1'], false)]).toEqual([]);
     expect([...trackMessageArrivals(state, 'a', ['m1', 'm2'], true)]).toEqual([]);
     expect([...trackMessageArrivals(state, 'a', ['m0', 'm1', 'm2', 'm3'], true)]).toEqual(['m3']);
+    expect([...trackMessageArrivals(state, 'a', ['m0', 'm1', 'm2', 'm3'], true)]).toEqual(['m3']);
+    expect([...trackMessageArrivals(state, 'a', ['m1', 'm2', 'm3', 'm4'], true)]).toEqual(['m4']);
+    expect([...trackMessageArrivals(state, 'a', ['m0', 'm1', 'm2', 'm3', 'm4'], true)]).toEqual([
+      'm4',
+    ]);
   });
 
   it('skips bulk loads and starts over in another conversation', () => {

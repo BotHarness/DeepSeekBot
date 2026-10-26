@@ -3335,51 +3335,41 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   outline: none;
 }
 .bh-message-group-avatar-link { cursor: pointer; }
-/* Client-only working rows under the latest message: the composer status
-   stays the live region, so these rows are hidden from assistive tech. */
-.bh-timeline-working {
-  display: grid;
-  grid-template-rows: 0fr;
-  opacity: 0;
-  transform: scale(0.92);
-  transform-origin: left bottom;
-  transition:
-    grid-template-rows 220ms var(--ds-ease-in-out),
-    opacity 180ms var(--ds-ease-in-out),
-    transform 220ms var(--ds-ease-in-out);
-}
-.bh-timeline-working[data-open='true'] {
-  grid-template-rows: 1fr;
-  opacity: 1;
-  transform: none;
-}
-.bh-timeline-working-clip {
-  min-height: 0;
-  overflow: hidden;
-}
-html[data-botharness-motion='reduce'] .bh-timeline-working { transition: none; }
-.bh-timeline-working-row {
-  display: flex;
-  padding-top: ${space.x3};
+/* Header working status: the composer status stays the live region, so this
+   copy is hidden from assistive tech. */
+.bh-header-working {
+  display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
+  padding-left: ${space.x3};
+  border-left: ${border.hairline} solid ${color.divider};
+  transform-origin: left center;
+  animation: bh-header-working-enter 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
 }
-.bh-timeline-working-summary {
+.bh-header-working-avatars { flex-shrink: 0; }
+.bh-header-working-summary {
   min-width: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
-  font-size: ${text.bodySize};
+  font-weight: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bh-timeline-working-ellipsis i {
+[data-conversation-title] > .bh-header-working-summary { display: block; }
+.bh-header-working-ellipsis i {
   font-style: normal;
   animation: bh-timeline-working-dot 1.2s ease-in-out infinite;
 }
-.bh-timeline-working-ellipsis i:nth-child(2) { animation-delay: 0.2s; }
-.bh-timeline-working-ellipsis i:nth-child(3) { animation-delay: 0.4s; }
-html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animation: none; }
+.bh-header-working-ellipsis i:nth-child(2) { animation-delay: 0.2s; }
+.bh-header-working-ellipsis i:nth-child(3) { animation-delay: 0.4s; }
+html[data-botharness-motion='reduce'] .bh-header-working,
+html[data-botharness-motion='reduce'] .bh-header-working-ellipsis i { animation: none; }
+@keyframes bh-header-working-enter {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
 @keyframes bh-timeline-working-dot {
   0%, 60%, 100% { opacity: 0.25; }
   30% { opacity: 1; }

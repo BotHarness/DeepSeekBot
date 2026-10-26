@@ -490,8 +490,14 @@ export class BotModePrefs {
   }
 
   private persist(operation: Promise<boolean | void>): void {
-    operation.catch((error: unknown) => {
-      console.warn('botharness: failed to persist the BOT-mode preference', error);
-    });
+    operation.then(
+      (saved) => {
+        if (saved === false) this.sync();
+      },
+      (error: unknown) => {
+        console.warn('botharness: failed to persist the BOT-mode preference', error);
+        this.sync();
+      },
+    );
   }
 }

@@ -190,10 +190,11 @@ function layout(element: HTMLElement, scrollHeight: number, clientHeight = 400):
 
 const rowNames = (): string[] =>
   Array.from(
-    container.querySelectorAll<HTMLElement>(
-      '.bh-timeline-working[data-open="true"] .bh-persona-avatar',
-    ),
+    container.querySelectorAll<HTMLElement>('.bh-topbar .bh-header-working .bh-persona-avatar'),
   ).map((avatar) => (avatar.getAttribute('title') ?? '').split(' · ')[0]!.toLowerCase());
+
+const headerTitle = (): string =>
+  container.querySelector('.bh-topbar [data-conversation-title]')?.textContent ?? '';
 
 beforeEach(() => {
   Object.assign(globalThis, {
@@ -215,29 +216,25 @@ afterEach(async () => {
   container.remove();
 });
 
-describe('timeline working rows in the Channel body', () => {
-  it('shows one row under the latest DM message while the Bot works and removes it when idle', async () => {
+describe('Bot working status in the Channel header', () => {
+  it('replaces the Bot name in the DM header while the Bot works, outside the message list', async () => {
     const chat = await open(dm, [bot('mira', 'Mira', 'working')]);
-    const working = chat.querySelector('.bh-timeline-working');
-    expect(rowNames()).toEqual(['mira']);
-    expect(
-      working?.previousElementSibling?.querySelector('[data-message-id="m-1"]'),
-    ).not.toBeNull();
-    expect(working?.getAttribute('aria-hidden')).toBe('true');
-    expect(working?.textContent).not.toContain('Mira');
+    const summary = container.querySelector('.bh-topbar .bh-header-working-summary');
+    expect(summary?.getAttribute('aria-hidden')).toBe('true');
+    expect(headerTitle()).not.toContain('Mira');
+    expect(headerTitle()).toContain('...');
+    expect(chat.querySelector('.bh-header-working-summary, .bh-timeline-working')).toBeNull();
     expect(container.querySelectorAll('.bh-composer-activity-summary[aria-live]')).toHaveLength(1);
     expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe('停止 Mira');
 
     await setBots([bot('mira', 'Mira', 'idle')], dm);
-    expect(chat.querySelector('.bh-timeline-working')?.getAttribute('data-open')).toBe('false');
-    expect(rowNames()).toEqual([]);
+    expect(headerTitle()).toBe('Mira');
     expect(container.querySelector('.bh-stop-btn')).toBeNull();
   });
 
-  it('shows the working row when the DM is opened from the Channel list', async () => {
-    const chat = await open(dm, [bot('mira', 'Mira', 'working')], 'channel');
-    expect(rowNames()).toEqual(['mira']);
-    expect(chat.querySelector('.bh-timeline-working')).not.toBeNull();
+  it('shows the working status when the DM is opened from the Channel list', async () => {
+    await open(dm, [bot('mira', 'Mira', 'working')], 'channel');
+    expect(container.querySelector('.bh-topbar .bh-header-working-summary')).not.toBeNull();
   });
 
   it('stacks the active Bots of a Group in one row and skips waiting Bots', async () => {
@@ -250,7 +247,9 @@ describe('timeline working rows in the Channel body', () => {
     expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe(
       '停止 2 个 Bot',
     );
-    expect(container.querySelectorAll('.bh-timeline-working-row')).toHaveLength(1);
+    expect(container.querySelectorAll('.bh-group-channel-header .bh-header-working')).toHaveLength(
+      1,
+    );
   });
 
   it('keeps the Bot in the row and hides its draft until the reply is complete', async () => {
@@ -302,31 +301,19 @@ describe('timeline working rows in the Channel body', () => {
     );
     expect(rowNames()).toEqual(['nova']);
     expect(chat.querySelector('[data-message-id="draft-mira"]')).not.toBeNull();
-    expect(chat.lastElementChild?.classList.contains('bh-timeline-working')).toBe(true);
   });
 
-  it('stays pinned to the bottom while following and leaves the scroll position alone otherwise', async () => {
+  it('leaves the message list and its scroll position alone when Bots start working', async () => {
     const nova = bot('nova', 'Nova', 'working');
     const chat = await open(group, [bot('mira', 'Mira', 'idle'), nova]);
     layout(chat, 1000);
     chat.scrollTop = 600;
     await act(async () => chat.dispatchEvent(new Event('scroll')));
-    layout(chat, 1040);
+    const children = chat.childElementCount;
     await setBots([bot('mira', 'Mira', 'working'), nova], group);
     expect(rowNames()).toEqual(['mira', 'nova']);
-    expect(chat.scrollTop).toBe(1040);
-
-    chat.scrollTop = 100;
-    await act(async () => chat.dispatchEvent(new Event('scroll')));
-    layout(chat, 1000);
-    await setBots([bot('mira', 'Mira', 'idle'), nova], group);
-    layout(chat, 1040);
-    await setBots([bot('mira', 'Mira', 'working'), nova], group);
-    expect(chat.scrollTop).toBe(100);
-    expect(container.querySelector('.bh-timeline-new')?.getAttribute('aria-label')).toBe(
-      '返回最新消息',
-    );
-    expect(container.querySelector('.bh-timeline-new')?.textContent).toBe('');
+    expect(chat.childElementCount).toBe(children);
+    expect(chat.scrollTop).toBe(600);
   });
 
   it('keeps latest content clear of companions without moving history or waiting for transitions', async () => {
@@ -369,7 +356,7 @@ describe('timeline working rows in the Channel body', () => {
     }
   });
 
-  it('fades the composer status at the latest message and brings it back when scrolled up', async () => {
+  it('conceals the composer status while the header shows the work, even when scrolled up', async () => {
     const chat = await open(dm, [bot('mira', 'Mira', 'working')]);
     const status = (): HTMLElement | null =>
       container.querySelector<HTMLElement>('.bh-composer-activity-status');
@@ -378,10 +365,6 @@ describe('timeline working rows in the Channel body', () => {
 
     layout(chat, 1000);
     chat.scrollTop = 100;
-    await act(async () => chat.dispatchEvent(new Event('scroll')));
-    expect(status()?.dataset['concealed']).toBeUndefined();
-
-    chat.scrollTop = 600;
     await act(async () => chat.dispatchEvent(new Event('scroll')));
     expect(status()?.dataset['concealed']).toBe('true');
   });
@@ -404,9 +387,9 @@ describe('timeline working rows in the Channel body', () => {
     ).toBeUndefined();
   });
 
-  it('hides the thinking row right after the Bot replies', async () => {
+  it('hides the thinking status right after the Bot replies', async () => {
     const chat = await open(dm, [bot('mira', 'Mira', 'thinking')]);
-    expect(rowNames()).toEqual(['mira']);
+    expect(headerTitle()).not.toBe('Mira');
     await act(async () =>
       store.setConversation({
         messages: [
@@ -416,7 +399,7 @@ describe('timeline working rows in the Channel body', () => {
         revision: store.getSnapshot().conversation.revision + 1,
       }),
     );
-    expect(rowNames()).toEqual([]);
+    expect(headerTitle()).toBe('Mira');
     expect(
       container.querySelector<HTMLElement>('.bh-composer-activity-status')?.dataset['concealed'],
     ).toBeUndefined();
