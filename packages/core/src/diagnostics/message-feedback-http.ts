@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { ChannelStore } from '../channels/store.js';
 import { collectDiagnosticBundle, DiagnosticBundleError, diagnosticBundleZip } from './bundle.js';
@@ -23,8 +23,6 @@ export interface MessageFeedbackOptions extends DiagnosticBundleHttpOptions {
   readTimeline: ChannelStore['readHumanTimeline'];
   submit?: (report: {
     reportId: string;
-    archive: Buffer;
-    digest: string;
     feedback: FeedbackRating;
     version: string;
   }) => Promise<FeedbackReceipt>;
@@ -38,8 +36,6 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
       archive: Buffer;
       expires: number;
       submission?: {
-        archive: Buffer;
-        digest: string;
         ratingKey: string;
         reportId: string;
         feedback: FeedbackRating;
@@ -117,7 +113,7 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
           headers: {
             ...headers,
             'content-type': 'application/zip',
-            'content-disposition': 'attachment; filename="message-feedback.zip"',
+            'content-disposition': `attachment; filename="message-feedback-${token}.zip"`,
           },
         });
       if (action !== 'submit') return new Response(null, { status: 404, headers });
@@ -128,10 +124,8 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
       if (entry.submission && entry.submission.ratingKey !== ratingKey)
         return Response.json({ error: { code: 'submission-frozen' } }, { status: 409, headers });
       entry.submission ??= {
-        archive: entry.archive,
-        digest: createHash('sha256').update(entry.archive).digest('hex'),
         ratingKey,
-        reportId: randomUUID(),
+        reportId: token,
         feedback: {
           ...feedback,
           comment: Array.from(
@@ -145,7 +139,8 @@ export function createMessageFeedbackHttp(options: MessageFeedbackOptions) {
         const started = now();
         options.log?.('message-feedback initiator=human phase=submitting');
         entry.submission.receipt = await options.submit({
-          ...entry.submission,
+          reportId: entry.submission.reportId,
+          feedback: entry.submission.feedback,
           version: options.source.environment.version,
         });
         options.log?.(

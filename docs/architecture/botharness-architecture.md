@@ -37,6 +37,8 @@ BotHarness 是 DSH（DeepSeek Harness）之上的插件层，给 Agent 持久产
 
 #2290 修正私密输入的本轮自动来源判定：已接受且仍有效的本地 Human DM／Group Source Event 沿用本地 Owner 交互，混入的 IM 批次或 steering 不再强制选择 IM 来源。显式 IM 选择与账号本轮已记住的来源继续受原有 lease、歧义及撤销检查约束；历史消息不提供交互权限。详见 [ADR-0172](../adr/0172-im-private-input-keeps-owner-web-authority-and-source-reply-fences.md)。
 
+#2847 补齐多 IM 来源下的凭据消费恢复：工具指引通过 `ask_secret` 明确绑定本轮请求，来源与账号拒绝采用不同错误码；已配置账号复用不依赖 Web 通知地址。Owner 的 `bot-tool` 可通过已有原生 Agent 执行同一套凭据工具及审批，不创建来源权限；诊断轨迹省略其参数和结果。
+
 #1380 的历史 opt-in 私密输入由 application-defined PrivateInputs owner 关联真实 Orchestrator、PersonaBot 创建身份、账号及多字段 Channel 卡片；Web 与 CLI 经现有 Typert/API Gateway，以真实 Owner Peer 提交原值，Host 原子写入一个 native Credentials Service grant。Channel 与模型只接收声明、状态和引用；既有执行审批先批准引用调用，固定 trusted CLI 才解析并消费原值，只投影 HTTP 状态。Human 已认可卡片交互与真实认证成功，#1380 已合并。原生 `bash` Consumer 由 application-defined LinuxShell Provider 经 native Subprocess argv 启动 digest-pinned 容器，挂载当前授权工作区并保护 `.git`；普通 MCP 保留 native MCP Client Consumer，其 SDK 管理的 stdio 进程也由受控 Docker argv 启动。容器不挂载 Host 凭据／socket、不继承 Host 环境；其他未验证的 Host Capability 仍被整个 Profile 拒绝。该 opt-in 不是默认架构；固定秘密 MCP 消费已由 #1384 交付，实际 Linux 安装验收及限制见 #1386 复验记录。详见 [ADR-0164](../adr/0164-private-input-candidate-separates-native-storage-from-qualified-execution.md) 与[可运行验证路径](../dev/guides/private-input-cli.md)。 自 ADR-0189 起，私密输入在普通 Profile 默认可用：`ask_secret`、固定的 `protected_cli` 与 `secret_http` 对每个 Orchestrator 注册，原值仍只进 native Credentials Service 并绑定发起的 PersonaBot。`secret_http` 由 Host 子进程发出请求，目标是 Owner 在卡片中填写的地址，Bot 只决定其下的路径、方法和 `{{字段}}` 占位符。凭据存储的保护有两层：Host 改写 native Sandbox Provider 返回的命令行，为每条 Shell 命令加上“不可读取该存储”的规则（Seatbelt 规则或 bwrap 遮盖），并在审批之前拒绝针对它的文件工具与点名它的命令。`danger-full-access`、Landlock 与 Windows 下只有后一层。历史 opt-in 的 `privateInputExecution` 曾采用 ADR-0164 的容器边界。上述容器 Shell、容器内 MCP 与 `privateInputExecution` 已由 [ADR-0192](../adr/0192-the-docker-protected-profile-is-removed.md) 删除：密钥输入在所有 Profile 默认可用，使用方为 `protected_cli`、`secret_http` 与 `secret_cli`，凭据存储由沙箱读取拒绝和命令文本拦截保护。
 
 #1381 让每张私密卡片持有独立 live authority 与十五分钟 Host deadline；Human Inbox／Bot attention 仅投影已提交且仍有效的请求，并跳转原 Web Chat 卡片。配置、取消与过期共享一个幂等 Channel resolution ID，提交在 canonical SQLite transaction 内重新检查 live authority 后才成为最终 winner。版本二 native grant 必须具备完整且匹配的 configured resolution 才能消费，跨存储失败的孤儿 grant 不可用；启动恢复将丢失 waiter 的卡片持久标为 expired 并清理孤儿 grant，保留已配置引用。私密 resolution 不创建 Inbox Admission，不以恢复或过期唤醒停止的 Bot。Host disposal 排空 pending settlement 与启动恢复；Client 清空输入并拒绝旧 mount／迟到 pending poll 覆盖最终状态。详见 Proposed [ADR-0166](../adr/0166-private-input-settlement-commits-before-continuation.md)。
@@ -1082,9 +1084,9 @@ Pages contain at most 50 items and 300 Unicode characters per snippet. Literal s
 
 ### Message Feedback
 
-[消息反馈设计](../proposals/message-feedback.md) 与 [ADR-0254](../adr/0254-message-feedback-separates-private-evidence-from-telemetry.md) 记录主动上报的目标边界。Human 从单条消息进入反馈，选择好／不好、可选分类和短评；Host 的 application-defined diagnostics owner 在现有权限下读取 Channel、Source Event、Bot Inbox Admission、Outbox 和 DSH Session Persistence，准备可查看、可取消类别的冻结脱敏快照。默认包含前后各 20 条消息、关联完整执行轮次与 Assignment／Subagent 记录；整个长寿命 Session 需要明确选择。下载和提交使用同一快照，不修改源事实，也不形成新的执行历史权威。
+[ADR-0256](../adr/0256-message-feedback-sends-ratings-and-keeps-diagnostics-local.md) replaces the remote-evidence design in ADR-0254. Human-initiated feedback sends only rating, fixed tags, a redacted short comment, version and random feedback ID to the existing PostHog ingest proxy. It never sends conversation, Session, Bot Inbox, delivery records or archive bytes. A stable event UUID supports retries without creating a user profile. Anonymous Telemetry remains independent.
 
-Application-defined feedback service 拥有持久接收结果、幂等反馈编号、私有诊断包与删除生命周期。PostHog 只存评分、标签、版本和不含正文的索引概况；消息、执行内容和短评仅供授权维护者查看，30 天后删除，可按反馈编号申请提前删除。详情入口需鉴权，不暴露公开包链接。诊断包可靠保存后才返回提交成功，统计索引失败不要求 Human 再上传；匿名 Telemetry 关闭时仍可主动反馈且不会重新开启统计。多选只保留复制和截图，本地诊断下载移入反馈面板。桌面、手机单消息反馈、CLI 与私有接收服务现已接线；手机沿用已配对设备的 API Gateway 转发，读取同一个 Host diagnostics owner 的冻结材料。多选状态只在当前 Host／Channel 的 Client 中保留，切换时清空；复制与截图不生成诊断记录。接收地址需显式配置，正式服务尚未部署。当前关联通过 Source Event、输出来源、Assignment 与持久化执行输入解析；无法关联的执行材料明确列为缺失。接收服务首次尝试 PostHog 索引，失败记录诊断日志且不撤销回执。原生手机反馈与两端多选交互仍待桌面首个切片的 Human 反馈后推进，现有多选导出暂保留。
+The application-defined Host diagnostics owner still collects a frozen, bounded preview from canonical Channel and DSH Session Persistence under existing permissions. Desktop, paired mobile and CLI use the same preview/download routes. Selected diagnostics download to the Human's device for optional manual sharing; the feedback ID appears in the filename. No dedicated feedback service, private storage, admin page or server-side evidence retention is needed. Multi-selection remains copy/screenshot only and scoped to the current Host and Channel.
 
 ### AX Client 启动证据
 
@@ -1329,6 +1331,10 @@ Under ADR-0245, `scroll-motion` travels through the existing Local Computer vide
 独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用复用存活 Orchestrator 的原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。
 
 后台 Subagent 的原生回报在 prompt assembly 前进入现有 BotRuntime 队列，以实际 Adapter 工具上下文就绪为准恢复父 Agent；与普通用户输入竞争时共用已准备的回合，清理间隙则等待。新回合不继承上一条用户消息的 Source Event 或 Channel，消息仍由模型按需显式发送。CLI direct 调用单独标记，停止与追加只选择真实 Orchestrator 回合（ADR-0252）。
+
+### Profile Backup compatibility (ADR-0257)
+
+Profile Backup owns archive interpretation behind the existing preview/export/inspect/Managed Restore interface. Historical v1 archives remain readable. New v2 archives record the running Host and plugin-resolved DSH tools versions separately, with explicit unknown values; release labels are provenance, not data compatibility gates. Format version, Schema Generation and Host-owned Dependency Contracts govern readability. The operational database owner performs staged migrations; Activation Readiness separately gates execution. A required core contract cannot be removed or downgraded by the archive. Web and CLI adapters preserve refusal reasons and the UI displays each failure beside its operation. See [ADR-0257](../adr/0257-profile-backup-compatibility-is-owned-by-the-data-contract.md).
 
 ### Explicit iPhone request status
 

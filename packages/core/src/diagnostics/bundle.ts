@@ -768,15 +768,17 @@ export function diagnosticBundleZip(bundle: DiagnosticBundle): Buffer {
 
 const FEEDBACK_README = `# Message Feedback / 消息反馈
 
-This frozen, redacted evidence is uploaded only when the Human submits Message Feedback.
-The local download and submitted archive contain the same bytes. Review every included file:
+This frozen, redacted evidence is downloaded locally and is never attached to feedback submission.
+Only your rating, tags and short comment are sent to PostHog. Share this archive yourself if needed.
+Review every included file:
 redaction is best effort. Execution records may repeat conversation text even when the
 conversation category is disabled. Category choices and missing evidence are in manifest.json.
-Private evidence and comments expire after 30 days; request early deletion using the receipt ID.
+The downloaded archive remains under your control.
 
-这是冻结并脱敏后的反馈材料，只有点击提交反馈才会上报。下载与上报使用同一份内容。
+这是冻结并脱敏后的本地诊断材料，不会随反馈上报。只有评分、标签和短评发送到 PostHog。
+需要排查时，请自行分享此诊断包。本地文件由你保管。
 请检查所有文件，脱敏无法保证删除所有敏感信息。关闭对话类别后，执行记录仍可能包含对话文本。
-类别选择和缺失材料见 manifest.json。私有材料与评价保留 30 天，可凭反馈编号申请提前删除。
+类别选择和缺失材料见 manifest.json。
 `;
 
 const README = `# Tobs Diagnostic Bundle / 诊断包

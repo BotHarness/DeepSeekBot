@@ -1,4 +1,5 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -2678,7 +2679,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         purge: core.contentPurge,
         version: runningRelease.version,
         sessionCount: () => core.ownership.list().length,
-        dshVersion: installedDshVersion(),
+        runtimeVersions: async () => ({
+          host: (await nativeReleaseRuntime())?.version ?? null,
+          tools: installedDshVersion() ?? null,
+        }),
         log: (message) => ctx.logger.info(message),
       },
       join(dshHome, 'botharness', 'backup-staging'),
@@ -2732,11 +2736,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       log: (message) => ctx.logger.info(message),
     };
     const diagnosticBundleHttp = createDiagnosticBundleHttp(diagnosticOptions);
-    const feedbackEndpoint = process.env['BOTHARNESS_FEEDBACK_ENDPOINT'];
     const feedbackHttp = createMessageFeedbackHttp({
       ...diagnosticOptions,
       readTimeline: (id, request) => core.channels.readHumanTimeline(id, request),
-      ...(feedbackEndpoint ? { submit: feedbackUploader(feedbackEndpoint) } : {}),
+      submit: feedbackUploader(),
     });
     for (const action of MESSAGE_FEEDBACK_ACTIONS)
       connectionCtx.effect(
