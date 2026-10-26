@@ -123,7 +123,7 @@ describe('tooltip source', () => {
       );
     });
     expect(direct.map((file) => relative(repo, file))).toEqual([
-      'packages/client/src/client/ds/tooltip.tsx',
+      join('packages', 'client', 'src', 'client', 'ds', 'tooltip.tsx'),
     ]);
   });
 });

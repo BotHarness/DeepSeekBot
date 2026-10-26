@@ -1,3 +1,4 @@
+import { runDeviceActivity } from './cli-live-activity.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import {
   PROFILE_BACKUP_COMMANDS,
@@ -22,6 +23,7 @@ import {
   BROWSER_NOTIFICATION_COMMANDS,
   runBrowserNotifications,
 } from './cli-browser-notifications.js';
+import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
 import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
@@ -32,6 +34,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { dmChannelId } from '../channels/channel.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
 import {
   channelOperationKey,
@@ -140,10 +143,14 @@ export { CliLiveError } from './cli-live-error.js';
 
 export const LIVE_OPTIONS = {
   'new-home': { type: 'string' },
+
+  'connection-id': { type: 'string' },
+  fingerprint: { type: 'string' },
   'link-file': { type: 'string' },
   'remote-host-id': { type: 'string' },
   'host-id': { type: 'string' },
   ...DEVICE_NOTIFICATION_OPTIONS,
+  'activity-stdin': { type: 'boolean' },
   ...WINDOW_ZOOM_OPTIONS,
   ...CONNECT_OPTIONS,
   ...APPEARANCE_OPTIONS,
@@ -243,8 +250,15 @@ const CONTROL_COMMANDS = [
 export const LIVE_COMMANDS = [
   ...PROFILE_BACKUP_COMMANDS,
   ...BROWSER_NOTIFICATION_COMMANDS,
+  ...CONNECTION_COMMANDS,
   ...HOST_LOOK_COMMANDS,
   ...DEVICE_NOTIFICATION_COMMANDS,
+  {
+    command: 'device-activity',
+    description:
+      'read capability or prepare/register/stop one device Lock Screen status (--device-file, --activity-stdin)',
+  },
+  ...FEEDBACK_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
@@ -450,6 +464,8 @@ interface LiveValues
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'connection-id'?: string;
+  fingerprint?: string;
   'remote-host-id'?: string;
   'host-id'?: string;
   'preferences-stdin'?: boolean;
@@ -774,16 +790,37 @@ export async function runLiveCli(
     return runProfileBackupCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (CONNECTION_COMMANDS.some((entry) => entry.command === command))
+    return runConnectionCommand(
+      command,
+      rest,
+      {
+        ...(values['client-id'] === undefined ? {} : { 'client-id': values['client-id'] }),
+        ...(values['connection-id'] === undefined
+          ? {}
+          : { 'connection-id': values['connection-id'] }),
+        ...(values['link-file'] === undefined ? {} : { 'link-file': values['link-file'] }),
+        ...(values.fingerprint === undefined ? {} : { fingerprint: values.fingerprint }),
+        ...(values.confirm === undefined ? {} : { confirm: values.confirm }),
+      },
+      io,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (command === 'host-look') {
     const duration = timeoutMs(values.timeout);
     const expiresAt = Date.now() + duration;
     const signal = AbortSignal.timeout(duration);
     return runHostLook(rest, values, io, () => connectLiveHost(values, io, signal), expiresAt);
   }
+  if (command === 'device-activity') return runDeviceActivity(rest, values, io);
   if (command === 'device-notifications') return runDeviceNotifications(rest, values, io);
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (FEEDBACK_COMMANDS.some((entry) => entry.command === command))
+    return runFeedbackCommand(command, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (IM_COMMANDS.some((entry) => entry.command === command)) {

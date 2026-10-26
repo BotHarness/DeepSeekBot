@@ -62,7 +62,15 @@ import {
   createDiagnosticBundleHttp,
   DIAGNOSTIC_BUNDLE_PATH,
   DIAGNOSTIC_BUNDLE_PREVIEW_PATH,
+  type DiagnosticBundleHttpOptions,
 } from './diagnostics/bundle-http.js';
+import {
+  createMessageFeedbackHttp,
+  MESSAGE_FEEDBACK_PATH,
+  MESSAGE_FEEDBACK_ACTIONS,
+} from './diagnostics/message-feedback-http.js';
+import { feedbackUploader } from './diagnostics/feedback-upload.js';
+import { feedbackLinks } from './diagnostics/feedback-links.js';
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
 import { createDshImProvider } from './messaging/dsh-im.js';
@@ -1387,6 +1395,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     'botharness: attachment sweep',
   );
   mountDevicePairing(ctx, {
+    requestStatus: (channelId, messageId) => core.channels.humanSendStatus?.(channelId, messageId),
     database: core.operationalDatabase,
     dshHome,
     packageAnchors: releaseAnchors,
@@ -2692,12 +2701,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         'botharness: complete environment backup ' + suffix,
       );
     const dshVersion = installedDshVersion();
-    const diagnosticBundleHttp = createDiagnosticBundleHttp({
+    const diagnosticOptions: DiagnosticBundleHttpOptions = {
       source: {
         channels: core.channels,
         inboxHistory: core.inboxHistory,
         ownership: core.ownership,
+        feedbackLinks: (channelId, messageIds) =>
+          feedbackLinks(
+            attachOperationalModule(core.operationalDatabase, 'message-feedback'),
+            channelId,
+            messageIds,
+          ),
         botName: (slug) => core.registry.get(slug)?.displayName,
+        readDeliveries: async (slug) => (await core.externalMessaging.snapshot(slug)).intents,
         readSession: async (sessionId) => {
           const query = ctx.get('sessionQuery') as unknown as
             | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
@@ -2718,7 +2734,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         { path: homedir(), label: '~' },
       ],
       log: (message) => ctx.logger.info(message),
+    };
+    const diagnosticBundleHttp = createDiagnosticBundleHttp(diagnosticOptions);
+    const feedbackHttp = createMessageFeedbackHttp({
+      ...diagnosticOptions,
+      readTimeline: (id, request) => core.channels.readHumanTimeline(id, request),
+      submit: feedbackUploader(),
     });
+    for (const action of MESSAGE_FEEDBACK_ACTIONS)
+      connectionCtx.effect(
+        () =>
+          connection.fetch.register({
+            path: `${MESSAGE_FEEDBACK_PATH}/${action}`,
+            methods: ['POST'],
+            requestBody: 'buffered',
+            fetch: feedbackHttp,
+          }),
+        'botharness: message feedback ' + action,
+      );
     for (const path of [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH])
       connectionCtx.effect(
         () =>

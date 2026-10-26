@@ -1,4 +1,5 @@
 import { Menu } from './appearance-primitives.js';
+import { DeviceRequestsNotice } from './device-requests-notice.js';
 import { activityIndicator } from './activity-indicator.js';
 import { useActivityIndicatorMenu } from './activity-indicator-menu.js';
 import { onboardingFor } from './onboarding.js';
@@ -410,6 +411,7 @@ function WorkspaceRail({
           <ChannelSidebarIcon name="settings" />
         </button>
       </Tooltip>
+      <DeviceRequestsNotice t={t} />
       <Tooltip label={t('panel.backToHarness')} side="right">
         <button type="button" aria-label={t('panel.backToHarness')} onClick={options.exitBotMode}>
           <ExitIcon size={20} />

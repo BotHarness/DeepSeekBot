@@ -125,9 +125,10 @@ describe('native persistence across SDK upgrades', () => {
     cache.write('a', { entries: [], hasOlder: true });
     const saved = new Map(disk.files);
     disk.fail = true;
-    expect(() =>
-      first.hostLooks.set('a', { ...first.hostLooks.look('a'), name: 'Unsaved' }),
-    ).not.toThrow();
+    await expect(
+      first.hostLooks.update('a', (look) => ({ ...look, name: 'Unsaved' })),
+    ).rejects.toThrow('host-look-storage-failed');
+    expect(first.hostLooks.look('a').name).toBe('Saved');
     expect(() => first.sectionCollapse.toggle('a', 'work')).not.toThrow();
     expect(() => first.dmActivityPreferences.setHidden('a', 'ada', 'posts', false)).not.toThrow();
     expect(() => cache.write('a', { entries: [], hasOlder: false })).not.toThrow();
@@ -138,6 +139,10 @@ describe('native persistence across SDK upgrades', () => {
     expect(restarted.hostLooks.look('a').name).toBe('Saved');
     expect([...restarted.sectionCollapse.collapsed('a')]).toEqual(['work']);
     expect(restarted.dmActivityPreferences.hidden('a', 'ada')).toEqual(['posts']);
+    await first.hostLooks.refresh();
+    await first.hostLooks.update('a', (look) => ({ ...look, name: 'Retried' }));
+    expect(first.hostLooks.look('a').name).toBe('Retried');
+    expect(snapshot('documents/deepseekbot-host-looks.json').a.name).toBe('Retried');
   });
 });
 

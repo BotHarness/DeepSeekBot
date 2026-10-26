@@ -9,6 +9,7 @@ import {
 } from 'react';
 import { useReplyHaptic } from './reply-haptic';
 import {
+  AppState,
   Platform,
   Pressable,
   View,
@@ -32,7 +33,7 @@ import {
   type MessageAttachment,
 } from '../../host/conversation';
 import type { ConversationPlayback } from '../../host/conversation-playback';
-import { doubleTap, lift, motion, radius, space } from '../design/tokens';
+import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
@@ -49,9 +50,43 @@ export type { Speaker } from './speaker-row';
 
 export function deliveryLabel(message: ConversationMessage): string | undefined {
   if (message.author !== 'human') return undefined;
-  if (message.delivery === 'pending') return t.sending;
+  if (message.delivery === 'pending') return undefined;
   if (message.delivery === 'failed') return `${t.notSent} · ${t.retrySend}`;
   return message.revision === undefined ? t.sent : undefined;
+}
+
+const PENDING_FEEDBACK_MS = 3_000;
+
+function usePendingFeedback(message: ConversationMessage): boolean {
+  const started =
+    message.author === 'human' && message.delivery === 'pending'
+      ? message.attemptStartedAt
+      : undefined;
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      if (started === undefined) return () => {};
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const update = () => {
+        clearTimeout(timer);
+        if (AppState.currentState !== 'active') return;
+        notify();
+        const remaining = started + PENDING_FEEDBACK_MS - Date.now();
+        if (remaining > 0) timer = setTimeout(update, remaining);
+      };
+      update();
+      const subscription = AppState.addEventListener('change', update);
+      return () => {
+        clearTimeout(timer);
+        subscription.remove();
+      };
+    },
+    [started],
+  );
+  const snapshot = useCallback(
+    () => started !== undefined && Date.now() >= started + PENDING_FEEDBACK_MS,
+    [started],
+  );
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
 export function BubbleBody({
@@ -61,17 +96,22 @@ export function BubbleBody({
   onShare = async () => {},
   fill,
   streaming = false,
+  deliveryAccessibility = true,
+  onImageReady,
 }: {
+  onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
   group: BubbleGroup;
   onOpenImage?: (attachment: MessageAttachment) => void;
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   fill?: { maxWidth?: DimensionValue; width?: number; maxHeight?: number } | undefined;
   streaming?: boolean;
+  deliveryAccessibility?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const human = message.author === 'human';
+  const mutedPending = usePendingFeedback(message);
   const ink = human ? 'onAccent' : 'fg';
   return (
     <View
@@ -81,9 +121,17 @@ export function BubbleBody({
         overflow: fill?.maxHeight === undefined ? 'visible' : 'hidden',
         backgroundColor: human ? theme.color.accent : theme.color.surface,
         gap: space.x2,
-        opacity: human && message.delivery === 'pending' ? 0.7 : 1,
+        opacity: mutedPending ? 0.7 : 1,
       }}
     >
+      {deliveryAccessibility && human && message.delivery === 'pending' ? (
+        <View
+          accessible
+          accessibilityLabel={t.sending}
+          accessibilityState={{ busy: true }}
+          style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
+        />
+      ) : null}
       <MessageBody message={message} streaming={streaming} />
       {message.attachments.length > 0 ? (
         <MessageAttachments
@@ -91,6 +139,7 @@ export function BubbleBody({
           human={human}
           onOpenImage={onOpenImage}
           onShare={onShare}
+          onImageReady={onImageReady}
         />
       ) : null}
       {message.card ? (
@@ -110,6 +159,8 @@ function PressableBubble({
   accessibilityLabel,
   accessibilityHint,
   accessibilityActionLabel,
+  pending = false,
+  ungrouped = false,
   onPress,
   onLongPress,
   onDoubleTap,
@@ -122,6 +173,8 @@ function PressableBubble({
   accessibilityLabel?: string | undefined;
   accessibilityHint?: string;
   accessibilityActionLabel?: string;
+  pending?: boolean;
+  ungrouped?: boolean;
   onPress?: () => void;
   onLongPress?: (anchor: Rect) => void;
   onDoubleTap?: () => void;
@@ -162,6 +215,10 @@ function PressableBubble({
       ]}
     >
       <Pressable
+        {...(ungrouped ? { accessible: false } : {})}
+        {...(pending
+          ? { accessibilityState: { busy: true }, accessibilityValue: { text: t.sending } }
+          : {})}
         {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
         {...(accessibilityLabel === undefined ? {} : { accessibilityLabel })}
         {...(accessibilityHint === undefined ? {} : { accessibilityHint })}
@@ -267,7 +324,9 @@ export const MessageBubble = memo(function MessageBubble({
       </View>
     );
   const copyable = message.body.trim() !== '';
-  const actionable = !streaming && (copyable || (onReact !== undefined && reactable(message)));
+  const actionable =
+    !streaming &&
+    (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
   const reactions = streaming ? [] : (message.reactions ?? []);
   const group = { first, last, avatar: speaker?.last === true };
   const bubble = (
@@ -276,6 +335,10 @@ export const MessageBubble = memo(function MessageBubble({
       group={group}
       onOpenImage={onOpenImage}
       onShare={onShare}
+      deliveryAccessibility={
+        (human && message.delivery === 'pending' && message.attachments.length > 0) ||
+        !(failed || actionable || streaming)
+      }
       fill={failed || actionable || streaming ? { maxWidth: '100%' } : undefined}
       streaming={streaming}
     />
@@ -286,11 +349,13 @@ export const MessageBubble = memo(function MessageBubble({
         human={human}
         group={group}
         lifted={lifted}
+        pending={human && message.delivery === 'pending'}
+        ungrouped={human && message.delivery === 'pending' && message.attachments.length > 0}
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
         {...(actionable
           ? {
-              accessibilityHint: onReact === undefined ? t.copyHint : t.messageActionsHint,
-              accessibilityActionLabel: onReact === undefined ? t.copy : t.messageActions,
+              accessibilityHint: t.messageActionsHint,
+              accessibilityActionLabel: t.messageActions,
               onLongPress: (anchor: Rect) => onLongPress(message, anchor, group),
             }
           : {})}

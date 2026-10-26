@@ -5,6 +5,8 @@ import { writeZip } from '../bots/zip-archive.js';
 import type { InboxHistoryItem, InboxHistoryQuery } from '../runtime/inbox-history.js';
 import type { SessionOwnership, SessionOwnershipRecord } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
+import type { OutboxIntent } from '../messaging/outbound.js';
+import { relatedFeedbackEvents, type FeedbackLinks } from './feedback-links.js';
 import type { DiagnosticRedactionRule, DiagnosticRedactor } from './redaction.js';
 
 export const DIAGNOSTIC_BUNDLE_FORMAT = 'deepseekbot-diagnostics';
@@ -54,6 +56,8 @@ export interface DiagnosticBundleSource {
   ownership: Pick<SessionOwnership, 'rootsFor' | 'descendantsOf'>;
   botName(slug: string): string | undefined;
   readSession(sessionId: string): Promise<readonly DshSessionEvent[] | undefined>;
+  readDeliveries?(botSlug: string): Promise<readonly OutboxIntent[]>;
+  feedbackLinks?(channelId: string, messageIds: readonly string[]): FeedbackLinks;
   environment: {
     version: string;
     dshVersion?: string;
@@ -110,6 +114,16 @@ export interface DiagnosticBundle {
   summary: DiagnosticBundleSummary;
   entries: Array<{ path: string; data: Buffer }>;
   bytes: number;
+}
+
+export interface DiagnosticEvidenceOptions {
+  messages: readonly ChannelMessage[];
+  conversation: boolean;
+  sessions: boolean;
+  inbox: boolean;
+  deliveries: boolean;
+  relatedChats: boolean;
+  wholeSessions: boolean;
 }
 
 interface TimelineEntry {
@@ -325,6 +339,7 @@ export async function collectDiagnosticBundle(
   source: DiagnosticBundleSource,
   selection: DiagnosticBundleSelection,
   redactor: DiagnosticRedactor,
+  evidence?: DiagnosticEvidenceOptions,
 ): Promise<DiagnosticBundle> {
   const now = (source.now ?? Date.now)();
   const padding = selection.paddingMinutes ?? DIAGNOSTIC_BUNDLE_DEFAULT_PADDING_MINUTES;
@@ -370,19 +385,36 @@ export async function collectDiagnosticBundle(
     throw new DiagnosticBundleError('range-too-large', 'Select a shorter message range');
 
   const omissions: DiagnosticBundleOmission[] = [];
-  const selectedMessages = readChannelRange(
-    source,
-    selected.id,
-    requestedStart,
-    requestedEnd,
-    omissions,
-  );
+  const selectedMessages =
+    evidence?.messages.slice() ??
+    readChannelRange(source, selected.id, requestedStart, requestedEnd, omissions);
   const candidateBots = new Set<string>(selectedMessages.flatMap(messageBots));
   if (selected.type === 'dm' && selected.botSlug) candidateBots.add(selected.botSlug);
+  const links =
+    evidence === undefined
+      ? undefined
+      : (source.feedbackLinks?.(
+          selected.id,
+          selectedMessages.map((message) => message.id),
+        ) ?? {
+          sourceIds: [],
+          messages: selectedMessages.map((message) => ({
+            channelId: selected.id,
+            messageId: message.id,
+          })),
+          assignments: [],
+          outputs: [],
+        });
+  const linkedAssignments = new Set(
+    links?.assignments.flatMap((id) => [
+      id,
+      ...source.ownership.descendantsOf(id).map((record) => record.sessionId),
+    ]),
+  );
 
   const sessions: ExportedSession[] = [];
   let start = requestedStart;
-  for (const slug of [...candidateBots].sort()) {
+  for (const slug of evidence?.sessions === false ? [] : [...candidateBots].sort()) {
     const records = [
       ...source.ownership.rootsFor(slug, 'orchestrator'),
       ...source.ownership.rootsFor(slug, 'assignment'),
@@ -402,9 +434,36 @@ export async function collectDiagnosticBundle(
         omissions.push({ kind: 'session-unreadable', detail: record.sessionId });
         continue;
       }
-      const slice = sliceSessionEvents(native, requestedStart, requestedEnd);
+      const slice =
+        links === undefined
+          ? sliceSessionEvents(native, requestedStart, requestedEnd)
+          : {
+              events: linkedAssignments.has(record.sessionId)
+                ? [...native]
+                : relatedFeedbackEvents(native, links, record.sessionId),
+              extendedForInFlightTurn: false,
+            };
       if (slice.events.length === 0) continue;
-      let events = slice.events;
+      if (links !== undefined) {
+        for (const event of slice.events) {
+          const data = recordOf(event.data);
+          if (event.type !== 'tool/call' || data?.['name'] !== 'send_assignment_request') continue;
+          let args: unknown = data['arguments'];
+          if (typeof args === 'string') {
+            try {
+              args = JSON.parse(args);
+            } catch {
+              continue;
+            }
+          }
+          const target = recordOf(args)?.['session_id'];
+          if (typeof target !== 'string') continue;
+          linkedAssignments.add(target);
+          for (const descendant of source.ownership.descendantsOf(target))
+            linkedAssignments.add(descendant.sessionId);
+        }
+      }
+      let events = evidence?.wholeSessions ? [...native] : slice.events;
       if (events.length > DIAGNOSTIC_BUNDLE_LIMITS.maxEventsPerSession) {
         omissions.push({
           kind: 'session-events',
@@ -425,6 +484,11 @@ export async function collectDiagnosticBundle(
     }
   }
   const end = Math.max(requestedEnd, ...sessions.map((session) => session.events.at(-1)!.time));
+  if (evidence?.sessions && sessions.length === 0)
+    omissions.push({
+      kind: 'related-execution-unavailable',
+      detail: 'No persisted execution could be linked to the selected messages',
+    });
   const involved = new Set<string>([
     ...sessions.map((session) => session.record.botSlug),
     ...candidateBots,
@@ -438,7 +502,7 @@ export async function collectDiagnosticBundle(
       role: 'selected',
       ...(selected.botSlug === undefined ? {} : { botSlug: selected.botSlug }),
       messages:
-        start === requestedStart && end === requestedEnd
+        evidence !== undefined || (start === requestedStart && end === requestedEnd)
           ? selectedMessages
           : readChannelRange(source, selected.id, start, end, omissions),
     },
@@ -451,7 +515,7 @@ export async function collectDiagnosticBundle(
   );
   for (const slug of [...involved].sort()) {
     const dm = humanDms.get(slug);
-    if (dm === undefined || dm.id === selected.id) continue;
+    if (dm === undefined || dm.id === selected.id || evidence?.relatedChats === false) continue;
     channels.push({
       id: dm.id,
       type: dm.type,
@@ -462,12 +526,64 @@ export async function collectDiagnosticBundle(
     });
   }
   const channelIds = new Set(channels.map((channel) => channel.id));
-  const admissions = [...involved].sort().flatMap((slug) =>
+  const allAdmissions = (
+    evidence?.inbox === false && !evidence.deliveries ? [] : [...involved].sort()
+  ).flatMap((slug) =>
     readAdmissions(source, slug, start, end, channelIds, omissions).map((item) => ({
       bot: slug,
       ...item,
     })),
   );
+  const admissions = evidence?.inbox === false ? [] : allAdmissions;
+  const deliveries: OutboxIntent[] = [];
+  if (evidence?.deliveries) {
+    const sources = new Set(allAdmissions.map((item) => item.sourceEventId));
+    for (const slug of involved) {
+      if (!source.readDeliveries) {
+        omissions.push({
+          kind: 'outbox-unavailable',
+          detail: `${slug}: outbound history unavailable`,
+        });
+        continue;
+      }
+      try {
+        const recent = await source.readDeliveries(slug);
+        if (recent.length >= 30)
+          omissions.push({
+            kind: 'outbox-limited',
+            detail: `${slug}: only the latest 30 outbound intents were available`,
+          });
+        deliveries.push(
+          ...recent.filter(
+            (intent) =>
+              sources.has(intent.sourceEventId ?? '') ||
+              sources.has(intent.forwardSourceEventId ?? ''),
+          ),
+        );
+      } catch {
+        omissions.push({
+          kind: 'outbox-unavailable',
+          detail: `${slug}: outbound history unavailable`,
+        });
+      }
+    }
+  }
+
+  if (evidence !== undefined) {
+    for (const channel of channels) {
+      channel.messages = channel.messages.map((message) => {
+        const { body, attachments, deliveries, ...rest } = message;
+        return {
+          ...(evidence.conversation
+            ? rest
+            : { id: message.id, at: message.at, author: message.author }),
+          body: evidence.conversation ? body : '',
+          ...(evidence.conversation && attachments !== undefined ? { attachments } : {}),
+          ...(evidence.deliveries && deliveries !== undefined ? { deliveries } : {}),
+        };
+      });
+    }
+  }
 
   const timeline: TimelineEntry[] = [
     ...channels.flatMap((channel) =>
@@ -505,6 +621,26 @@ export async function collectDiagnosticBundle(
       data: jsonl(redactor.value(channel.messages)),
     });
   entries.push({ path: 'admissions.jsonl', data: jsonl(redactor.value(admissions)) });
+  if (evidence?.deliveries)
+    entries.push({
+      path: 'outbox.jsonl',
+      data: jsonl(
+        redactor.value(
+          deliveries.map((intent) => {
+            if (evidence.conversation) return intent;
+            return {
+              id: intent.id,
+              botSlug: intent.botSlug,
+              sourceEventId: intent.sourceEventId,
+              state: intent.state,
+              createdAt: intent.createdAt,
+              settledAt: intent.settledAt,
+              reason: intent.reason,
+            };
+          }),
+        ),
+      ),
+    });
   for (const session of sessions)
     entries.push({
       path: `sessions/${safeName(session.record.sessionId)}.jsonl`,
@@ -553,6 +689,18 @@ export async function collectDiagnosticBundle(
     createdAt: iso(now),
     environment: source.environment,
     selection: {
+      ...(evidence === undefined
+        ? {}
+        : {
+            evidence: {
+              conversation: evidence.conversation,
+              sessions: evidence.sessions,
+              inbox: evidence.inbox,
+              deliveries: evidence.deliveries,
+              relatedChats: evidence.relatedChats,
+              wholeSessions: evidence.wholeSessions,
+            },
+          }),
       channelId: selected.id,
       fromMessageId: fromMessage.id,
       ...(toMessage === undefined ? {} : { toMessageId: toMessage.id }),
@@ -579,7 +727,7 @@ export async function collectDiagnosticBundle(
   };
   entries.unshift(
     { path: 'manifest.json', data: Buffer.from(JSON.stringify(manifest, null, 2) + '\n') },
-    { path: 'README.md', data: Buffer.from(README) },
+    { path: 'README.md', data: Buffer.from(evidence === undefined ? README : FEEDBACK_README) },
   );
   entries.push({
     path: 'redaction-report.json',
@@ -617,6 +765,21 @@ function requestHeaderSummary(event: DshSessionEvent, redactor: DiagnosticRedact
 export function diagnosticBundleZip(bundle: DiagnosticBundle): Buffer {
   return writeZip(bundle.entries);
 }
+
+const FEEDBACK_README = `# Message Feedback / 消息反馈
+
+This frozen, redacted evidence is downloaded locally and is never attached to feedback submission.
+Only your rating, tags and short comment are sent to PostHog. Share this archive yourself if needed.
+Review every included file:
+redaction is best effort. Execution records may repeat conversation text even when the
+conversation category is disabled. Category choices and missing evidence are in manifest.json.
+The downloaded archive remains under your control.
+
+这是冻结并脱敏后的本地诊断材料，不会随反馈上报。只有评分、标签和短评发送到 PostHog。
+需要排查时，请自行分享此诊断包。本地文件由你保管。
+请检查所有文件，脱敏无法保证删除所有敏感信息。关闭对话类别后，执行记录仍可能包含对话文本。
+类别选择和缺失材料见 manifest.json。
+`;
 
 const README = `# Tobs Diagnostic Bundle / 诊断包
 

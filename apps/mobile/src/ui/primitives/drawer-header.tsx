@@ -49,6 +49,7 @@ export function DrawerHeader({
   onBack,
   onConfirm,
   confirmLabel: requestedConfirmLabel,
+  trailing,
 }: {
   title: string;
   subtitle?: string;
@@ -60,6 +61,7 @@ export function DrawerHeader({
   onBack?: () => void;
   onConfirm?: () => void;
   confirmLabel?: string;
+  trailing?: ReactNode;
 }) {
   const t = useStrings();
   const closeLabel = requestedCloseLabel ?? t.close;
@@ -106,11 +108,12 @@ export function DrawerHeader({
           </View>
         </View>
         <View style={slot}>
-          {onConfirm === undefined ? null : (
-            <HeaderButton label={confirmLabel} onPress={onConfirm}>
-              <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-            </HeaderButton>
-          )}
+          {trailing ??
+            (onConfirm === undefined ? null : (
+              <HeaderButton label={confirmLabel} onPress={onConfirm}>
+                <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
+              </HeaderButton>
+            ))}
         </View>
       </View>
       {subtitle === undefined ? null : (

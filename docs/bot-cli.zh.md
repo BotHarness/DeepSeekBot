@@ -29,6 +29,8 @@
 
 `deepseekbot device-notifications --device-file <私有配对.json>` 从运行中的 Host 读取当前配对设备的通知发送副本。加上 `--preferences-stdin`，从标准输入传入 `{"approval":true,"question":true,"private-input":true,"reply":false}`，即可替换四种通知选择，无需先注册推送 token。私有文件使用已保存配对的结构（`hostId`、`hostName`、`routes`、`deviceId`、`credential`）；凭据不能放入参数或公开文件。标准输出仅有一个不含凭据的 JSON，配对撤销后返回 `device-revoked`。命令只修改该 Host 的发送副本；手机持久化选择仍是权威，下次同步会覆盖副本。浏览器通知选择只保存在该浏览器，不影响 Host attention。
 
+`deepseekbot device-activity capability --device-file <私有配对.json>` 检查此电脑的锁屏状态服务。`prepare`、`register`、`stop` 通过 `--activity-stdin` 接收 JSON：prepare 需要 `channelId`、`messageId`、`bundleIdentifier`；register 另需 iOS 实际生成的 `clientActivityId`、每项活动的 `token` 和 `locale`（`en`/`zh`）；stop 只需 `clientActivityId`。设备身份来自配对凭据，不能由输入指定。token 属于秘密，只能私下传入标准输入，不能放在参数或公开文件中。命令调用与手机相同的鉴权/加密路由，只输出一个 JSON 结果或拒绝码；未配置、不支持、已结束或撤销配对会明确拒绝。停止显示不会停止原请求。`activity-cleanup-pending` 表示停止投递尚未确认；Host 只重试清理，到确认或登记到期为止。`send-status <bot> --message-id <id>` 新增 `progress`，仅显式 Inbox 解决事实表示完成，单轮处理结束不算完成。CLI 源码测试与真实 Host、iPhone 后台送达仍是独立验收项，参见 [ADR-0255](adr/0255-live-activities-project-one-admitted-dm-request.md)。
+
 ```bash
 deepseekbot create --name <name> [--persona <text> | --persona-stdin]
                    [--core-memory <text> | --core-memory-stdin]
@@ -675,6 +677,7 @@ Bot 设置 → 设备 会列出已配对的手机、显示配对二维码并撤�
 
 ```bash
 deepseekbot devices
+deepseekbot device-requests
 deepseekbot device-offer --out /absolute/new-private-file
 deepseekbot device-lan enable --confirm
 deepseekbot device-lan disable
@@ -683,6 +686,22 @@ deepseekbot device-revoke <device-id> --confirm
 ```
 
 `devices` 返回 `{host, devices, routes}`：本 Host 的配对身份，每台已配对设备的 `id`、`name`、`pairedAt`、`lastSeenAt` 以及撤销后的 `revokedAt`，和 `phone-route` 相同的手机路由。设备凭据不会出现在列表里。`device-offer` 打开一个 10 分钟有效的一次性配对邀请，只把它的 `deepseekbot://pair?…` 链接写入 `--out`：一个以 0600 权限新建的文件（文件已存在时在打开邀请前以 `output-exists` 拒绝）；标准输出只有 `{receipt, expiresAt, routes, reachable, link: {path}}`。在手机上打开这个链接，或改用设备页里的二维码配对；没有 `--out` 时 `device-offer` 以 `out-required` 拒绝。回执能指代邀请，但不能用来兑换。`device-offer-status` 返回 `state`：`pending`（带 `expiresAt`）、`redeemed`（带新设备的 `deviceId`）、`expired`、`refused`（用错误的验证值兑换而作废）、`superseded`（同时打开了超过 16 个邀请）或 `unknown`；邀请只保存在 Host 内存中，Host 重启后所有回执都是 `unknown`。`device-revoke` 返回 `{revoked, closedStreams, device: {id, name}}`；该设备的下一个请求会以 `device-revoked` 被拒绝，已打开的连接立即关闭。拒绝码：`confirm-required`、`device-unknown`、`device-already-revoked`、`receipt-required` 和 `usage`。
+
+### 接入指定浏览器客户端
+
+保持目标浏览器打开。`connection-clients` 列出当前 Host 上已登记的 Client，必须明确选择目标 `id`。在远端 Host 用 `device-offer --out <私有文件>` 生成邀请，再安全传输文件到 CLI 所在电脑；链接不能进入命令参数、聊天或标准输出。
+
+```bash
+deepseekbot connection-clients
+deepseekbot connection start --client-id <id> --connection-id <attempt> --link-file /absolute/private-link
+deepseekbot connection status --client-id <id> --connection-id <attempt>
+deepseekbot connection confirm --client-id <id> --connection-id <attempt> --fingerprint '<完整 Host 指纹>' --confirm
+deepseekbot connection cancel --client-id <id> --connection-id <attempt>
+```
+
+`--link-file -` 从 stdin 读取。确认前独立核对完整 Host 指纹。状态到达 `approve-device` 后，在远端核对设备指纹，并用 `device-approve-key` 批准对应的准确 receipt/public key。继续查询直到 `connected`：只有 `saved: true` 不代表完成，目标 Client 必须实际读到 Host Feed；频道列表为空可以成功。凭据只保存在目标浏览器的 origin-local 存储，不会接入其他 Client。
+
+状态包括 `connecting`、`verify-host`、`approve-device`、`connected`、`failed` 和 `cancelled`，失败带有 `code`。同一操作 ID 和链接返回原操作状态，换链接则拒绝；每个挂载的 Client 控制会话最多保留 16 次操作。已接受操作最长等待五分钟；关闭或刷新页面、控制登记丢失都会取消未完成接入。过期命令不能启动操作。`saved: true` 后取消会保留已经保存的 Remote Host，需要时应明确移除。离线或失效目标直接拒绝，不回退到 CLI 或 Host 保存。该命令不授予 Tob 判断身份或批准设备的权限。
 
 ### 模型、用量与活动
 
@@ -1364,7 +1383,7 @@ printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-s
 
 ## 完整环境备份与恢复
 
-`profile-backup-*` 命令与 Settings 使用同一个 Profile Backup owner。在线命令沿用 `--host` / `DEEPSEEKBOT_HOST` 和私有 token 文件或环境凭证，每次在 stdout 输出一份 JSON；备份不包含凭证。
+`profile-backup-*` 命令与 Settings 使用同一个 Profile Backup owner。在线命令沿用 `--host` / `DEEPSEEKBOT_HOST` 和私有 token 文件或环境凭证，每次在 stdout 输出一份 JSON；不导出凭证存储，但聊天和 Memory 中仍可能含有秘密。
 
 ```bash
 tobs profile-backup-preview --host http://127.0.0.1:31967 > preview.json
@@ -1375,4 +1394,25 @@ tobs profile-backup-restore --file environment.botharness-backup --new-home new-
 
 导出消费当前预览 token，不覆盖已有文件。恢复在**本机离线执行**，目标目录必须尚不存在，完成后环境保持停止状态。恢复时不传 `--host` 或 `--token-file`。用兼容的可信 Tobs 安装启动目标环境后，通过 `profile-backup-recovery` 查看准备度。恢复的 Bot 保持冷状态；`profile-backup-authorize <bot> --confirm` 授权所选目标模型，`profile-backup-activate <bot> --confirm --acknowledge-risk` 明确接受源环境可能重复运行的风险。这些操作不会恢复外部账号授权。
 
-继续支持历史 v1 备份。新 v2 备份分别记录 Host 与实际解析的 DSH tools 版本，`null` 表示无法确定来源信息。兼容性由数据契约和 schema 迁移决定，不要求 DSH 精确版本相同。旧 reader 遇到不支持的新格式需要升级。`format-upgrade-required`、`upgrade-required` 和 `dependency-incompatible` 表示无法解释所需数据；`package-invalid` 表示文件验证失败；`source-unavailable` 表示需先修复源数据库再导出。预览过期、完整性、取消和目标目录检查继续生效。
+继续支持历史 v1 备份。新 v2 备份分别记录 Host 与实际解析的 DSH tools 版本，`null` 表示无法确定来源信息。兼容性由数据契约和 schema 迁移决定，不要求 DSH 精确版本相同。旧 reader 遇到不支持的新格式需要升级。`format-upgrade-required`、`upgrade-required` 和 `dependency-incompatible` 表示无法解释所需数据；`core-contract-invalid` 表示需要具备有效核心声明的完整备份；`package-invalid` 表示文件验证失败；`source-unavailable` 表示需先修复源数据库再导出。预览过期、完整性、取消和目标目录检查继续生效。
+
+### 消息反馈（#2811）
+
+单条消息反馈独立于匿名遥测。Host 生成冻结并脱敏的材料，默认选择锚点前后各 20 条消息，
+各侧可设为 0–100。`conversation`、`sessions`、`inbox`、`deliveries`、`relatedChats` 默认开启，
+`wholeSessions` 默认关闭。提交前检查 `files`、类别选择与 `summary.omissions`。
+即使关闭 `conversation`，执行记录仍可能包含重复的聊天文本。
+
+```bash
+printf '%s' '{"channelId":"<channel>","messageId":"<message>","before":20,"after":20}' | deepseekbot feedback-preview
+printf '%s' '{"token":"<preview-token>"}' | deepseekbot feedback-download --out evidence.zip
+printf '%s' '{"token":"<preview-token>","feedback":{"rating":"bad","tags":["no-response"],"comment":"合成测试"}}' | deepseekbot feedback-submit --confirm
+```
+
+命令沿用在线 Host 鉴权，stdout 只输出一个 JSON。下载不覆盖已有文件。提交必须带 `--confirm`，
+评分为 `good` 或 `bad`，固定标签可选，评价最多 500 个 Unicode 字符。内容通过 stdin 或文件输入，
+不要放在命令参数中。预览令牌属于当前 Host 连接，30 分钟后失效，最多保留最近四份。
+`preview-stale` 需要重新预览。提交失败后材料与评分被冻结，重试原请求沿用同一反馈编号；
+修改内容时请主动刷新预览。成功返回 `reportId`。仅评分、标签、短评、编号与版本发送到 PostHog，诊断包仍是本地下载。
+
+提交沿用现有 PostHog 接入地址，无需额外配置，不部署专用接收服务或私有诊断存储。见[反馈与本地诊断](message-feedback.md)。

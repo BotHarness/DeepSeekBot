@@ -10,7 +10,9 @@ export function SourceName({
   name,
   source,
   look,
+  sourceLabel,
 }: {
+  sourceLabel?: string | undefined;
   name: string;
   source: 'computer' | 'cloud';
   look?: HostLook | undefined;
@@ -22,7 +24,7 @@ export function SourceName({
   return (
     <View
       accessible
-      accessibilityLabel={`${name}, ${source === 'cloud' ? t.cloudChannels.cloudChannel : t.computerChannel}`}
+      accessibilityLabel={`${name}${sourceLabel ? `, ${sourceLabel}` : ''}, ${source === 'cloud' ? t.cloudChannels.cloudChannel : t.computerChannel}`}
       style={{
         flex: 1,
         minWidth: 0,
@@ -43,16 +45,17 @@ export function SourceName({
           <HostGlyph
             icon={look.icon}
             size={size}
-            color={
-              look.color === undefined
-                ? theme.color.subtle
-                : hostColorInk(theme.scheme, theme.color, look.color)
-            }
+            color={hostColorInk(theme.scheme, theme.color, look.color)}
           />
         ) : (
           <Icon color={theme.color.subtle} size={size} />
         )}
       </View>
+      {sourceLabel ? (
+        <Text variant="meta" tone="subtle" numberOfLines={1} style={{ flexShrink: 1 }}>
+          {sourceLabel}
+        </Text>
+      ) : null}
     </View>
   );
 }

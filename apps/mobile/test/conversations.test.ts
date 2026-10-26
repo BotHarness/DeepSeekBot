@@ -415,6 +415,13 @@ describe('Chats grouped by Channel section', () => {
     ]);
   });
 
+  it('excludes device-muted channels from collapsed section unread totals', () => {
+    const unread = { team: 2, 'dm-ada': 5, design: 7, ops: 1 };
+    expect(shape(chatList(arranged, [], new Set(['work']), unread, ['design']))).toContain(
+      '[work 3 collapsed +7]',
+    );
+  });
+
   it('lists pinned conversations first, outside their section', () => {
     const pinned = {
       ...arranged,

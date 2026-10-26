@@ -981,6 +981,10 @@ _Avoid_: secret, API key, token
 
 ### Telemetry and campaigns
 
+**Message Feedback**:
+Under ADR-0256, a Human-initiated evaluation anchored to one Channel message. Only good/bad rating, optional tags and a redacted short comment go to PostHog with a random reference and version. Conversation and execution diagnostics remain a separate local download for the Human to share manually. It is independent of anonymous Telemetry.
+_Avoid_: Telemetry, multi-message export, automatic error reporting
+
 **Mobile Telemetry**:
 Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers (ADR-0214).
 

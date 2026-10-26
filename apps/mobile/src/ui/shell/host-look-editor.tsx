@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import {
@@ -9,7 +9,6 @@ import {
   HOST_NAME_MAX,
   HOST_SYMBOL_IDS,
   hostColorInk,
-  hostLookName,
   hostTileFill,
   shownHostName,
   withHostColor,
@@ -25,17 +24,19 @@ import { edge, radius, space } from '../design/tokens';
 import type { LayerName } from '../design/layers';
 import { confirmDestructive } from '../primitives/app-dialog';
 import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetSaveButton } from '../primitives/sheet-save-button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { Segmented } from '../primitives/segmented';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
+import { useMounted } from '../mounted';
 import { HostGlyph } from './host-tile';
 import { CheckIcon } from './icons';
 
 export interface HostLookActions {
-  onChange(look: HostLook): void;
+  onSave(look: HostLook): Promise<void> | void;
   onClose(): void;
 }
 
@@ -183,7 +184,7 @@ const sameIcon = (a: HostIcon, b: HostIcon) =>
 
 export function HostLookEditor({
   hostName,
-  look,
+  look: initialLook,
   actions,
 }: {
   hostName: string;
@@ -192,40 +193,88 @@ export function HostLookEditor({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const [look, setLook] = useState(initialLook);
   const [set, setSet] = useState<IconSet>(look.icon.kind);
   const [nameDraft, setNameDraft] = useState(look.name ?? '');
-  const [stored, setStored] = useState(look);
-  if (stored !== look) {
-    setStored(look);
-    if (look.icon.kind !== stored.icon.kind) setSet(look.icon.kind);
-    if (look.name !== stored.name && hostLookName(nameDraft) !== look.name)
-      setNameDraft(look.name ?? '');
+  const [stored, setStored] = useState(initialLook);
+  const edited = useRef(false);
+  const saving = useRef(false);
+  const live = useRef(false);
+  const mounted = useMounted(() => {
+    live.current = true;
+    return () => {
+      live.current = false;
+    };
+  }, []);
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  if (stored !== initialLook) {
+    setStored(initialLook);
+    if (!edited.current) {
+      setLook(initialLook);
+      setSet(initialLook.icon.kind);
+      setNameDraft(initialLook.name ?? '');
+    }
   }
+  const change = (next: HostLook) => {
+    edited.current = true;
+    setLook(next);
+  };
+  const save = async () => {
+    if (saving.current) return;
+    saving.current = true;
+    setBusy(true);
+    setFailed(false);
+    try {
+      await actions.onSave(look);
+      if (live.current) actions.onClose();
+    } catch {
+      setFailed(true);
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  };
   const shown = shownHostName(look, hostName);
   const ink = hostColorInk(theme.scheme, theme.color, look.color);
   const tile = hostTileFill(theme.scheme, theme.color, look.color, theme.layer[SHEET_GROUP].inset);
   const glyph = look.color === undefined ? theme.color.fg : ink;
   const ring = look.color === undefined ? theme.color.fg : ink;
-  const setIcon = (icon: HostIcon) => actions.onChange(withHostIcon(look, icon));
-  const setColor = (color: HostColorId | undefined) => actions.onChange(withHostColor(look, color));
+  const setIcon = (icon: HostIcon) => change(withHostIcon(look, icon));
+  const setColor = (color: HostColorId | undefined) => change(withHostColor(look, color));
   const iconSize = theme.type.title.line;
 
   return (
-    <View style={{ flex: 1 }}>
+    <View ref={mounted} style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: space.x5, paddingTop: space.x3 }}>
-        <DrawerHeader title={t.hostLook} onClose={actions.onClose} />
+        <DrawerHeader
+          title={t.hostLook}
+          onBack={actions.onClose}
+          trailing={
+            <SheetSaveButton
+              label={t.hostLookSave}
+              testID="host-look-save"
+              busy={busy}
+              disabled={false}
+              onPress={() => void save()}
+            />
+          }
+        />
       </View>
       <KeyboardFormScroll
+        pointerEvents={busy ? 'none' : 'auto'}
         nestedScrollEnabled
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
       >
         <Preview hostName={shown} look={look} />
+        {failed ? <Text tone="danger">{t.hostLookSaveFailed}</Text> : null}
 
         <View style={{ gap: space.x2 }}>
           <SettingsHeading>{t.hostLookName}</SettingsHeading>
           <TextField
+            editable={!busy}
             accessibilityLabel={t.hostLookName}
             value={nameDraft}
             placeholder={hostName}
@@ -234,7 +283,7 @@ export function HostLookEditor({
             returnKeyType="done"
             onChangeText={(text) => {
               setNameDraft(text);
-              actions.onChange(withHostName(look, text));
+              change(withHostName(look, text));
             }}
           />
         </View>
@@ -353,7 +402,7 @@ export function HostLookEditor({
                 () => {
                   setSet('symbol');
                   setNameDraft('');
-                  actions.onChange(DEFAULT_HOST_LOOK);
+                  change(DEFAULT_HOST_LOOK);
                 },
               )
             }

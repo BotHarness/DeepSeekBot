@@ -1,0 +1,26 @@
+{
+  "productSource": "3e0e3c68f6f3e738ed7ff06ebdac6fa06c86d469",
+  "base": "d488ae9b8f074311c741eb636b935d028268f755",
+  "platform": "iOS Simulator",
+  "device": "iPhone 18 Pro Max",
+  "os": "iOS 27",
+  "locale": "zh",
+  "pixels": [1320, 2868],
+  "nativeSource": "d0540529ae0d31fc554e5c018a86db8935834ac6",
+  "nativeBuiltAt": "2026-10-26T05:05:54.228740+00:00",
+  "binarySHA256": {
+    "DeepSeekBotDev": "0a94b8dee9046a80a7d135614a114cdd8f95eba7d2e606ddf6c4709950ad7613",
+    "DeepSeekBotDev.debug.dylib": "034360f7d1e52e794595c98ab8aec720df7a75097ee5bf1a8c9724556e666a3c",
+    "PlugIns/ExpoWidgetsTarget.appex/ExpoWidgetsTarget": "4a6a86684982d30a61f6475531ec28fa7fbc7918e939e85f804bf4e0d1342cbe"
+  },
+  "podfileLockSHA256": "cd04f7cf779e70d710036625616c17c2c5bc38ff82ce42189d3b78ada616123b",
+  "buildExitCode": 0,
+  "jsMode": "production JS on Debug native binary",
+  "loadedAndServedBundleSHA256": "9f5b5e809e474506119eca59975c8488de057465951412ea53ac6b375c13134c",
+  "sourceQualification": "six changed runtime sourceContents match productSource",
+  "creationMatrixSource": "d0540529ae0d31fc554e5c018a86db8935834ac6",
+  "creationFilesUnchangedAtFinalProduct": true,
+  "imageHashes": "images.json",
+  "physicalDeviceAcceptance": false,
+  "humanAcceptance": false
+}

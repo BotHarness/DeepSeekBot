@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { groupActions, groupInfo } from '../../../src/host/group-channel';
@@ -14,21 +14,34 @@ import { useStrings } from '../../../src/ui/strings';
 
 export default function GroupInfoScreen() {
   const t = useStrings();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, hostId } = useLocalSearchParams<{ id: string; hostId?: string }>();
   const router = useRouter();
   const theme = useDesignTheme();
-  const { client, saved } = useHostSession();
-  const roster = useHostSnapshot(client).roster;
-  const info = useMemo(() => groupInfo(roster, id ?? ''), [roster, id]);
+  const { client, saved } = useHostSession(hostId);
+  const [openedOn, setOpenedOn] = useState(saved?.hostId);
+  if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
+  const sourceChanged = (hostId ?? openedOn) !== saved?.hostId;
+  const roster = useHostSnapshot(sourceChanged ? undefined : client).roster;
+  const info = useMemo(
+    () => (sourceChanged ? undefined : groupInfo(roster, id ?? '')),
+    [sourceChanged, roster, id],
+  );
   const actions = useMemo(
-    () => (client === undefined || id === undefined ? undefined : groupActions(client, id)),
-    [client, id],
+    () =>
+      sourceChanged || client === undefined || id === undefined
+        ? undefined
+        : groupActions(client, id),
+    [sourceChanged, client, id],
   );
 
-  if (info === undefined || actions === undefined)
+  if (sourceChanged || info === undefined || actions === undefined)
     return (
       <View style={{ flex: 1, padding: space.x6, backgroundColor: theme.color.surface }}>
-        {roster === undefined ? null : <Text tone="muted">{t.groupGone}</Text>}
+        {sourceChanged ? (
+          <Text tone="muted">{t.sourceChanged}</Text>
+        ) : roster === undefined ? null : (
+          <Text tone="muted">{t.groupGone}</Text>
+        )}
       </View>
     );
 
@@ -55,7 +68,10 @@ export default function GroupInfoScreen() {
                 title={t.notifications}
                 disclosure
                 onPress={() =>
-                  router.push({ pathname: '/group/[id]/notifications', params: { id } })
+                  router.push({
+                    pathname: '/group/[id]/notifications',
+                    params: { id, hostId: saved.hostId },
+                  })
                 }
               />
             </SettingsSection>
@@ -64,7 +80,9 @@ export default function GroupInfoScreen() {
       }
       actions={actions}
       pickAvatar={pickAvatarImage}
-      onOpenBot={(slug) => router.push({ pathname: '/bot/[slug]', params: { slug } })}
+      onOpenBot={(slug) =>
+        router.push({ pathname: '/bot/[slug]', params: { slug, hostId: saved?.hostId } })
+      }
       onDisbanded={() => router.dismissAll()}
     />
   );

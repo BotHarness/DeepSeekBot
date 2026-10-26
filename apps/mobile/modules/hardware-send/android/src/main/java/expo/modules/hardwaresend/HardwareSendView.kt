@@ -7,6 +7,7 @@ import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewTreeObserver
+import android.view.inputmethod.BaseInputConnection
 import android.widget.EditText
 import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.viewevent.EventDispatcher
@@ -53,10 +54,28 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
   private val onSend by EventDispatcher()
 
   private val echo = ImeEcho(ECHO_WINDOW)
+  private var press: EnterPress? = null
+
+  private data class EnterPress(val downTime: Long, val field: EditText?, val maySend: Boolean)
+
+  private fun isComposing(): Boolean = watched?.text?.let {
+    BaseInputConnection.getComposingSpanStart(it) >= 0
+  } == true
 
   override fun dispatchKeyEventPreIme(event: KeyEvent): Boolean {
-    if (event.action == KeyEvent.ACTION_DOWN && !fromSoftKeyboard(event)) {
-      echo.pressed(event.keyCode, event.metaState, event.eventTime)
+    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+      !fromSoftKeyboard(event) &&
+      (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+      val composing = isComposing()
+      press = EnterPress(event.downTime, watched, !composing)
+      echo.clear()
+      if (sending && watched != null && !composing) {
+        echo.pressed(event.keyCode, event.metaState, event.eventTime)
+      }
+    }
+    if (event.isCanceled || event.action == KeyEvent.ACTION_UP) {
+      echo.clear()
+      if (event.isCanceled) press = press?.copy(maySend = false)
     }
     return super.dispatchKeyEventPreIme(event)
   }
@@ -64,11 +83,20 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
   override fun dispatchKeyEvent(event: KeyEvent): Boolean {
     val soft = fromSoftKeyboard(event)
     val meta = if (soft) echo.echoed(event.keyCode, SystemClock.uptimeMillis()) else event.metaState
-    if (!sending || meta == null || !sendsOnKey(event.keyCode, meta, enter, false)) {
+    val started = press?.takeIf { it.downTime == event.downTime }
+    val blocked = event.isCanceled || watched?.hasFocus() != true || isComposing() ||
+      (started != null && (!started.maySend || started.field !== watched))
+    if (event.isCanceled || event.action == KeyEvent.ACTION_UP) {
+      echo.clear()
+      if (event.isCanceled) press = press?.copy(maySend = false)
+    }
+    if (!sending || blocked || meta == null || !sendsOnKey(event.keyCode, meta, enter, false)) {
       return super.dispatchKeyEvent(event)
     }
-    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) onSend(mapOf<String, Any>())
-    if (event.action == KeyEvent.ACTION_UP) echo.clear()
+    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+      echo.clear()
+      onSend(mapOf<String, Any>())
+    }
     return true
   }
 
@@ -79,7 +107,7 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
     override fun beforeTextChanged(text: CharSequence, start: Int, count: Int, after: Int) = Unit
 
     override fun onTextChanged(text: CharSequence, start: Int, before: Int, count: Int) {
-      if (!sending || !insertedNewline(text, start, before, count)) return
+      if (!sending || isComposing() || !insertedNewline(text, start, before, count)) return
       val meta = echo.echoed(KeyEvent.KEYCODE_ENTER, SystemClock.uptimeMillis()) ?: return
       if (sendsOnKey(KeyEvent.KEYCODE_ENTER, meta, enter, false)) newline = start
     }
@@ -99,6 +127,9 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
   private fun watch(next: View?) {
     val field = (next as? EditText)?.takeIf { isAncestorOf(it) }
     if (field === watched) return
+    echo.clear()
+    newline = -1
+    press = press?.copy(maySend = false)
     watched?.removeTextChangedListener(watcher)
     watched = field
     field?.addTextChangedListener(watcher)
@@ -122,6 +153,7 @@ class HardwareSendView(context: Context, appContext: AppContext) : ExpoView(cont
   override fun onDetachedFromWindow() {
     viewTreeObserver.removeOnGlobalFocusChangeListener(focus)
     watch(null)
+    press = null
     super.onDetachedFromWindow()
   }
 

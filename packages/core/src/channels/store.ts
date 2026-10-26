@@ -71,9 +71,16 @@ export interface ChannelMessageOrigin {
   sourceEventId?: string;
 }
 
+export interface ChannelRequestProgress {
+  state: 'working' | 'completed' | 'failed' | 'unknown';
+  terminal: boolean;
+  updatedAt: string;
+}
+
 export interface ChannelSendStatus {
   sourceEventId: string;
   state: string;
+  progress: ChannelRequestProgress;
   replies: ChannelMessage[];
 }
 

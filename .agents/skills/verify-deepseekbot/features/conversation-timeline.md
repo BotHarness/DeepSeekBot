@@ -46,6 +46,34 @@ Preconditions: a model credential, a Bot with a few replies (one long list), thr
 
 - **Return and large unread history.** Run `BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-timeline-navigation.mjs`. It seeds 260 messages using the real direct `bot_send_message` Bot tool (no model), marks message 120 read, and opens the 140-unread DM through the real Client. It records the canonical read position, opening around request, visible divider, older/newer cursor requests, one request per edge visit, idle no-loop intervals, retained prepend position, ordered unique rows, ordinary history return control, three live messages, bottom hiding, multiline draft without submission, actual light/dark appearance, and read-complete reopen. A second 150-message DM with 140 unread verifies that Return to latest loads the latest window when the newest message was outside the opening page. `BH_TIMELINE_BASELINE=1` expects the missing ordinary-history button and saves comparable before captures. `BH_SCREENSHOT_DIR` selects the evidence parent directory. The caller owns the Host; the journey closes its own browser in `finally`.
 
+### Single-message feedback (#2811)
+
+Use an isolated Host with synthetic messages only. Right-click a saved Human or Bot message →
+**Give feedback**. Verify rating/tags/comment are described as the only PostHog submission fields.
+Review the local diagnostic scope, deselect categories, expand files, and download the ZIP without
+submitting. Submit a synthetic rating, inspect the receipt, and download again: the archive remains
+local and its filename carries the feedback ID. Outbound request inspection must show no chat,
+Session, Inbox, delivery content or archive bytes. No dedicated receiver is needed.
+`packages/core/test/message-feedback.test.ts`, `packages/core/test/feedback-posthog.test.ts` and
+`packages/client/test/message-feedback.test.ts` cover these seams. A model failure is a valid
+no-response case but does not prove normal Bot replies.
+Mobile: pair the Expo Web export with this isolated Host, open the synthetic DM, long-press the
+saved message and choose **Give feedback**. Change evidence scope, verify stale material cannot
+submit, refresh, rate and submit; inspect the receipt. Rating and local diagnostics occupy separate
+groups; file contents start collapsed. Open **View files**, check the actual included chats/Inbox
+summary, then hide files. Confirm download remains after the receipt and after a failed save/refresh
+its filename still uses the original receipt ID. On native platforms check SwiftUI buttons/tags and
+Compose Material buttons/chips, operation progress, keyboard reachability and maximum text size.
+Long-press → **Select messages**, toggle
+another saved message, copy, open **Screenshot** and inspect the preview, then cancel. Switch
+Channels and verify selection clears. Web previews are layout/browser evidence only; native
+capture/share, keyboard and accessibility checks remain tracked in #2811 for both device lanes.
+Desktop: right-click has **Select messages** and **Give feedback**, no **Locate this message**;
+the selection toolbar directly offers Copy/Screenshot/Cancel and quoted replies still jump.
+Automated seams: apps/mobile/test/message-feedback.test.ts,
+apps/mobile/test/message-feedback-form.test.tsx, apps/mobile/test/message-menu-feedback.test.ts,
+apps/mobile/test/message-selection.test.ts, packages/client/test/message-selection-bar.test.ts.
+
 ## Gotchas
 
 - **Expo Native Bot mentions (#2160).** Open a group with canonical `mentions` ranges (a Bot reply starting with `@nickname`, and a Human inline mention). The current avatar and primary-colored `@name` share the body text line. A leading mention joins the first supported Markdown paragraph; subsequent blocks keep the existing renderer. Tap the inline name and verify `/dm/<botSlug>` against the canonical ID, including after a rename. Missing IDs retain a readable stored label without navigation; unstructured `@name` stays plain text. Verify cached history, live and optimistic data through `apps/mobile/test/conversation.test.ts`; `apps/mobile/test/message-mentions.test.ts` covers ranges, identities, CRLF, references and streaming first paragraphs. Native checks: default/intermediate/maximum text × light/dark, inline wrapping, per-Bot name colors, long-press copy/reactions and keyboard draft retention. Follow the Human-confirmed inline-size exception in mobile DESIGN; do not restore a 44/48-point block height. The Human-selected presentation has no background: avatar + @ + primary-colored name, inline with body text. Record platforms separately; iOS remains unverified without its native lane. Bot mentions embedded later in Markdown retain Web's plain-Markdown behavior.

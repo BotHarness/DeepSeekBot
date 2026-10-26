@@ -6,6 +6,8 @@ import {
   hostLook,
   hostLookName,
   nearestHostColor,
+  nextHostLook,
+  withHostName,
   type HostColorId,
   type HostIcon,
   type HostLook,
@@ -29,6 +31,7 @@ export interface HostLooks {
     change: (current: HostLook) => HostLook,
     check?: () => void,
   ): Promise<HostLook>;
+  initialize(hostId: string, pairedHostIds: readonly string[], name?: string): Promise<void>;
   look(hostId: string): HostLook;
   set(hostId: string, look: HostLook): void;
   subscribe(listener: () => void): () => void;
@@ -171,6 +174,20 @@ export function createHostLooks(storage: LookStorage): HostLooks {
     error: () => failure,
     refresh,
     look: current,
+    async initialize(hostId, pairedHostIds, name) {
+      await available();
+      await transaction(async () => {
+        const value = await load();
+        const look =
+          value[hostId] ??
+          nextHostLook(
+            pairedHostIds.filter((id) => id !== hostId).map((id) => value[id] ?? DEFAULT_HOST_LOOK),
+          );
+        const next = { ...value, [hostId]: name ? withHostName(look, name) : look };
+        persist(next);
+        publish(next);
+      });
+    },
     async read(hostId, check) {
       await available();
       let result = current(hostId);

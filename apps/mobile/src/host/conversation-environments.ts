@@ -14,14 +14,19 @@ export const computerEnvironmentKey = (hostId: string) => JSON.stringify(['compu
 export const cloudEnvironmentKey = (scope: string, organizationId: string) =>
   JSON.stringify([scope, organizationId]);
 
+type ComputerEnvironment = { hostId: string; name: string; icon?: HostIcon; color?: HostColorId };
 export function conversationEnvironments(
-  computer: { hostId: string; name: string; icon?: HostIcon; color?: HostColorId } | undefined,
+  computers: ComputerEnvironment | readonly ComputerEnvironment[] | undefined,
   sourceScopes: readonly string[],
   workspaces: readonly ConversationWorkspace[],
   allTitle: string,
 ): ConversationEnvironment[] {
   const result: ConversationEnvironment[] = [{ key: 'all', title: allTitle, kind: 'all' }];
-  if (computer)
+  for (const computer of computers === undefined
+    ? []
+    : 'hostId' in computers
+      ? [computers]
+      : computers)
     result.push({
       key: computerEnvironmentKey(computer.hostId),
       title: computer.name,

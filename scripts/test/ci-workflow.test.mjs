@@ -27,10 +27,10 @@ const fixture = (tests = 'none', mobile = 'false', count = '0') =>
       },
     ]),
   );
-const passes = (needs) =>
+const passes = (needs, iosHardwareSend = 'false') =>
   spawnSync(process.execPath, ['-e', script], {
     encoding: 'utf8',
-    env: { ...process.env, NEEDS: JSON.stringify(needs) },
+    env: { ...process.env, NEEDS: JSON.stringify(needs), IOS_HARDWARE_SEND_TESTS: iosHardwareSend },
   }).status === 0;
 
 describe('required CI aggregate', () => {
@@ -109,5 +109,33 @@ describe('required CI aggregate', () => {
     expect(workflow.jobs['test-affected'].steps.at(-1).env.TEST_FILES).toBe(
       '${{ toJSON(matrix.files) }}',
     );
+  });
+});
+
+describe('manual iOS HardwareSend verification', () => {
+  it('runs on a standard Mac only after explicit manual opt-in with read-only access', () => {
+    expect(workflow.on.workflow_dispatch?.inputs?.ios_hardware_send_tests).toEqual({
+      description: 'Run iOS HardwareSend UIKit tests on a standard Mac runner',
+      type: 'boolean',
+      required: false,
+      default: false,
+    });
+    const job = workflow.jobs['mobile-native-ios'];
+    expect(job?.if).toBe(
+      "github.event_name == 'workflow_dispatch' && inputs.ios_hardware_send_tests",
+    );
+    expect(job?.['runs-on']).toBe('xcode-27');
+    expect(job?.permissions).toEqual({ contents: 'read' });
+  });
+
+  it('requires a successful iOS result only when the manual job was selected', () => {
+    const needs = fixture();
+    needs['mobile-native-ios'] = { result: 'skipped', outputs: {} };
+    expect(passes(needs)).toBe(true);
+    expect(passes(needs, 'true')).toBe(false);
+    needs['mobile-native-ios'].result = 'success';
+    expect(passes(needs, 'true')).toBe(true);
+    needs['mobile-native-ios'].result = 'failure';
+    expect(passes(needs, 'true')).toBe(false);
   });
 });

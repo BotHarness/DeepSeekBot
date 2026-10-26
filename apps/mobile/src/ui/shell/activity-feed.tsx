@@ -1,3 +1,5 @@
+import { HostGlyph } from './host-tile';
+import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
@@ -45,7 +47,13 @@ import {
   type DecisionResult,
   type RequestRef,
 } from '../../host/requests';
-import type { HumanAttentionItem } from '../../host/wire';
+import {
+  activityKey,
+  activityBotKey,
+  observeActivitySources,
+  type ActivityItem as HumanAttentionItem,
+  type ActivitySource,
+} from '../../host/activity-sources';
 import {
   clearAttentionItem,
   restoreAttentionItem,
@@ -133,8 +141,8 @@ function sectionItems(
 ): HumanAttentionItem[] {
   const listed = snapshot.sections[section].filter(
     (item) =>
-      (section !== 'action' || !gone.has(item.id)) &&
-      hidden.get(item.id) !== (item.sourceEventId ?? ''),
+      (section !== 'action' || !gone.has(activityKey(item))) &&
+      hidden.get(activityKey(item)) !== (item.sourceEventId ?? ''),
   );
   const items =
     section === 'action'
@@ -142,14 +150,14 @@ function sectionItems(
           ...listed,
           ...held.filter(
             (kept) =>
-              (bot === undefined || kept.botSlug === bot) &&
-              !listed.some((item) => item.id === kept.id),
+              (bot === undefined || activityBotKey(kept) === bot) &&
+              !listed.some((item) => activityKey(item) === activityKey(kept)),
           ),
         ]
       : listed;
   return bot === undefined || snapshot.botSlug === bot
     ? items
-    : items.filter((item) => item.botSlug === bot);
+    : items.filter((item) => activityBotKey(item) === bot);
 }
 
 export function feedRows(
@@ -172,8 +180,8 @@ export function feedRows(
       const ref = section === 'action' && !aside ? decidable(item) : undefined;
       rows.push(
         ref === undefined
-          ? { kind: 'row', key: item.id, item, settled: section === 'handled', section }
-          : { kind: 'post', key: item.id, item, ref, section },
+          ? { kind: 'row', key: activityKey(item), item, settled: section === 'handled', section }
+          : { kind: 'post', key: activityKey(item), item, ref, section },
       );
     }
     if (snapshot.cursors?.[section]) rows.push({ kind: 'more', key: `more-${section}`, section });
@@ -185,6 +193,32 @@ export function feedRows(
 
 function minutesSince(at: string, now: number): number {
   return Math.max(0, Math.floor((now - Date.parse(at)) / 60_000));
+}
+
+function ActivityEnvironment({ item }: { item: HumanAttentionItem }) {
+  const theme = useDesignTheme();
+  const source = item.activitySource;
+  if (!source) return null;
+  const look = source.look ?? DEFAULT_HOST_LOOK;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x1, flexShrink: 1 }}>
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <HostGlyph
+          icon={look.icon}
+          size={theme.type.meta.size * theme.fontScale}
+          color={hostColorInk(theme.scheme, theme.color, look.color)}
+        />
+      </View>
+      <Text
+        variant="meta"
+        tone="muted"
+        numberOfLines={theme.largeText ? undefined : 1}
+        style={{ flexShrink: 1 }}
+      >
+        {source.label}
+      </Text>
+    </View>
+  );
 }
 
 const Row = memo(function Row({
@@ -205,10 +239,11 @@ const Row = memo(function Row({
   const t = useStrings();
   const theme = useDesignTheme();
   const kind = t.kind[item.kind] ?? t.otherKind;
-  const name =
+  const localName =
     item.kind === 'channel-unread'
       ? (item.channelName ?? t.otherKind)
       : (bot?.displayName ?? item.botSlug);
+  const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const summary = summaryPreview(itemSummary(item));
   const size = settled ? theme.type.body.line : AVATAR;
   const metadata = (
@@ -228,11 +263,11 @@ const Row = memo(function Row({
     </View>
   );
   return (
-    <SwipeRow actions={actions} testID={`inbox-swipe-${item.id}`}>
+    <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t.openPost(kind, name, summary)}
-        testID={`inbox-row-${item.id}`}
+        testID={`inbox-row-${activityKey(item)}`}
         onPress={() => onOpen(item)}
         {...swipeActionProps(t.rowTitle(kind, name), actions)}
         style={({ pressed }) => ({
@@ -274,9 +309,10 @@ const Row = memo(function Row({
               strong={!settled}
               style={{ flexShrink: 1 }}
             >
-              {theme.largeText ? name : t.rowTitle(kind, name)}
+              {theme.largeText ? localName : t.rowTitle(kind, localName)}
               {settled && summary.length > 0 ? <Text tone="muted">{` · ${summary}`}</Text> : null}
             </Text>
+            <ActivityEnvironment item={item} />
             {theme.largeText ? null : metadata}
           </View>
           {!settled && summary.length > 0 ? (
@@ -312,7 +348,8 @@ function Post({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const name = bot?.displayName ?? item.botSlug;
+  const localName = bot?.displayName ?? item.botSlug;
+  const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const where =
     item.channelName !== undefined && !item.channelId?.startsWith('dm-')
       ? ` · ${t.inChannel(item.channelName)}`
@@ -320,16 +357,24 @@ function Post({
   const { channelId, messageId, botSlug } = ref;
   const ports = useMemo(() => {
     const stableRef = { channelId, messageId, botSlug };
+    const connected = () => {
+      if (client.getSnapshot().connection.status !== 'connected')
+        throw new Error('activity-source-unavailable');
+    };
     return {
       approval: {
         load: () => loadApproval(client, stableRef),
-        decide: (outcome: Parameters<typeof decideApproval>[2]) =>
-          decideApproval(client, stableRef, outcome),
+        decide: (outcome: Parameters<typeof decideApproval>[2]) => {
+          connected();
+          return decideApproval(client, stableRef, outcome);
+        },
       },
       question: {
         load: () => loadQuestion(client, stableRef),
-        answer: (answer: Parameters<typeof answerQuestion>[2]) =>
-          answerQuestion(client, stableRef, answer),
+        answer: (answer: Parameters<typeof answerQuestion>[2]) => {
+          connected();
+          return answerQuestion(client, stableRef, answer);
+        },
       },
     };
   }, [client, channelId, messageId, botSlug]);
@@ -337,9 +382,9 @@ function Post({
     onSettled(item, result);
   };
   return (
-    <SwipeRow actions={actions} testID={`inbox-swipe-${item.id}`}>
+    <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <View
-        testID={`inbox-post-${item.id}`}
+        testID={`inbox-post-${activityKey(item)}`}
         style={{
           paddingVertical: space.x3,
           gap: space.x1,
@@ -382,9 +427,10 @@ function Post({
             }}
           >
             <Text strong numberOfLines={theme.largeText ? undefined : 1} style={{ flexShrink: 1 }}>
-              {name}
+              {localName}
               {theme.largeText ? null : <Text tone="muted">{where}</Text>}
             </Text>
+            <ActivityEnvironment item={item} />
             {theme.largeText && where !== '' ? (
               <Text variant="meta" tone="muted">
                 {t.inChannel(item.channelName ?? '')}
@@ -406,6 +452,7 @@ function Post({
 }
 
 type ActivityFeedProps = {
+  sources?: readonly ActivitySource[];
   onNotice?(notice: Omit<UndoNotice, 'id'>): void;
   unavailable?: string | undefined;
   hostId: string;
@@ -581,6 +628,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
 });
 
 const ActivityPage = memo(function ActivityPage({
+  sources,
   hostId,
   client,
   inbox,
@@ -639,9 +687,8 @@ const ActivityPage = memo(function ActivityPage({
   );
   const scoped = useMemo(
     () =>
-      client === undefined
-        ? undefined
-        : observeInbox(client, {
+      sources !== undefined
+        ? observeActivitySources(sources, {
             activity: true,
             section: filter.section,
             botSlug: filter.bot,
@@ -649,8 +696,19 @@ const ActivityPage = memo(function ActivityPage({
             unreadOnly: filter.unreadOnly,
             search,
             sort,
-          }),
-    [client, filter.section, filter.bot, filter.channel, filter.unreadOnly, search, sort],
+          })
+        : client === undefined
+          ? undefined
+          : observeInbox(client, {
+              activity: true,
+              section: filter.section,
+              botSlug: filter.bot,
+              channelId: filter.channel,
+              unreadOnly: filter.unreadOnly,
+              search,
+              sort,
+            }),
+    [sources, client, filter.section, filter.bot, filter.channel, filter.unreadOnly, search, sort],
   );
   const settlementScope = useMemo(() => ({}), [hostId, scoped, filter, search, sort, active]);
   const activeSettlementScope = useRef<object | undefined>(undefined);
@@ -663,12 +721,19 @@ const ActivityPage = memo(function ActivityPage({
   const scopedSnapshot = useFocusedSnapshot(scoped ?? EMPTY_SOURCE, scrollActive);
   const visible = scoped === undefined ? snapshot : scopedSnapshot;
   const currentInbox = () => (scoped === undefined ? inbox : scoped.getInbox());
-  const rows = feedRows(visible, gone, held, filter, search, hidden);
+  const retained =
+    sources === undefined
+      ? held
+      : held.filter((item) =>
+          sources.some((source) => source.client === item.activitySource?.client),
+        );
+  const rows = feedRows(visible, gone, retained, filter, search, hidden);
   const hide = (item: HumanAttentionItem, on: boolean) =>
     setHidden((current) => {
       const next = new Map(current);
-      if (on) next.set(item.id, item.sourceEventId ?? '');
-      else if (next.get(item.id) === (item.sourceEventId ?? '')) next.delete(item.id);
+      if (on) next.set(activityKey(item), item.sourceEventId ?? '');
+      else if (next.get(activityKey(item)) === (item.sourceEventId ?? ''))
+        next.delete(activityKey(item));
       return next;
     });
   const change = async (
@@ -679,6 +744,8 @@ const ActivityPage = memo(function ActivityPage({
   ) => {
     hide(item, true);
     try {
+      if (clientFor(item)?.getSnapshot().connection.status !== 'connected')
+        throw new Error('activity-source-unavailable');
       await apply();
       onNotice?.({
         message,
@@ -687,7 +754,12 @@ const ActivityPage = memo(function ActivityPage({
           : {
               undoLabel: t.activityUndo,
               undo: () =>
-                void undo()
+                void Promise.resolve()
+                  .then(() => {
+                    if (clientFor(item)?.getSnapshot().connection.status !== 'connected')
+                      throw new Error('activity-source-unavailable');
+                    return undo();
+                  })
                   .catch(() => onNotice?.({ message: t.activityChangeFailed }))
                   .finally(() => void currentInbox()?.refresh()),
             }),
@@ -699,7 +771,12 @@ const ActivityPage = memo(function ActivityPage({
       hide(item, false);
     }
   };
+  const clientFor = (item: HumanAttentionItem) =>
+    sources === undefined
+      ? client
+      : sources.find((source) => source.client === item.activitySource?.client)?.client;
   const snoozeTo = (item: HumanAttentionItem, choice: SnoozeChoice) => {
+    const client = clientFor(item);
     if (client === undefined) return;
     const until = snoozeUntil(choice, new Date());
     if (until === undefined) return;
@@ -716,6 +793,7 @@ const ActivityPage = memo(function ActivityPage({
     );
   };
   const actionsFor = (item: HumanAttentionItem, section: InboxSection): SwipeAction[] => {
+    const client = clientFor(item);
     if (client === undefined || section === 'handled') return [];
     if (filter.section === 'cleared')
       return [
@@ -808,8 +886,12 @@ const ActivityPage = memo(function ActivityPage({
   };
   const settled = (item: HumanAttentionItem, result: DecisionResult) => {
     if (activeSettlementScope.current !== settlementScope) return;
-    if (result === 'accepted') setGone((current) => new Set(current).add(item.id));
-    else setHeld((current) => [...current.filter((kept) => kept.id !== item.id), item]);
+    if (result === 'accepted') setGone((current) => new Set(current).add(activityKey(item)));
+    else
+      setHeld((current) => [
+        ...current.filter((kept) => activityKey(kept) !== activityKey(item)),
+        item,
+      ]);
     void currentInbox()?.refresh();
   };
   const refresh = () => {
@@ -903,12 +985,17 @@ const ActivityPage = memo(function ActivityPage({
                       : t.filterEmpty}
                   </Text>
                 );
+              const rowClient = clientFor(row.item);
               if (row.kind === 'row')
                 return (
                   <Row
                     item={row.item}
                     settled={row.settled}
-                    bot={bot(row.item.botSlug)}
+                    bot={
+                      row.item.activitySource?.roster?.bots.find(
+                        (entry) => entry.slug === row.item.botSlug,
+                      ) ?? bot(activityBotKey(row.item))
+                    }
                     onOpen={onOpen}
                     actions={actionsFor(row.item, row.section)}
                     now={Math.floor(now / 60_000) * 60_000}
@@ -916,12 +1003,16 @@ const ActivityPage = memo(function ActivityPage({
                 );
               return (
                 <Animated.View exiting={FadeOut.duration(220)}>
-                  {client === undefined ? null : (
+                  {rowClient === undefined ? null : (
                     <Post
-                      client={client}
+                      client={rowClient}
                       item={row.item}
                       requestRef={row.ref}
-                      bot={bot(row.item.botSlug)}
+                      bot={
+                        row.item.activitySource?.roster?.bots.find(
+                          (entry) => entry.slug === row.item.botSlug,
+                        ) ?? bot(activityBotKey(row.item))
+                      }
                       now={now}
                       onOpen={onOpen}
                       onSettled={settled}

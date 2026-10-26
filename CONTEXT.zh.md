@@ -978,6 +978,10 @@ _避免使用_：secret、API key、token
 
 ### 遥测与推广活动
 
+**Message Feedback**：
+依据 ADR-0256，Human 从一条 Channel 消息发起评价；仅好／不好、可选标签、脱敏短评、随机编号与版本发送到 PostHog。对话与执行诊断仅提供本地下载，由 Human 自行决定是否发送，独立于匿名 Telemetry。
+_避免使用_：Telemetry、多选消息导出、自动错误上报
+
 **Mobile Telemetry**：
 Expo 手机应用内默认开启、可在设置底部关闭的粗粒度统计，独立于 Host 统计。只观察配对、实时连接和首次聊天结果，不拥有产品权威，不包含聊天内容或领域标识（ADR-0214）。
 
