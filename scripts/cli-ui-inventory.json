@@ -825,6 +825,21 @@
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
     },
     {
+      "id": "desktop-window-zoom-setup",
+      "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
+      "scope": "Host / desktop Profile",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:WINDOW_ZOOM_SETUP_PATH",
+        "setting:packages/client/src/client/window-zoom-setup.tsx:{t(action === 'enable' ? 'zoom.setup.enable' : 'zoom.setup.disable')}"
+      ],
+      "commands": [
+        "window-zoom-setup-status",
+        "window-zoom-setup-enable",
+        "window-zoom-setup-disable",
+        "window-zoom-setup-cancel"
+      ]
+    },
+    {
       "id": "remote-host-notifications",
       "description": "Browser-owned Remote Host choices; inbox --notifications pages Host-decided attention. Phone owner AX is development-client-only (phone-notifications); release parity and native real runs remain unverified. device-notifications edits Host copies only.",
       "scope": "Client / Paired Device",

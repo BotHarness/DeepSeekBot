@@ -22,6 +22,15 @@ row from a Bundle Patch: native Settings then refuses every appearance and font 
 Ordinary browsers retain browser-native zoom. Package tests and native activation are
 separate checks; verify the actual theme id and source in `__DSH_BOOT__` after restart.
 
+## Settings button (enable after quit)
+
+On the native Desktop Profile, Bot Settings → General shows "Enable window zoom" (or "Turn off window zoom").
+Clicking it schedules the helper and the row says to quit the app fully; Cancel withdraws it. Quit
+with Cmd+Q (Windows: exit fully): the app must reopen by itself with zoom rows present (or gone after
+turning off). `deepseekbot window-zoom-setup-status|enable|disable|cancel` drive the same Host route;
+check `$DSH_HOME/botharness/window-zoom-setup.json` for the recorded outcome. Web and non-desktop
+Profiles report `supported:false` and show no row.
+
 ## Driving it with verify-app
 
 Build the linked worktree, then run `scripts/e2e-desktop-zoom-launch.mjs` on macOS. It owns

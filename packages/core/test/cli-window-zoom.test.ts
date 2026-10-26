@@ -39,4 +39,24 @@ describe('window zoom CLI', () => {
     ).rejects.toMatchObject({ code: 'usage' });
     expect(connect).not.toHaveBeenCalled();
   });
+  it('reads and schedules Host window zoom setup without a Client target', async () => {
+    const http = vi.fn(async () => ({
+      bytes: new TextEncoder().encode('{"supported":true,"enabled":false}'),
+    }));
+    const connect = async () => ({ http });
+    expect(await runWindowZoomCommand('window-zoom-setup-status', [], {}, connect)).toEqual({
+      supported: true,
+      enabled: false,
+    });
+    await runWindowZoomCommand('window-zoom-setup-enable', [], {}, connect);
+    await runWindowZoomCommand('window-zoom-setup-cancel', [], {}, connect);
+    expect(http.mock.calls).toEqual([
+      ['/api/botharness/window-zoom-setup', undefined],
+      ['/api/botharness/window-zoom-setup', { action: 'enable' }],
+      ['/api/botharness/window-zoom-setup', { action: 'cancel' }],
+    ]);
+    await expect(
+      runWindowZoomCommand('window-zoom-setup-disable', [], { 'client-id': 'c' }, connect),
+    ).rejects.toMatchObject({ code: 'usage' });
+  });
 });

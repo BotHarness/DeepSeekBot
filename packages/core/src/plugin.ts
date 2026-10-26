@@ -1,4 +1,5 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
+import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
 import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
@@ -2557,6 +2558,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         await off();
       };
     }, 'botharness: targeted window zoom delivery');
+    connectionCtx.effect(() => {
+      const setup = createWindowZoomSetup({
+        dshHome,
+        profileDir: profile?.dir,
+        log: (phase, detail) => ctx.logger.info('window-zoom-setup %j', { phase, ...detail }),
+      });
+      return connection.fetch.register({
+        path: WINDOW_ZOOM_SETUP_PATH,
+        methods: ['GET', 'POST'],
+        requestBody: 'buffered',
+        fetch: setup.fetch,
+      });
+    }, 'botharness: desktop window zoom setup after quit');
     connectionCtx.effect(() => {
       const control = createAppearanceControl();
       const off = connection.fetch.register({

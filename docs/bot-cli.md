@@ -1205,6 +1205,19 @@ Manual font preferences remain in the same native `ui-theme` Patch. JSON stdout 
 `restartRequired:true` and `runtimeVerified:false`; a successful package change does not prove
 the native window has loaded it. An uncertain package operation is not retried automatically.
 
+### Enable from Bot Settings
+
+On the macOS or Windows Desktop, Bot Settings → General shows **Enable window zoom** (or **Turn off window zoom** once installed). The button asks the Host to start the same `deepseekbot-zoom-setup enable|disable --after-quit <state-file> --request <id>` transaction as a detached helper. The helper waits until the Desktop is fully quit, runs the unchanged checks and Profile change, records the outcome, then reopens the app. Cancel before quitting withdraws it; a newer request supersedes an older one. If the app is not quit within 30 minutes, the helper stops without changes and without reopening. The next Settings visit shows a failed outcome code. The Host reads the target app from its own runtime path and only offers this in the native `desktop` Profile.
+
+```sh
+deepseekbot window-zoom-setup-status --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-enable --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-disable --host <host> --token-file <private-file>
+deepseekbot window-zoom-setup-cancel --host <host> --token-file <private-file>
+```
+
+Status is `{supported:false, code}` outside the Desktop Profile, or `{supported:true, enabled, pending?, last?}`. Refusals include `zoom-setup-not-desktop`, `zoom-setup-desktop-app-unresolved`, `zoom-setup-command-unavailable`, `zoom-setup-already-enabled|disabled` and `zoom-setup-not-pending`; a helper that ended without an outcome reports `zoom-setup-helper-exited`.
+
 `window-zoom-clients` lists active targets. Select one `--client-id`; commands never choose a
 window implicitly. `window-zoom-get` reads the Client-owned snapshot. A write requires the
 returned `document.revision` as `--expected-revision`:
