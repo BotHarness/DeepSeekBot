@@ -21,7 +21,7 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json (from verify-app launch)
   --trace             Save a Chrome trace of the idle window (open in DevTools).
   --profile           Save a CPU profile of the idle window and list the hottest functions.
   --scroll-check      After mounting, scroll from the latest message to the top one viewport at a
-                      time and report scroll jumps and skipped blocks left in view (on by
+                      time and report scroll jumps and blank gaps left in view (on by
                       default with --load-all; --no-scroll-check turns it off).
   --label <name>      Evidence label (default "run"); use main/fix for AB pairs.
   --out <dir>         Evidence directory (default .humanlayer/perf/idle-timeline).
@@ -85,7 +85,6 @@ async function scrollCheck() {
     const firstVisible = () => {
       const top = body.getBoundingClientRect().top;
       for (const node of body.querySelectorAll('[data-message-id]')) {
-        if (node.closest('[data-offscreen]')) continue;
         const bounds = node.getBoundingClientRect();
         if (bounds.bottom > top) return { id: node.dataset.messageId, y: bounds.top };
       }
@@ -97,7 +96,7 @@ async function scrollCheck() {
     let steps = 0;
     let jumps = 0;
     let maxJumpPx = 0;
-    let skippedInView = 0;
+    let gapsInView = 0;
     let emptyInView = 0;
     while (body.scrollTop > 0 && steps < 2000) {
       body.scrollTop = Math.max(0, body.scrollTop - body.clientHeight);
@@ -115,16 +114,16 @@ async function scrollCheck() {
         }
       }
       const view = body.getBoundingClientRect();
-      for (const block of body.querySelectorAll('.bh-message-block')) {
+      for (const block of body.querySelectorAll('.bh-message-block, .bh-timeline-gap')) {
         const bounds = block.getBoundingClientRect();
-        if (bounds.bottom < view.top || bounds.top > view.bottom) continue;
-        if (block.dataset.offscreen !== undefined) skippedInView += 1;
-        if (bounds.height === 0) emptyInView += 1;
+        if (bounds.bottom <= view.top || bounds.top >= view.bottom) continue;
+        if (block.classList.contains('bh-timeline-gap')) gapsInView += 1;
+        else if (bounds.height === 0) emptyInView += 1;
       }
     }
     body.scrollTop = body.scrollHeight;
     await frame();
-    return { steps, jumps, maxJumpPx: Math.round(maxJumpPx), skippedInView, emptyInView };
+    return { steps, jumps, maxJumpPx: Math.round(maxJumpPx), gapsInView, emptyInView };
   });
   await sleep(1000);
   return result;
@@ -276,11 +275,13 @@ try {
         node.scrollTop = 0;
       });
       await sleep(500);
-      const now = await page.$$eval('.bh-chat-body [data-message-id]', (nodes) => nodes.length);
+      const now = await page.$eval('.bh-chat-body', (node) =>
+        Number(node.dataset.loadedMessages ?? 0),
+      );
       if (now >= fixture.messageIds.length) break;
       if (now === mounted && attempt > 2)
         throw new Error(
-          `Mounted ${now} of ${fixture.messageIds.length} messages before measurement`,
+          `Loaded ${now} of ${fixture.messageIds.length} messages before measurement`,
         );
       mounted = now;
     }
@@ -324,9 +325,10 @@ try {
   const idleHottest = options.profile ? await stopProfile(cdp, 'idle') : undefined;
   const delta = (name) => metric(after, name) - metric(before, name);
   const dom = await page.evaluate(() => ({
+    loadedMessages: Number(document.querySelector('.bh-chat-body')?.dataset.loadedMessages ?? 0),
     mountedMessages: document.querySelectorAll('.bh-chat-body [data-message-id]').length,
     nodes: document.getElementsByTagName('*').length,
-    skippedBlocks: document.querySelectorAll('.bh-message-block[data-offscreen]').length,
+    timelineGaps: document.querySelectorAll('.bh-chat-body .bh-timeline-gap').length,
   }));
 
   await page.$eval('.bh-chat-body', (node) => {
