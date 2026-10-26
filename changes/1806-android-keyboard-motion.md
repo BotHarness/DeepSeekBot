@@ -4,8 +4,8 @@ section: Fixed
 
 ## en
 
-- Reduced Android chat layout work while opening and closing the keyboard so the composer follows the native keyboard transition without resizing the message list on every frame ([#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)).
+- Coordinate Android chat scrolling with the native keyboard while preserving virtualized history, held reading positions and inset-aware return-to-latest targets ([#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)).
 
 ## zh
 
-- 减少 Android 聊天键盘开合时的布局开销，让输入框跟随原生键盘过渡，避免消息列表每帧重新调整尺寸（[#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)）。
+- 协调 Android 聊天滚动与原生键盘，保留历史消息虚拟化和阅读位置，并让“返回最新”正确计算键盘占位（[#1806](https://github.com/BotHarness/DeepSeekBot/issues/1806)）。

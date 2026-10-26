@@ -604,3 +604,41 @@ describe('following a growing conversation', () => {
     view.unmount();
   });
 });
+
+describe('native keyboard and reading-position coordination', () => {
+  it('leaves scrolling to the keyboard during motion, then follows newly streamed content', () => {
+    const view = mount([message('latest', 'bot')]);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+      view.current.keyboard.onStart();
+      view.current.keyboard.onInsetChange({ bottom: 300 });
+      view.current.listProps.onContentSizeChange(0, CONTENT + 100);
+    });
+    flushFrames();
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.keyboard.onEnd());
+    flushFrames();
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: false });
+    view.unmount();
+  });
+
+  it('keeps a held history position through keyboard and streamed-content changes', () => {
+    const view = mount([message('latest', 'bot')]);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+      view.current.hold();
+      view.current.keyboard.onStart();
+      view.current.keyboard.onInsetChange({ bottom: 300 });
+      view.current.listProps.onContentSizeChange(0, CONTENT + 100);
+      view.current.keyboard.onEnd();
+    });
+    flushFrames();
+    expect(view.current.away).toBe(true);
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    act(() => view.current.jumpToLatest());
+    expect(view.scrollToOffset).toHaveBeenLastCalledWith({ offset: 1600, animated: true });
+    view.unmount();
+  });
+});

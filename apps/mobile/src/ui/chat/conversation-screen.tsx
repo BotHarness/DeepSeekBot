@@ -94,7 +94,8 @@ import {
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
-import { anchorShift, anchorStep, useFollowLatest } from './follow-latest';
+import { anchorShift, anchorStep } from './follow-latest';
+import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -426,8 +427,6 @@ function ChatConversation({
   );
 
   const [reactError, setReactError] = useState(false);
-  const [composerHeight, setComposerHeight] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
   const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
@@ -502,17 +501,6 @@ function ChatConversation({
     },
     [list, content],
   );
-  const viewportLayout = useSharedValue(0);
-  const stage = useMemo(
-    () => ({
-      registry: speakers,
-      scroll,
-      viewport,
-      viewportLayout,
-      floor: composerHeight + edgeFade.bottom,
-    }),
-    [speakers, scroll, viewport, viewportLayout, composerHeight],
-  );
   const followingLatest = useSharedValue(true);
   const latestEnd = useSharedValue(0);
   const workingAnchor = useSharedValue(0);
@@ -539,13 +527,24 @@ function ChatConversation({
   const workingStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: anchorShift(workingAnchor.value, scroll.value) }],
   }));
-  const latest = useFollowLatest(
+  const latest = useChannelViewport(
     list,
     visible,
     followChange,
     headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
     latestChange,
+  );
+  const { composerHeight, viewportHeight, viewportLayout } = latest;
+  const stage = useMemo(
+    () => ({
+      registry: speakers,
+      scroll,
+      viewport,
+      viewportLayout,
+      floor: composerHeight + edgeFade.bottom,
+    }),
+    [speakers, scroll, viewport, viewportLayout, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
@@ -1172,7 +1171,7 @@ function ChatConversation({
             <ChatBackground choice={background} imageUri={backgroundImageUri} />
           ) : undefined
         }
-        onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+        onComposerLayout={latest.onComposerLayout}
         composer={
           selected !== undefined ? (
             <SelectionBar
@@ -1313,15 +1312,13 @@ function ChatConversation({
           ref={viewport}
           collapsable={false}
           style={{ flex: 1 }}
-          onLayout={(event) => {
-            viewportLayout.value += 1;
-            setViewportHeight(event.nativeEvent.layout.height);
-          }}
+          onLayout={latest.onViewportLayout}
         >
           <MarkdownViewportContext.Provider value={markdownViewport}>
             <SpeakerStageContext.Provider value={dm ? undefined : stage}>
               <Animated.FlatList
                 ref={attachList}
+                renderScrollComponent={latest.renderScrollComponent}
                 removeClippedSubviews={false}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
                 pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
