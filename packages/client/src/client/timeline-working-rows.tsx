@@ -41,23 +41,6 @@ function rowActivity(
   return { ...rest, activeToolCount: 1 };
 }
 
-export function timelineWorkingRowsCover(
-  activity: ChannelComposerActivity | undefined,
-  rows: TimelineWorkingRows,
-  streamingBotSlugs: ReadonlySet<string>,
-): boolean {
-  const shown = new Set(rows.items.map((item) => item.personaBotId));
-  return (
-    activity !== undefined &&
-    activity.items.length > 0 &&
-    activity.items.every(
-      (item) =>
-        (shown.has(item.personaBotId) || streamingBotSlugs.has(item.personaBotId)) &&
-        (item.attention?.informationalCount ?? 0) === 0,
-    )
-  );
-}
-
 function workingSummary(rows: TimelineWorkingRows, t: BotHarnessTranslate): string {
   const [only] = rows.items;
   if (only === undefined) return '';
@@ -106,6 +89,22 @@ export function HeaderWorkingStatus({
         t={t}
       />
       <WorkingSummary rows={rows} t={t} />
+    </span>
+  );
+}
+
+export function WorkingAnnouncement({
+  rows,
+  t,
+}: {
+  rows: TimelineWorkingRows;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <span className="bh-sr-only" role="status" aria-live="polite">
+      {rows.items.length === 0
+        ? ''
+        : `${rows.items.map((item) => item.name).join(' / ')} ${workingSummary(rows, t)}`}
     </span>
   );
 }

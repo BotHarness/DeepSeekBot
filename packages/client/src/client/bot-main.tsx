@@ -160,8 +160,8 @@ import {
 } from './dm-actions.js';
 import {
   timelineWorkingRows,
-  timelineWorkingRowsCover,
   HeaderWorkingStatus,
+  WorkingAnnouncement,
   WorkingSummary,
 } from './timeline-working-rows.js';
 import { groupComposerActivity } from './group-composer-activity.js';
@@ -1287,21 +1287,6 @@ function ConversationView({
     },
     [companion, scopeKey],
   );
-  const activityOverlayPane = useScopedRef<HTMLElement | null>(scopeKey, null);
-  const resizeActivityOverlay = useCallback(
-    (height: number): void => {
-      const timeline = scrollRef.current;
-      const pane = timeline?.closest<HTMLElement>('.bh-chat-pane') ?? activityOverlayPane.current;
-      if (pane === null) return;
-      activityOverlayPane.current = pane;
-      const following =
-        followingLatest.current && !store.getSnapshot().conversation.timeline.hasNewer;
-      if (height > 0) pane.style.setProperty('--bh-activity-overlay-inset', `${height + 6}px`);
-      else pane.style.removeProperty('--bh-activity-overlay-inset');
-      if (following && timeline !== null) timeline.scrollTop = timeline.scrollHeight;
-    },
-    [scopeKey],
-  );
   const prependAnchor = useScopedRef<{
     firstId: string | undefined;
     y: number | undefined;
@@ -1485,9 +1470,6 @@ function ConversationView({
     latestMessage?.author.kind === 'bot' ? latestMessage.author.slug : undefined,
   );
   const dmWorking = channel?.type !== 'group' && workingRows.items.length > 0;
-  const composerActivityConcealed =
-    conversation.status === 'ready' &&
-    timelineWorkingRowsCover(composerActivity, workingRows, streamingBotSlugs);
   const channelId = channel?.id;
   const reactToMessage =
     readOnlyDm || channelId === undefined || actions.reactToMessage === undefined
@@ -2601,12 +2583,8 @@ function ConversationView({
   const inboxAvailable =
     dockBotSlug !== undefined && dockEntryProps !== undefined && inboxEntry !== undefined;
   const conversationPane = (
-    <section
-      ref={companionReadMount}
-      className="bh-chat-pane"
-      data-activity-concealed={composerActivityConcealed ? 'true' : undefined}
-      {...fileDrop.handlers}
-    >
+    <section ref={companionReadMount} className="bh-chat-pane" {...fileDrop.handlers}>
+      <WorkingAnnouncement rows={workingRows} t={t} />
       {fileDrop.active ? (
         <ConversationFileDropOverlay
           label={t('composer.dropFiles')}
@@ -3308,9 +3286,6 @@ function ConversationView({
                     uploadControllers.current.delete(id);
                     setUploadItems((current) => current.filter((item) => item.id !== id));
                   }}
-                  activity={composerActivity}
-                  activityConcealed={composerActivityConcealed}
-                  onActivityOverlayResize={resizeActivityOverlay}
                   reply={
                     replyTarget === undefined
                       ? undefined

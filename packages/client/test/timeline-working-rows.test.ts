@@ -8,7 +8,6 @@ import {
   HeaderWorkingStatus,
   WorkingSummary,
   timelineWorkingRows,
-  timelineWorkingRowsCover,
 } from '../src/client/timeline-working-rows.js';
 
 const mira: PersonaBotFacepileItem = {
@@ -103,34 +102,6 @@ describe('timelineWorkingRows', () => {
   it('hands a Bot over to its streaming draft', () => {
     const rows = timelineWorkingRows({ items: [mira, nova], summary: '' }, new Set(['mira']));
     expect(rows.items.map((item) => item.personaBotId)).toEqual(['nova']);
-  });
-});
-
-describe('timelineWorkingRowsCover', () => {
-  const cover = (items: PersonaBotFacepileItem[], streaming = none): boolean => {
-    const activity = { items, summary: '' };
-    return timelineWorkingRowsCover(activity, timelineWorkingRows(activity, streaming), streaming);
-  };
-
-  it('covers the composer status only when every Bot it lists has a row or a draft', () => {
-    expect(timelineWorkingRowsCover(undefined, { items: [], more: 0 }, none)).toBe(false);
-    expect(cover([mira, nova])).toBe(true);
-    expect(cover([mira, waiting])).toBe(false);
-    expect(cover([{ ...mira, attention: { approvalCount: 0, informationalCount: 1 } }])).toBe(
-      false,
-    );
-  });
-
-  it('keeps the composer status when Bots overflow the row cap', () => {
-    expect(cover([mira, nova, kai, zed])).toBe(false);
-    expect(cover([mira, nova, kai, zed], new Set(['zed']))).toBe(true);
-  });
-
-  it('keeps the composer status for a thinking Bot whose own reply is the latest message', () => {
-    const activity = { items: [nova], summary: '' };
-    const rows = timelineWorkingRows(activity, none, 'nova');
-    expect(rows.items).toEqual([]);
-    expect(timelineWorkingRowsCover(activity, rows, none)).toBe(false);
   });
 });
 

@@ -224,7 +224,10 @@ describe('Bot working status in the Channel header', () => {
     expect(headerTitle()).not.toContain('Mira');
     expect(headerTitle()).toContain('...');
     expect(chat.querySelector('.bh-header-working-summary, .bh-timeline-working')).toBeNull();
-    expect(container.querySelectorAll('.bh-composer-activity-summary[aria-live]')).toHaveLength(1);
+    expect(container.querySelector('.bh-composer-activity-status')).toBeNull();
+    const live = container.querySelectorAll('.bh-chat-pane > [role="status"][aria-live="polite"]');
+    expect(live).toHaveLength(1);
+    expect(live[0]?.textContent).toContain('Mira');
     expect(container.querySelector('.bh-stop-btn')?.getAttribute('aria-label')).toBe('停止 Mira');
 
     await setBots([bot('mira', 'Mira', 'idle')], dm);
@@ -335,7 +338,6 @@ describe('Bot working status in the Channel header', () => {
       await act(async () => companion.select('mira'));
       expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('112px');
       expect(chat.scrollTop).toBe(1112);
-      expect(pane.dataset['activityConcealed']).toBe('true');
       await setBots([bot('mira', 'Mira', 'idle')], dm);
       expect(pane.style.getPropertyValue('--bh-companion-read-inset')).toBe('112px');
       await act(async () => companion.select('nova'));
@@ -356,20 +358,7 @@ describe('Bot working status in the Channel header', () => {
     }
   });
 
-  it('conceals the composer status while the header shows the work, even when scrolled up', async () => {
-    const chat = await open(dm, [bot('mira', 'Mira', 'working')]);
-    const status = (): HTMLElement | null =>
-      container.querySelector<HTMLElement>('.bh-composer-activity-status');
-    expect(status()?.dataset['concealed']).toBe('true');
-    expect(status()?.querySelector('[aria-live]')).not.toBeNull();
-
-    layout(chat, 1000);
-    chat.scrollTop = 100;
-    await act(async () => chat.dispatchEvent(new Event('scroll')));
-    expect(status()?.dataset['concealed']).toBe('true');
-  });
-
-  it('keeps the composer status visible when a Bot waits on a card', async () => {
+  it('leaves a Bot that waits on a card out of the header status', async () => {
     await open(group, [bot('mira', 'Mira', 'working'), bot('nova', 'Nova', 'working')]);
     await act(async () =>
       store.applyActivity({
@@ -382,9 +371,6 @@ describe('Bot working status in the Channel header', () => {
       }),
     );
     expect(rowNames()).toEqual(['mira']);
-    expect(
-      container.querySelector<HTMLElement>('.bh-composer-activity-status')?.dataset['concealed'],
-    ).toBeUndefined();
   });
 
   it('hides the thinking status right after the Bot replies', async () => {
@@ -400,9 +386,6 @@ describe('Bot working status in the Channel header', () => {
       }),
     );
     expect(headerTitle()).toBe('Mira');
-    expect(
-      container.querySelector<HTMLElement>('.bh-composer-activity-status')?.dataset['concealed'],
-    ).toBeUndefined();
     expect(chat.querySelector('[data-message-id="m-2"]')).not.toBeNull();
   });
 

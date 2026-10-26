@@ -228,10 +228,7 @@ describe('client styles', () => {
       /\.bh-composer \{[^}]*background: var\(--dsw-alias-bg-module-platform\)/,
     );
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
-    expect(source).toMatch(/\.bh-composer-activity-facepile \.bh-persona-avatar[^}]*border: 0/);
-    expect(source).toMatch(
-      /\.bh-composer-activity-facepile \.bh-persona-avatar::before \{[^}]*display: none/,
-    );
+    expect(source).not.toContain('.bh-composer-activity');
     expect(source).toMatch(/\.bh-composer-input \{[^}]*max-height: 144px/);
     expect(source).toMatch(/\.bh-composer-input \{[^}]*padding: 7px 8px 5px/);
     expect(source).not.toMatch(/\.bh-composer-input \{[^}]*transition:/);
