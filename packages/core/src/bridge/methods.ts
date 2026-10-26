@@ -939,7 +939,13 @@ function purgeFailure(error: unknown, message: string): BridgeResult<never> {
   };
 }
 
-function storageFailure(error: unknown, message: string): BridgeResult<never> {
+function storageFailure(
+  error: unknown,
+  message: string,
+  warn?: (message: string) => void,
+): BridgeResult<never> {
+  if (!(error instanceof StorageCleanupError))
+    warn?.(`${message}: ${error instanceof Error ? error.message : String(error)}`);
   return {
     ok: false,
     error:
@@ -4612,7 +4618,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         return { ok: true, value: deps.storage.usage() };
       } catch (error) {
-        return storageFailure(error, 'Storage usage is unavailable');
+        return storageFailure(error, 'Storage usage is unavailable', deps.warn);
       }
     },
     storageCleanupPreview(payload) {
@@ -4622,7 +4628,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         return { ok: true, value: deps.storage.preview(input.data) };
       } catch (error) {
-        return storageFailure(error, 'Storage cleanup preview is unavailable');
+        return storageFailure(error, 'Storage cleanup preview is unavailable', deps.warn);
       }
     },
     storageCleanupConfirm(payload) {
@@ -4636,7 +4642,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       try {
         return { ok: true, value: deps.storage.confirm(scope, token) };
       } catch (error) {
-        return storageFailure(error, 'Storage cleanup could not complete');
+        return storageFailure(error, 'Storage cleanup could not complete', deps.warn);
       }
     },
     storageMessagesCleanupPreview(payload) {
