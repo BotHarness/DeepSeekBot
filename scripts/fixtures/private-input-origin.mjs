@@ -89,10 +89,10 @@ export function apply(ctx, config) {
       await core.externalMessaging.inbound.setEnabled(bot.slug, grant.id, true);
       return { prepared: true };
     }
-    if (request.action !== 'steer' || !grant || !consumer)
+    if (!['steer', 'request'].includes(request.action) || !grant || !consumer)
       throw new Error('QA command unavailable');
     const before = new Set(core.attention.list({ botSlug: bot.slug }).items.map((item) => item.id));
-    for (let n = 0; n < 2; n++) {
+    for (let n = 0; n < (request.action === 'request' ? 1 : 2); n++) {
       const id = 'synthetic-2290-' + generation + '-' + ++sequence;
       await consumer.onEvent(
         {
@@ -107,7 +107,10 @@ export function apply(ctx, config) {
           mentions: [{ id: 'synthetic-bot', key: '@bot' }],
           mentionedAccount: true,
           at: new Date().toISOString(),
-          text: '@bot Synthetic concurrent context only; no reply or action needed.',
+          text:
+            request.action === 'request'
+              ? '@bot ' + request.prompt
+              : '@bot Synthetic concurrent context only; no reply or action needed.',
           reply: { messageId: id, conversationId: 'synthetic-group', actorId: 'synthetic-human' },
           replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
         },
@@ -128,7 +131,12 @@ export function apply(ctx, config) {
     } catch (error) {
       automatic = error.message;
     }
-    return { acceptedSources: sources.length, selectedLive, automatic };
+    return {
+      acceptedSources: sources.length,
+      selectedLive,
+      automatic,
+      sources: sources.map((source) => source.id),
+    };
   };
   const timer = setInterval(async () => {
     if (busy || !existsSync(command)) return;

@@ -8,7 +8,11 @@ import type { ChannelStore, ChannelAppendOnceResult } from '../channels/store.js
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import type { PrivateInputLog } from './diagnostics.js';
-import type { PrivateInputOrigin, PrivateReplyAuthority } from './im-origin.js';
+import {
+  PrivateInputRefusal,
+  type PrivateInputOrigin,
+  type PrivateReplyAuthority,
+} from './im-origin.js';
 import { PrivateAccountBindings, type PrivateAccountScope } from './account-bindings.js';
 import {
   privateRequestSchema,
@@ -348,8 +352,7 @@ export class PrivateInputs {
       throw new Error('Private input request is invalid or unavailable');
     const origin = this.deps.origin?.(agent, sourceEventId);
     if (origin !== undefined) {
-      if (!origin.current() || this.deps.notify === undefined)
-        throw new Error('Private input IM handoff is unavailable');
+      if (!origin.current()) throw new PrivateInputRefusal('private-source-revoked');
       let origins = this.#origins.get(agent);
       if (origins === undefined) {
         origins = new Map();
@@ -437,6 +440,8 @@ export class PrivateInputs {
         'Private account requires Owner action in an interactive conversation; do not retry this unattended request',
       );
     }
+    if (origin !== undefined && this.deps.notify === undefined)
+      throw new PrivateInputRefusal('private-input-notice-unavailable');
     const binding = existing.binding;
     const opened = await this.#open(
       agent,
@@ -822,11 +827,11 @@ export class PrivateInputs {
     const remembered = [...(this.#origins.get(agent)?.get(account)?.values() ?? [])].filter(
       (origin) => origin.applies(),
     );
-    if (remembered.length > 1) throw new Error('Private input IM source is ambiguous');
+    if (remembered.length > 1) throw new PrivateInputRefusal('private-source-ambiguous');
     const origin =
       sharedFrom === undefined ? (remembered[0] ?? this.deps.origin?.(agent)) : undefined;
     if (origin !== undefined && !origin.current())
-      throw new Error('Private input IM authority changed');
+      throw new PrivateInputRefusal('private-source-revoked');
     const startedUse = await this.#accounts
       .serial(scope, async () => {
         const record = await this.deps
@@ -841,19 +846,19 @@ export class PrivateInputs {
           !this.#grantCommitted(grant.data, id) ||
           matches.some(({ field }) => grant.data.values[field] === undefined)
         )
-          throw new Error('Credential grant is unavailable for this PersonaBot and account');
+          throw new PrivateInputRefusal('private-account-unavailable');
         const binding = await this.#accounts.read(scope);
         if (
           (binding !== undefined && binding.grantId !== id) ||
           (grant.data.version === 3 && binding?.grantId !== id)
         )
-          throw new Error('Credential grant is unavailable for this PersonaBot and account');
+          throw new PrivateInputRefusal('private-account-unavailable');
         const currentOwner = grantOwner();
         if (currentOwner?.botSlug !== owner.botSlug || currentOwner.createdAt !== owner.createdAt)
           throw new Error('Credential authority changed');
         if (signal?.aborted) throw new Error('Protected credential consumer was cancelled');
         if (origin !== undefined && !origin.current())
-          throw new Error('Private input IM authority changed');
+          throw new PrivateInputRefusal('private-source-revoked');
         if (origin !== undefined) this.#guardReply(agent, scope, origin, () => true);
         const controller = new AbortController();
         const abort = () => controller.abort();
@@ -884,7 +889,7 @@ export class PrivateInputs {
             (result) => {
               if (origin !== undefined && (controller.signal.aborted || !origin.current())) {
                 settle('completed');
-                throw new Error('Private input IM authority changed');
+                throw new PrivateInputRefusal('private-source-revoked');
               }
               settle('completed');
               return result;
@@ -905,8 +910,9 @@ export class PrivateInputs {
           });
         return { promise };
       })
-      .catch(() => {
-        throw new Error('Credential grant is unavailable for this PersonaBot and account');
+      .catch((error: unknown) => {
+        if (error instanceof PrivateInputRefusal) throw error;
+        throw new PrivateInputRefusal('private-account-unavailable');
       });
     const started = Date.now();
     const details = { requestId: id, botSlug: owner.botSlug, sessionId: agent.session.id };
@@ -915,8 +921,9 @@ export class PrivateInputs {
       const result = await startedUse.promise;
       this.deps.log('consume-completed', { ...details, durationMs: Date.now() - started });
       return result;
-    } catch {
+    } catch (error) {
       this.deps.log('consume-failed', { ...details, durationMs: Date.now() - started });
+      if (error instanceof PrivateInputRefusal) throw error;
       throw new Error('Protected credential consumer failed or was cancelled');
     }
   }

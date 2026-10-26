@@ -315,7 +315,7 @@ describe('IM private input origin leases', () => {
           );
         },
       );
-      const rejected = expect(consume).rejects.toThrow(/failed or was cancelled/);
+      const rejected = expect(consume).rejects.toMatchObject({ code: 'private-source-revoked' });
       await vi.waitFor(() => expect(active).toBeDefined());
       source.revoke();
       await rejected;

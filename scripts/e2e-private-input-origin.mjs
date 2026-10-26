@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { rpc, verifyPaths } from './verify-app.mjs';
@@ -6,7 +7,7 @@ import { installed, assignmentProbe } from './e2e-assignment-probe.mjs';
 
 const name = process.argv[2] ?? 'issue-2290';
 const phase = process.argv[3] ?? 'candidate';
-assert.ok(['baseline', 'candidate'].includes(phase));
+assert.ok(['baseline', 'candidate', 'recovery'].includes(phase));
 const paths = verifyPaths(name);
 const instance = JSON.parse(readFileSync(paths.instance, 'utf8'));
 const output = resolve(paths.evidence, phase + '-' + Date.now());
@@ -22,10 +23,10 @@ const waitFor = async (check, label) => {
   }
   throw new Error('Timed out: ' + label);
 };
-const fixture = async (action, botSlug) => {
+const fixture = async (action, botSlug, prompt) => {
   const response = resolve(control, 'response.json');
   if (existsSync(response)) unlinkSync(response);
-  writeFileSync(resolve(control, 'command.json'), JSON.stringify({ action, botSlug }));
+  writeFileSync(resolve(control, 'command.json'), JSON.stringify({ action, botSlug, prompt }));
   await waitFor(() => existsSync(response), 'synthetic Provider ' + action);
   const result = JSON.parse(readFileSync(response, 'utf8'));
   assert.equal(result.ok, true, result.error);
@@ -244,6 +245,142 @@ try {
   };
   writeFileSync(resolve(output, `${phase}-report.json`), JSON.stringify(report, null, 2));
   console.log(JSON.stringify(report));
+  if (phase === 'recovery') {
+    const snapshot = () => probe.nativeSnapshot(trace.sessionId);
+    await waitFor(
+      async () =>
+        (await snapshot()).records
+          .filter(({ event }) => ['turn/start', 'turn/end'].includes(event.type))
+          .at(-1)?.event.type === 'turn/end',
+      'local turn end',
+    );
+    const seen = new Set((await messages()).map((message) => message.id));
+    const first = await fixture(
+      'request',
+      bot.slug,
+      'Synthetic recovery qualification: first call secret_cli using the existing synthetic-2290 account and its stored token reference, program gh, args ["--version"], env [{name:"GH_TOKEN",value:"{{token}}"}]. Do not pre-bind with ask_secret for this first call: the first refusal is the intended test. If refused, follow the tool error recovery instructions and retry only after correcting the cause, at most once. The account field declaration is [{id:"token",label:"Token",required:true}]. Never read or print secrets. On success send QA-2847-RECOVERED to this original request with bot_send_message; context-only IM inputs need no action.',
+    );
+    const pending = async () =>
+      (await messages()).find(
+        (message) =>
+          message.toolApprovalRequest?.toolName === 'secret_cli' && !seen.has(message.id),
+      );
+    const firstApproval = await waitFor(pending, 'first IM secret_cli approval');
+    seen.add(firstApproval.id);
+    const mixed = await fixture('steer', bot.slug);
+    assert.equal(mixed.acceptedSources, 2);
+    assert.ok(mixed.automatic.includes('ask_secret'));
+    await call('toolApprovalDecide', {
+      channelId,
+      messageId: firstApproval.id,
+      outcome: 'allowed-once',
+    });
+    const secondApproval = await waitFor(pending, 'corrected secret_cli approval');
+    seen.add(secondApproval.id);
+    await call('toolApprovalDecide', {
+      channelId,
+      messageId: secondApproval.id,
+      outcome: 'allowed-once',
+    });
+    await waitFor(async () => {
+      const data = await snapshot();
+      return data.records.some(
+        ({ event }) =>
+          event.type === 'tool/result' &&
+          event.data?.message?.toolCallId === secondApproval.toolApprovalRequest.callId,
+      );
+    }, 'corrected native result');
+    const data = await snapshot();
+    const resultFor = (id) =>
+      data.records
+        .map((record) => record.event)
+        .find((event) => event.type === 'tool/result' && event.data?.message?.toolCallId === id);
+    const failed = resultFor(firstApproval.toolApprovalRequest.callId);
+    assert.equal(failed.data.message.isError, true);
+    assert.ok(JSON.stringify(failed).includes('private-source-required'));
+    const succeeded = resultFor(secondApproval.toolApprovalRequest.callId);
+    const resultText = succeeded.data.message.content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join('\n');
+    assert.equal(JSON.parse(resultText).exitCode, 0);
+    const bind = data.records
+      .map((record) => record.event)
+      .filter((event) => event.type === 'tool/call' && event.data?.name === 'ask_secret')
+      .at(-1);
+    assert.equal(JSON.parse(bind.data.arguments).source_event_id, first.sources[0]);
+    const accountCards = (await messages()).filter(
+      (message) => message.privateInputRequest?.account === 'synthetic-2290',
+    );
+    assert.equal(accountCards.length, 1);
+    await waitFor(
+      async () =>
+        (await snapshot()).records
+          .filter(({ event }) => ['turn/start', 'turn/end'].includes(event.type))
+          .at(-1)?.event.type === 'turn/end',
+      'recovery turn end',
+    );
+    const cli = (tool, args) =>
+      new Promise((done, reject) => {
+        const login = new URL(instance.url);
+        const child = spawn(
+          process.execPath,
+          ['packages/core/cli/index.mjs', 'bot-tool', bot.slug, tool, '--args-stdin'],
+          {
+            env: {
+              ...process.env,
+              DEEPSEEKBOT_HOST: login.origin,
+              DEEPSEEKBOT_HOST_TOKEN: login.searchParams.get('token'),
+            },
+            stdio: ['pipe', 'pipe', 'pipe'],
+            windowsHide: true,
+          },
+        );
+        let stdout = '';
+        child.stdout.on('data', (chunk) => {
+          stdout += chunk;
+        });
+        child.stderr.resume();
+        child.on('error', reject);
+        child.on('exit', (code) =>
+          code === 0
+            ? done(JSON.parse(stdout))
+            : reject(new Error('Direct CLI failed with exit code ' + code)),
+        );
+        child.stdin.end(JSON.stringify(args));
+      });
+    const configured = await cli('ask_secret', {
+      account: 'synthetic-2290',
+      purpose: 'Test a local command',
+      fields: [{ id: 'token', label: 'Token', required: true }],
+    });
+    assert.equal(configured.result.status, 'configured');
+    for (const message of await messages()) seen.add(message.id);
+    const direct = cli('secret_cli', {
+      account: 'synthetic-2290',
+      references: Object.values(configured.result.references),
+      program: 'gh',
+      args: ['--version'],
+      env: [{ name: 'GH_TOKEN', value: '{{token}}' }],
+    });
+    const directApproval = await waitFor(pending, 'direct CLI native approval');
+    await call('toolApprovalDecide', {
+      channelId,
+      messageId: directApproval.id,
+      outcome: 'allowed-once',
+    });
+    assert.equal((await direct).result.exitCode, 0);
+    const recovery = {
+      synthetic: true,
+      firstRefusal: 'private-source-required',
+      selectedOriginalRequest: true,
+      correctedExitCode: 0,
+      inputCards: 1,
+      directCliExitCode: 0,
+    };
+    writeFileSync(resolve(output, 'recovery-proof.json'), JSON.stringify(recovery, null, 2));
+    console.log(JSON.stringify(recovery));
+  }
 } catch (error) {
   writeFileSync(resolve(output, phase + '-failure.console.txt'), consoleLines.join('\n'));
   await page.screenshot({ path: resolve(output, phase + '-failure.png') }).catch(() => {});

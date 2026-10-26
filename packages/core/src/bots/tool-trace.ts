@@ -1,4 +1,5 @@
 import type { DshSessionEvent } from '../sessions/source.js';
+import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DirectBotToolCall } from '../runtime/bot-runtime.js';
 
 export type ToolCallOutcome = 'ok' | 'error' | 'denied' | 'cancelled' | 'pending';
@@ -20,7 +21,7 @@ export interface TurnTrace {
   readonly noToolCalls: boolean;
 }
 
-const SECRET_TOOLS = new Set(['secret_cli', 'secret_mcp_connect', 'ask_secret']);
+const SECRET_TOOLS = PRIVATE_INPUT_TOOLS;
 const VALUE_LIMIT = 200;
 const RESULT_LIMIT = 300;
 
