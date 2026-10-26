@@ -2,7 +2,6 @@ import { useRef, useState, type ReactElement } from 'react';
 
 import type { BridgeActions } from './actions.js';
 import { BotInboxItemRow } from './channel-sidebar-builtins.js';
-import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { PanelEmptyState } from './ds/empty-state.js';
@@ -11,7 +10,6 @@ import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BotAttentionItem } from './store.js';
 import { SidebarCardList } from './sidebar-card.js';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 type InboxPage =
   | { status: 'loading'; items: BotAttentionItem[]; nextCursor?: string | undefined }
@@ -67,16 +65,24 @@ export function BotInboxDialog({
     };
   }, []);
 
-  const matching = page.items.filter((item) => item.sourceMessageId === messageId);
-  const history = page.items.filter((item) => item.sourceMessageId !== messageId);
-  const row = (item: BotAttentionItem): ReactElement => (
-    <BotInboxItemRow
-      key={item.id}
-      item={item}
-      source={item.externalOrigin?.conversationName ?? item.sourceChannelName}
-      actions={actions}
-      t={t}
-    />
+  const items = [
+    ...page.items.filter((item) => item.sourceMessageId === messageId),
+    ...page.items.filter((item) => item.sourceMessageId !== messageId),
+  ];
+  const nextCursor = page.status === 'ready' ? page.nextCursor : undefined;
+  const sentinelRef = useMountedResource<HTMLDivElement>(
+    (sentinel) => {
+      if (nextCursor === undefined || typeof IntersectionObserver === 'undefined') return;
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect();
+          void load(nextCursor);
+        }
+      });
+      observer.observe(sentinel);
+      return () => observer.disconnect();
+    },
+    [nextCursor],
   );
   return (
     <PanelDialog
@@ -91,18 +97,6 @@ export function BotInboxDialog({
       {missing ? (
         <Note tone="warning">{t('message.delivery.notInInbox', { name: botName })}</Note>
       ) : null}
-      {matching.length === 0 ? null : (
-        <section data-inbox-match="">
-          <GroupHeading
-            quiet
-            label={t('message.delivery.thisMessage')}
-            count={<Tag tone="neutral">{matching.length}</Tag>}
-          />
-          <SidebarCardList label={t('message.delivery.thisMessage')}>
-            {matching.map(row)}
-          </SidebarCardList>
-        </section>
-      )}
       {page.status === 'loading' && page.items.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('inbox.loading')} />
       ) : null}
@@ -117,27 +111,36 @@ export function BotInboxDialog({
       {page.status === 'ready' && page.items.length === 0 ? (
         <PanelEmptyState icon="inbox">{t('inbox.empty')}</PanelEmptyState>
       ) : null}
-      {history.length === 0 ? null : (
-        <section data-inbox-history="">
-          <GroupHeading
-            quiet
-            label={t('message.delivery.history')}
-            count={<Tag tone="neutral">{history.length}</Tag>}
-          />
-          <SidebarCardList label={t('message.delivery.history')}>
-            {history.map(row)}
-          </SidebarCardList>
-        </section>
+      {items.length === 0 ? null : (
+        <SidebarCardList label={t('message.delivery.history')}>
+          {items.map((item) => (
+            <BotInboxItemRow
+              key={item.id}
+              item={item}
+              source={item.externalOrigin?.conversationName ?? item.sourceChannelName}
+              marker={
+                item.sourceMessageId === messageId ? t('message.delivery.thisMessage') : undefined
+              }
+              actions={actions}
+              t={t}
+            />
+          ))}
+        </SidebarCardList>
       )}
-      {page.status === 'ready' && page.nextCursor !== undefined ? (
-        <button
-          type="button"
-          className="bh-group-manage-button"
-          onClick={() => void load(page.nextCursor)}
-        >
-          {t('inbox.more')}
-        </button>
+      {page.status === 'loading' && page.items.length > 0 ? (
+        <LoadingSkeleton kind="sidebar" label={t('inbox.loading')} />
       ) : null}
+      {nextCursor === undefined ? null : (
+        <div ref={sentinelRef} data-inbox-more="">
+          <button
+            type="button"
+            className="bh-group-manage-button"
+            onClick={() => void load(nextCursor)}
+          >
+            {t('inbox.more')}
+          </button>
+        </div>
+      )}
     </PanelDialog>
   );
 }

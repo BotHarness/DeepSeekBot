@@ -222,11 +222,13 @@ function MembersBadge(): ReactElement {
 export function BotInboxItemRow({
   item,
   source,
+  marker,
   actions,
   t,
 }: {
   item: BotAttentionItem;
   source?: string | undefined;
+  marker?: string | undefined;
   actions: ChannelSidebarEntryProps['actions'];
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -399,6 +401,11 @@ export function BotInboxItemRow({
     : [];
   const unavailable = !memoryChange && !item.sourceAvailable;
   const chips = [
+    marker === undefined ? null : (
+      <Tag key="marker" tone="info">
+        {marker}
+      </Tag>
+    ),
     item.externalOrigin?.voice ? (
       <Tag
         key="voice"

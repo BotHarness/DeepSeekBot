@@ -106,11 +106,13 @@ describe('Bot Inbox dialog', () => {
         'ADA 的收件箱',
       );
       const dialog = view.dialog();
-      const match = dialog?.querySelector('[data-inbox-match]');
-      expect(match?.textContent).toContain('这条消息');
-      expect(match?.textContent).toContain('Already answered in the thread');
-      expect(match?.textContent).not.toContain('Earlier ask');
-      expect(dialog?.querySelector('[data-inbox-history]')?.textContent).toContain('Earlier ask');
+      const rows = () => [...(dialog?.querySelectorAll('.bh-card-list > li') ?? [])];
+      expect(dialog?.querySelectorAll('.bh-card-list')).toHaveLength(1);
+      expect(rows()).toHaveLength(2);
+      expect(rows()[0]?.textContent).toContain('这条消息');
+      expect(rows()[0]?.textContent).toContain('Already answered in the thread');
+      expect(rows()[1]?.textContent).toContain('Earlier ask');
+      expect(rows()[1]?.textContent).not.toContain('这条消息');
       expect(dialog?.textContent).not.toContain('没有进入');
 
       const more = [...(dialog?.querySelectorAll('button') ?? [])].find(
@@ -118,7 +120,8 @@ describe('Bot Inbox dialog', () => {
       );
       await act(async () => more?.click());
       expect(botInboxPage).toHaveBeenLastCalledWith('ada', 'next');
-      expect(dialog?.querySelector('[data-inbox-history]')?.textContent).toContain('Oldest ask');
+      expect(rows()).toHaveLength(3);
+      expect(rows()[2]?.textContent).toContain('Oldest ask');
       expect(dialog?.textContent).not.toContain('加载更多');
     } finally {
       await view.cleanup();
@@ -157,10 +160,48 @@ describe('Bot Inbox dialog', () => {
         (button) => button.textContent === zhTranslate('inbox.retry'),
       );
       await act(async () => retry?.click());
-      expect(view.dialog()?.querySelector('[data-inbox-match]')?.textContent).toContain(
+      expect(view.dialog()?.querySelector('.bh-card-list > li')?.textContent).toContain(
         'Summary this',
       );
     } finally {
+      await view.cleanup();
+    }
+  });
+
+  it('loads the next page when the end of the list scrolls into view', async () => {
+    const observers: Array<(entries: Array<{ isIntersecting: boolean }>) => void> = [];
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: (entries: Array<{ isIntersecting: boolean }>) => void) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const botInboxPage = vi.fn(async (_slug: string, cursor?: string) =>
+      cursor === undefined
+        ? { items: [item('first', 'm0')], nextCursor: 'page-2' }
+        : cursor === 'page-2'
+          ? { items: [item('second', 'm-1')], nextCursor: 'page-3' }
+          : { items: [item('third', 'm-2')] },
+    );
+    const view = await render({
+      botSlug: 'ada',
+      botName: 'ADA',
+      missing: false,
+      actions: { botInboxPage } as unknown as BridgeActions,
+    });
+    try {
+      await act(async () => observers.at(-1)?.([{ isIntersecting: true }]));
+      expect(botInboxPage).toHaveBeenLastCalledWith('ada', 'page-2');
+      await act(async () => observers.at(-1)?.([{ isIntersecting: true }]));
+      expect(botInboxPage).toHaveBeenLastCalledWith('ada', 'page-3');
+      expect(view.dialog()?.querySelectorAll('.bh-card-list > li')).toHaveLength(3);
+      expect(view.dialog()?.querySelector('[data-inbox-more]')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
       await view.cleanup();
     }
   });
