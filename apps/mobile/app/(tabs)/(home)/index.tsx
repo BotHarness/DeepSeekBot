@@ -560,6 +560,7 @@ const HomeContent = memo(function HomeContent({
                     ) : item.type === 'computer' ? (
                       <HostRow
                         item={item}
+                        showSourceLabel={effectiveFilter === 'all'}
                         onError={() => setActionError(true)}
                         onDelete={(target) => setDeleting({ host: item.host, target })}
                       />

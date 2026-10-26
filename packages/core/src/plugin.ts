@@ -1,5 +1,7 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+
+import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
 import { CloudConnections } from './cloud/connections.js';
@@ -2706,7 +2708,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         purge: core.contentPurge,
         version: runningRelease.version,
         sessionCount: () => core.ownership.list().length,
-        dshVersion: installedDshVersion(),
+        runtimeVersions: async () => ({
+          host: (await nativeReleaseRuntime())?.version ?? null,
+          tools: installedDshVersion() ?? null,
+        }),
         log: (message) => ctx.logger.info(message),
       },
       join(dshHome, 'botharness', 'backup-staging'),

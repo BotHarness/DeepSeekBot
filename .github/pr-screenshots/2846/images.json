@@ -1,0 +1,107 @@
+[
+  {
+    "file": "send-before.png",
+    "sha256": "14e078b92d3f781ac9cb0adb709f88edc822e80633a33493ab963ebb3d9dc3fb",
+    "source": "d488ae9b8",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "send-after.png",
+    "sha256": "618a46f9d7a5c2207138c70509f66530178454286e12d0a013c2918bd49d1c4b",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "send-normal.png",
+    "sha256": "b21f418f6d0085fb203f4262df698becb6ffed886bae13296e52bf0407ece5c4",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "send-muted.png",
+    "sha256": "e91def1881cb61be6e9a5db4480b32ac46e9d380ce7fa8e51c772b6e6aff96ce",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "retry.png",
+    "sha256": "ca2890c7470a6eab564c2558361746f794a75f172308c406eff90e7d25e387d8",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "retry-pending.png",
+    "sha256": "f623427afe15ede0af0795d7b9690265d4f981d1cbbc57f3937e245d2c65e97a",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "retry-done.png",
+    "sha256": "55f913a407478be33bd975fae0b3c5c34769a05190471eb54f3b17e12e91bbd6",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "focus-before.png",
+    "sha256": "f3a50f2a63d56d13fd62cf92b4a1343692954d7f53d3ae0fc51f86aebb7b724b",
+    "source": "d488ae9b8",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "create-before.png",
+    "sha256": "ff6196b722d4a86aeba81e47f788c321e79608aa6a0224d8d538e37c5495657e",
+    "source": "d488ae9b8",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "create-after.png",
+    "sha256": "a67925fe37e06122bfb1b50bac6834b5bea7310e506857abfa42eafe06c4b420",
+    "source": "d0540529a",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "action-before.png",
+    "sha256": "dc15d90d1242a6bd1e57bb3ad3dab0b7e47478a73c2ebbe62ea33c7008f0564a",
+    "source": "d488ae9b8",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "action-after.png",
+    "sha256": "2bd42cbf7cd503adcdac597561953d9e2b323b6d3c2b9ae7b3ca145069a092d6",
+    "source": "d0540529a",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "focus-after.png",
+    "sha256": "afe5f240ffa3f40a81f99fac1bb865fb8ef74e9b0a2d32469a0efcf2bd21f590",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "bottom.png",
+    "sha256": "3b9d2a6c6dd1d56935c4aa3eed9d9e0326bb3bd5820a144cfaf1fab3d117e78c",
+    "source": "3e0e3c68f",
+    "pixels": "original capture or exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  },
+  {
+    "file": "skeleton.png",
+    "sha256": "7448739b6591ed6b2e8e6085fc91550a77caae0e02d6dd831b0ecb6bbb452e05",
+    "source": "3e0e3c68f",
+    "pixels": "exact decoded video frame; no edits",
+    "privacy": "reviewed synthetic QA content"
+  }
+]

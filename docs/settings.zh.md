@@ -27,10 +27,12 @@
 选择备份文件可检查清单、数据库完整性、数量、实际大小和 SHA-256；哈希证明完整性，不证明来源。用可信安装包提供的本地命令，将文件恢复到一个尚不存在的新目录：
 
 ```text
-botharness-profile restore --file "environment.botharness-backup" --new-home "new-environment"
+tobs profile-backup-restore --file "environment.botharness-backup" --new-home "new-environment" --confirm
 ```
 
-源码 checkout 可使用 `node scripts/profile-restore.mjs` 加相同参数。恢复完成时环境仍停止；用已验证的 DSH（**0.2.1-rc.2** 或 **0.2.0-rc.2**）和匹配的 BotHarness Bundle 启动该 DSH_HOME。开发环境可运行 `node scripts/dev-instance.mjs --home <新目录> --port <端口>`，由固定原生 CLI 创建 Profile 组合，不加载备份里的可执行配置。运行中的 Settings 不提供任意目标目录写入，也不替换自身数据；已有目录会被拒绝，暂存数据库使用既有 Profile Writer Lease 校验和迁移后才发布。
+源码 checkout 也保留 `node scripts/profile-restore.mjs restore --file <文件> --new-home <新目录>` 入口。恢复完成时环境仍停止；用兼容且可信的 DSH 安装和匹配的 BotHarness Bundle 启动该 DSH_HOME。开发环境可运行 `node scripts/dev-instance.mjs --home <新目录> --port <端口>`，由固定原生 CLI 创建 Profile 组合，不加载备份里的可执行配置。运行中的 Settings 不提供任意目标目录写入，也不替换自身数据；已有目录会被拒绝，暂存数据库使用既有 Profile Writer Lease 校验和迁移后才发布。
+
+DSH 版本只记录备份来源；兼容性由归档格式、数据库代数及必需数据契约决定。历史 v1 备份仍可读取，新导出的 v2 备份需要更新后的 Tobs。遇到不支持的未来格式或数据库结构时，需要升级读取方。
 
 恢复默认进入灾难恢复状态：Bot 暂停，账号绑定、外部触发器、Service Grants、持久工具授权和定时任务挂起；Workspace 需要重新映射，Browser／Computer 访问关闭，旧 Session／Inbox／Outbox 不重放。冷状态仍能读取聊天历史和 Memory。在 DSH 模型设置配置目标本地凭证，并在 Bot Profile 保存明确的模型计划；回到管理备份刷新准备度，点击「授权此目标模型」，确认已考虑旧设备仍运行的同身份双活风险，再「激活此 Bot」。发送新的 DM，保留身份并使用新的 Orchestrator Session。模型不可用或计划修订变化会阻止新请求，不静默回退；外部账号需要另行明确授权。
 

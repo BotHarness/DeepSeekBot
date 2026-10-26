@@ -155,6 +155,8 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
       offInbox();
       offConnection();
       inbox.stop();
+      for (const conversation of conversations.get(client)?.values() ?? []) conversation.stop();
+      conversations.delete(client);
       client.stop();
     },
   };
@@ -471,11 +473,35 @@ function conversationFor(
   });
   let watchers = 0;
   let idle: ReturnType<typeof setTimeout> | undefined;
+  let offRetained: (() => void) | undefined;
+  const reconcileIdle = () => {
+    if (watchers > 0) return;
+    const outgoing = inner
+      .getSnapshot()
+      .messages.filter((message) => message.author === 'human' && message.revision === undefined);
+    if (outgoing.length > 0) {
+      if (outgoing.every((message) => message.delivery === 'failed')) inner.stop();
+      return;
+    }
+    offRetained?.();
+    offRetained = undefined;
+    inner.stop();
+    if (byKey.get(key) === conversation) byKey.delete(key);
+  };
   const conversation: Conversation = {
     ...inner,
+    stop() {
+      clearTimeout(idle);
+      offRetained?.();
+      offRetained = undefined;
+      inner.stop();
+      if (byKey.get(key) === conversation) byKey.delete(key);
+    },
     subscribe(listener) {
       watchers += 1;
       clearTimeout(idle);
+      offRetained?.();
+      offRetained = undefined;
       inner.start();
       const off = inner.subscribe(listener);
       return () => {
@@ -484,8 +510,8 @@ function conversationFor(
         if (watchers > 0) return;
         idle = setTimeout(() => {
           if (watchers > 0) return;
-          inner.stop();
-          byKey.delete(key);
+          offRetained = inner.subscribe(reconcileIdle);
+          reconcileIdle();
         }, 0);
       };
     },

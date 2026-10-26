@@ -1,4 +1,5 @@
 import { createChannelActionTool } from './channel-action-tool.js';
+import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
@@ -3337,9 +3338,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   directTools(): DirectBotToolSpec[] {
+    const privateTools = new Map<string, ToolDefinition>();
+    for (const handle of this.#handles.values()) {
+      for (const name of PRIVATE_INPUT_TOOLS) {
+        const tool = handle.agent.ctx.tools.get(name, handle.agent);
+        if (tool !== undefined) privateTools.set(name, tool);
+      }
+    }
     return [
       ...this.#directToolDefinitions(CATALOG_RUN),
       ...(this.#subagentTools?.(CATALOG_RUN.bot.slug) ?? []),
+      ...privateTools.values(),
     ].map((tool) => ({
       name: tool.name,
       description: tool.description,
@@ -3357,7 +3366,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#assertOpen();
     if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
     const tool =
-      this.#subagentTools !== undefined && isBotSubagentModelTool(name)
+      PRIVATE_INPUT_TOOLS.has(name) ||
+      (this.#subagentTools !== undefined && isBotSubagentModelTool(name))
         ? name
         : this.#directToolDefinitions(run).find((entry) => entry.name === name);
     if (tool === undefined)
@@ -3376,6 +3386,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           throw new DirectBotToolError(
             'parent-unavailable',
             'No live Orchestrator Agent is available; send this Bot a DM before calling its Subagent tools',
+          );
+        if (PRIVATE_INPUT_TOOLS.has(name) && parent.ctx.tools.get(name, parent) === undefined)
+          throw new DirectBotToolError(
+            'tool-not-direct',
+            'This private tool is unavailable to the Bot',
           );
         const result = await parent.ctx.tools.execute({
           callId: ToolCallId(run.sessionId),

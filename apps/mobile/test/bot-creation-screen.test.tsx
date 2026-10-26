@@ -295,6 +295,11 @@ it('keeps optional details while changing the destination and submits the select
   expect(container.textContent).not.toContain(t.botCreation.model);
   await type(t.botCreation.name, 'Travel Bot');
   await type(t.botCreation.persona, 'Plan accessible trips');
+  const nameInput = container.querySelector<HTMLInputElement>(
+    `input[aria-label="${t.botCreation.name}"]`,
+  )!;
+  nameInput.focus();
+  nameInput.setSelectionRange(2, 6);
   await press('create-bot-details');
   await type(t.botCreation.bio, 'Local guide');
   await type(t.botCreation.tags, 'travel, family');
@@ -308,6 +313,10 @@ it('keeps optional details while changing the destination and submits the select
   expect(
     container.querySelector<HTMLInputElement>(`input[aria-label="${t.botCreation.bio}"]`)?.value,
   ).toBe('Local guide');
+  expect(container.querySelector(`input[aria-label="${t.botCreation.name}"]`)).toBe(nameInput);
+  expect(nameInput.value).toBe('Travel Bot');
+  expect(nameInput.selectionStart).toBe(2);
+  expect(nameInput.selectionEnd).toBe(6);
   await press('create-bot-submit');
   expect(operation?.hostId).toBe('B');
   expect(operation?.input).toMatchObject({

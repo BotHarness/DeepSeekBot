@@ -2,6 +2,8 @@
 
 | Feature | Needs a model | Scripted journey | File |
 | --- | --- | --- | --- |
+| Complete environment backup across versions | no | `verify-app` Settings + backup CLI | [profile-backup.md](profile-backup.md) |
+
 | Mobile concurrent paired Hosts, Chats and Activity | only for a reply | shared-device two-Host journey | [phone-multiple-hosts.md](phone-multiple-hosts.md) |
 | Phone long-press Bot/group/section deletion | no | `scripts/e2e-mobile-deletion-web.mjs` | [phone-deletion.md](phone-deletion.md) |
 | Native Subagent presets, live-parent CLI and background wake lifecycle | yes for child results | `verify-app` Bot DM and direct CLI | [subagent-presets.md](subagent-presets.md) |
@@ -114,4 +116,6 @@ Historical failures from 2026-10-14 (not requalified by this audit):
 | Phone language and appearance | no | Queued native checks; preference and mounted composer regression tests | [phone-interface.md](phone-interface.md) |
 
 | Mobile group/Bot avatars and separate chat backgrounds | no | none (Expo and shared-device user path) | [phone-channel-avatars.md](phone-channel-avatars.md) |
+
+
 | Mobile workspace history and source transitions | no | shared Android/iOS device lanes; two paired QA Hosts and two Cloud accounts | [phone-workspace-navigation.md](phone-workspace-navigation.md) |

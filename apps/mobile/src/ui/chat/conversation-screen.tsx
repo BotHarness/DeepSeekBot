@@ -454,6 +454,17 @@ function ChatConversation({
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const focusPage = useRef<string | undefined>(undefined);
+  const focusCancelled = useRef(false);
+  const focusNeedsLayout = useRef(false);
+  const focusEstimate = useRef<string | undefined>(undefined);
+  const focusAttempt = useRef<
+    { message: string; request: string | undefined; index: number } | undefined
+  >(undefined);
+  const retryFocus = useRef<() => void>(() => undefined);
+  const onFocusViewabilityChange = useCallback(() => {
+    focusNeedsLayout.current = false;
+    retryFocus.current();
+  }, []);
   const focusIntent = useRef<{ request: string | undefined; message: string | undefined }>({
     request: undefined,
     message: undefined,
@@ -632,11 +643,21 @@ function ChatConversation({
 
   const firstMessageId = snapshot.messages[0]?.id ?? '';
   const jump = useCallback(() => {
-    if (!focused || focus === undefined || jumped.current === focus) return;
+    if (
+      !focused ||
+      focus === undefined ||
+      focusCancelled.current ||
+      focusNeedsLayout.current ||
+      jumped.current === focus ||
+      focusIntent.current.message !== focus ||
+      focusIntent.current.request !== focusRequest
+    )
+      return;
     const index = rows.findIndex((row) => row.kind === 'message' && row.message.id === focus);
     if (index >= 0) {
       if (!list.current) return;
       jumped.current = focus;
+      focusAttempt.current = { message: focus, request: focusRequest, index };
       latest.hold();
       list.current.scrollToIndex({ index, viewPosition: 0.5, animated: true });
     } else if (latestWindowOnly && snapshot.status === 'live') jumped.current = focus;
@@ -655,6 +676,7 @@ function ChatConversation({
   }, [
     focused,
     focus,
+    focusRequest,
     rows,
     list,
     latest.hold,
@@ -669,12 +691,17 @@ function ChatConversation({
   ]);
 
   useLayoutEffect(() => {
+    retryFocus.current = jump;
     if (!focused) return;
     const previous = focusIntent.current;
     if (previous.message !== focus || previous.request !== focusRequest) {
       focusIntent.current = { request: focusRequest, message: focus };
       jumped.current = undefined;
       focusPage.current = undefined;
+      focusCancelled.current = false;
+      focusNeedsLayout.current = false;
+      focusEstimate.current = undefined;
+      focusAttempt.current = undefined;
     }
     jump();
   }, [focused, focus, focusRequest, jump]);
@@ -1386,20 +1413,27 @@ function ChatConversation({
                 data={rows}
                 keyExtractor={(row) => row.key}
                 renderItem={renderItem}
+                onViewableItemsChanged={onFocusViewabilityChange}
                 onScrollToIndexFailed={(info) => {
+                  const attempt = focusAttempt.current;
+                  if (
+                    focusCancelled.current ||
+                    attempt === undefined ||
+                    attempt.index !== info.index ||
+                    attempt.message !== focusIntent.current.message ||
+                    attempt.request !== focusIntent.current.request
+                  )
+                    return;
+                  focusNeedsLayout.current = true;
+                  jumped.current = undefined;
+                  focusAttempt.current = undefined;
+                  const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                  if (focusEstimate.current === estimate) return;
+                  focusEstimate.current = estimate;
                   list.current?.scrollToOffset({
                     offset: info.averageItemLength * info.index,
                     animated: false,
                   });
-                  setTimeout(
-                    () =>
-                      list.current?.scrollToIndex({
-                        index: info.index,
-                        viewPosition: 0.5,
-                        animated: true,
-                      }),
-                    100,
-                  );
                 }}
                 {...(latest.ready && latest.browsed && !snapshot.olderError
                   ? { onStartReached: () => void conversation?.loadOlder() }
@@ -1407,6 +1441,8 @@ function ChatConversation({
                 onStartReachedThreshold={0.5}
                 {...latest.listProps}
                 onScrollBeginDrag={(event: ScrollEvent) => {
+                  focusCancelled.current = true;
+                  focusAttempt.current = undefined;
                   pull.onScrollBeginDrag(event);
                   latest.listProps.onScrollBeginDrag();
                 }}
@@ -1420,6 +1456,7 @@ function ChatConversation({
                 }}
                 onContentSizeChange={(width: number, height: number) => {
                   latest.listProps.onContentSizeChange(width, height);
+                  focusNeedsLayout.current = false;
                   jump();
                 }}
                 scrollEventThrottle={32}

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Context } from '@deepseek-ai/cordis';
 import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
+import { PRIVATE_INPUT_TOOLS } from '../src/credentials/tool-contract.js';
 
 import { createChannelStore } from '../src/channels/store.js';
 import { mountOperationalDatabase } from '../src/database/owner.js';
@@ -138,7 +139,12 @@ describe('direct Bot tool runner', () => {
       JSON.parse(readFileSync(join(repo, 'scripts/cli-parity-baseline.json'), 'utf8')).tools,
     );
     expect(listed.filter((name) => botTools.includes(name)).sort()).toEqual(
-      botTools.filter((name) => !exempt.includes(name) && name !== 'cloud_work').sort(),
+      botTools
+        .filter(
+          (name) =>
+            !exempt.includes(name) && name !== 'cloud_work' && !PRIVATE_INPUT_TOOLS.has(name),
+        )
+        .sort(),
     );
     expect(listed.every((name) => botTools.includes(name))).toBe(true);
     expect(botTools).toContain('cloud_work');

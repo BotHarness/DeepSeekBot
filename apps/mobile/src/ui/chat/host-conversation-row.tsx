@@ -6,10 +6,12 @@ import type { EnvironmentChatRow as Row } from './environment-chat-list';
 
 export function HostRow({
   item,
+  showSourceLabel,
   onDelete,
   onError,
 }: {
   item: Extract<Row, { type: 'computer' }>;
+  showSourceLabel: boolean;
   onDelete(target: DeletionTarget): void;
   onError(): void;
 }) {
@@ -23,7 +25,7 @@ export function HostRow({
       inbox={inbox}
       hostId={saved.hostId}
       look={look}
-      sourceLabel={shownHostName(look, saved.hostName)}
+      {...(showSourceLabel ? { sourceLabel: shownHostName(look, saved.hostName) } : {})}
       arrangement={snapshot.roster?.arrangement}
       onDelete={onDelete}
       onError={onError}

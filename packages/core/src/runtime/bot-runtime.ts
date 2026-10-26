@@ -39,7 +39,8 @@ import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { mentionPeople, withMentionNames } from '../messaging/mention-text.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
-import type { PrivateInputOrigin } from '../credentials/im-origin.js';
+import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
+import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { MessagingProcessing } from '../messaging/typing.js';
 import type {
   ExternalSource,
@@ -3626,7 +3627,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const owner = this.#ownership.resolve(sessionId);
     const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
     if (owner?.rootRole !== 'orchestrator' || turn?.sessionId !== sessionId) {
-      if (selected !== undefined) throw new Error('Private input IM source is unavailable');
+      if (selected !== undefined) throw new PrivateInputRefusal('private-source-invalid');
       return undefined;
     }
     if (
@@ -3642,11 +3643,13 @@ class BotRuntimeImplementation implements BotRuntime {
     });
     if (ids.length === 0 && selected === undefined) return undefined;
     const id = selected ?? (ids.length === 1 ? ids[0] : undefined);
-    if (id === undefined || !ids.includes(id) || this.#externalMessaging === undefined)
-      throw new Error('Select one live accepted IM source_event_id for private input');
+    if (id === undefined) throw new PrivateInputRefusal('private-source-required');
+    if (!ids.includes(id)) throw new PrivateInputRefusal('private-source-invalid');
+    if (this.#externalMessaging === undefined)
+      throw new PrivateInputRefusal('private-source-unavailable');
     const messaging = this.#externalMessaging;
     const bot = this.#registry.get(owner.botSlug);
-    if (bot === undefined) throw new Error('Private input IM source is unavailable');
+    if (bot === undefined) throw new PrivateInputRefusal('private-source-revoked');
     const signal = messaging.inbound.sourceSignal(owner.botSlug, id);
     const applies = () => this.#turnSources.get(owner.botSlug) === turn;
     const current = () => {
@@ -3672,7 +3675,7 @@ class BotRuntimeImplementation implements BotRuntime {
         return false;
       }
     };
-    if (!current()) throw new Error('Private input IM source is unavailable');
+    if (!current()) throw new PrivateInputRefusal('private-source-revoked');
     return { sourceEventId: id, signal, applies, current };
   }
 
@@ -3994,11 +3997,11 @@ class BotRuntimeImplementation implements BotRuntime {
       calls.push({
         callId: sessionId,
         tool,
-        args,
+        args: PRIVATE_INPUT_TOOLS.has(tool) ? {} : args,
         at: started.toISOString(),
         durationMs: this.#now().getTime() - started.getTime(),
         outcome,
-        result,
+        result: PRIVATE_INPUT_TOOLS.has(tool) ? '[private tool result omitted]' : result,
       });
       this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
     };

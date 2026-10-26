@@ -12,7 +12,6 @@
     "/api/computer/diagnostics/viewer": "UI-only: the Web Client's Computer viewer reports its own connection events here; an agent reads them with computer-diagnostics"
   },
   "tools": {
-    "ask_secret": "Opens a private input card that resumes the calling Bot turn; the ask-secret-* commands cover the Human side.",
     "ask_user_question": "DSH native question card that pauses the calling Agent turn; user-question-status and user-question-answer cover the Human side.",
     "channel_read_image": "Returns the image to the calling model as input; with no model there is nothing to receive it. channel_read and channel_attachment_save cover the file.",
     "create_assignment": "Starts an Assignment owned by the Source Event of the calling Bot turn; reach it through send and inspect it with bot-trace.",
