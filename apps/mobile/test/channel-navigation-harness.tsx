@@ -20,6 +20,7 @@ export function channelNavigationHarness(wrapped = false) {
       'conversation-section',
       'request-activity',
       'channel-files',
+      'channel-details',
       'host-look',
     ],
     routeParamList: {},

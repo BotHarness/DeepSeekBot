@@ -1828,7 +1828,7 @@ const zh: typeof en = {
     receipt: '评价已提交',
   },
   channelFiles: {
-    title: '会话文件',
+    title: '频道文件',
     empty: '此会话暂无文件。',
     noRecent: '最近的消息中没有文件。',
     loadOlder: '加载更早的文件',

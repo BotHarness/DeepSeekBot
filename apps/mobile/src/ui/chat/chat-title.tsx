@@ -29,6 +29,7 @@ export function ChatTitle({
   const name = bot?.displayName ?? fallback;
   return (
     <Pressable
+      testID="bot-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[name, status, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
