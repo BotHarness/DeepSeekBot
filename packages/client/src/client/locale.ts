@@ -3543,8 +3543,7 @@ export const zh = {
   'failure.recoveryBusy': '请等待当前回复结束，或先停止 Bot',
   'failure.compactionFailed': '压缩未完成，可以开新会话并重试',
   'failure.newSessionRetry': '开新会话并重试',
-  'failure.contextWindowHint':
-    '自动压缩未能恢复。请缩小请求后重试，例如只读取大文件或命令输出的一部分。',
+  'failure.contextWindowHint': '可压缩当前上下文，或开启新会话。',
   'failure.generic': '请查看错误详情',
   'failure.openModels': '打开模型设置',
   'failure.details': '错误详情',
@@ -8090,8 +8089,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'failure.recoveryBusy': 'Wait for the current reply or stop the Bot first.',
   'failure.compactionFailed': 'Compaction did not finish. You can start a new session and retry.',
   'failure.newSessionRetry': 'New session and retry',
-  'failure.contextWindowHint':
-    'Automatic compaction could not recover it. Retry with a smaller request, for example one part of a large file or command output.',
+  'failure.contextWindowHint': 'Compact the current context or start a new session.',
   'failure.generic': 'View error details',
   'failure.openModels': 'Open model settings',
   'failure.details': 'Error details',

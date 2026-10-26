@@ -1,6 +1,9 @@
 import { useRef, useState } from 'react';
 import { MethodRefused, type HostClient } from '../../host/client';
-import { retrySessionFailure, type SessionFailure } from '../../host/session-failure';
+import { maintainSessionFailure, type SessionFailure } from '../../host/session-failure';
+import { useDesignTheme } from '../design/theme';
+import { ArchiveIcon, PlusIcon, MessageIcon } from '../shell/icons';
+import { Text } from '../primitives/text';
 import { Button } from '../primitives/button';
 import { t } from '../strings';
 import { ActionCard, CardButtons, DetailRow } from './action-card';
@@ -8,7 +11,6 @@ import { ActionCard, CardButtons, DetailRow } from './action-card';
 export function SessionFailureCard({
   client,
   channelId,
-  messageId,
   failure,
   onReport,
 }: {
@@ -20,14 +22,25 @@ export function SessionFailureCard({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [more, setMore] = useState(false);
+  const [notice, setNotice] = useState<string>();
+  const theme = useDesignTheme();
   const submitting = useRef(false);
-  const retry = (recovery?: 'compact' | 'new-session') => {
+  const maintain = (recovery: 'compact' | 'new-session') => {
     if (submitting.current) return;
     submitting.current = true;
     setBusy(true);
     setError(undefined);
-    void retrySessionFailure(client, channelId, messageId, failure, recovery)
+    setNotice(undefined);
+    void maintainSessionFailure(client, channelId, failure, recovery)
+      .then((result) =>
+        setNotice(
+          result === 'new'
+            ? t.sessionRecovery.newDone
+            : result === 'compacted'
+              ? t.sessionRecovery.compacted
+              : t.sessionRecovery.nothing,
+        ),
+      )
       .catch((cause: unknown) =>
         setError(
           cause instanceof MethodRefused
@@ -48,8 +61,9 @@ export function SessionFailureCard({
         setBusy(false);
       });
   };
-  const recoverable = failure.role === 'orchestrator' && !!failure.requestMessageId;
-  const showRecovery = failure.code === 'CONTEXT_WINDOW_EXCEEDED' || more;
+  const recoverable =
+    failure.role === 'orchestrator' && channelId.startsWith('dm-') && channelId.length > 3;
+  const iconProps = { color: theme.color.fg, size: theme.type.body.size };
   return (
     <ActionCard
       category={t.sessionRecovery.failed}
@@ -64,35 +78,35 @@ export function SessionFailureCard({
       {...(error === undefined ? {} : { error })}
       details={<DetailRow label={t.sessionRecovery.details} value={failure.detail} />}
     >
-      <CardButtons stack>
-        {onReport ? (
-          <Button label={t.sessionRecovery.report} testID="session-report" onPress={onReport} />
-        ) : null}
-        {failure.requestMessageId ? (
-          <Button label={t.sessionRecovery.retry} testID="session-retry" onPress={() => retry()} />
-        ) : null}
-        {recoverable && !showRecovery ? (
-          <Button
-            label={t.sessionRecovery.more}
-            testID="session-recovery-more"
-            onPress={() => setMore(true)}
-          />
-        ) : null}
-        {recoverable && showRecovery ? (
+      <CardButtons>
+        {recoverable ? (
           <>
             <Button
               label={t.sessionRecovery.compact}
-              testID="session-compact-retry"
-              onPress={() => retry('compact')}
+              icon={<ArchiveIcon {...iconProps} />}
+              testID="session-compact"
+              disabled={busy}
+              onPress={() => maintain('compact')}
             />
             <Button
               label={t.sessionRecovery.newSession}
-              testID="session-new-retry"
-              onPress={() => retry('new-session')}
+              icon={<PlusIcon {...iconProps} />}
+              testID="session-new"
+              disabled={busy}
+              onPress={() => maintain('new-session')}
             />
           </>
         ) : null}
+        {onReport ? (
+          <Button
+            label={t.sessionRecovery.report}
+            icon={<MessageIcon {...iconProps} />}
+            testID="session-report"
+            onPress={onReport}
+          />
+        ) : null}
       </CardButtons>
+      {notice ? <Text>{notice}</Text> : null}
     </ActionCard>
   );
 }

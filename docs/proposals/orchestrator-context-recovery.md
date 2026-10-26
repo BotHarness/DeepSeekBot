@@ -9,15 +9,15 @@ The Human reports that automatic compaction does not prevent repeated failures. 
 ## Confirmed choices
 
 - Provide recovery buttons on both Web and the mobile app.
-- A fresh-session recovery button explicitly says that it starts a new Session and retries. It retries only the selected failed message.
+- Updated Human direction: failure-card maintenance starts a new Session without retrying any message. The separate retry button is removed.
 - Ordinary `/new` switches the Orchestrator Session without automatically retrying a message.
 - External IM expansion is outside this slice; preserve and reuse existing capabilities.
-- A compaction recovery button says “Compact and retry”. Retry only the selected failed message after successful compaction. If compaction fails, retain the failure and offer fresh-session recovery; never automatically discard working context.
+- The failure-card compact action only compacts the current Session. Neither successful compaction nor new-session maintenance submits a message.
 - Fresh-session recovery preserves Channel history, the Bot's Memory Repository and existing Assignments. It resets only the Orchestrator's working context, without copying the old transcript wholesale; details not saved to Memory may be unavailable.
-- For confirmed context-window exhaustion, expose both recovery buttons directly. For `max-tokens`, keep ordinary retry and expose compaction and fresh-session recovery under additional recovery options, without labeling the cause as context exhaustion.
+- In Bot DMs, show compact, new-session and report actions directly with icons and labels on contrasting filled surfaces. Model settings remains available for credential/quota errors. Groups do not show Session maintenance.
 - Automatic compaction thresholds follow the selected model's context capacity rather than a fixed 400K. Keep automatic compaction enabled by default while preserving an explicit Human opt-out of Idle Compaction.
 - Refuse recovery while the Bot is busy, offering guidance to wait or stop first. Queue new arrivals during recovery and process them afterwards. Repeated clicks must not execute the recovery twice.
-- Recovery from an old failure card must check the current Orchestrator Session. If it has changed, report that the Session was updated without resetting it again or automatically retrying. Ordinary explicit retry remains available under its existing checks.
+- Failure-card maintenance targets the current Bot Session, like the context popover. The existing CLI recovery-and-retry path retains stale-card and side-effect checks; the UI no longer invokes it.
 - After Host restart, compaction recovery should load the original Session and compact it without requiring a new Human message or starting a normal Bot turn. On failure, offer fresh-session recovery without silently switching Sessions.
 
 ## Proposed unknown-capacity fallback
@@ -41,7 +41,7 @@ ADR-0024 now distinguishes the normal stable Session lifecycle from explicit Hum
 
 The implementation reuses native compaction and the runtime's per-Bot queue. Recovery retains existing Source Event retry safety checks: an earlier uncertain external effect is not permission to replay it.
 
-## Implementation verification (2026-10-26)
+## Initial implementation verification (superseded failure-card interaction)
 
 - 83 focused tests passed across recovery, compaction, Session replacement, failure-card controls, mobile parsing and CLI arguments. Build and release-fragment validation passed.
 - Isolated DSH 0.2.1-rc.2 returned 28,039 current tokens, 1,000,000 model-declared capacity and an 800,000 automatic threshold. Web rendered the context chip and recovery buttons with no browser errors. The real CLI returned matching values.
@@ -58,3 +58,7 @@ Failed-message feedback reuses the existing Web/mobile form and POST endpoint. T
 ## Current PR verification
 
 The PR is rebased onto main `ff51ffcb1e3d87cfb5ca1b2ef999eed39a810d03` with DSH 0.2.1-rc.3. 133 focused tests pass, the root TypeScript check passes, the build passes, and CLI parity/source-policy checks pass. Native mobile type checking still has existing React type/dependency errors; device QA is pending. Matched 1440×1000 English/light before/after captures use the same isolated synthetic Bot and Channel. The real failed-turn preview identified the request and exposed redacted upload evidence; ingestion is covered by mocked contract tests, not a production upload. Provider quota continues to block successful summary generation.
+
+## Revised failure-card controls (2026-10-26)
+
+The Human removed UI retry semantics: all failure-card maintenance now uses botCompact / botNewSession directly. Real Chinese Web light/dark captures show contrasting filled icon-and-label actions. Compact returned nothing to compact; New session completed with canonical timeline count unchanged at two messages. No browser page errors were recorded. The failure report dialog still opens. The 66 affected Web/mobile tests pass; the existing 11 usage/token-style checks also passed. Root typecheck, final build, source policy, feature-map and release-ledger checks pass. Native device QA remains pending.

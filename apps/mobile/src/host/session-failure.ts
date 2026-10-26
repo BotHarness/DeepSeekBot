@@ -1,5 +1,3 @@
-import type { HostClient } from './client';
-
 export interface SessionFailure {
   role: 'orchestrator' | 'assignment';
   sessionId: string;
@@ -34,17 +32,26 @@ export function sessionFailure(value: unknown): SessionFailure | undefined {
   };
 }
 
-export async function retrySessionFailure(
-  client: HostClient,
+export async function maintainSessionFailure(
+  client: { call(method: string, args: Record<string, unknown>): Promise<unknown> },
   channelId: string,
-  failureMessageId: string,
   failure: SessionFailure,
-  recovery?: 'compact' | 'new-session',
-): Promise<void> {
-  if (!failure.requestMessageId) throw new Error('Original message is unavailable');
-  await client.call('channelRetry', {
-    channelId,
-    messageId: failure.requestMessageId,
-    ...(recovery ? { recovery, failureMessageId } : {}),
-  });
+  action: 'compact' | 'new-session',
+): Promise<'new' | 'compacted' | 'nothing'> {
+  if (failure.role !== 'orchestrator' || !channelId.startsWith('dm-') || channelId.length === 3)
+    throw new Error('Session maintenance is only available in a Bot DM');
+  const slug = channelId.slice(3);
+  if (action === 'new-session') {
+    await client.call('botNewSession', { slug });
+    return 'new';
+  }
+  const result = await client.call('botCompact', { slug });
+  if (
+    result &&
+    typeof result === 'object' &&
+    'outcome' in result &&
+    (result.outcome === 'compacted' || result.outcome === 'nothing')
+  )
+    return result.outcome;
+  throw new Error('Compaction did not finish');
 }

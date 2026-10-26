@@ -1,3 +1,4 @@
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { MessageFeedbackDialog } from './message-feedback.js';
 import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
@@ -93,26 +94,41 @@ function SessionFailureNotice({
   const failure = message.sessionFailure!;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const [moreRecovery, setMoreRecovery] = useState(false);
+  const [notice, setNotice] = useState<string>();
   const [reportOpen, setReportOpen] = useState(false);
   const submitting = useRef(false);
+  const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
+  const canRecover =
+    failure.role === 'orchestrator' && botSlug && channelId === `dm-${botSlug}` && actions;
   const recover = (action: 'compact' | 'new-session') => {
-    if (submitting.current || !actions || !channelId || !failure.requestMessageId) return;
+    if (submitting.current || !canRecover || !botSlug) return;
     submitting.current = true;
     setBusy(true);
     setError(undefined);
-    void actions
-      .retryMessage(channelId, failure.requestMessageId, { action, failureMessageId: message.id })
+    setNotice(undefined);
+    void (async () => {
+      if (action === 'new-session') {
+        await actions.newBotSession(botSlug);
+        setNotice(t('composerCommand.newSessionDone'));
+      } else {
+        const result = await actions.compactBot(botSlug);
+        setNotice(
+          t(
+            result.outcome === 'compacted'
+              ? 'composerContext.compacted'
+              : result.outcome === 'nothing'
+                ? 'composerContext.compactNothing'
+                : result.outcome === 'busy'
+                  ? 'failure.recoveryBusy'
+                  : 'composerCompact.failed',
+          ),
+        );
+      }
+    })()
       .catch((cause) =>
         setError(
-          cause instanceof BridgeCallError
-            ? cause.code === 'session-changed'
-              ? t('failure.sessionChanged')
-              : cause.code === 'bot-busy'
-                ? t('failure.recoveryBusy')
-                : cause.code === 'compaction-failed'
-                  ? t('failure.compactionFailed')
-                  : errorMessage(cause)
+          cause instanceof BridgeCallError && cause.code === 'bot-busy'
+            ? t('failure.recoveryBusy')
             : errorMessage(cause),
         ),
       )
@@ -121,9 +137,6 @@ function SessionFailureNotice({
         setBusy(false);
       });
   };
-  const canRecover =
-    failure.role === 'orchestrator' && failure.requestMessageId && actions && channelId;
-  const showRecovery = canRecover && (failure.code === 'CONTEXT_WINDOW_EXCEEDED' || moreRecovery);
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
   const needsModels =
     host === undefined &&
@@ -160,51 +173,41 @@ function SessionFailureNotice({
         <div className="bh-session-failure-raw">{failure.detail}</div>
         <code>{failure.sessionId}</code>
       </details>
-      {needsModels || (failure.requestMessageId && actions && channelId) ? (
-        <div className="bh-message-card-actions">
-          {needsModels ? (
-            <Button variant="outline" onClick={() => openModelsSettings()}>
-              {t('failure.openModels')}
-            </Button>
-          ) : null}
-          {failure.requestMessageId && actions && channelId ? (
+      <div className="bh-message-card-actions">
+        {canRecover ? (
+          <>
             <Button
-              variant="outline"
+              className="bh-request-secondary"
               disabled={busy}
-              onClick={() => {
-                setBusy(true);
-                setError(undefined);
-                void actions
-                  .retryMessage(channelId, failure.requestMessageId!)
-                  .catch((cause) => setError(errorMessage(cause)))
-                  .finally(() => setBusy(false));
-              }}
+              onClick={() => recover('compact')}
             >
-              {t('onboarding.retryMessage')}
+              <ChannelSidebarIcon name="archive" />
+              {t('composerContext.compactNow')}
             </Button>
-          ) : null}
-          {canRecover && !showRecovery ? (
-            <Button variant="outline" disabled={busy} onClick={() => setMoreRecovery(true)}>
-              {t('failure.moreRecovery')}
+            <Button
+              className="bh-request-secondary"
+              disabled={busy}
+              onClick={() => recover('new-session')}
+            >
+              <ChannelSidebarIcon name="plus" />
+              {t('composerCommand.newSession')}
             </Button>
-          ) : null}
-          {showRecovery ? (
-            <>
-              <Button variant="outline" disabled={busy} onClick={() => recover('compact')}>
-                {t('failure.compactRetry')}
-              </Button>
-              <Button variant="outline" disabled={busy} onClick={() => recover('new-session')}>
-                {t('failure.newSessionRetry')}
-              </Button>
-            </>
-          ) : null}
-        </div>
-      ) : null}
-      {channelId && host === undefined ? (
-        <Button variant="outline" onClick={() => setReportOpen(true)}>
-          {t('feedback.reportFailure')}
-        </Button>
-      ) : null}
+          </>
+        ) : null}
+        {channelId && host === undefined ? (
+          <Button className="bh-request-secondary" onClick={() => setReportOpen(true)}>
+            <ChannelSidebarIcon name="message-square" />
+            {t('feedback.reportFailure')}
+          </Button>
+        ) : null}
+        {needsModels ? (
+          <Button className="bh-request-secondary" onClick={() => openModelsSettings()}>
+            <ChannelSidebarIcon name="settings" />
+            {t('failure.openModels')}
+          </Button>
+        ) : null}
+      </div>
+      {notice ? <p role="status">{notice}</p> : null}
       {reportOpen && channelId ? (
         <MessageFeedbackDialog
           channelId={channelId}

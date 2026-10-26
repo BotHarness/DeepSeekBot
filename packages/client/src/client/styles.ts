@@ -5380,7 +5380,8 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.bh-session-failure-row > button { justify-self: start; }
+.bh-session-failure-row .bh-message-card-actions button { border-radius: ${radius.lg}; gap: ${space.x2}; }
+.bh-session-failure-row .bh-message-card-actions svg { width: ${space.x4}; height: ${space.x4}; flex: none; }
 .bh-session-failure-details { color: var(--dsw-alias-label-tertiary); }
 .bh-session-failure-details summary { cursor: pointer; }
 .bh-session-failure-details > div, .bh-session-failure-details > code {
