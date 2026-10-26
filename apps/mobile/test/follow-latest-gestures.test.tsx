@@ -80,6 +80,21 @@ function mount(messages: readonly ConversationMessage[] = [], start = 0, empty =
 }
 
 describe('history-reading gesture ownership', () => {
+  it('does not let programmatic momentum resume following after an explicit message focus', () => {
+    const view = mount([message('latest', 'bot')]);
+    act(() => {
+      view.current.listProps.onLayout(layout(LAYOUT));
+      view.current.listProps.onContentSizeChange(0, CONTENT);
+      view.current.hold();
+      view.current.listProps.onMomentumScrollEnd(event(0));
+      view.current.listProps.onContentSizeChange(0, CONTENT + 300);
+    });
+    flushFrames();
+    expect(view.current.away).toBe(true);
+    expect(view.scrollToOffset).not.toHaveBeenCalled();
+    view.unmount();
+  });
+
   it('keeps a replacement playback controller held when display mode changes in history', () => {
     const first = vi.fn();
     const replacement = vi.fn();

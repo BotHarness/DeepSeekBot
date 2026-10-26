@@ -40,6 +40,16 @@ const nativeList = vi.hoisted(() => ({
   scrollToIndex: vi.fn(),
   scrollToOffset: vi.fn(),
   rows: [] as Array<{ key: string; kind?: string; message?: { id: string } }>,
+  events: {} as {
+    onScrollToIndexFailed?(info: {
+      index: number;
+      highestMeasuredFrameIndex: number;
+      averageItemLength: number;
+    }): void;
+    onContentSizeChange?(width: number, height: number): void;
+    onViewableItemsChanged?(): void;
+    onScrollBeginDrag?(event: unknown): void;
+  },
 }));
 
 vi.mock('../src/ui/shell/recent-chats', () => ({
@@ -139,8 +149,10 @@ vi.mock('react-native-reanimated', async () => {
       FlatList: ({
         ref,
         ...props
-      }: Parameters<typeof shim.default.FlatList>[0] & { ref: React.Ref<unknown> }) => {
+      }: Parameters<typeof shim.default.FlatList>[0] &
+        typeof nativeList.events & { ref: React.Ref<unknown> }) => {
         nativeList.rows = props.data;
+        nativeList.events = props;
         React.useImperativeHandle(
           ref,
           () => ({
@@ -284,7 +296,7 @@ beforeEach(() => {
   profileHistory = channelNavigationHarness();
   navigation.push.mockClear();
   navigation.loadOlder.mockClear();
-  nativeList.scrollToIndex.mockClear();
+  nativeList.scrollToIndex.mockReset();
   nativeList.scrollToOffset.mockClear();
   state.hostId = 'computer_a';
   state.host.connection.status = 'connected';
@@ -378,6 +390,164 @@ it('asks the existing history owner for an uncached focus and positions it when 
   expect(nativeList.rows[nativeList.scrollToIndex.mock.calls[0]![0].index]?.message?.id).toBe(
     'older',
   );
+});
+
+it('retries an unmeasured old message after layout without requiring a second focus request', async () => {
+  state.active = true;
+  state.conversation.messages = ['old', 'new'].map((id) => ({
+    id,
+    at: '2026-10-25T01:00:00Z',
+    author: 'human',
+    body: id,
+    attachments: [],
+    delivery: 'committed',
+  }));
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  nativeList.scrollToIndex.mockImplementationOnce(({ index }) => {
+    nativeList.events.onScrollToIndexFailed?.({
+      index,
+      highestMeasuredFrameIndex: 0,
+      averageItemLength: 80,
+    });
+  });
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="old" focusRequest="first" />),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  await act(async () => nativeList.events.onContentSizeChange?.(400, 1800));
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+  const index = nativeList.scrollToIndex.mock.calls[1]![0].index;
+  expect(nativeList.rows[index]?.message?.id).toBe('old');
+});
+
+it('resolves a failed focus against prepended rows and lets a new request replace it', async () => {
+  state.active = true;
+  state.conversation.messages = ['040', '090'].map((id) => ({
+    id,
+    at: '2026-10-25T01:00:00Z',
+    author: 'human',
+    body: id,
+    attachments: [],
+    delivery: 'committed',
+  }));
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  nativeList.scrollToIndex.mockImplementationOnce(({ index }) => {
+    nativeList.events.onScrollToIndexFailed?.({
+      index,
+      highestMeasuredFrameIndex: 0,
+      averageItemLength: 80,
+    });
+  });
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="040" focusRequest="1" />),
+  );
+  const initialIndex = nativeList.scrollToIndex.mock.calls[0]![0].index;
+  state.conversation.messages = [
+    { ...state.conversation.messages[0]!, id: '001' },
+    ...state.conversation.messages,
+  ];
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="040" focusRequest="1" />),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  await act(async () => nativeList.events.onViewableItemsChanged?.());
+  const retryIndex = nativeList.scrollToIndex.mock.calls[1]![0].index;
+  expect(retryIndex).toBeGreaterThan(initialIndex);
+  expect(nativeList.rows[retryIndex]?.message?.id).toBe('040');
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="090" focusRequest="2" />),
+  );
+  expect(nativeList.rows[nativeList.scrollToIndex.mock.lastCall![0].index]?.message?.id).toBe(
+    '090',
+  );
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="040" focusRequest="3" />),
+  );
+  expect(nativeList.rows[nativeList.scrollToIndex.mock.lastCall![0].index]?.message?.id).toBe(
+    '040',
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(4);
+});
+
+it('does not repeat an unchanged failed estimate or retry from an unfocused screen', async () => {
+  state.active = true;
+  state.conversation.messages = [
+    {
+      id: 'old',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'old',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  nativeList.scrollToIndex.mockImplementation(({ index }) => {
+    nativeList.events.onScrollToIndexFailed?.({
+      index,
+      highestMeasuredFrameIndex: 0,
+      averageItemLength: 80,
+    });
+  });
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="old" focusRequest="1" />),
+  );
+  expect(nativeList.scrollToOffset).toHaveBeenCalledOnce();
+  await act(async () => nativeList.events.onViewableItemsChanged?.());
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+  expect(nativeList.scrollToOffset).toHaveBeenCalledOnce();
+  state.focused = false;
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="old" focusRequest="1" />),
+  );
+  await act(async () => nativeList.events.onViewableItemsChanged?.());
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
+});
+
+it('cancels an unmeasured focus retry on user drag until another explicit request', async () => {
+  state.active = true;
+  state.conversation.messages = [
+    {
+      id: 'old',
+      at: '2026-10-25T01:00:00Z',
+      author: 'human',
+      body: 'old',
+      attachments: [],
+      delivery: 'committed',
+    },
+  ];
+  const place: ChatPlace = { kind: 'dm', slug: 'ada' };
+  await render(place);
+  nativeList.scrollToIndex.mockImplementationOnce(({ index }) => {
+    nativeList.events.onScrollToIndexFailed?.({
+      index,
+      highestMeasuredFrameIndex: 0,
+      averageItemLength: 80,
+    });
+  });
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="old" focusRequest="1" />),
+  );
+  await act(async () =>
+    nativeList.events.onScrollBeginDrag?.({
+      nativeEvent: {
+        contentOffset: { y: 100 },
+        contentSize: { height: 2000 },
+        layoutMeasurement: { height: 800 },
+        contentInset: { top: 0, bottom: 0 },
+      },
+    }),
+  );
+  await act(async () => nativeList.events.onContentSizeChange?.(400, 2000));
+  await act(async () => nativeList.events.onViewableItemsChanged?.());
+  expect(nativeList.scrollToIndex).toHaveBeenCalledOnce();
+  await act(async () =>
+    root!.render(<ConversationScreen place={place} focus="old" focusRequest="2" />),
+  );
+  expect(nativeList.scrollToIndex).toHaveBeenCalledTimes(2);
 });
 
 it('retries source paging only after a new history boundary or an explicit repeated request', async () => {
