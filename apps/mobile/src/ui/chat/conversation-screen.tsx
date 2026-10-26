@@ -96,7 +96,8 @@ import {
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
-import { anchorShift, anchorStep, useFollowLatest } from './follow-latest';
+import { anchorShift, anchorStep } from './follow-latest';
+import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { PullToComposeHint } from './pull-to-compose-hint';
@@ -431,8 +432,6 @@ function ChatConversation({
   );
 
   const [reactError, setReactError] = useState(false);
-  const [composerHeight, setComposerHeight] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
   const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
@@ -507,17 +506,6 @@ function ChatConversation({
     },
     [list, content],
   );
-  const viewportLayout = useSharedValue(0);
-  const stage = useMemo(
-    () => ({
-      registry: speakers,
-      scroll,
-      viewport,
-      viewportLayout,
-      floor: composerHeight + edgeFade.bottom,
-    }),
-    [speakers, scroll, viewport, viewportLayout, composerHeight],
-  );
   const followingLatest = useSharedValue(true);
   const latestEnd = useSharedValue(0);
   const workingAnchor = useSharedValue(0);
@@ -544,13 +532,24 @@ function ChatConversation({
   const workingStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: anchorShift(workingAnchor.value, scroll.value) }],
   }));
-  const latest = useFollowLatest(
+  const latest = useChannelViewport(
     list,
     visible,
     followChange,
     headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
     latestChange,
+  );
+  const { composerHeight, viewportHeight, viewportLayout } = latest;
+  const stage = useMemo(
+    () => ({
+      registry: speakers,
+      scroll,
+      viewport,
+      viewportLayout,
+      floor: composerHeight + edgeFade.bottom,
+    }),
+    [speakers, scroll, viewport, viewportLayout, composerHeight],
   );
   const composerInput = useRef<ComposerInput>(null);
   const [typing, setTyping] = useState(false);
@@ -1221,7 +1220,7 @@ function ChatConversation({
             <ChatBackground choice={background} imageUri={backgroundImageUri} />
           ) : undefined
         }
-        onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+        onComposerLayout={latest.onComposerLayout}
         composer={
           selected !== undefined ? (
             <SelectionBar
@@ -1358,19 +1357,12 @@ function ChatConversation({
             ) : null}
           </View>
         )}
-        <Animated.View
-          ref={viewport}
-          collapsable={false}
-          style={{ flex: 1 }}
-          onLayout={(event) => {
-            viewportLayout.value += 1;
-            setViewportHeight(event.nativeEvent.layout.height);
-          }}
-        >
+        <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
           <MarkdownViewportContext.Provider value={markdownViewport}>
             <SpeakerStageContext.Provider value={dm ? undefined : stage}>
               <Animated.FlatList
                 ref={attachList}
+                renderScrollComponent={latest.renderScrollComponent}
                 removeClippedSubviews={false}
                 style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
                 pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
@@ -1484,83 +1476,96 @@ function ChatConversation({
               />
             </SpeakerStageContext.Provider>
           </MarkdownViewportContext.Provider>
-          {(!latest.ready && rows.length > 0) ||
-          (snapshot.status === 'opening' && rows.length === 0) ? (
-            <View
-              pointerEvents={latest.canRetry ? 'auto' : 'none'}
-              style={{
-                position: 'absolute',
-                top: listTop,
-                bottom: composerHeight + edgeFade.bottom + workingReserve,
-                left: 0,
-                right: 0,
-                justifyContent: 'flex-end',
-              }}
-            >
-              <ListSkeleton layout="messages" />
-              {latest.canRetry ? (
-                <Button
-                  label={t.retry}
-                  variant="text"
-                  testID="history-loading-retry"
-                  onPress={latest.retry}
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {working.length > 0 ? (
-            <Animated.View
-              pointerEvents="none"
-              onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
-              style={[
-                {
+          <Animated.View
+            ref={viewport}
+            collapsable={false}
+            pointerEvents="box-none"
+            style={[
+              { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+              latest.overlayStyle,
+            ]}
+            onLayout={() => {
+              viewportLayout.value += 1;
+            }}
+          >
+            {(!latest.ready && rows.length > 0) ||
+            (snapshot.status === 'opening' && rows.length === 0) ? (
+              <View
+                pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                style={{
                   position: 'absolute',
-                  bottom: composerHeight + edgeFade.bottom,
+                  top: listTop,
+                  bottom: composerHeight + edgeFade.bottom + workingReserve,
                   left: 0,
                   right: 0,
-                },
-                workingStyle,
-              ]}
-            >
-              <WorkingStatus bots={working} />
-            </Animated.View>
-          ) : null}
-          {topFade > 0 ? (
+                  justifyContent: 'flex-end',
+                }}
+              >
+                <ListSkeleton layout="messages" />
+                {latest.canRetry ? (
+                  <Button
+                    label={t.retry}
+                    variant="text"
+                    testID="history-loading-retry"
+                    onPress={latest.retry}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+            {working.length > 0 ? (
+              <Animated.View
+                pointerEvents="none"
+                onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
+                style={[
+                  {
+                    position: 'absolute',
+                    bottom: composerHeight + edgeFade.bottom,
+                    left: 0,
+                    right: 0,
+                  },
+                  workingStyle,
+                ]}
+              >
+                <WorkingStatus bots={working} />
+              </Animated.View>
+            ) : null}
+            {topFade > 0 ? (
+              <EdgeFade
+                edge="top"
+                height={topFade + edgeFade.reach}
+                cover={topFade}
+                color={fadeColor}
+              />
+            ) : null}
             <EdgeFade
-              edge="top"
-              height={topFade + edgeFade.reach}
-              cover={topFade}
+              edge="bottom"
+              height={composerCover + edgeFade.bottom + workingReserve}
+              cover={composerCover}
+              solid={composerCover}
               color={fadeColor}
             />
-          ) : null}
-          <EdgeFade
-            edge="bottom"
-            height={composerCover + edgeFade.bottom + workingReserve}
-            cover={composerCover}
-            solid={composerCover}
-            color={fadeColor}
-          />
-          {composable && Platform.OS === 'ios' ? (
-            <PullToComposeHint
-              progress={pull.progress}
-              ready={pull.ready}
-              bottom={composerHeight + space.x3}
-            />
-          ) : null}
-          {latest.away ? (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                bottom: composerHeight + space.x2,
-                left: 0,
-                right: space.x4,
-                alignItems: 'flex-end',
-              }}
-            >
-              <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-            </View>
-          ) : null}
+            {composable && Platform.OS === 'ios' ? (
+              <PullToComposeHint
+                progress={pull.progress}
+                ready={pull.ready}
+                bottom={composerHeight + space.x3}
+              />
+            ) : null}
+            {latest.away ? (
+              <View
+                pointerEvents="box-none"
+                style={{
+                  position: 'absolute',
+                  bottom: composerHeight + space.x2,
+                  left: 0,
+                  right: space.x4,
+                  alignItems: 'flex-end',
+                }}
+              >
+                <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+              </View>
+            ) : null}
+          </Animated.View>
         </Animated.View>
       </KeyboardChatFrame>
       {imageSelection?.scope === selectionScope ? (

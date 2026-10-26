@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import type {
@@ -387,6 +388,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 let frames = new Map<number, FrameRequestCallback>();
 let nextFrame = 0;
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   state.os = 'web';
   state.clientEnabled = false;
   state.hostId = 'computer_a';
