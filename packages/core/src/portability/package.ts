@@ -145,7 +145,7 @@ function validateDependencyContracts(manifest: ProfileBackupManifest): void {
   );
   if (core.length !== 1 || core[0]?.required !== true)
     throw new ProfileBackupError(
-      'dependency-incompatible',
+      'core-contract-invalid',
       'Backup must retain the required core data contract',
     );
   for (const dependency of manifest.dependencies) {

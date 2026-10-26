@@ -232,8 +232,8 @@ export const zh = {
   'backup.close': '关闭',
   'backup.identity': '保留 Bot 身份、聊天、Memory、账号描述、授权设置及审计记录。',
   'backup.export': '导出',
-  'backup.sensitive': '含私人聊天和记忆，不含凭证。请妥善保管。',
-  'backup.excluded': '不含凭证、插件和 Workspace 文件。Git 授权配置重置，hooks 不自动启用。',
+  'backup.sensitive': '聊天和记忆可能含密码或密钥，请妥善保管。',
+  'backup.excluded': '不含凭证存储、插件和 Workspace 文件。Git 授权配置重置，hooks 不自动启用。',
   'backup.sessions': '不含底层 DSH Session 正文；仅保留历史引用，无法继续旧会话。',
   'backup.purge': '旧备份可能恢复后来清除的内容。',
   'backup.prepare': '预览导出',
@@ -263,6 +263,7 @@ export const zh = {
   'backup.working': '正在验证环境数据…',
   'backup.cancel': '取消',
   'backup.error': '操作未完成，请重试。原环境与已有备份未被替换。',
+  'backup.error.coreContract': '备份缺少有效的核心数据声明，请选择完整备份或重新导出。',
   'backup.error.upgrade': '此备份需要更新版本的 Tobs，请升级后重试。',
   'backup.error.invalid': '备份文件校验失败，请重新选择完整文件。',
   'backup.error.source': '当前环境的数据不可用，请修复环境后重新导出。',
@@ -4505,9 +4506,9 @@ export const en = {
   'backup.identity':
     'Preserves Bot identities, chats, Memory, account descriptions, grants and audit records.',
   'backup.export': 'Export',
-  'backup.sensitive': 'Contains private chats and Memory, but no credentials. Store securely.',
+  'backup.sensitive': 'Chats and Memory may contain passwords or keys. Store securely.',
   'backup.excluded':
-    'Excludes credentials, Plugins and Workspace files. Git authorization is reset; hooks stay disabled.',
+    'Excludes credential stores, Plugins and Workspace files. Git authorization is reset; hooks stay disabled.',
   'backup.sessions':
     'Native DSH Session content is excluded. Historical references remain; old sessions cannot resume.',
   'backup.purge': 'Older backups may restore content purged later.',
@@ -4544,6 +4545,8 @@ export const en = {
   'backup.cancel': 'Cancel',
   'backup.error':
     'Could not complete the operation. Try again; your environment and existing backups were not replaced.',
+  'backup.error.coreContract':
+    'Required core data information is missing or invalid. Choose a complete backup or export again.',
   'backup.error.upgrade': 'This backup needs a newer version of Tobs. Update and try again.',
   'backup.error.invalid':
     'Backup verification failed. Select a complete backup file and try again.',

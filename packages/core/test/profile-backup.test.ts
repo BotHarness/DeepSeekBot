@@ -139,6 +139,12 @@ it('runs online preview, download and inspection through the CLI and the same Pr
     expect(preview.code).toBe(0);
     expect(preview.value).toMatchObject({ bots: 0, token: expect.any(String) });
     const path = join(root(), 'download.botharness-backup');
+    const unwritable = await invoke(
+      ['profile-backup-export', '--out', join(root(), 'missing', 'backup'), '--confirmation-stdin'],
+      JSON.stringify(preview.value),
+    );
+    expect(unwritable.code).not.toBe(0);
+    expect(unwritable.value).toMatchObject({ error: { code: 'backup-io-failed' } });
     const downloaded = await invoke(
       ['profile-backup-export', '--out', path, '--confirmation-stdin'],
       JSON.stringify(preview.value),
@@ -287,8 +293,8 @@ it('delegates an older operational Schema Generation to the existing staged migr
 it.each([
   ['future format', 'format-upgrade-required'],
   ['future schema', 'upgrade-required'],
-  ['missing core', 'dependency-incompatible'],
-  ['optional core', 'dependency-incompatible'],
+  ['missing core', 'core-contract-invalid'],
+  ['optional core', 'core-contract-invalid'],
   ['unknown contract', 'dependency-incompatible'],
   ['unknown kind', 'dependency-incompatible'],
 ] as const)('refuses %s before publishing a restored destination', async (scenario, code) => {

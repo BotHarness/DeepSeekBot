@@ -123,31 +123,31 @@ export async function runProfileBackupCommand(
       const destination = resolve(values.out);
       if (lstatSync(destination, { throwIfNoEntry: false }))
         throw new CliLiveError('destination-exists', 'Choose a new backup filename.');
-      const host = await connect();
-      const { bytes, response } = await host.http(PATH, { token: parsed.data.token });
-      const archive = Buffer.from(bytes);
-      const { manifest } = inspectProfileBackup(archive);
-      const sha256 = digest(archive);
-      if (sha256 !== response.headers.get('x-backup-sha256'))
-        throw new CliLiveError(
-          'package-invalid',
-          'Downloaded backup did not match the Host checksum.',
-        );
       const stage = mkdtempSync(join(dirname(destination), '.backup-download-'));
       try {
+        const host = await connect();
+        const { bytes, response } = await host.http(PATH, { token: parsed.data.token });
+        const archive = Buffer.from(bytes);
+        const { manifest } = inspectProfileBackup(archive);
+        const sha256 = digest(archive);
+        if (sha256 !== response.headers.get('x-backup-sha256'))
+          throw new CliLiveError(
+            'package-invalid',
+            'Downloaded backup did not match the Host checksum.',
+          );
         const file = join(stage, 'verified.botharness-backup');
         writeFileSync(file, archive, { flag: 'wx', mode: 0o600 });
         linkSync(file, destination);
+        return {
+          id: manifest.id,
+          file: destination,
+          bytes: bytes.length,
+          sha256,
+          producer: manifest.producer,
+        };
       } finally {
         rmSync(stage, { recursive: true, force: true });
       }
-      return {
-        id: manifest.id,
-        file: destination,
-        bytes: bytes.length,
-        sha256,
-        producer: manifest.producer,
-      };
     }
     if (command === 'profile-backup-inspect') {
       const archive = readArchive(values.file);

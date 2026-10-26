@@ -163,6 +163,8 @@ function failureText(code: string, t: ProfileBackupSettingsProps['t']): string {
       return t('backup.error.upgrade');
     case 'package-invalid':
       return t('backup.error.invalid');
+    case 'core-contract-invalid':
+      return t('backup.error.coreContract');
     case 'source-unavailable':
       return t('backup.error.source');
     case 'preview-stale':
