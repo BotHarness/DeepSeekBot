@@ -31,7 +31,7 @@ export function KeyboardChatFrame({
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="translate-with-padding">
         {children}
       </KeyboardAvoidingView>
       <KeyboardStickyView
