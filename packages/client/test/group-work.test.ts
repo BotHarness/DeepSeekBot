@@ -39,7 +39,8 @@ const assignment = (
 ): ChannelAssignmentSummary => ({
   sessionId,
   botSlug,
-  purpose,
+  title: purpose,
+  description: purpose,
   activity,
   ...(report === undefined
     ? {}
@@ -94,7 +95,7 @@ const render = () =>
             byId: Object.fromEntries(
               assignments.map((a) => [
                 a.sessionId,
-                { displayTitle: a.purpose, updatedAt: 1, running: a.activity === 'working' },
+                { displayTitle: a.title, updatedAt: 1, running: a.activity === 'working' },
               ]),
             ),
           };

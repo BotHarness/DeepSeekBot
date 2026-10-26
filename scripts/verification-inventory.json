@@ -979,9 +979,9 @@
       "path": "scripts/e2e-assignment-active-crash.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Multi-phase real-model fixture needs deliberate task Host interruption; verifies one retained active Report and interrupted Turn. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
       "task": 1967,
-      "sha256": "964cf2d663bb05ec965b18ad6d1a755c740add9ba5b53ce21f8f05cbeb82d492"
+      "sha256": "d71ef5e2d2fb60e23c94fe6a9310942652340de33134f0afec89be1bbe22e45d"
     },
     {
       "path": "scripts/e2e-assignment-attention.mjs",
@@ -1059,9 +1059,9 @@
       "path": "scripts/e2e-assignment-recovery-notice.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.assignment.lifecycle"],
-      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Private multi-phase state and restarted Host; checks recovery notice headers and original Report rather than replay. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #2906 re-audit: assignment proof reads title and description instead of purpose (ADR-0262); classification unchanged.",
       "task": 1967,
-      "sha256": "f33f3c36f897b3756a6e6eacf18ac4f40d13d2462df030a0a2446c5fc7c4efce"
+      "sha256": "4814165d989c8bf848e9c30aaa63bfa7c98c529991848855bde359ae06039bd7"
     },
     {
       "path": "scripts/e2e-assignment-repair-severity.mjs",

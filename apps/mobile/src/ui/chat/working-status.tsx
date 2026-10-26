@@ -4,7 +4,6 @@ import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
-import { Text } from '../primitives/text';
 import { t } from '../strings';
 import { stepLabel } from './bot-steps';
 
@@ -31,8 +30,7 @@ export function WorkingStatus({ bots }: { bots: readonly RosterBot[] }) {
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
-        paddingHorizontal: space.x4,
-        paddingTop: space.x3,
+        flexShrink: 0,
       }}
     >
       <View style={{ flexDirection: 'row' }}>
@@ -51,9 +49,6 @@ export function WorkingStatus({ bots }: { bots: readonly RosterBot[] }) {
           </View>
         ))}
       </View>
-      <Text tone="muted" numberOfLines={1} style={{ flexShrink: 1 }}>
-        {`${workingLabel(bots)}…`}
-      </Text>
     </View>
   );
 }

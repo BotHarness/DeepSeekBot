@@ -1,7 +1,7 @@
 import { ConnectionProgress } from '../primitives/connection-progress';
 import { Pressable } from 'react-native';
 
-import type { RosterChannel } from '../../host/client';
+import type { RosterBot, RosterChannel } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -9,6 +9,7 @@ import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 import { GroupMark } from './group-mark';
+import { WorkingStatus, workingLabel } from './working-status';
 
 const MARK = 28;
 
@@ -16,10 +17,12 @@ export function ChannelTitle({
   channel,
   fallback,
   connectionLabel,
+  working = [],
   onPress,
 }: {
   channel: RosterChannel | undefined;
   fallback: string;
+  working?: readonly RosterBot[];
   connectionLabel?: string | undefined;
   onPress(): void;
 }) {
@@ -31,13 +34,23 @@ export function ChannelTitle({
     <Pressable
       testID="channel-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={[name, members, connectionLabel].filter(Boolean).join(', ')}
+      accessibilityLabel={[
+        name,
+        members,
+        connectionLabel,
+        working.length
+          ? `${working.map((bot) => bot.displayName).join(', ')}: ${workingLabel(working)}`
+          : undefined,
+      ]
+        .filter(Boolean)
+        .join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.groupInfoHint}
       disabled={channel === undefined}
       onPress={onPress}
       style={({ pressed }) => ({
         flexShrink: 1,
+        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x3,
@@ -49,10 +62,11 @@ export function ChannelTitle({
       })}
     >
       <GroupMark avatar={channel?.avatar} size={MARK} corner={radius.round} />
-      <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
+      <Text strong numberOfLines={1} style={[{ flex: 1, minWidth: 0 }, barLabelStyle]}>
         {name}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
+      <WorkingStatus bots={working} />
     </Pressable>
   );
 }

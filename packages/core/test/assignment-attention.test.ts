@@ -75,7 +75,11 @@ async function fixture(home = createTempRoot('botharness-assignment-attention-')
     await admission.settled;
     const access = live.access();
     if (access === undefined) throw new Error('Missing Orchestrator');
-    const created = access.create({ grantId: TEST_GRANT_ID, purpose: 'Attention QA' });
+    const created = access.create({
+      title: 'Assignment',
+      grantId: TEST_GRANT_ID,
+      description: 'Attention QA',
+    });
     if (created.outcome !== 'created') throw new Error('Missing Assignment');
     const run = live.runs.find((run) => run.sessionId === created.assignment.sessionId);
     if (run === undefined) throw new Error('Assignment not started');

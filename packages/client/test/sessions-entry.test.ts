@@ -68,7 +68,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
         role: 'assignment',
         createdAt: '2026-10-01T00:00:00Z',
         assignmentArchived: true,
-        assignmentPurpose: 'Ship the release notes',
+        assignmentTitle: 'Ship the release notes',
       },
     ],
   });

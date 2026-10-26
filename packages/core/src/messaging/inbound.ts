@@ -63,7 +63,7 @@ import {
 import type { BotSourcePolicyEditor } from '../runtime/source-policy.js';
 import { bridgeChannel, humanBridgeChannel, placeBridgeSource } from './channel-target.js';
 import { admitBridgeMembers } from './member-admission.js';
-import { messagingDefaults } from './defaults.js';
+import { exceedsBotWakeCeiling, messagingDefaults } from './defaults.js';
 import { assertMessagingIdentity } from './identity.js';
 import {
   createImCommandExecutor,
@@ -903,7 +903,10 @@ export function createInboundMessaging(options: {
                     ? 'context'
                     : event.conversation.kind === 'dm' || event.mentionedAccount
                       ? policy.wake
-                      : thread?.wake || reception.inheritance === 'custom' || !policy.overrideActive
+                      : (thread?.wake ||
+                            reception.inheritance === 'custom' ||
+                            !policy.overrideActive) &&
+                          (thread?.wake || !exceedsBotWakeCeiling(ordinary.wake, policy))
                         ? ordinary.wake
                         : policy.wake;
                   const count =
@@ -1046,7 +1049,10 @@ export function createInboundMessaging(options: {
                 ? 'context'
                 : event.mentionedAccount
                   ? policy.wake
-                  : thread?.wake || reception.inheritance === 'custom' || !policy.overrideActive
+                  : (thread?.wake ||
+                        reception.inheritance === 'custom' ||
+                        !policy.overrideActive) &&
+                      (thread?.wake || !exceedsBotWakeCeiling(ordinary.wake, policy))
                     ? ordinary.wake
                     : policy.wake;
               const count =

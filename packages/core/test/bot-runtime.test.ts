@@ -34,8 +34,9 @@ class DeterministicAgentAdapter implements BotAgentAdapter {
     this.runs.push({ role: 'orchestrator', sessionId: run.sessionId });
     if (run.message.trim().length > 0) {
       const outcome = run.assignments.create({
+        title: 'Assignment',
         grantId: TEST_GRANT_ID,
-        purpose: `调查并回答：${run.message.split('\n').at(-1)}`,
+        description: `调查并回答：${run.message.split('\n').at(-1)}`,
       });
       if (outcome.outcome === 'created' || outcome.outcome === 'reused') return;
       throw new Error(outcome.message);
@@ -51,7 +52,7 @@ class DeterministicAgentAdapter implements BotAgentAdapter {
 
   async runAssignment(run: AssignmentAgentRun): Promise<void> {
     this.runs.push({ role: 'assignment', sessionId: run.sessionId });
-    await run.report({ state: 'completed', summary: `Assignment 已处理「${run.purpose}」` });
+    await run.report({ state: 'completed', summary: `Assignment 已处理「${run.text}」` });
   }
 
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery {
@@ -130,7 +131,11 @@ it('publishes failed Orchestrator and Assignment turns into the owning DM', asyn
       attempts += 1;
       if (attempts === 1) throw new Error('QUOTA: Insufficient Balance (request_id: test-123)');
       if (attempts === 2) throw new Error('TRANSPORT: retry outage');
-      const outcome = run.assignments.create({ grantId: TEST_GRANT_ID, purpose: '检查余额' });
+      const outcome = run.assignments.create({
+        title: '检查余额',
+        grantId: TEST_GRANT_ID,
+        description: '检查余额',
+      });
       expect(outcome.outcome).toBe('created');
     },
     async runAssignment() {
@@ -520,8 +525,9 @@ describe('Bot runtime tracer bullet', () => {
         if (run.message.trim().length > 0) {
           if (orchestratorAttempts === 1) throw new Error('TRANSPORT: DeepSeek API request failed');
           const outcome = run.assignments.create({
+            title: 'Assignment',
             grantId: TEST_GRANT_ID,
-            purpose: `调查并回答：${run.message.split('\n').at(-1)}`,
+            description: `调查并回答：${run.message.split('\n').at(-1)}`,
           });
           if (outcome.outcome === 'created' || outcome.outcome === 'reused') return;
           throw new Error(outcome.message);
@@ -534,7 +540,7 @@ describe('Bot runtime tracer bullet', () => {
       },
       async runAssignment(run) {
         assignmentRuns += 1;
-        await run.report({ state: 'completed', summary: `Assignment 已处理「${run.purpose}」` });
+        await run.report({ state: 'completed', summary: `Assignment 已处理「${run.text}」` });
       },
       requestAssignment(run) {
         return { delivery: 'followup', accepted: Promise.resolve(), done: this.runAssignment(run) };
@@ -635,8 +641,9 @@ describe('Bot runtime tracer bullet', () => {
           orchestratorAttempts += 1;
           if (run.message.trim().length > 0) {
             const outcome = run.assignments.create({
+              title: 'Assignment',
               grantId: TEST_GRANT_ID,
-              purpose: '核对副作用',
+              description: '核对副作用',
             });
             if (outcome.outcome === 'capacity' || outcome.outcome === 'key-busy') {
               throw new Error(outcome.message);
@@ -813,7 +820,8 @@ describe('Bot runtime tracer bullet', () => {
           assignmentAccess = run.assignments;
           const create = (model?: { provider: string; model: string; reasoningEffort?: string }) =>
             run.assignments.create({
-              purpose: 'Inspect',
+              title: 'Assignment',
+              description: 'Inspect',
               grantId: TEST_GRANT_ID,
               ...(model === undefined ? {} : { model }),
             });
@@ -837,7 +845,7 @@ describe('Bot runtime tracer bullet', () => {
           await run.report({ state: 'completed', summary: 'Done' });
         },
         requestAssignment: (run) => {
-          if (run.purpose === 'Delivery failure') throw new Error('Delivery unavailable');
+          if (run.text === 'Delivery failure') throw new Error('Delivery unavailable');
           resumedRoutes.push(run.modelRoute);
           return {
             delivery: 'followup' as const,
@@ -1010,7 +1018,7 @@ describe('Bot runtime tracer bullet', () => {
     expect(runtime.listAssignments('ada')).toEqual([
       expect.objectContaining({
         sessionId: 'assignment-1',
-        purpose: '调查并回答：请调查发布状态',
+        description: '调查并回答：请调查发布状态',
         activity: 'idle',
         permission: {
           grantId: TEST_GRANT_ID,
@@ -1529,7 +1537,12 @@ it('requests a folder in the DM and resumes the same Orchestrator after Human au
         if (active === undefined) {
           await run.channels.requestGrant('需要项目文件夹以完成这项工作');
         } else {
-          run.assignments.create({ purpose: '读取项目', grantId: active.id, key: 'project-read' });
+          run.assignments.create({
+            title: 'Assignment',
+            description: '读取项目',
+            grantId: active.id,
+            key: 'project-read',
+          });
         }
       },
       runAssignment: async (run) => {

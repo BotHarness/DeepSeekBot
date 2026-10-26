@@ -1009,7 +1009,14 @@ describe('bridge typert service', () => {
       'sessionId',
       'sourceEventId',
     ]);
-    expect(parameterNames(service.assignments)).toEqual(['slug']);
+    expect(parameterNames(service.assignments)).toEqual([
+      'slug',
+      'query',
+      'activity',
+      'includeArchived',
+      'limit',
+      'cursor',
+    ]);
     expect(parameterNames(service.assignment)).toEqual(['slug', 'sessionId']);
     expect(parameterNames(service.sessions)).toEqual(['slug']);
     expect(parameterNames(service.sessionOwner)).toEqual(['sessionId']);
