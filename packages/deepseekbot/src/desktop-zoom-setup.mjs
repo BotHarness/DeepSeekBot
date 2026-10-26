@@ -218,9 +218,18 @@ function otherProcesses(pid) {
       .map((match) => match[2])
       .join('\n');
 }
-export function relaunchDesktopApp(desktopApp, platform = process.platform, launch = spawn) {
+export function relaunchDesktopApp(
+  desktopApp,
+  platform = process.platform,
+  launch = spawn,
+  isDirectory = (path) => lstatSync(path).isDirectory(),
+) {
+  const target =
+    platform === 'win32' && isDirectory(desktopApp)
+      ? join(desktopApp, 'DeepSeek Harness.exe')
+      : desktopApp;
   const [command, args] =
-    platform === 'darwin' ? ['/usr/bin/open', [desktopApp]] : ['explorer.exe', [desktopApp]];
+    platform === 'darwin' ? ['/usr/bin/open', [target]] : ['explorer.exe', [target]];
   launch(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 }
 export async function configureDesktopZoomAfterQuit({

@@ -16,6 +16,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import {
   configureDesktopZoom,
   configureDesktopZoomAfterQuit,
+  relaunchDesktopApp,
   runDesktopZoomSetup,
 } from '../../packages/deepseekbot/src/desktop-zoom-setup.mjs';
 const roots = [];
@@ -417,4 +418,18 @@ it('requires a request id with the after-quit state file', () => {
   expect(() =>
     runDesktopZoomSetup(['enable', '--profile', 'desktop', '--after-quit', '/tmp/state.json']),
   ).toThrow('arguments-invalid');
+});
+it('reopens the Windows executable rather than its folder', () => {
+  const unref = vi.fn();
+  const launch = vi.fn(() => ({ unref }));
+  relaunchDesktopApp('C:/Apps/DSH', 'win32', launch, () => true);
+  expect(launch.mock.calls[0][0]).toBe('explorer.exe');
+  expect(launch.mock.calls[0][1][0].replaceAll('\\', '/')).toBe('C:/Apps/DSH/DeepSeek Harness.exe');
+  relaunchDesktopApp('/Applications/DeepSeek Harness.app', 'darwin', launch, () => true);
+  expect(launch.mock.calls[1]).toEqual([
+    '/usr/bin/open',
+    ['/Applications/DeepSeek Harness.app'],
+    expect.objectContaining({ detached: true }),
+  ]);
+  expect(unref).toHaveBeenCalledTimes(2);
 });
