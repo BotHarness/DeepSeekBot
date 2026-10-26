@@ -24,12 +24,8 @@ import {
 const dshRequire = createRequire(
   createRequire(import.meta.url).resolve('@deepseek-ai/dsh/package.json'),
 );
-const { applyEntryPatches } = await import(
-  pathToFileURL(dshRequire.resolve('@deepseek-ai/cordis-plugin-include')).href
-);
-const { Context } = await import(pathToFileURL(dshRequire.resolve('@deepseek-ai/cordis')).href);
-const { Loader, EntryTree } = await import(
-  pathToFileURL(dshRequire.resolve('@deepseek-ai/cordis-plugin-loader')).href
+const { composeEntries } = await import(
+  pathToFileURL(dshRequire.resolve('@deepseek-ai/dsh-app-boot')).href
 );
 import { parseProductComposition } from '../packaged-profile.mjs';
 
@@ -169,47 +165,34 @@ describe('product-owned desktop theme payload', () => {
 });
 
 for (const patch of ['cordis.patch.yml', 'cordis.im.patch.yml']) {
-  it(`${patch} activates one theme with retained settings and restores upstream on cold removal`, async () => {
+  it(`${patch} leaves the native ui-theme row as the only row Settings writes (#2788)`, () => {
     const text = readFileSync(
       new URL(`../../packages/deepseekbot/${patch}`, import.meta.url),
       'utf8',
     );
-    const rows = parseProductComposition(text);
-    const original = [{ id: 'ui-theme', name: '@deepseek-ai/dsh-client-ui-theme' }];
-    const config = { preference: 'dark', fontSize: 17, codeFontSize: 13 };
-    const composed = applyEntryPatches(original, [...rows, { id: 'ui-theme', config }], () => {});
-    async function boot(entries) {
-      const ctx = new Context();
-      const loader = await ctx.plugin(Loader);
-      const tree = new EntryTree(ctx);
-      const started = [];
-      const stopped = [];
-      tree.import = async (name) => ({
-        apply(context, settings) {
-          started.push({ name, config: settings });
-          context.effect(() => () => stopped.push(name));
-        },
-      });
-      try {
-        await tree.root.update(entries.filter((row) => row.id === 'ui-theme'));
-        await tree.await();
-      } finally {
-        tree.root.stop();
-        await loader.dispose();
-      }
-      return { started, stopped };
-    }
-    expect(await boot(composed)).toEqual({
-      started: [{ name: './desktop-theme/lib/index.js', config }],
-      stopped: ['./desktop-theme/lib/index.js'],
-    });
-    expect(await boot(applyEntryPatches(original, [{ id: 'ui-theme', config }], () => {}))).toEqual(
-      {
-        started: [{ name: '@deepseek-ai/dsh-client-ui-theme', config }],
-        stopped: ['@deepseek-ai/dsh-client-ui-theme'],
-      },
+    const upstream = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'].map((name) =>
+      parseProductComposition(
+        readFileSync(
+          join(dirname(dshRequire.resolve(`${name}/package.json`)), 'cordis.patch.yml'),
+          'utf8',
+        ),
+      ),
     );
-    expect(original).toEqual([{ id: 'ui-theme', name: '@deepseek-ai/dsh-client-ui-theme' }]);
-    expect(text).not.toContain('botharness-desktop-theme');
+    const config = { preference: 'dark', fontSize: 17, codeFontSize: 13 };
+    const rows = composeEntries([
+      ...upstream,
+      parseProductComposition(text),
+      [{ id: 'ui-theme', config }],
+    ]).flatMap(function flatten(row) {
+      return [row, ...(row.group && Array.isArray(row.config) ? row.config.flatMap(flatten) : [])];
+    });
+    const ids = rows.map((row) => row.id).filter(Boolean);
+    expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+    const settingsRow = rows.find((row) => row.id === 'ui-theme');
+    expect(settingsRow).toMatchObject({
+      name: '@deepseek-ai/dsh-client-ui-theme',
+      config,
+    });
+    expect(text).not.toContain('desktop-theme');
   });
 }
