@@ -116,6 +116,11 @@ export const androidSettings = {
 
 export type TypeRole = { size: number; line: number };
 
+export const conversationType = {
+  name: { fontSize: 18, lineHeight: 24 },
+  preview: { fontSize: 15, lineHeight: 20 },
+} as const;
+
 export const typeScale: Record<
   PlatformOS,
   Record<'meta' | 'body' | 'title' | 'display', TypeRole>
