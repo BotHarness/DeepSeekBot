@@ -292,7 +292,7 @@ describe('Bot-to-Bot DM tracer', () => {
     }
   });
 
-  it('keeps one causal root from waking a colleague twice', async () => {
+  it('wakes a colleague on every round of one causal root until the hop limit', async () => {
     const home = createTempRoot('botharness-bot-dm-loop-');
     const core = createCore({ dshHome: home, agents: adapter(async () => {}) });
     try {
@@ -324,7 +324,9 @@ describe('Bot-to-Bot DM tracer', () => {
       expect(core.channels.message(dm.id, 'reply')?.deliveries).toEqual([
         { botSlug: 'ada', state: 'pending' },
       ]);
-      expect(core.channels.message(dm.id, 'repeat')?.deliveries).toBeUndefined();
+      expect(core.channels.message(dm.id, 'repeat')?.deliveries).toEqual([
+        { botSlug: 'bea', state: 'pending' },
+      ]);
       expect(
         core.channels.readMessages('dm-ada').filter((message) => message.botDmAction !== undefined),
       ).toHaveLength(2);

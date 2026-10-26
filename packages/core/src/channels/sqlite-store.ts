@@ -878,21 +878,16 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
               origin.sessionId,
               durable.author.slug,
             );
-          const botAlreadyAdmitted = (
-            targetSlug: string,
-            rootId: string,
-            fromBotSlug?: string,
-          ): boolean =>
+          const botAlreadyAdmitted = (targetSlug: string, rootId: string): boolean =>
             db
               .prepare(`
               SELECT 1 FROM inbox_admissions a
               JOIN source_events e ON e.source_event_id = a.source_event_id
               WHERE a.bot_slug = ? AND e.source_kind = 'bot-message'
                 AND json_extract(e.payload_json, '$.botCausation.rootSourceEventId') = ?
-                AND (? IS NULL OR (e.bot_slug = ? AND a.reason != 'group-ordinary'))
               LIMIT 1
             `)
-              .get(targetSlug, rootId, fromBotSlug ?? null, fromBotSlug ?? null) !== undefined;
+              .get(targetSlug, rootId) !== undefined;
           const candidateRecipients =
             durable.privateInputResolution !== undefined
               ? []
@@ -920,21 +915,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                     durable.botCausation !== undefined &&
                     durable.botCausation.hop <= MAX_BOT_HOPS
                   ? [...new Set(mentions.map((item) => item.botSlug))]
-                      .filter(
-                        (targetSlug) =>
-                          targetSlug !== senderSlug &&
-                          !botAlreadyAdmitted(
-                            targetSlug,
-                            durable.botCausation!.rootSourceEventId,
-                            senderSlug,
-                          ),
-                      )
+                      .filter((targetSlug) => targetSlug !== senderSlug)
                       .map((botSlug) => ({ botSlug, reason: 'group-mention' }))
                   : botDm &&
                       recipient !== undefined &&
                       durable.botCausation !== undefined &&
-                      durable.botCausation.hop <= MAX_BOT_HOPS &&
-                      !botAlreadyAdmitted(recipient, durable.botCausation.rootSourceEventId)
+                      durable.botCausation.hop <= MAX_BOT_HOPS
                     ? [{ botSlug: recipient, reason: 'bot-dm' }]
                     : [];
           const recipients = candidateRecipients.filter((item) => isBotActive(item.botSlug));
