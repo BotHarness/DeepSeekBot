@@ -1,0 +1,136 @@
+{
+  "source": "e2cee221af78e1c1a0d90395757c0cdd4c3a9d01",
+  "nativeExecutableSHA256": "d0b5331e8f35cc0361e0ca121ea51208a0fffd4cab0d2f1ff57a431abdd985a0",
+  "loadedAndServedBundleSHA256": "957b1a968408e7304ea968f450e60df437e60f1859a3de335a613475dbb83df4",
+  "mode": "production JavaScript on retained Debug Simulator binary",
+  "platform": "iOS Simulator, iPhone 18 Pro Max / iOS 27, Chinese",
+  "captureDate": "2026-10-26",
+  "images": [
+    {
+      "file": "create-large-dark.png",
+      "sha256": "7ed0bf45ff17cab24b33c9ebeca4553cb1cbf4ce572725345ff140af0c5ec242",
+      "bytes": 263922
+    },
+    {
+      "file": "create-large-light.png",
+      "sha256": "f9f82235dd34688cad7a61d2526510ad70326dce09a6110d4a935c72c23e03ef",
+      "bytes": 262505
+    },
+    {
+      "file": "create-max-dark-scrolled.png",
+      "sha256": "ebd16c9e87f69a48cecb06f89ec66e0707beb2633265d6dc402f41220b250f93",
+      "bytes": 344264
+    },
+    {
+      "file": "create-max-dark.png",
+      "sha256": "bf6a18477ee99fe2e9053bf0526068233753831ddd6c680201d4ed5b35e88d42",
+      "bytes": 522531
+    },
+    {
+      "file": "create-max-light.png",
+      "sha256": "014bcb53c202b94b97f6e2a82ffab69a0fd98634b45344499f26792646c7e990",
+      "bytes": 529465
+    },
+    {
+      "file": "create-xxxl-dark.png",
+      "sha256": "e25bb496bbe513ca406e0252e2ba18d6acd48f515baca067ebf2c9eac5f629c4",
+      "bytes": 283242
+    },
+    {
+      "file": "create-xxxl-light.png",
+      "sha256": "979372d6a921a9295139561231e9006d74b583b15c269ca286597d8a61cf2e05",
+      "bytes": 281496
+    },
+    {
+      "file": "home-large-dark.png",
+      "sha256": "d344b11465569f953512a7e471151c9e2ac6eb509da9a16124562ab4d56a881c",
+      "bytes": 193924
+    },
+    {
+      "file": "home-large-light.png",
+      "sha256": "bdafc04c3a36fbeb1b1cb48d737c0c921cd8eba2fcdb500a71455d7e56082250",
+      "bytes": 196612
+    },
+    {
+      "file": "home-max-dark.png",
+      "sha256": "7a1e0b5131ea20455482d531e6ed1efc6b626ca3bfdd1c1a12d4f7d621b30944",
+      "bytes": 308810
+    },
+    {
+      "file": "home-max-light.png",
+      "sha256": "06dab66b5660c5dca31e3f84d461f8f03f6d200f3fa42c0fe790c3f8d3cc50d8",
+      "bytes": 331453
+    },
+    {
+      "file": "home-xxxl-dark.png",
+      "sha256": "bd3f01620fdf39f478380886eabca3740a6249c4f77b3dcc38d88c9aa376c1eb",
+      "bytes": 220575
+    },
+    {
+      "file": "home-xxxl-light.png",
+      "sha256": "372d935fa473e1f4065c98f8602b5d98db96c33765414bfea39b05eb8e2722d8",
+      "bytes": 225159
+    },
+    {
+      "file": "q1-bg-return-muted.png",
+      "sha256": "01b64b2dd9ec7b363224291e6b3f23d210e703dad08dded40a65656d6f70c935",
+      "bytes": 463312
+    },
+    {
+      "file": "q1-remount-before.png",
+      "sha256": "48e1114905979f4baf026caef8559e61e438b3909f385d3afc1baf6dbf5bcc1e",
+      "bytes": 444050
+    },
+    {
+      "file": "q1-remount-missing.png",
+      "sha256": "8501ebc882567e58e5d7ce8b80dac1235496a8c82d8aa094f212035830f0428a",
+      "bytes": 270519
+    },
+    {
+      "file": "q3-second-empty.png",
+      "sha256": "6821122688bf3c7b0a9af05b5fa190cab1b8b92d49a13d71533be218b06527e4",
+      "bytes": 173508
+    },
+    {
+      "file": "q4-first-focus-tail.png",
+      "sha256": "70cc9143d4251f957590cc6afa1cf2a04d00783865dc6838a14ae5433dae9291",
+      "bytes": 1156542
+    },
+    {
+      "file": "q4-markdown-middle.png",
+      "sha256": "67a48e46284f8fa99f79f8d8fc3493714a803fd9c2f1f88c97450487f28a3e0d",
+      "bytes": 670104
+    },
+    {
+      "file": "q4-repeat040.png",
+      "sha256": "dffa8588d22c0150cc60dafe73fee51fdfb0377636fd8198ca35d1dc47d924f7",
+      "bytes": 1114217
+    },
+    {
+      "file": "reduce-motion-skeleton.png",
+      "sha256": "9ab79db8b85dc35c7ef485445e051873aeebccaab49a05cccf8e9b94b631a429",
+      "bytes": 116944
+    },
+    {
+      "file": "source-cached-paused.png",
+      "sha256": "942bbde001e54a75b64e9a4cfe02f9c323d1af8943d197be133e2d4c7eafb18f",
+      "bytes": 226733
+    },
+    {
+      "file": "source-draft-return.png",
+      "sha256": "1684d7b20b00da102e3e0935a974d0e7749d255c508f9949b117545736585a18",
+      "bytes": 200349
+    },
+    {
+      "file": "source-repaired-settled.png",
+      "sha256": "60fed4d311af849d18b6b79870c320120b1b508be2415d23f0b2032e35165fd1",
+      "bytes": 199338
+    },
+    {
+      "file": "source-revoked.png",
+      "sha256": "54725845c27a8dbf06d5e33901f1c1c7a94e3af014f4c0133378c02b0306564a",
+      "bytes": 238122
+    }
+  ],
+  "privacy": "Each image visually inspected by runner and root. Original native pixels or decoded frames, synthetic fixture names. Pairing fingerprints, credentials, private computer names and raw logs excluded."
+}
