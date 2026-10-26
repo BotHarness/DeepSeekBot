@@ -938,13 +938,20 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
                   const sourceRule = sourcePolicy.resolveIn(db, botSlug, 'group-ordinary');
                   const policy =
                     channel.wakePolicies?.[botSlug] ?? defaultGroupWakePolicy(sourceRule);
-                  if (
+                  const chainSeen =
                     durable.author.kind === 'bot' &&
                     durable.botCausation !== undefined &&
-                    botAlreadyAdmitted(botSlug, durable.botCausation.rootSourceEventId)
-                  )
-                    return [];
-                  return [{ botSlug, policy, sourceRule }];
+                    botAlreadyAdmitted(botSlug, durable.botCausation.rootSourceEventId);
+                  return [
+                    {
+                      botSlug,
+                      policy:
+                        chainSeen && policy.mode !== 'silent'
+                          ? { ...policy, mode: 'mentions' as const }
+                          : policy,
+                      sourceRule,
+                    },
+                  ];
                 })
               : [];
           for (const recipient of recipients)

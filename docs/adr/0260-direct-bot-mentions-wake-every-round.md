@@ -5,7 +5,7 @@ Date: 2026-10-26
 
 # Direct Bot mentions and Bot DMs wake on every round; the hop limit bounds the chain
 
-A direct Bot-to-Bot Group mention and a Bot DM now admit their recipient on every send that stays within the trusted hop limit (`MAX_BOT_HOPS`, eight). The per-chain de-duplication of ADR-0036, keyed by sender and recipient since ADR-0206, no longer applies to them. Ordinary (unmentioned) Group delivery keeps its de-duplication per causal root. When a committed message does not wake a colleague it addressed, because the hop limit was passed or the colleague could not be admitted, `bot_send_message` returns `notWoken` with each colleague's ID and reason, and the Orchestrator guidance tells the Bot to tell the Humans where the work stands.
+A direct Bot-to-Bot Group mention and a Bot DM now admit their recipient on every send that stays within the trusted hop limit (`MAX_BOT_HOPS`, eight). The per-chain de-duplication of ADR-0036, keyed by sender and recipient since ADR-0206, no longer applies to them. Ordinary (unmentioned) Group delivery still wakes a colleague at most once per causal root, but a later ordinary message in that chain is no longer dropped: it is admitted without a wake, as context the colleague sees in its next turn. When a committed message does not wake a colleague it addressed, because the hop limit was passed or the colleague could not be admitted, `bot_send_message` returns `notWoken` with each colleague's ID and reason, and the Orchestrator guidance tells the Bot to tell the Humans where the work stands.
 
 This supersedes the "two Bots mentioning each other stop after one round trip" bound in ADR-0206; its typed-mention resolution is unchanged.
 
