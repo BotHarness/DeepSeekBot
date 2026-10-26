@@ -216,7 +216,11 @@ try {
       });
       await sleep(500);
       const now = await page.$$eval('.bh-chat-body [data-message-id]', (nodes) => nodes.length);
-      if (now === mounted && attempt > 2) break;
+      if (now >= fixture.messageIds.length) break;
+      if (now === mounted && attempt > 2)
+        throw new Error(
+          `Mounted ${now} of ${fixture.messageIds.length} messages before measurement`,
+        );
       mounted = now;
     }
     await page.$eval('.bh-chat-body', (node) => {

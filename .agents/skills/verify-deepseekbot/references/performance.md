@@ -28,11 +28,11 @@ mounted (`--no-load-all` keeps only the opening window), waits three seconds and
 | `scriptMs`, `layoutMs`, `recalcStyleMs` | Where idle main-thread time went |
 | `styleRecalcs` | ~60 per second means something re-styles every frame |
 | `nodes`, `mountedMessages` | DOM size; cost per frame and per render scales with it |
-| `typing.p50/p95/max` | Event Timing duration per key event while typing 43 characters, i.e. how long until the key shows on screen |
+| `typing.p50/p95/max` | Percentiles over the Event Timing entries (`keydown`, `keypress`, `input`, `keyup`) of at least 16 ms recorded while typing 43 characters; each entry runs from the input to the next paint. Entries under 16 ms are not recorded, and one key yields several entries |
 | `typing.scriptMs` | Script time spent while typing; a high value means each key re-renders far too much |
 | `idleHottest`, `typing.hottest` | Top self-time functions from the CPU profile (`--profile`) |
 
-`--animate` adds one small infinite CSS animation, standing in for Tob, a working indicator or a
+`--animate` adds one small infinite CSS animation (a `transform` bob; on these runs it still caused about 60 main-thread style recalculations per second), standing in for Tob, a working indicator or a
 speaking avatar. With it on, any per-frame cost that scales with the DOM becomes visible. Run
 both variants: users nearly always have something animating.
 
