@@ -1,0 +1,302 @@
+{
+  "baseline": "648c1202c44f5a5e82ce22596682934745705cef",
+  "nativeSource": "494a20f1eb4f0666a2c90bc3c758af4e7ff5f46b",
+  "hostRuntime": "2202bef4d744893fddf66cdd0a6b0c58f710dfb6",
+  "fixtureSHA256": "4835489e8eb64b08e289240f50909d46c5621c88d5302fe3c57c1db783a48fe7",
+  "fixtureBytes": 10849,
+  "jsonArgumentChunkCharacters": 4,
+  "scheduledIntervalMs": 16,
+  "jsABBAAB": [
+    {
+      "trial": 1,
+      "variant": "A",
+      "sampledBusyMs": 11719,
+      "frames": {
+        "jsFps": 59.6,
+        "droppedFrames": 33,
+        "droppedPct": 0.9,
+        "longestFrameMs": 83.4,
+        "framesOver50ms": 6
+      },
+      "completeRootMs": 6693.9,
+      "canonicalEqual": true
+    },
+    {
+      "trial": 2,
+      "variant": "B",
+      "sampledBusyMs": 5733,
+      "frames": {
+        "jsFps": 59.7,
+        "droppedFrames": 23,
+        "droppedPct": 0.6,
+        "longestFrameMs": 106.7,
+        "framesOver50ms": 3
+      },
+      "completeRootMs": 795.5,
+      "canonicalEqual": true
+    },
+    {
+      "trial": 3,
+      "variant": "B",
+      "sampledBusyMs": 5790,
+      "frames": {
+        "jsFps": 59.6,
+        "droppedFrames": 22,
+        "droppedPct": 0.6,
+        "longestFrameMs": 102.6,
+        "framesOver50ms": 5
+      },
+      "completeRootMs": 1041.6,
+      "canonicalEqual": true
+    },
+    {
+      "trial": 4,
+      "variant": "A",
+      "sampledBusyMs": 10550,
+      "frames": {
+        "jsFps": 59.7,
+        "droppedFrames": 23,
+        "droppedPct": 0.6,
+        "longestFrameMs": 78,
+        "framesOver50ms": 6
+      },
+      "completeRootMs": 6291.3,
+      "canonicalEqual": true
+    },
+    {
+      "trial": 5,
+      "variant": "A",
+      "sampledBusyMs": 10704,
+      "frames": {
+        "jsFps": 59.6,
+        "droppedFrames": 26,
+        "droppedPct": 0.7,
+        "longestFrameMs": 103.4,
+        "framesOver50ms": 6
+      },
+      "completeRootMs": 6585,
+      "canonicalEqual": true
+    },
+    {
+      "trial": 6,
+      "variant": "B",
+      "sampledBusyMs": 5957,
+      "frames": {
+        "jsFps": 59.6,
+        "droppedFrames": 27,
+        "droppedPct": 0.7,
+        "longestFrameMs": 95.3,
+        "framesOver50ms": 5
+      },
+      "completeRootMs": 1058.5,
+      "canonicalEqual": true
+    }
+  ],
+  "nativeABBAAB": [
+    {
+      "trial": 1,
+      "variant": "A",
+      "sampledMsByThread": {
+        "other": 2931.0,
+        "main": 6075.0,
+        "js": 12235.0
+      },
+      "states": {
+        "Running": 21241.0
+      },
+      "nativeMethodsInclusiveMs": {
+        "facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 5881.0,
+        "invocation function for block in facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 5832.0,
+        "CGSize ENRMMeasureSegmentedMarkdownViewFree<facebook::react::EnrichedMarkdownProps>(facebook::react::EnrichedMarkdownProps const&, double, double, double, NSWritingDirection)": 5832.0
+      }
+    },
+    {
+      "trial": 2,
+      "variant": "B",
+      "sampledMsByThread": {
+        "main": 8470.0,
+        "other": 3667.0,
+        "js": 8859.0
+      },
+      "states": {
+        "Running": 20996.0
+      },
+      "nativeMethodsInclusiveMs": {
+        "facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 1685.0,
+        "invocation function for block in facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 1673.0,
+        "CGSize ENRMMeasureSegmentedMarkdownViewFree<facebook::react::EnrichedMarkdownProps>(facebook::react::EnrichedMarkdownProps const&, double, double, double, NSWritingDirection)": 1673.0,
+        "-[ENRMTailFadeInAnimator updateAlpha:]": 865.0,
+        "-[ENRMTailFadeInAnimator step:]": 719.0,
+        "-[ENRMTailFadeInAnimator animateFrom:to:]": 168.0,
+        "-[ENRMTailFadeInAnimator cancel]": 79.0,
+        "-[ENRMTailFadeInAnimator snapshotColorsInRange:storage:]": 4.0,
+        "__56-[ENRMTailFadeInAnimator snapshotColorsInRange:storage:]_block_invoke": 1.0
+      }
+    },
+    {
+      "trial": 3,
+      "variant": "B",
+      "sampledMsByThread": {
+        "other": 3556.0,
+        "main": 9136.0,
+        "js": 8839.0
+      },
+      "states": {
+        "Running": 21531.0
+      },
+      "nativeMethodsInclusiveMs": {
+        "facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 1705.0,
+        "invocation function for block in facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 1692.0,
+        "CGSize ENRMMeasureSegmentedMarkdownViewFree<facebook::react::EnrichedMarkdownProps>(facebook::react::EnrichedMarkdownProps const&, double, double, double, NSWritingDirection)": 1692.0,
+        "-[ENRMTailFadeInAnimator updateAlpha:]": 364.0,
+        "-[ENRMTailFadeInAnimator step:]": 243.0,
+        "-[ENRMTailFadeInAnimator animateFrom:to:]": 136.0,
+        "-[ENRMTailFadeInAnimator cancel]": 47.0,
+        "-[ENRMTailFadeInAnimator snapshotColorsInRange:storage:]": 4.0,
+        "__56-[ENRMTailFadeInAnimator snapshotColorsInRange:storage:]_block_invoke": 1.0
+      }
+    },
+    {
+      "trial": 4,
+      "variant": "A",
+      "sampledMsByThread": {
+        "main": 6280.0,
+        "other": 2915.0,
+        "js": 12306.0
+      },
+      "states": {
+        "Running": 21501.0
+      },
+      "nativeMethodsInclusiveMs": {
+        "facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 5921.0,
+        "invocation function for block in facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 5883.0,
+        "CGSize ENRMMeasureSegmentedMarkdownViewFree<facebook::react::EnrichedMarkdownProps>(facebook::react::EnrichedMarkdownProps const&, double, double, double, NSWritingDirection)": 5883.0
+      }
+    },
+    {
+      "trial": 5,
+      "variant": "A",
+      "sampledMsByThread": {
+        "js": 12397.0,
+        "main": 5810.0,
+        "other": 2949.0
+      },
+      "states": {
+        "Running": 21156.0
+      },
+      "nativeMethodsInclusiveMs": {
+        "facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 5976.0,
+        "CGSize ENRMMeasureSegmentedMarkdownViewFree<facebook::react::EnrichedMarkdownProps>(facebook::react::EnrichedMarkdownProps const&, double, double, double, NSWritingDirection)": 5915.0,
+        "invocation function for block in facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 5914.0
+      }
+    },
+    {
+      "trial": 6,
+      "variant": "B",
+      "sampledMsByThread": {
+        "other": 3634.0,
+        "main": 9071.0,
+        "js": 9164.0
+      },
+      "states": {
+        "Running": 21869.0
+      },
+      "nativeMethodsInclusiveMs": {
+        "facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 1729.0,
+        "invocation function for block in facebook::react::EnrichedMarkdownShadowNode::measureContent(facebook::react::LayoutContext const&, facebook::react::LayoutConstraints const&) const": 1712.0,
+        "CGSize ENRMMeasureSegmentedMarkdownViewFree<facebook::react::EnrichedMarkdownProps>(facebook::react::EnrichedMarkdownProps const&, double, double, double, NSWritingDirection)": 1712.0,
+        "-[ENRMTailFadeInAnimator updateAlpha:]": 874.0,
+        "-[ENRMTailFadeInAnimator step:]": 728.0,
+        "-[ENRMTailFadeInAnimator animateFrom:to:]": 163.0,
+        "-[ENRMTailFadeInAnimator cancel]": 67.0,
+        "-[ENRMTailFadeInAnimator snapshotColorsInRange:storage:]": 3.0,
+        "-[ENRMTailFadeInAnimator cleanupEntries]": 1.0
+      }
+    }
+  ],
+  "screeningPilots": [
+    {
+      "variant": "A",
+      "sampledBusyMs": 11952,
+      "frames": {
+        "jsFps": 59.7,
+        "droppedFrames": 22,
+        "droppedPct": 0.6,
+        "longestFrameMs": 98.4,
+        "framesOver50ms": 5
+      },
+      "canonicalEqual": true,
+      "status": "single screening run, not a repeated comparison"
+    },
+    {
+      "variant": "C",
+      "sampledBusyMs": 11079,
+      "frames": {
+        "jsFps": 56,
+        "droppedFrames": 258,
+        "droppedPct": 6.9,
+        "longestFrameMs": 141.2,
+        "framesOver50ms": 49
+      },
+      "canonicalEqual": true,
+      "status": "single screening run, not a repeated comparison"
+    },
+    {
+      "variant": "D",
+      "sampledBusyMs": 11462,
+      "frames": {
+        "jsFps": 59,
+        "droppedFrames": 103,
+        "droppedPct": 2.8,
+        "longestFrameMs": 118.3,
+        "framesOver50ms": 6
+      },
+      "canonicalEqual": true,
+      "status": "single screening run, not a repeated comparison"
+    },
+    {
+      "variant": "E",
+      "sampledBusyMs": 15290,
+      "frames": {
+        "jsFps": 56.9,
+        "droppedFrames": 207,
+        "droppedPct": 5.6,
+        "longestFrameMs": 121.9,
+        "framesOver50ms": 44
+      },
+      "canonicalEqual": true,
+      "status": "single screening run, not a repeated comparison"
+    },
+    {
+      "variant": "F",
+      "sampledBusyMs": 17620,
+      "frames": {
+        "jsFps": 54.3,
+        "droppedFrames": 362,
+        "droppedPct": 9.7,
+        "longestFrameMs": 194.9,
+        "framesOver50ms": 52
+      },
+      "canonicalEqual": true,
+      "status": "single screening run, not a repeated comparison"
+    }
+  ],
+  "exclusions": [
+    "Native C pilot overlapped source checks.",
+    "First D-labelled JS and native pilots resolved the baseline generic module in Metro."
+  ],
+  "releaseProMotionAcceptance": "not run",
+  "submittedToolValidation": {
+    "react": null,
+    "frameWindow": "full-capture-including-settle",
+    "sampledBusyMs": 12386,
+    "frames": {
+      "jsFps": 59.6,
+      "droppedFrames": 26,
+      "droppedPct": 0.7,
+      "longestFrameMs": 113.7,
+      "framesOver50ms": 6
+    },
+    "canonicalEqual": true
+  }
+}

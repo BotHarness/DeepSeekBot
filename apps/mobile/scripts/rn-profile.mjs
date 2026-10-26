@@ -16,6 +16,7 @@ const out = resolve(args.out ?? `rn-profile-${Date.now()}`);
 const maxSeconds = Number(args.max ?? 120);
 const quietSeconds = Number(args.quiet ?? 4);
 const top = Number(args.top ?? 25);
+const captureReact = args['no-react'] !== true;
 mkdirSync(out, { recursive: true });
 
 const targets = await (await fetch(`http://127.0.0.1:${metro}/json/list`)).json();
@@ -73,7 +74,8 @@ const evaluate = async (expression) => {
 const install = `(() => {
   const g = globalThis;
   const hook = g.__REACT_DEVTOOLS_GLOBAL_HOOK__;
-  if (!hook) return 'no __REACT_DEVTOOLS_GLOBAL_HOOK__';
+  const captureReact = ${captureReact};
+  if (captureReact && !hook) return 'no __REACT_DEVTOOLS_GLOBAL_HOOK__; production JS requires --no-react';
   const nameOf = (f) => {
     const t = f.type;
     if (!t) return undefined;
@@ -84,10 +86,13 @@ const install = `(() => {
   const COMPONENT = new Set([0, 1, 11, 14, 15]);
   if (!g.__agentPerf) {
     g.__agentPerf = { on: false };
-    const prev = hook.onCommitFiberRoot;
+  }
+  if (captureReact && !g.__agentPerf.reactInstalled) {
+    g.__agentPerf.reactInstalled = true;
+    const prev = hook?.onCommitFiberRoot;
     hook.onCommitFiberRoot = function (rendererID, root) {
       const p = g.__agentPerf;
-      if (p.on) {
+      if (p.on && p.captureReact) {
         const now = performance.now();
         p.commits.push(now);
         p.commitMs += root.current.actualDuration || 0;
@@ -114,7 +119,7 @@ const install = `(() => {
     };
   }
   const p = g.__agentPerf;
-  Object.assign(p, { on: true, start: performance.now(), commits: [], commitMs: 0, renders: {}, renderedPerCommit: [], frames: [] });
+  Object.assign(p, { on: true, captureReact, start: performance.now(), commits: [], commitMs: 0, renders: {}, renderedPerCommit: [], frames: [] });
   const tick = (t) => { if (!p.on) return; p.frames.push(t); requestAnimationFrame(tick); };
   requestAnimationFrame(tick);
   return 'ok';
@@ -163,9 +168,11 @@ writeFileSync(join(out, 'profile.cpuprofile'), JSON.stringify(profile));
 writeFileSync(join(out, 'react.json'), JSON.stringify(react));
 
 const c = react.commits;
-const windowMs = c.length > 1 ? c[c.length - 1] - c[0] : 0;
-const inWindow = react.frames.filter((t) => c.length && t >= c[0] && t <= c[c.length - 1]);
-const edges = windowMs ? [c[0], ...inWindow, c[c.length - 1]] : [];
+const windowStart = captureReact ? c[0] : react.start;
+const windowEnd = captureReact ? c.at(-1) : react.end;
+const windowMs = windowStart === undefined || windowEnd === undefined ? 0 : windowEnd - windowStart;
+const inWindow = react.frames.filter((t) => t >= windowStart && t <= windowEnd);
+const edges = windowMs ? [windowStart, ...inWindow, windowEnd] : [];
 const gaps = edges
   .slice(1)
   .map((t, i) => t - edges[i])
@@ -246,17 +253,20 @@ const rank = (m) =>
 const summary = {
   target: target.title,
   recordedSeconds: +((Date.now() - t0) / 1000).toFixed(1),
-  react: {
-    commits: c.length,
-    streamWindowSeconds: +(windowMs / 1000).toFixed(2),
-    commitsPerSecond: windowMs ? +((c.length - 1) / (windowMs / 1000)).toFixed(1) : 0,
-    commitRenderMsTotal: +react.commitMs.toFixed(1),
-    componentsRenderedPerCommit: c.length
-      ? +(react.renderedPerCommit.reduce((a, b) => a + b, 0) / c.length).toFixed(1)
-      : 0,
-    topComponents: renders.slice(0, top),
-    components: Object.fromEntries(renders.map((r) => [r.name, [r.renders, r.mounts]])),
-  },
+  frameWindow: captureReact ? 'first-to-last-react-commit' : 'full-capture-including-settle',
+  react: captureReact
+    ? {
+        commits: c.length,
+        streamWindowSeconds: +(windowMs / 1000).toFixed(2),
+        commitsPerSecond: windowMs ? +((c.length - 1) / (windowMs / 1000)).toFixed(1) : 0,
+        commitRenderMsTotal: +react.commitMs.toFixed(1),
+        componentsRenderedPerCommit: c.length
+          ? +(react.renderedPerCommit.reduce((a, b) => a + b, 0) / c.length).toFixed(1)
+          : 0,
+        topComponents: renders.slice(0, top),
+        components: Object.fromEntries(renders.map((r) => [r.name, [r.renders, r.mounts]])),
+      }
+    : null,
   frames: {
     jsFps: windowMs ? +(inWindow.length / (windowMs / 1000)).toFixed(1) : 0,
     droppedFrames,

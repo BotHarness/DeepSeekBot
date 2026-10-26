@@ -1,0 +1,199 @@
+# Replay
+
+A practical guide to rendering streamed LLM replies efficiently in a mobile chat app. Mobile is a hostile environment for streaming text: frames arrive in uneven bursts, the main thread shares time with gesture handling and image decoding, batteries and radios are precious, and memory is a hard ceiling. Getting streaming right is mostly about respecting those constraints rather than about calling `Text(...)` more often.
+
+## Why streaming is different on mobile
+
+A streamed reply is not a document. It is an append-only mutation stream that the user watches in real time. That changes the engineering problem in three ways:
+
+- **Frequency over volume.** A 2,000-token answer may arrive as 400 to 2,000 separate deltas. Each one is tiny, but each one can trigger a layout pass, a style resolution, and a paint.
+- **Latency is perceived.** Time-to-first-token dominates perceived speed far more than total duration. Users forgive a long answer that starts fast; they abandon a fast answer that starts slowly.
+- **The tail is unpredictable.** Tokens can stall for seconds after a network hiccup, then burst by hundreds at once. Rendering must survive both starvation and flood without visual glitches.
+
+The core principle: **decouple the network rate from the render rate.** Never let a socket callback decide when the UI updates.
+
+## The pipeline
+
+Think of streaming as four stages with explicit buffers between them.
+
+1. **Transport** receives bytes over SSE, WebSocket, or HTTP chunked transfer.
+2. **Decoder** turns bytes into text deltas and handles partial UTF-8 sequences.
+3. **Reducer** appends deltas to a growing message model and marks what changed.
+4. **Renderer** coalesces state changes into frames at display refresh rate.
+
+Each stage should be allowed to run at its own cadence. Transport is event-driven. Reducer is cheap and can run per delta. Renderer must be throttled to the display.
+
+### Buffering rules of thumb
+
+- Flush to the UI at most once per animation frame, roughly every 16 ms on 60 Hz panels and 8 ms on 120 Hz panels.
+- Hold a delta for no more than one frame before showing it; a 30 ms added latency is invisible, a janky scroll is not.
+- Cap the in-memory transcript per message; drop or summarize the oldest content beyond a budget.
+
+## Choosing a transport
+
+| Transport | First token latency | Reconnect story | Battery cost | Best for |
+| --- | --- | --- | --- | --- |
+| SSE over HTTP/2 | Low | Native `Last-Event-ID` resume | Low | The default for one-way token streams |
+| WebSocket | Lowest after handshake | Manual resume with offsets | Medium | Bidirectional tool calls and voice |
+| Long-poll HTTP | High | Simple retry | High | Legacy gateways only |
+| HTTP chunked JSON | Low | Awkward | Low | Simple proxies, no event framing |
+
+SSE wins by default because it is one-way, proxy-friendly, and resumable. Reach for WebSocket only when the client must push mid-stream, for example to cancel a tool call or interrupt generation.
+
+## Decoding deltas correctly
+
+Two classic bugs live here: splitting multi-byte UTF-8 sequences across chunks, and treating markup as plain text.
+
+- Use a streaming `TextDecoder` with `{ stream: true }` so partial code points are retained between chunks.
+- Never call `JSON.parse` on a chunk that may be truncated. Buffer until you see a full event delimiter, usually a blank line.
+- Keep emoji, combining marks, and grapheme clusters intact. Splitting a family emoji into three faces is a visible defect.
+- Decide early whether the app renders Markdown incrementally or only after completion. Incremental Markdown requires a tolerant parser.
+
+```typescript
+type Delta = { id: string; text: string; done: boolean };
+
+export function createSseDecoder(onDelta: (d: Delta) => void) {
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  return function push(chunk: Uint8Array) {
+    buffer += decoder.decode(chunk, { stream: true });
+
+    let split: number;
+    while ((split = buffer.indexOf('\n\n')) !== -1) {
+      const rawEvent = buffer.slice(0, split);
+      buffer = buffer.slice(split + 2);
+
+      for (const line of rawEvent.split('\n')) {
+        if (!line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (payload === '[DONE]') {
+          onDelta({ id: 'current', text: '', done: true });
+          continue;
+        }
+        try {
+          const parsed = JSON.parse(payload) as { id: string; token?: string };
+          onDelta({ id: parsed.id, text: parsed.token ?? '', done: false });
+        } catch {
+          // Incomplete JSON: keep the buffer and retry next chunk.
+          buffer = `${rawEvent}\n\n${buffer}`;
+        }
+      }
+    }
+  };
+}
+```
+
+The retry-on-parse-failure branch matters in practice. Gateways occasionally cut an event mid-payload, and dropping it silently produces a reply with a missing word.
+
+## Coalescing updates into frames
+
+This is the single highest-leverage optimization. Batching many deltas into one render call converts N layout passes into one.
+
+- Accumulate deltas in a plain string builder, not in component state.
+- Schedule a single flush with `requestAnimationFrame`; if one is already scheduled, do nothing.
+- Flush on stream completion regardless of the frame timer, so the final token is never delayed.
+- Force a synchronous flush when the message is about to scroll out of view or the app backgrounds.
+
+```typescript
+export class StreamBuffer {
+  private pending = '';
+  private frame: number | null = null;
+
+  constructor(private readonly commit: (text: string) => void) {}
+
+  append(text: string) {
+    this.pending += text;
+    if (this.frame !== null) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = null;
+      const out = this.pending;
+      this.pending = '';
+      this.commit(out);
+    });
+  }
+
+  flushNow() {
+    if (this.frame !== null) {
+      cancelAnimationFrame(this.frame);
+      this.frame = null;
+    }
+    if (this.pending) {
+      const out = this.pending;
+      this.pending = '';
+      this.commit(out);
+    }
+  }
+}
+```
+
+On React Native, pair this with a `useSyncExternalStore` or a mutable ref plus a targeted `setState` on the streaming message only, never on the whole conversation list. Re-rendering a `FlatList` of 500 messages on every token is the most common cause of streaming jank in production apps.
+
+## Rendering the text itself
+
+How you draw the string determines whether the rest of your optimizations matter.
+
+- **Avoid re-parsing Markdown per frame.** Parse the appended suffix and merge into an existing block tree, or parse at most every 100 ms.
+- **Split stable from unstable.** Completed paragraphs are immutable; only the final open block needs re-layout.
+- **Reserve space for the caret.** Appending a blinking cursor that changes line wrapping causes a reflow on every token. Use an inline zero-width element or draw the caret on an overlay layer.
+- **Prefer native text views with fixed styles.** Constructing new style objects per delta defeats style caching.
+- **Skip syntax highlighting while streaming.** Highlight on completion; mid-stream highlighting is expensive and flickers as fences open and close.
+
+For long replies, virtualization helps but needs care: the streaming block changes height constantly, so measure it with a debounce and keep `getItemLayout` disabled for the last item.
+
+## Managing scroll
+
+Auto-scroll is the second most common source of jank and the most common source of user frustration.
+
+1. Track whether the user is pinned to the bottom, using a threshold like 48 dp.
+2. If pinned, scroll on each flush using `scrollToEnd({ animated: false })` for small deltas.
+3. If the user scrolled up, stop auto-scrolling and show a "jump to latest" affordance.
+4. On resume, re-pin only when the user taps that affordance, never automatically.
+5. Suspend auto-scroll entirely while a momentum scroll or gesture is in flight.
+
+Animated scrolling per token queues overlapping animations that fight each other. Non-animated scroll to a known offset is cheaper and looks smoother under streaming.
+
+## Accessibility
+
+Streaming content is invisible to screen readers by default because it changes without focus.
+
+- Announce on paragraph boundaries, not per token, using a polite live region.
+- Provide a "stop generating" control that is reachable before the reply finishes.
+- Respect reduced-motion settings by dropping the animated caret.
+- Ensure the reading order stays stable; inserting the caret as a real node can shift focus indices.
+
+## Failure handling
+
+- **Network drop.** Resume with the last known token offset; if the server cannot resume, re-request and reconcile by comparing prefixes.
+- **Duplicated deltas.** De-duplicate with a monotonic sequence number on each event.
+- **Server error mid-stream.** Keep partial text, mark the message as incomplete, and offer retry rather than discarding work.
+- **App backgrounded.** Persist the buffer; on foreground, either resume the stream or finalize what arrived.
+- **Token budget exhausted.** Stop cleanly with a visible reason rather than appearing to hang.
+
+## Measuring
+
+You cannot tune what you do not measure. Instrument four numbers and watch them on real low-end devices:
+
+- **Time to first token**, from send tap to first painted character.
+- **Frames per second** during the streaming window, sampled while scrolling.
+- **Dropped frames and long tasks**, especially any task over 50 ms.
+- **Peak memory** for a maximum-length conversation, re-opened after backgrounding.
+
+A useful target set for a mid-range Android device: first token under 900 ms on a warm connection, sustained 55+ fps while streaming and scrolling, zero long tasks over 100 ms, and a steady-state heap that does not grow across three consecutive long replies.
+
+## Checklist before shipping
+
+1. Deltas are decoded with a streaming `TextDecoder` and survive partial UTF-8.
+2. Deltas are appended to a buffer, never directly to component state.
+3. A single animation-frame flush commits accumulated text.
+4. Final-token and cancellation paths flush synchronously.
+5. Markdown is parsed incrementally or throttled, never per token.
+6. Only the streaming message re-renders; the list does not.
+7. Auto-scroll respects user intent and gesture state.
+8. Screen readers hear paragraph-level updates.
+9. Interrupted streams preserve partial content and offer retry.
+10. Metrics exist for first token, fps, long tasks, and memory.
+
+## Summary
+
+Efficient streaming on mobile is a buffering problem disguised as a UI problem. Decode incrementally, reduce into a mutable message model, commit to the UI once per frame, and render only the block that is actually changing. Everything else, from transport choice to scroll behavior, follows from keeping the network rate and the render rate independent while never losing a byte in between.
