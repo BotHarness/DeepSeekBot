@@ -14,6 +14,7 @@ import '../src/host/native-haptic-feedback';
 import { usePushRouting } from '../src/host/push-routing';
 import { HostDrawer, WorkspaceButton, hostDrawer } from '../src/ui/shell/host-drawer';
 import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
+import { usePredictiveBack } from '../src/ui/shell/predictive-back';
 import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
@@ -50,12 +51,14 @@ function RootNavigator() {
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
+  const back = usePredictiveBack();
   const stack = useCallback(
     (node: ViewInstance | null) => {
       workspace(node);
       activity(node);
+      back(node);
     },
-    [workspace, activity],
+    [workspace, activity, back],
   );
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

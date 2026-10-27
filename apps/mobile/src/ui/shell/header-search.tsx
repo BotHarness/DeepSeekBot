@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { BackHandler, Keyboard, Platform, View, type ViewInstance } from 'react-native';
+import { Keyboard, Platform, View, type ViewInstance } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { SearchField } from '../primitives/search-field';
@@ -8,6 +8,7 @@ import { useStrings } from '../strings';
 import { HeaderIconButton } from './header-icon-button';
 import { ChevronLeftIcon, CloseIcon } from './icons';
 import { NavigationAction } from './navigation-action';
+import { holdBack } from './back-owner';
 
 export type HeaderSearchProps = {
   value: string;
@@ -35,7 +36,7 @@ export function HeaderSearch({
   latest.current = close;
   const backHandler = useMounted<ViewInstance>(() => {
     if (Platform.OS !== 'android') return;
-    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+    const back = holdBack(() => {
       latest.current();
       return true;
     });
