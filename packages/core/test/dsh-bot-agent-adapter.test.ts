@@ -795,6 +795,59 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
+  it('leaves Session permission and its refusal to admission when it creates or borrows an Agent', async () => {
+    const host = new FakeAgentHost(
+      { kind: 'blocked' },
+      { onTurn: async () => undefined, assignmentTurnEnd: { kind: 'blocked' } },
+    );
+    await host.create({
+      sessionId: SessionId('moved-assignment'),
+      meta: { cwd: '/elsewhere' },
+    });
+    const refusal = sessionRefusalMessage(
+      'Assignment Session permission snapshot is missing or mismatched',
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      turnRefusal: (sessionId) => (sessionId === 'moved-assignment' ? refusal : undefined),
+      admitSession: (agent) => void admitted.push(agent.session.id),
+    });
+    const admitted: string[] = [];
+    const permissionEvents = (index: number) =>
+      host.sessions[index]!.snapshotEvents().filter(
+        (event) => event.type === 'sandbox/mode' || event.type === 'approval/policy',
+      );
+    try {
+      await expect(adapter.runOrchestrator(reportRun)).rejects.toThrow(
+        'Agent turn ended without completion: blocked',
+      );
+      expect(permissionEvents(1)).toEqual([]);
+      await expect(
+        adapter.runAssignment({
+          sessionId: 'moved-assignment',
+          bot: BOT,
+          text: 'Continue',
+          permission: {
+            grantId: 'grant-1',
+            workspaceId: 'workspace-1',
+            primaryCwd: '/project',
+            mode: 'workspace-write',
+            approval: 'ask',
+            presetRevision: 0,
+          },
+          report: vi.fn(),
+        }),
+      ).rejects.toThrow(refusal);
+      expect(permissionEvents(0)).toEqual([]);
+      expect(admitted).toEqual([reportRun.sessionId, 'moved-assignment']);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it.each<TurnEndCancelCause>([
     { kind: 'user' },
     { kind: 'parent' },
