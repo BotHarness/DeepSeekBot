@@ -30,6 +30,7 @@ import { Segmented } from '../primitives/segmented';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
+import { labelInField } from '../primitives/field-label';
 import { useStrings } from '../strings';
 import { useMounted } from '../mounted';
 import { HostGlyph } from './host-tile';
@@ -272,7 +273,7 @@ export function HostLookEditor({
         {failed ? <Text tone="danger">{t.hostLookSaveFailed}</Text> : null}
 
         <View style={{ gap: space.x2 }}>
-          <SettingsHeading>{t.hostLookName}</SettingsHeading>
+          {labelInField ? null : <SettingsHeading>{t.hostLookName}</SettingsHeading>}
           <TextField
             editable={!busy}
             accessibilityLabel={t.hostLookName}

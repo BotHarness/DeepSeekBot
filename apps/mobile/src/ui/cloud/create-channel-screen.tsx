@@ -12,6 +12,7 @@ import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
+import { labelInField } from '../primitives/field-label';
 import { useStrings } from '../strings';
 
 export function CloudCreateChannelScreen() {
@@ -122,7 +123,7 @@ function CreateChannelForm({
           <Text>{t.cloudInvitations.required}</Text>
         ) : (
           <>
-            <Text>{t.cloudChannels.name}</Text>
+            {labelInField ? null : <Text>{t.cloudChannels.name}</Text>}
             <TextField
               accessibilityLabel={t.cloudChannels.name}
               value={name}
