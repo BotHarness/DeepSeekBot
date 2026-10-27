@@ -19,6 +19,57 @@ export function randomAvatarSeed() {
   return Math.random().toString(36).slice(2, 12);
 }
 
+export function CreationAvatarPreview({
+  avatar,
+  name,
+  imported,
+  size = creationAvatar.size,
+}: {
+  avatar: BotAvatarChoice | undefined;
+  name: string;
+  imported: boolean;
+  size?: number;
+}) {
+  const theme = useDesignTheme();
+  const seed = avatar?.kind === 'generated' ? avatar.seed : imported ? undefined : name || 'Bot';
+  const svg = useMemo(
+    () => (seed === undefined ? undefined : avatarSvg(seededAvatarFor(seed, undefined))),
+    [seed],
+  );
+  return (
+    <View
+      accessibilityRole="image"
+      accessibilityLabel={copy.avatar}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        overflow: 'hidden',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.layer.raised.fill,
+      }}
+    >
+      {avatar?.kind === 'photo' ? (
+        <Image source={{ uri: avatar.image }} style={{ width: size, height: size }} />
+      ) : svg ? (
+        <CachedImage
+          source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
+          cachePolicy="memory"
+          contentFit="contain"
+          style={{ width: size, height: size }}
+        />
+      ) : (
+        <SystemSymbol
+          name={{ ios: 'shippingbox', android: 'inventory_2' }}
+          size={size / 2.5}
+          color={theme.color.muted}
+        />
+      )}
+    </View>
+  );
+}
+
 export function CreationAvatar({
   avatar,
   name,
@@ -32,49 +83,13 @@ export function CreationAvatar({
   disabled: boolean;
   onChange(avatar: BotAvatarChoice): void;
 }) {
-  const theme = useDesignTheme();
-  const size = creationAvatar.size;
-  const seed = avatar?.kind === 'generated' ? avatar.seed : imported ? undefined : name || 'Bot';
-  const svg = useMemo(
-    () => (seed === undefined ? undefined : avatarSvg(seededAvatarFor(seed, undefined))),
-    [seed],
-  );
   const choosePhoto = async () => {
     const image = await pickAvatarImage().catch(() => undefined);
     if (image) onChange({ kind: 'photo', image });
   };
   return (
     <View style={{ alignItems: 'center', gap: space.x3 }}>
-      <View
-        accessibilityRole="image"
-        accessibilityLabel={copy.avatar}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: theme.layer.raised.fill,
-        }}
-      >
-        {avatar?.kind === 'photo' ? (
-          <Image source={{ uri: avatar.image }} style={{ width: size, height: size }} />
-        ) : svg ? (
-          <CachedImage
-            source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
-            cachePolicy="memory"
-            contentFit="contain"
-            style={{ width: size, height: size }}
-          />
-        ) : (
-          <SystemSymbol
-            name={{ ios: 'shippingbox', android: 'inventory_2' }}
-            size={size / 2.5}
-            color={theme.color.muted}
-          />
-        )}
-      </View>
+      <CreationAvatarPreview avatar={avatar} name={name} imported={imported} />
       {imported && !avatar ? (
         <Text tone="muted" style={{ textAlign: 'center' }}>
           {copy.sourceAvatar}

@@ -45,6 +45,15 @@ vi.mock('react-native', async () => {
       scale: 1,
       fontScale: native.fontScale,
     }),
+    Dimensions: {
+      get: () => ({
+        width: native.width,
+        height: 800,
+        scale: 1,
+        fontScale: native.fontScale,
+      }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
   };
 });
 vi.mock('react-native-reanimated', async () => {

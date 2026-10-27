@@ -218,6 +218,13 @@ vi.mock('react-native', async () => {
       ...native.useWindowDimensions(),
       fontScale: hostState.fontScale,
     }),
+    Dimensions: {
+      get: () => ({
+        ...native.useWindowDimensions(),
+        fontScale: hostState.fontScale,
+      }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
   };
 });
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));

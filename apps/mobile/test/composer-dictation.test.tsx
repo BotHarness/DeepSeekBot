@@ -50,6 +50,10 @@ vi.mock('react-native', async () => {
       },
     },
     useWindowDimensions: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
+    Dimensions: {
+      get: () => ({ width: 402, height: 874, scale: 3, fontScale: speech.scale }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     View,
     Keyboard: { dismiss() {} },
     PanResponder: { create: (config: unknown) => ({ panHandlers: { __gesture: config } }) },

@@ -28,6 +28,10 @@ vi.mock('react-native', async () => {
       },
     },
     useWindowDimensions: () => ({ width: 320, height: 844, scale: 3, fontScale: device.scale }),
+    Dimensions: {
+      get: () => ({ width: 320, height: 844, scale: 3, fontScale: device.scale }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     View: (props: Props) => createElement('div', attributes(props), props.children),
     Pressable: (props: Props) =>
       createElement(

@@ -24,6 +24,8 @@ const fixture = vi.hoisted(() => ({
   back: vi.fn(),
   push: vi.fn(),
   dismiss: vi.fn(),
+  close: vi.fn(),
+  body: undefined as ReactNode,
   feeds: [] as unknown[],
 }));
 let controller: ReturnType<typeof createBotCreationController>;
@@ -57,12 +59,20 @@ vi.mock('react-native', async () => ({
   },
 }));
 vi.mock('expo-router', () => ({
-  Stack: {
-    Screen: ({ options }: { options: unknown }) => {
-      fixture.screen(options);
-      return null;
+  Stack: Object.assign(
+    ({ children }: { children?: ReactNode }) =>
+      createElement('section', { 'data-testid': 'creation-step-stack' }, children ?? fixture.body),
+    {
+      Screen: ({ options }: { options: unknown }) => {
+        fixture.screen(options);
+        return null;
+      },
     },
-  },
+  ),
+  useNavigation: () => ({ goBack: fixture.close }),
+  useIsFocused: () => true,
+  useGlobalSearchParams: () => fixture.params,
+  usePathname: () => '/create-bot',
   router: {
     back: fixture.back,
     push: fixture.push,
@@ -212,7 +222,33 @@ vi.mock('../src/ui/primitives/step-bar', () => ({
       ),
     ),
 }));
-vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
+vi.mock('../src/ui/shell/creation-header', () => ({
+  CreationHeader: ({
+    onClose,
+    name,
+    progress,
+  }: {
+    onClose(): void;
+    name: string;
+    progress?: number;
+  }) =>
+    createElement(
+      'header',
+      { 'data-testid': 'create-bot-header', 'data-name': name },
+      createElement('button', { 'data-testid': 'create-bot-close', onClick: onClose }, 'Close'),
+      createElement('progress', { 'data-testid': 'create-bot-progress', value: progress, max: 1 }),
+    ),
+}));
+vi.mock('../src/ui/primitives/keyboard-form-frame', () => ({
+  KeyboardFormFrame: ({ children, footer }: { children: ReactNode; footer: ReactNode }) =>
+    createElement(
+      'main',
+      null,
+      children,
+      createElement('footer', { 'data-testid': 'creation-footer' }, footer),
+    ),
+}));
+vi.mock('react-native-reanimated', () => ({ useReducedMotion: () => false }));
 vi.mock('../src/ui/shell/creation-avatar', () => ({
   CreationAvatar: ({
     onChange,
@@ -258,6 +294,7 @@ vi.mock('../src/ui/chat/conversation-screen', () => ({
 }));
 
 import { CreateBotScreen, CreateBotStepScreen } from '../src/ui/shell/create-bot-screen';
+import { CreationFlowLayout } from '../src/ui/shell/creation-flow.android';
 import DmScreen from '../app/dm/[slug]';
 import { t } from '../src/ui/strings';
 
@@ -271,6 +308,8 @@ beforeEach(() => {
   fixture.push.mockClear();
   fixture.back.mockClear();
   fixture.dismiss.mockClear();
+  fixture.close.mockClear();
+  fixture.body = undefined;
   hosts.splice(0, hosts.length, ...paired);
   disk = undefined;
   operation = undefined;
@@ -392,7 +431,6 @@ it('walks Environment, name and persona pages, then opens the new Bot from the l
   await act(async () => finish?.());
   expect(canonical?.status).toBe('created');
   expect(operation?.input.displayName).toBe('New Bot');
-  expect(fixture.dismiss).toHaveBeenCalledWith(2);
   expect(fixture.replaced).toEqual({
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
@@ -408,11 +446,11 @@ it('goes back one step with the round button and leaves the whole flow from the 
   expect(fixture.back).toHaveBeenCalledTimes(1);
   const options = fixture.screen.mock.calls.at(-1)![0] as {
     headerBackVisible: boolean;
-    headerLeft(): { props: { onPress(): void } };
+    headerShown: boolean;
   };
   expect(options.headerBackVisible).toBe(false);
-  options.headerLeft().props.onPress();
-  expect(fixture.dismiss).toHaveBeenCalledWith(2);
+  await press('create-bot-close');
+  expect(fixture.close).toHaveBeenCalledTimes(1);
 });
 
 it('shows creation progress in the bar without retry or uncertainty while the request is pending', async () => {
@@ -607,7 +645,7 @@ it.each(['git', 'marketplace', 'zip'] as const)(
           },
     );
     await act(async () => finish?.());
-    expect(fixture.dismiss).toHaveBeenCalledWith(lastStep[source]);
+    expect(fixture.dismiss).not.toHaveBeenCalled();
     expect(fixture.replaced).toEqual({
       pathname: '/dm/[slug]',
       params: { slug: 'new-bot', hostId: 'A' },
@@ -767,4 +805,40 @@ it('does not apply anything when the default generated avatar is kept', async ()
   await press('create-bot-submit');
   await act(async () => finish?.());
   expect(applied).toEqual([]);
+});
+
+it('keeps the Android identity header and footer mounted while only step content changes', async () => {
+  fixture.body = <CreateBotScreen />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  const header = container.querySelector('[data-testid="create-bot-header"]');
+  const footer = container.querySelector('[data-testid="creation-footer"]');
+  const progress = container.querySelector<HTMLProgressElement>(
+    '[data-testid="create-bot-progress"]',
+  )!;
+  expect(header).not.toBeNull();
+  expect(progress.value).toBe(0);
+  await press('create-bot-next');
+  fixture.params = { flow: 'blank', step: '1' };
+  fixture.body = <CreateBotStepScreen />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  await type(t.botCreation.name, 'Mira');
+  expect(header?.getAttribute('data-name')).toBe('Mira');
+  expect(progress.value).toBeCloseTo(1 / 3);
+  expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
+  expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
+  await press('create-bot-next');
+  fixture.params = { flow: 'blank', step: '2' };
+  fixture.body = <CreateBotStepScreen key="persona" />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  expect(progress.value).toBeCloseTo(2 / 3);
+  expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
+  expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
+  expect(controller.getSnapshot().record).toMatchObject({
+    kind: 'draft',
+    draft: { hostId: 'A', displayName: 'Mira' },
+  });
+  await press('create-bot-back');
+  expect(fixture.back).toHaveBeenCalledTimes(1);
+  await press('create-bot-close');
+  expect(fixture.close).toHaveBeenCalledTimes(1);
 });

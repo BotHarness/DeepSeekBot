@@ -9,6 +9,10 @@ vi.mock('react-native', async () => ({
   Platform: { OS: 'android' },
   useColorScheme: () => device.scheme,
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.fontScale }),
+    addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+  },
   View: ({
     children,
     style,
