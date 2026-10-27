@@ -15,6 +15,7 @@ import {
 } from '../shell/icons';
 import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
+import { controlCase } from '../platform-copy';
 
 import { buttonColors, type ButtonTone } from '../design/controls';
 import type { LayerName } from '../design/layers';
@@ -108,7 +109,7 @@ export function Button({
         </View>
       )}
       <Text strong style={{ color: labelColor, textAlign: 'center', flexShrink: 1 }}>
-        {label}
+        {controlCase(label)}
       </Text>
     </Pressable>
   );

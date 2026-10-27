@@ -8,6 +8,7 @@ import {
   frame,
 } from '@expo/ui/swift-ui/modifiers';
 
+import { controlCase } from '../platform-copy';
 import { useDesignTheme } from '../design/theme';
 import type { MenuAction, ActionMenuButtonProps } from './action-menu-button';
 
@@ -60,7 +61,7 @@ export function ActionMenuButton({
         {actions.map((action) => (
           <Button
             key={action.label}
-            label={action.label}
+            label={controlCase(action.label)}
             systemImage={SYMBOL[action.icon]}
             {...(action.destructive === true ? { role: 'destructive' as const } : {})}
             onPress={action.run}

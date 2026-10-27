@@ -1,5 +1,6 @@
 import { Button, ContextMenu, Host, RNHostView } from '@expo/ui/swift-ui';
 import { useDesignTheme } from '../design/theme';
+import { controlCase } from '../platform-copy';
 import { showActionMenu } from './app-dialog';
 import type { ItemMenuProps } from './item-menu';
 export type { ItemMenuAction } from './item-menu';
@@ -30,7 +31,7 @@ export function ItemMenu({ title, actions, children }: ItemMenuProps) {
           {actions.map((action) => (
             <Button
               key={action.key}
-              label={action.label}
+              label={controlCase(action.label)}
               {...(action.destructive ? { role: 'destructive' } : {})}
               onPress={action.run}
             />
