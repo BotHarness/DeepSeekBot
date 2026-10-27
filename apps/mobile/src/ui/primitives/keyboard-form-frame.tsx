@@ -19,7 +19,7 @@ export function KeyboardFormFrame({
   return (
     <KeyboardFormFooterSpace.Provider value={footer ? footerHeight : 0}>
       <View style={{ flex: 1, backgroundColor }} testID="keyboard-form-frame">
-        <View style={{ flex: 1 }}>{children}</View>
+        <View style={{ flex: 1, overflow: 'hidden' }}>{children}</View>
         {footer ? (
           <KeyboardStickyView
             offset={{ closed: 0, opened: insets.bottom }}
