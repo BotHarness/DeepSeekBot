@@ -547,6 +547,7 @@ export interface OwnedSessionSummary {
   assignmentTitle?: string;
   assignmentDescription?: string;
   assignmentModelRoute?: ModelRoute;
+  modelRoute?: ModelRoute;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;
@@ -6181,7 +6182,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         value: {
           assignments: assignments.map((assignment) => {
             const subagentCount = subagentCounts.get(assignment.sessionId);
-            return subagentCount === undefined ? assignment : { ...assignment, subagentCount };
+            const modelRoute =
+              deps.usage?.latestRoute(assignment.sessionId) ??
+              assignment.modelRoute ??
+              deps.registry.get(assignment.botSlug)?.modelPlan?.assignmentDefault ??
+              deps.defaultModel?.currentSelection();
+            return {
+              ...assignment,
+              ...(modelRoute === undefined ? {} : { modelRoute }),
+              ...(subagentCount === undefined ? {} : { subagentCount }),
+            };
           }),
         },
       };
@@ -6915,9 +6925,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const triage = deps.runtime?.triageOpenCount?.(slug);
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
+      const plan = deps.registry.get(slug)?.modelPlan;
+      const fallbackRoute = deps.defaultModel?.currentSelection();
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
+        const modelRoute =
+          deps.usage?.latestRoute(root.sessionId) ??
+          (root.rootRole === 'assignment'
+            ? (assignment?.modelRoute ?? plan?.assignmentDefault)
+            : plan?.orchestrator) ??
+          fallbackRoute;
         return {
           sessionId: root.sessionId,
           role: root.rootRole,
@@ -6949,6 +6967,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ...(assignment?.modelRoute === undefined
             ? {}
             : { assignmentModelRoute: assignment.modelRoute }),
+          ...(modelRoute === undefined ? {} : { modelRoute }),
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });

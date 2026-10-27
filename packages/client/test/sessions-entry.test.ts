@@ -266,8 +266,14 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
         role: 'orchestrator',
         createdAt: '2026-10-01T00:00:00Z',
         subagentCount: 1,
+        modelRoute: { provider: 'deepseek', model: 'deepseek-v4-pro', reasoningEffort: 'high' },
       },
-      { sessionId: 'a-1', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
+      {
+        sessionId: 'a-1',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        modelRoute: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      },
     ],
   });
   const sessionSubagents = vi.fn(async () => ({
@@ -312,6 +318,8 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
       '[data-session-subagents-toggle]',
     );
     expect(toggles).toHaveLength(1);
+    expect(container.textContent).toContain('deepseek/deepseek-v4-pro · high');
+    expect(container.textContent).toContain('opencode-go/deepseek-v4.1-flash');
     expect(sessionSubagents).not.toHaveBeenCalled();
     await act(async () => toggles[0]!.click());
     expect(sessionSubagents).toHaveBeenCalledWith('subagent-qa', 'orc');
