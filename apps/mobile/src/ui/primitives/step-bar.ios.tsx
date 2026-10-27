@@ -23,7 +23,7 @@ import { stepBarAccessibilityLabel, stepBarLabel, type StepBarProps } from './st
 export { stepBarLabel } from './step-bar';
 export type { StepBarAction, StepBarProps } from './step-bar';
 
-export function StepBar({ primary, back, step, note }: StepBarProps) {
+export function StepBar({ primary, back, step, note, error }: StepBarProps) {
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
@@ -38,6 +38,11 @@ export function StepBar({ primary, back, step, note }: StepBarProps) {
         paddingBottom: insets.bottom + space.x3,
       }}
     >
+      {error ? (
+        <BodyText accessibilityRole="alert" tone="danger" selectable>
+          {error}
+        </BodyText>
+      ) : null}
       {note ? (
         <BodyText variant="meta" tone="muted" accessibilityLiveRegion="polite">
           {note}

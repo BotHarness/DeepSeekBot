@@ -51,21 +51,37 @@ it('starts each source explicitly and preserves edited metadata across source an
   });
   expect(controller.getSnapshot().record).not.toHaveProperty('draft.source');
 });
-it('opens the native Zip picker first; cancellation preserves the complete previous draft and destination', async () => {
+it('leaves choosing the Zip to its own step and keeps the edited name and destination', async () => {
   const f = setup();
   await enterBotCreation(f.controller, 'git', { kind: 'host', hostId: 'A' });
   await f.controller.beginImport({
     gitUrl: 'https://github.com/example/helper',
     displayName: 'Edited',
   });
-  const before = f.disk();
-  f.pickZip.mockResolvedValueOnce(null);
-  expect(await enterBotCreation(f.controller, 'zip', { kind: 'all' })).toBe('cancelled');
-  expect(f.disk()).toEqual(before);
-  await enterBotCreation(f.controller, 'zip', { kind: 'host', hostId: 'B' });
+  expect(await enterBotCreation(f.controller, 'zip', { kind: 'host', hostId: 'B' })).toBe('ready');
+  expect(f.pickZip).not.toHaveBeenCalled();
   expect(f.controller.getSnapshot().record).toMatchObject({
-    draft: { hostId: 'B', displayName: 'Edited', source: { kind: 'zip', fileName: 'Helper.zip' } },
+    draft: { hostId: 'B', displayName: 'Edited' },
   });
+  expect(f.controller.getSnapshot().record).not.toHaveProperty('draft.source');
+  await f.controller.beginZip();
+  await enterBotCreation(f.controller, 'zip', { kind: 'all' });
+  expect(f.controller.getSnapshot().record).toMatchObject({
+    draft: { hostId: '', source: { kind: 'zip', fileName: 'Helper.zip' } },
+  });
+});
+it('preselects from All with the last-used Environment the screen still allows', async () => {
+  const f = setup();
+  await enterBotCreation(f.controller, 'blank', { kind: 'host', hostId: 'A' });
+  const seen: string[] = [];
+  await enterBotCreation(f.controller, 'blank', { kind: 'all' }, (last) => {
+    seen.push(last);
+    return last;
+  });
+  expect(seen).toEqual(['A']);
+  expect(f.controller.getSnapshot().record).toMatchObject({ draft: { hostId: 'A' } });
+  await enterBotCreation(f.controller, 'blank', { kind: 'all' }, () => '');
+  expect(f.controller.getSnapshot().record).toMatchObject({ draft: { hostId: '' } });
 });
 it('never replaces an unresolved submitted operation or opens a picker from another entry', async () => {
   const f = setup();
@@ -82,9 +98,10 @@ it('never replaces an unresolved submitted operation or opens a picker from anot
   }
   expect(f.pickZip).not.toHaveBeenCalled();
 });
-it('resume leaves the selected source and target unchanged and does not re-open the picker', async () => {
+it('resume leaves the selected source and target unchanged and does not open the picker', async () => {
   const f = setup();
-  await enterBotCreation(f.controller, 'zip', { kind: 'host', hostId: 'A' });
+  await enterBotCreation(f.controller, 'blank', { kind: 'host', hostId: 'A' });
+  await f.controller.beginZip();
   const before = f.disk();
   await enterBotCreation(f.controller, 'zip', { kind: 'resume' });
   expect(f.disk()).toEqual(before);

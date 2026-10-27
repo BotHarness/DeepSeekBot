@@ -20,6 +20,7 @@ export interface StepBarProps {
   back?: StepBarAction | undefined;
   step?: { index: number; total: number } | undefined;
   note?: string | undefined;
+  error?: string | undefined;
 }
 
 export function stepBarLabel(label: string, step: StepBarProps['step']) {
@@ -34,7 +35,7 @@ export function stepBarAccessibilityLabel(
   return step ? `${label}, ${t.stepBar.step(step.index, step.total)}` : label;
 }
 
-export function StepBar({ primary, back, step, note }: StepBarProps) {
+export function StepBar({ primary, back, step, note, error }: StepBarProps) {
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -53,6 +54,11 @@ export function StepBar({ primary, back, step, note }: StepBarProps) {
         paddingBottom: insets.bottom + space.x3,
       }}
     >
+      {error ? (
+        <Text accessibilityRole="alert" tone="danger" selectable>
+          {error}
+        </Text>
+      ) : null}
       {note ? (
         <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
           {note}

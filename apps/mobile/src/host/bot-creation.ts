@@ -722,7 +722,12 @@ export function createBotCreationController(options: {
         }
       }, 'preview');
     },
-    enter(entry: { kind: 'all' } | { kind: 'host'; hostId: string } | { kind: 'resume' }) {
+    enter(
+      entry:
+        | { kind: 'all'; hostId?: string }
+        | { kind: 'host'; hostId: string }
+        | { kind: 'resume' },
+    ) {
       return run(async () => {
         await ready;
         if (storageFailed || entry.kind === 'resume' || snapshot.record.kind !== 'draft') return;
@@ -730,7 +735,7 @@ export function createBotCreationController(options: {
           kind: 'draft',
           draft: {
             ...snapshot.record.draft,
-            hostId: entry.kind === 'host' ? entry.hostId : '',
+            hostId: entry.hostId ?? '',
             ...(snapshot.record.draft.source
               ? { source: unpreviewed(snapshot.record.draft.source) }
               : {}),
