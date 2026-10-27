@@ -9,7 +9,7 @@ import {
   type PinnedRole,
 } from '../../host/bot-profile';
 import { useDesignTheme } from '../design/theme';
-import { memoryGrid, radius, space } from '../design/tokens';
+import { edge, memoryGrid, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { SystemSymbol, type SystemSymbolProps } from '../primitives/system-symbol';
@@ -242,16 +242,18 @@ export function MemoryAbout({ role }: { role: PinnedRole }) {
     <View
       testID="memory-about"
       style={{
-        gap: space.x2,
-        padding: space.x5,
-        borderRadius: radius.md,
-        backgroundColor: theme.layer.raised.fill,
+        borderLeftWidth: edge.focus,
+        borderLeftColor: theme.color.border,
+        paddingLeft: space.x4,
+        paddingVertical: space.x1,
       }}
     >
-      <Text accessibilityRole="header" variant="meta" tone="muted" strong>
-        {t.memoryAboutTitle}
+      <Text tone="muted" style={{ fontStyle: 'italic' }}>
+        <Text strong tone="fg" style={{ fontStyle: 'italic' }}>
+          {t.memoryAboutTitle}
+        </Text>{' '}
+        {t.memoryAbout[role]}
       </Text>
-      <Text>{t.memoryAbout[role]}</Text>
     </View>
   );
 }

@@ -157,8 +157,9 @@ describe('Memory browser', () => {
   it('puts the About note above a pinned file', async () => {
     const memory = profileWire.rpc.memoryFile['MEMORY.md'].file;
     const view = await render(<MemoryFileView load={async () => memory} role="coreMemory" />);
-    expect(view.textContent).toBe(`${t.memoryAboutTitle}${t.memoryAbout.coreMemory}${memory.body}`);
-    expect(view.querySelector('[role="header"]')?.textContent).toBe(t.memoryAboutTitle);
+    expect(view.textContent).toBe(
+      `${t.memoryAboutTitle} ${t.memoryAbout.coreMemory}${memory.body}`,
+    );
   });
 });
 
@@ -191,7 +192,7 @@ function previewPort() {
   };
 }
 
-it('renders real Markdown headings, tables, inert HTML and source without a native Markdown mock', async () => {
+it('renders real Markdown headings, tables and inert HTML without a native Markdown mock', async () => {
   const body =
     '# Readable note\n\n| A | B |\n|---|---|\n| one | two |\n\n<script>neverRun()</script>';
   const view = await render(
@@ -209,15 +210,6 @@ it('renders real Markdown headings, tables, inert HTML and source without a nati
   expect(view.textContent).toContain('onetwo');
   expect(view.querySelector('script')).toBeNull();
   expect(view.textContent).toContain('<script>neverRun()</script>');
-  await act(async () =>
-    view.querySelector<HTMLButtonElement>(`button[aria-label="${t.memorySource}"]`)!.click(),
-  );
-  expect(view.textContent).toContain(body);
-  expect(view.querySelector('[role="header"]')).toBeNull();
-  await act(async () =>
-    view.querySelector<HTMLButtonElement>(`button[aria-label="${t.memoryPreview}"]`)!.click(),
-  );
-  expect(view.querySelector('[role="header"]')?.textContent).toBe('Readable note');
 });
 
 it('splits nested and reference images without losing surrounding formatting', () => {

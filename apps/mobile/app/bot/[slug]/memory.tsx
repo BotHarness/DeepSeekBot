@@ -5,7 +5,8 @@ import { loadMemoryFile, loadMemoryFiles, memoryRouteParams } from '../../../src
 import { nativeMemoryPreview } from '../../../src/host/native-memory-preview';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { MemoryFolderView } from '../../../src/ui/chat/memory-browser';
-import { MemoryFileView } from '../../../src/ui/chat/memory-file-view';
+import { saveMemoryFile } from '../../../src/host/memory-edit';
+import { MemoryFileScreen } from '../../../src/ui/chat/memory-file-screen';
 import { useStrings } from '../../../src/ui/strings';
 
 export default function MemoryScreen() {
@@ -40,12 +41,16 @@ export default function MemoryScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title }} />
+      {kind === 'file' ? null : <Stack.Screen options={{ title }} />}
       {kind === 'file' ? (
         loadFile === undefined ? null : (
-          <MemoryFileView
+          <MemoryFileScreen
             key={`${slug}:${path}`}
+            title={title}
             load={loadFile}
+            save={(body, expectedHead) =>
+              saveMemoryFile(client!, bot!, { path, body, expectedHead })
+            }
             preview={{ client: client!, io: nativeMemoryPreview, slug, path }}
             role={role === 'soul' || role === 'coreMemory' ? role : undefined}
           />

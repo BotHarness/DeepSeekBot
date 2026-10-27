@@ -389,3 +389,7 @@ export function MemoryIcon(props: IconProps) {
     />
   );
 }
+
+export function PencilIcon(props: IconProps) {
+  return <Glyph {...props} d="M4 20h4L19 9a2.83 2.83 0 0 0-4-4L4 16v4Zm9.5-13.5 4 4" />;
+}
