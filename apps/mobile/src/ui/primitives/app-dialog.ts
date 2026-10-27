@@ -2,6 +2,7 @@ import type { ReactElement } from 'react';
 import { ActionSheetIOS, Alert, Keyboard, Platform } from 'react-native';
 
 import { appDialogs, type DialogAction } from './dialog-state';
+import { recentTouch } from './touch-anchor';
 import { controlCase } from '../platform-copy';
 import { t } from '../strings';
 
@@ -105,6 +106,7 @@ export function showActionMenu(
       [{ text: t.cancel, style: 'cancel' }, ...ordered],
       'menu',
       avatar,
+      recentTouch(),
     );
     return;
   }

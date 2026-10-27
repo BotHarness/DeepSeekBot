@@ -65,13 +65,42 @@ vi.mock('@expo/ui/jetpack-compose', async () => {
       children,
     );
   ListItem.HeadlineContent = pass;
+  const DropdownMenu = ({
+    children,
+    expanded,
+    onDismissRequest,
+  }: {
+    children: ReactNode;
+    expanded: boolean;
+    onDismissRequest(): void;
+  }) =>
+    createElement(
+      'div',
+      { role: 'listbox', 'data-expanded': String(expanded), onKeyDown: onDismissRequest },
+      children,
+    );
+  DropdownMenu.Trigger = pass;
+  DropdownMenu.Items = pass;
   return {
     ...nativeMenu,
     AlertDialog,
     Column: ({ children, modifiers }: { children?: ReactNode; modifiers?: { id?: string }[] }) =>
       createElement('section', { 'data-testid': modifiers?.find((m) => m.id)?.id }, children),
+    Box: () => null,
+    DropdownMenu,
     HorizontalDivider: () => createElement('hr'),
-    Host: pass,
+    Host: ({
+      children,
+      style,
+    }: {
+      children?: ReactNode;
+      style?: { left?: number; top?: number };
+    }) =>
+      createElement(
+        'div',
+        { 'data-host': '', 'data-left': style?.left, 'data-top': style?.top },
+        children,
+      ),
     ListItem,
     ModalBottomSheet,
     Text: pass,
@@ -130,6 +159,38 @@ describe('Android dialogs use the Material 3 AlertDialog', () => {
     expect(items.every((item) => item.querySelector('i[data-symbol]'))).toBe(true);
     expect(header.contains(items[0]!)).toBe(false);
   });
+  it('anchors a long-press menu at the finger as an Expressive dropdown instead of a sheet', () => {
+    const pin = vi.fn();
+    const view = mount();
+    act(() =>
+      appDialogs.open(
+        'Launch team',
+        undefined,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', icon: 'remove', style: 'destructive' },
+          { text: 'Pin', icon: 'pin', onPress: pin },
+        ],
+        'menu',
+        createElement('img', { alt: 'Launch avatar' }),
+        { x: 120, y: 340 },
+      ),
+    );
+    expect(view.querySelector('[role="menu"]')).toBeNull();
+    expect(view.querySelector('[data-testid="action-menu-header"]')).toBeNull();
+    const menu = view.querySelector('[role="listbox"]')!;
+    expect(menu.getAttribute('data-expanded')).toBe('true');
+    const anchor = menu.closest('[data-host]')!;
+    expect([anchor.getAttribute('data-left'), anchor.getAttribute('data-top')]).toEqual([
+      '120',
+      '340',
+    ]);
+    const items = [...menu.querySelectorAll<HTMLElement>('[data-menu-item]')];
+    expect(items.map((item) => item.textContent)).toEqual(['Pin', 'Delete']);
+    act(() => items[0]!.click());
+    expect(pin).toHaveBeenCalledOnce();
+  });
+
   it('confirms with Cancel as the dismiss button and the destructive action as confirm', async () => {
     const unpair = vi.fn(async () => undefined);
     const view = mount();
