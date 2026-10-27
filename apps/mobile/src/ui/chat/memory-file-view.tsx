@@ -4,13 +4,14 @@ import { FlatList, View, type ViewInstance } from 'react-native';
 
 import type { HostClient } from '../../host/client';
 import type { MemoryPreviewIO } from '../../host/memory-preview';
+import type { PinnedRole } from '../../host/bot-profile';
 import type { MemoryFile } from '../../host/wire';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { Segmented } from '../primitives/segmented';
 import { useStrings } from '../strings';
-import { useLoad, Status } from './memory-browser';
+import { MemoryAbout, useLoad, Status } from './memory-browser';
 import { MemoryMarkdownBlock } from './memory-markdown';
 import { MemoryPreviewImage } from './memory-preview-image';
 import { createMemoryVisibility, MemoryVisibility } from './memory-visibility';
@@ -18,9 +19,11 @@ import { createMemoryVisibility, MemoryVisibility } from './memory-visibility';
 export function MemoryFileView({
   load,
   preview,
+  role,
 }: {
   load: () => Promise<MemoryFile | undefined>;
   preview?: { client: HostClient; io: MemoryPreviewIO; slug: string; path: string };
+  role?: PinnedRole | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -89,17 +92,22 @@ export function MemoryFileView({
           onRefresh={read}
           contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
           ListHeaderComponent={
-            markdown ? (
-              <Segmented<'preview' | 'source'>
-                label={t.memoryViewMode}
-                options={[
-                  { value: 'preview', label: t.memoryPreview },
-                  { value: 'source', label: t.memorySource },
-                ]}
-                value={mode}
-                onChange={setMode}
-              />
-            ) : undefined
+            role === undefined && !markdown ? undefined : (
+              <View style={{ gap: space.x4 }}>
+                {role === undefined ? null : <MemoryAbout role={role} />}
+                {markdown ? (
+                  <Segmented<'preview' | 'source'>
+                    label={t.memoryViewMode}
+                    options={[
+                      { value: 'preview', label: t.memoryPreview },
+                      { value: 'source', label: t.memorySource },
+                    ]}
+                    value={mode}
+                    onChange={setMode}
+                  />
+                ) : null}
+              </View>
+            )
           }
           ListEmptyComponent={
             content === null ? <Text tone="muted">{t.memoryEmptyFile}</Text> : content

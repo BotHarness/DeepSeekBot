@@ -1459,7 +1459,6 @@ const en = {
   profileSection: {
     work: 'Work',
     activity: 'Last 7 days',
-    identity: 'Identity',
     memory: 'Memory files',
     routines: 'Routines',
     channels: 'Channels',
@@ -1571,7 +1570,6 @@ const en = {
   profileEmpty: {
     work: 'No Assignments yet.',
     activity: 'A quiet week. Nothing to show yet.',
-    identity: 'No persona or standing rules yet.',
     memory: 'Nothing remembered yet.',
     routines: 'No routines.',
     channels: 'Not in any Channel.',
@@ -1614,6 +1612,15 @@ const en = {
   memoryActivityEmpty: 'No Bots yet.',
   memoryItems: (count: number) => (count === 1 ? '1 item' : `${count} items`),
   memoryEmptyFolder: 'This folder is empty.',
+  memoryPinned: { soul: 'Persona and rules', coreMemory: 'Always remembered' },
+  memoryPinnedMissing: 'Not created yet',
+  memoryAboutTitle: 'About this file',
+  memoryAbout: {
+    soul: 'The Bot’s character, voice and standing rules. Every new chat starts with it, so edits apply from the next chat.',
+    coreMemory:
+      'What the Bot always remembers: a short index of its Memory and a few key facts. Every new chat starts with it.',
+  },
+  memoryNotAttached: 'Memory isn’t running on this computer, so this Bot’s files can’t be shown.',
   memoryEmptyFile: 'This file is empty.',
   memoryMissing: 'This file is no longer in Memory.',
   memoryBinary: 'This file cannot be shown as text.',
@@ -3336,7 +3343,6 @@ const zh: typeof en = {
   profileSection: {
     work: '工作',
     activity: '近 7 天',
-    identity: '身份',
     memory: '记忆文件',
     routines: '例行任务',
     channels: '频道',
@@ -3435,7 +3441,6 @@ const zh: typeof en = {
   profileEmpty: {
     work: '还没有 Assignment。',
     activity: '这周很安静，暂时没有记录。',
-    identity: '还没有人设或长期规则。',
     memory: '还没有记住任何东西。',
     routines: '没有例行任务。',
     channels: '还没有加入任何频道。',
@@ -3478,6 +3483,14 @@ const zh: typeof en = {
   memoryActivityEmpty: '还没有 Bot。',
   memoryItems: (count: number) => `${count} 项`,
   memoryEmptyFolder: '这个文件夹是空的。',
+  memoryPinned: { soul: '人格与守则', coreMemory: '常驻记忆' },
+  memoryPinnedMissing: '尚未创建',
+  memoryAboutTitle: '关于这个文件',
+  memoryAbout: {
+    soul: 'Bot 的人格、语气和长期守则。每次新对话都会带上它，修改从下一次对话开始生效。',
+    coreMemory: 'Bot 一直记得的内容：一份记忆索引和几条关键信息。每次新对话都会带上它。',
+  },
+  memoryNotAttached: '这台电脑上的记忆服务没有运行，暂时看不到这个 Bot 的文件。',
   memoryEmptyFile: '这个文件是空的。',
   memoryMissing: '这个文件已不在记忆里。',
   memoryBinary: '这个文件无法以文本显示。',

@@ -292,3 +292,13 @@ export const channelMedia = {
   gap: space.x1,
   typeTile: 44,
 } as const;
+
+export const memoryGrid = {
+  columns: 3,
+  wideColumns: 5,
+  largeColumns: 2,
+  wide: 600,
+  tile: 56,
+  icon: 28,
+  gap: space.x4,
+} as const;
