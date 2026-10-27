@@ -2840,7 +2840,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         return [
           {
             channelId: row.channel_id,
-            message: attachmentMigration.project(row.source_event_id, original),
+            message: projectMessageAttachments(row.source_event_id, original),
             snippet: searchSnippet(row.search_text, needle),
           },
         ];
@@ -2848,7 +2848,9 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       const last = page.at(-1);
       return {
         hits,
-        ...(rows.length <= limit || last === undefined
+        ...(rows.length <= limit ||
+        last === undefined ||
+        (!indexed && seen + page.length >= SHORT_SEARCH_MAX)
           ? {}
           : {
               nextCursor: Buffer.from(

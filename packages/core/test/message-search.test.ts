@@ -69,6 +69,31 @@ describe('Global message search', () => {
     }
   });
 
+  it('stops paging a short query at its scan cap', async () => {
+    const { core, ada, methods, close } = await fixture();
+    try {
+      for (let index = 0; index < 205; index += 1)
+        await core.channels.appendMessage(ada.id, {
+          id: `cap-${index}`,
+          at: new Date(Date.UTC(2026, 9, 15, 0, 0, index)).toISOString(),
+          author: { kind: 'human' },
+          body: `qz ${index}`,
+        });
+      let cursor: string | undefined;
+      const pages: number[] = [];
+      for (let page = 0; page < 10; page += 1) {
+        const found = methods.messageSearch({ text: 'qz', cursor, limit: 50 });
+        if (!found.ok) throw new Error('search failed');
+        pages.push(found.value.hits.length);
+        cursor = found.value.nextCursor;
+        if (cursor === undefined) break;
+      }
+      expect(pages).toEqual([50, 50, 50, 50]);
+    } finally {
+      await close();
+    }
+  });
+
   it('leaves out hidden Channels, earlier group history and refuses bad input', async () => {
     const { core, bob, methods, close } = await fixture();
     try {

@@ -307,6 +307,16 @@ const HomeContent = memo(function HomeContent({
   const searchHosts = (selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [])
     .filter((host) => host.snapshot.connection.status === 'connected')
     .map((host) => ({ hostId: host.saved.hostId, client: host.client }));
+  const searchScope = searchHosts.map((host) => host.hostId).join('|');
+  const searchLatest = useRef({ query, messageSearch, searchHosts });
+  searchLatest.current = { query, messageSearch, searchHosts };
+  useFocusEffect(
+    useCallback(() => {
+      const latest = searchLatest.current;
+      if (latest.query.trim() !== '')
+        latest.messageSearch.schedule(latest.query, latest.searchHosts);
+    }, [searchScope]),
+  );
   const onQuery = (value: string) => {
     setQuery(value);
     messageSearch.schedule(value, searchHosts);

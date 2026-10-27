@@ -253,16 +253,21 @@ export function QuickSwitcher({
         loading: false,
       }));
     } catch {
-      if (current === sequence.current) setFound({ query: text, hits: [], loading: false });
+      if (current === sequence.current)
+        setFound((previous) =>
+          cursor === undefined
+            ? { query: text, hits: [], loading: false }
+            : { ...previous, loading: false },
+        );
     }
   };
   const scheduleMessages = (text: string): void => {
     if (timer.current !== undefined) clearTimeout(timer.current);
     timer.current = undefined;
+    sequence.current += 1;
     const trimmed = text.trim();
     if (messages === undefined) return;
     if (trimmed.length === 0) {
-      sequence.current += 1;
       setFound(NO_MESSAGES);
       return;
     }
