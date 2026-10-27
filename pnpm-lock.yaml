@@ -173,7 +173,7 @@ patchedDependencies:
   '@deepseek-ai/dsh-tool-fs@0.2.1-rc.3': 4b2e510cb0df4904b95b99936edd4cdaec5b19438561254906b3abf0d2c3b204
   dockview-core@8.4.1: 6d5f9165424be95472edbb4e667b16cf9abd150f139d3524cc1ca9a6b7863b86
   expo-quick-actions@6.0.2: 2d9cefa269045271145e1989e004232aac3c206249494311d39f49c13293dddb
-  react-native-view-shot@6.1.1: 1a309afc15955797ee9174234ae2514e981ea99e97527650b1d0ed0ebe6ee9ca
+  react-native-view-shot@6.1.1: a288c04a105e6e1b53da39a97f1b500ae8375b9967c3fc6cbac861efc0b9a5b2
 
 importers:
 
@@ -482,7 +482,7 @@ importers:
         version: 4.3.4(react-native-pager-view@9.0.7(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0))(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       react-native-view-shot:
         specifier: 6.1.1
-        version: 6.1.1(patch_hash=1a309afc15955797ee9174234ae2514e981ea99e97527650b1d0ed0ebe6ee9ca)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
+        version: 6.1.1(patch_hash=a288c04a105e6e1b53da39a97f1b500ae8375b9967c3fc6cbac861efc0b9a5b2)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       react-native-web:
         specifier: ~0.21.4
         version: 0.21.4(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -25706,7 +25706,7 @@ snapshots:
       react-native-pager-view: 9.0.7(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0)
       use-latest-callback: 0.2.6(react@19.3.0)
 
-  react-native-view-shot@6.1.1(patch_hash=1a309afc15955797ee9174234ae2514e981ea99e97527650b1d0ed0ebe6ee9ca)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
+  react-native-view-shot@6.1.1(patch_hash=a288c04a105e6e1b53da39a97f1b500ae8375b9967c3fc6cbac861efc0b9a5b2)(react-native@0.88.0(@babel/core@7.29.7(supports-color@10.2.2))(@react-native/metro-config@0.87.1(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2))(@types/react@19.3.0)(react@19.3.0)(supports-color@10.2.2))(react@19.3.0):
     dependencies:
       react: 19.3.0
     optionalDependencies:
