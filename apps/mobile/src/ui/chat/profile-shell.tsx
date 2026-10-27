@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useReducedMotion,
@@ -19,7 +20,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
-import { profileShell, space, swipeRow } from '../design/tokens';
+import { easeOut, profileShell, space, swipeRow } from '../design/tokens';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
 import { DrawerMaterial } from '../primitives/drawer-material';
 import { Text } from '../primitives/text';
@@ -85,7 +86,10 @@ export function ProfileShell({
   const open = () => {
     if (opened.current) return;
     opened.current = true;
-    opening.value = withTiming(1, { duration: profileShell.openDuration });
+    opening.value = withTiming(1, {
+      duration: profileShell.openDuration,
+      easing: Easing.bezier(...easeOut),
+    });
   };
   const openingStyle = useAnimatedStyle(() => ({ transform: [{ scale: opening.value }] }));
 
@@ -93,7 +97,10 @@ export function ProfileShell({
   const select = (next: ProfileTab) => {
     if (next === tab) return;
     fade.value = 0;
-    fade.value = withTiming(1, { duration: profileShell.tabFade });
+    fade.value = withTiming(1, {
+      duration: profileShell.tabFade,
+      easing: Easing.bezier(...easeOut),
+    });
     if (offset.value > identityHeight)
       list.current?.scrollToOffset({ offset: identityHeight, animated: false });
     onTab(next);

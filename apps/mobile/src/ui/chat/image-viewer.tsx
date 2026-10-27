@@ -3,6 +3,7 @@ import { ResourceImage as Image } from '../primitives/resource-image';
 import { Modal, Pressable, useWindowDimensions, View } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
+  Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -13,7 +14,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MessageAttachment } from '../../host/conversation';
-import { radius, space } from '../design/tokens';
+import { easeOut, radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { CloseIcon, ShareIcon } from '../shell/icons';
@@ -145,9 +146,13 @@ function ZoomableImage({
       }
       const direction = dismissDirection(dismiss.value, event.velocityY);
       if (direction !== 0) {
-        dismiss.value = withTiming(direction * frame.height, { duration: 180 }, (finished) => {
-          if (finished === true) runOnJS(onClose)();
-        });
+        dismiss.value = withTiming(
+          direction * frame.height,
+          { duration: 180, easing: Easing.bezier(...easeOut) },
+          (finished) => {
+            if (finished === true) runOnJS(onClose)();
+          },
+        );
       } else dismiss.value = withSpring(0, SPRING);
     });
 
