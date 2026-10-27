@@ -22,6 +22,7 @@ const detail: MarketplaceDetail = {
     avatar: null,
     topics: ['writing'],
     stars: 12,
+    installs: 0,
     pushedAt: '2026-10-23',
     htmlUrl: 'https://github.com/example/writer',
     cloneUrl: 'https://github.com/example/writer.git',

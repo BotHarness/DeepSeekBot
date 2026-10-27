@@ -126,6 +126,7 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
+import { createInstallReceipts } from './marketplace/install-receipts.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
 import { createShareDrafts } from './marketplace/share-draft.js';
 import type { ConnectAccount } from './devices/connect-account.js';
@@ -2627,6 +2628,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       log: (event) => ctx.logger.info(JSON.stringify(event)),
     }),
     shareDrafts,
+    marketplaceReceipts: createInstallReceipts({
+      client: marketplaceClient,
+      dataDir: telemetryDir,
+      log: (event) => ctx.logger.info(JSON.stringify(event)),
+    }),
     release: releaseService,
     plugins: pluginUpdates,
     telemetry,

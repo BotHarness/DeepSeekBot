@@ -960,6 +960,7 @@ describe('bridge typert service', () => {
       'origin',
       'operationKey',
       'expectedCommit',
+      'listingId',
     ]);
     expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
     expect(parameterNames(service.botImportLookup)).toEqual([

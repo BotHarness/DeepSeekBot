@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  relativeTime: (at: number, now: number) => ({
+    unit: 'days',
+    n: Math.floor((now - at) / 86_400_000),
+  }),
   Button: (props: Record<string, unknown> & { children?: ReactNode }) =>
     createElement(
       'button',
@@ -124,6 +128,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     descriptionGenerated: false,
     topics: [],
     stars: 7,
+    installs: 0,
     pushedAt: '2026-10-01T08:00:00Z',
     createdAt: '2026-03-05T08:00:00Z',
     htmlUrl: `https://github.com/alice/${name}`,
@@ -227,6 +232,10 @@ function button(host: HTMLElement, label: string): HTMLButtonElement {
 async function click(host: HTMLElement, label: string) {
   await act(async () => button(host, label).click());
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('Market panel', () => {
   it('defaults to stars and remembers each explicit sort after reopening', async () => {
@@ -396,6 +405,7 @@ describe('Market panel', () => {
   });
 
   it('shows a flat grid, sorts by creation time and searches only on Enter', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-04T08:00:00Z'));
     await withPanel(
       async (query) =>
         query?.q !== undefined
@@ -405,7 +415,7 @@ describe('Market panel', () => {
             : { bots: [entry('fresh')] },
       async ({ host, list }) => {
         expect(host.querySelectorAll('.bh-market-grid [role="listitem"]')).toHaveLength(1);
-        expect(host.textContent).toContain('更新于 2026-10-01');
+        expect(host.textContent).toContain('更新于 3 天前');
 
         await click(host, '最新创建');
 
@@ -419,7 +429,7 @@ describe('Market panel', () => {
             tile.getAttribute('data-market-bot'),
           ),
         ).toEqual(['alice/newest', 'alice/older']);
-        expect(host.textContent).toContain('创建于 2026-03-05');
+        expect(host.textContent).toContain('创建于 213 天前');
 
         const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
         await act(async () => {
@@ -463,6 +473,7 @@ describe('Market panel', () => {
           gitUrl: 'https://github.com/alice/helper.git',
           roles: [],
           origin: 'marketplace',
+          listingId: 'R_helper',
           description: 'helper description',
         });
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);

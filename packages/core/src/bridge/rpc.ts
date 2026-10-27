@@ -978,6 +978,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     origin?: 'marketplace',
     operationKey?: string,
     expectedCommit?: string,
+    listingId?: string,
   ): Promise<{
     bot: PersonaBotDetail;
     httpsFallback?: HttpsFallback;
@@ -993,6 +994,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         origin,
         operationKey,
         expectedCommit,
+        listingId,
       }),
     );
   }

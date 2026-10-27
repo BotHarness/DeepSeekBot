@@ -1946,7 +1946,8 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   margin-top: auto;
   padding: ${space.x2} ${space.x4} ${space.x4};
 }
-.bh-market-tile-foot .bh-market-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+.bh-market-tile-foot .bh-market-installs { font-variant-numeric: tabular-nums; }
+.bh-market-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
 .bh-market-tile-foot > button { flex-shrink: 0; border: 0; }
 .bh-market-files {
   display: flex;

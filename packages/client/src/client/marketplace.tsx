@@ -31,6 +31,8 @@ import type {
 } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
+import { formatStars } from './community-links.js';
+import { formatRelativeTime } from './labels.js';
 import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
@@ -68,6 +70,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'too-large': 'market.error.tooLarge',
   'bot-limit': 'market.error.botLimit',
   'nothing-to-upload': 'market.error.nothingToUpload',
+  'listing-not-installable': 'market.error.botNotFound',
   'not-an-uploaded-bot': 'market.error.botNotFound',
   'replace-limit': 'market.error.replaceLimit',
 };
@@ -150,6 +153,11 @@ function day(value: string): string {
   return value.slice(0, 10);
 }
 
+function ago(value: string, t: BotHarnessTranslate): string {
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? day(value) : formatRelativeTime(at, Date.now(), t);
+}
+
 const VISIBLE_TOPICS = 12;
 const MAX_QUERY_LENGTH = 100;
 
@@ -214,15 +222,25 @@ export function MarketplaceMeta({
       {bot.source === 'upload' ? null : (
         <span>{t('market.stars', { count: String(bot.stars) })}</span>
       )}
+      <span
+        className="bh-market-installs"
+        data-market-installs={bot.installs}
+        aria-label={t('market.installs', { count: String(bot.installs) })}
+        title={t('market.installs', { count: String(bot.installs) })}
+      >
+        {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
+      </span>
       {bot.installed?.authorUpdated === true ? (
         <span data-market-author-updated="">
           <Tag tone="info">{t('market.authorUpdated')}</Tag>
         </span>
       ) : null}
       {created && bot.createdAt !== undefined ? (
-        <span>{t('market.created', { date: day(bot.createdAt) })}</span>
+        <span title={day(bot.createdAt)}>
+          {t('market.created', { date: ago(bot.createdAt, t) })}
+        </span>
       ) : (
-        <span>{t('market.updated', { date: day(bot.pushedAt) })}</span>
+        <span title={day(bot.pushedAt)}>{t('market.updated', { date: ago(bot.pushedAt, t) })}</span>
       )}
       {(topics ? bot.topics : []).map((topic) => (
         <Tag key={topic} tone="neutral">
@@ -998,6 +1016,7 @@ export function MarketplaceBotFlow({
             gitUrl: selected.cloneUrl,
             roles: selected.roles,
             origin: 'marketplace',
+            listingId: selected.id,
             ...(selected.description === null ? {} : { description: selected.description }),
           });
     void installed.then(

@@ -155,6 +155,7 @@ import {
   type ShareDraftView,
 } from '../marketplace/share-draft.js';
 import type { UploadFileKind } from '../../../market/src/upload-files.js';
+import type { InstallReceipts } from '../marketplace/install-receipts.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
 import {
   MAX_DESCRIPTOR_BIO_LENGTH,
@@ -1150,6 +1151,7 @@ export interface BridgeMethodsDeps {
   marketplace?: MarketplaceClient;
   marketplaceUploads?: MarketplaceUploads;
   shareDrafts?: ShareDrafts;
+  marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
   plugins?: PluginUpdateService;
   telemetry?: {
@@ -1838,6 +1840,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }),
     );
     return { ok: false, error: { code: result.code, message: result.code } };
+  };
+  const sendReceipt = (listingId: string): void => {
+    void deps.marketplaceReceipts?.send(listingId).catch(() => undefined);
   };
   const withInstalls = (entry: MarketplaceEntry): MarketplaceEntry => {
     if (entry.source !== 'upload') return entry;
@@ -3562,6 +3567,14 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const roles = parseRoles(source);
       const description = parseOptional(source, 'description');
       if (!roles.ok || !description.ok) return invalidInput('invalid create payload');
+      const listingId = source['listingId'];
+      if (
+        listingId !== undefined &&
+        (typeof listingId !== 'string' ||
+          listingId.trim().length === 0 ||
+          source['origin'] !== 'marketplace')
+      )
+        return invalidInput('listingId needs origin marketplace');
       if (source['operationKey'] !== undefined) {
         const imports =
           deps.imports ??
@@ -3583,6 +3596,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...(description.value === undefined ? {} : { description: description.value }),
           });
           const created = await imports.create(source['operationKey'], input);
+          if (listingId !== undefined) sendReceipt(listingId.trim());
           return {
             ok: true,
             value: {
@@ -3613,6 +3627,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         ...(description.value === undefined ? {} : { description: description.value }),
       });
       if (!result.ok) return createFailure(slug, result);
+      if (listingId !== undefined) sendReceipt(listingId.trim());
       if (source['origin'] === 'marketplace') {
         try {
           deps.telemetry?.capture?.('marketplace_bot_installed');
@@ -3931,6 +3946,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           operationKey ?? `marketplace:${randomUUID()}`,
           prepared.value.input,
         );
+        sendReceipt(prepared.value.entry.id);
         try {
           deps.telemetry?.capture?.('marketplace_bot_installed');
         } catch {}
