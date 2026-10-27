@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { Animated, I18nManager, Pressable, View } from 'react-native';
 import type { SceneRendererProps } from 'react-native-tab-view';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS, useReducedMotion } from 'react-native-reanimated';
+import { GestureDetector } from 'react-native-gesture-handler';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
-import { edge, space, swipeRow, tabLabel, tabMotion } from '../design/tokens';
+import { edge, space, tabLabel, tabMotion } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import type { ActivitySection } from './activity-filters';
+import { ACTIVITY_TABS, activityStripSwipe, type ActivityTab } from './activity-tab-strip';
 import { ActivityIcon, ChatsIcon, PersonIcon } from './icons';
 
-export const ACTIVITY_TABS = [{ key: 'action' }, { key: 'replies' }, { key: 'unread' }] as const;
-export type ActivityTab = (typeof ACTIVITY_TABS)[number];
+export { ACTIVITY_TABS, type ActivityTab } from './activity-tab-strip';
 const ICONS = { action: ActivityIcon, replies: PersonIcon, unread: ChatsIcon };
 
 export function ActivityTabs({
@@ -32,23 +32,7 @@ export function ActivityTabs({
   const showIcons = ACTIVITY_TABS.some((tab) => tab.key === selected);
   const direction = I18nManager.isRTL ? -1 : 1;
   const inactiveOffset = (-(iconSize + space.x2) / 2) * direction;
-  const step = (forward: boolean) => {
-    const current = Math.max(
-      0,
-      ACTIVITY_TABS.findIndex((tab) => tab.key === selected),
-    );
-    const next = ACTIVITY_TABS[current + (forward ? 1 : -1)];
-    if (next !== undefined) onSelect(next.key);
-  };
-  const swipe = Gesture.Pan()
-    .activeOffsetX([-swipeRow.start, swipeRow.start])
-    .failOffsetY([-swipeRow.verticalFail, swipeRow.verticalFail])
-    .onEnd((event) => {
-      const travel = event.translationX * direction;
-      const velocity = event.velocityX * direction;
-      if (Math.abs(travel) < tabWidth / 3 && Math.abs(velocity) < swipeRow.flick) return;
-      runOnJS(step)(travel < 0);
-    });
+  const swipe = activityStripSwipe(selected, tabWidth, onSelect);
   return (
     <GestureDetector gesture={swipe}>
       <View

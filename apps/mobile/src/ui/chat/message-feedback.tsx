@@ -21,6 +21,7 @@ import { space } from '../design/tokens';
 import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
+import { labelInField } from '../primitives/field-label';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { useStrings } from '../strings';
@@ -257,7 +258,7 @@ export function MessageFeedbackForm({
               <View style={{ gap: space.x3 }}>
                 {(['before', 'after'] as const).map((side) => (
                   <View key={side} style={{ gap: space.x2 }}>
-                    <Text>{f[side]}</Text>
+                    {labelInField ? null : <Text>{f[side]}</Text>}
                     <TextField
                       testID={'feedback-' + side}
                       accessibilityLabel={f[side]}

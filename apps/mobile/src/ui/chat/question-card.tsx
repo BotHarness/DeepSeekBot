@@ -253,6 +253,7 @@ function QuestionFields({
       ) : (
         <TextField
           accessibilityLabel={`${t.otherAnswer}: ${question.question}`}
+          label={question.options?.length ? t.otherAnswer : t.typeAnswer}
           placeholder={question.options?.length ? t.otherAnswer : t.typeAnswer}
           editable={!disabled}
           multiline
