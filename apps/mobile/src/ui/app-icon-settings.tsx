@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Image, ScrollView, type ImageSourcePropType } from 'react-native';
+import { Image, type ImageSourcePropType } from 'react-native';
 
 import { useDesignTheme } from './design/theme';
 import { radius, space } from './design/tokens';
+import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Notice, errorText } from './request-parts';
 import { CheckIcon } from './shell/icons';
@@ -74,12 +75,12 @@ export function AppIconSettings({
   };
 
   return (
-    <ScrollView
-      nestedScrollEnabled
-      contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ gap: space.x6, padding: space.x5 }}
-    >
-      {port.supported ? null : <Notice tone="warning">{t.appIconUnsupported}</Notice>}
+    <SettingsForm>
+      {port.supported ? null : (
+        <SettingsFormItem>
+          <Notice tone="warning">{t.appIconUnsupported}</Notice>
+        </SettingsFormItem>
+      )}
       <SettingsSection on="raised" footer={t.appIconFooter}>
         {APP_ICONS.map((name) => (
           <SettingsRow
@@ -100,7 +101,11 @@ export function AppIconSettings({
           />
         ))}
       </SettingsSection>
-      {error === undefined ? null : <Notice tone="danger">{error}</Notice>}
-    </ScrollView>
+      {error === undefined ? null : (
+        <SettingsFormItem>
+          <Notice tone="danger">{error}</Notice>
+        </SettingsFormItem>
+      )}
+    </SettingsForm>
   );
 }
