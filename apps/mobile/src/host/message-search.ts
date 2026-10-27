@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import type { HostClient } from './client';
 
@@ -84,7 +84,7 @@ export function useMessageSearch(): {
   const [state, setState] = useState<MessageSearchState>(IDLE);
   const sequence = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const schedule = (text: string, hosts: readonly MessageSearchHost[]) => {
+  const schedule = useCallback((text: string, hosts: readonly MessageSearchHost[]) => {
     if (timer.current !== undefined) clearTimeout(timer.current);
     timer.current = undefined;
     const current = ++sequence.current;
@@ -100,6 +100,6 @@ export function useMessageSearch(): {
         if (current === sequence.current) setState({ query: trimmed, hits, loading: false });
       });
     }, MESSAGE_SEARCH_DEBOUNCE_MS);
-  };
+  }, []);
   return { state, schedule };
 }
