@@ -12,7 +12,7 @@ import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { ChevronRightIcon, CpuIcon, FolderIcon } from '../shell/icons';
+import { ChevronRightIcon, ClockIcon, CpuIcon, FolderIcon, ShieldCheckIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { modelLabel, workspaceLabel } from './composer-labels';
@@ -81,6 +81,28 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
             trailing={chevron}
             onPress={() => {
               router.push({ pathname: '/bot/[slug]/workspace', params: { slug: bot.slug } });
+            }}
+          />
+        </View>
+      </SettingsSection>
+      <SettingsSection title={t.approvals.permissions}>
+        <SettingsRow
+          testID="bot-approval-history"
+          title={t.approvals.history}
+          leading={<ClockIcon color={theme.color.fg} size={ICON} />}
+          trailing={chevron}
+          onPress={() => {
+            router.push({ pathname: '/bot/[slug]/approval-history', params: { slug: bot.slug } });
+          }}
+        />
+        <View style={{ borderTopWidth: edge.hairline, borderTopColor: theme.layer.sheet.divider }}>
+          <SettingsRow
+            testID="bot-approval-rules"
+            title={t.approvals.rules}
+            leading={<ShieldCheckIcon color={theme.color.fg} size={ICON} />}
+            trailing={chevron}
+            onPress={() => {
+              router.push({ pathname: '/bot/[slug]/approval-rules', params: { slug: bot.slug } });
             }}
           />
         </View>

@@ -196,6 +196,8 @@ interface ChannelFilesView {
 
 export interface ChannelHeaderView {
   title: string;
+  label?: ReactNode;
+  status?: ReactNode;
   icon?: ReactNode;
   actions: ReactNode;
 }
@@ -310,8 +312,9 @@ function ChannelBreadcrumb(): ReactElement | null {
         </span>
       )}
       <span title={header.title} {...stylex.props(styles.channelName)}>
-        {header.title}
+        {header.label ?? header.title}
       </span>
+      {header.status}
     </span>
   );
 }

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
+import { botRoutines } from '../../../src/host/routines';
 import { setBotAvatar } from '../../../src/host/bot-avatar';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
@@ -33,6 +34,10 @@ export default function BotProfileScreen() {
   const roster = snapshot.roster;
   const bot = roster?.bots.find((entry) => entry.slug === slug);
   const channels = useMemo(() => botChannels(roster, slug ?? ''), [roster, slug]);
+  const routines = useMemo(
+    () => (client === undefined || slug === undefined ? undefined : botRoutines(client, slug)),
+    [client, slug],
+  );
   const profile = useMemo(
     () => (client === undefined || bot === undefined ? undefined : botProfileResource(client, bot)),
     [client, bot?.slug, bot?.dmChannelId],
@@ -110,11 +115,17 @@ export default function BotProfileScreen() {
             pathname: '/bot/[slug]/routine/[id]',
             params: { slug: bot.slug, id: routine.id },
           }),
+        onOpenAssignment: (assignment) =>
+          router.push({
+            pathname: '/bot/[slug]/assignment/[id]',
+            params: { slug: bot.slug, id: assignment.sessionId },
+          }),
         onNewRoutine: () =>
           router.push({
             pathname: '/bot/[slug]/routine-new',
             params: { slug: bot.slug, hostId: saved?.hostId },
           }),
+        ...(routines === undefined || snapshot.connection.status === 'refused' ? {} : { routines }),
         ...(bot.browserAccess
           ? {
               onBrowser: () =>

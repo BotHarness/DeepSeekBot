@@ -15,7 +15,7 @@ import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
 import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { edge, profileShell, radius, space } from '../design/tokens';
+import { edge, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
 import { useFocusEffect } from 'expo-router';
 import { Text } from '../primitives/text';
@@ -29,15 +29,21 @@ import {
   ComputerIcon,
   FolderIcon,
   MemoryIcon,
-  PlusIcon,
   SettingsIcon,
   WorkIcon,
 } from '../shell/icons';
 import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
+import { AssignmentActivityIcon } from './assignment-marks';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
-import { routineDetail } from './routine-text';
+import {
+  NewRoutineButton,
+  RoutineGroupCard,
+  routineGroups,
+  type RoutineChanges,
+  type RoutineGroup,
+} from './profile-routines';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import {
   AvatarSettings,
@@ -68,8 +74,7 @@ type RowBody =
   | { kind: 'text'; label?: string; body: string }
   | { kind: 'item'; title: string; detail?: string }
   | { kind: 'entry'; entry: MemoryEntry }
-  | { kind: 'routine'; routine: BotScheduleSummary }
-  | { kind: 'new-routine' }
+  | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
   | { kind: 'activity'; activity: ProfileActivity }
@@ -85,7 +90,9 @@ export interface BotProfileActions {
   onNotifications(): void;
   onOpenMemory(entry: MemoryEntry): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
+  onOpenAssignment?(assignment: ProfileAssignment): void;
   onNewRoutine?(): void;
+  routines?: RoutineChanges;
   onOpenActivity(): void;
   onClose(): void;
 }
@@ -148,7 +155,6 @@ export function workRowBodies(assignments: readonly ProfileAssignment[], now = n
 export function profileRows(
   profile: BotProfile | undefined,
   channels: RosterChannel[],
-  addRoutine = false,
 ): Record<ProfileSection, Row[]> {
   return {
     work: frame(
@@ -177,9 +183,11 @@ export function profileRows(
     routines: frame(
       'routines',
       partRows(profile?.routines, 'routines', (routines) =>
-        routines.map((routine) => ({ kind: 'routine', routine })),
-      ).concat(
-        addRoutine && profile?.routines?.status === 'ready' ? [{ kind: 'new-routine' }] : [],
+        routineGroups(routines).map(({ group, routines }) => ({
+          kind: 'routine-group',
+          group,
+          routines,
+        })),
       ),
     ),
     channels: frame(
@@ -416,90 +424,62 @@ function ProfileRow({
       minute: '2-digit',
     });
     const state = t.profileAssignmentState[assignment.activity];
-    return (
-      <View
-        testID={`profile-assignment-${assignment.sessionId}`}
-        accessible
-        accessibilityLabel={[assignment.title, state, time].join(', ')}
-        style={[shape, { gap: space.x1 }]}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-          <Text numberOfLines={2} style={{ flex: 1 }}>
-            {assignment.title}
-          </Text>
-          <Text variant="meta" tone="muted">
-            {time}
-          </Text>
-        </View>
-        <Text
-          variant="meta"
-          tone={assignment.activity === 'error' ? 'danger' : 'muted'}
-          numberOfLines={2}
-        >
-          {assignment.latestReport === undefined
-            ? state
-            : `${state} · ${assignment.latestReport.summary}`}
-        </Text>
-      </View>
-    );
-  }
-  if (row.kind === 'routine') {
-    const { routine } = row;
-    const open = actions.onOpenRoutine;
-    const detail = routineDetail(routine);
+    const description = assignment.description?.trim() ?? '';
+    const open = actions.onOpenAssignment;
     return (
       <Pressable
+        testID={`profile-assignment-${assignment.sessionId}`}
         accessibilityRole={open === undefined ? undefined : 'button'}
-        accessibilityLabel={
-          open === undefined ? undefined : `${t.routineOpen(routine.title)}, ${detail}`
+        accessibilityLabel={[assignment.title, state, description, time]
+          .filter((part) => part !== '')
+          .join(', ')}
+        accessibilityHint={
+          open === undefined ? undefined : t.profileAssignmentOpen(assignment.title)
         }
         disabled={open === undefined}
-        onPress={() => open?.(routine)}
+        onPress={() => open?.(assignment)}
         style={({ pressed }) => [
           shape,
           {
             flexDirection: 'row',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             gap: space.x3,
             minHeight: theme.touch,
             backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
           },
         ]}
       >
-        <View style={{ flex: 1, gap: space.x1 }}>
-          <Text numberOfLines={1} tone={routine.enabled ? 'fg' : 'muted'}>
-            {routine.title}
-          </Text>
-          <Text variant="meta" tone="muted" numberOfLines={2}>
-            {detail}
-          </Text>
+        <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
+          <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
         </View>
-        {open === undefined ? null : (
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
-        )}
+        <View style={{ flex: 1, gap: space.x1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+            <Text numberOfLines={2} style={{ flex: 1 }}>
+              {assignment.title}
+            </Text>
+            <Text variant="meta" tone="muted">
+              {time}
+            </Text>
+          </View>
+          {description === '' ? null : (
+            <Text variant="meta" tone="muted" numberOfLines={2}>
+              {description}
+            </Text>
+          )}
+        </View>
       </Pressable>
     );
   }
-  if (row.kind === 'new-routine')
+  if (row.kind === 'routine-group')
     return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.routineNew}
-        onPress={actions.onNewRoutine}
-        style={({ pressed }) => [
-          shape,
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            minHeight: theme.touch,
-            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-          },
-        ]}
-      >
-        <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
-        <Text>{t.routineNew}</Text>
-      </Pressable>
+      <RoutineGroupCard
+        group={row.group}
+        routines={row.routines}
+        first={row.first}
+        changes={actions.routines}
+        onOpen={actions.onOpenRoutine}
+        onChanged={onRetry}
+      />
     );
   if (row.kind === 'loading')
     return (
@@ -659,11 +639,7 @@ export function BotProfilePage({
     };
   }, [load]);
   useFocusEffect(read);
-  const rows = profileRows(
-    content.ready ? profile : undefined,
-    channels,
-    actions.onNewRoutine !== undefined,
-  );
+  const rows = profileRows(content.ready ? profile : undefined, channels);
   const rowOf = (row: Row): ShellRow => ({
     key: row.key,
     render: () => (
@@ -699,7 +675,12 @@ export function BotProfilePage({
     memory: {
       rows: [...rows.identity.map(rowOf), heading('memory'), ...rows.memory.map(rowOf)],
     },
-    routines: { rows: rows.routines.map(rowOf) },
+    routines: {
+      ...(actions.onNewRoutine === undefined
+        ? {}
+        : { action: <NewRoutineButton onPress={actions.onNewRoutine} /> }),
+      rows: rows.routines.map(rowOf),
+    },
     settings: {
       rows: [
         ...rows.activity.map(rowOf),

@@ -58,6 +58,10 @@ export const INBOX_COMMANDS = [
     description: "list or search a Bot's Assignments with their Title and Description",
   },
   { command: 'assignment', description: "inspect one of a Bot's Assignments" },
+  {
+    command: 'assignment-timeline',
+    description: "read an Assignment's MAIN and SUBAGENT timeline (public summaries only)",
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -67,6 +71,10 @@ export const INBOX_COMMANDS = [
     description: "archive or unarchive a Bot's assignment Session",
   },
   { command: 'tool-approval-rules', description: "list a Bot's always-allow tool approval rules" },
+  {
+    command: 'tool-approval-history',
+    description: "list the Human's answers to a Bot's tool approval requests, newest first",
+  },
   {
     command: 'tool-approval-rule-revoke',
     description: 'revoke an always-allow tool approval rule (needs --confirm)',
@@ -383,6 +391,13 @@ function prepare(
         args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }
+    case 'assignment-timeline': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'assignmentTimeline',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
     case 'channel-assignments': {
       const [channelId] = positionals(command, rest, 1, 'exactly one group channel id');
       return { method: 'channelAssignments', args: { channelId } };
@@ -425,6 +440,22 @@ function prepare(
     case 'tool-approval-rules': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
       return { method: 'toolApprovalRules', args: { slug } };
+    }
+    case 'tool-approval-history': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
+        usage('--limit must be 1–100.');
+      return {
+        method: 'toolApprovalHistory',
+        args: {
+          slug,
+          ...(limit === undefined ? {} : { limit }),
+          ...(values.cursor === undefined
+            ? {}
+            : { cursor: required(values.cursor, 'cursor', command) }),
+        },
+      };
     }
     case 'tool-approval-rule-revoke': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');

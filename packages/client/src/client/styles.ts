@@ -56,6 +56,9 @@ export const CSS =
 .bh-composer-recovery > p button, .bh-composer-draft-version button { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; padding: ${space.x2} ${space.x3}; cursor: pointer; }
 .bh-composer-recovery > p button:hover, .bh-composer-draft-version button:hover { background: var(--bh-hover); }
 .bh-composer-recovery > p button:focus-visible, .bh-composer-draft-version button:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: ${space.x1}; }
+:root {
+  --bh-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
 .bh-root {
   --bh-chat-card-inset: ${space.x4};
   /* @bh-brand-aliases:start — thin BotHarness brand map onto DSH semantic
@@ -3235,8 +3238,7 @@ button.bh-profile-heat-cell:focus-visible {
   position: relative;
 }
 .bh-chat-body {
-  --bh-chat-mask-bottom: var(--bh-activity-overlay-inset, 0px);
-  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - ${space.x3} - var(--bh-chat-mask-bottom)), transparent calc(100% - var(--bh-chat-mask-bottom)));
+  mask-image: linear-gradient(to bottom, transparent, black min(var(--bh-chat-mask-top, ${space.x6}), 20%), black calc(100% - ${space.x3}), transparent 100%);
   mask-mode: alpha;
   position: relative;
   z-index: 1;
@@ -3245,16 +3247,9 @@ button.bh-profile-heat-cell:focus-visible {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-activity-overlay-inset, 0px) + var(--bh-companion-read-inset, 0px));
+  padding: 74px ${space.x5} calc(${space.x3} + var(--bh-companion-read-inset, 0px));
   overscroll-behavior: contain;
   transition: padding-bottom 160ms ease;
-}
-/* The faded composer status gives its reserved space back only after the
-   fade, so the working rows slide down instead of jumping onto its text. */
-.bh-chat-pane[data-activity-concealed='true'] .bh-chat-body {
-  --bh-chat-mask-bottom: 0px;
-  padding-bottom: calc(${space.x3} + var(--bh-companion-read-inset, 0px));
-  transition-delay: 160ms;
 }
 html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-chat-empty {
@@ -3332,32 +3327,49 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   outline: none;
 }
 .bh-message-group-avatar-link { cursor: pointer; }
-/* Client-only working rows under the latest message: the composer status
-   stays the live region, so these rows are hidden from assistive tech. */
-.bh-timeline-working {
-  margin-top: ${space.x3};
-}
-.bh-timeline-working-row {
-  display: flex;
+/* Header working status: a visually hidden status region in the chat pane
+   announces the same Bots, so this copy is hidden from assistive tech. */
+.bh-header-working {
+  display: inline-flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
+  padding-left: ${space.x3};
+  border-left: ${border.hairline} solid ${color.divider};
+  transform-origin: left center;
+  animation: bh-header-working-enter 180ms var(--bh-ease-out) both;
 }
-.bh-timeline-working-summary {
+.bh-header-working-avatars { flex-shrink: 0; }
+.bh-header-working-summary {
   min-width: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
-  font-size: ${text.bodySize};
+  font-weight: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bh-timeline-working-ellipsis i {
+[data-conversation-title] > .bh-header-working-summary { display: block; }
+.bh-header-working-ellipsis i {
   font-style: normal;
   animation: bh-timeline-working-dot 1.2s ease-in-out infinite;
 }
-.bh-timeline-working-ellipsis i:nth-child(2) { animation-delay: 0.2s; }
-.bh-timeline-working-ellipsis i:nth-child(3) { animation-delay: 0.4s; }
-html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animation: none; }
+.bh-header-working-ellipsis i:nth-child(2) { animation-delay: 0.2s; }
+.bh-header-working-ellipsis i:nth-child(3) { animation-delay: 0.4s; }
+html[data-botharness-motion='reduce'] .bh-header-working { animation-name: bh-fade-in; }
+html[data-botharness-motion='reduce'] .bh-header-working-ellipsis i { animation: none; }
+@keyframes bh-header-working-enter {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bh-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes bh-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 @keyframes bh-timeline-working-dot {
   0%, 60%, 100% { opacity: 0.25; }
   30% { opacity: 1; }
@@ -3486,6 +3498,30 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 }
 .bh-bubble-wrap + .bh-bubble-wrap {
   margin-top: ${space.x1};
+}
+.bh-bubble-enter {
+  transform-origin: left bottom;
+  animation: bh-bubble-enter 220ms var(--bh-ease-out) both;
+}
+.bh-message-group-me .bh-bubble-enter { transform-origin: right bottom; }
+html[data-botharness-motion='reduce'] .bh-bubble-enter { animation-name: bh-fade-in; }
+@keyframes bh-bubble-enter {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: none; }
+}
+.bh-message-group-enter .bh-message-group-avatar {
+  transform-origin: center bottom;
+  animation: bh-avatar-enter 220ms var(--bh-ease-out) both;
+}
+.bh-message-group-enter .bh-message-identity {
+  animation: bh-fade-in 220ms var(--bh-ease-out) both;
+}
+html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-avatar {
+  animation-name: bh-fade-in;
+}
+@keyframes bh-avatar-enter {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
 }
 .bh-bubble {
   text-align: left;
@@ -3622,6 +3658,23 @@ html[data-botharness-motion='reduce'] .bh-timeline-working-ellipsis i { animatio
 .bh-reading-dots i:nth-child(2) { animation-delay: 0.2s; }
 .bh-reading-dots i:nth-child(3) { animation-delay: 0.4s; }
 html[data-botharness-motion='reduce'] .bh-reading-dots i { animation: none; }
+[data-badge-motion='enter'] {
+  animation: bh-badge-in 180ms var(--bh-ease-out) both;
+}
+[data-badge-motion='leave'] {
+  animation: bh-badge-out 150ms var(--bh-ease-out) both;
+  pointer-events: none;
+}
+html[data-botharness-motion='reduce'] [data-badge-motion='enter'] { animation-name: bh-fade-in; }
+html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-name: bh-fade-out; }
+@keyframes bh-badge-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes bh-badge-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.9); }
+}
 .bh-message-group-me {
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-light, color-mix(in srgb, ${color.accent} 90%, ${color.fg}));
   --bh-bubble-me-ink: var(--bh-bubble-me-ink-light, ${color.onAccent});
@@ -3883,7 +3936,7 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
 .bh-timeline-new {
   position: absolute;
   z-index: 2;
-  bottom: calc(${space.x3} + var(--bh-activity-overlay-inset, 0px));
+  bottom: ${space.x3};
   right: ${space.x4};
   max-width: calc(100% - ${space.x4} * 2);
   border: ${border.hairline} solid ${color.border};
@@ -4224,9 +4277,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
 }
-.bh-chat-pane[data-activity-concealed='true'] .bh-composer-shell { --bh-companion-avoid-inset: 0px; }
 .bh-composer-shell {
-  --bh-companion-avoid-inset: var(--bh-activity-overlay-inset, 0px);
+  --bh-companion-avoid-inset: 0px;
   position: relative;
   z-index: 1;
   display: flex;
@@ -4313,64 +4365,6 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   outline: ${border.focus} solid var(--dsw-alias-label-primary);
 }
 
-.bh-composer-activity-status {
-  transition: opacity 160ms ease, translate 160ms ease;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  pointer-events: none;
-  container-type: inline-size;
-  background: transparent;
-  min-height: 28px;
-  min-width: 0;
-  padding: 0 ${space.x2};
-  color: var(--dsw-alias-label-secondary);
-  font-size: var(--dsh-content-font-size);
-}
-/* At the latest message the working rows already show every active Bot, so
-   the status only fades out: it stays the screen-reader live region. */
-.bh-composer-activity-status[data-concealed='true'] { opacity: 0; translate: 0 4px; }
-.bh-composer-activity-status[data-concealed='true'] * { pointer-events: none; }
-html[data-botharness-motion='reduce'] .bh-composer-activity-status { transition: none; }
-.bh-composer-activity-facepile .bh-persona-avatar,
-.bh-composer-activity-facepile .bh-avatar-facepile-overflow {
-  border: 0;
-}
-.bh-composer-activity-facepile .bh-persona-avatar::before {
-  display: none;
-}
-.bh-composer-activity-toggle {
-  pointer-events: auto;
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
-  cursor: pointer;
-  list-style: none;
-  background: transparent;
-}
-.bh-composer-activity-chevron { flex: none; }
-.bh-composer-activity-status:not([open]) .bh-composer-activity-chevron { transform: rotate(180deg); }
-.bh-composer-activity-toggle::-webkit-details-marker { display: none; }
-.bh-composer-activity-toggle:focus-visible { outline: ${border.focus} solid var(--dsw-alias-state-business-primary); outline-offset: 2px; }
-.bh-composer-activity-status:not([open]) .bh-composer-activity-details { display: none; }
-.bh-composer-activity-details { pointer-events: auto; display: flex; flex-direction: column; gap: ${space.x2}; max-height: min(40vh, 320px); overflow-y: auto; margin: ${space.x3} 0 0; padding: 0; list-style: none; background: transparent; }
-.bh-composer-activity-session { flex: none; pointer-events: auto; display: flex; align-items: center; gap: ${space.x3}; min-width: 0; min-height: 40px; padding: ${space.x3} ${space.x4}; border: ${border.hairline} solid ${color.border}; background: var(--dsw-alias-bg-base); border-radius: ${radius.sm}; }
-.bh-composer-activity-session time { flex: none; margin-left: auto; font-size: var(--dsh-content-font-size); color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums; }
-.bh-composer-activity-session-latest { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--dsh-content-font-size); color: var(--dsw-alias-label-secondary); }
-.bh-composer-activity-source-label { flex: 0 1 auto; max-width: 40%; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--dsw-alias-label-primary); }
-@container (max-width: 480px) {
-  .bh-composer-activity-session { flex-wrap: wrap; }
-  .bh-composer-activity-source-label { flex: 1; max-width: none; }
-  .bh-composer-activity-session-latest { order: 1; flex-basis: 100%; padding-left: ${space.x6}; }
-}
-.bh-composer-activity-summary {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .bh-composer-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .bh-composer-add-file { position: absolute; left: 8px; bottom: 10px; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.round}; background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); cursor: pointer; }
 .bh-composer-add-file:hover { background: var(--dsw-alias-interactive-bg-active); }
@@ -6445,10 +6439,6 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-activity-center-panel {height:100%;min-height:0;container-type:inline-size;}
 .bh-activity-center-panel .bh-activity-center-header {padding:0;}
 .bh-activity-center-panel > .bh-human-inbox {padding:${space.x4} 0 0;}
-.bh-session-role-icon {font-size:var(--dsh-content-font-size);color:var(--dsw-alias-label-secondary);}
-
-.bh-session-role-icon {display:flex;align-items:center;flex-shrink:0;}
-
 .bh-human-inbox-context-window { margin-top: ${space.x4}; }
 .bh-human-inbox-context-edge { display: flex; align-items: center; justify-content: center; width: 100%; height: 28px; padding: 0; border: ${border.hairline} solid ${color.borderStrong}; background: var(--dsw-alias-bg-layer-1); color: var(--dsw-alias-label-secondary); cursor: pointer; }
 .bh-human-inbox-context-edge:not(:disabled):hover { background: var(--bh-hover); }

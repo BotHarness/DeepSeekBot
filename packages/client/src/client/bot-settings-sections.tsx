@@ -16,6 +16,7 @@ import {
   SendKeySetting,
   AutoCollapseMessagesSetting,
   DeliveryReceiptsSetting,
+  StreamRepliesSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
 import { PromptPresetSettings } from './prompt-preset-settings.js';
@@ -119,6 +120,7 @@ export function MessagingSection(props: SectionProps<MessagingSectionFace>): Rea
       <SendKeySetting {...props} />
       <AutoCollapseMessagesSetting {...props} />
       <DeliveryReceiptsSetting {...props} />
+      <StreamRepliesSetting {...props} />
       <SettingsSection>
         <GroupAutoAcceptSetting {...props} />
       </SettingsSection>

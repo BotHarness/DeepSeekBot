@@ -116,6 +116,7 @@ const assignments = [
   {
     sessionId: 'assignment-1',
     title: 'Summarise the week of papers',
+    description: 'Read this week’s papers and send a short digest.',
     activity: 'working' as const,
     latestReport: {
       state: 'progress' as const,
@@ -300,20 +301,28 @@ describe('Bot profile page', () => {
     ).toBe('true');
   });
 
-  it('lists the Bot’s Assignments under the day of their last activity', async () => {
+  it('lists the Bot’s Assignments by Title and Description under the day of their last activity', async () => {
+    const onOpenAssignment = vi.fn();
     const view = await render(
       <BotProfileSheet
         bot={bot}
         channels={[]}
         load={async () => full}
-        actions={actions()}
+        actions={{ ...actions(), onOpenAssignment }}
         avatar={avatarNone}
       />,
     );
     const text = view.textContent ?? '';
     expect(text).toContain(t.usageToday);
     expect(text).toContain('Summarise the week of papers');
-    expect(text).toContain(`${t.profileAssignmentState.working} · Read 3 of 5`);
+    expect(text).toContain('Read this week’s papers and send a short digest.');
+    expect(text).not.toContain('Read 3 of 5');
+    const row = view.querySelector<HTMLButtonElement>(
+      '[data-testid="profile-assignment-assignment-1"]',
+    )!;
+    expect(row.getAttribute('aria-label')).toContain(t.profileAssignmentState.working);
+    await act(async () => row.click());
+    expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
   });
 
   it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {
@@ -543,6 +552,16 @@ describe('Bot profile page', () => {
     )!;
     await act(async () => open.click());
     expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
+    expect(headers(view)).toEqual(
+      expect.arrayContaining([t.routineGroup.daily, t.routineGroup.other]),
+    );
+    expect(headers(view)).not.toContain(t.routineGroup.weekly);
+    expect(
+      view.querySelector('[data-testid="profile-routine-group-daily"]')?.textContent,
+    ).toContain('Morning digest');
+    expect(
+      view.querySelector('[data-testid="profile-routine-group-other"]')?.textContent,
+    ).toContain('Hourly check');
     await act(async () => button(view, t.routineNew)!.click());
     expect(onNewRoutine).toHaveBeenCalledTimes(1);
     expect(view.querySelector('[role="dialog"]')).toBeNull();
@@ -561,6 +580,37 @@ describe('Bot profile page', () => {
     );
     expect(button(view, t.routineNew)).toBeNull();
     expect(view.textContent).toContain('Morning digest');
+  });
+
+  it('runs a routine from its swipe action and reloads the list', async () => {
+    let loads = 0;
+    const routines = {
+      runNow: vi.fn(async () => ({}) as never),
+      setEnabled: vi.fn(async () => ({}) as never),
+      remove: vi.fn(async () => undefined),
+    };
+    const view = await render(
+      <BotProfileSheet
+        tab="routines"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => {
+          loads += 1;
+          return full;
+        }}
+        actions={{ ...actions(), routines }}
+      />,
+    );
+    const before = loads;
+    const id = profileWire.rpc.scheduleList.schedules[0]!.id;
+    const run = view
+      .querySelector(`[data-testid="profile-routine-swipe-${id}"]`)!
+      .querySelector<HTMLButtonElement>('[data-testid="swipe-action-run"]')!;
+    await act(async () => run.click());
+    await act(async () => undefined);
+    expect(routines.runNow).toHaveBeenCalledWith(id);
+    expect(loads).toBe(before + 1);
   });
 
   it('shows the last 7 days first in Settings and opens the Activity screen', async () => {

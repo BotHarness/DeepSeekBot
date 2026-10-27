@@ -34,6 +34,7 @@ export interface ToolApprovalRule {
   createdAt: string;
   revokedAt?: string;
   externalCreator?: ToolApprovalActor;
+  autoApprovedCount: number;
 }
 interface RuleRow {
   id: string;
@@ -46,6 +47,7 @@ interface RuleRow {
   created_at: string;
   revoked_at: string | null;
   external_creator: string | null;
+  auto_approved_count: number;
 }
 function record(row: RuleRow): ToolApprovalRule {
   const externalCreator =
@@ -63,6 +65,7 @@ function record(row: RuleRow): ToolApprovalRule {
     toolName: row.tool_name,
     input: row.input,
     createdAt: row.created_at,
+    autoApprovedCount: row.auto_approved_count,
     ...(row.revoked_at === null ? {} : { revokedAt: row.revoked_at }),
     ...(externalCreator ? { externalCreator } : {}),
   };
@@ -75,6 +78,7 @@ export interface ToolApprovalRuleStore {
       explicitOnly?: boolean;
     },
   ): ToolApprovalRule | undefined;
+  recordAutoApproval(botSlug: string, id: string): void;
   createPending(
     input: Pick<
       ToolApprovalRule,
@@ -147,6 +151,18 @@ export function createToolApprovalRuleStore(
       }
       return undefined;
     },
+    recordAutoApproval(botSlug, id) {
+      database.transaction(
+        (connection) => {
+          connection
+            .prepare(
+              'UPDATE tool_approval_rules SET auto_approved_count = auto_approved_count + 1 WHERE bot_slug = ? AND id = ?',
+            )
+            .run(botSlug, id);
+        },
+        ['tool-approval-rules'],
+      );
+    },
     createPending(input) {
       if (input.externalCreator && !parseToolApprovalActor(input.externalCreator))
         throw new Error('External tool approval rule creator is invalid');
@@ -154,6 +170,7 @@ export function createToolApprovalRuleStore(
         ...input,
         id: randomUUID(),
         createdAt: new Date().toISOString(),
+        autoApprovedCount: 0,
       };
       if (!authorized(row)) throw new Error('External tool approval rule creator is unavailable');
       database.transaction(

@@ -20,11 +20,14 @@ export default function BotProfileLayout() {
         <Stack.Screen name="memory" />
         <Stack.Screen name="activity" />
         <Stack.Screen name="routine/[id]" />
+        <Stack.Screen name="assignment/[id]" />
         <Stack.Screen name="routine-new" />
         <Stack.Screen name="routine-edit/[id]" />
         <Stack.Screen name="model" />
         <Stack.Screen name="model-picker" />
         <Stack.Screen name="workspace" />
+        <Stack.Screen name="approval-history" />
+        <Stack.Screen name="approval-rules" />
         <Stack.Screen name="inbox" />
         <Stack.Screen name="notifications" options={{ title: t.notifications }} />
       </SheetStack>

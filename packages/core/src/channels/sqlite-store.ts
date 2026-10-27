@@ -2,6 +2,7 @@ import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bo
 import { projectBridgeMessage } from '../messaging/channel-target.js';
 import type { ExternalSource } from '../messaging/inbound.js';
 import { isChannelNotice, notChannelNoticeSql } from './channel-notice.js';
+import { toolApprovalHistoryEntry, type ToolApprovalHistoryEntry } from './approval-history.js';
 import {
   createLegacyAttachmentMigration,
   type RetainedAttachmentMessage,
@@ -2754,6 +2755,69 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
       return new Map(
         rows.filter((row) => Number.isFinite(row.at)).map((row) => [row.slug, row.at]),
       );
+    },
+    toolApprovalHistory(botSlug, page) {
+      if (!isValidSlug(botSlug)) return [];
+      const after = page.after;
+      const rows = database.read((db) =>
+        db
+          .prepare(`
+        SELECT p.channel_id,
+               p.message_id AS decision_id, d.payload_json AS decision_json, d.body AS decision_body,
+               rp.message_id AS request_id, r.payload_json AS request_json, r.body AS request_body
+          FROM channel_placements p
+          JOIN source_events d ON d.source_event_id = p.source_event_id
+          JOIN channel_records c ON c.channel_id = p.channel_id
+          JOIN channel_placements rp ON rp.channel_id = p.channel_id
+            AND rp.message_id = json_extract(d.payload_json, '$.toolApprovalDecision.requestMessageId')
+          JOIN source_events r ON r.source_event_id = rp.source_event_id
+         WHERE json_extract(c.record_json, '$.deletedAt') IS NULL
+           AND json_extract(r.payload_json, '$.author.kind') = 'bot'
+           AND json_extract(r.payload_json, '$.author.slug') = ?
+           AND (? IS NULL
+             OR json_extract(d.payload_json, '$.at') < ?
+             OR (json_extract(d.payload_json, '$.at') = ? AND p.message_id < ?))
+         ORDER BY json_extract(d.payload_json, '$.at') DESC, p.message_id DESC
+         LIMIT ?
+      `)
+          .all(
+            botSlug,
+            after?.decidedAt ?? null,
+            after?.decidedAt ?? null,
+            after?.decidedAt ?? null,
+            after?.decisionMessageId ?? null,
+            page.limit,
+          ),
+      ) as Array<{
+        channel_id: string;
+        decision_id: string;
+        decision_json: string;
+        decision_body: string;
+        request_id: string;
+        request_json: string;
+        request_body: string;
+      }>;
+      const entries: ToolApprovalHistoryEntry[] = [];
+      for (const row of rows) {
+        const decision = parseMessage(
+          row.decision_json,
+          row.decision_body,
+          row.decision_id,
+          row.channel_id,
+        );
+        const request = parseMessage(
+          row.request_json,
+          row.request_body,
+          row.request_id,
+          row.channel_id,
+        );
+        const entry =
+          decision === undefined || request === undefined
+            ? undefined
+            : toolApprovalHistoryEntry(row.channel_id, decision, request, botSlug);
+        if (entry !== undefined) entries.push(entry);
+      }
+      return entries;
     },
     humanMessageCounts(from, to) {
       const rows = database.read((db) =>

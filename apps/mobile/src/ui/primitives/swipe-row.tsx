@@ -18,7 +18,7 @@ import { showActionMenu } from './app-dialog';
 import { settleSwipe, swipeArmed } from './swipe-row-model';
 import { Text } from './text';
 
-export type SwipeTone = 'accent' | 'warning' | 'neutral';
+export type SwipeTone = 'accent' | 'warning' | 'danger' | 'neutral';
 
 export type SwipeAction = {
   key: string;
@@ -32,6 +32,7 @@ let openRow: (() => void) | undefined;
 
 function colors(theme: DesignTheme, tone: SwipeTone): { fill: string; ink: string } {
   if (tone === 'accent') return { fill: theme.color.accent, ink: theme.color.onAccent };
+  if (tone === 'danger') return { fill: theme.color.danger, ink: theme.color.onDanger };
   if (tone === 'warning')
     return {
       fill: theme.color.warning,
