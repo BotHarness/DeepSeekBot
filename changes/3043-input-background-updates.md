@@ -4,7 +4,7 @@ section: Fixed
 
 ## en
 
-- Reduced unnecessary Bot creation redraws and background updates while editing, and stopped fixed Android menu anchors from relaying out with every keyboard inset change ([#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)).
+- Reduced unnecessary Bot creation redraws and background updates while editing, and stopped fixed Android menu anchors from repeating layout with every keyboard inset change ([#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)).
 
 ## zh
 
