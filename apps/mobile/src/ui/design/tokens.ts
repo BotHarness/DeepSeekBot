@@ -92,6 +92,8 @@ export const fab = {
   menuItemPadding: 24,
   menuIconGap: 8,
   menuCloseGap: 8,
+  menuWidth: 320,
+  menuSettle: 350,
 } as const;
 export const materialDrawer = {
   width: 360,

@@ -1,130 +1,148 @@
-import { Box, Column, DropdownMenu, Host } from '@expo/ui/jetpack-compose';
-import { fillMaxSize, width } from '@expo/ui/jetpack-compose/modifiers';
-import { useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
-import { useDesignTheme, pressTint } from '../design/theme';
-import { fab, materialMenu } from '../design/tokens';
+import { requireNativeView } from 'expo';
+import { useState } from 'react';
+import {
+  Keyboard,
+  View,
+  useWindowDimensions,
+  type ViewInstance,
+  type ViewProps,
+} from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
+import { useDesignTheme } from '../design/theme';
+import { fab } from '../design/tokens';
 import { haptic } from '../haptics';
+import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
-import { MaterialMenuGroup } from '../primitives/material-menu.android';
-import { MenuIcon } from '../primitives/menu-icon';
-import { PlusIcon } from './icons';
+import { holdBack } from './back-owner';
 import { creationMenuItems, type CreationMenuItem } from './creation-menu-items';
 import type { CreationMenuButtonProps } from './creation-menu-button';
+import { fabMenuPath, type FabMenuIcon } from './fab-menu-paths';
+
+type NativeFabMenuProps = ViewProps & {
+  items: { key: string; label: string; path: string }[];
+  expanded: boolean;
+  available: boolean;
+  label: string;
+  closeLabel: string;
+  dark: boolean;
+  buttonContainer: string;
+  buttonContent: string;
+  itemContainer: string;
+  itemContent: string;
+  reduceMotion: boolean;
+  onToggle(event: { nativeEvent: { expanded: boolean } }): void;
+  onPick(event: { nativeEvent: { key: string } }): void;
+};
+
+const NativeFabMenu = requireNativeView<NativeFabMenuProps>('MaterialFabMenu');
+
+export function fabMenuHeight(count: number, size: number): number {
+  return (
+    count * fab.menuItemHeight +
+    Math.max(0, count - 1) * fab.menuItemGap +
+    fab.menuCloseGap +
+    size +
+    fab.margin
+  );
+}
+
+function BackWhileOpen({ onBack }: { onBack(): void }) {
+  const mount = useMounted<ViewInstance>(() => {
+    const back = holdBack(() => {
+      onBack();
+      return true;
+    });
+    return () => back.remove();
+  }, []);
+  return <View ref={mount} />;
+}
 
 export function CreationMenuButton(props: CreationMenuButtonProps) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const reduced = useReducedMotion();
+  const { width } = useWindowDimensions();
   const [open, setOpen] = useState(false);
-  const opened = useRef(false);
+  const [sized, setSized] = useState(false);
   const [parent, setParent] = useState<CreationMenuItem>();
   const close = () => {
-    opened.current = false;
     setOpen(false);
     setParent(undefined);
+    if (reduced) setSized(false);
+    else setTimeout(() => setSized(false), fab.menuSettle);
+  };
+  const entries: {
+    key: string;
+    label: string;
+    icon: FabMenuIcon;
+    item?: CreationMenuItem | undefined;
+  }[] = [
+    ...(parent ? [{ key: 'back', label: t.back, icon: 'back' as const }] : []),
+    ...(parent?.children ?? creationMenuItems({ ...props, nativeChannelForm: true })).map(
+      (item): { key: string; label: string; icon: FabMenuIcon; item: CreationMenuItem } => ({
+        key: item.key,
+        label: item.label,
+        icon: parent ? (item.target?.kind === 'cloud' ? 'cloud' : 'computer') : item.action,
+        item,
+      }),
+    ),
+  ];
+  const pick = (key: string) => {
+    if (props.busy) return;
+    if (key === 'back') {
+      setParent(undefined);
+      return;
+    }
+    const item = entries.find((entry) => entry.key === key)?.item;
+    if (item === undefined) return;
+    if (item.children) {
+      setParent(item);
+      return;
+    }
+    close();
+    props.onPick(item.action, item.target);
   };
   return (
-    <View style={{ width: props.size, height: props.size }}>
-      <Host
-        colorScheme={theme.scheme}
-        seedColor={theme.color.accent}
-        pointerEvents="none"
-        style={StyleSheet.absoluteFill}
-      >
-        <DropdownMenu
-          expanded={open}
-          onDismissRequest={close}
-          color="transparent"
-          shadowElevation={0}
-        >
-          <DropdownMenu.Trigger>
-            <Box modifiers={[fillMaxSize()]} />
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Items>
-            <Column modifiers={[width(materialMenu.width)]}>
-              <MaterialMenuGroup
-                items={[
-                  ...(parent
-                    ? [
-                        {
-                          key: 'back',
-                          label: t.back,
-                          testID: 'creation-menu-back',
-                          disabled: props.busy,
-                          icon: (
-                            <MenuIcon
-                              icon="back"
-                              color={theme.color.muted}
-                              size={materialMenu.iconSize}
-                            />
-                          ),
-                          onPress: () => setParent(undefined),
-                        },
-                      ]
-                    : []),
-                  ...(
-                    parent?.children ?? creationMenuItems({ ...props, nativeChannelForm: true })
-                  ).map((item) => ({
-                    key: item.key,
-                    label: item.label,
-                    testID: `creation-${item.key}`,
-                    disabled: props.busy,
-                    icon: (
-                      <MenuIcon
-                        icon={
-                          parent
-                            ? item.target?.kind === 'cloud'
-                              ? 'cloud'
-                              : 'computer'
-                            : item.action
-                        }
-                        color={theme.color.muted}
-                        size={materialMenu.iconSize}
-                      />
-                    ),
-                    onPress: () => {
-                      if (props.busy) return;
-                      if (item.children) {
-                        setParent(item);
-                        return;
-                      }
-                      close();
-                      props.onPick(item.action, item.target);
-                    },
-                  })),
-                ]}
-              />
-            </Column>
-          </DropdownMenu.Items>
-        </DropdownMenu>
-      </Host>
-      <Pressable
-        testID="creation-menu-trigger"
-        accessibilityRole="button"
-        accessibilityLabel={t.createHere}
-        accessibilityState={{ expanded: open, disabled: props.busy }}
-        disabled={props.busy}
-        onPress={() => {
-          if (opened.current) return;
-          opened.current = true;
-          Keyboard.dismiss();
-          haptic('menu');
-          setOpen(true);
+    <View
+      style={
+        open || sized
+          ? {
+              width: Math.min(width - fab.margin * 2, fab.menuWidth),
+              height: fabMenuHeight(entries.length, props.size),
+            }
+          : { width: props.size, height: props.size }
+      }
+    >
+      {open ? <BackWhileOpen onBack={close} /> : null}
+      <NativeFabMenu
+        testID="creation-fab-menu"
+        style={{ flex: 1 }}
+        items={entries.map((entry) => ({
+          key: entry.key,
+          label: entry.label,
+          path: fabMenuPath[entry.icon],
+        }))}
+        expanded={open}
+        available={!props.busy}
+        label={t.createHere}
+        closeLabel={t.close}
+        dark={theme.scheme === 'dark'}
+        buttonContainer={theme.layer.canvas.chosen}
+        buttonContent={theme.color.fg}
+        itemContainer={theme.color.accent}
+        itemContent={theme.color.onAccent}
+        reduceMotion={reduced}
+        onToggle={(event) => {
+          if (event.nativeEvent.expanded) {
+            if (props.busy) return;
+            Keyboard.dismiss();
+            haptic('menu');
+            setSized(true);
+            setOpen(true);
+          } else close();
         }}
-        android_ripple={{ color: pressTint(theme.color.fg) }}
-        style={{
-          width: props.size,
-          height: props.size,
-          borderRadius: fab.radius,
-          overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: theme.layer.canvas.chosen,
-          elevation: fab.elevation,
-        }}
-      >
-        <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
-      </Pressable>
+        onPick={(event) => pick(event.nativeEvent.key)}
+      />
     </View>
   );
 }
