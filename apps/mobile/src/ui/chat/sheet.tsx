@@ -26,6 +26,7 @@ export function Sheet({
   title,
   subtitle,
   onClose,
+  onDismissed,
   children,
   avoidKeyboard = false,
   animationType = 'fade',
@@ -36,6 +37,7 @@ export function Sheet({
   title?: string;
   subtitle?: string;
   onClose(): void;
+  onDismissed?: (() => void) | undefined;
   children: ReactNode;
   avoidKeyboard?: boolean;
   animationType?: 'none' | 'slide' | 'fade';
@@ -54,6 +56,7 @@ export function Sheet({
       visible={visible}
       label={label}
       onClose={onClose}
+      onDismissed={onDismissed}
       avoidKeyboard={avoidKeyboard}
       animationType={animationType}
     >

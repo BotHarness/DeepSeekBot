@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Linking, Platform, ScrollView } from 'react-native';
+import { Linking, ScrollView } from 'react-native';
 
 import { Sheet } from '../chat/sheet';
 import { space } from '../design/tokens';
@@ -11,10 +11,12 @@ export function StatisticsNoticeView({
   visible,
   onClose,
   onSettings,
+  onDismissed,
 }: {
   visible: boolean;
   onClose(): void;
   onSettings(): void;
+  onDismissed?: (() => void) | undefined;
 }) {
   const t = useStrings();
   const [expanded, setExpanded] = useState(false);
@@ -26,10 +28,10 @@ export function StatisticsNoticeView({
   return (
     <Sheet
       visible={visible}
-      animationType={Platform.OS === 'ios' ? 'none' : 'fade'}
       label={t.statisticsNoticeTitle}
       title={t.statisticsNoticeTitle}
       onClose={onClose}
+      onDismissed={onDismissed}
     >
       <ScrollView nestedScrollEnabled contentContainerStyle={{ padding: space.x5, gap: space.x4 }}>
         <Text>{t.statisticsNoticeSummary}</Text>
