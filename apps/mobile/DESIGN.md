@@ -25,6 +25,25 @@ All new or changed screens follow the cross-platform [UI design standard](../../
 
 On both platforms the system's own design and components are the standard: Apple's Human Interface Guidelines on iOS (`ios-hig` skill), Material 3 on Android (`android-material` skill). Where the platform has a component for the job, use it (native navigation, `@expo/ui` SwiftUI views on iOS, `@expo/ui` Jetpack Compose views on Android) and keep its default look and behaviour; do not draw a React Native look-alike or restyle it into a house style. A custom surface is allowed only where no native component fits, and its reason is written in this file first.
 
+Tokens come in three layers ([ADR-0266](../../docs/adr/0266-mobile-design-tokens-have-a-shared-layer-and-a-layer-per-platform.md)):
+
+- **Shared:** brand accent, status colours, spacing and content-only colours (`tokens.ts`, `palette.generated.ts`). These match the Web.
+- **Android:** chrome colours come from `useMaterialRoles()` (Material 3 roles seeded by the accent), with type from `materialType`.
+- **iOS:** chrome colours come from `systemColors` (semantic system colours), with type from `systemType` (Dynamic Type styles), and the accent is the tint.
+
+Platform files never hard-code a colour.
+
+Native controls draw platform icons: SF Symbols on iOS, Material symbols or vector drawables on Android. A React Native view inside a native control is only for avatars and images. Never nest React Native inside Compose inside React Native.
+
+The custom surfaces that stay custom, because no native component does the job:
+
+- conversation-row swipe actions
+- message bubbles
+- streaming text reveal
+- the Computer video canvas and its remote keyboard
+
+The migration of the remaining look-alikes is tracked in [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002).
+
 Older rules below that prescribe a custom surface where a native component exists describe the current implementation, not the target. Change them to the native component when the screen is next touched, and update the rule in the same change.
 
 Back closes the topmost surface before it leaves the screen: an in-screen surface that is not its own route, such as the composer's attach tray, holds the screen with Expo Router's `usePreventRemove` and closes itself; the full client steps back through its web history first, while its floating exit still leaves at once. Do not add `BackHandler` listeners for new surfaces; the two existing ones (the Host drawer and header search) register through `holdBack` (`src/ui/shell/back-owner.ts`). React Native 0.88's `ReactActivity` registers an always-enabled `OnBackPressedCallback` on targetSdk 36, which hides the system's back-to-home preview. The local `predictive-back` module turns that callback off whenever nothing in the app can go back (no stack or tab history, and no `holdBack` owner), so at the root Android plays its own predictive back-to-home animation. Screens inside the app still do not follow the gesture's progress: that waits for react-native-screens' predictive back support. Remove the module once React Native ships `BackHandler.setInterceptEnabled` (react-native#59292).
