@@ -410,12 +410,24 @@ An inactive imported reference describing a provider account or authority the Hu
 _Avoid_: credential, Service Grant, automatic reconnect
 
 **Bot Marketplace**:
-The hosted catalog the harness opens to browse, search and install shareable Bots. It lists only Indexed Repositories; there are no accounts or uploaded Bots (ADR-0131, ADR-0135).
+The hosted catalog the harness opens to browse, search and install shareable Bots. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots.
 _Avoid_: store, hub, Soul registry
 
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
+
+**Uploaded Bot**:
+A Bot Marketplace entry whose Memory files an author uploaded under their Handle, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
+_Avoid_: Listing, Version, SoulSnapshot, publication
+
+**Share Draft**:
+A sanitized copy of one PersonaBot's Memory files that Tob prepares with the Human, file by file, before an upload; the source Memory is never changed, and only a Share Draft is uploaded.
+_Avoid_: export, snapshot, redacted Memory
+
+**Install Receipt**:
+The one count a Host reports to the Bot Marketplace after an install completes, keyed by a random marketplace-only Host identifier so each Host counts once per entry.
+_Avoid_: download, clone count, Telemetry event
 
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
@@ -434,7 +446,7 @@ A human-named tag pointing at one immutable SoulSnapshot digest under a Listing.
 _Avoid_: release, build, revision
 
 **Handle**:
-An account's unique public identifier, used as the namespace of its Listings; never the account's email.
+An account's unique public author name in the Bot Marketplace, chosen at first upload and shown on its Uploaded Bots; never the account's email.
 _Avoid_: username, account id
 
 **Bot set**:
