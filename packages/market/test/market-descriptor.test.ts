@@ -46,8 +46,31 @@ describe('bot.json descriptor', () => {
     ['a non-image file', '{"avatar":{"image":"avatar.svg"}}'],
     ['both recipe and image', '{"avatar":{"recipe":{},"image":"a.png"}}'],
     ['an oversized file', JSON.stringify({ name: 'a', pad: 'x'.repeat(MAX_DESCRIPTOR_BYTES) })],
+  ])('rejects %s in strict mode', (_, text) => {
+    expect(parseBotDescriptor(text, { strict: true })).toBeUndefined();
+  });
+
+  it.each([
+    ['not JSON', '{name:'],
+    ['an array', '[]'],
+    ['an oversized file', JSON.stringify({ name: 'a', pad: 'x'.repeat(MAX_DESCRIPTOR_BYTES) })],
   ])('rejects %s', (_, text) => {
     expect(parseBotDescriptor(text)).toBeUndefined();
+  });
+
+  it('drops an invalid field and keeps the others', () => {
+    expect(
+      parseBotDescriptor(
+        JSON.stringify({
+          name: 'x'.repeat(61),
+          bio: 'x'.repeat(161),
+          tags: ['ok', 1],
+          roles: ['legacy'],
+          avatar: { image: '../secret.png' },
+          banner: { recipe: { scene: 'sea', seed: 7 } },
+        }),
+      ),
+    ).toEqual({ tags: ['legacy'], banner: { recipe: { scene: 'sea', seed: 7 } } });
   });
 });
 

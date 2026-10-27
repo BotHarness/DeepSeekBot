@@ -148,7 +148,7 @@ export function syncBotDescriptor(
 
   const text = `${JSON.stringify(descriptor, null, 2)}\n`;
   if (
-    parseBotDescriptor(text) === undefined ||
+    parseBotDescriptor(text, { strict: true }) === undefined ||
     Buffer.byteLength(text, 'utf8') > MAX_DESCRIPTOR_BYTES
   ) {
     throw new Error('Generated Bot descriptor is invalid');

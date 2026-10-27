@@ -178,7 +178,7 @@ export function createBotZipHttp(deps: BotZipHttpDeps): (request: Request) => Pr
         return failure(400, 'invalid-input', 'Invalid import metadata');
       }
     }
-    const overrides = parseBotDescriptor(JSON.stringify(metadata));
+    const overrides = parseBotDescriptor(JSON.stringify(metadata), { strict: true });
     if (overrides === undefined) return failure(400, 'invalid-input', 'Invalid import metadata');
     const type = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
     if (type !== 'application/octet-stream' && type !== 'application/zip') {
