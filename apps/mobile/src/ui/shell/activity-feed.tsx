@@ -83,6 +83,7 @@ import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
 import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
+import { activityTabMarks } from './activity-tab-strip';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
 import { useStrings } from '../strings';
@@ -510,6 +511,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const selectedIndex = ACTIVITY_TABS.findIndex((tab) => tab.key === filter.section);
   const index = selectedIndex < 0 ? lastTab : selectedIndex;
   const placeholderPosition = useMemo(() => new NativeAnimated.Value(index), [index]);
+  const marks = useMemo(() => activityTabMarks(props.snapshot), [props.snapshot]);
   const slugsWithSelection =
     filter.bot !== undefined && !botSlugs.includes(filter.bot)
       ? [...botSlugs, filter.bot]
@@ -545,6 +547,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             <View style={{ flex: 1 }}>
               <ActivityTabs
                 selected={filter.section}
+                marks={marks}
                 position={placeholderPosition}
                 onSelect={(key) => selectIndex(ACTIVITY_TABS.findIndex((tab) => tab.key === key))}
               />
@@ -562,7 +565,12 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             lazy
             renderLazyPlaceholder={() => <ListSkeleton />}
             renderTabBar={({ position, jumpTo }) => (
-              <ActivityTabs selected={filter.section} position={position} onSelect={jumpTo} />
+              <ActivityTabs
+                selected={filter.section}
+                marks={marks}
+                position={position}
+                onSelect={jumpTo}
+              />
             )}
             renderScene={({ route }: { route: ActivityTab }) =>
               props.unavailable ? (

@@ -4,22 +4,30 @@ import type { SceneRendererProps } from 'react-native-tab-view';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
-import { edge, space, tabLabel, tabMotion } from '../design/tokens';
+import { edge, radius, space, tabLabel, tabMotion } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import type { ActivitySection } from './activity-filters';
-import { ACTIVITY_TABS, activityStripSwipe, type ActivityTab } from './activity-tab-strip';
-import { ActivityIcon, ChatsIcon, PersonIcon } from './icons';
+import {
+  ACTIVITY_TABS,
+  activityDotColor,
+  activityStripSwipe,
+  type ActivityTab,
+  type ActivityTabMarks,
+} from './activity-tab-strip';
+import { ActivityIcon, PersonIcon } from './icons';
 
 export { ACTIVITY_TABS, type ActivityTab } from './activity-tab-strip';
-const ICONS = { action: ActivityIcon, replies: PersonIcon, unread: ChatsIcon };
+const ICONS = { action: ActivityIcon, replies: PersonIcon };
 
 export function ActivityTabs({
   selected,
+  marks,
   position,
   onSelect,
 }: {
   selected: ActivitySection;
+  marks: ActivityTabMarks;
   position: SceneRendererProps['position'];
   onSelect(section: ActivityTab['key']): void;
 }) {
@@ -50,6 +58,7 @@ export function ActivityTabs({
                 key={key}
                 accessibilityRole="tab"
                 accessibilityLabel={t.inboxSections[key]}
+                {...(marks[key] ? { accessibilityValue: { text: t.activityTabNewValue } } : {})}
                 accessibilityState={{ selected: selected === key }}
                 onPress={() => onSelect(key)}
                 android_ripple={{ color: theme.layer.canvas.pressed }}
@@ -139,6 +148,16 @@ export function ActivityTabs({
                   >
                     {t.inboxSections[key]}
                   </Text>
+                  {marks[key] ? (
+                    <View
+                      style={{
+                        width: space.x3,
+                        height: space.x3,
+                        borderRadius: radius.round,
+                        backgroundColor: activityDotColor(theme, key),
+                      }}
+                    />
+                  ) : null}
                 </Animated.View>
               </Pressable>
             );
@@ -157,8 +176,10 @@ export function ActivityTabs({
             transform: [
               {
                 translateX: position.interpolate({
-                  inputRange: [0, 1, 2],
-                  outputRange: [0, tabWidth, 2 * tabWidth].map((x) => (I18nManager.isRTL ? -x : x)),
+                  inputRange: ACTIVITY_TABS.map((_, index) => index),
+                  outputRange: ACTIVITY_TABS.map((_, index) =>
+                    I18nManager.isRTL ? -index * tabWidth : index * tabWidth,
+                  ),
                 }),
               },
             ],

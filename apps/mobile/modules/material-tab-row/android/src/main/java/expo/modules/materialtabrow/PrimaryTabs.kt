@@ -26,8 +26,8 @@ import androidx.compose.ui.unit.dp
 /**
  * A Material 3 primary tab row with the theme's own indicator, colours and type. Each tab is a
  * 48 dp minimum target whose label grows with font scale and truncates on one line; TalkBack hears
- * the full name and count with the Tab role and selected state. A selection outside [tabs] shows
- * no indicator and no selected tab.
+ * the full name, including what an optional dot means, with the Tab role and selected state. A
+ * selection outside [tabs] shows no indicator and no selected tab.
  */
 @Composable
 fun PrimaryTabs(
@@ -52,7 +52,6 @@ fun PrimaryTabs(
     },
   ) {
     tabs.forEach { tab ->
-      val badge = badgeText(tab.count)
       Tab(
         selected = tab.value == selected,
         onClick = { onSelect(tab.value) },
@@ -73,7 +72,7 @@ fun PrimaryTabs(
               overflow = TextOverflow.Ellipsis,
               modifier = Modifier.weight(1f, fill = false).clearAndSetSemantics {},
             )
-            if (badge != null) Badge(Modifier.clearAndSetSemantics {}) { Text(badge) }
+            tab.dot?.let { Badge(Modifier.clearAndSetSemantics {}, containerColor = it) }
           }
         },
       )
