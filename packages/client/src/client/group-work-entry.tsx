@@ -18,6 +18,7 @@ import { GroupHeading } from './ds/group-heading.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { color } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
+import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
 
 const styles = stylex.create({
   summary: {
@@ -58,6 +59,7 @@ function GroupWorkPanel({
   const bots = useClientStore((state) => state.bots, sameBotsBesidesActivity);
   const [load, setLoad] = useState<Load>({ status: 'loading', assignments: [] });
   const [doneOpen, setDoneOpen] = useState(false);
+  const [work, setWork] = useState<ChannelAssignmentSummary>();
   const [subagentsOpen, setSubagentsOpen] = useState<ReadonlySet<string>>(() => new Set());
   const toggleSubagents = (sessionId: string): void =>
     setSubagentsOpen((current) => {
@@ -144,19 +146,24 @@ function GroupWorkPanel({
         state={groupFor(assignment)}
         disabled={nativeSessions !== undefined && native.byId[assignment.sessionId] === undefined}
         onClick={() => actions.openSession(assignment.sessionId)}
-        {...(subagents === undefined
-          ? {}
-          : {
-              trailing: (
-                <SessionSubagentToggle
-                  count={subagents}
-                  title={assignment.title}
-                  open={subagentsExpanded}
-                  onToggle={() => toggleSubagents(assignment.sessionId)}
-                  t={t}
-                />
-              ),
-            })}
+        trailing={
+          <>
+            <AssignmentWorkButton
+              title={assignment.title}
+              onOpen={() => setWork(assignment)}
+              t={t}
+            />
+            {subagents === undefined ? null : (
+              <SessionSubagentToggle
+                count={subagents}
+                title={assignment.title}
+                open={subagentsExpanded}
+                onToggle={() => toggleSubagents(assignment.sessionId)}
+                t={t}
+              />
+            )}
+          </>
+        }
         {...(subagentsExpanded
           ? {
               detail: (
@@ -230,6 +237,17 @@ function GroupWorkPanel({
           </section>
         );
       })}
+      {work === undefined ? null : (
+        <AssignmentWorkDialog
+          actions={actions}
+          botSlug={work.botSlug}
+          sessionId={work.sessionId}
+          title={work.title}
+          canOpen={nativeSessions === undefined || native.byId[work.sessionId] !== undefined}
+          onClose={() => setWork(undefined)}
+          t={t}
+        />
+      )}
     </div>
   );
 }

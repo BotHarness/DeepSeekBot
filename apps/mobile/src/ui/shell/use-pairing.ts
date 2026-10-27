@@ -15,7 +15,7 @@ import { mobileTelemetry } from '../../telemetry/native';
 import type { PairingMethod } from '../../telemetry/schema';
 import { hostLookName } from '../design/host-look';
 import { clearsPastedLink } from '../pairing-failure';
-import { resetWorkspaceRoot } from './workspace-navigation';
+import { openPairedHostSetup } from './workspace-navigation';
 
 function deviceName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
@@ -29,7 +29,7 @@ export function usePairing(options: { stayOnPage?: boolean; preventDuplicates?: 
     const hostId = setupHost.current;
     if (!hostId) return false;
     conversationFilter.set(computerEnvironmentKey(hostId));
-    if (!resetWorkspaceRoot(navigation, undefined, hostId)) return false;
+    if (!openPairedHostSetup(navigation, hostId)) return false;
     setupHost.current = undefined;
     return true;
   };

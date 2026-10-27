@@ -35,6 +35,7 @@ export function sessionMaintenanceText(
     nothing: 'composerContext.compactNothing',
     busy: 'failure.recoveryBusy',
     failed: 'composerCompact.failed',
+    unsaved: 'failure.recoveryUnsaved',
     unavailable: 'composerCompact.failed',
   } as const;
   return t(keys[notice]);

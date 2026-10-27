@@ -18,12 +18,18 @@ function setup() {
   let paired = false;
   let keys = 0;
   const pickZip = vi.fn(async () => file as typeof file | null);
-  const previewZip = vi.fn(async (_target: unknown, source: ZipImportSource) => ({
-    source,
-    displayName: 'From archive',
-    description: 'Archive bio',
-    roles: ['Helper'],
-  }));
+  const previewZip = vi.fn(
+    async (
+      _target: unknown,
+      source: ZipImportSource,
+      _onProgress?: (bytes: number, total: number) => void,
+    ) => ({
+      source,
+      displayName: 'From archive',
+      description: 'Archive bio',
+      roles: ['Helper'],
+    }),
+  );
   const lookup = vi.fn<
     () => Promise<null | {
       operationKey: string;
@@ -61,6 +67,31 @@ function setup() {
     },
   };
 }
+
+it('shows upload progress only while the preview is active', async () => {
+  const f = setup();
+  f.pair();
+  const controller = f.make();
+  await controller.enter({ kind: 'host', hostId: 'A' });
+  await controller.beginZip();
+  let finish: (() => void) | undefined;
+  f.previewZip.mockImplementationOnce(async (_target, source, onProgress) => {
+    onProgress?.(source.sizeBytes, source.sizeBytes);
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    return { source, displayName: 'From archive', description: 'Archive bio', roles: ['Helper'] };
+  });
+  const preview = controller.preview();
+  await vi.waitFor(() =>
+    expect(controller.getSnapshot().transfer).toEqual({ bytes: 30, total: 30 }),
+  );
+  expect(controller.getSnapshot().busy).toBe(true);
+  finish?.();
+  await preview;
+  expect(controller.getSnapshot()).toMatchObject({ busy: false, transfer: undefined });
+  expect(controller.getSnapshot().record).toMatchObject({ draft: { displayName: 'From archive' } });
+});
 
 it('retains a selected Zip without a paired Host, survives restart and preserves it on picker cancellation', async () => {
   const f = setup();

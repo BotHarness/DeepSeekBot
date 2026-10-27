@@ -14,3 +14,8 @@ JavaScript owns the expanded state and the view's size: `onToggle` reports the t
 closes. Colours come from the app's theme as CSS hex strings.
 
 A new Android development build is required. CI tests `:material-fab-menu:testDebugUnitTest`.
+
+Fabric and Expo's posted layout work can measure the menu after its screen has detached during
+navigation. While detached, retain the Yoga bounds without measuring or laying out Compose;
+request a fresh layout after attachment so the menu renders and remains interactive on return.
+The native regression measures the real Compose child without a window and checks this boundary.

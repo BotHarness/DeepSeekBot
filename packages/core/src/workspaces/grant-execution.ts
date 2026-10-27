@@ -69,6 +69,43 @@ export function alignOrchestratorPermission(
   return true;
 }
 
+export function alignAssignmentPermission(
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants'>,
+  session: Session,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): boolean | undefined {
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner?.rootRole !== 'assignment' ||
+    owner.provenance === 'subagent' ||
+    owner.parentSessionId !== undefined ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return undefined;
+  const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
+  if (permission === undefined || session.header.cwd !== permission.primaryCwd) return undefined;
+  try {
+    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
+    if (
+      grant.workspaceId !== permission.workspaceId ||
+      grant.workspacePath !== permission.primaryCwd
+    )
+      return undefined;
+  } catch {
+    return undefined;
+  }
+  if (
+    policy.resolve({ session }).mode === permission.mode &&
+    approval.overrideOf(session) === permission.approval
+  )
+    return false;
+  setSandboxMode(session, permission.mode);
+  setApprovalPolicy(session, permission.approval);
+  return true;
+}
+
 export function orchestratorPermission(
   core: AccessCore,
   botSlug: string,
@@ -194,7 +231,8 @@ export function borrowedAgentDenial(
 ): string | undefined {
   if (core.ownership.resolve(session.id)?.rootRole !== role)
     return 'BotHarness Agent role mismatch';
-  alignOrchestratorPermission(core, session, policy, approval);
+  if (role === 'orchestrator') alignOrchestratorPermission(core, session, policy, approval);
+  else alignAssignmentPermission(core, session, policy, approval);
   return grantExecutionDenial(core, session, policy, approval);
 }
 

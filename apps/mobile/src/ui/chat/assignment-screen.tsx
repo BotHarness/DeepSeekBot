@@ -1,14 +1,16 @@
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  groupTimeline,
   laneLabel,
   loadAssignmentTimeline,
   type AssignmentTimeline,
   type AssignmentTimelineEntry,
   type AssignmentTimelineLane,
+  type AssignmentTimelineRound,
 } from '../../host/assignment-timeline';
 import { errorText } from '../../host/bot-settings';
 import type { HostClient } from '../../host/client';
@@ -16,6 +18,8 @@ import { MethodRefused } from '../../host/client';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, rowGlyph, space } from '../design/tokens';
+import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetScreen } from '../primitives/sheet-screen';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { AssignmentActivityIcon, assignmentTone, StepMark, STEP_MARK } from './assignment-marks';
@@ -128,7 +132,7 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
         <Text accessibilityRole="header" variant="meta" strong>
           {laneLabel(lane)}
         </Text>
-        {lane.title === undefined ? null : (
+        {lane.role === 'main' || lane.title === undefined ? null : (
           <Text variant="meta" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
             {lane.title}
           </Text>
@@ -162,11 +166,57 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
   );
 }
 
+function RoundHeading({ round }: { round: AssignmentTimelineRound | undefined }) {
+  const t = useStrings();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        flexWrap: 'wrap',
+        gap: space.x2,
+        paddingTop: space.x5,
+      }}
+    >
+      <Text accessibilityRole="header" strong>
+        {round === undefined ? t.assignmentDetail.earlier : t.assignmentDetail.round(round.index)}
+      </Text>
+      {round === undefined ? null : (
+        <Text variant="meta" tone="muted">
+          {[t.assignmentDetail.roundKind[round.kind], stepTime(round.at)]
+            .filter((part) => part !== '')
+            .join(' · ')}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function Instruction({ text }: { text: string }) {
+  const t = useStrings();
+  return (
+    <View style={{ paddingTop: space.x3 }}>
+      <Group>
+        <View
+          testID="assignment-instruction"
+          style={{ paddingHorizontal: space.x5, paddingVertical: space.x4, gap: space.x1 }}
+        >
+          <Text variant="meta" tone="muted">
+            {t.assignmentDetail.instruction}
+          </Text>
+          <Text selectable>{text}</Text>
+        </View>
+      </Group>
+    </View>
+  );
+}
+
 export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const { assignment } = timeline;
   const report = assignment.latestReport;
+  const main = timeline.lanes.find((lane) => lane.role === 'main');
   return (
     <View style={{ paddingHorizontal: space.x5 }}>
       <View
@@ -228,8 +278,31 @@ export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline })
         </>
       )}
       <Heading>{t.assignmentDetail.timeline}</Heading>
-      {timeline.lanes.map((lane) => (
-        <Lane key={lane.sessionId} lane={lane} />
+      {timeline.omittedRounds === 0 ? null : (
+        <Text variant="meta" tone="muted">
+          {t.assignmentDetail.olderRounds(timeline.omittedRounds)}
+        </Text>
+      )}
+      {groupTimeline(timeline).map((group, index) => (
+        <View
+          key={group.round?.index ?? 'earlier'}
+          testID={`assignment-round-${group.round?.index ?? 'earlier'}`}
+        >
+          {group.round === undefined && timeline.rounds.length === 0 ? null : (
+            <RoundHeading round={group.round} />
+          )}
+          {group.round?.instruction === undefined ? null : (
+            <Instruction text={group.round.instruction} />
+          )}
+          {main === undefined ? null : (
+            <Lane
+              lane={{ ...main, entries: group.main, omitted: index === 0 ? main.omitted : 0 }}
+            />
+          )}
+          {group.subagents.map((lane) => (
+            <Lane key={lane.sessionId} lane={lane} />
+          ))}
+        </View>
       ))}
       {timeline.omittedSubagents === 0 ? null : (
         <Text variant="meta" tone="muted" style={{ paddingTop: space.x3 }}>
@@ -262,6 +335,7 @@ export function AssignmentScreenBody({
   const [timeline, setTimeline] = useState<AssignmentTimeline>();
   const [error, setError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
+  const router = useRouter();
   useFocusEffect(
     useCallback(() => {
       let live = true;
@@ -287,7 +361,12 @@ export function AssignmentScreenBody({
   );
   return (
     <>
-      <Stack.Screen options={{ title: timeline?.assignment.title ?? t.assignmentDetail.title }} />
+      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x3, paddingBottom: space.x3 }}>
+        <DrawerHeader
+          title={timeline?.assignment.title ?? t.assignmentDetail.title}
+          onClose={() => router.back()}
+        />
+      </View>
       {timeline === undefined ? (
         error === undefined ? (
           <SheetLoading />
@@ -308,7 +387,6 @@ export function AssignmentScreenBody({
 
 export function AssignmentScreen() {
   const t = useStrings();
-  const theme = useDesignTheme();
   const { slug, id, session } = useLocalSearchParams<{
     slug: string;
     id: string;
@@ -317,12 +395,12 @@ export function AssignmentScreen() {
   const sessionId = session ?? id;
   const { client } = useHostSession();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+    <SheetScreen>
       {client === undefined || slug === undefined || sessionId === undefined ? (
         <SheetNote>{t.noBot}</SheetNote>
       ) : (
         <AssignmentScreenBody client={client} slug={slug} sessionId={sessionId} />
       )}
-    </View>
+    </SheetScreen>
   );
 }
