@@ -2,7 +2,6 @@
 
 package expo.modules.materialsplitbutton
 
-import android.content.Context
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -15,13 +14,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.SplitButtonDefaults
 import androidx.compose.material3.SplitButtonLayout
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,19 +31,20 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
-import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
-import expo.modules.kotlin.viewevent.EventDispatcher
-import expo.modules.kotlin.views.ExpoView
+import expo.modules.kotlin.types.OptimizedRecord
+import expo.modules.kotlin.views.ComposeProps
+import expo.modules.kotlin.views.FunctionalComposableScope
+import expo.modules.kotlin.views.OptimizedComposeProps
+import expo.modules.ui.ModifierList
+import expo.modules.ui.ModifierRegistry
 
 class SplitMenuItem : Record {
   @Field val key: String = ""
@@ -54,100 +52,98 @@ class SplitMenuItem : Record {
   @Field val path: String = ""
 }
 
+@OptimizedComposeProps
+data class SplitButtonProps(
+  val label: String = "",
+  val path: String = "",
+  val menuLabel: String = "",
+  val items: List<SplitMenuItem> = emptyList(),
+  val available: Boolean = true,
+  val testPrefix: String = "split",
+  val modifiers: ModifierList = emptyList(),
+) : ComposeProps
+
+@OptimizedRecord
+data class SplitPickEvent(@Field val key: String = "") : Record
+
+@OptimizedRecord
+data class SplitSizeEvent(@Field val width: Float = 0f, @Field val height: Float = 0f) : Record
+
 private const val CHEVRON = "M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"
 
-class MaterialSplitButtonView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
-  override val shouldUseAndroidLayout = true
-  val onPress by EventDispatcher()
-  val onPick by EventDispatcher()
-  val onSize by EventDispatcher()
-  var label by mutableStateOf("")
-  var path by mutableStateOf("")
-  var menuLabel by mutableStateOf("")
-  var items by mutableStateOf<List<SplitMenuItem>>(emptyList())
-  var available by mutableStateOf(true)
-  var dark by mutableStateOf(false)
-  var container by mutableStateOf("")
-  var content by mutableStateOf("")
-  var testPrefix by mutableStateOf("split")
-
-  init {
-    addView(ComposeView(context).apply {
-      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
-      setContent {
-        val scheme = if (dark) darkColorScheme() else lightColorScheme()
-        MaterialExpressiveTheme(colorScheme = scheme) {
-          var open by remember { mutableStateOf(false) }
-          val leading = remember(path) { vector(path) }
-          val chevron = remember { vector(CHEVRON) }
-          val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
-          val colors = ButtonDefaults.filledTonalButtonColors(
-            containerColor = color(container, scheme.secondaryContainer),
-            contentColor = color(content, scheme.onSecondaryContainer),
-          )
-          val height = SplitButtonDefaults.SmallContainerHeight
-          val density = LocalDensity.current
-          Box(
-            modifier = Modifier.fillMaxSize().semantics { testTagsAsResourceId = true },
-            contentAlignment = Alignment.Center,
+/**
+ * A tonal M3 Expressive split button, placed inside `Host` so its tonal colours, menu and motion
+ * come from the Host's seeded Material theme. It reports its measured size; React Native sizes the
+ * Host with it.
+ */
+@Composable
+fun FunctionalComposableScope.SplitButtonContent(
+  props: SplitButtonProps,
+  onPress: () -> Unit,
+  onPick: (String) -> Unit,
+  onSize: (width: Float, height: Float) -> Unit,
+) {
+  var open by remember { mutableStateOf(false) }
+  val leading = remember(props.path) { vector(props.path) }
+  val chevron = remember { vector(CHEVRON) }
+  val turn by animateFloatAsState(if (open) 180f else 0f, label = "chevron")
+  val height = SplitButtonDefaults.SmallContainerHeight
+  val density = LocalDensity.current
+  Box(
+    modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher)
+      .fillMaxSize()
+      .semantics { testTagsAsResourceId = true },
+    contentAlignment = Alignment.Center,
+  ) {
+    SplitButtonLayout(
+      modifier = Modifier.wrapContentSize(unbounded = true).onSizeChanged {
+        with(density) { onSize(it.width.toDp().value, it.height.toDp().value) }
+      },
+      leadingButton = {
+        SplitButtonDefaults.TonalLeadingButton(
+          onClick = onPress,
+          enabled = props.available,
+          modifier = Modifier.testTag(props.testPrefix),
+        ) {
+          Icon(leading, null, Modifier.size(SplitButtonDefaults.leadingButtonIconSizeFor(height)))
+          Spacer(Modifier.size(ButtonDefaults.IconSpacing))
+          Text(props.label)
+        }
+      },
+      trailingButton = {
+        Box {
+          SplitButtonDefaults.TonalTrailingButton(
+            checked = open,
+            onCheckedChange = { open = nextMenuOpen(open, props.available, props.items.size) },
+            enabled = props.available && props.items.isNotEmpty(),
+            modifier = Modifier.testTag("${props.testPrefix}-menu").semantics { contentDescription = props.menuLabel },
           ) {
-            SplitButtonLayout(
-              modifier = Modifier.wrapContentSize(unbounded = true).onSizeChanged {
-                with(density) {
-                  onSize(mapOf("width" to it.width.toDp().value, "height" to it.height.toDp().value))
-                }
-              },
-              leadingButton = {
-                SplitButtonDefaults.TonalLeadingButton(
-                  onClick = { onPress(emptyMap<String, Any>()) },
-                  enabled = available,
-                  colors = colors,
-                  modifier = Modifier.testTag(testPrefix),
-                ) {
-                  Icon(leading, null, Modifier.size(SplitButtonDefaults.leadingButtonIconSizeFor(height)))
-                  Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                  Text(label)
-                }
-              },
-              trailingButton = {
-                Box {
-                  SplitButtonDefaults.TonalTrailingButton(
-                    checked = open,
-                    onCheckedChange = { open = nextMenuOpen(open, available, items.size) },
-                    enabled = available && items.isNotEmpty(),
-                    colors = colors,
-                    modifier = Modifier.testTag("$testPrefix-menu").semantics { contentDescription = menuLabel },
-                  ) {
-                    Icon(
-                      chevron,
-                      null,
-                      Modifier.size(SplitButtonDefaults.trailingButtonIconSizeFor(height)).graphicsLayer { rotationZ = turn },
-                    )
-                  }
-                  DropdownMenuPopup(expanded = open, onDismissRequest = { open = false }) {
-                    DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 1)) {
-                      items.forEachIndexed { index, item ->
-                        val icon = remember(item.path) { vector(item.path) }
-                        DropdownMenuItem(
-                          onClick = {
-                            open = false
-                            onPick(mapOf("key" to item.key))
-                          },
-                          text = { Text(item.label) },
-                          shape = MenuDefaults.itemShape(index, items.size).shape,
-                          leadingIcon = { Icon(icon, null) },
-                          modifier = Modifier.testTag("$testPrefix-${item.key}"),
-                        )
-                      }
-                    }
-                  }
-                }
-              },
+            Icon(
+              chevron,
+              null,
+              Modifier.size(SplitButtonDefaults.trailingButtonIconSizeFor(height)).graphicsLayer { rotationZ = turn },
             )
           }
+          DropdownMenuPopup(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuGroup(shapes = MenuDefaults.groupShape(0, 1)) {
+              props.items.forEachIndexed { index, item ->
+                val icon = remember(item.path) { vector(item.path) }
+                DropdownMenuItem(
+                  onClick = {
+                    open = false
+                    onPick(item.key)
+                  },
+                  text = { Text(item.label) },
+                  shape = MenuDefaults.itemShape(index, props.items.size).shape,
+                  leadingIcon = { Icon(icon, null) },
+                  modifier = Modifier.testTag("${props.testPrefix}-${item.key}"),
+                )
+              }
+            }
+          }
         }
-      }
-    }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+      },
+    )
   }
 }
 
@@ -155,6 +151,3 @@ private fun vector(path: String): ImageVector =
   ImageVector.Builder("SplitButton", 24.dp, 24.dp, 24f, 24f)
     .addPath(pathData = addPathNodes(path), fill = SolidColor(Color.Black))
     .build()
-
-private fun color(value: String, fallback: Color): Color =
-  cssColor(value)?.let { Color(it) } ?: fallback
