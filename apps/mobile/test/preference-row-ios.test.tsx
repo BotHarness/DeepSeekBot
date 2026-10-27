@@ -6,8 +6,8 @@ import { expect, it, vi } from 'vitest';
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-symbols', () => ({
-  SymbolView: ({ name }: { name: { ios: string } }) =>
-    createElement('i', { 'data-symbol': name.ios }),
+  SymbolView: ({ name }: { name: string | { ios: string } }) =>
+    createElement('i', { 'data-symbol': typeof name === 'string' ? name : name.ios }),
 }));
 vi.mock('@expo/ui/swift-ui', () => {
   const pass = ({ children }: { children?: ReactNode }) => children;
@@ -50,18 +50,8 @@ vi.mock('@expo/ui/swift-ui', () => {
         {children}
       </select>
     ),
-    Label: ({
-      title,
-      systemImage,
-      modifiers,
-    }: {
-      title: string;
-      systemImage: string;
-      modifiers: { value: string }[];
-    }) => (
-      <option value={modifiers[0]!.value} data-symbol={systemImage}>
-        {title}
-      </option>
+    Text: ({ children, modifiers }: { children: string; modifiers: { value: string }[] }) => (
+      <option value={modifiers[0]!.value}>{children}</option>
     ),
   };
 });
@@ -80,7 +70,7 @@ import { DesignThemeProvider } from '../src/ui/design/theme';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 it.each(['light', 'dark'] as const)(
-  'shows the icon, label and current value on the native menu trigger in %s appearance',
+  'shows the icon, label, current value and pop-up chevrons on the native menu trigger in %s appearance',
   async (scheme) => {
     const changed = vi.fn();
     function Screen() {
@@ -112,20 +102,15 @@ it.each(['light', 'dark'] as const)(
       const trigger = host.querySelector('[data-testid="settings-appearance"]')!;
       const label = host.querySelector('[data-native-label]')!;
       expect(label.querySelector('[data-symbol="circle.lefthalf.filled"]')).not.toBeNull();
+      expect(label.querySelector('[data-symbol="chevron.up.chevron.down"]')).not.toBeNull();
       expect(label.textContent).toBe('AppearanceFollow system');
       expect(trigger.getAttribute('aria-label')).toBe('Appearance, Follow system');
       expect(label.querySelector('button')!.disabled).toBe(true);
       const picker = host.querySelector('select')!;
-      expect(
-        [...picker.options].map((option) => [
-          option.value,
-          option.textContent,
-          option.dataset.symbol,
-        ]),
-      ).toEqual([
-        ['system', 'Follow system', 'iphone'],
-        ['light', 'Light', 'sun.max'],
-        ['dark', 'Dark', 'moon'],
+      expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
+        ['system', 'Follow system'],
+        ['light', 'Light'],
+        ['dark', 'Dark'],
       ]);
       await act(async () => {
         picker.value = 'dark';
@@ -142,7 +127,7 @@ it.each(['light', 'dark'] as const)(
 );
 
 it.each(['light', 'dark'] as const)(
-  'keeps language tags, native symbols and the selected language in %s appearance',
+  'keeps language tags as plain text choices and the selected language in %s appearance',
   async (scheme) => {
     const changed = vi.fn();
     function Screen() {
@@ -173,16 +158,10 @@ it.each(['light', 'dark'] as const)(
       await act(async () => root.render(<Screen />));
       const trigger = host.querySelector('[data-testid="settings-language"]')!;
       const picker = host.querySelector('select')!;
-      expect(
-        [...picker.options].map((option) => [
-          option.value,
-          option.textContent,
-          option.dataset.symbol,
-        ]),
-      ).toEqual([
-        ['system', 'Follow system', 'iphone'],
-        ['zh', '简体中文', 'globe'],
-        ['en', 'English', 'globe'],
+      expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
+        ['system', 'Follow system'],
+        ['zh', '简体中文'],
+        ['en', 'English'],
       ]);
       for (const [value, label] of [
         ['zh', '简体中文'],

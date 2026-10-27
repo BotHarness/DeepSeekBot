@@ -24,7 +24,12 @@ export type ActivityFilter = {
 export type ActivitySort = 'default' | 'newest' | 'oldest';
 export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
 export const DEFAULT_ACTIVITY: ActivityFilter = { section: 'action', bot: undefined };
-const SECTIONS: readonly ActivitySection[] = ['all', ...INBOX_SECTIONS, 'snoozed', 'cleared'];
+export const ACTIVITY_SECTIONS: readonly ActivitySection[] = [
+  'all',
+  ...INBOX_SECTIONS,
+  'snoozed',
+  'cleared',
+];
 
 export function sectionLabel(section: ActivitySection): string {
   if (section === 'all') return t.filterAll;
@@ -116,7 +121,7 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
     ...group(
       'category',
       t.activityCategory,
-      SECTIONS.map((section) => ({
+      ACTIVITY_SECTIONS.map((section) => ({
         key: `section:${section}`,
         label: sectionLabel(section),
         selected: filter.section === section,

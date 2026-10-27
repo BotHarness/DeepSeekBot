@@ -8,7 +8,7 @@ import { materialSearchHeight } from '../design/material-search';
 import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { HeaderAction } from './header-action';
+import { ActivityHeaderActions, type ActivityOptions } from './activity-header-actions';
 import { HeaderSearch } from './header-search';
 
 export type ActivityToolbarHandle = { dismissSearch(): void };
@@ -18,6 +18,7 @@ export type ActivityToolbarProps = {
   unavailable?: boolean;
   search: string;
   filtered: boolean;
+  options: ActivityOptions;
   onSearch(value: string): void;
   onSearchFocus(focused: boolean): void;
   onFilter(): void;
@@ -29,6 +30,7 @@ export function ActivityToolbar({
   unavailable = false,
   search,
   filtered,
+  options,
   onSearch,
   onSearchFocus,
   onFilter,
@@ -101,21 +103,12 @@ export function ActivityToolbar({
                 {t.activity}
               </Text>
               {!unavailable ? (
-                <HeaderAction
-                  icon="filter"
-                  label={t.activityOptions}
-                  testID="activity-filter-button"
-                  active={filtered}
-                  onPress={onFilter}
-                />
-              ) : null}
-              {!unavailable ? (
-                <HeaderAction
-                  icon="search"
-                  label={t.activitySearch}
-                  testID="activity-search-button"
-                  active={search !== ''}
-                  onPress={() => {
+                <ActivityHeaderActions
+                  filtered={filtered}
+                  searching={search !== ''}
+                  options={options}
+                  onFilter={onFilter}
+                  onSearch={() => {
                     onSearchFocus(true);
                     setSearching(true);
                   }}
