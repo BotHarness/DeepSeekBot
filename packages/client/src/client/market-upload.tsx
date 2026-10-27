@@ -668,6 +668,7 @@ export function MarketUploadDialog({
           label={t('market.direct.progress')}
           steps={steps.map((id) => t(`market.direct.step.${id}`))}
           step={steps.indexOf(step)}
+          titles="current"
         />
         <div {...stylex.props(styles.body)} data-market-direct={step}>
           {content}
