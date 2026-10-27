@@ -43,27 +43,31 @@ export function CreationField({
       }}
       value={text}
       onValueChange={(next) => {
-        if (onSubmitValue && /[\r\n]/u.test(next)) {
-          pendingEchoes.current.push('');
-          text.set('');
-          onSubmitValue(next);
-          return;
-        }
         pendingEchoes.current.push(next);
         onChangeText?.(next);
       }}
       enabled={editable !== false}
-      singleLine={!multiline && !onSubmitValue}
+      singleLine={!multiline}
       minLines={multiline ? 3 : 1}
-      {...(onSubmitValue ? { maxLines: 1 } : {})}
       {...(maxLength === undefined ? {} : { maxLength })}
       isError={invalid ?? false}
       keyboardOptions={{
         capitalization: autoCapitalize ?? 'sentences',
         autoCorrectEnabled: autoCorrect ?? true,
         keyboardType: keyboardType === 'url' ? 'uri' : 'text',
-        ...(onSubmitValue ? { imeAction: 'none' as const } : {}),
+        ...(onSubmitValue ? { imeAction: 'send' as const } : {}),
       }}
+      {...(onSubmitValue
+        ? {
+            keyboardActions: {
+              onSend: (value: string) => {
+                pendingEchoes.current.push('');
+                text.set('');
+                onSubmitValue(value);
+              },
+            },
+          }
+        : {})}
       colors={{
         focusedContainerColor: theme.layer.field.fill,
         unfocusedContainerColor: theme.layer.field.fill,

@@ -11,6 +11,7 @@ const native = vi.hoisted(() => ({
   buffer: '',
   writes: [] as string[],
   change: undefined as undefined | ((text: string) => void),
+  submit: undefined as undefined | ((text: string) => void),
   mounts: 0,
 }));
 vi.mock('@expo/ui/jetpack-compose', () => {
@@ -19,11 +20,14 @@ vi.mock('@expo/ui/jetpack-compose', () => {
     ({
       onValueChange,
       children,
+      keyboardActions,
     }: {
       onValueChange?: (value: string) => void;
       children?: ReactNode;
+      keyboardActions?: { onSend?(text: string): void };
     }) => {
       native.change = onValueChange;
+      native.submit = keyboardActions?.onSend;
       return createElement('div', { 'data-field': true }, children);
     },
     { Label: Slot, Placeholder: Slot, SupportingText: Slot },
@@ -139,9 +143,9 @@ it('commits the native Enter buffer and clears it without replaying older compos
   await act(() => {
     type('n');
     type('你');
-    type('你\n');
+    native.submit?.('你');
   });
-  expect(submitted).toHaveBeenCalledExactlyOnceWith('你\n');
+  expect(submitted).toHaveBeenCalledExactlyOnceWith('你');
   expect(changed.mock.calls.map((call) => call[0])).toEqual(['n', '你']);
   expect(native.buffer).toBe('');
   await draw('n');
