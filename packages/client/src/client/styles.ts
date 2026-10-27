@@ -2372,9 +2372,7 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   0%, 100% { opacity: 0.35; }
   50% { opacity: 1; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .bh-market-review-pulse { animation: none; }
-}
+html[data-botharness-motion='reduce'] .bh-market-review-pulse { animation: none; }
 .bh-market-review-result {
   display: flex;
   flex-direction: column;
