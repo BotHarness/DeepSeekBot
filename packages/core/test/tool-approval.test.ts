@@ -303,6 +303,7 @@ describe('Channel tool approval', () => {
     const match = vi.fn(() => ({ id: 'rule-1' }));
     const broker = new ChannelToolApproval(state.channels, state.ownership, {
       match,
+      recordAutoApproval: vi.fn(),
     } as never);
     broker.track({
       ...state.execution(),
@@ -436,9 +437,10 @@ describe('Channel tool approval', () => {
     const rules = {
       match: vi.fn((input: { toolName: string; input: string }) =>
         active && input.toolName === 'bash' && input.input.includes('pwd')
-          ? { id: 'rule-1' }
+          ? { id: 'rule-1', botSlug }
           : undefined,
       ),
+      recordAutoApproval: vi.fn(),
       createPending: vi.fn(),
       activate: vi.fn(),
       revoke: vi.fn(),
@@ -451,6 +453,7 @@ describe('Channel tool approval', () => {
     );
     expect(broker.validAfterDecision(state.agent, 'call-1')).toBe(true);
     expect(state.messages).toHaveLength(0);
+    expect(rules.recordAutoApproval).toHaveBeenCalledExactlyOnceWith(botSlug, 'rule-1');
     active = false;
     expect(broker.validAfterDecision(state.agent, 'call-1')).toBe(false);
     broker.close();
@@ -460,6 +463,7 @@ describe('Channel tool approval', () => {
     const state = fixture();
     const rules = {
       match: vi.fn(() => ({ id: 'rule-all' })),
+      recordAutoApproval: vi.fn(),
       createPending: vi.fn(),
       activate: vi.fn(),
       revoke: vi.fn(),

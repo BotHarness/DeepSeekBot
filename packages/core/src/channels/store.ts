@@ -1,4 +1,10 @@
 import { isChannelNotice } from './channel-notice.js';
+import {
+  compareToolApprovalHistory,
+  toolApprovalHistoryEntry,
+  type ToolApprovalHistoryEntry,
+  type ToolApprovalHistoryPosition,
+} from './approval-history.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
 import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
@@ -444,6 +450,10 @@ export interface ChannelStore {
     count: number;
   }>;
   admissionActivity?(botSlug: string, sinceIso: string): Array<{ at: string; reason: string }>;
+  toolApprovalHistory?(
+    botSlug: string,
+    page: { after?: ToolApprovalHistoryPosition; limit: number },
+  ): ToolApprovalHistoryEntry[];
 }
 
 export interface ChannelOutputObservation {
@@ -1014,6 +1024,28 @@ export function createChannelStore(options: ChannelStoreOptions): ChannelStore {
         }
       }
       return result;
+    },
+    toolApprovalHistory(botSlug, page) {
+      const entries: ToolApprovalHistoryEntry[] = [];
+      for (const channel of this.list()) {
+        if (channel.deletedAt) continue;
+        const messages = readValidMessages(channel.id);
+        const byId = new Map(messages.map((message) => [message.id, message]));
+        for (const message of messages) {
+          const requestId = message.toolApprovalDecision?.requestMessageId;
+          const request = requestId === undefined ? undefined : byId.get(requestId);
+          const entry =
+            request === undefined
+              ? undefined
+              : toolApprovalHistoryEntry(channel.id, message, request, botSlug);
+          if (
+            entry !== undefined &&
+            (page.after === undefined || compareToolApprovalHistory(page.after, entry) < 0)
+          )
+            entries.push(entry);
+        }
+      }
+      return entries.sort(compareToolApprovalHistory).slice(0, page.limit);
     },
     queryMessages(id, queryOptions) {
       const messages = readValidMessages(id);

@@ -305,8 +305,11 @@ export class ChannelToolApproval {
       tracked.authorized = () => this.#fullAccess?.(tracked.sessionId) === true;
       return 'allowed-once';
     }
-    if (tracked.externalDecision !== 'each-use' && this.#matchingRule(tracked) !== undefined) {
+    const standing =
+      tracked.externalDecision === 'each-use' ? undefined : this.#matchingRule(tracked);
+    if (standing !== undefined) {
       tracked.automatic = true;
+      this.#rules?.recordAutoApproval(standing.botSlug, standing.id);
       return 'allowed-once';
     }
     const origin =

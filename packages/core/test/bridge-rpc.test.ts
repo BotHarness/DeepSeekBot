@@ -754,6 +754,7 @@ describe('bridge typert service', () => {
       'assignmentAccessSet',
       'toolApprovalRules',
       'toolApprovalRuleRevoke',
+      'toolApprovalHistory',
       'toolApprovalStatus',
       'toolApprovalDecide',
       'toolAutoRejectionOverride',

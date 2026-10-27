@@ -165,6 +165,7 @@ import type { MemoryRecoveryCheckpoint } from '../memory/recovery.js';
 import type { WorkspaceGrant } from '../workspaces/grants.js';
 import type { FolderListing } from '../workspaces/folder-browse.js';
 import type { ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
+import type { ToolApprovalHistoryEntry } from '../channels/approval-history.js';
 import type {
   AssignmentAccessPreset,
   AssignmentAccessMode,
@@ -1793,6 +1794,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.toolApprovalRuleRevoke({ slug, id }));
   }
 
+  toolApprovalHistory(
+    slug: string,
+    page?: { cursor?: string; limit?: number },
+  ): { entries: ToolApprovalHistoryEntry[]; nextCursor?: string } {
+    return unwrap(this.methods.toolApprovalHistory({ slug, ...page }));
+  }
+
   toolApprovalStatus(
     channelId: string,
     messageId: string,
@@ -2341,6 +2349,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignmentAccessSet',
   'toolApprovalRules',
   'toolApprovalRuleRevoke',
+  'toolApprovalHistory',
   'toolApprovalStatus',
   'toolApprovalDecide',
   'toolAutoRejectionOverride',

@@ -68,6 +68,10 @@ export const INBOX_COMMANDS = [
   },
   { command: 'tool-approval-rules', description: "list a Bot's always-allow tool approval rules" },
   {
+    command: 'tool-approval-history',
+    description: "list the Human's answers to a Bot's tool approval requests, newest first",
+  },
+  {
     command: 'tool-approval-rule-revoke',
     description: 'revoke an always-allow tool approval rule (needs --confirm)',
   },
@@ -425,6 +429,22 @@ function prepare(
     case 'tool-approval-rules': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
       return { method: 'toolApprovalRules', args: { slug } };
+    }
+    case 'tool-approval-history': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 100))
+        usage('--limit must be 1–100.');
+      return {
+        method: 'toolApprovalHistory',
+        args: {
+          slug,
+          ...(limit === undefined ? {} : { limit }),
+          ...(values.cursor === undefined
+            ? {}
+            : { cursor: required(values.cursor, 'cursor', command) }),
+        },
+      };
     }
     case 'tool-approval-rule-revoke': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
