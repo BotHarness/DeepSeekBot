@@ -2,6 +2,7 @@
 import { act, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const disk = vi.hoisted(() => ({ saved: [] as boolean[] }));
 

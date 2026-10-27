@@ -3,10 +3,8 @@ import type { PairingFailure } from '../../host/pairing';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
-import { LoadingIndicator } from './loading-indicator';
 import { SettingsRow, SettingsSection } from './settings-row';
 import { StepBar } from './step-bar';
-import { SystemSymbol } from './system-symbol';
 import { Text } from './text';
 
 export interface AccountComputerRow {
@@ -94,16 +92,8 @@ export function AccountPanel(props: AccountPanelProps) {
                 tone={row.disabled ? 'muted' : 'fg'}
                 selected={row.selected}
                 accessibilityLabel={`${row.name}, ${status(row)}${row.selected ? `, ${t.pairAccount.selected}` : ''}`}
-                trailing={
-                  row.pairing ? (
-                    <LoadingIndicator size="control" accessibilityLabel={t.pairAccount.pairing} />
-                  ) : row.selected ? (
-                    <SystemSymbol
-                      name={{ ios: 'checkmark', android: 'check' }}
-                      size={space.x6}
-                      color={theme.color.accent}
-                    />
-                  ) : undefined
+                control={
+                  row.pairing ? { kind: 'busy' } : row.selected ? { kind: 'check' } : undefined
                 }
                 onPress={row.disabled || locked ? undefined : () => props.onToggle(row.id)}
               />

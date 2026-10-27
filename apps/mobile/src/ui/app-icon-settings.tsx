@@ -5,9 +5,7 @@ import { useDesignTheme } from './design/theme';
 import { radius, space } from './design/tokens';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Notice, errorText } from './request-parts';
-import { CheckIcon } from './shell/icons';
 import { useStrings, t } from './strings';
-import { LoadingIndicator } from './primitives/loading-indicator';
 
 export const APP_ICONS = ['default', 'DeepSeekBotSimple'] as const;
 export type AppIconName = (typeof APP_ICONS)[number];
@@ -50,7 +48,6 @@ export function AppIconSettings({
   previews: AppIconPreviews;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [current, setCurrent] = useState<AppIconName>(() =>
     port.supported ? port.current() : 'default',
   );
@@ -89,12 +86,8 @@ export function AppIconSettings({
             detail={iconLabels()[name].detail}
             selected={current === name}
             leading={<IconPreview name={name} previews={previews} />}
-            trailing={
-              busy === name ? (
-                <LoadingIndicator size="control" />
-              ) : current === name ? (
-                <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-              ) : undefined
+            control={
+              busy === name ? { kind: 'busy' } : current === name ? { kind: 'check' } : undefined
             }
             onPress={port.supported ? () => choose(name) : undefined}
           />

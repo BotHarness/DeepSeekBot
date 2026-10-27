@@ -2,6 +2,7 @@
 import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 import { StackRouter } from '../node_modules/expo-router/build/react-navigation/routers/StackRouter.js';
 import type { HostSnapshot } from '../src/host/client';
 

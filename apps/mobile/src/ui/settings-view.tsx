@@ -7,7 +7,6 @@ import { SHEET_GROUP } from './chat/sheet';
 import { useDesignTheme } from './design/theme';
 import { space } from './design/tokens';
 import { confirmDestructive } from './primitives/app-dialog';
-import { RowIcon } from './primitives/row-icon';
 import { DrawerHeader } from './primitives/drawer-header';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { errorText, Notice } from './request-parts';
@@ -82,7 +81,7 @@ export function SettingsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={t.modelSettings.title}
-            leading={<RowIcon name="model" />}
+            icon="model"
             detail={t.modelSettings.global}
             disclosure
             onPress={actions.onModels}
@@ -93,7 +92,7 @@ export function SettingsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={t.computers}
-            leading={<RowIcon name="computer" />}
+            icon="computer"
             detail={t.computersHint}
             disclosure
             onPress={actions.onComputers}
@@ -101,14 +100,14 @@ export function SettingsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={t.notifications}
-            leading={<RowIcon name="notifications" />}
+            icon="notifications"
             disclosure
             onPress={actions.onNotifications}
           />
           <SettingsRow
             on={SHEET_GROUP}
             title={t.storage.title}
-            leading={<RowIcon name="storage" />}
+            icon="storage"
             detail={t.storage.hint}
             disclosure
             onPress={actions.onStorage}
@@ -116,7 +115,8 @@ export function SettingsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={t.unpair}
-            leading={<RowIcon name="unpair" color={theme.color.danger} />}
+            icon="unpair"
+            iconTone="danger"
             tone="danger"
             onPress={() =>
               confirmDestructive(
@@ -140,7 +140,7 @@ export function SettingsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={t.appIcon}
-            leading={<RowIcon name="appIcon" />}
+            icon="appIcon"
             detail={t.appIconHint}
             disclosure
             onPress={actions.onAppIcon}
@@ -156,7 +156,7 @@ export function SettingsView({
           <SettingsRow
             on={SHEET_GROUP}
             title={t.appVersion}
-            leading={<RowIcon name="version" />}
+            icon="version"
             detail={
               version === ''
                 ? t.appVersionUnknown

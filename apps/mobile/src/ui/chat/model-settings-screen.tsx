@@ -19,7 +19,6 @@ import {
   type ModelScope,
   type ModelSettingsState,
 } from '../../host/model-settings';
-import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
@@ -27,7 +26,6 @@ import { SearchField } from '../primitives/search-field';
 import { SettingsGroupItem, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { SheetPage } from '../primitives/sheet-page';
 import { TextField } from '../primitives/text-field';
-import { CheckIcon } from '../shell/icons';
 import { useStrings, t } from '../strings';
 import { SHEET_GROUP, SheetCallout, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { LoadingIndicator } from '../primitives/loading-indicator';
@@ -125,7 +123,6 @@ function ModelsView({
 }) {
   const t = useStrings();
   const router = useRouter();
-  const theme = useDesignTheme();
   const models = useModels(client, scope);
   const [query, setQuery] = useState('');
   const [name, setName] = useState<string>();
@@ -212,10 +209,8 @@ function ModelsView({
                 on={SHEET_GROUP}
                 title={item.name}
                 selected={(current?.reasoningEffort ?? '') === item.id}
-                trailing={
-                  (current?.reasoningEffort ?? '') === item.id ? (
-                    <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-                  ) : undefined
+                control={
+                  (current?.reasoningEffort ?? '') === item.id ? { kind: 'check' } : undefined
                 }
                 onPress={
                   models.busy || current === undefined
@@ -279,11 +274,7 @@ function ModelsView({
                   }
                   tone={usable ? 'fg' : 'muted'}
                   selected={selected}
-                  trailing={
-                    selected ? (
-                      <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-                    ) : undefined
-                  }
+                  control={selected ? { kind: 'check' } : undefined}
                   onPress={
                     models.busy || (!usable && !(picker === 'allowed' && selected)) || required
                       ? undefined

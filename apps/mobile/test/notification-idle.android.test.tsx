@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement, useSyncExternalStore, type ReactNode } from 'react';
+import { act, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const nativeSwitch = vi.hoisted(() => vi.fn());
 vi.mock('react-native', async () => ({
@@ -11,19 +12,27 @@ vi.mock('react-native', async () => ({
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('../src/host/pairing', () => ({ DEVICE_PREFIX: '/botharness-device' }));
 vi.mock('../src/host/encrypted-carrier', () => ({ encryptedCarrier: vi.fn() }));
-vi.mock('../src/ui/primitives/toggle', () => import('../src/ui/primitives/toggle.android'));
-vi.mock('@expo/ui/jetpack-compose', () => ({
-  Host: ({ children }: { children: ReactNode }) => children,
-  Switch: (props: { value: boolean; enabled: boolean; onCheckedChange(value: boolean): void }) => {
-    nativeSwitch(props);
-    return createElement('input', {
-      type: 'checkbox',
-      checked: props.value,
-      disabled: !props.enabled,
-      onChange: () => props.onCheckedChange(!props.value),
-    });
-  },
+vi.mock(
+  '../src/ui/primitives/settings-list-item',
+  () => import('../src/ui/primitives/settings-list-item.android'),
+);
+vi.mock(
+  '@expo/ui/jetpack-compose/modifiers',
+  async () => (await import('./compose-list-item-shim')).modifiers,
+);
+vi.mock('../src/ui/primitives/row-icon-source.android', async () => ({
+  ROW_ICON_SOURCES: (await import('./compose-list-item-shim')).rowIconSources,
 }));
+vi.mock('@expo/ui/jetpack-compose', async () => {
+  const { components } = await import('./compose-list-item-shim');
+  return {
+    ...components,
+    Switch: (props: { value: boolean; enabled: boolean }) => {
+      nativeSwitch(props);
+      return components.Switch(props);
+    },
+  };
+});
 
 import { createDeviceNotificationPreferences } from '../src/host/device-notification-preferences';
 import type { SavedHost } from '../src/host/hosts';
@@ -105,7 +114,7 @@ it('keeps the four Android switches enabled while an offline computer retries in
       void preferences.retry();
     });
     const reply = container.querySelector<HTMLInputElement>(
-      `[aria-label="${t.pushKind.reply}"] input`,
+      `[role="switch"][aria-label="${t.pushKind.reply}"] input`,
     )!;
     expect(reply.disabled).toBe(false);
     await act(async () => reply.click());

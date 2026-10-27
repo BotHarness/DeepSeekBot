@@ -9,9 +9,7 @@ import {
 import { SHEET_GROUP } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { RowIcon } from '../primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { Toggle } from '../primitives/toggle';
 import { useStrings } from '../strings';
 
 export function ActivityCountLink() {
@@ -22,7 +20,7 @@ export function ActivityCountLink() {
     <SettingsRow
       on={SHEET_GROUP}
       title={t.activityCountSettings.title}
-      leading={<RowIcon name="activityCount" />}
+      icon="activityCount"
       detail={
         kinds.length
           ? kinds.map((kind) => t.activityCountSettings[kind]).join(' · ')
@@ -53,21 +51,15 @@ export function ActivityCountSettings() {
             key={kind}
             on={SHEET_GROUP}
             title={t.activityCountSettings[kind]}
-            trailing={
-              <Toggle
-                on={SHEET_GROUP}
-                label={t.activityCountSettings[kind]}
-                value={state.kinds.includes(kind)}
-                disabled={!state.loaded}
-                onChange={(enabled) =>
-                  activityCountPreferences.setKinds(
-                    enabled
-                      ? [...state.kinds, kind]
-                      : state.kinds.filter((value) => value !== kind),
-                  )
-                }
-              />
-            }
+            control={{
+              kind: 'switch',
+              value: state.kinds.includes(kind),
+              onChange: (enabled) =>
+                activityCountPreferences.setKinds(
+                  enabled ? [...state.kinds, kind] : state.kinds.filter((value) => value !== kind),
+                ),
+              disabled: !state.loaded,
+            }}
           />
         ))}
       </SettingsSection>
