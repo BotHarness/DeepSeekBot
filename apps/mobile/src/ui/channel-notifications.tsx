@@ -7,7 +7,6 @@ import { space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
-import { Toggle } from './primitives/toggle';
 import { Loading, Notice, errorText } from './request-parts';
 import { useStrings, t } from './strings';
 
@@ -99,30 +98,19 @@ export function ChannelNotifications({
         <SettingsRow
           on="raised"
           title={t.channelNotifications.quietHere}
-          trailing={
-            <Toggle
-              on="raised"
-              label={t.channelNotifications.quietHere}
-              value={host || quietHere}
-              onChange={quiet}
-              disabled={host || !active}
-            />
-          }
+          control={{
+            kind: 'switch',
+            value: host || quietHere,
+            onChange: quiet,
+            disabled: host || !active,
+          }}
         />
       </SettingsSection>
       <SettingsSection on="raised" footer={t.channelNotifications.muteHostFootnote}>
         <SettingsRow
           on="raised"
           title={t.channelNotifications.muteHost}
-          trailing={
-            <Toggle
-              on="raised"
-              label={t.channelNotifications.muteHost}
-              value={host}
-              onChange={mute}
-              disabled={muted !== undefined}
-            />
-          }
+          control={{ kind: 'switch', value: host, onChange: mute, disabled: muted !== undefined }}
         />
       </SettingsSection>
     </ScrollView>

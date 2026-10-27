@@ -10,7 +10,7 @@ import { confirmDestructive, showAppDialog } from '../primitives/app-dialog';
 import { SwipeRow, swipeActionProps, type SwipeAction } from '../primitives/swipe-row';
 import { Text } from '../primitives/text';
 import { HeaderIconButton } from '../shell/header-icon-button';
-import { ChevronRightIcon, PauseIcon, PlayIcon, PlusIcon, TrashIcon } from '../shell/icons';
+import { ChevronRightIcon, PauseIcon, PlayIcon, TrashIcon } from '../shell/icons';
 import { t, useStrings } from '../strings';
 import { routineDetail } from './routine-text';
 
@@ -91,11 +91,13 @@ export function routineSwipeActions(
 
 export function NewRoutineButton({ onPress }: { onPress(): void }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   return (
-    <HeaderIconButton label={t.routineNew} testID="profile-routine-new" onPress={onPress}>
-      <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
-    </HeaderIconButton>
+    <HeaderIconButton
+      icon="add"
+      label={t.routineNew}
+      testID="profile-routine-new"
+      onPress={onPress}
+    />
   );
 }
 

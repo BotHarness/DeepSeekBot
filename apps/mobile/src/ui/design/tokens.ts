@@ -82,6 +82,7 @@ export const materialNavigationBar = {
   iconLabelGap: 4,
 } as const;
 export const materialIconButton = {
+  target: 48,
   container: 40,
   iconSize: 24,
 } as const;

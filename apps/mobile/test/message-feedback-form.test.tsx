@@ -2,6 +2,7 @@
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/ui/selection-feedback', () => ({
   useSelectionFeedback: (_value: unknown, change: (value: string) => void) => change,
 }));
