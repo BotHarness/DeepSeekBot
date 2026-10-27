@@ -19,6 +19,7 @@ export interface RepositoryRow {
   description: string | null;
   topics: string;
   stars: number;
+  installs: number;
   pushed_at: string;
   created_at: string;
   default_branch: string;

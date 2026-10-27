@@ -805,6 +805,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 [ADR-0240](../adr/0240-marketplace-listings-localize-author-first-with-generated-summaries.md) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
+[ADR-0267](../adr/0267-the-bot-marketplace-hosts-uploaded-bots-under-connect-accounts.md) 加入安装计数：Host 在 Bot 建成之后（UI 或 CLI，上传条目或 GitHub 条目）向 Worker 发送一次 Install Receipt（`POST /v1/bots/{id}/installs`），键是 Host 数据目录 `marketplace-host.json` 里只给市场用的随机标识，与遥测安装 ID 无关；Worker 只存它的 SHA-256，`install_receipts` 以 (条目, Host) 去重并按来源地址限流，`installs` 随列表和详情返回。
+
 ### 移动端原生创建与导入
 
 [移动端设计](../../apps/mobile/DESIGN.md#native-bot-creation-and-import) 统一空白创建、市场、Git 链接和 Bot Zip 导入的原生流程：“全部”中显式选择已配对 Remote Host，最近使用的 Host 只作预选；从 A 进入沿用 A，提交前可改目标并保留表单。市场先浏览，点击导入后再确认目标；手机有网络时，无已配对或在线 Host 也可浏览，配对／连接后保留选择，但不自动提交。统一确认页显示来源、环境与可编辑名称，简介和标签收起。选择目标不切换主浏览环境；仍在进度页时，确认成功后进入目标 Host 的新 Bot DM；已经离开则保留完成提示与“打开 Bot”，不抢占当前页面。

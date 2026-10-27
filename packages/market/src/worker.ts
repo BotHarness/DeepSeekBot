@@ -27,6 +27,7 @@ import {
 import { createSummarizer, refreshSummaries, type Summarizer } from './summary.js';
 import { bearer, createAccessTokenVerifier, workosKeys, type AccessTokenVerifier } from './auth.js';
 import type { R2Bucket } from './r2.js';
+import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
 import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
 import {
   createUploads,
@@ -54,6 +55,7 @@ export interface MarketHandlerDeps {
   protection: Protection | undefined;
   adminToken: string | undefined;
   reportThreshold: number;
+  receipts?: Receipts | undefined;
   uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
 }
 
@@ -249,6 +251,24 @@ export function createMarketHandler(
       }
       return failure(404, 'not-found');
     }
+    const installId = /^\/v1\/bots\/([^/]+)\/installs$/u.exec(url.pathname)?.[1];
+    if (installId !== undefined) {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (protection === undefined || deps.receipts === undefined) {
+        return failure(503, 'receipts-unavailable');
+      }
+      const id = decodePath(installId);
+      const hostId = (await readBody(request))?.['hostId'];
+      if (id === undefined) return failure(404, 'bot-not-found');
+      if (!isMarketplaceHostId(hostId)) return failure(400, 'invalid-receipt');
+      if (!(await protection.allow(await protection.source(request), 'install'))) {
+        return failure(429, 'rate-limited', { 'retry-after': '3600' });
+      }
+      const recorded = await deps.receipts.record(id, hostId);
+      return recorded.ok
+        ? json(202, { counted: recorded.counted, installs: recorded.installs })
+        : failure(404, 'bot-not-found');
+    }
     const reportId = /^\/v1\/bots\/([^/]+)\/reports$/u.exec(url.pathname)?.[1];
     if (reportId !== undefined) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
@@ -396,6 +416,7 @@ export function handlerForEnv(
     adminToken:
       env.ADMIN_TOKEN === undefined || env.ADMIN_TOKEN.length === 0 ? undefined : env.ADMIN_TOKEN,
     reportThreshold: reportThreshold(env.REPORT_THRESHOLD),
+    receipts: createReceipts({ db, now }),
     uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }

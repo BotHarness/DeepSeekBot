@@ -19,6 +19,7 @@ const ENTRY_SHAPE = {
   description: expect.any(String),
   topics: expect.any(Array),
   stars: expect.any(Number),
+  installs: expect.any(Number),
   pushedAt: expect.any(String),
   createdAt: expect.any(String),
   htmlUrl: expect.any(String),

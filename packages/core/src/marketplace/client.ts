@@ -22,6 +22,7 @@ export interface MarketplaceEntry {
   avatar: MarketplaceAvatar | null;
   topics: string[];
   stars: number;
+  installs: number;
   pushedAt: string;
   createdAt?: string;
   htmlUrl: string;
@@ -118,6 +119,10 @@ export interface MarketplaceClient {
   ): Promise<MarketplaceResult<true>>;
   publishUpload(token: string, uploadId: string): Promise<MarketplaceResult<MarketplaceEntry>>;
   file(id: string, path: string): Promise<MarketplaceResult<Uint8Array>>;
+  installReceipt(
+    id: string,
+    hostId: string,
+  ): Promise<MarketplaceResult<{ counted: boolean; installs: number }>>;
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -196,6 +201,10 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
     avatar: parseAvatar(source['avatar'], filesBase),
     topics: topics.filter((topic): topic is string => typeof topic === 'string'),
     stars,
+    installs:
+      typeof source['installs'] === 'number' && Number.isSafeInteger(source['installs'])
+        ? Math.max(source['installs'], 0)
+        : 0,
     pushedAt: source['pushedAt'] as string,
     ...(typeof source['createdAt'] === 'string' ? { createdAt: source['createdAt'] } : {}),
     htmlUrl: source['htmlUrl'] as string,
@@ -453,6 +462,21 @@ export function createMarketplaceClient(options: {
         `/v1/uploads/${encodeURIComponent(uploadId)}/publish`,
         { method: 'POST', headers: authorized(token, false) },
         (value) => parseEntry(record(value)?.['bot']),
+      ),
+    installReceipt: (id, hostId) =>
+      request(
+        `/v1/bots/${encodeURIComponent(id)}/installs`,
+        {
+          method: 'POST',
+          headers: { accept: 'application/json', 'content-type': 'application/json' },
+          body: JSON.stringify({ hostId }),
+        },
+        (value) => {
+          const body = record(value);
+          return typeof body?.['counted'] === 'boolean' && typeof body['installs'] === 'number'
+            ? { counted: body['counted'], installs: body['installs'] }
+            : undefined;
+        },
       ),
     async file(id, path) {
       const response = await send(`/v1/bots/${encodeURIComponent(id)}/files/${filePath(path)}`, {

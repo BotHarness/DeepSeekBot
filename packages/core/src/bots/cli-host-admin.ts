@@ -76,7 +76,7 @@ export const HOST_ADMIN_COMMANDS = [
   },
   {
     command: 'marketplace-install',
-    description: 'install an Uploaded Bot from the Bot Marketplace as a fresh Bot',
+    description: 'install a Bot Marketplace listing (uploaded or GitHub) as a fresh Bot',
   },
   { command: 'release-check', description: 'check the release channel for a newer version' },
   { command: 'release-install', description: 'install a newer release; needs --confirm' },

@@ -31,6 +31,7 @@ import type {
 } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
+import { formatStars } from './community-links.js';
 import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
@@ -66,7 +67,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'too-large': 'market.error.tooLarge',
   'bot-limit': 'market.error.botLimit',
   'nothing-to-upload': 'market.error.nothingToUpload',
-  'not-an-uploaded-bot': 'market.error.botNotFound',
+  'listing-not-installable': 'market.error.botNotFound',
 };
 
 export const MAX_REPORT_REASON_LENGTH = 500;
@@ -211,6 +212,14 @@ export function MarketplaceMeta({
       {bot.source === 'upload' ? null : (
         <span>{t('market.stars', { count: String(bot.stars) })}</span>
       )}
+      <span
+        className="bh-market-installs"
+        data-market-installs={bot.installs}
+        aria-label={t('market.installs', { count: String(bot.installs) })}
+        title={t('market.installs', { count: String(bot.installs) })}
+      >
+        {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
+      </span>
       {created && bot.createdAt !== undefined ? (
         <span>{t('market.created', { date: day(bot.createdAt) })}</span>
       ) : (
@@ -1043,6 +1052,7 @@ export function MarketplaceBotFlow({
             gitUrl: selected.cloneUrl,
             roles: selected.roles,
             origin: 'marketplace',
+            listingId: selected.id,
             ...(selected.description === null ? {} : { description: selected.description }),
           });
     void installed.then(

@@ -130,6 +130,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     descriptionGenerated: false,
     topics: [],
     stars: 7,
+    installs: 0,
     pushedAt: '2026-10-01T08:00:00Z',
     createdAt: '2026-03-05T08:00:00Z',
     htmlUrl: `https://github.com/alice/${name}`,
@@ -445,6 +446,7 @@ describe('Market panel', () => {
           gitUrl: 'https://github.com/alice/helper.git',
           roles: [],
           origin: 'marketplace',
+          listingId: 'R_helper',
           description: 'helper description',
         });
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);

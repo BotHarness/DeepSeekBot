@@ -330,6 +330,7 @@ export interface CreatePersonaBotInput {
   description?: string;
   gitUrl?: string;
   origin?: 'marketplace';
+  listingId?: string;
   memoryLocation?: string;
 }
 

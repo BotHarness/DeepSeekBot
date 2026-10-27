@@ -85,6 +85,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     descriptionGenerated: false,
     topics: ['writing'],
     stars: 7,
+    installs: 0,
     pushedAt: '2026-10-01T08:00:00Z',
     htmlUrl: `https://github.com/alice/${name}`,
     cloneUrl: `https://github.com/alice/${name}.git`,
@@ -441,6 +442,7 @@ describe('Bot Marketplace modal', () => {
           gitUrl: 'https://github.com/alice/helper.git',
           roles: [],
           origin: 'marketplace',
+          listingId: 'R_helper',
           description: 'helper description',
         });
         expect(onInstalled).toHaveBeenCalledOnce();
@@ -462,6 +464,7 @@ describe('Bot Marketplace modal', () => {
           gitUrl: 'https://github.com/alice/helper.git',
           roles: [],
           origin: 'marketplace',
+          listingId: 'R_helper',
         });
         expect(onInstalled).not.toHaveBeenCalled();
         expect(host.querySelector('[role="alert"]')?.textContent).toContain('克隆失败');
@@ -706,6 +709,7 @@ describe('Bot Marketplace modal', () => {
           gitUrl: 'https://github.com/alice/helper-bot.git',
           roles: ['writer', 'editor'],
           origin: 'marketplace',
+          listingId: 'R_helper-bot',
           description: 'helper-bot description',
         });
       },
