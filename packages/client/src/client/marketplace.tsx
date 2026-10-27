@@ -39,6 +39,7 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
 
@@ -52,6 +53,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'repository-blocked': 'market.error.blocked',
   'upstream-unavailable': 'market.error.upstream',
   'bot-not-found': 'market.error.botNotFound',
+  'file-not-found': 'market.error.fileNotFound',
   'challenge-unavailable': 'market.error.challengeUnavailable',
   'challenge-invalid': 'market.error.challenge',
   'challenge-expired': 'market.error.challenge',
@@ -394,18 +396,21 @@ function ReportPanel({
 }
 
 function MarketplaceDetailView({
+  actions,
   bot,
   state,
   t,
   onRetry,
   report,
 }: {
+  actions: Pick<BridgeActions, 'marketplaceFile'>;
   bot: MarketplaceEntry;
   state: DetailState;
   t: BotHarnessTranslate;
   onRetry: () => void;
   report: ReactElement | null;
 }): ReactElement {
+  const [reading, setReading] = useState<MarketplaceFile | undefined>(undefined);
   const labels = useMemo<MarkdownLabels>(
     () => ({
       code: {
@@ -446,99 +451,36 @@ function MarketplaceDetailView({
           {t('market.detail.error', { error: marketplaceError(state.cause, t) })}
         </ReadFailure>
       ) : null}
-      {state.status === 'ready' && state.detail.files !== undefined ? (
-        <MarketplaceFileTree files={state.detail.files} t={t} />
+      {state.status === 'ready' && reading !== undefined ? (
+        <MarketplaceFileReader
+          actions={actions}
+          botId={shown.id}
+          file={reading}
+          labels={labels}
+          t={t}
+          describeError={(cause) => marketplaceError(cause, t)}
+          onBack={() => setReading(undefined)}
+        />
+      ) : null}
+      {state.status === 'ready' && reading === undefined && state.detail.files !== undefined ? (
+        <MarketplaceFileTree
+          files={state.detail.files}
+          {...(state.detail.fileSummary === undefined ? {} : { summary: state.detail.fileSummary })}
+          t={t}
+          onOpen={setReading}
+        />
       ) : null}
       {state.status === 'ready' &&
       state.detail.readme === null &&
       state.detail.files === undefined ? (
         <div className="bh-market-state">{t('market.detail.noReadme')}</div>
       ) : null}
-      {state.status === 'ready' && state.detail.readme !== null ? (
+      {state.status === 'ready' && reading === undefined && state.detail.readme !== null ? (
         <div className="bh-market-readme" data-market-readme>
           <MarkdownText text={state.detail.readme} labels={labels} />
         </div>
       ) : null}
     </div>
-  );
-}
-
-interface FileFolder {
-  folders: Map<string, FileFolder>;
-  files: MarketplaceFile[];
-}
-
-function fileTree(files: readonly MarketplaceFile[]): FileFolder {
-  const root: FileFolder = { folders: new Map(), files: [] };
-  for (const file of files) {
-    const parts = file.path.split('/');
-    let folder = root;
-    for (const part of parts.slice(0, -1)) {
-      let next = folder.folders.get(part);
-      if (next === undefined) {
-        next = { folders: new Map(), files: [] };
-        folder.folders.set(part, next);
-      }
-      folder = next;
-    }
-    folder.files.push(file);
-  }
-  return root;
-}
-
-export function fileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-}
-
-function FileFolderList({
-  folder,
-  t,
-}: {
-  folder: FileFolder;
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const folders = [...folder.folders.entries()].sort(([left], [right]) =>
-    left.localeCompare(right),
-  );
-  return (
-    <ul className="bh-market-file-list">
-      {folders.map(([name, child]) => (
-        <li key={`${name}/`} data-market-folder={name}>
-          <span className="bh-market-file-folder">{name}/</span>
-          <FileFolderList folder={child} t={t} />
-        </li>
-      ))}
-      {folder.files.map((file) => (
-        <li key={file.path} className="bh-market-file" data-market-file={file.path}>
-          <span className="bh-market-file-name">{file.path.split('/').at(-1)}</span>
-          {file.kind === 'script' ? <Tag tone="outline">{t('market.files.script')}</Tag> : null}
-          <span className="bh-market-file-size">{fileSize(file.size)}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-export function MarketplaceFileTree({
-  files,
-  t,
-}: {
-  files: readonly MarketplaceFile[];
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const scripts = files.filter((file) => file.kind === 'script').length;
-  return (
-    <section className="bh-market-files" data-market-files={files.length}>
-      <strong>{t('market.files.title', { count: String(files.length) })}</strong>
-      {scripts === 0 ? null : (
-        <span className="bh-market-hint">
-          {t('market.files.scripts', { count: String(scripts) })}
-        </span>
-      )}
-      <FileFolderList folder={fileTree(files)} t={t} />
-    </section>
   );
 }
 
@@ -1172,6 +1114,7 @@ export function MarketplaceBotFlow({
       }
     >
       <MarketplaceDetailView
+        actions={actions}
         bot={bot}
         state={detail}
         t={t}

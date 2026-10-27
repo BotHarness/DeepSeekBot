@@ -52,6 +52,21 @@ export interface MarketplaceFile {
   kind: MarketplaceFileKind;
 }
 
+export type MarketplaceFileType = 'markdown' | 'text' | 'data' | 'script' | 'image';
+
+export interface MarketplaceFileSummary {
+  count: number;
+  size: number;
+  types: Array<{ type: MarketplaceFileType; count: number; size: number }>;
+}
+
+export interface MarketplaceFileView {
+  path: string;
+  size: number;
+  type: Exclude<MarketplaceFileType, 'image'>;
+  text: string;
+}
+
 export interface MarketplaceUploadInput {
   displayName: string;
   bio?: string;
@@ -86,6 +101,7 @@ export interface MarketplaceDetail {
   readmeLanguage: MarketplaceLanguage | null;
   commitSha: string | null;
   files?: MarketplaceFile[];
+  fileSummary?: MarketplaceFileSummary;
 }
 
 export type MarketplaceResult<T> =
@@ -123,6 +139,7 @@ export interface MarketplaceClient {
     id: string,
     hostId: string,
   ): Promise<MarketplaceResult<{ counted: boolean; installs: number }>>;
+  fileView(id: string, path: string): Promise<MarketplaceResult<MarketplaceFileView>>;
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -252,6 +269,49 @@ function parseFiles(value: unknown): MarketplaceFile[] | undefined {
   return files.every((file): file is MarketplaceFile => file !== undefined) ? files : undefined;
 }
 
+const FILE_TYPES: readonly string[] = ['markdown', 'text', 'data', 'script', 'image'];
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function parseFileSummary(value: unknown): MarketplaceFileSummary | undefined {
+  const source = record(value);
+  if (source === undefined || !isCount(source['count']) || !isCount(source['size']))
+    return undefined;
+  if (!Array.isArray(source['types'])) return undefined;
+  const types = source['types'].map((item) => {
+    const entry = record(item);
+    return typeof entry?.['type'] === 'string' &&
+      FILE_TYPES.includes(entry['type']) &&
+      isCount(entry['count']) &&
+      isCount(entry['size'])
+      ? { type: entry['type'] as MarketplaceFileType, count: entry['count'], size: entry['size'] }
+      : undefined;
+  });
+  return types.every((type) => type !== undefined)
+    ? { count: source['count'], size: source['size'], types }
+    : undefined;
+}
+
+export function parseMarketplaceFileView(value: unknown): MarketplaceFileView | undefined {
+  const file = record(record(value)?.['file']);
+  const type = file?.['type'];
+  return typeof file?.['path'] === 'string' &&
+    isCount(file['size']) &&
+    typeof file['text'] === 'string' &&
+    typeof type === 'string' &&
+    type !== 'image' &&
+    FILE_TYPES.includes(type)
+    ? {
+        path: file['path'],
+        size: file['size'],
+        type: type as MarketplaceFileView['type'],
+        text: file['text'],
+      }
+    : undefined;
+}
+
 export function filePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
@@ -274,6 +334,7 @@ export function parseMarketplaceDetail(value: unknown): MarketplaceDetail | unde
   if (commitSha !== null && typeof commitSha !== 'string') return undefined;
   const readmeLanguage = source?.['readmeLanguage'];
   const files = parseFiles(source?.['files']);
+  const fileSummary = parseFileSummary(source?.['fileSummary']);
   return {
     bot,
     readme,
@@ -283,6 +344,7 @@ export function parseMarketplaceDetail(value: unknown): MarketplaceDetail | unde
         : null,
     commitSha,
     ...(files === undefined ? {} : { files }),
+    ...(fileSummary === undefined ? {} : { fileSummary }),
   };
 }
 
@@ -477,6 +539,12 @@ export function createMarketplaceClient(options: {
             ? { counted: body['counted'], installs: body['installs'] }
             : undefined;
         },
+      ),
+    fileView: (id, path) =>
+      request(
+        `/v1/bots/${encodeURIComponent(id)}/view/${filePath(path)}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseMarketplaceFileView,
       ),
     async file(id, path) {
       const response = await send(`/v1/bots/${encodeURIComponent(id)}/files/${filePath(path)}`, {
