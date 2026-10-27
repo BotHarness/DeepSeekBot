@@ -98,8 +98,14 @@ export function CreationAvatar({
           {copy.sourceAvatar}
         </Text>
       ) : null}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'stretch', gap: space.x3 }}>
-        <View style={{ flex: 1 }}>
+      <View
+        style={{
+          flexDirection: theme.largeText ? 'column' : 'row',
+          alignSelf: 'stretch',
+          gap: space.x3,
+        }}
+      >
+        <View style={{ flex: theme.largeText ? undefined : 1 }}>
           <Button
             label={copy.shuffleAvatar}
             testID="create-bot-avatar-shuffle"
@@ -107,7 +113,7 @@ export function CreationAvatar({
             onPress={() => onChange({ kind: 'generated', seed: randomAvatarSeed() })}
           />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: theme.largeText ? undefined : 1 }}>
           <Button
             label={copy.photoAvatar}
             testID="create-bot-avatar-photo"
@@ -115,7 +121,7 @@ export function CreationAvatar({
             onPress={() => void choosePhoto()}
           />
         </View>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: theme.largeText ? undefined : 1 }}>
           <Button
             label={t.avatarEditor.title}
             testID="create-bot-avatar-customize"
