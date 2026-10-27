@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -15,14 +16,15 @@ import { createMemoryGit } from '../memory/git.js';
 import { canonicalRecipe, isAvatarRecipe, seededAvatarFor } from './avatar-appearance.js';
 import { BOT_BANNER_FILE, botBannerPng, seededBotBanner } from './bot-banner.js';
 import type { PersonaBotRecord } from './persona-bot.js';
-import { readSharedPresentation } from './shared-presentation.js';
+import { AVATAR_RECIPE_FILE, readSharedPresentation } from './shared-presentation.js';
 import { fallbackPrimaryColor, type BotPrimaryColor } from './primary-color.js';
 
 const DESCRIPTOR_DIR = '.botharness';
 const AVATAR_EXTENSIONS = { png: 'png', jpeg: 'jpg', webp: 'webp' } as const;
-const MANAGED_AVATARS = Object.values(AVATAR_EXTENSIONS).map(
-  (extension) => `${DESCRIPTOR_DIR}/avatar.${extension}`,
-);
+const MANAGED_AVATARS = [
+  ...Object.values(AVATAR_EXTENSIONS).map((extension) => `${DESCRIPTOR_DIR}/avatar.${extension}`),
+  AVATAR_RECIPE_FILE,
+];
 export const BOT_DESCRIPTOR_COMMIT_MESSAGE = 'Update Bot profile in .botharness/bot.json\n';
 
 export type BotDescriptorSyncResult = 'written' | 'unchanged' | 'kept' | 'no-memory';
@@ -114,12 +116,23 @@ export function syncBotDescriptor(
   if (bio.length > 0) descriptor['bio'] = bio;
 
   let image: { path: string; bytes: Buffer } | undefined;
+  let recipeFile: string | undefined;
   let avatar: BotDescriptorAvatar | undefined;
   const keepAvatar = existing?.['avatar'] !== undefined && sameAvatar(memoryDir, record);
   if (keepAvatar) {
     descriptor['avatar'] = existing['avatar'];
   } else if (record.appearance !== undefined) {
     avatar = { recipe: { ...record.appearance.recipe } };
+    const inline = `${JSON.stringify({ ...descriptor, avatar }, null, 2)}\n`;
+    const snapshot = record.avatar === undefined ? undefined : imageAvatar(record.avatar);
+    if (Buffer.byteLength(inline, 'utf8') > MAX_DESCRIPTOR_BYTES && snapshot !== undefined) {
+      image = snapshot;
+      avatar = { image: snapshot.path };
+      recipeFile = `${JSON.stringify({
+        image: createHash('sha256').update(snapshot.bytes).digest('hex'),
+        recipe: record.appearance.recipe,
+      })}\n`;
+    }
   } else if (record.avatar !== undefined) {
     image = imageAvatar(record.avatar);
     if (image !== undefined) avatar = { image: image.path };
@@ -162,6 +175,17 @@ export function syncBotDescriptor(
       changed = true;
     }
   }
+  if (recipeFile !== undefined) {
+    const target = join(memoryDir, AVATAR_RECIPE_FILE);
+    let current: string | undefined;
+    try {
+      current = readFileSync(target, 'utf8');
+    } catch {}
+    if (current !== recipeFile) {
+      writeFileSync(target, recipeFile, 'utf8');
+      changed = true;
+    }
+  }
   const bannerBytes = botBannerPng(banner);
   const bannerTarget = join(memoryDir, BOT_BANNER_FILE);
   let currentBanner: Buffer | undefined;
@@ -174,7 +198,8 @@ export function syncBotDescriptor(
   }
   if (!keepAvatar) {
     for (const managed of MANAGED_AVATARS) {
-      if (managed === image?.path) continue;
+      if (managed === image?.path || (managed === AVATAR_RECIPE_FILE && recipeFile !== undefined))
+        continue;
       const target = join(memoryDir, managed);
       if (!existsSync(target)) continue;
       rmSync(target, { force: true });

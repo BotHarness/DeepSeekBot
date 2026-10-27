@@ -79,6 +79,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     fullName: `alice/${name}`,
     displayName: null,
     banner: null,
+    avatar: null,
     roles: [],
     description: `${name} description`,
     descriptionGenerated: false,

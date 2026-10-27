@@ -15,6 +15,7 @@ const ENTRY_SHAPE = {
   bio: expect.any(String),
   bioGenerated: false,
   banner: null,
+  avatar: null,
   description: expect.any(String),
   topics: expect.any(Array),
   stars: expect.any(Number),

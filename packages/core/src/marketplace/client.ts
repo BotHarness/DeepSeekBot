@@ -1,11 +1,13 @@
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
+import { canonicalRecipe, isAvatarRecipe, type AvatarRecipe } from '../bots/avatar-appearance.js';
 import { parseChallenge, type AltchaChallenge } from './altcha.js';
 import { parseMarketplaceLanguage, type MarketplaceLanguage } from './language.js';
 
 export type MarketplaceBanner = { recipe: PixelBannerRecipe } | { image: string };
+export type MarketplaceAvatar = { recipe: AvatarRecipe } | { image: string };
 
-const BANNER_IMAGE_ORIGIN = 'https://raw.githubusercontent.com/';
+const ART_IMAGE_ORIGIN = 'https://raw.githubusercontent.com/';
 
 export interface MarketplaceEntry {
   id: string;
@@ -17,6 +19,7 @@ export interface MarketplaceEntry {
   description: string | null;
   descriptionGenerated: boolean;
   banner: MarketplaceBanner | null;
+  avatar: MarketplaceAvatar | null;
   topics: string[];
   stars: number;
   pushedAt: string;
@@ -83,7 +86,15 @@ function parseBanner(value: unknown): MarketplaceBanner | null {
     return { recipe: { scene: source['recipe'].scene, seed: source['recipe'].seed } };
   }
   const image = source['image'];
-  return typeof image === 'string' && image.startsWith(BANNER_IMAGE_ORIGIN) ? { image } : null;
+  return typeof image === 'string' && image.startsWith(ART_IMAGE_ORIGIN) ? { image } : null;
+}
+
+function parseAvatar(value: unknown): MarketplaceAvatar | null {
+  const source = record(value);
+  if (source === undefined) return null;
+  if (isAvatarRecipe(source['recipe'])) return { recipe: canonicalRecipe(source['recipe']) };
+  const image = source['image'];
+  return typeof image === 'string' && image.startsWith(ART_IMAGE_ORIGIN) ? { image } : null;
 }
 
 function parseEntry(value: unknown): MarketplaceEntry | undefined {
@@ -122,6 +133,7 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
     descriptionGenerated:
       typeof bio === 'string' && bio.length > 0 && source['bioGenerated'] === true,
     banner: parseBanner(source['banner']),
+    avatar: parseAvatar(source['avatar']),
     topics: topics.filter((topic): topic is string => typeof topic === 'string'),
     stars,
     pushedAt: source['pushedAt'] as string,

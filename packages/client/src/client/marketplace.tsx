@@ -210,11 +210,22 @@ export function MarketplaceAvatar({
   size: number;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const avatar = bot.avatar;
   return (
-    <span className="bh-market-avatar" aria-hidden="true">
+    <span
+      className="bh-market-avatar"
+      aria-hidden="true"
+      data-market-avatar={avatar === null ? 'seeded' : 'recipe' in avatar ? 'recipe' : 'image'}
+    >
       <PersonaBotAvatar
         personaBotId=""
         name={marketplaceName(bot)}
+        src={avatar !== null && 'image' in avatar ? avatar.image : undefined}
+        appearance={
+          avatar !== null && 'recipe' in avatar
+            ? { recipe: avatar.recipe, revision: '0'.repeat(64) }
+            : undefined
+        }
         size={size}
         indicator={false}
         still

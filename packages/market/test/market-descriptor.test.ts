@@ -100,6 +100,34 @@ describe('Marketplace Worker presentation', () => {
     expect(banners[2]?.banner).toBeNull();
   });
 
+  it('serves an avatar recipe as is and an avatar image as a raw URL at the indexed commit', async () => {
+    const market = createMarket();
+    const recipe = { family: 'illustrated', species: 'cat' };
+    const drawn = fakeRepository({
+      name: 'drawn',
+      descriptor: JSON.stringify({ avatar: { recipe } }),
+    });
+    const photo = fakeRepository({
+      name: 'photo',
+      descriptor: JSON.stringify({ avatar: { image: '.botharness/avatar.png' } }),
+    });
+    const none = fakeRepository({ name: 'none' });
+    for (const repository of [drawn, photo, none]) market.publish(repository);
+
+    const bots = [];
+    for (const repository of [drawn, photo, none]) {
+      const body = (await (await submit(market, repository.htmlUrl)).json()) as {
+        bot: { avatar: unknown; headCommit: { sha: string } | null };
+      };
+      bots.push(body.bot);
+    }
+    expect(bots[0]?.avatar).toEqual({ recipe });
+    expect(bots[1]?.avatar).toEqual({
+      image: `https://raw.githubusercontent.com/${photo.owner}/photo/${bots[1]?.headCommit?.sha}/.botharness/avatar.png`,
+    });
+    expect(bots[2]?.avatar).toBeNull();
+  });
+
   it('falls back to legacy roles and the GitHub description', async () => {
     const market = createMarket();
     const repository = fakeRepository({

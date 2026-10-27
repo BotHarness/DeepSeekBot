@@ -19,6 +19,7 @@ const detail: MarketplaceDetail = {
     description: 'Writing helper',
     descriptionGenerated: false,
     banner: null,
+    avatar: null,
     topics: ['writing'],
     stars: 12,
     pushedAt: '2026-10-23',
