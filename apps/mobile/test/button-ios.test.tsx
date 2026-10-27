@@ -63,6 +63,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
       {
         'data-min-height': (modifiers[0]!.frame as { minHeight: number }).minHeight,
         'data-max-width': String((modifiers[0]!.frame as { maxWidth: number }).maxWidth),
+        'data-content-shape': modifiers.find((modifier) => modifier.contentShape)?.contentShape,
       },
       children,
     ),
@@ -80,7 +81,9 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   accessibilityLabel: (label: string) => ({ label }),
   accessibilityValue: (value: string) => ({ value }),
   buttonStyle: (buttonStyle: string) => ({ buttonStyle }),
+  contentShape: (contentShape: string) => ({ contentShape }),
   controlSize: (controlSize: string) => ({ controlSize }),
+  shapes: { rectangle: () => 'rectangle' },
   disabled: (disabled: boolean) => ({ disabled }),
   font: (font: unknown) => ({ font }),
   frame: (frame: unknown) => ({ frame }),
@@ -204,7 +207,12 @@ it('keeps a 44pt minimum target and scales its label with Dynamic Type', async (
   );
   const [bordered, text] = [...host.querySelectorAll<HTMLElement>('button > span')];
   expect(bordered!.dataset).toMatchObject({ minHeight: '28', maxWidth: 'Infinity' });
-  expect(text!.dataset).toMatchObject({ minHeight: '44', maxWidth: 'Infinity' });
+  expect(text!.dataset).toMatchObject({
+    minHeight: '44',
+    maxWidth: 'Infinity',
+    contentShape: 'rectangle',
+  });
+  expect(bordered!.dataset.contentShape).toBeUndefined();
   for (const label of host.querySelectorAll<HTMLElement>('[data-font]')) {
     expect(JSON.parse(label.dataset.font!)).toMatchObject({ textStyle: 'body' });
   }

@@ -7,11 +7,13 @@ import {
   accessibilityLabel,
   accessibilityValue,
   buttonStyle,
+  contentShape,
   controlSize,
   disabled as controlDisabled,
   font,
   frame,
   multilineTextAlignment,
+  shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import type { ActionSymbol } from '../../../../../packages/client/src/shared/action-presentation';
@@ -90,6 +92,7 @@ export function Button({
           spacing={space.x3}
           modifiers={[
             frame({ maxWidth: Infinity, minHeight: bezel ? theme.touch - space.x5 : theme.touch }),
+            ...(bezel ? [] : [contentShape(shapes.rectangle())]),
           ]}
         >
           {busy ? (
