@@ -37,7 +37,7 @@ import {
   folderBrowseError,
   type FolderBrowserActions,
 } from './workspace-grants-entry.js';
-import type { BotHarnessTranslate } from './locale.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
 import { messagePerfView } from './message-perf.js';
@@ -50,11 +50,33 @@ const ChannelMarkdownText = MarkdownText as unknown as (
 
 export type NativeChatFailureText = (key: 'message.turnError' | 'message.failure.auth') => string;
 
+const REFUSAL_TEXT: Record<string, readonly [BotHarnessKey, BotHarnessKey?]> = {
+  MEMORY_CWD_MISMATCH: ['failure.refused.memoryCwd', 'failure.refused.memoryCwdHint'],
+  SESSION_PERMISSION_MISMATCH: [
+    'failure.refused.sessionPermission',
+    'failure.refused.sessionPermissionHint',
+  ],
+  ASSIGNMENT_PERMISSION_MISMATCH: [
+    'failure.refused.assignmentPermission',
+    'failure.refused.assignmentPermissionHint',
+  ],
+  GRANT_UNAVAILABLE: ['failure.refused.grant', 'failure.refused.grantHint'],
+  PERMISSION_UNAVAILABLE: [
+    'failure.refused.permissionServices',
+    'failure.refused.permissionServicesHint',
+  ],
+  BOT_UNAVAILABLE: ['failure.refused.bot'],
+  SESSION_OWNER_MISSING: ['failure.refused.owner', 'failure.refused.ownerHint'],
+  SESSION_REFUSED: ['failure.refused.generic'],
+};
+
 function failureSummary(
   failure: NonNullable<ChannelMessage['sessionFailure']>,
   t: BotHarnessTranslate,
   nativeChatT?: NativeChatFailureText,
 ): string {
+  const refusal = failure.code === undefined ? undefined : REFUSAL_TEXT[failure.code];
+  if (refusal !== undefined) return t(refusal[0]);
   switch (failure.code) {
     case 'AUTH':
       return nativeChatT?.('message.failure.auth') ?? t('failure.auth');
@@ -107,6 +129,7 @@ function SessionFailureNotice({
   const canRecover = maintenance.available;
   const recover = maintenance.run;
   const title = nativeChatT?.('message.turnError') ?? t('failure.title');
+  const refusalHint = failure.code === undefined ? undefined : REFUSAL_TEXT[failure.code]?.[1];
   const needsModels =
     host === undefined &&
     ['AUTH', 'MISSING_CREDENTIAL', 'INVALID_CREDENTIAL', 'QUOTA'].includes(failure.code ?? '');
@@ -125,6 +148,9 @@ function SessionFailureNotice({
       {failure.code === 'CONTEXT_WINDOW_EXCEEDED' ? (
         <div className="bh-session-failure-context">{t('failure.contextWindowHint')}</div>
       ) : null}
+      {refusalHint === undefined ? null : (
+        <div className="bh-session-failure-context">{t(refusalHint)}</div>
+      )}
       {failure.context === undefined ? null : (
         <div className="bh-session-failure-context">
           {t('failure.assignmentContext', { context: failure.context })}

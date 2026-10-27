@@ -34,18 +34,23 @@ export function SessionFailureCard({
     nothing: t.sessionRecovery.nothing,
     busy: t.sessionRecovery.busy,
     failed: t.sessionRecovery.compactionFailed,
+    unsaved: t.sessionRecovery.unsaved,
     unavailable: t.sessionRecovery.failed,
   };
+  const refusal = failure.code === undefined ? undefined : t.sessionRecovery.refused[failure.code];
   return (
     <ActionCard
       category={t.sessionRecovery.failed}
       title={
-        failure.code === 'CONTEXT_WINDOW_EXCEEDED'
-          ? t.sessionRecovery.contextFull
-          : failure.code === 'OUTPUT_TOKEN_LIMIT'
-            ? t.sessionRecovery.outputLimit
-            : t.sessionRecovery.details
+        refusal !== undefined
+          ? refusal[0]
+          : failure.code === 'CONTEXT_WINDOW_EXCEEDED'
+            ? t.sessionRecovery.contextFull
+            : failure.code === 'OUTPUT_TOKEN_LIMIT'
+              ? t.sessionRecovery.outputLimit
+              : t.sessionRecovery.details
       }
+      preview={refusal?.[1] === undefined ? undefined : <Text>{refusal[1]}</Text>}
       details={<DetailRow label={t.sessionRecovery.details} value={failure.detail} />}
     >
       <CardButtons>

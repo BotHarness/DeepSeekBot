@@ -15,7 +15,7 @@ export async function enterBotCreation(
   let record = controller.getSnapshot().record;
   const last = record.kind === 'submitted' ? record.operation.hostId : record.draft.hostId;
   if (record.kind === 'submitted' && record.acknowledged) {
-    await controller.another(entry.kind === 'host' ? entry.hostId : '');
+    await controller.another(entry.kind === 'host' ? entry.hostId : '', 'fresh');
     record = controller.getSnapshot().record;
   }
   if (record.kind === 'submitted') return 'ready';

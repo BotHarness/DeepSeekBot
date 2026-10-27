@@ -12,7 +12,7 @@ export async function selectMarketplaceImport(
   let current = controller.getSnapshot();
   if (current.busy) return 'creation-pending';
   if (current.record.kind === 'submitted' && current.record.acknowledged) {
-    await controller.another();
+    await controller.another('', 'fresh');
     current = controller.getSnapshot();
     if (current.error) return current.error;
   }

@@ -20,7 +20,7 @@ const styles = stylex.create({
   note: { fontSize: text.metaSize, lineHeight: text.metaLine, color: color.muted },
 });
 
-const STATE_TONE = {
+export const SUBAGENT_STATE_TONE = {
   running: 'success',
   done: 'outline',
   failed: 'danger',
@@ -148,7 +148,7 @@ export function SessionSubagentList({
                     ? { onClick: () => void actions.openSession(subagent.sessionId) }
                     : {})}
                   badge={
-                    <Tag tone={STATE_TONE[subagent.state]}>
+                    <Tag tone={SUBAGENT_STATE_TONE[subagent.state]}>
                       {t(`sessions.subagents.state.${subagent.state}`)}
                     </Tag>
                   }

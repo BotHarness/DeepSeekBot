@@ -1,0 +1,39 @@
+{
+  "environment": "Physical POCO 24069PC21G, Android 16, zh-CN, dark mode, font scale 1.0, 1220x2712, density 480",
+  "build": "arm64 Debug, native baseline 30acef24138103a325ba972f0341477ee34e728b, APK SHA256 17c969b9afad01074f1d902c8e105b55675a9807357094d829e784001433ab66",
+  "processing": "System status bar cropped; proportional resize; app UI unchanged.",
+  "captures": [
+    {
+      "state": "before",
+      "page": "identity",
+      "file": "b-i.png",
+      "source": "30acef24138103a325ba972f0341477ee34e728b",
+      "time": "2026-10-27T15:13:47.3215396Z",
+      "sha256": "c2edfbf74f797fba0418fd7a59b702d30c7ffe69d700324ba2497d8b0e35103b"
+    },
+    {
+      "state": "before",
+      "page": "details",
+      "file": "b-d.png",
+      "source": "30acef24138103a325ba972f0341477ee34e728b",
+      "time": "2026-10-27T15:14:21.8607815Z",
+      "sha256": "8dc29d6aeb1a7a7e33a3548fb6973b2af06438c8321574916bd785075b4a8548"
+    },
+    {
+      "state": "after",
+      "page": "identity",
+      "file": "a-i.png",
+      "source": "64f3008cc99f9a50c7dc59d7c719232c2720a6bd",
+      "time": "2026-10-27T15:17:31.6368241Z",
+      "sha256": "49e7b0a63385caebb415c08224b160b2bc615d52e999e5c481b2a8e656e54b96"
+    },
+    {
+      "state": "after",
+      "page": "details",
+      "file": "a-d.png",
+      "source": "64f3008cc99f9a50c7dc59d7c719232c2720a6bd",
+      "time": "2026-10-27T15:17:49.3124695Z",
+      "sha256": "6fc53794389ecf8345d8e206d102c7495ffcd142bd55f06e5d4f339b7fe674da"
+    }
+  ]
+}

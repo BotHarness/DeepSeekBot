@@ -1,7 +1,6 @@
-import { Host, Icon, IconButton, RNHostView } from '@expo/ui/jetpack-compose';
-import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
+import { Host, Icon, IconButton, LoadingIndicator } from '@expo/ui/jetpack-compose';
+import { defaultMinSize, semantics, size, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
-import { LoadingIndicator } from './loading-indicator';
 import type { CreationConfirmProps } from './creation-confirm';
 
 export function CreationConfirm(props: CreationConfirmProps) {
@@ -19,9 +18,10 @@ export function CreationConfirm(props: CreationConfirmProps) {
         ]}
       >
         {props.busy ? (
-          <RNHostView matchContents>
-            <LoadingIndicator />
-          </RNHostView>
+          <LoadingIndicator
+            color={theme.color.accent}
+            modifiers={[size(theme.type.title.line, theme.type.title.line)]}
+          />
         ) : (
           <Icon
             source={require('../../../assets/toolbar/check.png')}

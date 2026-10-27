@@ -1885,8 +1885,15 @@ function ConversationView({
           ),
           result.outcome === 'nothing' ? 3000 : 6000,
         );
-    } catch {
-      show(t('composerCompact.failed'), 6000);
+    } catch (error) {
+      show(
+        t(
+          error instanceof BridgeCallError && error.code === 'session-unsaved'
+            ? 'failure.recoveryUnsaved'
+            : 'composerCompact.failed',
+        ),
+        6000,
+      );
     } finally {
       setCompacting(false);
     }

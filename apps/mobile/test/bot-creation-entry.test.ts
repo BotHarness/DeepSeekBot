@@ -8,8 +8,8 @@ const file = {
   sha256: 'a'.repeat(64),
   sizeBytes: 30,
 };
-function setup() {
-  let disk: CreationRecord | undefined;
+function setup(previous?: CreationRecord) {
+  let disk: CreationRecord | undefined = previous;
   const pickZip = vi.fn(async (): Promise<typeof file | null> => file);
   const controller = createBotCreationController({
     key: () => 'entry-operation-001',
@@ -21,6 +21,12 @@ function setup() {
     },
     port: {
       pickZip,
+      previewZip: async (_target, source) => ({
+        source,
+        displayName: 'Archive helper',
+        description: 'Archive bio',
+        roles: ['archive'],
+      }),
       deviceId: () => 'phone',
       lookup: async () => null,
       create: async () => {
@@ -30,6 +36,64 @@ function setup() {
   });
   return { controller, pickZip, disk: () => disk };
 }
+function completedGit(): CreationRecord {
+  return {
+    kind: 'submitted',
+    acknowledged: true,
+    mutationStarted: true,
+    operation: {
+      hostId: 'A',
+      deviceId: 'phone',
+      operationKey: 'completed-git-operation',
+      input: { displayName: 'Previous Git Bot', description: 'Old bio', roles: ['old'] },
+      source: {
+        kind: 'git',
+        gitUrl: 'https://github.com/example/previous',
+        commit: 'b'.repeat(40),
+      },
+    },
+  };
+}
+it('prefills a new Zip from its archive after a completed Git import', async () => {
+  const f = setup(completedGit());
+  await enterBotCreation(f.controller, 'zip', { kind: 'host', hostId: 'B' });
+  await f.controller.beginZip();
+  await f.controller.preview();
+  expect(f.controller.getSnapshot().error).toBeUndefined();
+  expect(f.controller.getSnapshot().record).toMatchObject({
+    kind: 'draft',
+    draft: {
+      hostId: 'B',
+      displayName: 'Archive helper',
+      description: 'Archive bio',
+      tags: 'archive',
+      source: { kind: 'zip' },
+    },
+  });
+});
+it('keeps a name edited within the new Zip flow before its first preview', async () => {
+  const f = setup(completedGit());
+  await enterBotCreation(f.controller, 'zip', { kind: 'host', hostId: 'B' });
+  await f.controller.beginZip();
+  const record = f.controller.getSnapshot().record;
+  if (record.kind !== 'draft') throw new Error('draft expected');
+  await f.controller.edit({ ...record.draft, displayName: 'My new Zip name' });
+  await f.controller.preview();
+  expect(f.controller.getSnapshot().record).toMatchObject({
+    draft: { displayName: 'My new Zip name', description: 'Archive bio', tags: 'archive' },
+  });
+});
+it.each(['blank', 'git', 'zip'] as const)(
+  'starts a fresh %s entry after acknowledged creation without inheriting the previous identity',
+  async (source) => {
+    const f = setup(completedGit());
+    await enterBotCreation(f.controller, source, { kind: 'host', hostId: 'B' });
+    expect(f.controller.getSnapshot().record).toMatchObject({
+      kind: 'draft',
+      draft: { hostId: 'B', displayName: '', persona: '', description: '', tags: '' },
+    });
+  },
+);
 it('starts each source explicitly and preserves edited metadata across source and target selection', async () => {
   const { controller } = setup();
   await enterBotCreation(controller, 'blank', { kind: 'host', hostId: 'A' });

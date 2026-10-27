@@ -8,12 +8,14 @@ import {
   IconButton,
   Icon,
   Checkbox,
+  LoadingIndicator,
 } from '@expo/ui/jetpack-compose';
 import {
   defaultMinSize,
   fillMaxWidth,
   padding,
   semantics,
+  size,
   testID,
   toggleable,
   weight,
@@ -22,7 +24,6 @@ import { FlatList, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { BotPickerSheetProps } from './bot-picker-sheet';
 import { useDesignTheme } from '../design/theme';
-import { LoadingIndicator } from '../primitives/loading-indicator';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { SheetCallout, SheetNote } from './sheet';
@@ -84,9 +85,10 @@ export function BotPickerSheet<T extends BotPickerCandidate>(props: BotPickerShe
                   ]}
                 >
                   {props.busy ? (
-                    <RNHostView matchContents>
-                      <LoadingIndicator />
-                    </RNHostView>
+                    <LoadingIndicator
+                      color={theme.color.accent}
+                      modifiers={[size(theme.type.title.line, theme.type.title.line)]}
+                    />
                   ) : (
                     <Icon
                       source={require('../../../assets/toolbar/check.png')}

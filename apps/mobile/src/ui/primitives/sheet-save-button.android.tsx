@@ -1,8 +1,7 @@
 import { Host } from '@expo/ui';
-import { FilledIconButton, Icon, RNHostView } from '@expo/ui/jetpack-compose';
-import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
+import { FilledIconButton, Icon, LoadingIndicator } from '@expo/ui/jetpack-compose';
+import { defaultMinSize, semantics, size, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
-import { LoadingIndicator } from './loading-indicator';
 import type { SheetSaveButtonProps } from './sheet-save-button';
 
 export function SheetSaveButton(props: SheetSaveButtonProps) {
@@ -20,9 +19,10 @@ export function SheetSaveButton(props: SheetSaveButtonProps) {
         ]}
       >
         {props.busy ? (
-          <RNHostView matchContents>
-            <LoadingIndicator />
-          </RNHostView>
+          <LoadingIndicator
+            color={theme.color.accent}
+            modifiers={[size(theme.type.title.line, theme.type.title.line)]}
+          />
         ) : (
           <Icon
             source={require('../../../assets/toolbar/check.png')}

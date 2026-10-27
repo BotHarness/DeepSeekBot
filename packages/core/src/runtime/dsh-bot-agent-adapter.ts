@@ -1,6 +1,7 @@
 import { createChannelActionTool } from './channel-action-tool.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
+import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -279,6 +280,8 @@ export interface DshBotAgentAdapterOptions {
 
   observeTurnFailure?: (provider: string, code: string) => void;
 
+  turnRefusal?: (sessionId: string) => string | undefined;
+
   promptText?: (sessionId: string) => PromptText;
 }
 
@@ -346,6 +349,7 @@ function requireCompletedTurn(
   cancelledTurn?: AssignmentAgentRun['cancelledTurn'],
   failedTurn?: AssignmentAgentRun['failedTurn'],
   observeFailure?: (code: string) => void,
+  refusal?: string,
 ): { turn: number; endSeq: number } {
   const turnEnd = handle.agent.session
     .snapshotEvents(fromSeq)
@@ -381,6 +385,7 @@ function requireCompletedTurn(
     throw new Error(
       'OUTPUT_TOKEN_LIMIT: The model reached its output limit before completing this reply',
     );
+  if (reason.kind === 'blocked' && refusal !== undefined) throw new Error(refusal);
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 
@@ -398,6 +403,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
+  readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
   readonly #promptText: (sessionId: string) => PromptText;
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
@@ -435,6 +441,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#subagentTools = options.subagentTools;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;
+    this.#turnRefusal = options.turnRefusal;
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
@@ -512,9 +519,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       await handle.agent.whenIdle();
       if (this.#humanStops.has(run.sessionId) && turnAborted(handle, fromSeq)) return;
       const provider = selection?.current?.provider;
-      requireCompletedTurn(handle, fromSeq, undefined, undefined, (code) => {
-        if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
-      });
+      requireCompletedTurn(
+        handle,
+        fromSeq,
+        undefined,
+        undefined,
+        (code) => {
+          if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
+        },
+        this.#turnRefusal?.(run.sessionId),
+      );
     } finally {
       this.#humanStops.delete(run.sessionId);
       this.#drafts.end(run.sessionId);
@@ -582,6 +596,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#forgetHandle(sessionId);
     await handle.dispose().catch(() => undefined);
     return undefined;
+  }
+
+  modelSelection(sessionId: string): ModelSelection | undefined {
+    return (
+      this.#orchestratorSelections.get(sessionId)?.current ??
+      this.#assignmentSelections.get(sessionId)?.current
+    );
   }
 
   async runAssignment(run: AssignmentAgentRun): Promise<void> {
@@ -691,6 +712,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         (code) => {
           if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
         },
+        this.#turnRefusal?.(run.sessionId),
       );
       run.completedTurn?.(completion);
       if (run.resume === true) return;
@@ -717,8 +739,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
   async loadOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.#assertOpen();
-    if (this.#hasSession && !(await this.#hasSession(run.sessionId)))
-      throw new Error('Original Session is unavailable');
+    if (this.#hasSession && !(await this.#hasSession(run.sessionId))) {
+      const error = new Error('Original Session is unavailable');
+      error.name = 'SessionUnavailableError';
+      throw error;
+    }
     await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
     await this.#orchestratorHandle(run);
   }
@@ -827,6 +852,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     };
     const live = this.#agents.get?.(SessionId(run.sessionId));
     if (live !== undefined) {
+      assertOrchestratorWorkingDirectory(
+        run.sessionId,
+        live.session.header.cwd,
+        this.#resolveOrchestratorCwd(run.bot),
+      );
       this.#authorizeBorrow?.(live, 'orchestrator');
       try {
         await setup(live.ctx, live, true);
@@ -863,6 +893,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           ...(meta === undefined ? {} : { meta }),
           ...options,
         });
+    try {
+      assertOrchestratorWorkingDirectory(
+        run.sessionId,
+        handle.agent.session.header.cwd,
+        this.#resolveOrchestratorCwd(run.bot),
+      );
+    } catch (error) {
+      await handle.dispose();
+      throw error;
+    }
     this.#handles.set(run.sessionId, handle);
     this.#orchestratorSelections.set(run.sessionId, selection);
     return handle;
@@ -3688,6 +3728,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
   acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void;
   forgetAgent(agent: Agent): void;
+  modelSelection(sessionId: string): ModelSelection | undefined;
 } {
   return new DshBotAgentAdapter(options);
 }
