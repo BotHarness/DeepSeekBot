@@ -61,6 +61,7 @@ export class FakeAgentHost implements DshAgentHost {
   readonly createOptions: CreateAgentOptions[] = [];
   readonly resumeOptions: ResumeAgentOptions[] = [];
   readonly disposed: string[] = [];
+  readonly disposedByDsh: string[] = [];
   readonly scopes = new Map<string, FakeScope>();
   readonly sessions: FakeSession[] = [];
   readonly received = new Map<string, UserMessage[]>();
@@ -68,6 +69,22 @@ export class FakeAgentHost implements DshAgentHost {
   readonly cancelled: Array<{ sessionId: string; reason: unknown }> = [];
   readonly #cwdBySession = new Map<string, string | undefined>();
   readonly #live = new Map<string, Agent>();
+
+  disposeFromDsh(sessionId: string): Agent {
+    const agent = this.#live.get(sessionId);
+    if (agent === undefined) throw new Error(`No live Agent for ${sessionId}`);
+    this.#live.delete(sessionId);
+    this.disposedByDsh.push(sessionId);
+    const dead = agent as unknown as Record<string, unknown>;
+    const refuse = () => {
+      throw new Error(
+        `agent "${sessionId}" cannot read inbox state: its projection registration is not active`,
+      );
+    };
+    dead.followup = refuse;
+    dead.steer = refuse;
+    return agent;
+  }
 
   get(id: string): Agent | undefined {
     return this.#live.get(String(id));

@@ -1256,6 +1256,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return modelReadiness.prepare(slug, role, retainedRoute);
     },
     orchestratorCwd: (bot) => core.registry.memoryDirFor(bot.slug),
+    observePreparation: (slug, sessionId, preparing) => {
+      if (!preparing && core.states.snapshot(slug).sessions[sessionId] !== 'thinking') return;
+      core.states.setSessionState(
+        slug,
+        sessionId,
+        preparing ? 'thinking' : 'done',
+        undefined,
+        'orchestrator',
+      );
+    },
     defaultAgentPreset: config.agentPreset ?? DEFAULT_AGENT_PRESET,
     resolveAgentPresets: () => ctx.get('agentPresets') as DshAgentPresetHost | undefined,
     publishDraft: (event) => publishDraft(event),
@@ -3106,6 +3116,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'agent/disposed',
     ({ agent }) => {
+      agentAdapter.forgetAgent(agent);
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);
