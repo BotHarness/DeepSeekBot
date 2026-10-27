@@ -3118,6 +3118,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'agent/disposed',
     ({ agent }) => {
+      agentAdapter.forgetAgent(agent);
       userQuestions.cancelSession(agent.session.id);
       idleCompaction.forget(agent.session.id);
       activity.handleSessionDisposed(agent.session.id);

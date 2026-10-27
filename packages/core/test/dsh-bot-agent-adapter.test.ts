@@ -1914,6 +1914,163 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.close();
   });
 
+  it('resumes a fresh Orchestrator Agent after DSH disposed the cached one', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      hasSession: async (id) => host.sessions.some((session) => session.id === id),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = (message: string): OrchestratorAgentRun => ({
+      sessionId: 'orchestrator-ada',
+      resume: true,
+      bot: BOT,
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      message,
+      channels: {
+        ...groupTools,
+        contacts: () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => ({
+          sourceEventId: 'source-1',
+          ignoredAt: BOT.createdAt,
+          alreadyIgnored: false,
+        }),
+        read: () => [],
+        requestGrant: async () => undefined as never,
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ({
+          sessionId: 'test',
+          title: 'test',
+          description: 'test',
+          activity: 'stopped',
+          createdAt: '',
+          updatedAt: '',
+        }),
+        request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
+      },
+    });
+    try {
+      await adapter.runOrchestrator(run('第一条'));
+      const dead = host.disposeFromDsh('orchestrator-ada');
+
+      await adapter.runOrchestrator(run('第二条'));
+
+      expect(host.get('orchestrator-ada')).not.toBe(dead);
+      expect(host.resumeOptions.map((options) => String(options.resumeSessionId))).toEqual([
+        'orchestrator-ada',
+      ]);
+      const received = host.received.get('orchestrator-ada') ?? [];
+      expect(received).toHaveLength(2);
+      expect(JSON.stringify(received[1]?.content)).toContain('第二条');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('forgets a handle when DSH reports its Agent disposed', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: {
+        create: (options) => host.create(options),
+        resume: (options) => host.resume(options),
+      },
+      hasSession: async (id) => host.sessions.some((session) => session.id === id),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = {
+      sessionId: 'assignment-1',
+      bot: BOT,
+      text: '核对发布状态',
+      resume: true,
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write',
+        approval: 'ask',
+        presetRevision: 0,
+      },
+      report: async (input: { state: string; summary: string }) => ({
+        ...input,
+        at: BOT.createdAt,
+      }),
+    } as Parameters<typeof adapter.runAssignment>[0];
+    try {
+      await adapter.runAssignment(run);
+      const dead = host.disposeFromDsh('assignment-1');
+      adapter.forgetAgent(dead);
+
+      await adapter.runAssignment(run);
+
+      expect(host.get('assignment-1')).not.toBe(dead);
+      expect(host.resumeOptions).toHaveLength(1);
+      expect(host.received.get('assignment-1')).toHaveLength(2);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('resumes a fresh Assignment Agent after DSH disposed the cached one', async () => {
+    const host = new FakeAgentHost();
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      hasSession: async (id) => host.sessions.some((session) => session.id === id),
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+    });
+    const run = {
+      sessionId: 'assignment-1',
+      bot: BOT,
+      text: '核对发布状态',
+      resume: true,
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write',
+        approval: 'ask',
+        presetRevision: 0,
+      },
+      report: async (input: { state: string; summary: string }) => ({
+        ...input,
+        at: BOT.createdAt,
+      }),
+    } as Parameters<typeof adapter.runAssignment>[0];
+    try {
+      await adapter.runAssignment(run);
+      const dead = host.disposeFromDsh('assignment-1');
+
+      const next = adapter.requestAssignment(run);
+      if (next.delivery !== 'followup') throw new Error('Missing followup');
+      await next.done;
+
+      expect(host.get('assignment-1')).not.toBe(dead);
+      expect(host.received.get('assignment-1')).toHaveLength(2);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('releases a replaced Orchestrator handle but keeps a running one', async () => {
     let releaseDuringTurn: Promise<void> | undefined;
     const host = new FakeAgentHost(
