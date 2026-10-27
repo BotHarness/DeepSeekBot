@@ -8,6 +8,7 @@ import type { HumanAttentionItem } from '../src/host/wire';
 import {
   addressLines,
   createHostDrawer,
+  drawerSwipe,
   drawerWidth,
   hostDrawerRows,
   hostRowBadge,
@@ -253,6 +254,15 @@ describe('Host drawer', () => {
     expect(settleOpen(0.2, 0)).toBe(false);
     expect(settleOpen(0.1, 900)).toBe(true);
     expect(settleOpen(0.9, -900)).toBe(false);
+  });
+
+  it('opens from anywhere and pushes Android Chats, and keeps the edge elsewhere', () => {
+    expect(drawerSwipe('android', true)).toEqual({ push: true });
+    expect(drawerSwipe('android', false)).toEqual({
+      push: false,
+      hitSlop: { left: 0, width: 24 },
+    });
+    expect(drawerSwipe('ios', true)).toEqual({ push: false, hitSlop: { left: 0, width: 24 } });
   });
 
   it('covers about 85% of the screen', () => {

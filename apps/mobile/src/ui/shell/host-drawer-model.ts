@@ -68,6 +68,15 @@ export function drawerWidth(windowWidth: number, os: string = 'ios'): number {
   return Math.min(modalRail.maxWidth, Math.round(windowWidth * DRAWER_SHARE));
 }
 
+export function drawerSwipe(
+  os: string,
+  anywhere: boolean,
+): { push: boolean; hitSlop?: { left: number; width: number } } {
+  return anywhere && os === 'android'
+    ? { push: true }
+    : { push: false, hitSlop: { left: 0, width: EDGE_WIDTH } };
+}
+
 export function settleOpen(progress: number, velocityX: number): boolean {
   'worklet';
   if (velocityX > FLING) return true;

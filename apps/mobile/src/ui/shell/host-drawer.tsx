@@ -64,8 +64,8 @@ import { WorkspaceAddButton } from './workspace-add';
 import {
   addressLines,
   createHostDrawer,
+  drawerSwipe,
   drawerWidth,
-  EDGE_WIDTH,
   hostDrawerRows,
   hostRowBadge,
   settleOpen,
@@ -136,13 +136,19 @@ function clamp(value: number): number {
   return Math.min(1, Math.max(0, value));
 }
 
-export function HostDrawerEdge({ children }: { children: ReactNode }) {
+export function HostDrawerEdge({
+  children,
+  anywhere = false,
+}: {
+  children: ReactNode;
+  anywhere?: boolean;
+}) {
   const width = drawerWidth(useWindowDimensions().width, Platform.OS);
   const reduced = useReducedMotion();
   const { hosts } = useHostSession();
+  const swipe = drawerSwipe(Platform.OS, anywhere);
   const pan = Gesture.Pan()
     .enabled(hosts.length > 0)
-    .hitSlop({ left: 0, width: EDGE_WIDTH })
     .activeOffsetX(DRAG_START)
     .failOffsetY([-VERTICAL_FAIL, VERTICAL_FAIL])
     .onStart(() => {
@@ -157,11 +163,15 @@ export function HostDrawerEdge({ children }: { children: ReactNode }) {
         event.velocityX / width,
       );
     });
+  if (swipe.hitSlop) pan.hitSlop(swipe.hitSlop);
+  const pushed = useAnimatedStyle(() => ({
+    transform: [{ translateX: swipe.push ? clamp(progress.value) * width : 0 }],
+  }));
   return (
     <GestureDetector gesture={pan}>
-      <View style={{ flex: 1 }} collapsable={false}>
+      <Animated.View style={[{ flex: 1 }, pushed]} collapsable={false}>
         {children}
-      </View>
+      </Animated.View>
     </GestureDetector>
   );
 }
