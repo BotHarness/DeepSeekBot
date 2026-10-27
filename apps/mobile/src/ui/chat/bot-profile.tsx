@@ -1,7 +1,6 @@
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
-import { Image } from 'expo-image';
 
 import {
   unpinnedEntries,
@@ -66,6 +65,7 @@ import {
   type ProfileTabMemory,
   type RememberedProfileKind,
 } from './profile-tabs';
+import { ProfileHero } from './profile-hero';
 import { ProfileZoomTarget } from './profile-zoom-target';
 
 const ICON = 22;
@@ -274,37 +274,6 @@ function RoundAction({
   );
 }
 
-export function ProfileBanner({
-  source,
-  headers,
-}: {
-  source: string;
-  headers?: Record<string, string> | undefined;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <View
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-      style={{ paddingHorizontal: space.x5 }}
-    >
-      <Image
-        testID="profile-banner"
-        source={{ uri: source, ...(headers === undefined ? {} : { headers }) }}
-        recyclingKey={source}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-        style={{
-          width: '100%',
-          aspectRatio: profileShell.bannerAspect,
-          borderRadius: radius.lg,
-          backgroundColor: theme.layer.raised.fill,
-        }}
-      />
-    </View>
-  );
-}
-
 function BotIdentity({
   bot,
   actions,
@@ -315,72 +284,47 @@ function BotIdentity({
   avatar: ReturnType<typeof useAvatarEditor>;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   return (
-    <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
-      <ProfileBanner source={botBanner(bot)} headers={bot.bannerHeaders} />
-      <View
-        style={{
-          alignItems: 'center',
-          gap: space.x3,
-          paddingHorizontal: space.x5,
-          marginTop: -profileShell.overlap - space.x3,
-        }}
-      >
-        <View
-          style={{
-            padding: profileShell.avatarEdge,
-            borderRadius: radius.round,
-            backgroundColor: theme.overlay.fill,
-          }}
-        >
-          <ProfileZoomTarget>
-            <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
-              <BotAvatar bot={bot} size={profileShell.avatar} />
-            </EditableAvatar>
-          </ProfileZoomTarget>
+    <ProfileHero
+      banner={{ source: botBanner(bot), headers: bot.bannerHeaders }}
+      name={bot.displayName}
+      avatar={
+        <ProfileZoomTarget>
+          <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
+            <BotAvatar bot={bot} size={profileShell.avatar} />
+          </EditableAvatar>
+        </ProfileZoomTarget>
+      }
+    >
+      <Text variant="meta" tone={botStateTone(bot)}>
+        {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
+      </Text>
+      {bot.description === undefined || bot.description.trim() === '' ? null : (
+        <Text tone="muted" numberOfLines={3} style={{ textAlign: 'center' }}>
+          {bot.description}
+        </Text>
+      )}
+      {actions.onBrowser === undefined && actions.onComputer === undefined ? null : (
+        <View style={{ flexDirection: 'row', gap: space.x4, paddingTop: space.x1 }}>
+          {actions.onBrowser === undefined ? null : (
+            <RoundAction
+              label={t.profileBrowser}
+              testID="profile-browser"
+              icon={(color) => <BrowserIcon color={color} size={ICON} />}
+              onPress={actions.onBrowser}
+            />
+          )}
+          {actions.onComputer === undefined ? null : (
+            <RoundAction
+              label={t.profileComputer}
+              testID="profile-computer"
+              icon={(color) => <ComputerIcon color={color} size={ICON} />}
+              onPress={actions.onComputer}
+            />
+          )}
         </View>
-        <View style={{ alignItems: 'center', gap: space.x1 }}>
-          <Text accessibilityRole="header" variant="display" numberOfLines={2}>
-            {bot.displayName}
-          </Text>
-          <Text variant="meta" tone={botStateTone(bot)}>
-            {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
-          </Text>
-        </View>
-        {bot.description === undefined || bot.description.trim() === '' ? null : (
-          <Text tone="muted" style={{ textAlign: 'center' }}>
-            {bot.description}
-          </Text>
-        )}
-        {actions.onBrowser === undefined && actions.onComputer === undefined ? null : (
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: space.x4,
-              paddingTop: space.x2,
-            }}
-          >
-            {actions.onBrowser === undefined ? null : (
-              <RoundAction
-                label={t.profileBrowser}
-                testID="profile-browser"
-                icon={(color) => <BrowserIcon color={color} size={ICON} />}
-                onPress={actions.onBrowser}
-              />
-            )}
-            {actions.onComputer === undefined ? null : (
-              <RoundAction
-                label={t.profileComputer}
-                testID="profile-computer"
-                icon={(color) => <ComputerIcon color={color} size={ICON} />}
-                onPress={actions.onComputer}
-              />
-            )}
-          </View>
-        )}
-      </View>
-    </View>
+      )}
+    </ProfileHero>
   );
 }
 
@@ -727,7 +671,6 @@ export function BotProfilePage({
   };
   const shell = (filesBody: ProfileTabBody) => (
     <ProfileShell
-      title={bot.displayName}
       identity={<BotIdentity bot={bot} actions={actions} avatar={avatarEditor} />}
       tabs={tabs}
       options={profileTabOptions(tabs)}

@@ -405,6 +405,7 @@ describe('Bot profile page', () => {
     expect(view.textContent).toContain('researcher');
     expect(view.textContent).not.toContain('Standing rules:');
     expect(headers(view)).toEqual([bot.displayName]);
+    expect(view.textContent?.split(bot.displayName)).toHaveLength(2);
     await openTab(view, 'routines');
     expect(view.textContent).toContain('Morning digest');
     expect(view.textContent).toContain(t.routineDaily('09:00'));

@@ -307,10 +307,11 @@ export const marketplaceArt = {
 } as const;
 
 export const profileShell = {
-  avatar: 88,
+  avatar: 72,
   avatarEdge: 3,
   bannerAspect: 3,
-  overlap: 40,
+  overlap: 28,
+  chipOverlap: 12,
   openScale: 0.94,
   dismissDistance: 96,
 } as const;

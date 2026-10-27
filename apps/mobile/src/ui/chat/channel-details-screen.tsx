@@ -12,7 +12,7 @@ import { Button } from '../primitives/creation-button';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { ProfileBanner } from './bot-profile';
+import { ProfileHero } from './profile-hero';
 import { ChannelFilesTab } from './channel-files-tab';
 import { ProfileShell, type ProfileTabBody } from './profile-shell';
 import { profileTabs } from './profile-tabs';
@@ -48,7 +48,6 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
   const title = members.map((bot) => bot?.displayName ?? t.activityRow.unavailableBot).join('、');
   const shell = (body: ProfileTabBody) => (
     <ProfileShell
-      title={title}
       identity={<PairIdentity members={members} title={title} />}
       tabs={PAIR_TABS}
       options={[]}
@@ -94,20 +93,12 @@ function PairIdentity({
   const theme = useDesignTheme();
   const first = members.find((bot) => bot !== undefined);
   return (
-    <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
-      {first === undefined ? (
-        <View style={{ aspectRatio: profileShell.bannerAspect }} />
-      ) : (
-        <ProfileBanner source={botBanner(first)} headers={first.bannerHeaders} />
-      )}
-      <View
-        style={{
-          alignItems: 'center',
-          gap: space.x3,
-          paddingHorizontal: space.x5,
-          marginTop: -profileShell.overlap - space.x3,
-        }}
-      >
+    <ProfileHero
+      banner={
+        first === undefined ? undefined : { source: botBanner(first), headers: first.bannerHeaders }
+      }
+      name={title}
+      avatar={
         <ProfileZoomTarget>
           <View style={{ flexDirection: 'row' }}>
             {members.map((bot, index) =>
@@ -115,7 +106,8 @@ function PairIdentity({
                 <View
                   key={bot.slug}
                   style={{
-                    padding: profileShell.avatarEdge,
+                    padding: index === 0 ? 0 : profileShell.avatarEdge,
+                    marginVertical: index === 0 ? 0 : -profileShell.avatarEdge,
                     borderRadius: radius.round,
                     backgroundColor: theme.overlay.fill,
                     marginLeft: index === 0 ? 0 : -profileShell.overlap,
@@ -127,15 +119,7 @@ function PairIdentity({
             )}
           </View>
         </ProfileZoomTarget>
-        <Text
-          accessibilityRole="header"
-          variant="display"
-          numberOfLines={2}
-          style={{ textAlign: 'center' }}
-        >
-          {title}
-        </Text>
-      </View>
-    </View>
+      }
+    />
   );
 }

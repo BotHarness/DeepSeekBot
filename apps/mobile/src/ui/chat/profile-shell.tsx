@@ -57,7 +57,6 @@ export const zoomTransition = IOS_VERSION >= 18;
 export const systemTransition = zoomTransition || Platform.OS === 'android';
 
 export function ProfileShell({
-  title,
   identity,
   tabs,
   options,
@@ -66,7 +65,6 @@ export function ProfileShell({
   body,
   onClose,
 }: {
-  title: string;
   identity: ReactNode;
   tabs: readonly ProfileTab[];
   options: readonly IconTabOption<ProfileTab>[];
@@ -105,13 +103,6 @@ export function ProfileShell({
     onTab(next);
   };
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
-
-  const titleStyle = useAnimatedStyle(() => ({
-    opacity:
-      identityHeight === 0
-        ? 0
-        : Math.min(1, Math.max(0, (offset.value - identityHeight / 2) / (identityHeight / 4))),
-  }));
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = event.nativeEvent.contentOffset.y;
@@ -245,18 +236,6 @@ export function ProfileShell({
           }}
         >
           <NavigationAction close size={theme.touch} label={t.close} onPress={onClose} />
-          <Animated.View style={[{ flex: 1 }, titleStyle]} pointerEvents="none">
-            <Text
-              strong
-              numberOfLines={1}
-              accessibilityElementsHidden
-              importantForAccessibility="no-hide-descendants"
-              style={{ textAlign: 'center' }}
-            >
-              {title}
-            </Text>
-          </Animated.View>
-          <View style={{ width: theme.touch }} />
         </View>
       )}
       <GestureDetector gesture={swipe}>
