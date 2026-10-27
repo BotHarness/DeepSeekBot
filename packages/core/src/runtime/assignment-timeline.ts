@@ -11,6 +11,14 @@ export interface AssignmentTimelineEntry {
   tool: string;
   detail?: string;
   at: string;
+  round?: number;
+}
+
+export interface AssignmentTimelineRound {
+  index: number;
+  kind: 'created' | 'continued';
+  at: string;
+  instruction?: string;
 }
 
 export interface TimelineModelRoute {
@@ -30,6 +38,7 @@ export interface AssignmentTimelineLane {
   state: AssignmentTimelineLaneState;
   startedAt?: string;
   updatedAt?: string;
+  round?: number;
   entries: AssignmentTimelineEntry[];
   omitted: number;
 }
@@ -46,6 +55,8 @@ export interface PublicToolCall {
 
 export const TIMELINE_LANE_ENTRIES = 40;
 export const TIMELINE_SUBAGENTS = 20;
+export const TIMELINE_ROUNDS = 20;
+export const TIMELINE_INSTRUCTION_CHARS = 280;
 
 const TOOL_NAME = /^[A-Za-z0-9_.:/-]{1,80}$/;
 const KINDS: readonly ToolCallKind[] = [
@@ -103,12 +114,33 @@ function isoTime(time: unknown): string {
   return new Date(Number.isSafeInteger(time) ? (time as number) : 0).toISOString();
 }
 
+function instructionOf(data: Record<string, unknown>): string | undefined {
+  const source = object(data['source'])['kind'];
+  if (source !== undefined && source !== 'user') return undefined;
+  const content = object(data['message'])['content'] ?? data['content'];
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .map(object)
+    .map((part) =>
+      part['type'] === 'text' && typeof part['text'] === 'string' ? part['text'] : '',
+    )
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (text === '') return undefined;
+  return text.length > TIMELINE_INSTRUCTION_CHARS
+    ? `${text.slice(0, TIMELINE_INSTRUCTION_CHARS - 1)}…`
+    : text;
+}
+
 function lane(
   role: AssignmentTimelineLane['role'],
   index: number,
   session: AssignmentTimelineSession,
   describe: (sessionId: string, name: string, args: unknown) => PublicToolCall | undefined,
+  rounds?: AssignmentTimelineRound[],
 ): AssignmentTimelineLane {
+  let round: AssignmentTimelineRound | undefined;
   let title: string | undefined;
   let route: TimelineModelRoute | undefined;
   let state: AssignmentTimelineLaneState = 'idle';
@@ -141,6 +173,17 @@ function lane(
     }
     if (event.type === 'turn/start') {
       state = 'running';
+      if (rounds !== undefined) {
+        round = {
+          index: rounds.length + 1,
+          kind: rounds.length === 0 ? 'created' : 'continued',
+          at: isoTime(event.time),
+        };
+        rounds.push(round);
+      }
+    } else if (event.type === 'user/message') {
+      const instruction = round?.instruction === undefined ? instructionOf(data) : undefined;
+      if (round !== undefined && instruction !== undefined) round.instruction = instruction;
     } else if (event.type === 'session/title') {
       title = isSessionActivityName(data['title']) ? data['title'] : undefined;
     } else if (event.type === 'tool/call') {
@@ -159,6 +202,7 @@ function lane(
         tool: name,
         ...(isPublicToolDetail(call?.detail) ? { detail: call.detail } : {}),
         at: isoTime(event.time),
+        ...(round === undefined ? {} : { round: round.index }),
       };
       entries.push(entry);
       open.set(callId, entry);
@@ -223,11 +267,29 @@ export function summarizeAssignmentTimeline(input: {
   main: AssignmentTimelineSession;
   subagents: readonly AssignmentTimelineSession[];
   describe?: (sessionId: string, name: string, args: unknown) => PublicToolCall | undefined;
-}): { lanes: AssignmentTimelineLane[]; omittedSubagents: number } {
+}): {
+  rounds: AssignmentTimelineRound[];
+  lanes: AssignmentTimelineLane[];
+  omittedSubagents: number;
+  omittedRounds: number;
+} {
   const describe = input.describe ?? (() => undefined);
+  const rounds: AssignmentTimelineRound[] = [];
+  const main = lane('main', 0, input.main, describe, rounds);
   const children = summarizeSubagentLanes(input);
+  const roundAt = (at: string | undefined): number | undefined =>
+    at === undefined ? undefined : rounds.findLast((round) => round.at <= at)?.index;
+  const kept = rounds.slice(-TIMELINE_ROUNDS);
   return {
-    lanes: [lane('main', 0, input.main, describe), ...children.lanes],
+    rounds: kept,
+    lanes: [
+      main,
+      ...children.lanes.map((child) => {
+        const round = roundAt(child.startedAt);
+        return round === undefined ? child : { ...child, round };
+      }),
+    ],
     omittedSubagents: children.omittedSubagents,
+    omittedRounds: rounds.length - kept.length,
   };
 }
