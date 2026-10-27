@@ -322,6 +322,14 @@ export const channelMedia = {
   typeTile: 44,
 } as const;
 
+export const memoryDiff = {
+  bar: 4,
+  gutter: 40,
+  addFill: '1f',
+  removeFill: '1a',
+  markFill: '4d',
+} as const;
+
 export const memoryGrid = {
   columns: 3,
   wideColumns: 5,
