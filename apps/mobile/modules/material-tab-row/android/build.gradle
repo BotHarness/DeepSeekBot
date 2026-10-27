@@ -25,6 +25,7 @@ dependencies {
   } else {
     implementation 'expo.modules.ui:expo.modules.ui:+'
   }
+  implementation 'com.facebook.react:react-android'
   implementation 'androidx.compose.foundation:foundation-android:1.12.1'
   implementation 'androidx.compose.ui:ui-android:1.12.1'
   implementation 'androidx.compose.material3:material3-android:1.5.0-beta01'
