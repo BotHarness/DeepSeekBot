@@ -1,5 +1,10 @@
 import { FilledTonalButton, Host, RNHostView, useMaterialColors } from '@expo/ui/jetpack-compose';
-import { defaultMinSize, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
+import {
+  defaultMinSize,
+  fillMaxWidth,
+  semantics,
+  testID,
+} from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { useStrings } from '../strings';
 import { ComputerMouseIcon } from './computer-mouse-icon';
@@ -31,6 +36,7 @@ export function ComputerMouseButton({
         enabled={enabled}
         onClick={onClick}
         modifiers={[
+          fillMaxWidth(),
           defaultMinSize({
             minWidth: theme.touch,
             minHeight: theme.touch * (compact ? 1.25 : 1.5),

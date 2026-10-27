@@ -3,6 +3,7 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
+import { sameDirectory } from '../fs/same-directory.js';
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
@@ -65,6 +66,43 @@ export function alignOrchestratorPermission(
     return false;
   setSandboxMode(session, expected.mode);
   setApprovalPolicy(session, expected.approval);
+  return true;
+}
+
+export function alignAssignmentPermission(
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants'>,
+  session: Session,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): boolean | undefined {
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner?.rootRole !== 'assignment' ||
+    owner.provenance === 'subagent' ||
+    owner.parentSessionId !== undefined ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return undefined;
+  const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
+  if (permission === undefined || session.header.cwd !== permission.primaryCwd) return undefined;
+  try {
+    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
+    if (
+      grant.workspaceId !== permission.workspaceId ||
+      grant.workspacePath !== permission.primaryCwd
+    )
+      return undefined;
+  } catch {
+    return undefined;
+  }
+  if (
+    policy.resolve({ session }).mode === permission.mode &&
+    approval.overrideOf(session) === permission.approval
+  )
+    return false;
+  setSandboxMode(session, permission.mode);
+  setApprovalPolicy(session, permission.approval);
   return true;
 }
 
@@ -153,7 +191,8 @@ export function grantExecutionDenial(
         return "Orchestrator Session permission differs from this PersonaBot's access setting";
     }
     const memoryCwd = core.registry.memoryDirFor(owner.botSlug);
-    return memoryCwd !== undefined && session.header.cwd === memoryCwd
+    const cwd = session.header.cwd;
+    return memoryCwd !== undefined && cwd !== undefined && sameDirectory(cwd, memoryCwd)
       ? undefined
       : 'Orchestrator Session requires its Memory working directory';
   }
@@ -183,6 +222,41 @@ export function grantExecutionDenial(
   return undefined;
 }
 
+const SESSION_REFUSALS: ReadonlyArray<readonly [RegExp, string, string | undefined]> = [
+  [
+    /requires its Memory working directory/u,
+    'MEMORY_CWD_MISMATCH',
+    "Start a new Session; it opens in this Bot's Memory directory.",
+  ],
+  [
+    /^Orchestrator (?:Session|Subagent) permission differs/u,
+    'SESSION_PERMISSION_MISMATCH',
+    "Start a new Session, or check Full access in this Bot's workspace settings.",
+  ],
+  [
+    /^Assignment Session permission/u,
+    'ASSIGNMENT_PERMISSION_MISMATCH',
+    'Ask the Bot to start a new Assignment.',
+  ],
+  [
+    /^Assignment Workspace Grant/u,
+    'GRANT_UNAVAILABLE',
+    'Authorize the folder again on a Workspace Grant card, then ask the Bot to start a new Assignment.',
+  ],
+  [/^DSH permission services are unavailable/u, 'PERMISSION_UNAVAILABLE', 'Restart the Host.'],
+  [/^PersonaBot identity/u, 'BOT_UNAVAILABLE', undefined],
+  [/ownership|owner|role/u, 'SESSION_OWNER_MISSING', 'Start a new Session.'],
+];
+
+export function sessionRefusalMessage(denial: string): string {
+  const [, code, fix] = SESSION_REFUSALS.find(([pattern]) => pattern.test(denial)) ?? [
+    undefined,
+    'SESSION_REFUSED',
+    undefined,
+  ];
+  return `${code}: The Host refused this turn: ${denial}.${fix === undefined ? '' : ' ' + fix}`;
+}
+
 export function borrowedAgentDenial(
   core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'> & AccessCore,
   session: Session,
@@ -192,7 +266,8 @@ export function borrowedAgentDenial(
 ): string | undefined {
   if (core.ownership.resolve(session.id)?.rootRole !== role)
     return 'BotHarness Agent role mismatch';
-  alignOrchestratorPermission(core, session, policy, approval);
+  if (role === 'orchestrator') alignOrchestratorPermission(core, session, policy, approval);
+  else alignAssignmentPermission(core, session, policy, approval);
   return grantExecutionDenial(core, session, policy, approval);
 }
 

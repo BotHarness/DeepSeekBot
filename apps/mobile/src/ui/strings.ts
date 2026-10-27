@@ -371,6 +371,8 @@ const en = {
     changed: 'The session has changed. Retry this message directly.',
     busy: 'Wait for the current reply or stop the Bot first.',
     compactionFailed: 'Compaction did not finish. You can start a new session.',
+    unsaved:
+      'This session was never saved, so there is nothing to compact. Start a new session instead.',
     outputLimit: 'Reply reached the output limit',
     failed: 'This run failed',
     contextFull: 'Conversation context is full',
@@ -382,6 +384,31 @@ const en = {
     newDone: 'New session ready for your next message',
     compacted: 'Context compacted',
     nothing: 'Nothing to compact yet',
+    refused: {
+      MEMORY_CWD_MISMATCH: [
+        "The session's working directory is not this Bot's Memory directory",
+        'Start a new session; it opens in the Memory directory.',
+      ],
+      SESSION_PERMISSION_MISMATCH: [
+        "Session permissions differ from this Bot's access setting",
+        "Start a new session, or check Full access in this Bot's workspace settings.",
+      ],
+      ASSIGNMENT_PERMISSION_MISMATCH: [
+        'Assignment permissions differ from their snapshot',
+        'Ask the Bot to start a new Assignment.',
+      ],
+      GRANT_UNAVAILABLE: [
+        "The Assignment's Workspace Grant was revoked or no longer matches",
+        'Authorize the folder again on a Workspace Grant card, then ask the Bot to start a new Assignment.',
+      ],
+      PERMISSION_UNAVAILABLE: [
+        'DSH permission services are unavailable',
+        'Restart the Host and retry.',
+      ],
+      BOT_UNAVAILABLE: ['This Bot is deleted or unavailable'],
+      SESSION_OWNER_MISSING: ['The session has no owner record', 'Start a new session.'],
+      SESSION_REFUSED: ['The Host refused this turn'],
+    } as Record<string, readonly [string, string?]>,
   },
   createHere: 'Create or join',
   chooseCreationTarget: 'Choose where to create',
@@ -1543,6 +1570,12 @@ const en = {
     olderSteps: (count: number) => `${count} earlier ${count === 1 ? 'step' : 'steps'} not shown`,
     olderSubagents: (count: number) =>
       `${count} earlier ${count === 1 ? 'Subagent' : 'Subagents'} not shown`,
+    olderRounds: (count: number) =>
+      `${count} earlier ${count === 1 ? 'round' : 'rounds'} not shown`,
+    round: (index: number) => `Round ${index}`,
+    roundKind: { created: 'Created by the Orchestrator', continued: 'Orchestrator sent more' },
+    instruction: 'Orchestrator instruction',
+    earlier: 'Earlier steps',
     askInChat: 'To stop or archive this Assignment, ask the Bot in chat.',
     notFound: 'This Assignment is no longer available.',
     reportState: {
@@ -2350,6 +2383,7 @@ const zh: typeof en = {
     changed: '会话已更新，可直接重试这条消息',
     busy: '等待当前回复结束，或先停止 Bot',
     compactionFailed: '压缩未完成，可以开启新会话',
+    unsaved: '这个会话还没有保存过，没有可压缩的内容。请开始新会话。',
     outputLimit: '回复达到输出长度上限',
     failed: '本轮运行失败',
     contextFull: '对话上下文已满',
@@ -2361,6 +2395,25 @@ const zh: typeof en = {
     newDone: '已开启新会话，可以发送下一条消息',
     compacted: '上下文已压缩',
     nothing: '当前没有可压缩的内容',
+    refused: {
+      MEMORY_CWD_MISMATCH: [
+        '会话的工作目录不是这个 Bot 的 Memory 目录',
+        '开启新会话即可，新会话会在 Memory 目录中打开。',
+      ],
+      SESSION_PERMISSION_MISMATCH: [
+        '会话权限与这个 Bot 的访问设置不一致',
+        '开启新会话，或检查这个 Bot 工作区设置里的“完全访问”开关。',
+      ],
+      ASSIGNMENT_PERMISSION_MISMATCH: ['事项的权限与创建时的快照不一致', '让 Bot 新建一个事项。'],
+      GRANT_UNAVAILABLE: [
+        '事项的工作区授权已撤销或不再匹配',
+        '在工作区授权卡片上重新授权文件夹，然后让 Bot 新建一个事项。',
+      ],
+      PERMISSION_UNAVAILABLE: ['DSH 权限服务不可用', '重启 Host 后重试。'],
+      BOT_UNAVAILABLE: ['这个 Bot 已删除或不可用'],
+      SESSION_OWNER_MISSING: ['会话缺少归属记录', '开启新会话即可。'],
+      SESSION_REFUSED: ['Host 拒绝了这一轮'],
+    },
   },
   createHere: '创建或加入',
   chooseCreationTarget: '选择创建位置',
@@ -3448,6 +3501,11 @@ const zh: typeof en = {
     noSteps: '还没有步骤。',
     olderSteps: (count: number) => `还有 ${count} 个更早的步骤未显示`,
     olderSubagents: (count: number) => `还有 ${count} 个更早的 Subagent 未显示`,
+    olderRounds: (count: number) => `还有 ${count} 轮更早的记录未显示`,
+    round: (index: number) => `第 ${index} 轮`,
+    roundKind: { created: 'Orchestrator 新建', continued: 'Orchestrator 追加请求' },
+    instruction: 'Orchestrator 的指示',
+    earlier: '更早的步骤',
     askInChat: '要停止或归档这个 Assignment，在聊天里告诉 Bot。',
     notFound: '这个 Assignment 已不可用。',
     reportState: {
