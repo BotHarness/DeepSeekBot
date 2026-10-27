@@ -371,6 +371,8 @@ const en = {
     changed: 'The session has changed. Retry this message directly.',
     busy: 'Wait for the current reply or stop the Bot first.',
     compactionFailed: 'Compaction did not finish. You can start a new session.',
+    unsaved:
+      'This session was never saved, so there is nothing to compact. Start a new session instead.',
     outputLimit: 'Reply reached the output limit',
     failed: 'This run failed',
     contextFull: 'Conversation context is full',
@@ -2356,6 +2358,7 @@ const zh: typeof en = {
     changed: '会话已更新，可直接重试这条消息',
     busy: '等待当前回复结束，或先停止 Bot',
     compactionFailed: '压缩未完成，可以开启新会话',
+    unsaved: '这个会话还没有保存过，没有可压缩的内容。请开始新会话。',
     outputLimit: '回复达到输出长度上限',
     failed: '本轮运行失败',
     contextFull: '对话上下文已满',

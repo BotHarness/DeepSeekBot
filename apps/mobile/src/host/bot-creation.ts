@@ -553,7 +553,7 @@ export function createBotCreationController(options: {
       })
       .finally(() => {
         active = undefined;
-        publish({ busy: false });
+        publish({ busy: false, transfer: undefined });
       });
     return active;
   };
@@ -995,7 +995,7 @@ export function createBotCreationController(options: {
         }
       });
     },
-    another(hostId = '') {
+    another(hostId = '', mode: 'fresh' | 'repeat-import' = 'repeat-import') {
       return run(async () => {
         await ready;
         if (
@@ -1007,7 +1007,11 @@ export function createBotCreationController(options: {
           return;
         const previous = snapshot.record;
         const source =
-          previous.kind === 'submitted' ? previous.operation.source : previous.draft.source;
+          mode === 'fresh'
+            ? undefined
+            : previous.kind === 'submitted'
+              ? previous.operation.source
+              : previous.draft.source;
         const nextSource =
           source?.kind === 'git' && source.origin !== 'marketplace'
             ? { kind: 'git' as const, gitUrl: source.gitUrl }

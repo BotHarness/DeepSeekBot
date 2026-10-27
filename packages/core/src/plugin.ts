@@ -198,6 +198,7 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
+  alignAssignmentPermission,
   alignOrchestratorPermission as alignOrchestratorRootPermission,
   alignOrchestratorSubagentPermission,
   borrowedAgentDenial,
@@ -1658,6 +1659,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return { kind: 'reject' };
       }
       alignOrchestratorPermission(agent);
+      if (
+        alignAssignmentPermission(
+          core,
+          agent.session,
+          ctx.get('sandboxPolicy'),
+          ctx.get('approval'),
+        )
+      )
+        ctx.logger.warn(
+          'botharness: restored the permission mode of an Assignment Session that was changed outside its permission snapshot',
+        );
       alignOrchestratorSubagentPermission(
         core,
         agent.session,

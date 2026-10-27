@@ -22,6 +22,8 @@ export function channelNavigationHarness(wrapped = false) {
       'channel-files',
       'channel-details',
       'host-look',
+      '(bot-creation)',
+      'pair',
     ],
     routeParamList: {},
     routeGetIdList: {
