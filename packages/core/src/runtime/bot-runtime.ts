@@ -1820,7 +1820,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!bot || bot.paused || !this.#agents.loadOrchestrator)
       throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
     this.#requireExecution?.(botSlug);
-    await this.#agents.loadOrchestrator({
+    const loading = this.#agents.loadOrchestrator({
       sessionId,
       resume: true,
       bot,
@@ -1840,6 +1840,14 @@ class BotRuntimeImplementation implements BotRuntime {
         observeMemory: false,
         observeReads: false,
       }),
+    });
+    await loading.catch((error: unknown) => {
+      if (error instanceof Error && error.name === 'SessionUnavailableError')
+        throw new SessionRecoveryError(
+          'session-unsaved',
+          'This Session was never saved, so there is nothing to compact. Start a new Session to recover.',
+        );
+      throw error;
     });
   }
 
@@ -4254,7 +4262,8 @@ class BotRuntimeImplementation implements BotRuntime {
       await archive.archiveSession(current);
     } catch (error) {
       if (error instanceof Error && error.name === 'WorkspaceActiveSessionError') return BOT_BUSY;
-      throw error;
+      if (!(error instanceof Error && error.name === 'WorkspaceUnknownSessionError')) throw error;
+      return { outcome: 'replaced', value: this.#supersedeUnsavedOrchestrator(current, body) };
     }
     await this.#agents.releaseSession?.(current).catch(() =>
       this.#warn?.(
@@ -4272,6 +4281,19 @@ class BotRuntimeImplementation implements BotRuntime {
       await archive.unarchiveSession(current);
       throw error;
     }
+  }
+
+  #supersedeUnsavedOrchestrator<T>(unsaved: string, body: () => T): T {
+    const owner = this.#ownership.resolve(unsaved);
+    const bot = owner === undefined ? undefined : this.#registry.get(owner.botSlug);
+    if (owner === undefined || bot === undefined) throw new Error('Unknown Orchestrator Session');
+    const value = body();
+    const at = Math.max(this.#now().getTime(), Date.parse(owner.createdAt) + 1);
+    this.#releaseReplacedOrchestrators(
+      bot.slug,
+      this.#claimOrchestrator(bot, new Date(at).toISOString()),
+    );
+    return value;
   }
 
   triageOpenCount(botSlug: string): number | undefined {

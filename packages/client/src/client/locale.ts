@@ -3720,6 +3720,7 @@ export const zh = {
   'failure.outputLimit': '回复达到输出长度上限',
   'failure.sessionChanged': '会话已更新，可直接重试这条消息',
   'failure.recoveryBusy': '请等待当前回复结束，或先停止 Bot',
+  'failure.recoveryUnsaved': '这个会话还没有保存过，没有可压缩的内容。请开始新会话。',
   'failure.compactionFailed': '压缩未完成，可以开新会话并重试',
   'failure.newSessionRetry': '开新会话并重试',
   'failure.contextWindowHint': '可压缩当前上下文，或开启新会话。',
@@ -8467,6 +8468,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'failure.outputLimit': 'Reply reached the output limit',
   'failure.sessionChanged': 'The session has changed. Retry this message directly.',
   'failure.recoveryBusy': 'Wait for the current reply or stop the Bot first.',
+  'failure.recoveryUnsaved':
+    'This session was never saved, so there is nothing to compact. Start a new session instead.',
   'failure.compactionFailed': 'Compaction did not finish. You can start a new session and retry.',
   'failure.newSessionRetry': 'New session and retry',
   'failure.contextWindowHint': 'Compact the current context or start a new session.',
