@@ -70,7 +70,12 @@ export function ProfileHero({
             backgroundColor: theme.overlay.fill,
           }}
         >
-          <Text testID="profile-name" accessibilityRole="header" strong numberOfLines={1}>
+          <Text
+            testID="profile-name"
+            accessibilityRole="header"
+            strong
+            style={{ textAlign: 'center' }}
+          >
             {name}
           </Text>
         </View>
