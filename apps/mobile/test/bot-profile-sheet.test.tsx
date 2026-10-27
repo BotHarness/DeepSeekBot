@@ -115,7 +115,7 @@ const week: ProfileActivity = {
 const assignments = [
   {
     sessionId: 'assignment-1',
-    purpose: 'Summarise the week of papers',
+    title: 'Summarise the week of papers',
     activity: 'working' as const,
     latestReport: {
       state: 'progress' as const,

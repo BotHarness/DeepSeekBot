@@ -101,7 +101,10 @@ export function ProfileShell({
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
   const titleStyle = useAnimatedStyle(() => ({
-    opacity: Math.min(1, Math.max(0, (offset.value - identityHeight / 2) / (identityHeight / 4))),
+    opacity:
+      identityHeight === 0
+        ? 0
+        : Math.min(1, Math.max(0, (offset.value - identityHeight / 2) / (identityHeight / 4))),
   }));
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

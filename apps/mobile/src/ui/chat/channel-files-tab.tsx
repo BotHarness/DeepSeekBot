@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
 
 import type { HostClient } from '../../host/client';
 import { useChannelFilesList } from './channel-files-screen';
@@ -30,17 +29,16 @@ export function ChannelFilesTab({
     active,
   );
   return children({
-    rows: list.files.map((file) => ({
-      key: file.key,
-      render: () => list.renderFile(file),
-    })),
-    empty: (
-      <View>
-        {list.header}
-        {list.empty}
-      </View>
-    ),
-    footer: list.files.length === 0 ? undefined : list.footer,
+    rows: [
+      ...(list.header === undefined ? [] : [{ key: 'notice', render: () => list.header }]),
+      ...(list.files.length === 0
+        ? [{ key: 'empty', render: () => list.empty }]
+        : list.files.map((file) => ({
+            key: file.key,
+            render: () => list.renderFile(file),
+          }))),
+    ],
+    footer: list.footer,
     overlay: list.viewer,
   });
 }

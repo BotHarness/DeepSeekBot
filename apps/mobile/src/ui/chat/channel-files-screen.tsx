@@ -282,9 +282,7 @@ export function useChannelFilesList(
     files: snapshot.files,
     renderFile,
     header:
-      notice === undefined ? (
-        <></>
-      ) : (
+      notice === undefined ? undefined : (
         <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
           <Text accessibilityRole="alert" tone="muted">
             {notice}
@@ -328,9 +326,7 @@ export function useChannelFilesList(
           }}
         />
       </View>
-    ) : (
-      <></>
-    ),
+    ) : undefined,
     viewer: (
       <ImageViewer
         attachment={preview}

@@ -245,7 +245,13 @@ function RoundAction({
   );
 }
 
-export function ProfileBanner({ source }: { source: string }) {
+export function ProfileBanner({
+  source,
+  headers,
+}: {
+  source: string;
+  headers?: Record<string, string> | undefined;
+}) {
   const theme = useDesignTheme();
   return (
     <View
@@ -255,7 +261,7 @@ export function ProfileBanner({ source }: { source: string }) {
     >
       <Image
         testID="profile-banner"
-        source={{ uri: source }}
+        source={{ uri: source, ...(headers === undefined ? {} : { headers }) }}
         recyclingKey={source}
         contentFit="cover"
         cachePolicy="memory-disk"
@@ -283,7 +289,7 @@ function BotIdentity({
   const theme = useDesignTheme();
   return (
     <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
-      <ProfileBanner source={botBanner(bot)} />
+      <ProfileBanner source={botBanner(bot)} headers={bot.bannerHeaders} />
       <View
         style={{
           alignItems: 'center',
@@ -414,12 +420,12 @@ function ProfileRow({
       <View
         testID={`profile-assignment-${assignment.sessionId}`}
         accessible
-        accessibilityLabel={[assignment.purpose, state, time].join(', ')}
+        accessibilityLabel={[assignment.title, state, time].join(', ')}
         style={[shape, { gap: space.x1 }]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
           <Text numberOfLines={2} style={{ flex: 1 }}>
-            {assignment.purpose}
+            {assignment.title}
           </Text>
           <Text variant="meta" tone="muted">
             {time}

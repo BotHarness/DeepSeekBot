@@ -3190,7 +3190,7 @@ const zh: typeof en = {
     stopped: '已停止',
   },
   profileEmpty: {
-    work: '还没有事项。',
+    work: '还没有 Assignment。',
     activity: '这周很安静，暂时没有记录。',
     identity: '还没有人设或长期规则。',
     memory: '还没有记住任何东西。',

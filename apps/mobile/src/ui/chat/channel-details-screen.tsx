@@ -98,7 +98,7 @@ function PairIdentity({
       {first === undefined ? (
         <View style={{ aspectRatio: profileShell.bannerAspect }} />
       ) : (
-        <ProfileBanner source={botBanner(first)} />
+        <ProfileBanner source={botBanner(first)} headers={first.bannerHeaders} />
       )}
       <View
         style={{

@@ -87,7 +87,7 @@ describe('profile tab memory', () => {
 describe('Work tab rows', () => {
   const row = (sessionId: string, updatedAt: string, archivedAt?: string): ProfileAssignment => ({
     sessionId,
-    purpose: sessionId,
+    title: sessionId,
     activity: 'idle',
     updatedAt,
     ...(archivedAt === undefined ? {} : { archivedAt }),
