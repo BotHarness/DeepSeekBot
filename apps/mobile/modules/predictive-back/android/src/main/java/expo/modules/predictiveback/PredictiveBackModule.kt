@@ -19,11 +19,6 @@ class PredictiveBackModule : Module() {
   }
 }
 
-/**
- * React Native 0.88 registers an always-enabled back callback on ReactActivity, so Android
- * never plays the back-to-home preview. Until BackHandler.setInterceptEnabled lands upstream
- * (react-native#59292), JavaScript turns it off whenever nothing in the app can go back.
- */
 fun rootCallback(activity: ReactActivity): OnBackPressedCallback? =
   runCatching {
       ReactActivity::class.java.getDeclaredField("mBackPressedCallback").let {
