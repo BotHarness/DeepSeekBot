@@ -31,7 +31,7 @@ export function StatisticsNoticeView({
       title={t.statisticsNoticeTitle}
       onClose={onClose}
     >
-      <ScrollView contentContainerStyle={{ padding: space.x5, gap: space.x4 }}>
+      <ScrollView nestedScrollEnabled contentContainerStyle={{ padding: space.x5, gap: space.x4 }}>
         <Text>{t.statisticsNoticeSummary}</Text>
         <Button
           on="canvas"

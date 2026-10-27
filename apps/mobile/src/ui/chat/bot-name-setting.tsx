@@ -53,7 +53,7 @@ function RenameBotSheet({
       }}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
           <TextField
             testID="bot-name-input"

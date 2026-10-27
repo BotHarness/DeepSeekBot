@@ -154,7 +154,7 @@ function RenameSheet({
       onClose={onClose}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <TextField
           value={draft}
           onChangeText={setDraft}
