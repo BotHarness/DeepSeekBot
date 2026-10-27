@@ -379,7 +379,13 @@ function CreationStep({
         imported={importing}
         step={{ index: position + 1, total: steps.length }}
         progress={
-          draft ? position / steps.length : state.receipt?.status === 'created' ? 1 : undefined
+          draft
+            ? position / steps.length
+            : state.receipt?.status === 'created'
+              ? 1
+              : state.busy
+                ? undefined
+                : (steps.length - 1) / steps.length
         }
         onClose={exit}
       />
