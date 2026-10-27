@@ -173,13 +173,15 @@ export function MemoryFileScreen({
       />
       {editing ? (
         <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
-          <View ref={holdDismissal} style={{ flex: 1, padding: space.x5, gap: space.x4 }}>
+          <View ref={holdDismissal} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
             {failure === undefined ? null : (
-              <ReadFailure
-                title={t.memorySaveFailed}
-                detail={failure}
-                onRetry={() => void submit()}
-              />
+              <View style={{ paddingHorizontal: space.x5, paddingTop: space.x4 }}>
+                <ReadFailure
+                  title={t.memorySaveFailed}
+                  detail={failure}
+                  onRetry={() => void submit()}
+                />
+              </View>
             )}
             <TextInput
               testID="memory-editor"
@@ -193,9 +195,8 @@ export function MemoryFileScreen({
               scrollEnabled
               style={{
                 flex: 1,
-                padding: space.x4,
-                borderRadius: radius.md,
-                backgroundColor: theme.layer.raised.fill,
+                paddingHorizontal: space.x5,
+                paddingVertical: space.x4,
                 color: theme.color.fg,
                 fontSize: theme.type.body.size,
                 lineHeight: theme.type.body.line,

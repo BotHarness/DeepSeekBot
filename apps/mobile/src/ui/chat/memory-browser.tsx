@@ -61,7 +61,7 @@ const SYMBOLS = {
   coreMemory: { ios: 'brain', android: 'psychology' },
 } as const satisfies Record<string, Symbol>;
 
-const EXTENSIONS: Record<string, keyof typeof SYMBOLS> = {
+const EXTENSIONS: Record<string, MemoryFileKind> = {
   md: 'text',
   markdown: 'text',
   txt: 'text',
@@ -77,10 +77,15 @@ const EXTENSIONS: Record<string, keyof typeof SYMBOLS> = {
   toml: 'data',
 };
 
+export type MemoryFileKind = 'text' | 'image' | 'data' | 'other';
+
+export function memoryFileKind(name: string): MemoryFileKind {
+  const dot = name.lastIndexOf('.');
+  return dot <= 0 ? 'other' : (EXTENSIONS[name.slice(dot + 1).toLowerCase()] ?? 'other');
+}
+
 export function memorySymbol(entry: MemoryEntry): keyof typeof SYMBOLS {
-  if (entry.kind === 'folder') return 'folder';
-  const dot = entry.name.lastIndexOf('.');
-  return dot <= 0 ? 'other' : (EXTENSIONS[entry.name.slice(dot + 1).toLowerCase()] ?? 'other');
+  return entry.kind === 'folder' ? 'folder' : memoryFileKind(entry.name);
 }
 
 export function memoryColumns(width: number, largeText: boolean): number {
@@ -101,58 +106,37 @@ export function memoryGridRows<T>(entries: readonly T[], columns: number): T[][]
   return rows;
 }
 
-export function memoryEntryLabel(entry: MemoryEntry, items: (count: number) => string): string {
-  return entry.kind === 'folder' ? `${entry.name}, ${items(entry.count)}` : entry.name;
-}
-
 function MemoryTile({ entry, onOpen }: { entry: MemoryEntry; onOpen(entry: MemoryEntry): void }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const symbol = memorySymbol(entry);
+  const caption =
+    entry.kind === 'folder' ? t.memoryItems(entry.count) : t.memoryKind[memoryFileKind(entry.name)];
   return (
     <Pressable
       testID={`memory-entry-${entry.path}`}
       accessibilityRole="button"
-      accessibilityLabel={memoryEntryLabel(entry, t.memoryItems)}
+      accessibilityLabel={`${entry.name}, ${caption}`}
       onPress={() => onOpen(entry)}
       style={({ pressed }) => ({
         flex: 1,
-        alignItems: 'center',
-        gap: space.x2,
-        paddingVertical: space.x3,
-        paddingHorizontal: space.x2,
-        borderRadius: radius.md,
-        backgroundColor: pressed ? theme.layer.canvas.pressed : 'transparent',
+        gap: space.x3,
+        padding: space.x4,
+        borderRadius: radius.lg,
+        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
       })}
     >
-      <View
-        style={{
-          width: memoryGrid.tile,
-          height: memoryGrid.tile,
-          borderRadius: radius.md,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: theme.layer.raised.fill,
-        }}
-      >
-        <SystemSymbol
-          name={SYMBOLS[symbol]}
-          size={memoryGrid.icon}
-          color={symbol === 'folder' ? theme.color.accent : theme.color.muted}
-        />
-      </View>
-      <Text
-        variant="meta"
-        numberOfLines={theme.largeText ? undefined : 2}
-        style={{ textAlign: 'center' }}
-      >
-        {entry.name}
-      </Text>
-      {entry.kind === 'folder' ? (
+      <SystemSymbol
+        name={SYMBOLS[symbol]}
+        size={memoryGrid.icon}
+        color={symbol === 'folder' ? theme.color.accent : theme.color.muted}
+      />
+      <View style={{ gap: space.x1 }}>
+        <Text numberOfLines={theme.largeText ? undefined : 1}>{entry.name}</Text>
         <Text variant="meta" tone="muted" numberOfLines={1}>
-          {t.memoryItems(entry.count)}
+          {caption}
         </Text>
-      ) : null}
+      </View>
     </Pressable>
   );
 }
@@ -192,7 +176,7 @@ export function MemoryPinnedCards({
   return (
     <View
       testID="memory-pinned"
-      style={{ flexDirection: theme.largeText ? 'column' : 'row', gap: space.x4 }}
+      style={{ flexDirection: theme.largeText ? 'column' : 'row', gap: memoryGrid.gap }}
     >
       {pinned.map((file) => {
         const name = file.path.split('/').at(-1) ?? file.path;
@@ -211,7 +195,7 @@ export function MemoryPinnedCards({
               minHeight: theme.touch,
               gap: space.x3,
               padding: space.x5,
-              borderRadius: radius.md,
+              borderRadius: radius.lg,
               backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
             })}
           >
@@ -300,7 +284,7 @@ export function MemoryFolderView({
       keyExtractor={(row) => row[0]!.path}
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ padding: space.x5, gap: space.x2 }}
+      contentContainerStyle={{ padding: space.x5, gap: memoryGrid.gap }}
       renderItem={({ item }) => <MemoryGridRow entries={item} columns={columns} onOpen={onOpen} />}
       ListEmptyComponent={
         state.status === 'ready' ? (

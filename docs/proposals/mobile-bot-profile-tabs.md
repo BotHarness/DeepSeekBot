@@ -32,7 +32,7 @@ Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applie
 - Two pinned cards: `SOUL.md` and `MEMORY.md`, each with a short "About this file" note.
 - Everything else is a folder-style grid: each folder and file is an icon with a title. Tapping a folder opens its grid.
 - A file opens in Markdown read mode. ✏️ switches to editing the Markdown source; Save uses `memorySave` with `expectedHead`, and a concurrent Bot edit shows a conflict and reloads.
-- The phone reads and edits only the latest version; history and restore stay on the computer.
+- The phone edits only the latest version. The Memory tab's **Changes** view lists the repository's commits by day and opens each one's per-file diff, read only; restore stays on the computer.
 - v1 edits existing files only: no create, delete or rename.
 - A Bot without the Memory service shows an empty state that explains why.
 - This replaces "Identity and Memory stay read-only for now" in DESIGN.md.

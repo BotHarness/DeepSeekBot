@@ -326,7 +326,6 @@ export const memoryGrid = {
   wideColumns: 5,
   largeColumns: 2,
   wide: 600,
-  tile: 56,
   icon: 28,
-  gap: space.x4,
+  gap: space.x3,
 } as const;
