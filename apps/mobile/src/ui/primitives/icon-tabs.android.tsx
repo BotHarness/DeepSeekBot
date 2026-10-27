@@ -12,7 +12,7 @@ type NativeButtonGroupProps = PrimitiveBaseProps & {
   items: { value: string; label: string; path: string }[];
   selected: string;
   reduceMotion: boolean;
-  onSelect(event: { nativeEvent: { value: string } }): void;
+  onButtonSelect(event: { nativeEvent: { value: string } }): void;
 };
 
 const NativeButtonGroup = requireNativeView<NativeButtonGroupProps>(
@@ -40,7 +40,7 @@ export function IconTabs<T extends string>({ label, options, value, onChange }: 
           }))}
           selected={value}
           reduceMotion={reduced}
-          onSelect={(event) => {
+          onButtonSelect={(event) => {
             const next = options.find((option) => option.value === event.nativeEvent.value);
             if (next !== undefined) select(next.value);
           }}

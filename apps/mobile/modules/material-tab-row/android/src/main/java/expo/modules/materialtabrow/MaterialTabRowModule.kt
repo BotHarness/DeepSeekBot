@@ -35,11 +35,11 @@ data class PrimaryTabRowProps(
 ) : ComposeProps
 
 @Composable
-fun FunctionalComposableScope.PrimaryTabRowContent(props: PrimaryTabRowProps, onSelect: (String) -> Unit) {
+fun FunctionalComposableScope.PrimaryTabRowContent(props: PrimaryTabRowProps, onTabSelect: (String) -> Unit) {
   PrimaryTabs(
     tabs = props.tabs.map { TabItem(it.value, it.label, it.dotColor.composeOrNull, it.accessibilityLabel ?: it.label) },
     selected = props.selected,
-    onSelect = onSelect,
+    onTabSelect = onTabSelect,
     modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher),
     containerColor = props.containerColor.composeOrNull,
   )
@@ -49,8 +49,8 @@ class MaterialTabRowModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MaterialTabRow")
     ExpoUIView<PrimaryTabRowProps>("PrimaryTabRowView") {
-      val onSelect by Event<TabSelectEvent>()
-      Content { props -> PrimaryTabRowContent(props) { onSelect(TabSelectEvent(it)) } }
+      val onTabSelect by Event<TabSelectEvent>()
+      Content { props -> PrimaryTabRowContent(props) { onTabSelect(TabSelectEvent(it)) } }
     }
   }
 }

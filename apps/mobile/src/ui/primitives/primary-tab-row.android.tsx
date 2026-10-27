@@ -16,7 +16,7 @@ type NativePrimaryTabRowProps = ViewProps & {
   tabs: { value: string; label: string; dotColor?: string; accessibilityLabel?: string }[];
   selected: string;
   containerColor?: string;
-  onSelect(event: { nativeEvent: { value: string } }): void;
+  onTabSelect(event: { nativeEvent: { value: string } }): void;
 };
 
 const NativePrimaryTabRow = requireNativeView<NativePrimaryTabRowProps>(
@@ -59,7 +59,7 @@ export function PrimaryTabRow<T extends string>({
           }))}
           selected={value ?? ''}
           {...(containerColor === undefined ? {} : { containerColor })}
-          onSelect={(event) => {
+          onTabSelect={(event) => {
             const next = tabs.find((tab) => tab.value === event.nativeEvent.value);
             if (next !== undefined) onChange(next.value);
           }}
