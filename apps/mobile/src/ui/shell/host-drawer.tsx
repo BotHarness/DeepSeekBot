@@ -96,8 +96,6 @@ const workspaceDirectory = createWorkspaceDirectory(cloudClient);
 const DRAG_START = 10;
 const VERTICAL_FAIL = 15;
 
-// While Chats is focused with the native drawer (#3015), it shows the panel and the overlay stays
-// out of the way.
 let docked = 0;
 const dockedWatchers = new Set<() => void>();
 
@@ -780,7 +778,6 @@ function HostDrawerPanel({ docked }: { docked: boolean }) {
       if (!state.open) return;
 
       const focus = setTimeout(() => focusOn(node), motion.drawer);
-      // The native drawer's sheet owns Back and predictive back while it is open.
       const back = docked
         ? undefined
         : holdBack(() => {
@@ -880,8 +877,7 @@ function HostDrawerPanel({ docked }: { docked: boolean }) {
           onAccessibilityEscape={() => settle(false)}
           style={[
             docked
-              ? // The Compose sheet draws the surface, width and motion.
-                { flex: 1 }
+              ? { flex: 1 }
               : glass
                 ? {
                     position: 'absolute',

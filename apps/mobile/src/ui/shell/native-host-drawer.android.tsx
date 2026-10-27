@@ -15,7 +15,6 @@ type NativeDrawerProps = ViewProps & {
 
 const installed = requireOptionalNativeModule('DismissibleDrawer') !== null;
 
-// Spike gate (#3015): the React Native drawer stays the default until the device checks pass.
 export const nativeHostDrawer = installed && process.env.EXPO_PUBLIC_ANDROID_NATIVE_DRAWER === 'on';
 
 const NativeDrawer = installed
