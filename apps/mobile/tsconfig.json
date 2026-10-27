@@ -26,6 +26,7 @@
     "test/host-session-multiple.test.ts",
     "test/conversation-cache-host.test.ts",
     "test/reanimated-shim.ts",
+    "test/platform-tokens.test.ts",
     "test/**/*.tsx"
   ]
 }
