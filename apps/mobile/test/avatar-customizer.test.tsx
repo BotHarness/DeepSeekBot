@@ -8,7 +8,10 @@ import {
   type AvatarRecipe,
 } from '../../../packages/core/src/bots/avatar-appearance';
 
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+
 vi.mock('expo-router', () => ({
+  router: { push },
   Stack: {
     Screen: ({ options }: { options: { headerRight?: () => unknown } }) =>
       options.headerRight?.() ?? null,
@@ -45,16 +48,39 @@ vi.mock('react-native-svg', () => ({
 }));
 
 import { AvatarCustomizer } from '../src/ui/shell/avatar-customizer';
-import { CreationAvatarPreview } from '../src/ui/shell/creation-avatar';
+import { CreationAvatar, CreationAvatarPreview } from '../src/ui/shell/creation-avatar';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 
 let root: Root;
 let node: HTMLDivElement;
 beforeEach(() => {
+  push.mockClear();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   interfacePreferences.setLanguage('en');
   node = document.createElement('div');
   root = createRoot(node);
+});
+
+it('changes the creation portrait only through its explicit actions', async () => {
+  const change = vi.fn();
+  await act(async () =>
+    root.render(
+      <CreationAvatar
+        avatar={{ kind: 'generated', seed: 'initial' }}
+        name="A"
+        imported={false}
+        disabled={false}
+        onChange={change}
+      />,
+    ),
+  );
+  expect(change).not.toHaveBeenCalled();
+  click('Customize');
+  expect(push).toHaveBeenCalledWith('/create-bot-avatar');
+  expect(change).not.toHaveBeenCalled();
+  click('Shuffle');
+  expect(change).toHaveBeenCalledOnce();
+  expect(change.mock.calls[0]?.[0]).toEqual({ kind: 'generated', seed: expect.any(String) });
 });
 afterEach(() => {
   act(() => root.unmount());
