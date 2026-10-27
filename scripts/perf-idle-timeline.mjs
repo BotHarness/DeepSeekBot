@@ -4,6 +4,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { checkBudget, readBudget } from './perf-budget.mjs';
 
 export const usage = `Usage: node scripts/perf-idle-timeline.mjs [options]
 
@@ -23,6 +24,9 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json (from verify-app launch)
   --scroll-check      After mounting, scroll from the latest message to the top one viewport at a
                       time and report scroll jumps and blank gaps left in view (on by
                       default with --load-all; --no-scroll-check turns it off).
+  --budget <file>     Check the summary against a budget (scripts/perf-budgets/timeline.json)
+                      and exit 1 when a structure budget fails. Timing budgets only warn.
+  --strict-timing     With --budget, timing budgets fail too (use on a quiet machine).
   --label <name>      Evidence label (default "run"); use main/fix for AB pairs.
   --out <dir>         Evidence directory (default .humanlayer/perf/idle-timeline).
 
@@ -40,6 +44,8 @@ const { values: options } = parseArgs({
     profile: { type: 'boolean', default: false },
     'scroll-check': { type: 'boolean', default: true },
     'no-scroll-check': { type: 'boolean', default: false },
+    budget: { type: 'string' },
+    'strict-timing': { type: 'boolean', default: false },
     label: { type: 'string', default: 'run' },
     out: { type: 'string', default: '.humanlayer/perf/idle-timeline' },
     help: { type: 'boolean', default: false },
@@ -276,7 +282,7 @@ try {
       });
       await sleep(500);
       const now = await page.$eval('.bh-chat-body', (node) =>
-        Number(node.dataset.loadedMessages ?? 0),
+        Number(node.dataset.loadedMessages ?? node.querySelectorAll('[data-message-id]').length),
       );
       if (now >= fixture.messageIds.length) break;
       if (now === mounted && attempt > 2)
@@ -325,7 +331,10 @@ try {
   const idleHottest = options.profile ? await stopProfile(cdp, 'idle') : undefined;
   const delta = (name) => metric(after, name) - metric(before, name);
   const dom = await page.evaluate(() => ({
-    loadedMessages: Number(document.querySelector('.bh-chat-body')?.dataset.loadedMessages ?? 0),
+    loadedMessages: Number(
+      document.querySelector('.bh-chat-body')?.dataset.loadedMessages ??
+        document.querySelectorAll('.bh-chat-body [data-message-id]').length,
+    ),
     mountedMessages: document.querySelectorAll('.bh-chat-body [data-message-id]').length,
     nodes: document.getElementsByTagName('*').length,
     timelineGaps: document.querySelectorAll('.bh-chat-body .bh-timeline-gap').length,
@@ -391,6 +400,20 @@ try {
   };
   writeFileSync(resolve(out, `${options.label}.json`), JSON.stringify(summary, null, 2));
   console.log(JSON.stringify(summary, null, 2));
+  if (options.budget) {
+    const check = checkBudget(summary, readBudget(options.budget), {
+      strictTiming: options['strict-timing'],
+    });
+    writeFileSync(resolve(out, `${options.label}.budget.json`), JSON.stringify(check, null, 2));
+    for (const result of check.results)
+      console.error(
+        `${result.pass ? 'ok  ' : result.blocking ? 'FAIL' : 'warn'} ${result.metric} = ${result.actual}` +
+          `${result.max === undefined ? '' : ` (max ${result.max})`}` +
+          `${result.min === undefined ? '' : ` (min ${result.min})`} ${result.why ?? ''}`,
+      );
+    console.error(`budget ${check.budget} (${check.mode}): ${check.pass ? 'pass' : 'FAIL'}`);
+    if (!check.pass) process.exitCode = 1;
+  }
 } finally {
   await browser.close();
 }

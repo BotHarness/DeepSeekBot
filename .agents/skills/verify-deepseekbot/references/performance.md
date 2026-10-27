@@ -43,6 +43,15 @@ both variants: users nearly always have something animating.
 Paint, Layerize and style work per frame. Profiles are `<label>.idle.cpuprofile` and
 `<label>.typing.cpuprofile`; open them in DevTools or summarize callers with a short script.
 
+## Budget
+
+`--budget scripts/perf-budgets/timeline.json` checks the summary against the committed budget,
+prints one `ok`/`FAIL`/`warn` line per rule on stderr, writes `<label>.budget.json`, and exits 1
+when a structure budget fails. Timing budgets warn unless `--strict-timing` is set. The budget
+needs the scroll check and the whole history loaded, so keep the defaults. CI runs the same
+command in the `perf-budget` job; see
+[performance observation and verification](../../../../docs/agents/ax-performance.md).
+
 ## A/B protocol
 
 1. Seed once on main and keep `fixture.json`.
