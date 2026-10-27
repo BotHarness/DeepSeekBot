@@ -1,18 +1,16 @@
 import type { ReactNode } from 'react';
 import { View, type StyleProp, type ViewInstance, type ViewStyle } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withTiming,
+  withSpring,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { easeOut, motion, popScale } from '../design/tokens';
+import { spring } from '../design/motion';
+import { popScale } from '../design/tokens';
 import { useMounted } from '../mounted';
-
-const EASE_OUT = Easing.bezier(...easeOut);
 
 export function usePopIn(
   enabled: boolean,
@@ -20,34 +18,34 @@ export function usePopIn(
     show = true,
     onHidden,
     from = popScale.bubble,
-    duration = motion.bubble,
-    exit = motion.badgeExit,
   }: {
     show?: boolean;
     onHidden?: (() => void) | undefined;
     from?: number;
-    duration?: number;
-    exit?: number;
   } = {},
 ) {
   const reduced = useReducedMotion();
   const start = reduced ? 1 : from;
-  const appear = useSharedValue(enabled ? 0 : 1);
+  const opacity = useSharedValue(enabled ? 0 : 1);
+  const grow = useSharedValue(enabled ? 0 : 1);
   const style = useAnimatedStyle(() => ({
-    opacity: appear.get(),
-    transform: [{ scale: start + (1 - start) * appear.get() }],
+    opacity: opacity.get(),
+    transform: [{ scale: start + (1 - start) * grow.get() }],
   }));
   const ref = useMounted<ViewInstance>(() => {
     if (show) {
-      if (appear.get() < 1) appear.set(withTiming(1, { duration, easing: EASE_OUT }));
+      opacity.set(withSpring(1, spring.effects.fast));
+      grow.set(withSpring(1, spring.spatial.fast));
       return;
     }
     if (onHidden === undefined) {
-      appear.set(0);
+      opacity.set(0);
+      grow.set(0);
       return;
     }
-    appear.set(
-      withTiming(0, { duration: exit, easing: EASE_OUT }, (finished) => {
+    grow.set(withSpring(0, spring.effects.fast));
+    opacity.set(
+      withSpring(0, spring.effects.fast, (finished) => {
         if (finished === true) scheduleOnRN(onHidden);
       }),
     );
@@ -72,7 +70,6 @@ export function PopIn({
     show,
     onHidden,
     from: popScale.badge,
-    duration: motion.badge,
   });
   return (
     <Animated.View style={[style, pop.style]}>

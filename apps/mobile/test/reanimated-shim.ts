@@ -2,7 +2,9 @@ import { createElement, Fragment, type ReactNode } from 'react';
 
 type Props = Record<string, unknown> & { children?: ReactNode };
 
-const transition = { duration: () => transition };
+const transition: Record<string, () => unknown> = {};
+for (const step of ['duration', 'springify', 'mass', 'damping', 'stiffness', 'reduceMotion'])
+  transition[step] = () => transition;
 
 const FlatList = (props: {
   data: Array<{ key: string }>;
@@ -51,7 +53,14 @@ export const useSharedValue = <T>(value: T) => ({
 });
 export const FadeOut = transition;
 export const FadeIn = transition;
-export const withSpring = <T>(value: T) => value;
+export const withSpring = <T>(
+  value: T,
+  _config?: unknown,
+  callback?: (finished?: boolean) => void,
+) => {
+  callback?.(true);
+  return value;
+};
 export const runOnJS =
   <A extends unknown[]>(callback: (...args: A) => void) =>
   (...args: A) =>

@@ -14,7 +14,8 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { MessageAttachment } from '../../host/conversation';
-import { easeOut, radius, space } from '../design/tokens';
+import { decelerateCurve, spring } from '../design/motion';
+import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
 import { CloseIcon, ShareIcon } from '../shell/icons';
@@ -30,7 +31,7 @@ import {
   type Zoom,
 } from './zoom-math';
 
-const SPRING = { damping: 20, stiffness: 220 };
+const SPRING = spring.release;
 const TAP_SLOP = 10;
 
 function RoundButton({
@@ -148,7 +149,7 @@ function ZoomableImage({
       if (direction !== 0) {
         dismiss.value = withTiming(
           direction * frame.height,
-          { duration: 180, easing: Easing.bezier(...easeOut) },
+          { duration: 180, easing: Easing.bezier(...decelerateCurve) },
           (finished) => {
             if (finished === true) runOnJS(onClose)();
           },

@@ -158,7 +158,7 @@ Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (centr
 
 ### Motion
 
-Animation is part of the product's feel. Any new or changed animation on web, desktop or mobile follows Emil Kowalski's skills (third-party, locked in `skills-lock.json`): `animate` to build web motion, `animate-expo` for React Native and Expo, `review-animations` before you ship it, `improve-animations` to audit existing motion, `animation-performance` for dropped frames, and `emil-design-eng` / `animation-vocabulary` for the shared rules and words. They decide whether something animates, its easing, duration and properties, and its reduced-motion behavior; extend the repo's motion tokens instead of adding parallel curves.
+Animation is part of the product's feel. Any new or changed animation on web, desktop or mobile follows Emil Kowalski's skills (third-party, locked in `skills-lock.json`): `animate` to build web motion, `animate-expo` for React Native and Expo, `review-animations` before you ship it, `improve-animations` to audit existing motion, `animation-performance` for dropped frames, and `emil-design-eng` / `animation-vocabulary` for the shared rules and words. They decide whether something animates, which properties and its reduced-motion behavior. On mobile the platform decides the curve: iOS uses SwiftUI's springs and Android uses Material 3 Expressive springs, through the `spring` roles in `apps/mobile/src/ui/design/motion.ts` (ADR-0264). Extend the repo's motion tokens instead of adding parallel curves.
 
 ### UI copy
 

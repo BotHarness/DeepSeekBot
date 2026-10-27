@@ -206,15 +206,47 @@ export const computerClickRipple = {
 
 export const motion = {
   drawer: 250,
-  composer: 160,
   lift: 500,
-  menu: 160,
-  bubble: 220,
-  badge: 180,
-  badgeExit: 150,
 } as const;
 
-export const easeOut = [0.23, 1, 0.32, 1] as const;
+export type SpringSpeed = 'fast' | 'default' | 'slow';
+
+export interface SpringPhysics {
+  mass: number;
+  stiffness: number;
+  damping: number;
+}
+
+function swiftUI(duration: number, bounce: number): SpringPhysics {
+  return {
+    mass: 1,
+    stiffness: ((2 * Math.PI) / duration) ** 2,
+    damping: (4 * Math.PI * (1 - bounce)) / duration,
+  };
+}
+
+function material(dampingRatio: number, stiffness: number): SpringPhysics {
+  return { mass: 1, stiffness, damping: 2 * dampingRatio * Math.sqrt(stiffness) };
+}
+
+export const springs: Record<
+  PlatformOS,
+  Record<'spatial' | 'effects', Record<SpringSpeed, SpringPhysics>>
+> = {
+  ios: {
+    spatial: { fast: swiftUI(0.35, 0.15), default: swiftUI(0.5, 0), slow: swiftUI(0.7, 0) },
+    effects: { fast: swiftUI(0.2, 0), default: swiftUI(0.3, 0), slow: swiftUI(0.5, 0) },
+  },
+  android: {
+    spatial: { fast: material(0.6, 800), default: material(0.8, 380), slow: material(0.8, 200) },
+    effects: { fast: material(1, 3800), default: material(1, 1600), slow: material(1, 800) },
+  },
+};
+
+export const decelerate: Record<PlatformOS, readonly [number, number, number, number]> = {
+  ios: [0, 0, 0.58, 1],
+  android: [0.05, 0.7, 0.1, 1],
+};
 
 export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
@@ -228,8 +260,6 @@ export const markdownTable = {
   minColumnWidth: 96,
   maxColumnWidth: 280,
 } as const;
-
-export const drawerSpring = { duration: 280, dampingRatio: 1 } as const;
 
 export const streamReveal = {
   surfaceDuration: 120,
@@ -245,7 +275,7 @@ export const tabMotion = {
   inactiveIconScale: 0.72,
 } as const;
 
-export const scrollChrome = { threshold: 12, top: 2, duration: 180 } as const;
+export const scrollChrome = { threshold: 12, top: 2 } as const;
 
 export const swipeRow = {
   actionWidth: 80,
@@ -282,8 +312,6 @@ export const profileShell = {
   bannerAspect: 3,
   overlap: 40,
   openScale: 0.94,
-  openDuration: 220,
-  tabFade: 140,
   dismissDistance: 96,
 } as const;
 

@@ -6,14 +6,13 @@ import {
   useAnimatedScrollHandler,
   useDerivedValue,
   useSharedValue,
-  ReduceMotion,
-  withTiming,
+  withSpring,
   type SharedValue,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
-import { scrollChrome } from '../design/tokens';
+import { spring } from '../design/motion';
 import { useMounted } from '../mounted';
 import { scrollChromeStep, type ScrollChromeState } from './scroll-chrome-model';
 
@@ -69,10 +68,7 @@ export function useScrollChrome() {
 export function useChromeProgress() {
   const { hidden, pinned, screenReader } = useScrollChrome();
   return useDerivedValue(() =>
-    withTiming(hidden.get() && !pinned.get() && !screenReader.get() ? 1 : 0, {
-      duration: scrollChrome.duration,
-      reduceMotion: ReduceMotion.System,
-    }),
+    withSpring(hidden.get() && !pinned.get() && !screenReader.get() ? 1 : 0, spring.effects.fast),
   );
 }
 

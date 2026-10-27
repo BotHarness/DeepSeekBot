@@ -25,6 +25,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -38,6 +39,7 @@ import {
 } from '../../host/conversation';
 import type { RosterBot } from '../../host/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
+import { spring } from '../design/motion';
 import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
@@ -257,7 +259,7 @@ function PressableBubble({
               },
               onLongPress: () => {
                 haptic('menu');
-                if (shrinks) scale.value = withTiming(1, { duration: motion.menu });
+                if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
                 open();
               },
             })}
@@ -290,7 +292,7 @@ function PressableBubble({
             });
         }}
         onPressOut={() => {
-          if (shrinks) scale.value = withTiming(1, { duration: motion.menu });
+          if (shrinks) scale.value = withSpring(1, spring.spatial.fast);
         }}
       >
         {children}
