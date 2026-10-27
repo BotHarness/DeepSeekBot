@@ -4,8 +4,8 @@ section: Fixed
 
 ## en
 
-- Kept Bot creation forms from redrawing on unrelated computer updates, and paused hidden workspace drawer and Activity updates while editing ([#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)).
+- Reduced unnecessary Bot creation redraws and background updates while editing, and stopped fixed Android menu anchors from relaying out with every keyboard inset change ([#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)).
 
 ## zh
 
-- 避免创建 Bot 表单因无关的电脑状态刷新而重绘，并暂停编辑期间不可见的工作区侧栏和活动页更新（[#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)）。
+- 减少编辑期间无关的创建 Bot 表单重绘和后台刷新，并避免固定 Android 菜单锚点随键盘边距反复布局（[#3043](https://github.com/BotHarness/DeepSeekBot/issues/3043)）。
