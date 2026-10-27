@@ -53,6 +53,18 @@ export function activityDestination(
   };
 }
 
+export function activityAssignmentDestination(
+  target: ActivityTarget,
+  currentHostId: string | undefined,
+  assignmentId: string | undefined,
+) {
+  if (currentHostId !== target.hostId || assignmentId === undefined) return undefined;
+  return {
+    pathname: '/bot/[slug]/assignment/[id]' as const,
+    params: { slug: target.botSlug, id: assignmentId, hostId: target.hostId },
+  };
+}
+
 export function activityStartTarget(
   initiated: InitiatedActivityRequest | undefined,
   hostId: string | undefined,

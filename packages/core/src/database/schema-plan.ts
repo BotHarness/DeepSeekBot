@@ -2538,6 +2538,22 @@ const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
   },
 };
 
+const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
+  generation: 111,
+  module: 'assignments',
+  description: 'Record which Assignment each Human request created or advanced',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE request_assignments (
+        request_source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id),
+        linked_at TEXT NOT NULL,
+        PRIMARY KEY (request_source_event_id, session_id)
+      );
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2648,4 +2664,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ASSIGNMENT_TITLE_MIGRATION,
   SESSION_PROMPT_SNAPSHOT_MIGRATION,
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
+  REQUEST_ASSIGNMENT_LINK_MIGRATION,
 ]);
