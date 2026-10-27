@@ -59,9 +59,6 @@ vi.mock('react-native', async () => {
 });
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
 vi.mock('../src/ui/chat/group-mark', () => ({ GroupMark: () => null }));
-vi.mock('../src/ui/chat/conversation-swipe', () => ({
-  ConversationSwipe: ({ children }: { children: ReactNode }) => children,
-}));
 vi.mock('../src/ui/chat/row-status-glyph', () => ({
   RowStatusGlyph: ({ status }: { status: string }) =>
     status === 'none' ? null : createElement('i', { 'data-status': status }),
