@@ -13,7 +13,9 @@ import { listBotFiles } from '../bots/bot-zip.js';
 import type { ShareDrafts } from './share-draft.js';
 import type { BotImportInput } from '../bots/creation.js';
 import type { ZipEntry } from '../bots/zip-archive.js';
+import type { MarketplaceLanguage } from './language.js';
 import type {
+  MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceClient,
   MarketplaceEntry,
@@ -39,6 +41,7 @@ export interface UploadPresentation {
   displayName: string;
   bio?: string;
   tags?: string[];
+  replaces?: string;
 }
 
 type Refusal = { ok: false; code: string; path?: string };
@@ -155,6 +158,22 @@ export function createMarketplaceUploads(deps: {
       return signed((token) => client.saveAuthor(token, input));
     },
 
+    mine(lang?: MarketplaceLanguage): Promise<Result<MarketplaceAuthoredBot[]>> {
+      return signed((token) => client.authored(token, lang));
+    },
+
+    async remove(id: string): Promise<Result<{ deleted: true }>> {
+      const started = performance.now();
+      const removed = await signed((token) => client.deleteUpload(token, id));
+      report(
+        'delete',
+        started,
+        removed.ok ? 'ok' : 'refused',
+        removed.ok ? {} : { reason: removed.code },
+      );
+      return removed;
+    },
+
     plan(slug: string): Result<UploadPlan> {
       const source = deps.drafts.source(slug);
       return source.ok ? { ok: true, value: source.value.plan } : source;
@@ -204,7 +223,11 @@ export function createMarketplaceUploads(deps: {
         report('upload', started, 'refused', { reason: published.code });
         return published;
       }
-      report('upload', started, 'ok', { files: plan.files.length, bytes: plan.totalBytes });
+      report('upload', started, 'ok', {
+        files: plan.files.length,
+        bytes: plan.totalBytes,
+        ...(presentation.replaces === undefined ? {} : { replaced: 1 }),
+      });
       return { ok: true, value: { bot: published.value, skipped: plan.skipped } };
     },
 

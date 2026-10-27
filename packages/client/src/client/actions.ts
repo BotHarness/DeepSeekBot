@@ -38,6 +38,7 @@ import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.j
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
+  MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
@@ -219,6 +220,7 @@ import {
   loadMarketplaceChallenge,
   reportMarketplaceBot,
   installMarketplaceBot,
+  loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type UsageFilter,
   type UsageQueryResult,
@@ -895,8 +897,10 @@ export interface BridgeActions {
   marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
   marketplaceUpload(
     slug: string,
-    presentation: { displayName: string; bio?: string; tags?: string[] },
+    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
+  marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
+  marketplaceDelete(id: string): Promise<void>;
   shareDraftStart(slug: string): Promise<ShareDraftView>;
   shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
   shareDraftDiscard(slug: string): Promise<void>;
@@ -2748,6 +2752,10 @@ export function createActions(
       invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
+    marketplaceMine: (lang) => loadMyMarketplaceUploads(call, lang),
+    async marketplaceDelete(id) {
+      await invoke('marketplaceDelete', { id });
+    },
     shareDraftStart: (slug) => invoke('shareDraftStart', { slug }),
     async shareDraftGet(slug) {
       const result = await call('shareDraftGet', { slug });

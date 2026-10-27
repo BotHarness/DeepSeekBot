@@ -848,6 +848,8 @@ describe('bridge typert service', () => {
       'marketplaceAuthorSave',
       'marketplaceUploadPlan',
       'marketplaceUpload',
+      'marketplaceMine',
+      'marketplaceDelete',
       'shareDraftStart',
       'shareDraftGet',
       'shareDraftFile',

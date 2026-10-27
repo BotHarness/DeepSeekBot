@@ -210,6 +210,7 @@ export function MarketUploadDialog({
   onListed,
   onClose,
   initialSlug,
+  replacing,
 }: {
   actions: BridgeActions;
   registry?: Pick<DockPanelRegistry, 'open'> | undefined;
@@ -217,6 +218,7 @@ export function MarketUploadDialog({
   onListed: (bot: MarketplaceEntry) => void;
   onClose: () => void;
   initialSlug?: string | undefined;
+  replacing?: MarketplaceEntry | undefined;
 }): ReactElement {
   const roster = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
   const bots = publishable(roster);
@@ -225,7 +227,9 @@ export function MarketUploadDialog({
     onListed(bot);
     onClose();
   });
-  const [route, setRoute] = useState<Route>(preselected === undefined ? 'choose' : 'direct');
+  const [route, setRoute] = useState<Route>(
+    preselected === undefined && replacing === undefined ? 'choose' : 'direct',
+  );
   const [rawStep, setStep] = useState<DirectStep>(preselected === undefined ? 'bot' : 'draft');
   const [destination, setDestination] = useState<Destination>('market');
   const [chosen, setChosen] = useState<BotSummary | undefined>(preselected);
@@ -234,9 +238,15 @@ export function MarketUploadDialog({
   const [signIn, setSignIn] = useState<{ userCode: string; verificationUri: string }>();
   const [authorName, setAuthorName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [name, setName] = useState(preselected?.displayName ?? '');
-  const [bio, setBio] = useState(preselected?.description ?? '');
-  const [tags, setTags] = useState(preselected?.roles.join(', ') ?? '');
+  const [name, setName] = useState(
+    replacing === undefined
+      ? (preselected?.displayName ?? '')
+      : (replacing.displayName ?? replacing.name),
+  );
+  const [bio, setBio] = useState(
+    replacing === undefined ? (preselected?.description ?? '') : (replacing.description ?? ''),
+  );
+  const [tags, setTags] = useState((replacing?.roles ?? preselected?.roles ?? []).join(', '));
   const [plan, setPlan] = useState<{ value?: UploadPlan; cause?: unknown }>({});
   const [busy, setBusy] = useState(false);
   const [cause, setCause] = useState<unknown>();
@@ -320,9 +330,11 @@ export function MarketUploadDialog({
 
   const choose = (bot: BotSummary): void => {
     setChosen(bot);
-    setName(bot.displayName);
-    setBio(bot.description ?? '');
-    setTags(bot.roles.join(', '));
+    if (replacing === undefined) {
+      setName(bot.displayName);
+      setBio(bot.description ?? '');
+      setTags(bot.roles.join(', '));
+    }
     loadDraft(bot);
     go('draft');
   };
@@ -337,7 +349,7 @@ export function MarketUploadDialog({
   const check = (bot: BotSummary): Promise<void> =>
     run(async () => {
       if (shareDraft === undefined) await actions.shareDraftStart(bot.slug);
-      watchShareDraft(bot.slug);
+      watchShareDraft(bot.slug, replacing);
       await askTob(t('market.draft.message', { name: bot.displayName, slug: bot.slug }));
     });
 
@@ -349,14 +361,16 @@ export function MarketUploadDialog({
       );
     });
 
+  const beforeAccount: DirectStep = replacing === undefined ? 'where' : 'draft';
   const back = (): void => {
     setCause(undefined);
     if (route !== 'direct') setRoute('choose');
     else if (step === 'review') go('details');
-    else if (step === 'details') go(accountDone ? 'where' : 'account');
-    else if (step === 'account' || step === 'github') go('where');
+    else if (step === 'details') go(accountDone ? beforeAccount : 'account');
+    else if (step === 'account' || step === 'github') go(beforeAccount);
     else if (step === 'where') go('draft');
     else if (step === 'draft' && preselected === undefined) go('bot');
+    else if (replacing !== undefined) onClose();
     else setRoute('choose');
   };
 
@@ -427,7 +441,16 @@ export function MarketUploadDialog({
         );
         primary =
           draft.draft?.state === 'ready' ? (
-            <Button variant="primary" onClick={() => go('where')}>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (replacing === undefined) go('where');
+                else {
+                  loadPlan(chosen);
+                  go('account');
+                }
+              }}
+            >
               {t('market.direct.next')}
             </Button>
           ) : (
@@ -623,6 +646,7 @@ export function MarketUploadDialog({
                 displayName: name.trim(),
                 ...(trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
                 tags: tagList(tags),
+                ...(replacing === undefined ? {} : { replaces: replacing.id }),
               });
               if (!mounted.current) return;
               onListed(uploaded.bot);
@@ -630,17 +654,21 @@ export function MarketUploadDialog({
             })
           }
         >
-          {busy ? t('market.direct.uploading') : t('market.direct.upload')}
+          {busy
+            ? t(replacing === undefined ? 'market.direct.uploading' : 'market.mine.replacing')
+            : t(replacing === undefined ? 'market.direct.upload' : 'market.mine.replace')}
         </Button>
       );
     }
-    const steps = STEPS[destination];
+    const steps =
+      replacing === undefined ? STEPS[destination] : STEPS.market.filter((id) => id !== 'where');
     body = (
       <>
         <StepProgress
           label={t('market.direct.progress')}
           steps={steps.map((id) => t(`market.direct.step.${id}`))}
           step={steps.indexOf(step)}
+          titles="current"
         />
         <div {...stylex.props(styles.body)} data-market-direct={step}>
           {content}
@@ -653,7 +681,11 @@ export function MarketUploadDialog({
   return (
     <PanelDialog
       size="small"
-      title={t(TITLES[route])}
+      title={
+        replacing === undefined
+          ? t(TITLES[route])
+          : t('market.mine.updateTitle', { name: replacing.displayName ?? replacing.name })
+      }
       closeLabel={t('common.close')}
       onClose={onClose}
       scroll

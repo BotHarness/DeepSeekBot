@@ -1,5 +1,7 @@
 import { useRef, useSyncExternalStore, type ReactElement } from 'react';
 
+import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
+
 import type { BridgeActions } from './actions.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -7,8 +9,10 @@ import { MarketUploadDialog } from './market-upload.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store } from './store.js';
 
-let open: string | undefined;
-const watching = new Set<string>();
+type Flow = { slug: string; replacing?: MarketplaceEntry | undefined };
+
+let open: Flow | undefined;
+const watching = new Map<string, MarketplaceEntry | undefined>();
 const listeners = new Set<() => void>();
 let owner: object | undefined;
 
@@ -18,13 +22,13 @@ const subscribe = (listener: () => void): (() => void) => {
   return () => listeners.delete(listener);
 };
 
-export function openShareFlow(slug: string): void {
-  open = slug;
+export function openShareFlow(slug: string, replacing?: MarketplaceEntry): void {
+  open = { slug, replacing };
   notify();
 }
 
-export function watchShareDraft(slug: string): void {
-  watching.add(slug);
+export function watchShareDraft(slug: string, replacing?: MarketplaceEntry): void {
+  watching.set(slug, replacing);
   notify();
 }
 
@@ -44,13 +48,13 @@ function mountDraftWatch(actions: Pick<BridgeActions, 'shareDraftGet'>): () => v
     last = key;
     checking = true;
     void Promise.all(
-      [...watching].map(async (slug) => {
+      [...watching].map(async ([slug, replacing]) => {
         try {
           const draft = await actions.shareDraftGet(slug);
           if (draft === undefined) watching.delete(slug);
           else if (draft.state === 'ready') {
             watching.delete(slug);
-            openShareFlow(slug);
+            openShareFlow(slug, replacing);
           }
         } catch {}
       }),
@@ -71,8 +75,8 @@ export function ShareFlowHost({
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const me = useRef({}).current;
-  const snapshot = (): string | undefined => (owner === me ? open : undefined);
-  const slug = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const snapshot = (): Flow | undefined => (owner === me ? open : undefined);
+  const flow = useSyncExternalStore(subscribe, snapshot, snapshot);
   const mount = useMountedResource<HTMLSpanElement>(() => {
     if (owner !== undefined) return;
     owner = me;
@@ -87,13 +91,14 @@ export function ShareFlowHost({
   return (
     <>
       <span ref={mount} hidden />
-      {slug === undefined ? null : (
+      {flow === undefined ? null : (
         <MarketUploadDialog
-          key={slug}
+          key={flow.slug}
           actions={actions}
           registry={registry}
           t={t}
-          initialSlug={slug}
+          initialSlug={flow.slug}
+          replacing={flow.replacing}
           onListed={() => {}}
           onClose={closeShareFlow}
         />

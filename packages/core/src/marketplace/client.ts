@@ -30,6 +30,12 @@ export interface MarketplaceEntry {
   headCommit: { sha: string; committedAt: string } | null;
   source: MarketplaceSource;
   author: MarketplaceAuthor | null;
+  installed?: MarketplaceInstalled;
+}
+
+export interface MarketplaceInstalled {
+  bots: string[];
+  authorUpdated: boolean;
 }
 
 export type MarketplaceSource = 'github' | 'upload';
@@ -70,7 +76,15 @@ export interface MarketplaceUploadInput {
   displayName: string;
   bio?: string;
   tags?: string[];
+  replaces?: string;
   files: Array<{ path: string; size: number; sha256: string }>;
+}
+
+export interface MarketplaceAuthoredBot {
+  bot: MarketplaceEntry;
+  files: number;
+  bytes: number;
+  blocked: boolean;
 }
 
 export interface MarketplacePage {
@@ -133,6 +147,11 @@ export interface MarketplaceClient {
     bytes: Uint8Array,
   ): Promise<MarketplaceResult<true>>;
   publishUpload(token: string, uploadId: string): Promise<MarketplaceResult<MarketplaceEntry>>;
+  authored(
+    token: string,
+    lang?: MarketplaceLanguage,
+  ): Promise<MarketplaceResult<MarketplaceAuthoredBot[]>>;
+  deleteUpload(token: string, id: string): Promise<MarketplaceResult<{ deleted: true }>>;
   file(id: string, path: string): Promise<MarketplaceResult<Uint8Array>>;
   fileView(id: string, path: string): Promise<MarketplaceResult<MarketplaceFileView>>;
 }
@@ -193,6 +212,7 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
   const roles = Array.isArray(source['tags']) ? source['tags'] : source['roles'];
   const bio = source['bio'];
   const htmlUrl = source['htmlUrl'] as string;
+  const installed = parseInstalled(source['installed']);
   const filesBase =
     source['source'] === 'upload' && htmlUrl.startsWith('https://')
       ? `${htmlUrl}/files/`
@@ -226,7 +246,18 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
         : null,
     source: source['source'] === 'upload' ? 'upload' : 'github',
     author: parseAuthor(source['author']) ?? null,
+    ...(installed === undefined ? {} : { installed }),
   };
+}
+
+function parseInstalled(value: unknown): MarketplaceInstalled | undefined {
+  const source = record(value);
+  const bots = source?.['bots'];
+  return Array.isArray(bots) &&
+    bots.every((bot) => typeof bot === 'string') &&
+    typeof source?.['authorUpdated'] === 'boolean'
+    ? { bots: bots as string[], authorUpdated: source['authorUpdated'] }
+    : undefined;
 }
 
 function parseAuthor(value: unknown): MarketplaceAuthor | undefined {
@@ -366,6 +397,24 @@ function listPath(query: MarketplaceQuery): string {
 export function parseMarketplaceSubmission(value: unknown): { bot: MarketplaceEntry } | undefined {
   const bot = parseEntry(record(value)?.['bot']);
   return bot === undefined ? undefined : { bot };
+}
+
+export function parseAuthoredBots(value: unknown): MarketplaceAuthoredBot[] | undefined {
+  const bots = record(value)?.['bots'];
+  if (!Array.isArray(bots)) return undefined;
+  const parsed = bots.map((item) => {
+    const source = record(item);
+    const bot = parseEntry(source?.['bot']);
+    return bot !== undefined &&
+      typeof source?.['files'] === 'number' &&
+      typeof source['bytes'] === 'number' &&
+      typeof source['blocked'] === 'boolean'
+      ? { bot, files: source['files'], bytes: source['bytes'], blocked: source['blocked'] }
+      : undefined;
+  });
+  return parsed.every((item): item is MarketplaceAuthoredBot => item !== undefined)
+    ? parsed
+    : undefined;
 }
 
 function parseReceipt(value: unknown): { received: true } | undefined {
@@ -515,6 +564,18 @@ export function createMarketplaceClient(options: {
         `/v1/uploads/${encodeURIComponent(uploadId)}/publish`,
         { method: 'POST', headers: authorized(token, false) },
         (value) => parseEntry(record(value)?.['bot']),
+      ),
+    authored: (token, lang) =>
+      request(
+        `/v1/me/bots${lang === undefined ? '' : `?lang=${lang}`}`,
+        { method: 'GET', headers: authorized(token, false) },
+        parseAuthoredBots,
+      ),
+    deleteUpload: (token, id) =>
+      request(
+        `/v1/me/bots/${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: authorized(token, false) },
+        (value) => (record(value)?.['deleted'] === true ? { deleted: true as const } : undefined),
       ),
     fileView: (id, path) =>
       request(

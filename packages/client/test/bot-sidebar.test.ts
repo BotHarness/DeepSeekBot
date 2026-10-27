@@ -180,6 +180,8 @@ function stubActions(): BridgeActions {
     marketplaceUpload: vi.fn(async () => {
       throw new Error('unused');
     }),
+    marketplaceMine: vi.fn(async () => []),
+    marketplaceDelete: vi.fn(async () => {}),
     shareDraftStart: vi.fn(async () => {
       throw new Error('unused');
     }),

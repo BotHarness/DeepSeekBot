@@ -373,6 +373,82 @@ export const SCENARIOS = [
       });
     },
   },
+  {
+    id: 'tob-share-draft-secret',
+    summary:
+      'Tob reviews a Share Draft, asks the Human about a planted secret, drops it on the answer, and leaves the source Memory untouched (#3060).',
+    areas: [
+      'packages/core/src/marketplace/',
+      'packages/core/src/tob/',
+      'packages/core/src/bots/cli-share-draft.ts',
+      'scripts/e2e-llm-scenarios.mjs',
+    ],
+    bots: ['atlas'],
+    async run(ctx) {
+      const slug = ctx.slug('atlas');
+      const memory = ctx.memoryDir('atlas');
+      const secret = 'notes/keys.md';
+      mkdirSync(join(memory, 'notes'), { recursive: true });
+      writeFileSync(
+        join(memory, secret),
+        '# 部署笔记\n\nOpenAI key: sk-e2eplanted0000secret0000value\n',
+      );
+      writeFileSync(join(memory, 'notes/story.md'), '# 故事\n\n一只像素猫在雨夜里找到回家的路。\n');
+      const git = (...args) =>
+        execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@local', ...args], {
+          cwd: memory,
+          encoding: 'utf8',
+        });
+      git('add', '-A');
+      git('commit', '-q', '-m', 'e2e share fixture');
+      const head = git('rev-parse', 'HEAD').trim();
+      const before = readFileSync(join(memory, secret), 'utf8');
+      const started = await ctx.host('shareDraftStart', { slug });
+      const flagged = started.files.find((file) => file.path === secret);
+      if (!flagged || flagged.flags.length === 0) throw new Error('planted secret was not flagged');
+      const tob = await ctx.tob();
+      await ctx.humanSend(
+        tob,
+        `帮我把「${CAST.atlas.displayName}」分享出去：逐个检查它的分享草稿，看起来涉及隐私的内容问我保留、改写还是删掉。（Bot ID：${slug}）`,
+      );
+      const answered = new Set();
+      const draft = await ctx.waitFor(
+        'Tob asks about the planted secret and the Share Draft finishes with it dropped',
+        async () => {
+          for (const message of ctx.messages(tob)) {
+            const request = message.userQuestionRequest;
+            if (request === undefined || answered.has(message.id)) continue;
+            answered.add(message.id);
+            const answers = request.questions.map((question) => {
+              const text = `${question.header ?? ''} ${question.question} ${question.detail ?? ''}`;
+              const options = (question.options ?? []).map((option) => option.label);
+              const aboutSecret = text.includes('keys.md') || /sk-|key|密钥/iu.test(text);
+              const wanted = aboutSecret ? /drop|删|移除|不分享/iu : /keep|保留/iu;
+              const pick = options.find((label) => wanted.test(label));
+              return pick === undefined
+                ? { id: question.id, selected: [], custom: aboutSecret ? '删掉这个文件' : '保留' }
+                : { id: question.id, selected: [pick] };
+            });
+            ctx.note({ [`question-${message.id}`]: { questions: request.questions, answers } });
+            await ctx.host('userQuestionAnswer', {
+              channelId: tob,
+              messageId: message.id,
+              answer: { answers },
+            });
+          }
+          const current = await ctx.host('shareDraftGet', { slug }).catch(() => undefined);
+          return answered.size > 0 && current?.state === 'ready' ? current : undefined;
+        },
+      );
+      const file = draft.files.find((entry) => entry.path === secret);
+      if (file?.status !== 'dropped') throw new Error(`planted secret ended ${file?.status}`);
+      if (readFileSync(join(memory, secret), 'utf8') !== before)
+        throw new Error('source Memory file changed');
+      if (git('rev-parse', 'HEAD').trim() !== head || git('status', '--porcelain').trim() !== '')
+        throw new Error('source Memory repository changed');
+      ctx.note({ draft: draft.summary });
+    },
+  },
 ];
 
 export function parseScenarioArgs(argv) {
@@ -742,6 +818,14 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       }
     },
     slug: (key) => slugs[key],
+    host: call,
+    memoryDir: (key) => join(instance.home, 'botharness', 'bots', slugs[key], 'memory'),
+    async tob() {
+      const home = await call('tobHome', {});
+      if (presetId !== undefined) await call('modelPresetApply', { slug: home.botSlug, presetId });
+      if (!log.channels.includes(home.channelId)) log.channels.push(home.channelId);
+      return home.channelId;
+    },
     note(values) {
       log.notes = { ...log.notes, ...values };
     },
@@ -754,7 +838,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
       }
     },
     isBot: (message, key) =>
-      message.author.kind === 'bot' &&
+      message.author?.kind === 'bot' &&
       message.author.slug === slugs[key] &&
       !message.sessionFailure,
     async dm(key) {
@@ -875,7 +959,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
         await ctx.refresh();
         const failure = [...messageCache.values()].flat().find((message) => message.sessionFailure);
         if (failure) throw new Error(failure.body);
-        const found = predicate();
+        const found = await predicate();
         if (found) {
           log.proof = { label, found };
           return found;
@@ -891,7 +975,7 @@ export function createContext(instance, scenario, timeoutSeconds, log, presetId)
 function summarize(message) {
   return {
     id: message.id,
-    author: message.author.kind === 'bot' ? message.author.slug : message.author.kind,
+    author: message.author?.kind === 'bot' ? message.author.slug : message.author?.kind,
     body: message.body,
     at: message.at,
     ...(message.sessionFailure ? { sessionFailure: message.sessionFailure } : {}),

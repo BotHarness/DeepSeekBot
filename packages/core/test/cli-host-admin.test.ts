@@ -173,6 +173,34 @@ describe('Bot Marketplace commands', () => {
     ]);
   });
 
+  it('lists, replaces and deletes your Uploaded Bots through the Host', async () => {
+    const live = await host((method) => ok({ method }));
+    await invoke(['marketplace-mine', '--lang', 'zh'], live.url);
+    await invoke(
+      ['marketplace-upload', 'bot-1', '--name', 'Helper', '--replaces', 'U_abc', '--confirm'],
+      live.url,
+    );
+    await invoke(['marketplace-delete', 'U_abc', '--confirm'], live.url);
+    expect(live.calls).toEqual([
+      { method: 'marketplaceMine', args: { lang: 'zh' } },
+      {
+        method: 'marketplaceUpload',
+        args: { slug: 'bot-1', displayName: 'Helper', replaces: 'U_abc' },
+      },
+      { method: 'marketplaceDelete', args: { id: 'U_abc' } },
+    ]);
+  });
+
+  it('needs --confirm before deleting an Uploaded Bot', async () => {
+    const live = await host(() => ok({}));
+    for (const argv of [
+      ['marketplace-delete', 'U_abc'],
+      ['marketplace-mine', '--replaces', 'U_abc'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([]);
+  });
+
   it('needs --confirm and a name before uploading a Bot', async () => {
     const live = await host(() => ok({}));
     for (const argv of [

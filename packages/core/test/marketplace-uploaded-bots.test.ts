@@ -286,3 +286,54 @@ it('reads an Uploaded Bot file summary and its text files through the Host', asy
     error: { code: 'invalid-input' },
   });
 });
+
+it('lists, replaces and deletes my uploads, marking earlier installs as author-updated', async () => {
+  const f = fixture();
+  const { slug, memory } = sourceBot(f);
+  readyDraft(f, slug);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const id = uploaded.value.bot.id;
+  const installed = await f.bridge.marketplaceInstall({ id });
+  if (!installed.ok) throw new Error(installed.error.message);
+  const copy = installed.value.bot.slug;
+  expect(f.core.registry.get(copy)?.marketplaceListing).toEqual({
+    id,
+    pushedAt: uploaded.value.bot.pushedAt,
+  });
+  const before = await f.bridge.marketplaceDetail({ id });
+  expect(before.ok && before.value.bot.installed).toEqual({ bots: [copy], authorUpdated: false });
+
+  const mine = await f.bridge.marketplaceMine({});
+  expect(mine.ok && mine.value.bots.map((entry) => [entry.bot.id, entry.blocked])).toEqual([
+    [id, false],
+  ]);
+
+  f.market.clock.value = new Date('2026-10-06T09:00:00Z');
+  write(memory, 'notes/today.md', 'Rewritten.');
+  readyDraft(f, slug);
+  const replaced = await f.bridge.marketplaceUpload({
+    slug,
+    displayName: 'Helper 2',
+    replaces: id,
+  });
+  if (!replaced.ok) throw new Error(replaced.error.message);
+  expect(replaced.value.bot.id).toBe(id);
+  const listed = await f.bridge.marketplaceList({ includeUploads: true });
+  expect(listed.ok && listed.value.bots.map((bot) => [bot.displayName, bot.installed])).toEqual([
+    ['Helper 2', { bots: [copy], authorUpdated: true }],
+  ]);
+  expect(readFileSync(join(f.core.registry.memoryDirFor(copy)!, 'notes/today.md'), 'utf8')).toBe(
+    'Today I wrote.',
+  );
+
+  expect(await f.bridge.marketplaceDelete({ id })).toEqual({ ok: true, value: { deleted: true } });
+  expect(await f.bridge.marketplaceMine({})).toEqual({ ok: true, value: { bots: [] } });
+  expect(await f.bridge.marketplaceDelete({ id })).toMatchObject({
+    ok: false,
+    error: { code: 'bot-not-found' },
+  });
+  expect(f.core.registry.get(copy)).toBeDefined();
+});

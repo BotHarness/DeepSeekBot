@@ -784,7 +784,9 @@ deepseekbot marketplace-report <owner/repo> [--reason <说明>]
 deepseekbot marketplace-account
 deepseekbot marketplace-author --name <显示名> [--accept-terms]
 deepseekbot marketplace-upload-plan <bot-id>
-deepseekbot marketplace-upload <bot-id> --name <名称> [--description <简介>] [--role <标签> ...] --confirm [--timeout <秒>]
+deepseekbot marketplace-upload <bot-id> --name <名称> [--description <简介>] [--role <标签> ...] [--replaces <listing-id>] --confirm [--timeout <秒>]
+deepseekbot marketplace-mine [--lang zh|en]
+deepseekbot marketplace-delete <listing-id> --confirm
 deepseekbot marketplace-install <listing-id> [--operation-key <key>]
 deepseekbot share-draft-start <bot-id>
 deepseekbot share-draft-show <bot-id>
@@ -821,6 +823,8 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 **上传的 Bot**（[ADR-0267](adr/0267-the-bot-marketplace-hosts-uploaded-bots-under-connect-accounts.md)）和 GitHub 仓库在同一个目录里。`marketplace-list --include-uploads` 会把它们加进来；每个条目带 `source`（`github` 或 `upload`），上传的条目还带 `author`（`name`，以及区分同名作者、永不改变的作者 `id`）。上传的 Bot 的 `marketplace-detail` 还返回 `files`（`path`、`size`、`kind`：`text`、`script` 或 `image`）和 `fileSummary`：`count`、`size` 和 `types`，即每种类型（`markdown`、`text`、`data`、`script`、`image`）的文件数和字节数，按大小从大到小。`marketplace-file <listing-id> <path>` 以 `file`（`path`、`size`、`type`、`text`）读取一个文本文件：Markdown 像 README 一样经过整理和清洗，相对链接指向这个 Bot 的文件；脚本和其他文本原样返回，从不当作 Markdown 整理。图片被拒绝，错误码 `file-not-text`；不在列表里的路径返回 `file-not-found`。上传要求这个 Host 已登录 Tobs Connect（设置 → 设备）；`marketplace-account` 返回 `signedIn` 和 `author`，在 `marketplace-author --name <名称> --accept-terms` 创建作者之前为 `null`，之后再调用只改名。`marketplace-upload-plan` 列出上传会包含的文件和跳过的文件（二进制和压缩包为 `file-type-refused`，超过 5 MB 为 `file-too-large`）。`marketplace-upload` 用给定的名称、简介和标签发布 Bot 已就绪的分享草稿（不含 Git 历史），必须带 `--confirm`：文件会公开。Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片，即使开了完全访问。拒绝带错误码：`sign-in-required`、`author-required`、`too-many-files`（超过 2,000 个）、`too-large`（超过 50 MB）、`bot-limit`（每个账号 20 个）、`nothing-to-upload`、`share-draft-required`（还没有草稿）、`share-draft-not-ready`（还有文件没有结论）。`marketplace-install` 下载上传的 Bot 的文件，用条目的名称、简介和标签新建一个 Bot，只有一次初始提交，返回新的 `bot`、它的 `channelId` 和 `listing`；用同一个 `--operation-key` 重试会返回那个 Bot，不会装两次。GitHub 条目用 `create --from-git <cloneUrl>` 安装。
 
 上传和推送到 GitHub 读的都是**分享草稿**，源 Memory 不会被改动。`share-draft-start` 把 Bot 可分享的记忆文件（和 `marketplace-upload-plan` 会包含的一样）复制到 Host 自己的数据目录，并替换之前的草稿。`share-draft-show` 返回草稿的 `state`（`reviewing` 或 `ready`）、计数 `summary`，以及每个文件的 `path`、`kind`、`size`、`status`（`pending`、`kept`、`rewritten` 或 `dropped`）和模式扫描发现的 `flags`（`secret`、`private-key`、`url-credential`、`email`、`phone`）。`share-draft-file --path` 返回一个文本文件在草稿里的当前内容。`share-draft-decide` 记录一个结论：`--keep`、`--drop`（删除草稿里的副本）或 `--rewrite-stdin`（完整的新内容，最多 5 MB）。任何结论都会让已就绪的草稿回到 `reviewing`。`share-draft-finish` 在没有 `pending` 文件时把草稿标为 `ready`（`share-draft-pending` 会给出第一个未决文件）。`share-draft-export` 把已就绪的草稿复制到 Tob 工作区里一个不带 `.git` 的新文件夹并返回 `path`，用于推送到 GitHub。`share-draft-discard` 删除草稿。Tob 的受限 CLI 只有 `share-draft-show`、`share-draft-file`、`share-draft-decide` 和 `share-draft-finish`，而且只能处理人类已开始的草稿；开始、导出和删除草稿由人类操作。
+
+`marketplace-mine` 按时间从新到旧列出已登录作者自己上传的 Bot，每项为 `{ bot, files, bytes, blocked }`；`blocked` 的条目别人看不到，但仍可更新或删除。`marketplace-upload --replaces <listing-id>` 用这个 Bot 当前的记忆文件整体替换其中一个：没有版本，条目 id 不变，新文件全部存好后才对外可见，随后删除旧文件。每小时最多替换 10 次（`replace-limit`）；替换不占 20 个 Bot 的名额。`marketplace-delete` 删除条目、文件和计数，必须带 `--confirm`；和 `marketplace-upload` 一样，Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片。已安装的副本永远不会被改动：本 Host 装过的条目在 `marketplace-list` 和 `marketplace-detail` 里带 `installed`（`bots` 为装出来的 Bot id，作者在安装之后替换过文件时 `authorUpdated` 为 true）。注销 Connect 账号会一并删除它上传的所有 Bot 和作者信息。
 
 ### 清除全部 BotHarness 数据
 
