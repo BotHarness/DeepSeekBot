@@ -24,6 +24,7 @@ import {
   type Protection,
   type ProtectionLimits,
 } from './protection.js';
+import { prepareReadme } from './readme.js';
 import { createSummarizer, refreshSummaries, type Summarizer } from './summary.js';
 import { bearer, createAccessTokenVerifier, workosKeys, type AccessTokenVerifier } from './auth.js';
 import type { R2Bucket } from './r2.js';
@@ -181,6 +182,36 @@ export function createMarketHandler(
         'upstream-unavailable': 502,
       };
       return failure(status[result.code], result.code);
+    }
+    const viewMatch = /^\/v1\/bots\/([^/]+)\/view\/(.+)$/u.exec(url.pathname);
+    if (viewMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const id = decodePath(viewMatch[1]!);
+      const path = decodePath(viewMatch[2]!);
+      const file =
+        id === undefined || path === undefined || deps.uploads === undefined
+          ? undefined
+          : await deps.uploads.store.readText(id, path);
+      if (file === undefined) return failure(404, 'file-not-found');
+      if (file === null) return failure(415, 'file-not-text');
+      const directory = file.path.split('/').slice(0, -1).join('/');
+      return json(200, {
+        file: {
+          path: file.path,
+          size: file.size,
+          type: file.type,
+          text:
+            file.type === 'markdown'
+              ? prepareReadme(file.text, {
+                  owner: '',
+                  name: '',
+                  ref: '',
+                  filesBase: `${url.origin}/v1/bots/${encodeURIComponent(id!)}/files`,
+                  ...(directory === '' ? {} : { directory }),
+                })
+              : file.text,
+        },
+      });
     }
     const fileMatch = /^\/v1\/bots\/([^/]+)\/files\/(.+)$/u.exec(url.pathname);
     if (fileMatch !== null) {

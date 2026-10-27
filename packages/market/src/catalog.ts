@@ -8,6 +8,7 @@ import {
 } from './localization.js';
 import { prepareReadme } from './readme.js';
 import { createRepositoryStore, isEligible, type RepositoryRow } from './repositories.js';
+import { summarizeFiles, type FileSummary } from './upload-files.js';
 import type { UploadedFile } from './uploads.js';
 
 export interface MarketplaceEntry {
@@ -234,6 +235,7 @@ export interface MarketplaceDetail {
   readmeLanguages: MarketplaceLanguage[];
   commitSha: string | null;
   files?: UploadedFile[];
+  fileSummary?: FileSummary;
 }
 
 export interface AuthoredBot {
@@ -260,6 +262,11 @@ export function createCatalog(deps: {
   const { db, github } = deps;
 
   const store = createRepositoryStore(deps);
+
+  const uploadedFiles = async (id: string) => {
+    const files = (await deps.uploadedFiles?.(id)) ?? [];
+    return { files, fileSummary: summarizeFiles(files) };
+  };
 
   return {
     async submit(url) {
@@ -439,7 +446,7 @@ export function createCatalog(deps: {
         readmeLanguage: readme.language,
         readmeLanguages: readmeLanguages(row),
         commitSha: row.head_sha,
-        ...(uploaded ? { files: (await deps.uploadedFiles?.(row.node_id)) ?? [] } : {}),
+        ...(uploaded ? await uploadedFiles(row.node_id) : {}),
       };
     },
 

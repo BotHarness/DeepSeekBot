@@ -212,6 +212,43 @@ it('refuses to install a GitHub listing through the upload path', async () => {
   });
 });
 
+it('reads an Uploaded Bot file summary and its text files through the Host', async () => {
+  const f = fixture();
+  const { slug } = sourceBot(f);
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
+  const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
+  if (!uploaded.ok) throw new Error(uploaded.error.message);
+  const id = uploaded.value.bot.id;
+
+  const detail = await f.bridge.marketplaceDetail({ id });
+  if (!detail.ok) throw new Error(detail.error.message);
+  expect(detail.value.fileSummary).toMatchObject({
+    count: detail.value.files?.length,
+    types: expect.arrayContaining([
+      { type: 'script', count: 1, size: 'echo hi'.length },
+      { type: 'image', count: expect.any(Number), size: expect.any(Number) },
+    ]),
+  });
+
+  expect(await f.bridge.marketplaceFileView({ id, path: 'tools/run.sh' })).toEqual({
+    ok: true,
+    value: { path: 'tools/run.sh', size: 7, type: 'script', text: 'echo hi' },
+  });
+  expect(await f.bridge.marketplaceFileView({ id, path: 'notes/today.md' })).toMatchObject({
+    ok: true,
+    value: { type: 'markdown', text: 'Today I wrote.' },
+  });
+  expect(await f.bridge.marketplaceFileView({ id, path: '.botharness/avatar.png' })).toMatchObject({
+    ok: false,
+    error: { code: 'file-not-text' },
+  });
+  expect(await f.bridge.marketplaceFileView({ id, path: '' })).toMatchObject({
+    ok: false,
+    error: { code: 'invalid-input' },
+  });
+});
+
 it('lists, replaces and deletes my uploads, marking earlier installs as author-updated', async () => {
   const f = fixture();
   const { slug, memory } = sourceBot(f);

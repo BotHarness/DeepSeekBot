@@ -841,6 +841,7 @@ describe('bridge typert service', () => {
       'marketplaceSubmit',
       'marketplaceTopics',
       'marketplaceDetail',
+      'marketplaceFileView',
       'marketplaceChallenge',
       'marketplaceReport',
       'marketplaceAccount',
@@ -964,6 +965,7 @@ describe('bridge typert service', () => {
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);
+    expect(parameterNames(service.marketplaceFileView)).toEqual(['id', 'path']);
     expect(parameterNames(service.marketplaceDetail)).toEqual(['id', 'lang']);
     expect(parameterNames(service.marketplaceSubmit)).toEqual(['url', 'altcha']);
     expect(parameterNames(service.marketplaceChallenge)).toEqual([]);

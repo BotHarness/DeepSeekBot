@@ -7,6 +7,28 @@ export const MAX_UPLOAD_PATH_LENGTH = 300;
 
 export type UploadFileKind = 'text' | 'script' | 'image';
 
+export type UploadFileType = 'markdown' | 'text' | 'data' | 'script' | 'image';
+
+export const UPLOAD_FILE_TYPES: readonly UploadFileType[] = [
+  'markdown',
+  'text',
+  'data',
+  'script',
+  'image',
+];
+
+export interface FileTypeSummary {
+  type: UploadFileType;
+  count: number;
+  size: number;
+}
+
+export interface FileSummary {
+  count: number;
+  size: number;
+  types: FileTypeSummary[];
+}
+
 const TEXT = new Set([
   'md',
   'markdown',
@@ -77,6 +99,23 @@ const SCRIPT = new Set([
   'applescript',
 ]);
 
+const MARKDOWN = new Set(['md', 'markdown', 'mdx']);
+const DATA = new Set([
+  'json',
+  'jsonc',
+  'jsonl',
+  'ndjson',
+  'yaml',
+  'yml',
+  'toml',
+  'ini',
+  'cfg',
+  'conf',
+  'csv',
+  'tsv',
+  'xml',
+]);
+
 const IMAGE: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
@@ -114,6 +153,34 @@ export function uploadFileKind(path: string): UploadFileKind | undefined {
   if (IMAGE[ext] !== undefined) return 'image';
   if (SCRIPT.has(ext)) return 'script';
   return TEXT.has(ext) ? 'text' : undefined;
+}
+
+export function uploadFileType(path: string, kind: UploadFileKind): UploadFileType {
+  if (kind !== 'text') return kind;
+  const ext = extension(path.split('/').at(-1) ?? '');
+  if (ext !== undefined && MARKDOWN.has(ext)) return 'markdown';
+  return ext !== undefined && DATA.has(ext) ? 'data' : 'text';
+}
+
+export function summarizeFiles(
+  files: ReadonlyArray<{ path: string; size: number; kind: UploadFileKind }>,
+): FileSummary {
+  const totals = new Map<UploadFileType, FileTypeSummary>();
+  let size = 0;
+  for (const file of files) {
+    const type = uploadFileType(file.path, file.kind);
+    const entry = totals.get(type) ?? { type, count: 0, size: 0 };
+    entry.count += 1;
+    entry.size += file.size;
+    totals.set(type, entry);
+    size += file.size;
+  }
+  const types = [...totals.values()].sort(
+    (left, right) =>
+      right.size - left.size ||
+      UPLOAD_FILE_TYPES.indexOf(left.type) - UPLOAD_FILE_TYPES.indexOf(right.type),
+  );
+  return { count: files.length, size, types };
 }
 
 export function imageContentType(path: string): string | undefined {

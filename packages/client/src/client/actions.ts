@@ -42,6 +42,7 @@ import type {
   MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceTopic,
@@ -211,6 +212,7 @@ import {
   loadOverviewMemory,
   loadOverviewUsage,
   loadMarketplaceDetail,
+  loadMarketplaceFile,
   loadMarketplacePage,
   loadMarketplaceTopics,
   submitMarketplaceRepository,
@@ -885,6 +887,7 @@ export interface BridgeActions {
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
+  marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
   marketplaceAuthorSave(
     displayName: string,
@@ -2738,6 +2741,7 @@ export function createActions(
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
+    marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
     marketplaceAccount: () => invoke('marketplaceAccount', {}),
     marketplaceAuthorSave: (displayName, acceptTerms) =>
       invoke('marketplaceAuthorSave', { displayName, acceptTerms }),

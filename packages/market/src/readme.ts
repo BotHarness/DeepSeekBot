@@ -3,6 +3,7 @@ export interface ReadmeSource {
   name: string;
   ref: string;
   filesBase?: string;
+  directory?: string;
 }
 
 const FENCE = /^( {0,3})(`{3,}|~{3,})/u;
@@ -50,7 +51,12 @@ export function rewriteUrl(
   if (url.startsWith('//')) return `https:${url}`;
   if (SCHEME.test(url)) return SAFE_SCHEME.test(url) ? url : undefined;
   const [pathPart = '', fragment] = url.split('#', 2);
-  const path = resolvePath(pathPart.split('?')[0] ?? '');
+  const relative = pathPart.split('?')[0] ?? '';
+  const path = resolvePath(
+    source.directory === undefined || relative.startsWith('/')
+      ? relative
+      : `${source.directory}/${relative}`,
+  );
   const base =
     source.filesBase !== undefined
       ? source.filesBase

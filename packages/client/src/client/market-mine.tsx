@@ -15,8 +15,8 @@ import { PanelDialog } from './ds/panel-dialog.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketUploadDialog } from './market-upload.js';
+import { fileSize } from './market-files.js';
 import {
-  fileSize,
   marketplaceError,
   marketplaceLanguage,
   marketplaceName,

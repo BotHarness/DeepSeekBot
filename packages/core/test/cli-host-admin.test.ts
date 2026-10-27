@@ -103,6 +103,7 @@ describe('Bot Marketplace commands', () => {
     await invoke(['marketplace-list', '--sort', 'created'], live.url);
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
     await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
+    await invoke(['marketplace-file', 'U_abc', 'notes/today.md'], live.url);
     expect(live.calls).toEqual([
       { method: 'marketplaceList', args: { query: {} } },
       {
@@ -113,6 +114,7 @@ describe('Bot Marketplace commands', () => {
       { method: 'marketplaceList', args: { query: { sort: 'created' } } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
+      { method: 'marketplaceFileView', args: { id: 'U_abc', path: 'notes/today.md' } },
     ]);
   });
 
@@ -122,6 +124,7 @@ describe('Bot Marketplace commands', () => {
       ['marketplace-list', '--sort', 'newest'],
       ['marketplace-list', 'extra'],
       ['marketplace-detail'],
+      ['marketplace-file', 'U_abc'],
       ['marketplace-topics', '--sort', 'stars'],
       ['marketplace-list', '--lang', 'fr'],
       ['marketplace-topics', '--lang', 'zh'],

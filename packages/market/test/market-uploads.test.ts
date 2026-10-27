@@ -204,6 +204,16 @@ describe('Uploading a Bot', () => {
       { path: 'notes/today.md', size: expect.any(Number), kind: 'text' },
       { path: 'tools/run.sh', size: expect.any(Number), kind: 'script' },
     ]);
+    expect(detail['fileSummary']).toEqual({
+      count: 6,
+      size: expect.any(Number),
+      types: [
+        { type: 'data', count: 1, size: expect.any(Number) },
+        { type: 'markdown', count: 3, size: expect.any(Number) },
+        { type: 'image', count: 1, size: PNG.byteLength },
+        { type: 'script', count: 1, size: 'echo hi'.length },
+      ],
+    });
     const base = `https://market.test/v1/bots/${String(bot['id'])}/files`;
     expect(detail['readme']).toBe(
       `# Helper\n![avatar](<${base}/.botharness/avatar.png>) [notes](<${base}/notes/today.md>)`,
@@ -222,6 +232,49 @@ describe('Uploading a Bot', () => {
     expect(image.headers.get('content-type')).toBe('image/png');
     expect(new Uint8Array(await image.arrayBuffer())).toEqual(PNG);
     expect((await market.request(`/v1/bots/${bot.id}/files/missing.md`)).status).toBe(404);
+  });
+
+  it('serves text files for reading: Markdown prepared like a README, scripts verbatim', async () => {
+    const market = createMarket();
+    await becomeAuthor(market);
+    const { bot } = (await (
+      await upload(market, {
+        ...BOT_FILES,
+        'notes/deep.md':
+          '# Deep\n<script>alert(1)</script>![pic](../.botharness/avatar.png) [x](javascript:alert(1))',
+        'tools/run.sh': '# not a heading\n<b>echo</b> [hi](javascript:alert(1))',
+      })
+    ).json()) as { bot: { id: string } };
+    const view = async (path: string) => market.request(`/v1/bots/${bot.id}/view/${path}`);
+
+    const markdown = await view('notes/deep.md');
+    expect(markdown.status).toBe(200);
+    const base = `https://market.test/v1/bots/${bot.id}/files`;
+    expect(await markdown.json()).toEqual({
+      file: {
+        path: 'notes/deep.md',
+        size: expect.any(Number),
+        type: 'markdown',
+        text: `# Deep\n![pic](<${base}/.botharness/avatar.png>) x`,
+      },
+    });
+
+    const script = (await (await view('tools/run.sh')).json()) as { file: Record<string, unknown> };
+    expect(script.file).toMatchObject({
+      type: 'script',
+      text: '# not a heading\n<b>echo</b> [hi](javascript:alert(1))',
+    });
+    const data = (await (await view('.botharness/bot.json')).json()) as {
+      file: Record<string, unknown>;
+    };
+    expect(data.file['type']).toBe('data');
+
+    expect((await view('.botharness/avatar.png')).status).toBe(415);
+    expect(await (await view('.botharness/avatar.png')).json()).toEqual({
+      error: { code: 'file-not-text' },
+    });
+    expect((await view('missing.md')).status).toBe(404);
+    expect((await market.request(`/v1/bots/R_other/view/SOUL.md`)).status).toBe(404);
   });
 
   it('enforces the allowlist and size limits with coded refusals', async () => {
