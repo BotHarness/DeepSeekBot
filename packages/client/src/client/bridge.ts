@@ -3809,9 +3809,18 @@ export async function loadHostFolders(
   call: BridgeCall,
   path?: string,
   signal?: AbortSignal,
+  offset?: number,
 ): Promise<import('../../../core/src/workspaces/folder-browse.js').FolderListing> {
   const value = asRecord(
-    await unwrap(call, 'folderBrowse', path === undefined ? {} : { path }, signal),
+    await unwrap(
+      call,
+      'folderBrowse',
+      {
+        ...(path === undefined ? {} : { path }),
+        ...(offset === undefined || offset === 0 ? {} : { offset }),
+      },
+      signal,
+    ),
   );
   const folders = (items: unknown): { name: string; path: string; hidden: boolean }[] => {
     if (!Array.isArray(items)) throw new Error('Invalid Host folder list');
@@ -3838,7 +3847,9 @@ export async function loadHostFolders(
     truncated: value['truncated'],
     crumbs: folders(value['crumbs']),
     entries: folders(value['entries']),
+    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
     roots: folders(value['roots']),
+    ...(value['nativePicker'] === true ? { nativePicker: true } : {}),
   };
 }
 

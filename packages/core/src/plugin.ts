@@ -2383,6 +2383,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     git,
     release: releaseService,
   });
+  const folders = createFolderBrowser({
+    nativePicker: () =>
+      (
+        ctx.get('directoryPicker') as unknown as { capability?(): { kind?: string } } | undefined
+      )?.capability?.().kind === 'native',
+  });
+  ctx.effect(() => () => folders.close(), 'botharness: folder reader');
   const bridgeMethods = createBridgeMethods({
     prompts: core.prompts,
     botContext: async (slug) => {
@@ -2555,7 +2562,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     humanAttention: core.humanAttention,
     humanAttentionDecisions: core.humanAttentionDecisions,
     grants: core.grants,
-    folders: createFolderBrowser(),
+    folders,
     externalMessaging: core.externalMessaging,
     toolApproval,
     userQuestions,

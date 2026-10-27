@@ -167,7 +167,7 @@ deepseekbot ask-secret-revoke <channel-id> --message-id <configured-card-id>
 deepseekbot ask-secret-accounts <bot-id>
 deepseekbot release-info [--since <version>]
 deepseekbot workspace-options
-deepseekbot folder-browse [<folder-path>]
+deepseekbot folder-browse [<folder-path>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -942,9 +942,10 @@ deepseekbot grants <bot-id>
 ```bash
 deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
+deepseekbot folder-browse 'D:\code' --offset 500
 ```
 
-`folder-browse` lists the subfolders of one Host folder, the same way the desktop Workspace Grant browser does, and the phone picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, roots}`: folder names and paths only, never files. `roots` holds the home folder and the drives (Windows) or `/`. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory` or `folder-browse/denied`. Browsing grants nothing: register the chosen path and grant it as above.
+`folder-browse` lists the subfolders of one Host folder, the same way the desktop Workspace Grant browser does, and the phone picker does when the computer uses the system folder dialog. With no path it starts at the Host home. It returns `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`: folder names and paths only, never files, at most 500 per page. While `truncated` is true, pass `nextOffset` back as `--offset` for the next page. `roots` holds the home folder and the drives (Windows, read from the OS drive table without opening any drive) or `/`. `nativePicker: true` means the Host shows the system folder dialog, so the desktop Client opens that instead of this browser. The Host reads folders in a separate process with a 5 second deadline. A relative path fails `folder-browse/invalid-path`; a missing, non-folder or unreadable path fails `folder-browse/not-found`, `folder-browse/not-directory`, `folder-browse/denied` or `folder-browse/unreadable`; a folder that does not answer in time (for example a disconnected network drive) fails `folder-browse/timeout`. Browsing grants nothing: register the chosen path and grant it as above.
 
 ## Memory
 

@@ -207,7 +207,10 @@ export const vrmCompanionClientBundleOptions: UserConfig = {
 
 export default defineConfig([
   {
-    entry: ['packages/core/src/index.ts'],
+    entry: {
+      index: 'packages/core/src/index.ts',
+      'folder-browse-worker': 'packages/core/src/workspaces/folder-browse-worker.ts',
+    },
     outDir: 'packages/core/dist',
     define: { __BOTHARNESS_SOURCE__: JSON.stringify(sourceBuildStamp()) },
     format: ['esm'],
