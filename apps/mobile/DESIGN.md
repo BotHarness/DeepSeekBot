@@ -81,7 +81,13 @@ Time-driven animations (stream reveal, click ripple, long-press lift, fling-away
 
 ## iOS menus and native controls
 
-Android inline peer choices use Material 3 standard button groups (native `ToggleButton`s with controlled single selection). Topic filters use native borderless `FilterChip`s: inset fill when unselected and chosen fill when selected. iOS retains its segmented picker and existing chip styling.
+Android inline peer choices use Material 3 standard button groups (native `ToggleButton`s with controlled single selection). Topic filters use native borderless `FilterChip`s: inset fill when unselected and chosen fill when selected. iOS keeps its segmented picker.
+
+iOS choice controls are SwiftUI views behind the shared primitives (#3009):
+
+- **Chips** (`Chip`: feedback tags, Routine schedules, Marketplace topics) are a SwiftUI `Toggle` with `.toggleStyle(.button)`, tinted with the accent. The selected chip carries the selected trait, and a count is part of its label.
+- **Single and multiple choices** in a list (`CheckmarkRow`: Marketplace topics, the Activity options sheet, the Bot picker through `ParticipantChoice`) are whole-row plain SwiftUI buttons with a trailing `checkmark` SF Symbol, as in Settings. A chosen row carries the selected trait. iOS has no radio buttons or checkboxes, so rows never draw one.
+- **The chat background sliders** (`PercentageSlider`) are the SwiftUI `Slider`, 0 to 100 in steps of 1. VoiceOver adjusts it natively and reads its value as a percentage.
 
 This applies [Native first](#native-first) to iOS menus, following the Apple HIG (the `ios-hig` skill maps each component to our stack). Build them with `@expo/ui` SwiftUI views or native navigation, not with React Native views drawn to look like them. On Android the same jobs use Material 3 components: a dropdown menu for ⋯ actions, an exposed dropdown menu or radio dialog for a single choice, and a Material dialog for confirmations.
 
