@@ -12,7 +12,6 @@ import { ActivityCountLink } from '../../src/ui/shell/activity-count-settings';
 import { HapticFeedbackSetting } from '../../src/ui/shell/haptic-feedback-setting';
 import { DeliveryReceiptSetting } from '../../src/ui/shell/delivery-receipt-setting';
 import { SHEET_GROUP } from '../../src/ui/chat/sheet';
-import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow } from '../../src/ui/primitives/settings-row';
 import { useStrings } from '../../src/ui/strings';
 import { SettingsView } from '../../src/ui/settings-view';
@@ -39,7 +38,7 @@ export default function SettingsScreen() {
         <SettingsRow
           on={SHEET_GROUP}
           title={t.chatBackground.global}
-          leading={<RowIcon name="background" />}
+          icon="background"
           disclosure
           onPress={() => router.push('/settings/chat-background')}
         />

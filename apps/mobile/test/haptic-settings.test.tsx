@@ -2,6 +2,7 @@
 import { act, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'raised' }));

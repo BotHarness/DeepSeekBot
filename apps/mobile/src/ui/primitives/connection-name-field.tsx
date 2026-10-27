@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { space } from '../design/tokens';
 import { Text } from './text';
 import { TextField } from './text-field';
+import { labelInField } from './field-label';
 import { useStrings } from '../strings';
 
 export function ConnectionNameField({
@@ -18,9 +19,11 @@ export function ConnectionNameField({
   const t = useStrings();
   return (
     <View style={{ gap: space.x2 }}>
-      <Text variant="meta" tone="muted">
-        {t.connectionName}
-      </Text>
+      {labelInField ? null : (
+        <Text variant="meta" tone="muted">
+          {t.connectionName}
+        </Text>
+      )}
       <TextField
         accessibilityLabel={t.connectionName}
         value={value}

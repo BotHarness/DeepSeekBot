@@ -1,4 +1,4 @@
-import { router, usePathname, useGlobalSearchParams } from 'expo-router';
+import { router, useIsFocused, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
@@ -77,6 +77,7 @@ import { ActivityIcon, ChatsIcon, CloudIcon, ComputerIcon, PlusIcon } from './ic
 import { noticeHostKept } from '../unpair-notice';
 import { chooseCloudWorkspace, showWorkspaceRoot } from './native-workspace-navigation';
 import { holdBack } from './back-owner';
+import { NativeHostDrawer, nativeHostDrawer } from './native-host-drawer';
 
 export const hostDrawer = createHostDrawer({
   switchTo: (hostId, current) => hostSession.switchTo(hostId, current),
@@ -96,6 +97,23 @@ const workspaceDirectory = createWorkspaceDirectory(cloudClient);
 const DRAG_START = 10;
 const VERTICAL_FAIL = 15;
 
+let docked = 0;
+const dockedWatchers = new Set<() => void>();
+
+function dock(by: number): void {
+  docked += by;
+  for (const watcher of dockedWatchers) watcher();
+}
+
+function watchDocked(watcher: () => void): () => void {
+  dockedWatchers.add(watcher);
+  return () => dockedWatchers.delete(watcher);
+}
+
+function useDocked(): boolean {
+  return useSyncExternalStore(watchDocked, () => docked > 0);
+}
+
 function hidden(): void {
   hostDrawer.hidden();
 }
@@ -113,7 +131,7 @@ function slide(open: boolean, velocity = 0): void {
 function settle(open: boolean, velocity = 0): void {
   if (open) hostDrawer.open();
   else hostDrawer.close();
-  slide(open, velocity);
+  if (docked === 0) slide(open, velocity);
 }
 
 function reveal(): void {
@@ -145,6 +163,60 @@ export function HostDrawerEdge({
   children: ReactNode;
   anywhere?: boolean;
   enabled?: boolean;
+}) {
+  if (anywhere && nativeHostDrawer) return <DockedHostDrawer>{children}</DockedHostDrawer>;
+  return (
+    <PanHostDrawerEdge anywhere={anywhere} enabled={enabled}>
+      {children}
+    </PanHostDrawerEdge>
+  );
+}
+
+function dockedOpenChange(open: boolean): void {
+  if (open) {
+    hostDrawer.open();
+    return;
+  }
+  hostDrawer.close();
+  hostDrawer.hidden();
+}
+
+function DockedHostDrawer({ children }: { children: ReactNode }) {
+  const t = useStrings();
+  const { hosts } = useHostSession();
+  const open = useHostDrawerOpen();
+  const focused = useIsFocused();
+  const mount = useMounted<ViewInstance>(() => {
+    if (!focused) return;
+    dock(1);
+    return () => {
+      dockedOpenChange(false);
+      dock(-1);
+    };
+  }, [focused]);
+  return (
+    <View ref={mount} style={{ flex: 1 }} collapsable={false}>
+      <NativeHostDrawer
+        open={open && focused}
+        enabled={hosts.length > 0}
+        closeLabel={t.closeWorkspaces}
+        panel={<HostDrawerPanel docked />}
+        onOpenChange={dockedOpenChange}
+      >
+        {children}
+      </NativeHostDrawer>
+    </View>
+  );
+}
+
+function PanHostDrawerEdge({
+  children,
+  anywhere,
+  enabled,
+}: {
+  children: ReactNode;
+  anywhere: boolean;
+  enabled: boolean;
 }) {
   const width = drawerWidth(useWindowDimensions().width, Platform.OS);
   const reduced = useReducedMotion();
@@ -629,7 +701,15 @@ function WorkspaceRow({
   );
 }
 
-export function WorkspacePanel({ active, page = false }: { active: boolean; page?: boolean }) {
+export function WorkspacePanel({
+  active,
+  page = false,
+  docked = false,
+}: {
+  active: boolean;
+  page?: boolean;
+  docked?: boolean;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
@@ -718,16 +798,18 @@ export function WorkspacePanel({ active, page = false }: { active: boolean; page
       if (!active || page) return;
 
       const focus = setTimeout(() => focusOn(node), motion.drawer);
-      const back = holdBack(() => {
-        settle(false);
-        return true;
-      });
+      const back = docked
+        ? undefined
+        : holdBack(() => {
+            settle(false);
+            return true;
+          });
       return () => {
         clearTimeout(focus);
-        back.remove();
+        back?.remove();
       };
     },
-    [active, page, hosts],
+    [active, page, docked, hosts],
   );
 
   const unpaired = unpairedAccountHosts(linked, hosts);
@@ -979,6 +1061,10 @@ export function WorkspacePanel({ active, page = false }: { active: boolean; page
 }
 
 export function HostDrawer() {
+  return useDocked() ? null : <HostDrawerPanel docked={false} />;
+}
+
+function HostDrawerPanel({ docked }: { docked: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
@@ -993,7 +1079,7 @@ export function HostDrawer() {
   }));
 
   const swipe = Gesture.Pan()
-    .enabled(state.open)
+    .enabled(state.open && !docked)
     .activeOffsetX(-DRAG_START)
     .failOffsetY([-VERTICAL_FAIL, VERTICAL_FAIL])
     .onUpdate((event) => {
@@ -1009,60 +1095,64 @@ export function HostDrawer() {
   return (
     <GestureDetector gesture={swipe}>
       <View
-        style={StyleSheet.absoluteFill}
+        style={docked ? { flex: 1 } : StyleSheet.absoluteFill}
         pointerEvents={state.open ? 'auto' : 'none'}
         accessibilityElementsHidden={!state.open}
         importantForAccessibility={state.open ? 'auto' : 'no-hide-descendants'}
       >
         {state.open ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: theme.scheme === 'dark' ? theme.layer.canvas.fill : theme.color.fg,
-            },
-            backdropStyle,
-          ]}
-        >
-          <Pressable
-            style={{ flex: 1 }}
-            accessibilityRole="button"
-            accessibilityLabel={t.closeWorkspaces}
-            onPress={() => settle(false)}
-          />
-        </Animated.View>
+        {docked ? null : (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: theme.scheme === 'dark' ? theme.layer.canvas.fill : theme.color.fg,
+              },
+              backdropStyle,
+            ]}
+          >
+            <Pressable
+              style={{ flex: 1 }}
+              accessibilityRole="button"
+              accessibilityLabel={t.closeWorkspaces}
+              onPress={() => settle(false)}
+            />
+          </Animated.View>
+        )}
         <Animated.View
           accessibilityViewIsModal
           accessible={false}
           onAccessibilityEscape={() => settle(false)}
           style={[
-            glass
-              ? {
-                  position: 'absolute',
-                  top: sidebar.inset,
-                  bottom: sidebar.inset,
-                  left: sidebar.inset,
-                  width,
-                  borderRadius: sidebar.radius,
-                  overflow: 'hidden',
-                }
-              : {
-                  position: 'absolute',
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  width,
-                  backgroundColor: theme.overlay.fill,
-                  borderTopRightRadius: radius.lg,
-                  borderBottomRightRadius: radius.lg,
-                  boxShadow: glassShadow(theme.scheme),
-                  overflow: 'hidden',
-                },
-            panelStyle,
+            docked
+              ? { flex: 1 }
+              : glass
+                ? {
+                    position: 'absolute',
+                    top: sidebar.inset,
+                    bottom: sidebar.inset,
+                    left: sidebar.inset,
+                    width,
+                    borderRadius: sidebar.radius,
+                    overflow: 'hidden',
+                  }
+                : {
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    width,
+                    backgroundColor: theme.overlay.fill,
+                    borderTopRightRadius: radius.lg,
+                    borderBottomRightRadius: radius.lg,
+                    boxShadow: glassShadow(theme.scheme),
+                    overflow: 'hidden',
+                  },
+            docked ? undefined : panelStyle,
           ]}
         >
           {glass ? <SidebarMaterial cornerRadius={sidebar.radius} /> : null}
-          <WorkspacePanel active={state.open} />
+          <WorkspacePanel active={state.open} docked={docked} />
         </Animated.View>
       </View>
     </GestureDetector>

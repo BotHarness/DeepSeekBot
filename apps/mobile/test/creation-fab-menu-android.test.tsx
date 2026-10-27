@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
+import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
@@ -10,6 +10,10 @@ vi.mock('react-native', async () => ({
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: 1 }),
 }));
 vi.mock('react-native-reanimated', () => ({ useReducedMotion: () => true }));
+vi.mock('@expo/ui/jetpack-compose', () => ({
+  Host: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ testID: (testID: string) => ({ testID }) }));
 vi.mock('../src/cloud/available', () => ({ cloudAvailable: true }));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('../src/ui/shell/back-owner', () => ({

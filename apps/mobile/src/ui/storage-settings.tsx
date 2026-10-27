@@ -22,12 +22,9 @@ import { radius, space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
 import { confirmDestructive, showAppDialog } from './primitives/app-dialog';
-import { RowIcon } from './primitives/row-icon';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
-import { Toggle } from './primitives/toggle';
 import { ActionButton, LoadFailed, Loading, Notice, errorText } from './request-parts';
-import { CheckIcon } from './shell/icons';
 import { useStrings, t } from './strings';
 
 export interface StorageSettingsPort {
@@ -245,11 +242,7 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                     }}
                   />
                 }
-                trailing={
-                  <Text tone="muted" style={{ fontVariant: ['tabular-nums'] }}>
-                    {storageSize(part.bytes)}
-                  </Text>
-                }
+                control={{ kind: 'value', text: storageSize(part.bytes) }}
               />
             ))}
           </SettingsSection>
@@ -273,11 +266,7 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                 key={choice}
                 title={choice === 'media' ? t.storage.targetMedia : t.storage.targetMessages}
                 selected={target === choice}
-                trailing={
-                  target === choice ? (
-                    <CheckIcon size={space.x5} color={theme.color.accent} />
-                  ) : undefined
-                }
+                control={target === choice ? { kind: 'check' } : undefined}
                 onPress={() => setTarget(choice)}
               />
             ))}
@@ -293,11 +282,7 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                     key={choice}
                     title={t.storage.age[choice]}
                     selected={age === choice}
-                    trailing={
-                      age === choice ? (
-                        <CheckIcon size={space.x5} color={theme.color.accent} />
-                      ) : undefined
-                    }
+                    control={age === choice ? { kind: 'check' } : undefined}
                     onPress={() => setAge(choice)}
                   />
                 ))}
@@ -309,20 +294,16 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                       on="raised"
                       key={kind}
                       title={t.storage.kind[kind]}
-                      trailing={
-                        <Toggle
-                          on="raised"
-                          label={t.storage.kind[kind]}
-                          value={kinds.includes(kind)}
-                          onChange={(enabled) =>
-                            setKinds((current) =>
-                              STORAGE_MEDIA_KINDS.filter((item) =>
-                                item === kind ? enabled : current.includes(item),
-                              ),
-                            )
-                          }
-                        />
-                      }
+                      control={{
+                        kind: 'switch',
+                        value: kinds.includes(kind),
+                        onChange: (enabled) =>
+                          setKinds((current) =>
+                            STORAGE_MEDIA_KINDS.filter((item) =>
+                              item === kind ? enabled : current.includes(item),
+                            ),
+                          ),
+                      }}
                     />
                   ))}
                 </SettingsSection>
@@ -340,20 +321,16 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
                           ? t.storage.messages.count(chat.messages)
                           : storageSize(chat.mediaBytes)
                       }
-                      trailing={
-                        <Toggle
-                          on="raised"
-                          label={name}
-                          value={!excluded.includes(chat.channelId)}
-                          onChange={(enabled) =>
-                            setExcluded((current) =>
-                              enabled
-                                ? current.filter((id) => id !== chat.channelId)
-                                : [...current, chat.channelId],
-                            )
-                          }
-                        />
-                      }
+                      control={{
+                        kind: 'switch',
+                        value: !excluded.includes(chat.channelId),
+                        onChange: (enabled) =>
+                          setExcluded((current) =>
+                            enabled
+                              ? current.filter((id) => id !== chat.channelId)
+                              : [...current, chat.channelId],
+                          ),
+                      }}
                     />
                   );
                 })}
@@ -375,7 +352,8 @@ export function StorageSettings({ port }: { port: StorageSettingsPort }) {
         <SettingsRow
           on="raised"
           title={t.storage.imageCache}
-          leading={<RowIcon name="background" color={theme.color.accent} />}
+          icon="background"
+          iconTone="accent"
           tone="accent"
           onPress={clearImageCache}
         />

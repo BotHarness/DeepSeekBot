@@ -9,12 +9,10 @@ import {
   type Loadable,
   type WorkspaceOption,
 } from '../../host/bot-settings';
-import { useDesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { TextField } from '../primitives/text-field';
-import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import {
   Sheet,
@@ -26,7 +24,7 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
-import { Crumbs, Grouped, locationSection, OpenFolderTarget, RowIcon } from './workspace-sheet';
+import { Crumbs, Grouped, locationSection, OpenFolderTarget } from './workspace-sheet';
 
 export interface FolderPickerPort {
   listFolders(path?: string): Promise<HostFolderListing>;
@@ -52,7 +50,6 @@ export function FolderPickerSheet({
   onClose(): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [listing, setListing] = useState<Loadable<HostFolderListing>>({ status: 'loading' });
   const [options, setOptions] = useState<WorkspaceOption[]>([]);
   const [chosen, setChosen] = useState<WorkspaceOption>();
@@ -111,13 +108,14 @@ export function FolderPickerSheet({
         onClose={close}
       >
         {start}
-        <ScrollView testID="grant-confirm-scroll" style={{ flexShrink: 1 }}>
+        <ScrollView nestedScrollEnabled testID="grant-confirm-scroll" style={{ flexShrink: 1 }}>
           {notice}
           <SettingsGroupItem first last on={SHEET_GROUP}>
             <SettingsRow
               title={chosen.title}
               detail={chosen.path}
-              leading={<RowIcon kind="folder" />}
+              icon="folder"
+              iconTone="muted"
               on={SHEET_GROUP}
             />
           </SettingsGroupItem>
@@ -215,6 +213,7 @@ export function FolderPickerSheet({
         Row,
         { key: string; title: string; footer?: string | undefined; data: readonly Row[] }
       >
+        nestedScrollEnabled
         style={{ flexShrink: 1 }}
         sections={sections}
         keyExtractor={(row) => row.key}
@@ -238,17 +237,17 @@ export function FolderPickerSheet({
               <SettingsRow
                 title={item.option.title}
                 detail={item.option.path}
-                leading={<RowIcon kind="folder" />}
+                icon="folder"
+                iconTone="muted"
                 on={SHEET_GROUP}
                 onPress={busy === undefined ? () => choose(item.option.path) : undefined}
               />
             ) : (
               <SettingsRow
                 title={item.folder.name}
-                leading={<RowIcon kind="folder" />}
-                trailing={
-                  <ChevronRightIcon color={theme.color.subtle} size={theme.type.meta.line} />
-                }
+                icon="folder"
+                iconTone="muted"
+                control={{ kind: 'chevron' }}
                 on={SHEET_GROUP}
                 onPress={busy === undefined ? () => browse(item.folder.path) : undefined}
               />
