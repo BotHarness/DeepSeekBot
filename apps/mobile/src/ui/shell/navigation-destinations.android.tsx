@@ -1,32 +1,22 @@
 import {
+  BadgedBox,
   Host,
   NavigationBar,
   NavigationBarItem,
   Icon,
-  Box,
   Text,
-  AnimatedVisibility,
-  EnterTransition,
-  ExitTransition,
 } from '@expo/ui/jetpack-compose';
-import {
-  fillMaxWidth,
-  semantics,
-  testID,
-  weight,
-  defaultMinSize,
-} from '@expo/ui/jetpack-compose/modifiers';
-import { useReducedMotion } from 'react-native-reanimated';
+import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
 import { useDesignTheme } from '../design/theme';
 import { materialNavigationBar } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
+import { MaterialDotBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 
 export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const reduced = useReducedMotion();
   const colors = {
     selectedIconColor: theme.color.fg,
     selectedTextColor: theme.color.fg,
@@ -52,17 +42,17 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
           const showCount = item.activity && item.count > 0;
           const normal = item.settings ? t.settings : item.activity ? t.activity : t.chats;
           const pending = t.activityPendingLabel(badgeCount(item.count));
-
-          const text = (value: string) => (
-            <Text
-              style={{
-                typography: 'titleMedium',
-                fontWeight: item.focused ? '600' : '500',
-                textAlign: 'center',
-              }}
-            >
-              {value}
-            </Text>
+          const icon = (
+            <Icon
+              source={
+                item.settings
+                  ? require('../../../assets/toolbar/settings.xml')
+                  : item.activity
+                    ? require('../../../assets/toolbar/activity.xml')
+                    : require('../../../assets/toolbar/chats.xml')
+              }
+              size={materialNavigationBar.iconSize}
+            />
           );
           return (
             <NavigationBarItem
@@ -87,58 +77,16 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
               ]}
             >
               <NavigationBarItem.Icon>
-                <Box
-                  contentAlignment="center"
-                  modifiers={[
-                    defaultMinSize({
-                      minWidth: materialNavigationBar.iconSize,
-                      minHeight: materialNavigationBar.iconSize,
-                    }),
-                  ]}
-                >
-                  {reduced ? (
-                    showCount ? (
-                      text(badgeCount(item.count))
-                    ) : (
-                      <Icon
-                        source={
-                          item.settings
-                            ? require('../../../assets/toolbar/settings.xml')
-                            : item.activity
-                              ? require('../../../assets/toolbar/activity.xml')
-                              : require('../../../assets/toolbar/chats.xml')
-                        }
-                        size={materialNavigationBar.iconSize}
-                      />
-                    )
-                  ) : (
-                    <>
-                      <AnimatedVisibility
-                        visible={!showCount}
-                        enterTransition={EnterTransition.fadeIn()}
-                        exitTransition={ExitTransition.fadeOut()}
-                      >
-                        <Icon
-                          source={
-                            item.settings
-                              ? require('../../../assets/toolbar/settings.xml')
-                              : item.activity
-                                ? require('../../../assets/toolbar/activity.xml')
-                                : require('../../../assets/toolbar/chats.xml')
-                          }
-                          size={materialNavigationBar.iconSize}
-                        />
-                      </AnimatedVisibility>
-                      <AnimatedVisibility
-                        visible={showCount}
-                        enterTransition={EnterTransition.fadeIn()}
-                        exitTransition={ExitTransition.fadeOut()}
-                      >
-                        {text(badgeCount(item.count))}
-                      </AnimatedVisibility>
-                    </>
-                  )}
-                </Box>
+                {showCount ? (
+                  <BadgedBox>
+                    <BadgedBox.Badge>
+                      <MaterialDotBadge tone="needs-you" />
+                    </BadgedBox.Badge>
+                    {icon}
+                  </BadgedBox>
+                ) : (
+                  icon
+                )}
               </NavigationBarItem.Icon>
               <NavigationBarItem.Label>
                 <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{normal}</Text>

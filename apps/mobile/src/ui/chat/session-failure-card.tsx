@@ -1,10 +1,9 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import type { HostClient } from '../../host/client';
 import { createFailureMaintenance, type SessionFailure } from '../../host/session-failure';
-import { Text } from '../primitives/text';
 import { Button } from '../primitives/button';
 import { t } from '../strings';
-import { ActionCard, CardButtons, DetailRow } from './action-card';
+import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';
 
 export function SessionFailureCard({
   client,
@@ -50,7 +49,11 @@ export function SessionFailureCard({
               ? t.sessionRecovery.outputLimit
               : t.sessionRecovery.details
       }
-      preview={refusal?.[1] === undefined ? undefined : <Text>{refusal[1]}</Text>}
+      preview={
+        refusal?.[1] === undefined ? undefined : (
+          <CardPreview text={refusal[1]} well={false} variant="body" />
+        )
+      }
       details={<DetailRow label={t.sessionRecovery.details} value={failure.detail} />}
     >
       <CardButtons>
@@ -83,7 +86,11 @@ export function SessionFailureCard({
           />
         ) : null}
       </CardButtons>
-      {state.notice ? <Text accessibilityLiveRegion="polite">{notices[state.notice]}</Text> : null}
+      {state.notice ? (
+        <CardNote variant="body" live>
+          {notices[state.notice]}
+        </CardNote>
+      ) : null}
     </ActionCard>
   );
 }
