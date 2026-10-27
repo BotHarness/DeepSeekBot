@@ -26,7 +26,7 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       native.change = onValueChange;
       return createElement('div', null, children);
     },
-    { Label: Slot, Placeholder: Slot },
+    { Label: Slot, Placeholder: Slot, SupportingText: Slot },
   );
   return {
     Host: Slot,

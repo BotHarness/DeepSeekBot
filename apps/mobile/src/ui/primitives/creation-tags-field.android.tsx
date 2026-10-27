@@ -13,7 +13,6 @@ import { space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { CreationField } from './creation-field';
 import type { CreationTagsFieldProps } from './creation-tags-field';
-import { Text } from './text';
 
 export function CreationTagsField({ value, onChange, disabled }: CreationTagsFieldProps) {
   const theme = useDesignTheme();
@@ -68,6 +67,7 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
       <CreationField
         testID="create-bot-tags"
         accessibilityLabel={t.botCreation.tagInput}
+        supportingText={t.botCreation.tagInputHint}
         value={value.tagInput ?? ''}
         autoCapitalize="none"
         autoCorrect={false}
@@ -79,9 +79,6 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
           if (!disabled) onChange({ kind: 'add', value: text });
         }}
       />
-      <Text variant="meta" tone="muted">
-        {t.botCreation.tagInputHint}
-      </Text>
     </View>
   );
 }

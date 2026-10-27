@@ -7,9 +7,10 @@ import { Text } from './text';
 
 export type CreationFieldProps = ComponentProps<typeof TextField> & {
   onSubmitValue?(value: string): void;
+  supportingText?: string;
 };
 
-export function CreationField({ onSubmitValue, ...props }: CreationFieldProps) {
+export function CreationField({ onSubmitValue, supportingText, ...props }: CreationFieldProps) {
   const field = (
     <TextField
       {...props}
@@ -26,11 +27,23 @@ export function CreationField({ onSubmitValue, ...props }: CreationFieldProps) {
       <View style={{ gap: space.x2 }}>
         {props.accessibilityLabel ? <Text strong>{props.accessibilityLabel}</Text> : null}
         {field}
+        {supportingText ? (
+          <Text variant="meta" tone="muted">
+            {supportingText}
+          </Text>
+        ) : null}
       </View>
     );
   return (
     <SettingsSection {...(props.accessibilityLabel ? { title: props.accessibilityLabel } : {})}>
-      <View style={{ padding: space.x4 }}>{field}</View>
+      <View style={{ padding: space.x4 }}>
+        {field}
+        {supportingText ? (
+          <Text variant="meta" tone="muted">
+            {supportingText}
+          </Text>
+        ) : null}
+      </View>
     </SettingsSection>
   );
 }

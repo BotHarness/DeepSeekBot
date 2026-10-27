@@ -20,6 +20,7 @@ export function CreationField({
   testID: id,
   invalid,
   onSubmitValue,
+  supportingText,
 }: ComponentProps<typeof SharedCreationField>) {
   const theme = useDesignTheme();
   const focus = useContext(KeyboardFormNativeFocus);
@@ -83,6 +84,8 @@ export function CreationField({
             unfocusedLabelColor: theme.color.muted,
             focusedIndicatorColor: theme.color.accent,
             unfocusedIndicatorColor: theme.color.borderField,
+            focusedSupportingTextColor: theme.color.muted,
+            unfocusedSupportingTextColor: theme.color.muted,
           }}
           modifiers={[
             fillMaxWidth(),
@@ -99,6 +102,11 @@ export function CreationField({
             <TextField.Placeholder>
               <Text>{placeholder}</Text>
             </TextField.Placeholder>
+          ) : null}
+          {supportingText ? (
+            <TextField.SupportingText>
+              <Text>{supportingText}</Text>
+            </TextField.SupportingText>
           ) : null}
         </TextField>
       </Host>
