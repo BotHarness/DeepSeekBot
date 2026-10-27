@@ -35,11 +35,11 @@ data class PrimaryTabRowProps(
 ) : ComposeProps
 
 @Composable
-fun FunctionalComposableScope.PrimaryTabRowContent(props: PrimaryTabRowProps, onTabSelect: (String) -> Unit) {
+fun FunctionalComposableScope.PrimaryTabRowContent(props: PrimaryTabRowProps, onSelect: (String) -> Unit) {
   PrimaryTabs(
     tabs = props.tabs.map { TabItem(it.value, it.label, it.dotColor.composeOrNull, it.accessibilityLabel ?: it.label) },
     selected = props.selected,
-    onTabSelect = onTabSelect,
+    onSelect = onSelect,
     modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher),
     containerColor = props.containerColor.composeOrNull,
   )
