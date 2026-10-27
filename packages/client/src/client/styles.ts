@@ -3280,13 +3280,10 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 .bh-timeline-newer-sentinel button:hover {
   color: var(--dsw-alias-label-primary);
 }
-.bh-message-block + .bh-message-block {
-  margin-top: ${space.x4};
+.bh-message-block[data-follows] {
+  padding-top: ${space.x4};
 }
-/* Far from the viewport: skip style, layout and paint; the measured height is kept inline.
-   A skipped block has no content-based minimum height, so the column must not shrink it. */
-.bh-message-block[data-offscreen] {
-  content-visibility: hidden;
+.bh-timeline-gap {
   flex-shrink: 0;
 }
 .bh-message-day {

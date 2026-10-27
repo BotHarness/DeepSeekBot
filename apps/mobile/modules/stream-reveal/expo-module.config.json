@@ -1,6 +1,9 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["expo.modules.streamreveal.StreamRevealModule"]
+    "modules": [
+      "expo.modules.streamreveal.StreamRevealModule",
+      "expo.modules.streamreveal.StreamSurfaceModule"
+    ]
   }
 }

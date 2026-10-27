@@ -205,7 +205,8 @@ describe('DM turn end to end', () => {
 
     expect(core.runtime.listAssignments('ada')).toEqual([
       expect.objectContaining({
-        purpose: '核对发布状态',
+        title: '核对发布状态',
+        description: '核对发布状态',
         permission: {
           grantId: 'grant-1',
           workspaceId: 'test-workspace',

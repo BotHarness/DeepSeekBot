@@ -110,13 +110,40 @@ export function commitMessagingDefaults(
   return value;
 }
 
+const WAKE_LOUDNESS: Record<string, number> = {
+  silent: 0,
+  context: 0,
+  mentions: 1,
+  digest: 2,
+  conditional: 2,
+  all: 3,
+  immediate: 3,
+};
+
+export function botWakeCeiling(
+  rule: BotSourcePolicy | undefined,
+): 'mentions' | 'silent' | undefined {
+  return rule?.overrideActive &&
+    rule.sourceClass === 'group-ordinary' &&
+    (rule.wake === 'mentions' || rule.wake === 'silent')
+    ? rule.wake
+    : undefined;
+}
+
+export function exceedsBotWakeCeiling(wake: string, rule: BotSourcePolicy | undefined): boolean {
+  const ceiling = botWakeCeiling(rule);
+  return ceiling !== undefined && (WAKE_LOUDNESS[wake] ?? 3) > WAKE_LOUDNESS[ceiling]!;
+}
+
 export function externalMemberWake(
   channel: ChannelRecord,
   botSlug: string,
   rule: BotSourcePolicy | undefined,
   defaults: MessagingDefaults<string>,
 ) {
-  const custom = channel.wakePolicies?.[botSlug];
+  const channelCustom = channel.wakePolicies?.[botSlug];
+  const custom =
+    channelCustom && !exceedsBotWakeCeiling(channelCustom.mode, rule) ? channelCustom : undefined;
   const policy =
     custom ??
     (rule?.overrideActive

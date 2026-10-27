@@ -319,6 +319,7 @@ export interface ProfileActivity {
 
 export interface ChannelListItem {
   id: string;
+  createdAt?: string;
   updatedAt?: string;
   type: 'dm' | 'group' | (string & {});
   name: string;

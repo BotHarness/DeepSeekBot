@@ -11,6 +11,8 @@ import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 import { ProfileZoomSource } from './profile-zoom-source';
+import { botBusy } from './bot-tone';
+import { stepLabel } from './bot-steps';
 
 const AVATAR = 28;
 
@@ -31,11 +33,13 @@ export function ChatTitle({
   const theme = useDesignTheme();
   const status = bot === undefined ? undefined : bot.paused ? t.paused : t.state[bot.state];
   const name = bot?.displayName ?? fallback;
+  const activity =
+    bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
   const chip = (press: (() => void) | undefined) => (
     <Pressable
       testID="bot-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={[name, status, connectionLabel].filter(Boolean).join(', ')}
+      accessibilityLabel={[name, activity ?? status, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
@@ -58,7 +62,7 @@ export function ChatTitle({
         <View style={{ width: AVATAR, height: AVATAR }} />
       )}
       <Text strong numberOfLines={1} style={[{ flexShrink: 1 }, barLabelStyle]}>
-        {name}
+        {activity ?? name}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
     </Pressable>

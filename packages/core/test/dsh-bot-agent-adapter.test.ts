@@ -32,7 +32,8 @@ const TOB_CLI_TOOL_NAMES = ['bot_create', ...TOB_GROUP_TOOL_CASES.map(([name]) =
 
 const ASSIGNMENT = {
   sessionId: 'assignment-1',
-  purpose: '核对发布状态',
+  title: '核对发布状态',
+  description: '核对发布状态',
   activity: 'working' as const,
   createdAt: '2026-09-17T00:00:00.000Z',
   updatedAt: '2026-09-17T00:00:00.000Z',
@@ -799,7 +800,7 @@ describe('DSH Bot Agent adapter', () => {
         adapter.runAssignment({
           sessionId: 'native-cancel-assignment',
           bot: BOT,
-          purpose: 'Cancelled work',
+          text: 'Cancelled work',
           permission: {
             grantId: 'grant-1',
             workspaceId: 'workspace-1',
@@ -913,7 +914,7 @@ describe('DSH Bot Agent adapter', () => {
         adapter.runAssignment({
           sessionId: 'native-error-assignment',
           bot: BOT,
-          purpose: 'Failing work',
+          text: 'Failing work',
           permission: {
             grantId: 'grant-1',
             workspaceId: 'workspace-1',
@@ -954,7 +955,10 @@ describe('DSH Bot Agent adapter', () => {
         onAgentCreated: () => {
           const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
           for (const [name, args] of [
-            ['create_assignment', { purpose: 'Continue A', grant_id: 'grant-1', key: 'a' }],
+            [
+              'create_assignment',
+              { title: 'Continue A', description: 'Continue A', grant_id: 'grant-1', key: 'a' },
+            ],
             ['send_assignment_request', { session_id: 'assignment-1', text: 'Continue A' }],
           ] as const) {
             const tool = tools.find((tool) => tool.name === name);
@@ -1441,7 +1445,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -1519,7 +1524,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -1613,7 +1619,8 @@ describe('DSH Bot Agent adapter', () => {
           inspect: () => undefined,
           stop: async () => ({
             sessionId: 'test',
-            purpose: 'test',
+            title: 'test',
+            description: 'test',
             activity: 'stopped',
             createdAt: '',
             updatedAt: '',
@@ -1870,7 +1877,8 @@ describe('DSH Bot Agent adapter', () => {
           inspect: () => undefined,
           stop: async () => ({
             sessionId: 'test',
-            purpose: 'test',
+            title: 'test',
+            description: 'test',
             activity: 'stopped',
             createdAt: '',
             updatedAt: '',
@@ -1934,7 +1942,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -2033,7 +2042,7 @@ describe('DSH Bot Agent adapter', () => {
       },
       assignments: {
         create: (input) => {
-          expect(input.purpose).toBe('核对发布状态');
+          expect(input.description).toBe('核对发布状态');
           return { outcome: 'created', assignment: ASSIGNMENT };
         },
         grants: () => [],
@@ -2041,7 +2050,8 @@ describe('DSH Bot Agent adapter', () => {
         inspect: () => undefined,
         stop: async () => ({
           sessionId: 'test',
-          purpose: 'test',
+          title: 'test',
+          description: 'test',
           activity: 'stopped',
           createdAt: '',
           updatedAt: '',
@@ -2052,7 +2062,7 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.runAssignment({
       sessionId: 'assignment-1',
       bot: BOT,
-      purpose: '核对发布状态',
+      text: '核对发布状态',
       permission: {
         grantId: 'grant-1',
         workspaceId: 'workspace-1',
@@ -2286,7 +2296,7 @@ describe('DSH Bot Agent adapter', () => {
           appliedAt: BOT.createdAt,
         },
       },
-      purpose: 'Inspect',
+      text: 'Inspect',
       modelRoute: { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' },
       permission: {
         grantId: 'grant-1',
@@ -2311,7 +2321,7 @@ describe('DSH Bot Agent adapter', () => {
     });
     const delivery = adapter.requestAssignment({
       ...selected,
-      purpose: 'Continue on Pro',
+      text: 'Continue on Pro',
       resume: true,
       modelRoute: { provider: 'deepseek', model: 'pro', reasoningEffort: 'off' },
     });
@@ -2346,7 +2356,7 @@ describe('DSH Bot Agent adapter', () => {
       const run: AssignmentAgentRun = {
         sessionId: 'inherited-assignment',
         bot: BOT,
-        purpose: 'Inspect',
+        text: 'Inspect',
         ...(retained === undefined ? {} : { modelRoute: retained }),
         permission: {
           grantId: 'grant-1',
@@ -2362,7 +2372,7 @@ describe('DSH Bot Agent adapter', () => {
       expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
       plan = { ...plan, revision: 2, orchestrator: { provider: 'chat', model: 'two' } };
       globalRoute = { provider: 'global', model: 'after' };
-      const next = adapter.requestAssignment({ ...run, resume: true, purpose: 'Continue' });
+      const next = adapter.requestAssignment({ ...run, resume: true, text: 'Continue' });
       if (next.delivery === 'followup') await next.done;
       expect(await host.selectedModel(run.sessionId)).toEqual(retained ?? globalRoute);
       await adapter.close();
@@ -2379,7 +2389,7 @@ describe('DSH Bot Agent adapter', () => {
     await adapter.runAssignment({
       sessionId: 'assignment-danger',
       bot: BOT,
-      purpose: 'Run pwd',
+      text: 'Run pwd',
       permission: {
         grantId: 'grant-1',
         workspaceId: 'workspace-1',
@@ -2419,7 +2429,7 @@ describe('DSH Bot Agent adapter', () => {
       const run: AssignmentAgentRun = {
         sessionId: 'acceptance-test',
         bot: BOT,
-        purpose: 'Answer',
+        text: 'Answer',
         resume: true,
         permission: {
           grantId: 'grant-1',
@@ -2470,7 +2480,7 @@ describe('DSH Bot Agent adapter', () => {
       const result = adapter.requestAssignment({
         sessionId: 'delayed-completion',
         bot: BOT,
-        purpose: 'Answer',
+        text: 'Answer',
         resume: true,
         permission: {
           grantId: 'grant-1',
@@ -2511,7 +2521,7 @@ describe('DSH Bot Agent adapter', () => {
     const run = {
       sessionId: 'assignment-1',
       bot: BOT,
-      purpose: '核对发布状态',
+      text: '核对发布状态',
       permission: {
         grantId: 'grant-1',
         workspaceId: 'workspace-1',
@@ -2612,7 +2622,8 @@ describe('DSH Bot Agent adapter', () => {
           inspect: () => undefined,
           stop: async () => ({
             sessionId: 'test',
-            purpose: 'test',
+            title: 'test',
+            description: 'test',
             activity: 'stopped',
             createdAt: '',
             updatedAt: '',
@@ -3123,6 +3134,8 @@ describe('Assignment Directory Tools', () => {
     const calls: Array<Promise<unknown>> = [];
     const queries: unknown[] = [];
     const archived: string[] = [];
+    const created: unknown[] = [];
+    const refusals: Array<Promise<unknown>> = [];
     const host = new FakeAgentHost(
       { kind: 'completed' },
       {
@@ -3153,6 +3166,23 @@ describe('Assignment Directory Tools', () => {
           );
           calls.push(
             tool('unarchive_assignment').execute({ session_id: 'a-1' }, {} as ToolRunContext),
+          );
+          calls.push(
+            tool('create_assignment').execute(
+              {
+                title: 'Check release notes',
+                description: 'Compare the draft release notes with merged PRs.',
+                instructions: 'Read CHANGELOG.md first.',
+                grant_id: 'grant-1',
+              },
+              {} as ToolRunContext,
+            ),
+          );
+          refusals.push(
+            tool('create_assignment').execute(
+              { description: 'No title given.', grant_id: 'grant-1' },
+              {} as ToolRunContext,
+            ),
           );
         },
       },
@@ -3191,7 +3221,10 @@ describe('Assignment Directory Tools', () => {
         }),
       },
       assignments: {
-        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
         grants: () => [],
         list: () => [],
         query: (input) => {
@@ -3233,8 +3266,21 @@ describe('Assignment Directory Tools', () => {
         { outcome: 'archived', sessionId: 'a-1', archivedAt: BOT.createdAt },
         { outcome: 'refused', code: 'assignment-active', sessionId: 'busy', activity: 'working' },
         { outcome: 'unarchived', sessionId: 'a-1' },
+        {
+          outcome: 'created',
+          sessionId: ASSIGNMENT.sessionId,
+          title: ASSIGNMENT.title,
+          description: ASSIGNMENT.description,
+        },
       ]);
       expect(archived).toEqual(['a-1']);
+      expect(created).toContainEqual({
+        title: 'Check release notes',
+        description: 'Compare the draft release notes with merged PRs.',
+        instructions: 'Read CHANGELOG.md first.',
+        grantId: 'grant-1',
+      });
+      await expect(refusals[0]).rejects.toThrow(/missing required property "title"/);
     } finally {
       await adapter.close();
     }

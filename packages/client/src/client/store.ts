@@ -282,7 +282,8 @@ export interface OwnedSessionSummary {
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   assignmentExecutionWait?: 'waiting-human' | 'waiting-capacity';
   assignmentArchived?: true;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
+  assignmentDescription?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
 }
@@ -430,7 +431,7 @@ export interface BotAttentionItem {
   sourceChannelName?: string;
   sourceMessageId?: string;
   assignmentSessionId?: string;
-  assignmentPurpose?: string;
+  assignmentTitle?: string;
   assignmentReportState?: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';
   scheduleId?: string;
   externalOrigin?: {

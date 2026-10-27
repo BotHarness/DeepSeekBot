@@ -23,6 +23,8 @@ export const INBOX_OPTIONS = {
   until: { type: 'string' },
   snoozed: { type: 'boolean' },
   dismissed: { type: 'boolean' },
+  activity: { type: 'string' },
+  'include-archived': { type: 'boolean' },
 } as const;
 
 export const INBOX_COMMANDS = [
@@ -51,6 +53,11 @@ export const INBOX_COMMANDS = [
     command: 'assignment-context',
     description: "read an assignment report's context from the Human Inbox",
   },
+  {
+    command: 'assignments',
+    description: "list or search a Bot's Assignments with their Title and Description",
+  },
+  { command: 'assignment', description: "inspect one of a Bot's Assignments" },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -108,11 +115,14 @@ export interface InboxValues {
   clear?: boolean;
   snoozed?: boolean;
   dismissed?: boolean;
+  activity?: string;
+  'include-archived'?: boolean;
 }
 
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
 const CATEGORIES = ['action', 'info', 'unread', 'replies', 'handled'];
+const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
 
 function usage(message: string): never {
   throw new CliLiveError('usage', message);
@@ -338,6 +348,39 @@ function prepare(
           sessionId: required(values.session, 'session', command),
           sourceEventId: required(values.source, 'source', command),
         },
+      };
+    }
+    case 'assignments': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const activity = values.activity
+        ?.split(',')
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+      if (activity?.some((value) => !ASSIGNMENT_ACTIVITIES.includes(value)))
+        usage(`--activity takes a comma list of ${ASSIGNMENT_ACTIVITIES.join(', ')}.`);
+      const limit = values.limit === undefined ? undefined : Number(values.limit);
+      if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 50))
+        usage('--limit must be an integer from 1 to 50.');
+      const query = values.search?.trim();
+      return {
+        method: 'assignments',
+        args: {
+          slug,
+          ...(query ? { query } : {}),
+          ...(activity === undefined || activity.length === 0 ? {} : { activity }),
+          ...(values['include-archived'] === true ? { includeArchived: true } : {}),
+          ...(limit === undefined ? { limit: 20 } : { limit }),
+          ...(values.cursor === undefined
+            ? {}
+            : { cursor: required(values.cursor, 'cursor', command) }),
+        },
+      };
+    }
+    case 'assignment': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'assignment',
+        args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }
     case 'channel-assignments': {

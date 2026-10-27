@@ -38,6 +38,7 @@ import { doubleTap, lift, motion, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { MessageBody } from './message-body';
 import { Text } from '../primitives/text';
+import { StreamSurface } from '../primitives/stream-surface';
 import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
 import {
@@ -126,7 +127,8 @@ export function BubbleBody({
   const human = message.author === 'human';
   const ink = human ? 'onAccent' : 'fg';
   return (
-    <View
+    <StreamSurface
+      active={streaming}
       style={{
         ...bubbleShape(human, group),
         ...fill,
@@ -158,7 +160,7 @@ export function BubbleBody({
           {t.card}
         </Text>
       ) : null}
-    </View>
+    </StreamSurface>
   );
 }
 

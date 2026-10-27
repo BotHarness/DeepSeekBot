@@ -92,7 +92,8 @@ function GroupWorkPanel({
       createdAt: assignment.createdAt,
       assignmentActivity: assignment.activity,
       ...(assignment.latestReport ? { assignmentReportState: assignment.latestReport.state } : {}),
-      assignmentPurpose: assignment.purpose,
+      assignmentTitle: assignment.title,
+      assignmentDescription: assignment.description,
     })),
     native.byId,
     'all',
@@ -127,8 +128,8 @@ function GroupWorkPanel({
             size={24}
           />
         }
-        title={assignment.purpose}
-        hint={name}
+        title={assignment.title}
+        hint={`${name}\n${assignment.description}`}
         mainClassName="bh-group-work-row"
         state={groupFor(assignment)}
         disabled={nativeSessions !== undefined && native.byId[assignment.sessionId] === undefined}

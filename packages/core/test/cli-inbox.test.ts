@@ -296,6 +296,50 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it("lists, searches and inspects a Bot's Assignments by Title and Description", async () => {
+    const live = await host(echo);
+    await invoke(['assignments', 'ada'], live.url);
+    await invoke(
+      [
+        'assignments',
+        'ada',
+        '--search',
+        ' export button ',
+        '--activity',
+        'idle, working',
+        '--include-archived',
+        '--limit',
+        '5',
+        '--cursor',
+        'c1',
+      ],
+      live.url,
+    );
+    await invoke(['assignment', 'ada', '--session', 'sess-1'], live.url);
+    for (const argv of [
+      ['assignments'],
+      ['assignments', 'ada', '--activity', 'busy'],
+      ['assignments', 'ada', '--limit', '0'],
+      ['assignment', 'ada'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'assignments', args: { slug: 'ada', limit: 20 } },
+      {
+        method: 'assignments',
+        args: {
+          slug: 'ada',
+          query: 'export button',
+          activity: ['idle', 'working'],
+          includeArchived: true,
+          limit: 5,
+          cursor: 'c1',
+        },
+      },
+      { method: 'assignment', args: { slug: 'ada', sessionId: 'sess-1' } },
+    ]);
+  });
+
   it('lists Bot Sessions, reads their owner and archives assignment Sessions', async () => {
     const live = await host(echo);
     await invoke(['session-ids'], live.url);
