@@ -204,6 +204,7 @@ import {
   borrowedAgentDenial,
   deviceToolAuthorization,
   grantExecutionDenial,
+  sessionRefusalMessage,
   grantToolExecutionDenial,
   orchestratorPermission,
   isDshGovernedTool,
@@ -1233,11 +1234,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const privateExecution = new ProtectedExecution((phase, details = {}) =>
     ctx.logger.info('private-input %j', { phase, ...details }),
   );
+  const turnRefusals = new Map<string, string>();
+  ctx.effect(() => () => turnRefusals.clear(), 'botharness: refused Turn reasons');
   const agentAdapter = createDshBotAgentAdapter({
     agents: ctx.agents,
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
+    turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
     subagentTools: (slug) =>
       createBotSubagentModelTools(ctx, () => core.registry.get(slug)?.modelPlan, config.subagent),
@@ -1686,10 +1690,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ctx.get('sandboxPolicy'),
         ctx.get('approval'),
       );
-      if (permissionDenial(agent.session) !== undefined) return { kind: 'reject' };
+      const denial = permissionDenial(agent.session);
+      if (denial !== undefined) {
+        turnRefusals.set(agent.session.id, sessionRefusalMessage(denial));
+        return { kind: 'reject' };
+      }
+      turnRefusals.delete(agent.session.id);
       const contextOwner = core.ownership.resolve(agent.session.id);
       if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
-        await compactUnknownContext(agent, signal, compactionPolicy());
+        await compactUnknownContext(
+          agent,
+          signal,
+          compactionPolicy(),
+          agentAdapter.modelSelection(agent.session.id),
+        );
       return next();
     },
     { global: true },

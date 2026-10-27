@@ -10,7 +10,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { BotScheduleError } from '../src/schedules/bot-schedules.js';
 import { SendReviewRequired } from '../src/channels/send-review.js';
-import { isDshGovernedTool } from '../src/workspaces/grant-execution.js';
+import { isDshGovernedTool, sessionRefusalMessage } from '../src/workspaces/grant-execution.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { FakeAgentHost, FAKE_BOT as BOT } from './dsh-agent-host-fixture.js';
 
@@ -771,6 +771,29 @@ describe('DSH Bot Agent adapter', () => {
       }
     },
   );
+
+  it('fails a Turn the Host pre-step refused with the refusal reason instead of blocked', async () => {
+    const host = new FakeAgentHost({ kind: 'blocked' }, { onTurn: async () => undefined });
+    const refusal = sessionRefusalMessage(
+      'Orchestrator Session requires its Memory working directory',
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      turnRefusal: (sessionId) => (sessionId === reportRun.sessionId ? refusal : undefined),
+    });
+    try {
+      await expect(adapter.runOrchestrator(reportRun)).rejects.toThrow(
+        "MEMORY_CWD_MISMATCH: The Host refused this turn: Orchestrator Session requires its Memory working directory. Start a new Session; it opens in this Bot's Memory directory.",
+      );
+    } finally {
+      await adapter.close();
+    }
+  });
 
   it.each<TurnEndCancelCause>([
     { kind: 'user' },

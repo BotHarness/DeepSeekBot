@@ -3,6 +3,7 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
+import { sameDirectory } from '../fs/same-directory.js';
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
@@ -190,7 +191,8 @@ export function grantExecutionDenial(
         return "Orchestrator Session permission differs from this PersonaBot's access setting";
     }
     const memoryCwd = core.registry.memoryDirFor(owner.botSlug);
-    return memoryCwd !== undefined && session.header.cwd === memoryCwd
+    const cwd = session.header.cwd;
+    return memoryCwd !== undefined && cwd !== undefined && sameDirectory(cwd, memoryCwd)
       ? undefined
       : 'Orchestrator Session requires its Memory working directory';
   }
@@ -218,6 +220,41 @@ export function grantExecutionDenial(
     return 'Assignment Workspace Grant is missing, revoked, or unavailable';
   }
   return undefined;
+}
+
+const SESSION_REFUSALS: ReadonlyArray<readonly [RegExp, string, string | undefined]> = [
+  [
+    /requires its Memory working directory/u,
+    'MEMORY_CWD_MISMATCH',
+    "Start a new Session; it opens in this Bot's Memory directory.",
+  ],
+  [
+    /^Orchestrator (?:Session|Subagent) permission differs/u,
+    'SESSION_PERMISSION_MISMATCH',
+    "Start a new Session, or check Full access in this Bot's workspace settings.",
+  ],
+  [
+    /^Assignment Session permission/u,
+    'ASSIGNMENT_PERMISSION_MISMATCH',
+    'Ask the Bot to start a new Assignment.',
+  ],
+  [
+    /^Assignment Workspace Grant/u,
+    'GRANT_UNAVAILABLE',
+    'Authorize the folder again on a Workspace Grant card, then ask the Bot to start a new Assignment.',
+  ],
+  [/^DSH permission services are unavailable/u, 'PERMISSION_UNAVAILABLE', 'Restart the Host.'],
+  [/^PersonaBot identity/u, 'BOT_UNAVAILABLE', undefined],
+  [/ownership|owner|role/u, 'SESSION_OWNER_MISSING', 'Start a new Session.'],
+];
+
+export function sessionRefusalMessage(denial: string): string {
+  const [, code, fix] = SESSION_REFUSALS.find(([pattern]) => pattern.test(denial)) ?? [
+    undefined,
+    'SESSION_REFUSED',
+    undefined,
+  ];
+  return `${code}: The Host refused this turn: ${denial}.${fix === undefined ? '' : ' ' + fix}`;
 }
 
 export function borrowedAgentDenial(
