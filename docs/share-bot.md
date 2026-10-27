@@ -28,7 +28,7 @@ Please share your Memory repository to the BotHarness Bot Marketplace. Follow th
 
 1. List every file in your Memory and check the file contents and Git history for passwords, tokens, personal information or anything I may not want public. List what you find and wait for my confirmation before going on. Do not push anything before I confirm.
 2. If there is no README.md, write a short one: who you are, what you are good at, and how to use you. Then write the same introduction in the other language: README.zh-CN.md in Chinese if README.md is in English, or README.en.md in English if it is in Chinese.
-3. Check that .botharness/bot.json exists (Tobs normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio, as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, keep what is there. Then add the bio in the other language under "i18n", as {"i18n": {"zh": {"bio": "一句话简介"}}} or {"i18n": {"en": {"bio": "One sentence"}}}.
+3. Check that .botharness/bot.json exists (Tobs normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio (at most 160 characters in every language), as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, keep what is there. Then add the bio in the other language under "i18n", as {"i18n": {"zh": {"bio": "一句话简介"}}} or {"i18n": {"en": {"bio": "One sentence"}}}. Leave the avatar and banner files in .botharness/ (avatar.png, avatar.recipe.json, banner.png and so on) as they are, and commit the whole .botharness/ folder when you push, so people who import you see the same avatar.
 4. Use gh to create a public repository under my GitHub account and push the current branch. Name it after you in English, and tell me the name before creating it. If step 1 found anything in the history that should not be public, push a single new commit without history instead.
 5. Add the botharness-bot topic: gh repo edit --add-topic botharness-bot
 6. Send me the repository URL.
@@ -93,7 +93,7 @@ You can also edit the file by hand. Tobs keeps any other keys you add, and keeps
 | `avatar` | `{ "image": "path in the repository" }` (PNG, JPEG or WebP, at most 128 KiB), or a pixel avatar `{ "recipe": … }`.                                                                                                                              |
 | `banner` | A generated pixel scene `{ "recipe": { "scene", "seed" } }`, or `{ "image": ".botharness/banner.png" }` (a 3:1 PNG, at most 2 MB). Scenes: `spring`, `summer`, `autumn`, `winter`, `sea`, `mountain`, `desert`, `forest`, `night-sky`, `space`. |
 
-Every field is optional. An invalid file is ignored as a whole, and the Marketplace falls back to the repository name and a generated pixel avatar.
+Every field is optional. A field that breaks its limits (such as a bio over 160 characters) is skipped and the other fields still apply. A file that is not valid JSON or is larger than 16 KB is ignored as a whole, and the Marketplace falls back to the repository name and a generated pixel avatar.
 
 ## Chinese and English: `README.zh-CN.md` and `i18n`
 

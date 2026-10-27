@@ -13,22 +13,13 @@ import {
 import type { ToolApprovalOutcome } from '../../host/wire';
 import { approvalFileChange } from '../../../../../packages/client/src/client/approval-diff';
 import { alwaysNote, executionNote, expiryLabel, highRisk, riskNote } from '../approval-note';
-import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
-import { Text } from '../primitives/text';
 import { errorText } from '../request-parts';
 import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
-import {
-  ActionCard,
-  CardButtons,
-  CardLine,
-  CardNote,
-  DetailRow,
-  type CardLineTone,
-} from './action-card';
+import { ActionCard, CardButtons, CardNote, CardPreview, DetailRow } from './action-card';
+import { CardLine, type CardLineTone } from './card-line';
 import { FileDiff } from './approval-diff';
 import type { BubbleGroup } from './bubble-shape';
 
@@ -124,7 +115,6 @@ export function ApprovalCard({
   onSettled?(result: DecisionResult): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const known = useRef(resolution !== undefined);
   const current = useRef({ port, pending: false, active: false });
   if (current.current.port !== port) {
@@ -276,25 +266,7 @@ export function ApprovalCard({
         {...(first === undefined || first.value === ''
           ? {}
           : {
-              preview: (
-                <View
-                  style={{
-                    backgroundColor: theme.layer.well.fill,
-                    borderRadius: radius.md,
-                    paddingHorizontal: space.x4,
-                    paddingVertical: space.x3,
-                  }}
-                >
-                  <Text
-                    selectable
-                    variant="meta"
-                    numberOfLines={2}
-                    style={{ fontFamily: theme.mono }}
-                  >
-                    {first.value}
-                  </Text>
-                </View>
-              ),
+              preview: <CardPreview text={first.value} mono maxLines={2} />,
             })}
         details={
           <>

@@ -19,7 +19,7 @@ import expo.modules.ui.composeOrNull
 data class TabRecord(
   @Field val value: String = "",
   @Field val label: String = "",
-  @Field val count: Int? = null,
+  @Field val dotColor: Color? = null,
   @Field val accessibilityLabel: String? = null,
 ) : Record
 
@@ -37,7 +37,7 @@ data class PrimaryTabRowProps(
 @Composable
 fun FunctionalComposableScope.PrimaryTabRowContent(props: PrimaryTabRowProps, onSelect: (String) -> Unit) {
   PrimaryTabs(
-    tabs = props.tabs.map { TabItem(it.value, it.label, it.count, it.accessibilityLabel ?: it.label) },
+    tabs = props.tabs.map { TabItem(it.value, it.label, it.dotColor.composeOrNull, it.accessibilityLabel ?: it.label) },
     selected = props.selected,
     onSelect = onSelect,
     modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher),

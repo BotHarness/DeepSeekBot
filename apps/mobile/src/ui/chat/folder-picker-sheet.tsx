@@ -108,7 +108,7 @@ export function FolderPickerSheet({
         onClose={close}
       >
         {start}
-        <ScrollView testID="grant-confirm-scroll" style={{ flexShrink: 1 }}>
+        <ScrollView nestedScrollEnabled testID="grant-confirm-scroll" style={{ flexShrink: 1 }}>
           {notice}
           <SettingsGroupItem first last on={SHEET_GROUP}>
             <SettingsRow
@@ -213,6 +213,7 @@ export function FolderPickerSheet({
         Row,
         { key: string; title: string; footer?: string | undefined; data: readonly Row[] }
       >
+        nestedScrollEnabled
         style={{ flexShrink: 1 }}
         sections={sections}
         keyExtractor={(row) => row.key}

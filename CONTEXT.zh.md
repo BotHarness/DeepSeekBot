@@ -407,12 +407,28 @@ _避免使用_：Channel authority、database backup、live inbox
 _避免使用_：credential、Service Grant、automatic reconnect
 
 **Bot Marketplace**：
-harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。只列出 Indexed Repository，没有账号，也没有上传的 Bot（ADR-0131、ADR-0135）。
+harness 中打开、用于浏览、搜索和安装可分享 Bot 的 hosted catalog。同时列出两种条目：Indexed Repository 和 Uploaded Bot（ADR-0131、ADR-0267）。
 _避免使用_：store、hub、Soul registry
 
 **Indexed Repository**：
 带有 `botharness-bot` topic、被 Bot Marketplace 以引用方式列出并定期刷新的公开 GitHub 仓库。安装它即以其 Git URL 创建新的 PersonaBot；它不是 SoulSnapshot、Listing 或 Version。
 _避免使用_：submission、Listing、SoulSnapshot、mirror
+
+**Uploaded Bot**：
+已登录的作者上传 Memory 文件（不含 Git 历史）而形成的 Bot Marketplace 条目。作者可以整体替换它的文件，或彻底删除它；没有版本。安装时创建新的 PersonaBot，并做一次初始提交；之后的替换不会影响已安装的副本。
+_避免使用_：Listing、Version、SoulSnapshot、publication
+
+**Share Draft**：
+上传前由 Tob 与 Human 逐个文件确认、为某个 PersonaBot 的 Memory 文件准备的脱敏副本；源 Memory 不会被修改，只有 Share Draft 会被上传。
+_避免使用_：export、snapshot、redacted Memory
+
+**Install Receipt**：
+安装完成后 Host 向 Bot Marketplace 上报的一次计数，以只用于市场的随机 Host 标识去重，因此每台 Host 对每个条目只计一次。
+_避免使用_：download、clone count、Telemetry event
+
+**Marketplace Digest**：
+Bot Marketplace 每天一篇、按日期保存的文章，介绍近期的 Bot，内嵌可一键安装的 Bot 卡片；往期仍可查看。
+_避免使用_：newsletter、push notification、blog post
 
 **Bot Zip**：
 单个 PersonaBot 的 Memory 文件打成的 `.zip`，附带 `.botharness/bot.json` 描述和头像，由 Human 导出后交给别人；导入时创建新的 PersonaBot。默认只含文件，只有整个 Bot 导出并勾选时才带 Git 历史。不含身份、Session、绑定或凭据（ADR-0135）。
@@ -431,8 +447,12 @@ _避免使用_：repo、page、entry
 _避免使用_：release、build、revision
 
 **Handle**：
-account 唯一的公开标识符，作为其 Listing 的 namespace；绝不使用 account email。
+历史术语（Soul registry）：account 唯一的公开标识符，作为其 Listing 的 namespace。Uploaded Bot 改用 Author ID。
 _避免使用_：username、account id
+
+**Author ID**：
+Bot Marketplace 为上传账号分配的永不改变的短标识，显示在可自由设置的显示名旁边，用来区分重名作者；绝不使用 account email。
+_避免使用_：handle、username、account email
 
 **Bot set**：
 一组计划一同导入、带名称的 Listing。

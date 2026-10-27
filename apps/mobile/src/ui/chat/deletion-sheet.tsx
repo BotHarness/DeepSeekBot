@@ -95,6 +95,7 @@ export function DeletionSheet({
   return (
     <Sheet visible label={label} title={label} onClose={close}>
       <ScrollView
+        nestedScrollEnabled
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ padding: space.x5, gap: space.x4 }}
       >

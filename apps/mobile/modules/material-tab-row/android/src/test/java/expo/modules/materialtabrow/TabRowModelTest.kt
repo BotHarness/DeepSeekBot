@@ -5,27 +5,18 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TabRowModelTest {
-  private val tabs = listOf(TabItem("action", "Needs you"), TabItem("replies", "For you"), TabItem("unread", "Other unread"))
+  private val tabs = listOf(TabItem("action", "Needs you"), TabItem("replies", "For you"))
 
   @Test
   fun selectsTheMatchingTab() {
     assertEquals(0, selectedTabIndex(tabs, "action"))
-    assertEquals(2, selectedTabIndex(tabs, "unread"))
+    assertEquals(1, selectedTabIndex(tabs, "replies"))
   }
 
   @Test
   fun showsNoSelectionOutsideTheTabs() {
     assertNull(selectedTabIndex(tabs, "handled"))
     assertNull(selectedTabIndex(emptyList(), "action"))
-  }
-
-  @Test
-  fun capsAndHidesBadgeCounts() {
-    assertNull(badgeText(null))
-    assertNull(badgeText(0))
-    assertEquals("7", badgeText(7))
-    assertEquals("99", badgeText(99))
-    assertEquals("99+", badgeText(100))
   }
 
   @Test

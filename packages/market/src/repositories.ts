@@ -31,6 +31,7 @@ export interface RepositoryRow {
   roles: string;
   bio: string | null;
   banner: string | null;
+  avatar: string | null;
   readmes: string | null;
   localized: string | null;
   summary: string | null;
@@ -89,25 +90,27 @@ export function createRepositoryStore(deps: {
     }
     const descriptor =
       descriptorFile.value === null ? undefined : parseBotDescriptor(descriptorFile.value);
-    const banner = descriptor?.banner;
     const ref = row.head_sha ?? row.default_branch;
-    const stored =
-      banner === undefined
+    const presented = <T>(art: { recipe: T } | { image: string } | undefined): string | null =>
+      art === undefined
         ? null
-        : 'recipe' in banner
-          ? { recipe: banner.recipe }
-          : {
-              image: `https://raw.githubusercontent.com/${row.owner}/${row.name}/${ref}/${banner.image
-                .split('/')
-                .map(encodeURIComponent)
-                .join('/')}`,
-            };
+        : JSON.stringify(
+            'recipe' in art
+              ? { recipe: art.recipe }
+              : {
+                  image: `https://raw.githubusercontent.com/${row.owner}/${row.name}/${ref}/${art.image
+                    .split('/')
+                    .map(encodeURIComponent)
+                    .join('/')}`,
+                },
+          );
     const localized = storedMap(descriptor?.i18n ?? {});
     const storedReadmes = storedMap(readmes);
     await db
       .prepare(
         `UPDATE indexed_repositories SET readme = ?, readme_pushed_at = ?, display_name = ?, roles = ?,
-           bio = ?, banner = ?, readmes = ?, localized = ?, search_text = ?, summary_failures = 0
+           bio = ?, banner = ?, avatar = ?, readmes = ?, localized = ?, search_text = ?,
+           summary_failures = 0
          WHERE node_id = ?`,
       )
       .bind(
@@ -116,7 +119,8 @@ export function createRepositoryStore(deps: {
         descriptor?.name ?? null,
         JSON.stringify(descriptor?.tags ?? []),
         descriptor?.bio ?? null,
-        stored === null ? null : JSON.stringify(stored),
+        presented(descriptor?.banner),
+        presented(descriptor?.avatar),
         storedReadmes,
         localized,
         searchText({ readmes: storedReadmes, localized, summary: row.summary }),

@@ -95,10 +95,33 @@ describe('language tags', () => {
       i18n: { zh: { name: '猎户', bio: '告诉你今晚能看到什么。' } },
     });
     expect(parseBotDescriptor('{"i18n":{}}')).toEqual({});
-    expect(parseBotDescriptor('{"i18n":["zh"]}')).toBeUndefined();
-    expect(parseBotDescriptor('{"i18n":{"zh":"中文"}}')).toBeUndefined();
-    expect(parseBotDescriptor(`{"i18n":{"en":{"bio":"${'x'.repeat(161)}"}}}`)).toBeUndefined();
-    expect(parseBotDescriptor('{"i18n":{"zh":{"name":""}}}')).toBeUndefined();
+    const strict = { strict: true };
+    expect(parseBotDescriptor('{"i18n":["zh"]}', strict)).toBeUndefined();
+    expect(parseBotDescriptor('{"i18n":{"zh":"中文"}}', strict)).toBeUndefined();
+    expect(
+      parseBotDescriptor(`{"i18n":{"en":{"bio":"${'x'.repeat(161)}"}}}`, strict),
+    ).toBeUndefined();
+    expect(parseBotDescriptor('{"i18n":{"zh":{"name":""}}}', strict)).toBeUndefined();
+  });
+
+  it('drops only the malformed localization and keeps the rest of the descriptor', () => {
+    expect(
+      parseBotDescriptor(
+        JSON.stringify({
+          name: '豆包',
+          banner: { recipe: { scene: 'spring', seed: 3 } },
+          i18n: {
+            en: { name: 'Doubao', bio: 'x'.repeat(161) },
+            ja: '豆包',
+          },
+        }),
+      ),
+    ).toEqual({
+      name: '豆包',
+      banner: { recipe: { scene: 'spring', seed: 3 } },
+      i18n: { en: { name: 'Doubao' } },
+    });
+    expect(parseBotDescriptor('{"name":"Orion","i18n":["zh"]}')).toEqual({ name: 'Orion' });
   });
 });
 

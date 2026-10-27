@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createMarketplaceClient } from '../../../packages/core/src/marketplace/client';
+import {
+  avatarSvg,
+  canonicalRecipe,
+  DEFAULT_ILLUSTRATED_RECIPE,
+} from '../../../packages/core/src/bots/avatar-appearance';
+import { marketplaceAvatar } from '../src/marketplace/artwork';
 import { createMobileMarketplace } from '../src/marketplace/catalogue';
 
 const bot = (id: string) => ({
@@ -12,6 +18,7 @@ const bot = (id: string) => ({
   description: 'A helpful Bot',
   descriptionGenerated: false,
   banner: null,
+  avatar: null,
   topics: ['writing'],
   stars: 3,
   pushedAt: '2026-10-23',
@@ -191,5 +198,36 @@ describe('mobile Marketplace catalogue', () => {
     expect(list.getSnapshot()).toMatchObject({ status: 'ready', error: 'marketplace-unavailable' });
     expect(list.getSnapshot().value?.bots.map((item) => item.id)).toEqual(['writer', 'editor']);
     expect(catalogue.list({ q: 'write', topic: 'writing', sort: 'stars', lang: 'en' })).toBe(list);
+  });
+});
+
+describe('mobile Marketplace avatar', () => {
+  it('shows the shared avatar image or recipe and seeds only when the Bot shares none', async () => {
+    const image = 'https://raw.githubusercontent.com/examples/writer/main/.botharness/avatar.png';
+    const client = createMarketplaceClient({
+      baseUrl: 'https://market.botharness.ai',
+      fetchImpl: async () =>
+        Response.json({
+          bots: [
+            { ...bot('photo'), avatar: { image } },
+            { ...bot('drawn'), avatar: { recipe: DEFAULT_ILLUSTRATED_RECIPE } },
+            { ...bot('elsewhere'), avatar: { image: 'https://evil.example/a.png' } },
+            bot('none'),
+          ],
+        }),
+    });
+    const page = await client.list({});
+    expect(page.ok).toBe(true);
+    if (!page.ok) return;
+    const [photo, drawn, elsewhere, none] = page.value.bots;
+
+    expect(marketplaceAvatar(photo!)).toBe(image);
+    expect(drawn!.avatar).toEqual({ recipe: canonicalRecipe(DEFAULT_ILLUSTRATED_RECIPE) });
+    expect(marketplaceAvatar(drawn!)).toBe(
+      `data:image/svg+xml;base64,${btoa(avatarSvg(canonicalRecipe(DEFAULT_ILLUSTRATED_RECIPE)))}`,
+    );
+    expect(elsewhere!.avatar).toBeNull();
+    expect(none!.avatar).toBeNull();
+    expect(marketplaceAvatar(none!)).toMatch(/^data:image\/svg\+xml;base64,/u);
   });
 });

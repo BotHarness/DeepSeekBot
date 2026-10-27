@@ -410,12 +410,28 @@ An inactive imported reference describing a provider account or authority the Hu
 _Avoid_: credential, Service Grant, automatic reconnect
 
 **Bot Marketplace**:
-The hosted catalog the harness opens to browse, search and install shareable Bots. It lists only Indexed Repositories; there are no accounts or uploaded Bots (ADR-0131, ADR-0135).
+The hosted catalog the harness opens to browse, search and install shareable Bots. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
 _Avoid_: store, hub, Soul registry
 
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
 _Avoid_: submission, Listing, SoulSnapshot, mirror
+
+**Uploaded Bot**:
+A Bot Marketplace entry whose Memory files a signed-in author uploaded, with no Git history. The author can replace all of its files or delete it outright; there are no versions. Installing it creates a fresh PersonaBot with one initial commit, and later replacements never reach installed copies.
+_Avoid_: Listing, Version, SoulSnapshot, publication
+
+**Share Draft**:
+A sanitized copy of one PersonaBot's Memory files that Tob prepares with the Human, file by file, before an upload; the source Memory is never changed, and only a Share Draft is uploaded.
+_Avoid_: export, snapshot, redacted Memory
+
+**Install Receipt**:
+The one count a Host reports to the Bot Marketplace after an install completes, keyed by a random marketplace-only Host identifier so each Host counts once per entry.
+_Avoid_: download, clone count, Telemetry event
+
+**Marketplace Digest**:
+The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
+_Avoid_: newsletter, push notification, blog post
 
 **Bot Zip**:
 A `.zip` of one PersonaBot's Memory files, with its `.botharness/bot.json` descriptor and avatar, that a Human exports and hands to someone else; importing it creates a fresh PersonaBot. It holds files only unless the whole Bot is exported with Git history. It never holds identity, Sessions, bindings or credentials (ADR-0135).
@@ -434,8 +450,12 @@ A human-named tag pointing at one immutable SoulSnapshot digest under a Listing.
 _Avoid_: release, build, revision
 
 **Handle**:
-An account's unique public identifier, used as the namespace of its Listings; never the account's email.
+Historical (Soul registry): an account's unique public identifier used as the namespace of its Listings. Uploaded Bots use an Author ID instead.
 _Avoid_: username, account id
+
+**Author ID**:
+The short, never-changing identifier the Bot Marketplace assigns to an uploading account, shown beside its free display name so same-named authors stay distinct; never the account's email.
+_Avoid_: handle, username, account email
 
 **Bot set**:
 A named group of Listings meant to be imported together.

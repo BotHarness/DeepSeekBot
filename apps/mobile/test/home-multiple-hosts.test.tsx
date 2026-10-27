@@ -27,6 +27,7 @@ vi.mock('expo-router', () => {
     useRouter: () => ({ push, prefetch: () => undefined }),
   };
 });
+vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),

@@ -10,7 +10,9 @@ optional progress ring. Tapping the pill expands Compose's full-screen search di
 motion, keyboard focus and predictive Back. Collapsing clears the query.
 
 The query streams to React as `onQueryChange`; React filters with the app's existing ranking and
-sends the results back as plain records (`key`, `title`, `subtitle`, `initial`). Results render as
+sends the results back as plain records (`key`, `title`, `subtitle`, `initial`, `image`,
+`dimmed`). `image` is a `file://` PNG from the device's avatar cache; Compose decodes it off the
+main thread and draws it as the Chats row's 48dp rounded square, with `initial` as the fallback. Results render as
 Material `ListItem`s inside the expanded surface, because that surface is a separate window that
 React Native views cannot draw into. A pick sends `onPick` with the key and collapses the bar.
 
