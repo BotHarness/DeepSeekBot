@@ -2,11 +2,15 @@
 import { readFileSync } from 'node:fs';
 import { act, createElement, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => localStorage.clear());
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  relativeTime: (at: number, now: number) => ({
+    unit: 'days',
+    n: Math.floor((now - at) / 86_400_000),
+  }),
   Button: (props: Record<string, unknown> & { children?: ReactNode }) =>
     createElement(
       'button',
@@ -212,6 +216,10 @@ async function click(host: HTMLElement, label: string) {
   await act(async () => button(host, label).click());
 }
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('Market panel', () => {
   it('defaults to stars and remembers each explicit sort after reopening', async () => {
     await withPanel(
@@ -380,6 +388,7 @@ describe('Market panel', () => {
   });
 
   it('shows a flat grid, sorts by creation time and searches only on Enter', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-04T08:00:00Z'));
     await withPanel(
       async (query) =>
         query?.q !== undefined
@@ -389,7 +398,7 @@ describe('Market panel', () => {
             : { bots: [entry('fresh')] },
       async ({ host, list }) => {
         expect(host.querySelectorAll('.bh-market-grid [role="listitem"]')).toHaveLength(1);
-        expect(host.textContent).toContain('更新于 2026-10-01');
+        expect(host.textContent).toContain('更新于 3 天前');
 
         await click(host, '最新创建');
 
@@ -403,7 +412,7 @@ describe('Market panel', () => {
             tile.getAttribute('data-market-bot'),
           ),
         ).toEqual(['alice/newest', 'alice/older']);
-        expect(host.textContent).toContain('创建于 2026-03-05');
+        expect(host.textContent).toContain('创建于 213 天前');
 
         const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
         await act(async () => {
