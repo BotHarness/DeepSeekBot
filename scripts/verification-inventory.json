@@ -85,7 +85,7 @@
     {
       "id": "phone.blank-bot-creation",
       "label": "Create a blank Bot on an explicit paired Host and recover the original Bot and DM",
-      "source": "apps/mobile/app/create-bot.tsx",
+      "source": "apps/mobile/app/(bot-creation)/create-bot.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
       "task": 2629,
       "gap": "Native Android/iOS interaction remains separate from the passing PR2632 Host/CLI path; source tests do not establish native acceptance."
@@ -93,7 +93,7 @@
     {
       "id": "phone.git-bot-import",
       "label": "Import a pinned Git source on a chosen paired Host and recover the same Bot and DM",
-      "source": "apps/mobile/app/create-bot.tsx",
+      "source": "apps/mobile/app/(bot-creation)/create-bot.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/phone-bot-create.md",
       "task": 2635,
       "gap": "Record the Git import Host/CLI path and Android/iOS interaction at their exact candidate; inherited blank-creation evidence does not qualify import."
