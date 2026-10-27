@@ -378,8 +378,6 @@ export function createIdleCompaction<Agent extends IdleCompactionAgent>(
     try {
       threshold = await ports.threshold(agent, route);
     } catch (error) {
-      // DSH summarizes with the last request's route; when that model was removed, wait for the
-      // next successful Turn to move the Session onto the Human's current model.
       ports.log({
         event: 'skipped',
         reason: 'route-unavailable',

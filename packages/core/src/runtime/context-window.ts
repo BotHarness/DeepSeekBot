@@ -43,12 +43,6 @@ export interface ContextRoute {
   model: string;
 }
 
-/**
- * Protects an unknown-capacity context before a step. The step will call the Session's current
- * model selection, so capacity comes from that route; the previous request header is only a
- * fallback. A route that cannot be resolved skips the protection instead of failing the Turn: the
- * Human may already have replaced a removed model, and the request itself reports a real failure.
- */
 export async function compactUnknownContext(
   agent: Agent,
   signal: AbortSignal,

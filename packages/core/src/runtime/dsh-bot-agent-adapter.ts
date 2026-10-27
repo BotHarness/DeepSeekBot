@@ -563,7 +563,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#drafts.accept(sessionId, frame);
   }
 
-  /** The model the next step of a live Bot Session will call, which can differ from its last request header. */
   modelSelection(sessionId: string): ModelSelection | undefined {
     return (
       this.#orchestratorSelections.get(sessionId)?.current ??
