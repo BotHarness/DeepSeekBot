@@ -4,6 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+vi.mock('react-native', () => ({
+  View: ({ children }: { children?: ReactNode }) => createElement('div', null, children),
+}));
 const native = vi.hoisted(() => ({
   buffer: '',
   writes: [] as string[],
