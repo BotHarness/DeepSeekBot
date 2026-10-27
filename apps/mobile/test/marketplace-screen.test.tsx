@@ -46,6 +46,10 @@ vi.mock('react-native', async () => {
       },
     },
     useWindowDimensions: () => ({ ...shim.useWindowDimensions(), fontScale: fixture.fontScale }),
+    Dimensions: {
+      get: () => ({ ...shim.useWindowDimensions(), fontScale: fixture.fontScale }),
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     Linking: { openURL: fixture.openURL },
     FlatList: (
       props: Parameters<typeof shim.FlatList>[0] & {

@@ -7,6 +7,10 @@ const dimensions = vi.hoisted(() => ({ width: 390, height: 844, scale: 3, fontSc
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   useWindowDimensions: () => dimensions,
+  Dimensions: {
+    get: () => dimensions,
+    addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+  },
 }));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('@expo/ui/jetpack-compose', () => {

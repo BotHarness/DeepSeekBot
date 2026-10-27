@@ -22,6 +22,10 @@ vi.mock('react-native', async () => {
   };
   return {
     useWindowDimensions,
+    Dimensions: {
+      get: useWindowDimensions,
+      addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+    },
     StyleSheet,
     View: host('View'),
     Text: host('Text'),
