@@ -253,12 +253,7 @@ describe('Group profile', () => {
     expect(text).toContain(t.groupInvited);
     expect(text).toContain(t.groupJoinAsk);
     const headers = [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
-    expect(headers).toEqual([
-      'Launch',
-      t.profileTabs.members,
-      t.groupJoinsSection,
-      t.groupMembersSection,
-    ]);
+    expect(headers).toEqual(['Launch', t.groupJoinsSection, t.groupMembersSection]);
     for (const slug of ['ada', 'bo', 'cy', 'di'])
       expect(view.querySelector(`[data-testid="avatar-${slug}"]`)).not.toBeNull();
     expect(button(view, t.groupInvite)).not.toBeNull();
@@ -420,16 +415,12 @@ describe('Group profile', () => {
     await act(async () => (tabs[3] as HTMLElement).click());
     expect(memory.get('group')).toBe('settings');
     expect(memory.get('bot')).toBe('memory');
-    expect(view.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-      t.profileTabs.settings,
-    );
+    expect(view.querySelector('[data-testid="profile-tab-content-settings"]')).not.toBeNull();
   });
 
   it('falls back to Members when the remembered tab is not a group tab', async () => {
     const view = await render(<GroupProfilePage {...sheet({}, 'routines')} />);
-    expect(view.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-      t.profileTabs.members,
-    );
+    expect(view.querySelector('[data-testid="profile-tab-content-members"]')).not.toBeNull();
   });
 
   it('keeps name, photo, background and notifications in Settings with Disband last', async () => {

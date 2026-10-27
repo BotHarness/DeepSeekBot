@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
 import {
+  activityAssignmentDestination,
   activityDestination,
   activityStartTarget,
   subscribeActivityHost,
@@ -98,4 +99,19 @@ it('rebinds current-client events and ignores late events from an old source or 
   lateB();
   expect(events).toBe(2);
   expect(sessionListeners.size + b.listeners.size).toBe(0);
+});
+
+it('opens the Assignment detail on the original Computer, and the chat when there is none', () => {
+  const target = {
+    hostId: 'source-a',
+    channelId: 'dm-ada',
+    botSlug: 'ada',
+    messageId: 'request-1',
+  };
+  expect(activityAssignmentDestination(target, 'source-a', undefined)).toBeUndefined();
+  expect(activityAssignmentDestination(target, 'source-b', 'assignment-1')).toBeUndefined();
+  expect(activityAssignmentDestination(target, 'source-a', 'assignment-1')).toEqual({
+    pathname: '/bot/[slug]/assignment/[id]',
+    params: { slug: 'ada', id: 'assignment-1', hostId: 'source-a' },
+  });
 });

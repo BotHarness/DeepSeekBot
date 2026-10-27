@@ -265,7 +265,7 @@ export const LIVE_COMMANDS = [
   {
     command: 'device-activity',
     description:
-      'read capability or prepare/register/stop one device Lock Screen status (--device-file, --activity-stdin)',
+      'read capability or prepare/register/stop/status one device Lock Screen status (--device-file, --activity-stdin)',
   },
   ...FEEDBACK_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,

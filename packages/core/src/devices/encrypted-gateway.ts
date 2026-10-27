@@ -48,6 +48,7 @@ function pathAllowed(path: string): boolean {
       '/botharness-device/activity/prepare',
       '/botharness-device/activity/register',
       '/botharness-device/activity/stop',
+      '/botharness-device/activity/status',
     ].includes(name) ||
     name === '/botharness-device/push' ||
     name.startsWith('/botharness-device/push/') ||

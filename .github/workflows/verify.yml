@@ -41,6 +41,7 @@ jobs:
       docs-site: ${{ steps.plan.outputs.docs-site }}
       related: ${{ steps.plan.outputs.related }}
       android-native: ${{ steps.plan.outputs.android-native }}
+      perf: ${{ steps.plan.outputs.perf }}
       mobile: ${{ steps.plan.outputs.mobile }}
       matrix: ${{ steps.select.outputs.matrix }}
       count: ${{ steps.select.outputs.count }}
@@ -341,6 +342,42 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm e2e:smoke
 
+  perf-budget:
+    name: timeline performance budget
+    needs: plan
+    if: needs.plan.outputs.perf == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
+      DEEPSEEK_API_KEY: perf-budget-placeholder
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/verify-app.mjs launch --name perf --build > /dev/null
+      - run: >-
+          node scripts/perf-idle-timeline.mjs --messages 600 --label ci
+          --budget scripts/perf-budgets/timeline.json --out .humanlayer/perf/ci > /dev/null
+      - if: always()
+        run: node scripts/verify-app.mjs stop --name perf
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: timeline-perf
+          path: |
+            .humanlayer/perf/ci/*.json
+            .humanlayer/perf/ci/*.png
+          if-no-files-found: ignore
+
   verify:
     name: lint, format, typecheck, test, build, docs
     needs:
@@ -354,6 +391,7 @@ jobs:
         test-affected,
         docs-site,
         e2e-smoke,
+        perf-budget,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -372,6 +410,7 @@ jobs:
           if (plan['android-native'] === 'true') required.push('mobile-native');
           if (plan['docs-site'] === 'true') required.push('docs-site');
           if (plan.tests !== 'none') required.push('e2e-smoke');
+          if (plan.perf === 'true') required.push('perf-budget');
           if (plan.tests === 'full') required.push('test-full');
           if (plan.tests === 'affected') {
             const count = plan.count;

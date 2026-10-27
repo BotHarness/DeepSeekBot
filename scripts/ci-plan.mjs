@@ -108,6 +108,7 @@ export const RULES = [
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
   related('scripts/product-provider/**', 'Product provider scripts'),
+  related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),
   related('scripts/*', 'Repository scripts'),
   none('docs/**', 'Documentation synced into the docs site', true),
   none('{CHANGELOG,CHANGELOG.zh,CONTEXT,CONTEXT.zh}.md', 'Release Ledger and glossary pages', true),
@@ -503,6 +504,17 @@ export function androidNativeTests(tests, changes) {
   );
 }
 
+const TIMELINE_PERF_INPUT =
+  /^packages\/client\/src\/|^scripts\/perf-|^scripts\/perf-budgets\/|^\.github\/workflows\/verify\.yml$/;
+export function timelinePerf(tests, changes) {
+  return (
+    tests === 'full' ||
+    changes.some((change) =>
+      [change.path, change.previous].some((path) => path && TIMELINE_PERF_INPUT.test(path)),
+    )
+  );
+}
+
 const MOBILE_PROSE = /^apps\/mobile\/(?:test\/|\.maestro\/|store\/)|^apps\/mobile\/[^/]+\.md$/;
 function mobileSpecifiers(source, file) {
   const ast = parseJavaScript(source, {
@@ -642,12 +654,12 @@ function githubPlan(changesFile) {
   const result = { ...plan(input), mobile: mobileVerification(input) };
   appendFileSync(
     process.env.GITHUB_OUTPUT,
-    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
+    `tests=${result.tests}\ndocs-site=${result.docsSite}\nmobile=${result.mobile.run}\nandroid-native=${androidNativeTests(result.tests, changes)}\nperf=${result.tests !== 'none' && timelinePerf(result.tests, changes)}\nrelated=${JSON.stringify(result.related)}\n`,
   );
   const listed = result.related.map((file) => `- \`${file}\``).join('\n');
   appendFileSync(
     process.env.GITHUB_STEP_SUMMARY,
-    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
+    `### CI test plan: ${result.tests}\n\n${result.reason}.\n\nDocs site build: ${result.docsSite ? 'yes' : 'no'}\n\nMobile verification: ${result.mobile.run ? 'yes' : 'no'} (${result.mobile.reason})\n\nTimeline performance budget: ${result.tests !== 'none' && timelinePerf(result.tests, changes) ? 'yes' : 'no'}\n\n${listed ? `Related test inputs:\n\n${listed}\n` : ''}`,
   );
   console.log(JSON.stringify(result, null, 2));
 }
