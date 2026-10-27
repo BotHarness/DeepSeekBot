@@ -2,7 +2,10 @@ import { Image as CachedImage } from 'expo-image';
 import { useMemo } from 'react';
 import { Image, View } from 'react-native';
 
-import { avatarSvg, seededAvatarFor } from '../../../../../packages/core/src/bots/avatar-appearance';
+import {
+  avatarSvg,
+  seededAvatarFor,
+} from '../../../../../packages/core/src/bots/avatar-appearance';
 import type { BotAvatarChoice } from '../../host/bot-creation';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { useDesignTheme } from '../design/theme';
