@@ -3,7 +3,7 @@ import { watchRequestActivity } from '../src/host/native-live-activity';
 import { useCallback, useState } from 'react';
 import { Notice } from '../src/ui/request-parts';
 import { channelRouteId, channelStackRouter } from '../src/ui/shell/channel-navigation';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Platform, View, type ViewInstance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -43,6 +43,7 @@ export default function RootLayout() {
 }
 
 function RootNavigator() {
+  const editingAvatar = usePathname() === '/create-bot-avatar';
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
@@ -86,7 +87,7 @@ function RootNavigator() {
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen
                   name="(bot-creation)"
-                  options={{ headerShown: false, freezeOnBlur: true }}
+                  options={{ headerShown: false, freezeOnBlur: !editingAvatar }}
                 />
                 <Stack.Screen
                   name="dm/[slug]"
