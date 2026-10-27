@@ -8,6 +8,7 @@ Git import uses the same target, confirmation, operation record and completion p
 
 - `target`: All explicitly chooses from every paired Host; a scoped Host is inherited. Changing the target preserves the draft and does not switch browsing.
 - `form`: native name/persona fields, optional Bio/tags, validation and keyboard-safe submission.
+- `android-tags`: Enter adds native input chips and retains the keyboard; chip removal preserves pending text. Check blank/duplicate tags, Chinese composition, imported tags, Back/close/reopen and real Host roles. The editable field stays mounted as chips appear/disappear; unfinished tag input survives draft reload and is included if creation is submitted directly.
 - `android-page`: blank Bot and direct Git forms use full pages with native navigation Back, Settings-style grouped fields and Compose action buttons. Confirm actual keyboard/focus, text scaling and Back behavior; JavaScript adapter tests do not prove native rendering.
 - `channel-page`: Android New Channel selects a Remote Host, name and multiple eligible Bots in a virtualized native-checkbox list. Changing Host immediately clears candidates and selection, retains the name, ignores late reads and never resurrects old selections. Submission retains the original pairing/input/key; a continuation notice survives leaving the form.
 - `receipt`: the original Host, pairing identity, operation key and input survive app restart. Repeated taps and uncertain replies cannot create another Bot.

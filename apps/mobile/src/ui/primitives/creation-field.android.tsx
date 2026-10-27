@@ -19,6 +19,7 @@ export function CreationField({
   maxLength,
   testID: id,
   invalid,
+  onSubmitValue,
 }: ComponentProps<typeof SharedCreationField>) {
   const theme = useDesignTheme();
   const focus = useContext(KeyboardFormNativeFocus);
@@ -51,18 +52,26 @@ export function CreationField({
           }}
           value={text}
           onValueChange={(next) => {
+            if (onSubmitValue && /[\r\n]/u.test(next)) {
+              pendingEchoes.current.push('');
+              text.set('');
+              onSubmitValue(next);
+              return;
+            }
             pendingEchoes.current.push(next);
             onChangeText?.(next);
           }}
           enabled={editable !== false}
-          singleLine={!multiline}
+          singleLine={!multiline && !onSubmitValue}
           minLines={multiline ? 3 : 1}
+          {...(onSubmitValue ? { maxLines: 1 } : {})}
           {...(maxLength === undefined ? {} : { maxLength })}
           isError={invalid ?? false}
           keyboardOptions={{
             capitalization: autoCapitalize ?? 'sentences',
             autoCorrectEnabled: autoCorrect ?? true,
             keyboardType: keyboardType === 'url' ? 'uri' : 'text',
+            ...(onSubmitValue ? { imeAction: 'none' as const } : {}),
           }}
           colors={{
             focusedContainerColor: theme.layer.field.fill,

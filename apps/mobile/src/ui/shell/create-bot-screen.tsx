@@ -13,6 +13,7 @@ import { liveGlance } from '../../host/host-glance';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
 import type { BotCreationDraft } from '../../host/bot-creation';
+import { editCreationTags } from '../../host/bot-creation-tags';
 import {
   creationStepReady,
   creationSteps,
@@ -33,6 +34,7 @@ import { KeyboardFormFooter } from '../primitives/keyboard-form-footer';
 import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { CreationField as TextField } from '../primitives/creation-field';
+import { CreationTagsField } from '../primitives/creation-tags-field';
 import { EnvironmentList } from '../primitives/environment-list';
 import { StepBar, type StepBarProps } from '../primitives/step-bar';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
@@ -671,12 +673,15 @@ function CreationStepContent({ index }: { index: number }) {
                 multiline
                 editable={!state.busy}
               />
-              <TextField
-                testID="create-bot-tags"
-                accessibilityLabel={copy.tags}
-                value={draft.tags}
-                onChangeText={(tags) => edit({ tags })}
-                editable={!state.busy}
+              <CreationTagsField
+                value={draft}
+                disabled={state.busy}
+                onChange={(action) =>
+                  void botCreation.edit((current) => ({
+                    ...current,
+                    ...editCreationTags(current, action),
+                  }))
+                }
               />
               <Text tone="muted">{copy.model}</Text>
             </>

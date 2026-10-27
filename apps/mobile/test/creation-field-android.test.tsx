@@ -119,3 +119,34 @@ it('applies restored or prefilled values without replacing the editable field', 
   expect(native.writes).toEqual(['Imported name', '']);
   expect(native.mounts).toBe(1);
 });
+
+it('commits the native Enter buffer and clears it without replaying older composing echoes', async () => {
+  const submitted = vi.fn();
+  const changed = vi.fn();
+  const draw = async (value: string) =>
+    act(() =>
+      root.render(
+        <CreationField
+          value={value}
+          accessibilityLabel="Tag"
+          onChangeText={changed}
+          onSubmitValue={submitted}
+        />,
+      ),
+    );
+  await draw('');
+  await act(() => {
+    type('n');
+    type('你');
+    type('你\n');
+  });
+  expect(submitted).toHaveBeenCalledExactlyOnceWith('你\n');
+  expect(changed.mock.calls.map((call) => call[0])).toEqual(['n', '你']);
+  expect(native.buffer).toBe('');
+  await draw('n');
+  await draw('你');
+  await draw('');
+  expect(native.buffer).toBe('');
+  expect(native.writes).toEqual(['']);
+  expect(native.mounts).toBe(1);
+});
