@@ -2042,7 +2042,7 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
 }
 .bh-market-file-bar {
   display: flex;
-  gap: 2px;
+  gap: ${space.x1};
   height: 8px;
   overflow: hidden;
   border-radius: ${radius.xs};
