@@ -1667,7 +1667,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (permissionDenial(agent.session) !== undefined) return { kind: 'reject' };
       const contextOwner = core.ownership.resolve(agent.session.id);
       if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
-        await compactUnknownContext(agent, signal, compactionPolicy());
+        await compactUnknownContext(
+          agent,
+          signal,
+          compactionPolicy(),
+          agentAdapter.modelSelection(agent.session.id),
+        );
       return next();
     },
     { global: true },

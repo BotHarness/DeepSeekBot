@@ -154,6 +154,7 @@ function harness(options: { enabled?: boolean; tokens?: number } = {}) {
   const busy = { inbox: false };
   let tokens = options.tokens ?? 400_000;
   const records: IdleCompactionRecord[] = [];
+  const logs: Record<string, unknown>[] = [];
   const compactNow = vi.fn(async (_agent: FakeAgent, _signal: AbortSignal) => {
     agent.events.push({
       type: 'compaction/summary',
@@ -173,7 +174,7 @@ function harness(options: { enabled?: boolean; tokens?: number } = {}) {
     threshold: async () => 550_464,
     compactNow,
     record: (record) => records.push(record),
-    log: () => undefined,
+    log: (event) => logs.push(event),
     now: () => clock,
     setTimer: (task, ms) => {
       timers.push({ at: clock + ms, task, handle: ++next });
@@ -203,6 +204,8 @@ function harness(options: { enabled?: boolean; tokens?: number } = {}) {
     busy,
     compactNow,
     records,
+    logs,
+    ports,
     idle,
     settings,
     timers,
@@ -299,6 +302,25 @@ describe('idle compaction scheduler', () => {
     ]);
     h.idle.agentStatus('orchestrator', 'idle');
     expect(h.timers).toEqual([]);
+  });
+
+  it('skips without a failed record while the last request names a removed model', async () => {
+    const h = harness();
+    h.ports.threshold = async () => {
+      throw Object.assign(new Error('No adapter'), { code: 'NO_ADAPTER' });
+    };
+    h.answer(h.clock);
+    h.idle.agentStatus('orchestrator', 'idle');
+    await h.advance(HOUR);
+    expect(h.compactNow).not.toHaveBeenCalled();
+    expect(h.records).toEqual([]);
+    expect(h.logs).toContainEqual(
+      expect.objectContaining({
+        event: 'skipped',
+        reason: 'route-unavailable',
+        error: 'NO_ADAPTER',
+      }),
+    );
   });
 
   it('compacts on demand, refuses while busy and does not compact the same history again', async () => {

@@ -1,6 +1,7 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction';
+import type { LlmResolvedModelInfo } from '@deepseek-ai/dsh-llm';
 import { compactionThresholdTokens, type CompactionThresholdPolicy } from './idle-compaction.js';
 
 export const UNKNOWN_CONTEXT_WINDOW = 200_000;
@@ -37,23 +38,45 @@ export function fallbackCompactionRange(session: Session) {
   return undefined;
 }
 
+export interface ContextRoute {
+  provider: string;
+  model: string;
+}
+
+/**
+ * Protects an unknown-capacity context before a step. The step will call the Session's current
+ * model selection, so capacity comes from that route; the previous request header is only a
+ * fallback. A route that cannot be resolved skips the protection instead of failing the Turn: the
+ * Human may already have replaced a removed model, and the request itself reports a real failure.
+ */
 export async function compactUnknownContext(
   agent: Agent,
   signal: AbortSignal,
   policy: CompactionThresholdPolicy = {},
+  selection?: ContextRoute,
 ): Promise<void> {
-  const request = agent.session.requestHeader()?.config;
-  if (!request) return;
-  const info = await agent.ctx.llm.resolveModelInfo(request.provider, request.model, signal);
+  const header = agent.session.requestHeader()?.config;
+  const route = selection ?? header;
+  if (!route) return;
+  let info: LlmResolvedModelInfo;
+  try {
+    info = await agent.ctx.llm.resolveModelInfo(route.provider, route.model, signal);
+  } catch (error) {
+    if (signal.aborted) throw error;
+    agent.ctx.logger.info(
+      `context-compaction ${JSON.stringify({ event: 'skipped', reason: 'route-unavailable', sessionId: agent.session.id, route: `${route.provider}/${route.model}` })}`,
+    );
+    return;
+  }
   if (contextCapacity(info.context?.contextWindow).capacitySource === 'model') return;
   const meter = agent.ctx.get('tokenMeter');
   const compaction = agent.ctx.get('compaction');
   if (!meter || !compaction) throw new Error('Context protection is unavailable');
   const threshold = compactionThresholdTokens(
     policy,
-    request,
+    route,
     UNKNOWN_CONTEXT_WINDOW,
-    request.maxTokens ?? info.defaultMaxTokens ?? 0,
+    header?.maxTokens ?? info.defaultMaxTokens ?? 0,
   );
   if (threshold <= 0) throw new Error('Output reservation exceeds the estimated context capacity');
   for (let attempt = 0; meter.measure(agent.session).totalTokens >= threshold; attempt++) {
