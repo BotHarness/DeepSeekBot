@@ -16,7 +16,7 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
   const theme = useDesignTheme();
   const t = useStrings();
   const tags = creationTags(value.tags);
-  const chips = tags.length ? (
+  const chips = (
     <FlowRow
       horizontalArrangement={{ spacedBy: space.x2 }}
       verticalArrangement={{ spacedBy: space.x2 }}
@@ -53,7 +53,7 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
         </InputChip>
       ))}
     </FlowRow>
-  ) : null;
+  );
   return (
     <CreationField
       leadingContent={chips}
