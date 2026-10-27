@@ -1766,6 +1766,7 @@ const en = {
   activityMemory: 'Memory commits',
   activityEmpty: 'Nothing in this period.',
   activityChart: (label: string, range: string, total: string) => `${label}, ${range}: ${total}`,
+  chartPeak: (summary: string, peak: string) => `${summary}. Most on ${peak}`,
   activityReason: {
     'human-dm': 'Direct messages',
     'group-mention': 'Group mentions',
@@ -3655,6 +3656,7 @@ const zh: typeof en = {
   activityMemory: '记忆提交',
   activityEmpty: '该时间段暂无记录',
   activityChart: (label: string, range: string, total: string) => `${label}，${range}：${total}`,
+  chartPeak: (summary: string, peak: string) => `${summary}。${peak}最多`,
   activityReason: {
     'human-dm': '私聊消息',
     'group-mention': '群内提及',

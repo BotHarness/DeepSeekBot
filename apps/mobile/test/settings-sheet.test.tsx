@@ -22,6 +22,8 @@ import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
 import { HumanAvatarButton } from '../src/ui/shell/human-avatar';
 import { t } from '../src/ui/strings';
 import { StatisticsSettings } from '../src/ui/shell/statistics-settings';
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: {
