@@ -40,7 +40,6 @@ export function KeyboardChatFrame({
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
-      {/* Native keyboard height avoids iOS background snapshot frames with screenY=0. */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"

@@ -2402,9 +2402,9 @@
       "path": "scripts/e2e-mobile-chat-resume.mjs",
       "category": "mapped",
       "behaviors": ["phone.composer"],
-      "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry and draft retention. Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
+      "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry, draft retention, same Dev PID and stable known-message geometry (2pt rounding tolerance). Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
       "task": 2933,
-      "sha256": "b47338341bffa6744c71a775f410914265a59e3ed88bedc9cde6507568c5c3ff"
+      "sha256": "d3dfb20d406a9a3375f525fbeed20d4b209f607ab658525cde49654b63d093b0"
     }
   ],
   "native": [
