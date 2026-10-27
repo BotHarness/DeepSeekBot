@@ -317,6 +317,21 @@ describe('the folder reader process', () => {
     expect(spawned).toBe(2);
   });
 
+  it('fails pending reads when the Host closes the reader', async () => {
+    const worker = createFolderWorker({
+      spawn: () =>
+        spawnProcess(process.execPath, ['-e', 'process.on("message", () => {})'], {
+          stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+        }),
+    });
+    const pending = refusal(() =>
+      worker.read({ path: '/', platform: 'linux', offset: 0, limit: 1 }),
+    );
+    worker.close();
+
+    expect(await pending).toBe('folder-browse/unavailable');
+  });
+
   it('fails pending reads when the reader exits', async () => {
     const worker = createFolderWorker({
       spawn: () =>

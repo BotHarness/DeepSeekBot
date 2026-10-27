@@ -182,7 +182,14 @@ export function createFolderWorker(options: FolderWorkerOptions = {}): FolderWor
       });
     },
     close() {
-      if (live !== undefined) retire(live);
+      if (live !== undefined)
+        retire(
+          live,
+          new FolderBrowseError(
+            'folder-browse/unavailable',
+            'The folder reader stopped. Try again.',
+          ),
+        );
     },
   };
 }
