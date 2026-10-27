@@ -212,7 +212,10 @@ vi.mock('../src/ui/primitives/step-bar', () => ({
       ),
     ),
 }));
-vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
+vi.mock('../src/ui/shell/creation-header', () => ({
+  CreationHeader: ({ onClose }: { onClose(): void }) =>
+    createElement('button', { 'data-testid': 'create-bot-close', onClick: onClose }, 'Close'),
+}));
 vi.mock('../src/ui/shell/creation-avatar', () => ({
   CreationAvatar: ({
     onChange,
@@ -408,10 +411,10 @@ it('goes back one step with the round button and leaves the whole flow from the 
   expect(fixture.back).toHaveBeenCalledTimes(1);
   const options = fixture.screen.mock.calls.at(-1)![0] as {
     headerBackVisible: boolean;
-    headerLeft(): { props: { onPress(): void } };
+    headerShown: boolean;
   };
   expect(options.headerBackVisible).toBe(false);
-  options.headerLeft().props.onPress();
+  await press('create-bot-close');
   expect(fixture.dismiss).toHaveBeenCalledWith(2);
 });
 

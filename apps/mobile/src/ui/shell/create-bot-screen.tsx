@@ -30,7 +30,7 @@ import { EnvironmentList } from '../primitives/environment-list';
 import { StepBar, type StepBarProps } from '../primitives/step-bar';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
 import { CreationAvatar } from './creation-avatar';
-import { NavigationAction } from './navigation-action';
+import { CreationHeader } from './creation-header';
 import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
@@ -336,12 +336,20 @@ function CreationStep({
             }
           : undefined;
   return (
-    <View ref={mounted} style={{ flex: 1 }}>
+    <View
+      ref={mounted}
+      style={{
+        flex: 1,
+        backgroundColor: Platform.OS === 'android' ? theme.color.base : theme.overlay.fill,
+      }}
+    >
       <Stack.Screen
         options={{
-          headerShown: true,
+          headerShown: Platform.OS !== 'android',
           presentation: 'card',
-          contentStyle: { backgroundColor: theme.overlay.fill },
+          contentStyle: {
+            backgroundColor: Platform.OS === 'android' ? theme.color.base : theme.overlay.fill,
+          },
           title,
           headerBackVisible: false,
           ...(Platform.OS === 'ios'
@@ -356,12 +364,24 @@ function CreationStep({
                   },
                 ],
               }
-            : {
-                headerLeft: () => (
-                  <NavigationAction close size={theme.touch} label={t.close} onPress={exit} />
-                ),
-              }),
+            : {}),
         }}
+      />
+      <CreationHeader
+        title={title}
+        name={
+          draft?.displayName ??
+          (state.record.kind === 'submitted' ? state.record.operation.input.displayName : '')
+        }
+        avatar={
+          draft?.avatar ?? (state.record.kind === 'submitted' ? state.record.avatar : undefined)
+        }
+        imported={importing}
+        step={{ index: position + 1, total: steps.length }}
+        progress={
+          draft ? position / steps.length : state.receipt?.status === 'created' ? 1 : undefined
+        }
+        onClose={exit}
       />
       <View ref={pairedMount} style={{ flex: 1 }}>
         <KeyboardFormScroll

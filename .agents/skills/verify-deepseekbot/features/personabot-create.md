@@ -35,3 +35,9 @@ The scripted journey owns its Host: it launches a fresh instance on a free port,
 - `bot_create` returns `model: host-default` for a Bot without its own Model Plan; it still answers on the Host default model.
 - `--locale zh` does not switch the Client language on a fresh Profile; read accessible names from the English UI.
 - It uses its own temporary `DSH_HOME`, so it never touches a `verify-app` instance.
+
+## Android creation header and native fields (#2958)
+
+On a reserved Windows USB-phone batch, open Chats → Create or join → Create Bot. The first page uses one continuous canvas across native top app bar, body and pinned footer. Close is a standard unfilled native icon button and exits the entire flow while retaining its draft. Next advances the native setup indicator; entering the name and selecting Shuffle/photo updates the same compact avatar/name preview in the header. Back restores the previous step and progress. Submission is indeterminate until the original Host operation is confirmed, not a fabricated success percentage.
+
+Enter and edit long names, Chinese composing text, multi-line Persona/bio and tags using the actual native Material filled TextFields. Verify caret/focus, rapid input, draft restoration, source-prefilled name, errors and reachable Next/Create with a real keyboard. Repeat default/intermediate/maximum system font in light/dark, using the app appearance setting and checking the actual rendered theme. Capture matching before/after states on the same device. Original/native prerequisite #2947 is recorded separately; a web or mocked component result does not qualify the native header or input.
