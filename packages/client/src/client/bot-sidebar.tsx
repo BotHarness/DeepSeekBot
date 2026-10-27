@@ -1853,18 +1853,17 @@ export function BotSidebar({
         'plain',
       ),
     );
-    void (channel.botSlug === undefined
-      ? actions.openChannel(channel.id)
-      : actions.openBot(channel.botSlug)
+    void (
+      channel.botSlug === undefined
+        ? actions.openChannel(channel.id)
+        : actions.openBot(channel.botSlug)
     ).then(then);
   };
 
   const openQuickSwitcherMessage = ({ channelId, message }: MessageSearchHit): void => {
     const channel = state.channels.find((item) => item.id === channelId);
     if (channel === undefined) return;
-    openQuickSwitcherEntry({ channel }, () =>
-      actions.openAround(channelId, message.id),
-    );
+    openQuickSwitcherEntry({ channel }, () => actions.openAround(channelId, message.id));
   };
 
   const openChannelMenu = (request: ChannelMenuRequest): void => {

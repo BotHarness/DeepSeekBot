@@ -146,7 +146,6 @@ function messageSearchCursorDecode(value: string): {
   throw new Error('message_search: invalid cursor');
 }
 
-/** A single-line excerpt that starts shortly before the first match of the lower-cased needle. */
 export function searchSnippet(text: string, needle: string): string {
   const chars = Array.from(text.replace(/\s+/gu, ' ').trim());
   const lower = chars.map((char) => char.toLowerCase());
@@ -2774,8 +2773,6 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
         throw new Error('message_search: limit must be an integer from 1 to 50');
       const cursor =
         request.cursor === undefined ? undefined : messageSearchCursorDecode(request.cursor);
-      // The trigram index needs three characters; shorter text, such as a two-character
-      // Chinese word, scans the newest visible messages and stops after a fixed number of hits.
       const indexed = length >= 3;
       const seen = cursor?.seen ?? 0;
       const limit = indexed ? request.limit : Math.min(request.limit, SHORT_SEARCH_MAX - seen);

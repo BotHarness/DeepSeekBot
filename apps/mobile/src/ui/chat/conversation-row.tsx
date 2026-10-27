@@ -87,9 +87,7 @@ export function ConversationRow({
     }));
   const avatar =
     row.kind === 'bot' ? (
-      <AvatarSlot>
-        <BotAvatar bot={row.bot} size={AVATAR} corner={radius.md} ring={false} />
-      </AvatarSlot>
+      <ConversationBotAvatar bot={row.bot} />
     ) : (
       <ConversationGroupAvatar avatar={row.channel.avatar} />
     );
@@ -163,6 +161,14 @@ function AvatarSlot({ children }: { children: ReactNode }) {
     >
       {children}
     </View>
+  );
+}
+
+export function ConversationBotAvatar({ bot }: { bot: Parameters<typeof BotAvatar>[0]['bot'] }) {
+  return (
+    <AvatarSlot>
+      <BotAvatar bot={bot} size={AVATAR} corner={radius.md} ring={false} />
+    </AvatarSlot>
   );
 }
 

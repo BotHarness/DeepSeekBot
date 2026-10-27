@@ -1,5 +1,6 @@
 import type { ChatsSearchResult } from '../shell/chats-search-bar';
-import { previewText, titleOf } from './conversations';
+import type { MessageSearchHit } from '../../host/message-search';
+import { previewText, shortTime, titleOf, type Conversation } from './conversations';
 import type { EnvironmentChatItem, EnvironmentChatRow } from './environment-chat-list';
 
 function titleOfRow(row: EnvironmentChatRow): string {
@@ -28,6 +29,24 @@ export function chatsSearchResults(
       title,
       subtitle: previewOfRow(row),
       initial: (Array.from(title.trim())[0] ?? '#').toLocaleUpperCase(),
+    };
+  });
+}
+
+export function messageSearchResults(
+  items: readonly { key: string; hit: MessageSearchHit; conversation: Conversation }[],
+  heading: string,
+  now: Date,
+): ChatsSearchResult[] {
+  return items.map(({ key, hit, conversation }, index) => {
+    const title = titleOf(conversation);
+    return {
+      key,
+      title,
+      subtitle: hit.snippet,
+      initial: (Array.from(title.trim())[0] ?? '#').toLocaleUpperCase(),
+      trailing: shortTime(hit.at, now),
+      ...(index === 0 ? { section: heading } : {}),
     };
   });
 }

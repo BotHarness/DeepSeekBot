@@ -43,7 +43,9 @@ describe('shortcut list', () => {
     expect(row('bot-mode')?.textContent).toBe('Enter or leave Bot modeAlt`');
     expect(row('help')?.textContent).toBe('Show keyboard shortcuts?orCtrl/');
     expect(row('recall')?.textContent).toContain('When the composer is empty');
-    expect(row('quick-switcher')?.textContent).toBe('Search conversations, messages and settingsAltK');
+    expect(row('quick-switcher')?.textContent).toBe(
+      'Search conversations, messages and settingsAltK',
+    );
     expect(row('search')?.textContent).toBe('Search this conversationCtrlF');
     expect(row('settings')?.textContent).toBe('Open Bot settingsCtrl,');
     expect(row('unread-next')?.textContent).toBe(

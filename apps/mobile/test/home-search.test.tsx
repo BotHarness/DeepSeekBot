@@ -1050,6 +1050,43 @@ describe('Search in the Chats header', () => {
     });
   });
 
+  it('lists matching messages under the Chats and opens the conversation at that message', async () => {
+    vi.useFakeTimers();
+    try {
+      call.mockImplementation(async (method: unknown) =>
+        method === 'messageSearch'
+          ? {
+              hits: [
+                {
+                  channelId: 'dm-ada',
+                  snippet: 'the launch checklist',
+                  message: {
+                    id: 'm-launch',
+                    at: '2026-10-01T00:00:00.000Z',
+                    author: { kind: 'bot', slug: 'ada' },
+                    body: 'the launch checklist',
+                  },
+                },
+              ],
+            }
+          : {},
+      );
+      const view = await home();
+      await type(view, 'checklist');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      expect(call).toHaveBeenCalledWith('messageSearch', { text: 'checklist', limit: 20 });
+      const row = view.querySelector('[data-testid="message-search-row-m-launch"]')!;
+      expect(row).not.toBeNull();
+      expect(view.textContent).toContain(t.searchMessages);
+      expect(row.textContent).toContain('Ada: the launch checklist');
+    } finally {
+      call.mockImplementation(async () => ({}));
+      vi.useRealTimers();
+    }
+  });
+
   it('says plainly when nothing matches', async () => {
     const view = await home();
     await type(view, ' zed ');
@@ -1483,7 +1520,7 @@ describe('Remote Host section and Pinned presentation', () => {
     conversationFilter.set(computerEnvironmentKey('h1'));
     await act(async () => root!.render(<HomeScreen />));
     expect(ordered(view)).not.toContain('conversation-row-bot:ada');
-    expect(call).not.toHaveBeenCalled();
+    expect(call.mock.calls.filter(([method]) => method !== 'messageSearch')).toEqual([]);
   });
 
   it.each(['ios', 'android'] as const)(

@@ -54,15 +54,12 @@ function inboxHistoryIndexSql(attachmentNames: string): string {
 
 export const INBOX_HISTORY_INDEX_SQL = inboxHistoryIndexSql('');
 
-// Triggers cannot read json_each, so the names come from fixed positions: a message carries at
-// most ten attachments.
 const ATTACHMENT_NAMES_SQL = Array.from(
   { length: 10 },
   (_, index) => `
       coalesce(json_extract(e.payload_json, '$.attachments[${index}].name') || ' ', '') ||`,
 ).join('');
 
-/** Generation 112 also indexes each attachment's file name, so global message search finds files. */
 export const MESSAGE_SEARCH_INDEX_SQL = `
   DROP TRIGGER inbox_history_insert;
   DROP TRIGGER inbox_history_before_update;

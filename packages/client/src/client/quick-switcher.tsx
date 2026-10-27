@@ -450,11 +450,7 @@ export function QuickSwitcher({
             return (
               <Fragment key={`message:${hit.channelId}:${hit.message.id}`}>
                 {messagesHeading}
-                <li
-                  {...rowProps}
-                  data-message-id={hit.message.id}
-                  data-channel-id={hit.channelId}
-                >
+                <li {...rowProps} data-message-id={hit.message.id} data-channel-id={hit.channelId}>
                   {entry === undefined ? (
                     <span {...stylex.props(styles.icon)} />
                   ) : (
