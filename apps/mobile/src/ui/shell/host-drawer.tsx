@@ -3,7 +3,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
-  BackHandler,
   FlatList,
   Platform,
   Pressable,
@@ -76,6 +75,7 @@ import {
 import { ActivityIcon, ChatsIcon, CloudIcon, ComputerIcon, PlusIcon } from './icons';
 import { noticeHostKept } from '../unpair-notice';
 import { chooseCloudWorkspace, showWorkspaceRoot } from './native-workspace-navigation';
+import { holdBack } from './back-owner';
 
 export const hostDrawer = createHostDrawer({
   switchTo: (hostId, current) => hostSession.switchTo(hostId, current),
@@ -707,7 +707,7 @@ export function HostDrawer() {
       if (!state.open) return;
 
       const focus = setTimeout(() => focusOn(node), motion.drawer);
-      const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      const back = holdBack(() => {
         settle(false);
         return true;
       });

@@ -65,6 +65,7 @@
     "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/reanimated-shim.ts",
     "apps/mobile/test/motion-springs.test.ts",
+    "apps/mobile/test/back-owner.test.ts",
     "apps/mobile/test/**/*.tsx"
   ]
 }
