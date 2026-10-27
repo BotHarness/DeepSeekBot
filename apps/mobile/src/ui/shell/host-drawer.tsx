@@ -636,9 +636,9 @@ export function HostDrawer() {
   const state = useSyncExternalStore(hostDrawer.subscribe, hostDrawer.getSnapshot);
   const { saved, hosts, client, inbox } = useHostSession();
   const [filter] = useConversationFilter();
-  const connection = useHostSnapshot(client).connection;
-  const list = useInbox(inbox);
-  const feeds = useHostSessions();
+  const connection = useHostSnapshot(client, state.shown).connection;
+  const list = useInbox(inbox, state.shown);
+  const feeds = useHostSessions(state.shown);
   const glanceMap = useMemo(
     () =>
       Object.fromEntries(

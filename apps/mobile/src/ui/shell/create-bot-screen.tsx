@@ -8,8 +8,7 @@ import {
 } from 'expo-router';
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { AppState, Platform, View, type ViewInstance } from 'react-native';
-import { useHostSession, useHostSessions } from '../../host/host-session';
-import { liveGlance } from '../../host/host-glance';
+import { useHostSession, useHostAvailability } from '../../host/host-session';
 import { botCreation, useBotCreation } from '../../host/native-bot-creation';
 import { enterBotCreation, type CreationEntrySource } from '../../host/bot-creation-entry';
 import type { BotCreationDraft } from '../../host/bot-creation';
@@ -20,7 +19,6 @@ import {
   isCreationFlow,
   sourceFlow,
   type CreationFlow,
-  type EnvironmentChoice,
 } from '../../host/bot-creation-steps';
 import { botCreationTargets } from '../../host/bot-creation-targets';
 import { createCreationVisibility } from '../../host/bot-creation-visibility';
@@ -113,20 +111,13 @@ export function useCreationModel({
   const initialIndex = useRef(index).current;
   const entering = initialIndex === 0;
   const { hosts } = useHostSession();
-  const feeds = useHostSessions();
+  const choices = useHostAvailability(presented);
   const theme = useDesignTheme();
   const state = useBotCreation();
   const first = index === 0;
   const [entryReady, setEntryReady] = useState(presented && !entering);
   const visibility = useRef(createCreationVisibility(AppState.currentState === 'active')).current;
   const ready = useRef(presented && !entering);
-  const choices: EnvironmentChoice[] = hosts.map((host) => {
-    const feed = feeds.find((candidate) => candidate.saved.hostId === host.hostId);
-    return {
-      hostId: host.hostId,
-      status: feed ? liveGlance(feed.snapshot.connection, feed.attention).status : 'checking',
-    };
-  });
   const choicesRef = useRef(choices);
   choicesRef.current = choices;
   const mounted = useMounted<ViewInstance>(() => {
