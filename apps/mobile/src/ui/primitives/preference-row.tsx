@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { SettingsRow } from './settings-row';
-import { RowIcon, type RowIconName } from './row-icon';
+import { type RowIconName } from './row-icon';
 import type { LayerName } from '../design/layers';
 
 export type PreferenceRowProps<T extends string> = {
@@ -29,7 +29,7 @@ export function PreferenceRow<T extends string>({
       <SettingsRow
         on={on}
         title={title}
-        leading={<RowIcon name={icon} />}
+        icon={icon}
         detail={options.find((option) => option.value === value)?.label ?? value}
         testID={testID}
         expanded={open}

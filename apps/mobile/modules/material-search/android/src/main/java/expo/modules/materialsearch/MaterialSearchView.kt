@@ -2,12 +2,21 @@
 
 package expo.modules.materialsearch
 
-import android.content.Context
-import android.graphics.Color as AndroidColor
+import android.view.View
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DockedSearchBar
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -15,134 +24,151 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.path
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
-import expo.modules.kotlin.AppContext
-import expo.modules.kotlin.viewevent.EventDispatcher
-import expo.modules.kotlin.views.ExpoView
+import expo.modules.kotlin.records.Field
+import expo.modules.kotlin.records.Record
+import expo.modules.kotlin.types.OptimizedRecord
+import expo.modules.kotlin.views.ComposeProps
+import expo.modules.kotlin.views.FunctionalComposableScope
+import expo.modules.kotlin.views.OptimizedComposeProps
+import expo.modules.ui.ModifierList
+import expo.modules.ui.ModifierRegistry
 
-class MaterialSearchView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
-  override val shouldUseAndroidLayout = true
-  val onQueryChange by EventDispatcher()
-  val onFocusChange by EventDispatcher()
-  val onClose by EventDispatcher()
-  val onSubmit by EventDispatcher()
-  var maxLength = 0
-  var query = ""
-  var acknowledged = 0
-  private val edits = SearchQuery()
-  private var text by mutableStateOf("")
-  var placeholder by mutableStateOf("")
-  var autoFocus by mutableStateOf(false)
-  var closable by mutableStateOf(false)
-  var dark by mutableStateOf(false)
-  var foregroundColor by mutableStateOf("")
-  var surface by mutableStateOf("")
-  var accent by mutableStateOf("")
-  var closeLabel by mutableStateOf("")
-  var clearLabel by mutableStateOf("")
+@OptimizedComposeProps
+data class SearchProps(
+  val query: String = "",
+  val maxLength: Int = 0,
+  val eventCount: Int = 0,
+  val placeholder: String = "",
+  val autoFocus: Boolean = false,
+  val closable: Boolean = false,
+  val closeLabel: String = "",
+  val clearLabel: String = "",
+  val modifiers: ModifierList = emptyList(),
+) : ComposeProps
 
-  fun synchronizeQuery() {
-    // Ignore delayed JS echoes while the native IME already holds a newer edit.
-    edits.acknowledge(query, acknowledged)
+@OptimizedRecord
+data class QueryChangeEvent(@Field val value: String = "", @Field val eventCount: Int = 0) : Record
+
+@OptimizedRecord
+data class FocusChangeEvent(@Field val focused: Boolean = false) : Record
+
+@OptimizedRecord
+data class SubmitEvent(@Field val value: String = "") : Record
+
+/**
+ * The editable docked M3 search field, placed inside `Host` so its container, text and icons come
+ * from the Host's seeded Material theme.
+ */
+@Composable
+fun FunctionalComposableScope.SearchContent(
+  props: SearchProps,
+  onQueryChange: (QueryChangeEvent) -> Unit,
+  onFocusChange: (Boolean) -> Unit,
+  onClose: () -> Unit,
+  onSubmit: (String) -> Unit,
+) {
+  val edits = remember { SearchQuery() }
+  var text by remember { mutableStateOf(props.query) }
+  // Ignore delayed JS echoes while the native IME already holds a newer edit.
+  LaunchedEffect(props.query, props.eventCount) {
+    edits.acknowledge(props.query, props.eventCount)
     if (edits.value != text) text = edits.value
   }
-
-  private fun edit(value: String) {
+  val edit = { value: String ->
     // InputField owns IME selection/composition; only query changes cross the bridge.
-    edits.edit(value, maxLength)
+    edits.edit(value, props.maxLength)
     text = edits.value
-    onQueryChange(mapOf("value" to text, "eventCount" to edits.eventCount))
+    onQueryChange(QueryChangeEvent(text, edits.eventCount))
   }
-
-  init {
-    addView(ComposeView(context).apply {
-      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
-      setContent {
-        val scheme = if (dark) darkColorScheme() else lightColorScheme()
-        val colors = scheme.copy(
-          primary = color(accent, scheme.primary),
-          onSurface = color(foregroundColor, scheme.onSurface),
-          onSurfaceVariant = color(foregroundColor, scheme.onSurfaceVariant),
-          surface = color(surface, scheme.surface),
-          surfaceContainerHigh = color(surface, scheme.surfaceContainerHigh),
-        )
-        MaterialTheme(colorScheme = colors) {
-          val requester = remember { FocusRequester() }
-          val focus = LocalFocusManager.current
-          val keyboard = LocalSoftwareKeyboardController.current
-          var focused by remember { mutableStateOf(false) }
-          val close = {
-            onClose(emptyMap<String, Any>())
-            keyboard?.hide()
-            focus.clearFocus()
-          }
-          BackHandler(enabled = focused || closable) {
-            if (closable) close() else {
-              keyboard?.hide()
-              focus.clearFocus()
-            }
-          }
-          LaunchedEffect(autoFocus) {
-            if (autoFocus) {
-              requester.requestFocus()
-              keyboard?.show()
-            }
-          }
-          // Results stay in the screen's existing virtualized list. The native search
-          // bar is deliberately inline, rather than expanding an empty results overlay.
-          DockedSearchBar(
-            expanded = false,
-            onExpandedChange = {},
-            modifier = Modifier.fillMaxWidth().semantics { testTagsAsResourceId = true },
-            inputField = {
-              SearchBarDefaults.InputField(
-                query = text,
-                onQueryChange = ::edit,
-                onSearch = {
-                  onSubmit(mapOf("value" to text))
-                  keyboard?.hide()
-                  focus.clearFocus()
-                },
-                expanded = false,
-                onExpandedChange = {},
-                placeholder = { Text(placeholder) },
-                leadingIcon = {
-                  if (closable) {
-                    IconButton(onClick = close, modifier = Modifier.testTag("search-close")) { Icon(backIcon, closeLabel) }
-                  } else Icon(searchIcon, null)
-                },
-                trailingIcon = {
-                  if (text.isNotEmpty()) {
-                    IconButton(onClick = { edit("") }, modifier = Modifier.testTag("search-clear")) { Icon(clearIcon, clearLabel) }
-                  }
-                },
-                modifier = Modifier.focusRequester(requester)
-                  .semantics { contentDescription = placeholder }
-                  .onFocusChanged {
-                    if (focused != it.isFocused) {
-                      focused = it.isFocused
-                      onFocusChange(mapOf("focused" to focused))
-                    }
-                  },
-              )
-            },
-          ) {}
-        }
-      }
-    }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+  val attached = rememberAttached(view)
+  val requester = remember { FocusRequester() }
+  val focus = LocalFocusManager.current
+  val keyboard = LocalSoftwareKeyboardController.current
+  var focused by remember { mutableStateOf(false) }
+  val close = {
+    onClose()
+    keyboard?.hide()
+    focus.clearFocus()
   }
+  // Host keeps its composition while React Native Screens detaches an inactive screen,
+  // so a hidden screen's search must not take Back.
+  BackHandler(enabled = attached && (focused || props.closable)) {
+    if (props.closable) close() else {
+      keyboard?.hide()
+      focus.clearFocus()
+    }
+  }
+  LaunchedEffect(props.autoFocus) {
+    if (props.autoFocus) {
+      requester.requestFocus()
+      keyboard?.show()
+    }
+  }
+  // Results stay in the screen's existing virtualized list. The native search
+  // bar is deliberately inline, rather than expanding an empty results overlay.
+  DockedSearchBar(
+    expanded = false,
+    onExpandedChange = {},
+    modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher)
+      .fillMaxWidth()
+      .semantics { testTagsAsResourceId = true },
+    inputField = {
+      SearchBarDefaults.InputField(
+        query = text,
+        onQueryChange = edit,
+        onSearch = {
+          onSubmit(text)
+          keyboard?.hide()
+          focus.clearFocus()
+        },
+        expanded = false,
+        onExpandedChange = {},
+        placeholder = { Text(props.placeholder) },
+        leadingIcon = {
+          if (props.closable) {
+            IconButton(onClick = close, modifier = Modifier.testTag("search-close")) { Icon(backIcon, props.closeLabel) }
+          } else Icon(searchIcon, null)
+        },
+        trailingIcon = {
+          if (text.isNotEmpty()) {
+            IconButton(onClick = { edit("") }, modifier = Modifier.testTag("search-clear")) { Icon(clearIcon, props.clearLabel) }
+          }
+        },
+        modifier = Modifier.focusRequester(requester)
+          .semantics { contentDescription = props.placeholder }
+          .onFocusChanged {
+            if (focused != it.isFocused) {
+              focused = it.isFocused
+              onFocusChange(focused)
+            }
+          },
+      )
+    },
+  ) {}
 }
 
-private fun color(value: String, fallback: Color): Color =
-  if (value.isEmpty()) fallback else Color(AndroidColor.parseColor(value))
+/** Whether [view] is in a window: false while React Native Screens has detached its screen. */
+@Composable
+private fun rememberAttached(view: View): Boolean {
+  var attached by remember { mutableStateOf(view.isAttachedToWindow) }
+  DisposableEffect(view) {
+    val listener = object : View.OnAttachStateChangeListener {
+      override fun onViewAttachedToWindow(v: View) { attached = true }
+      override fun onViewDetachedFromWindow(v: View) { attached = false }
+    }
+    view.addOnAttachStateChangeListener(listener)
+    attached = view.isAttachedToWindow
+    onDispose { view.removeOnAttachStateChangeListener(listener) }
+  }
+  return attached
+}
 
 private val searchIcon = ImageVector.Builder("Search", 24.dp, 24.dp, 24f, 24f).apply {
   path(fill = androidx.compose.ui.graphics.SolidColor(Color.Black)) {

@@ -52,3 +52,4 @@ export const MemoryIcon = () => null;
 export const PlayIcon = () => null;
 export const PauseIcon = () => null;
 export const TrashIcon = () => null;
+export const PencilIcon = () => null;

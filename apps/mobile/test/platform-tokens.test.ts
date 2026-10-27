@@ -3,7 +3,10 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('react-native', () => ({ PlatformColor: (name: string) => ({ semantic: [name] }) }));
+vi.mock('react-native', () => ({
+  Platform: { OS: 'ios', Version: '18.5' },
+  PlatformColor: (name: string) => ({ semantic: [name] }),
+}));
 vi.mock('@expo/ui/jetpack-compose', () => ({
   useMaterialColors: (options: { colorScheme: string; seedColor: string }) => ({
     primary: `${options.colorScheme}:${options.seedColor}`,

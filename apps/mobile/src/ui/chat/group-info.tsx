@@ -28,7 +28,7 @@ import {
   SettingsSection,
 } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { ChevronRightIcon, PlusIcon } from '../shell/icons';
+import { PlusIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { GroupMark } from './group-mark';
 import { AvatarSettings, EditableAvatar, useAvatarEditor } from './avatar-editor';
@@ -42,7 +42,6 @@ import { InviteSheet } from './invite-sheet';
 import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
 import { profileTabs, type ProfileTabMemory } from './profile-tabs';
 import { ProfileHero } from './profile-hero';
-import { ProfileZoomTarget } from './profile-zoom-target';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
 const ON = 'raised' as const;
@@ -155,7 +154,7 @@ function RenameSheet({
       onClose={onClose}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <TextField
           value={draft}
           onChangeText={setDraft}
@@ -219,7 +218,6 @@ export function GroupProfilePage({
   files,
 }: GroupProfileProps) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
@@ -229,7 +227,6 @@ export function GroupProfilePage({
   const tabs = profileTabs('group');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs, 'group');
   const { channel } = info;
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
 
   const readWork = useCallback(() => {
     if (loadWork === undefined) return () => {};
@@ -371,7 +368,7 @@ export function GroupProfilePage({
           title={t.groupName}
           detail={channel.name}
           accessibilityLabel={`${t.groupRename}, ${channel.name}`}
-          trailing={chevron}
+          control={{ kind: 'chevron' }}
           onPress={() => {
             setRenameOpened((count) => count + 1);
             setSheet('rename');
@@ -513,16 +510,14 @@ function GroupIdentity({
     <ProfileHero
       name={channel.name}
       avatar={
-        <ProfileZoomTarget>
-          <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
-            <GroupMark
-              avatar={channel.avatar}
-              size={profileShell.avatar}
-              corner={radius.round}
-              variant="display"
-            />
-          </EditableAvatar>
-        </ProfileZoomTarget>
+        <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
+          <GroupMark
+            avatar={channel.avatar}
+            size={profileShell.avatar}
+            corner={radius.round}
+            variant="display"
+          />
+        </EditableAvatar>
       }
     >
       <Text variant="meta" tone="muted">

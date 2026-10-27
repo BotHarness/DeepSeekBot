@@ -198,10 +198,9 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
-  alignAssignmentPermission,
-  alignOrchestratorPermission as alignOrchestratorRootPermission,
-  alignOrchestratorSubagentPermission,
+  admitBotSession,
   borrowedAgentDenial,
+  type BotSessionRepair,
   deviceToolAuthorization,
   grantExecutionDenial,
   sessionRefusalMessage,
@@ -1376,15 +1375,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           }),
       ),
     authorizeBorrow: (agent, role) => {
-      const denial = borrowedAgentDenial(
-        core,
-        agent.session,
-        role,
-        ctx.get('sandboxPolicy'),
-        ctx.get('approval'),
-      );
+      const denial = borrowedAgentDenial(core, agent.session, role);
       if (denial !== undefined) throw new Error(denial);
     },
+    admitSession: (agent) =>
+      void admitBotSession(
+        core,
+        agent.session,
+        undefined,
+        ctx.get('sandboxPolicy'),
+        ctx.get('approval'),
+      ),
   });
   let userQuestions: ChannelUserQuestions | undefined;
   let toolApproval: ChannelToolApproval | undefined;
@@ -1606,16 +1607,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   const appliedPermission = new Map<string, string>();
   ctx.effect(() => () => appliedPermission.clear(), 'botharness: Orchestrator permission record');
-  const alignOrchestratorPermission = (agent: import('@deepseek-ai/dsh-agent').Agent): void => {
-    const session = agent.session;
-    const changed = alignOrchestratorRootPermission(
-      core,
-      session,
-      ctx.get('sandboxPolicy'),
-      ctx.get('approval'),
-    );
+  const recordOrchestratorPermission = (
+    session: import('@deepseek-ai/dsh-session').Session,
+    changed: boolean,
+  ): void => {
     const owner = core.ownership.resolve(session.id);
-    if (changed === undefined || owner === undefined) return;
+    if (
+      owner?.rootRole !== 'orchestrator' ||
+      owner.provenance === 'subagent' ||
+      owner.parentSessionId !== undefined
+    )
+      return;
     const expected = orchestratorPermission(core, owner.botSlug);
     const key = expected.mode + '+' + expected.approval;
     const changedOutside = changed && appliedPermission.get(session.id) === key;
@@ -1672,25 +1674,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       } catch {
         return { kind: 'reject' };
       }
-      alignOrchestratorPermission(agent);
-      if (
-        alignAssignmentPermission(
-          core,
-          agent.session,
-          ctx.get('sandboxPolicy'),
-          ctx.get('approval'),
-        )
-      )
+      const repairs = new Set<BotSessionRepair>();
+      const denial = admitBotSession(
+        core,
+        agent.session,
+        undefined,
+        ctx.get('sandboxPolicy'),
+        ctx.get('approval'),
+        (repair) => repairs.add(repair),
+      );
+      if (ctx.get('sandboxPolicy') !== undefined && ctx.get('approval') !== undefined)
+        recordOrchestratorPermission(agent.session, repairs.has('orchestrator'));
+      if (repairs.has('assignment'))
         ctx.logger.warn(
           'botharness: restored the permission mode of an Assignment Session that was changed outside its permission snapshot',
         );
-      alignOrchestratorSubagentPermission(
-        core,
-        agent.session,
-        ctx.get('sandboxPolicy'),
-        ctx.get('approval'),
-      );
-      const denial = permissionDenial(agent.session);
       if (denial !== undefined) {
         turnRefusals.set(agent.session.id, sessionRefusalMessage(denial));
         return { kind: 'reject' };

@@ -9,7 +9,6 @@ import { useDesignTheme } from '../../src/ui/design/theme';
 import { space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
 import { DrawerHeader } from '../../src/ui/primitives/drawer-header';
-import { RowIcon } from '../../src/ui/primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../../src/ui/primitives/settings-row';
 import { Text } from '../../src/ui/primitives/text';
 import { PairingGuide } from '../../src/ui/shell/pairing-guide';
@@ -49,7 +48,7 @@ export default function PairChoiceScreen() {
           on={SHEET_GROUP}
           title={t.pairChoice.lan}
           detail={t.pairChoice.lanDetail}
-          leading={<RowIcon name="qr" />}
+          icon="qr"
           disclosure
           onPress={() => router.push({ pathname: '/pair/tailscale', params: { mode: 'lan' } })}
         />
@@ -58,7 +57,7 @@ export default function PairChoiceScreen() {
           on={SHEET_GROUP}
           title={t.pairChoice.account}
           detail={t.pairChoice.accountDetail}
-          leading={<RowIcon name="account" />}
+          icon="account"
           disclosure
           onPress={() => router.push('/pair/account')}
         />
@@ -67,7 +66,7 @@ export default function PairChoiceScreen() {
           on={SHEET_GROUP}
           title={t.pairChoice.tailscale}
           detail={t.pairChoice.tailscaleDetail}
-          leading={<RowIcon name="qr" />}
+          icon="qr"
           disclosure
           onPress={() => router.push('/pair/tailscale')}
         />

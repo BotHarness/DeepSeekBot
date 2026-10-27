@@ -16,13 +16,12 @@ import {
   shapes,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
-import type { ActionSymbol } from '../../../../../packages/client/src/shared/action-presentation';
 import { controlCase } from '../platform-copy';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { useLiquidGlass } from './drawer-material';
-import type { Button as SharedButton } from './button';
+import type { Button as SharedButton, ButtonSymbol } from './button';
 
 export type { ButtonTone } from '../design/controls';
 
@@ -39,7 +38,8 @@ export const ACTION_SF_SYMBOL = {
   'external-link': 'arrow.up.right.square',
   terminal: 'terminal',
   info: 'info.circle',
-} as const satisfies Record<ActionSymbol, string>;
+  photo: 'photo',
+} as const satisfies Record<ButtonSymbol, string>;
 
 function nativeStyle(
   props: Pick<ComponentProps<typeof SharedButton>, 'tone' | 'variant'>,

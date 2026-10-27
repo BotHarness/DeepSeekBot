@@ -27,7 +27,10 @@ export function ItemMenu({ title, actions, children }: ItemMenuProps) {
       {children(() => setOpen(true))}
       {open ? (
         <Sheet visible title={title} label={title} onClose={() => setOpen(false)}>
-          <ScrollView contentContainerStyle={{ padding: space.x5, gap: space.x2 }}>
+          <ScrollView
+            nestedScrollEnabled
+            contentContainerStyle={{ padding: space.x5, gap: space.x2 }}
+          >
             {actions.map((action) => (
               <Button
                 key={action.key}

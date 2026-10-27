@@ -8,6 +8,7 @@ import { space } from './design/tokens';
 import { Button } from './primitives/button';
 import { KeyboardFormScroll } from './primitives/keyboard-form';
 import { TextField } from './primitives/text-field';
+import { labelInField } from './primitives/field-label';
 import { Text } from './primitives/text';
 import { useStrings } from './strings';
 
@@ -111,13 +112,16 @@ export function PrivateInputForm({
             {allowed
               ? request.fields.map((field) => (
                   <View key={field.id} style={{ gap: space.x2 }}>
-                    <Text>
-                      {field.label}
-                      {field.required ? ' *' : ''}
-                    </Text>
+                    {labelInField ? null : (
+                      <Text>
+                        {field.label}
+                        {field.required ? ' *' : ''}
+                      </Text>
+                    )}
                     <TextField
                       testID={`private-input-${field.id}`}
                       accessibilityLabel={field.label}
+                      label={field.required ? `${field.label} *` : field.label}
                       secureTextEntry
                       autoComplete="off"
                       textContentType="none"

@@ -16,14 +16,12 @@ import {
   type Routines,
 } from '../../host/routines';
 import type { BotScheduleFiring, BotScheduleSummary } from '../../host/wire';
-import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { Chip } from '../primitives/chip';
-import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import type { RoutineTarget } from '../../host/routines';
 import { firingText, routineDetail, when } from './routine-text';
@@ -277,7 +275,6 @@ export function RoutineSheet({
   onClose(): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [routine, setRoutine] = useState<BotScheduleSummary | undefined>(
     target.kind === 'open' ? target.routine : undefined,
   );
@@ -464,7 +461,6 @@ export function RoutineSheet({
     );
 
   const editable = routineFormOf(routine) !== undefined;
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />;
   return (
     <Sheet
       page={page}
@@ -540,7 +536,7 @@ export function RoutineSheet({
             <SettingsRow
               title={t.routineEdit}
               accessibilityLabel={t.routineEdit}
-              trailing={chevron}
+              control={{ kind: 'chevron' }}
               on={SHEET_GROUP}
               onPress={
                 busy !== undefined

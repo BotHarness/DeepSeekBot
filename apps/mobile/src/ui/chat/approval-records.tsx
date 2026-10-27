@@ -14,7 +14,6 @@ import type { HostClient } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { confirmDestructive } from '../primitives/app-dialog';
-import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SettingsRow } from '../primitives/settings-row';
 import { SheetPage } from '../primitives/sheet-page';
 import { Text } from '../primitives/text';
@@ -105,7 +104,7 @@ function GroupedList<T>({
             title={t.approvals.more}
             tone="accent"
             on={SHEET_GROUP}
-            trailing={moreBusy ? <LoadingIndicator size="control" /> : undefined}
+            control={moreBusy ? { kind: 'busy' } : undefined}
             onPress={moreBusy ? undefined : onMore}
           />
         );
@@ -278,10 +277,9 @@ export function ApprovalRulesPage({ client, slug }: { client: HostClient; slug: 
               detail={ruleDetail(rule)}
               leading={<ToolIcon toolName={rule.kind === 'all-opaque' ? '' : rule.toolName} />}
               on={SHEET_GROUP}
+              {...(busy === rule.id ? { control: { kind: 'busy' } as const } : {})}
               trailing={
-                busy === rule.id ? (
-                  <LoadingIndicator size="control" />
-                ) : (
+                busy === rule.id ? undefined : (
                   <RemoveButton
                     label={t.approvals.revokeRule(title)}
                     disabled={busy !== undefined}

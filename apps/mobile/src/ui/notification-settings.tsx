@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { Platform, ScrollView, Switch, View, type ScrollViewInstance } from 'react-native';
+import { ScrollView, View, type ScrollViewInstance } from 'react-native';
 
 import {
   PUSH_KINDS,
@@ -15,7 +15,6 @@ import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
 import { SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
-import { Toggle } from './primitives/toggle';
 import { ActionButton, Loading, Notice, errorText } from './request-parts';
 import { useStrings, t } from './strings';
 
@@ -28,31 +27,6 @@ export interface NotificationSettingsPort {
 
 function failure(error: unknown): string {
   return error instanceof PushRequestFailed ? t.pushFailed[error.code] : errorText(error);
-}
-
-function PushSwitch({
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  label: string;
-  value: boolean;
-  disabled: boolean;
-  onChange(value: boolean): void;
-}) {
-  const theme = useDesignTheme();
-  return Platform.OS === 'android' ? (
-    <Toggle on="raised" label={label} value={value} onChange={onChange} disabled={disabled} />
-  ) : (
-    <Switch
-      accessibilityLabel={label}
-      value={value}
-      onValueChange={onChange}
-      disabled={disabled}
-      trackColor={{ true: theme.color.accent, false: theme.color.borderStrong }}
-    />
-  );
 }
 
 export function NotificationSettings({
@@ -173,14 +147,12 @@ export function NotificationSettings({
           <SettingsRow
             on="raised"
             title={t.allowNotifications}
-            trailing={
-              <PushSwitch
-                label={t.allowNotifications}
-                value={settings.enabled}
-                onChange={allow}
-                disabled={!settings.registered}
-              />
-            }
+            control={{
+              kind: 'switch',
+              value: settings.enabled,
+              onChange: allow,
+              disabled: !settings.registered,
+            }}
           />
         </SettingsSection>
       ) : null}
@@ -195,14 +167,12 @@ export function NotificationSettings({
                 on="raised"
                 key={kind}
                 title={t.pushKind[kind]}
-                trailing={
-                  <PushSwitch
-                    label={t.pushKind[kind]}
-                    value={(preference?.preferences ?? settings!.preferences)[kind]}
-                    onChange={(value) => toggle(kind, value)}
-                    disabled={preference?.preferences === undefined && !settings?.registered}
-                  />
-                }
+                control={{
+                  kind: 'switch',
+                  value: (preference?.preferences ?? settings!.preferences)[kind],
+                  onChange: (value) => toggle(kind, value),
+                  disabled: preference?.preferences === undefined && !settings?.registered,
+                }}
               />
             ))}
           </SettingsSection>

@@ -191,11 +191,9 @@ it.each(Object.entries(ACTION_SF_SYMBOL))(
 );
 
 it('never hosts a React Native view inside the button', async () => {
-  const host = await render(
-    <Button label="Paste" icon={<div data-react-native-icon />} onPress={() => {}} />,
-  );
-  expect(host.querySelector('[data-react-native-icon]')).toBeNull();
-  expect(host.querySelector('button i')).toBeNull();
+  const host = await render(<Button label="Paste" symbol="photo" busy onPress={() => {}} />);
+  const tags = [...host.querySelectorAll('button *')].map((node) => node.tagName.toLowerCase());
+  expect(new Set(tags)).toEqual(new Set(['span', 'progress']));
 });
 
 it('keeps a 44pt minimum target and scales its label with Dynamic Type', async () => {
