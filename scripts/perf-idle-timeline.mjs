@@ -414,6 +414,11 @@ try {
     console.error(`budget ${check.budget} (${check.mode}): ${check.pass ? 'pass' : 'FAIL'}`);
     if (!check.pass) process.exitCode = 1;
   }
+} catch (error) {
+  const shot = resolve(out, `${options.label}.failure.png`);
+  await page.screenshot({ path: shot }).catch(() => {});
+  console.error(`perf run failed; page screenshot: ${shot}`);
+  throw error;
 } finally {
   await browser.close();
 }

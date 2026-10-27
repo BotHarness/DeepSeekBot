@@ -350,6 +350,7 @@ jobs:
     timeout-minutes: 20
     env:
       BH_E2E_INSTANCE: .humanlayer/verify/perf/instance.json
+      DEEPSEEK_API_KEY: perf-budget-placeholder
     steps:
       - uses: actions/checkout@v7
         with:
@@ -372,7 +373,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: timeline-perf
-          path: .humanlayer/perf/ci/*.json
+          path: |
+            .humanlayer/perf/ci/*.json
+            .humanlayer/perf/ci/*.png
           if-no-files-found: ignore
 
   verify:
