@@ -35,7 +35,7 @@ import { conversations, searchKey, PINNED_SECTION } from '../../../src/ui/chat/c
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
-import { space } from '../../../src/ui/design/tokens';
+import { searchAppBar, space } from '../../../src/ui/design/tokens';
 import {
   conversationEnvironments,
   computerEnvironmentKey,
@@ -47,7 +47,11 @@ import { Button } from '../../../src/ui/primitives/button';
 import { HeaderAction } from '../../../src/ui/shell/header-action';
 import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
-import { HostDrawerEdge, hostDrawer } from '../../../src/ui/shell/host-drawer';
+import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
+import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
+import { chatsSearchResults } from '../../../src/ui/chat/chats-search-results';
+import { openConversation } from '../../../src/ui/shell/open-conversation';
+import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
@@ -275,6 +279,19 @@ const HomeContent = memo(function HomeContent({
     collapsed,
     query.trim() !== '',
   );
+  const searchResults = useMemo(
+    () =>
+      Platform.OS === 'android' ? chatsSearchResults(displayed, query, searchAppBar.recent) : [],
+    [displayed, query],
+  );
+  const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
+  const pickSearch = (key: string) => {
+    const item = displayed.find((entry) => entry.type !== 'section' && entry.key === key);
+    if (item === undefined || item.type === 'section') return;
+    if (item.type === 'cloud') void openCloud(item.conversation);
+    else if (!openConversation(navigation, item.conversation, item.host.saved.hostId))
+      setActionError(true);
+  };
   const includesCloud = environment.kind !== 'computer';
   const hostFailed =
     selectedHost !== undefined &&
@@ -398,6 +415,19 @@ const HomeContent = memo(function HomeContent({
         <HomeHeader
           environment={environment}
           connection={selectedHost?.snapshot.connection}
+          bar={
+            Platform.OS === 'android' ? (
+              <ChatsSearchBar
+                placeholder={t.searchIn(environment.title)}
+                busy={connecting}
+                results={searchResults}
+                onQuery={setQuery}
+                onExpanded={setSearchFocused}
+                onPick={pickSearch}
+                onNavigation={openHostDrawer}
+              />
+            ) : undefined
+          }
           search={
             searching ? (
               <HeaderSearch

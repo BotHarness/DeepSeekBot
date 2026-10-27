@@ -14,6 +14,7 @@ export const space = {
 export const materialSearch = { height: 56, lineHeight: 24 } as const;
 
 export const splitButton = { initial: { width: 160, height: 40 } } as const;
+export const searchAppBar = { verticalPadding: 4, recent: 8 } as const;
 
 export const materialMenu = {
   containerRadius: 16,
