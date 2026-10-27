@@ -280,6 +280,10 @@ export interface DshBotAgentAdapterOptions {
   observeTurnFailure?: (provider: string, code: string) => void;
 
   promptText?: (sessionId: string) => PromptText;
+
+  preparationTimeoutMs?: number;
+
+  observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
 }
 
 export interface BotAgentSetupInfo {
@@ -384,6 +388,14 @@ function requireCompletedTurn(
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 
+const PREPARATION_TIMEOUT_MS = 120_000;
+
+class PreparationStopped extends Error {
+  constructor() {
+    super('Turn preparation was stopped');
+  }
+}
+
 function turnAborted(handle: AgentHandle, fromSeq: SessionLogOffset): boolean {
   const turnEnd = handle.agent.session
     .snapshotEvents(fromSeq)
@@ -425,6 +437,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #stopping = new Set<string>();
   readonly #stoppedBots = new Set<string>();
   readonly #humanStops = new Set<string>();
+  readonly #preparations = new Map<string, AbortController>();
+  readonly #preparationTimeoutMs: number;
+  readonly #observePreparation: DshBotAgentAdapterOptions['observePreparation'];
   readonly #drafts: ChannelDraftTracker;
   #closed = false;
 
@@ -446,6 +461,43 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#ensureWorkspace =
       options.ensureWorkspace ?? ((path) => void mkdirSync(path, { recursive: true }));
     this.#drafts = new ChannelDraftTracker(options.publishDraft ?? (() => undefined));
+    this.#preparationTimeoutMs = options.preparationTimeoutMs ?? PREPARATION_TIMEOUT_MS;
+    this.#observePreparation = options.observePreparation;
+  }
+
+  async #prepare<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+    const controller = new AbortController();
+    this.#preparations.set(sessionId, controller);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        work(),
+        new Promise<never>((_, reject) => {
+          controller.signal.addEventListener('abort', () => reject(new PreparationStopped()), {
+            once: true,
+          });
+          timer = setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Preparing this turn took longer than ${Math.round(this.#preparationTimeoutMs / 1000)} s (model route or Session resume did not answer). Check the DSH model provider, then send the message again.`,
+                ),
+              ),
+            this.#preparationTimeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      if (this.#preparations.get(sessionId) === controller) this.#preparations.delete(sessionId);
+    }
+  }
+
+  #abortPreparation(sessionId: string): boolean {
+    const controller = this.#preparations.get(sessionId);
+    if (controller === undefined) return false;
+    controller.abort();
+    return true;
   }
 
   async runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
@@ -480,8 +532,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         },
       });
     try {
-      await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
-      const handle = await this.#orchestratorHandle(run);
+      let handle: AgentHandle;
+      this.#observePreparation?.(run.bot.slug, run.sessionId, true);
+      try {
+        handle = await this.#prepare(run.sessionId, async () => {
+          await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
+          return this.#orchestratorHandle(run);
+        });
+      } catch (error) {
+        this.#observePreparation?.(run.bot.slug, run.sessionId, false);
+        if (error instanceof PreparationStopped && this.#humanStops.has(run.sessionId)) return;
+        throw error;
+      }
       if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
       this.#orchestratorBridgeTools.get(run.sessionId)?.(
         run.externalMessaging?.connected() ?? false,
@@ -498,7 +560,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.setExecutionReady?.(true);
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
       if (run.acceptNativeInput !== undefined) {
-        if (!run.acceptNativeInput()) return;
+        if (!run.acceptNativeInput()) {
+          this.#observePreparation?.(run.bot.slug, run.sessionId, false);
+          return;
+        }
       } else
         handle.agent.followup(
           createUserMessage({
@@ -529,6 +594,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     for (const [sessionId, active] of this.#runs) {
       if (active.role !== 'orchestrator' || active.direct || active.run.bot.slug !== botSlug)
         continue;
+      if (this.#abortPreparation(sessionId)) {
+        this.#humanStops.add(sessionId);
+        return sessionId;
+      }
       const handle = this.#handles.get(sessionId);
       if (handle === undefined) return undefined;
       this.#humanStops.add(sessionId);
@@ -606,6 +675,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     ]);
     const agents = [...ids].flatMap((id) => {
       this.#stopping.add(id);
+      this.#abortPreparation(id);
       const agent = this.#handles.get(id)?.agent ?? this.#agents.get?.(SessionId(id));
       if (agent === undefined) return [];
       agent.cancel({ kind: 'user' });
@@ -636,6 +706,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
   async stopAssignment(sessionId: string): Promise<void> {
     this.#stopping.add(sessionId);
+    this.#abortPreparation(sessionId);
     const handle = this.#handles.get(sessionId);
     if (handle !== undefined && this.#runs.get(sessionId)?.role === 'assignment') {
       handle.agent.cancel({ kind: 'user' });
@@ -648,8 +719,14 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const entry: ActiveRun = { role: 'assignment', run, reported: false };
     this.#runs.set(run.sessionId, entry);
     try {
-      await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
-      const handle = await this.#assignmentHandle(run);
+      const handle = await this.#prepare(run.sessionId, async () => {
+        await this.#prepareModelRoute?.(run.bot.slug, 'assignment', run.modelRoute);
+        return this.#assignmentHandle(run);
+      }).catch((error: unknown) => {
+        if (error instanceof PreparationStopped)
+          throw new Error('Assignment stopped before Inbox acceptance');
+        throw error;
+      });
       this.#selectAssignmentModel(run);
       if (this.#stopping.has(run.sessionId) || this.#stoppedBots.has(run.bot.slug))
         throw new Error('Assignment stopped before Inbox acceptance');
@@ -695,6 +772,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#orchestratorSelections.clear();
     this.#assignmentSelections.clear();
     for (const sessionId of this.#runs.keys()) this.#drafts.end(sessionId);
+    for (const controller of this.#preparations.values()) controller.abort();
     this.#runs.clear();
     this.#stopping.clear();
     await Promise.all(handles.map(async (handle) => handle.dispose()));
@@ -707,8 +785,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       error.name = 'SessionUnavailableError';
       throw error;
     }
-    await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
-    await this.#orchestratorHandle(run);
+    await this.#prepare(run.sessionId, async () => {
+      await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
+      await this.#orchestratorHandle(run);
+    });
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun): Promise<AgentHandle> {
@@ -851,6 +931,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           ...(meta === undefined ? {} : { meta }),
           ...options,
         });
+    const raced = this.#handles.get(run.sessionId);
+    if (raced !== undefined || this.#closed) {
+      await handle.dispose();
+      if (raced === undefined) throw new Error('Agent adapter is closed');
+      return raced;
+    }
     this.#handles.set(run.sessionId, handle);
     this.#orchestratorSelections.set(run.sessionId, selection);
     return handle;
@@ -3653,6 +3739,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           setup: createOptions.setup!,
         })
       : await this.#agents.create(createOptions);
+    const raced = this.#handles.get(run.sessionId);
+    if (raced !== undefined || this.#closed) {
+      await handle.dispose();
+      if (raced === undefined) throw new Error('Agent adapter is closed');
+      return raced;
+    }
     this.#handles.set(run.sessionId, handle);
     this.#assignmentSelections.set(run.sessionId, selection);
     return handle;

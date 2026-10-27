@@ -6,6 +6,7 @@ A Human stops a PersonaBot's running Orchestrator turn. The Host cancels the tur
 
 - `web` turns the composer's Send button into `Stop <Bot>` while a Bot in the DM or Group Channel is thinking or working and the composer is empty. In a Group Channel it reads `Stop <n> Bots` and stops each of them.
 - `cli` stops the same turn with `deepseekbot channel-bot-stop <channel> --bot <id>`.
+- `preparing` covers a Turn still preparing before its Agent starts (model-route check or Session resume). The Bot shows as thinking, so the composer offers Stop, and Stop ends the preparation; the next message then runs. A preparation that runs past two minutes fails the Turn with a `Preparing this turn took longer than…` Session failure.
 - `refused` answers `not-working` when the Bot has no running Orchestrator turn; the Web Client shows that as a short notice above the composer.
 
 ## How to get to it (user POV)
@@ -20,6 +21,8 @@ Preconditions: `launch` reported a model credential and `doctor` passes.
 - **Canonical state.** `rpc botharness/channelTimeline '{"channelId":"dm-<slug>"}'` ends with a system entry carrying `turnStop`.
 
 ## Gotchas
+
+- To reproduce a hung preparation, point the Bot at a provider whose model listing never answers. DSH's own providers bound their listing (5 s), so this needs a test provider without a deadline; #2995's PR describes the one it used.
 
 - The Window Companion covers the Send/Stop slot at 1440×900, so a mouse click by accessible name lands on the companion. The journey focuses Stop with Tab and presses Enter, and hides the companion only for its screenshots.
 - `opencode-go/deepseek-v4-flash` counts to 400 in about a minute. Ask for a longer range so the Bot is still working when the page loads.
