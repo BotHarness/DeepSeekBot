@@ -64,7 +64,7 @@ import type {
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
-import type { ShareDraftView } from './methods.js';
+import type { ShareDraftView } from '../marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,

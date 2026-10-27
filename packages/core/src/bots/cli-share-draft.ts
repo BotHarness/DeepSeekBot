@@ -1,8 +1,5 @@
 import { CliLiveError } from './cli-live-error.js';
 
-// Share Draft commands (ADR-0267): the Human starts, exports and discards a draft; Tob and the
-// Human both read it and decide each file. Uploads read only a ready draft.
-
 export const SHARE_DRAFT_COMMANDS = [
   {
     command: 'share-draft-start',
@@ -122,8 +119,6 @@ export async function runShareDraftCommand(
   return rpc(method, args);
 }
 
-// Tob's scoped CLI reaches the same bridge methods through its broker, but only for drafts the
-// Human already started; starting, exporting and discarding stay with the Human.
 export async function parseAgentShareDraft(
   command: string,
   rest: string[],

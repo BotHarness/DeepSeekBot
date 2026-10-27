@@ -21,7 +21,6 @@ const IMAGE_COMMANDS = new Set([
   'bot-appearance-set',
   'group-avatar-set',
 ]);
-// A rewritten Share Draft file may be larger than a settings patch.
 const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide']);
 const CODES = new Set([
   ...SHARE_DRAFT_ERROR_CODES,

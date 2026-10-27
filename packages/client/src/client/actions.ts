@@ -51,6 +51,7 @@ import type {
   MarketplaceAccount,
   UploadPlan,
 } from '../../../core/src/marketplace/uploaded-bots.js';
+import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
@@ -896,6 +897,10 @@ export interface BridgeActions {
     slug: string,
     presentation: { displayName: string; bio?: string; tags?: string[] },
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
+  shareDraftStart(slug: string): Promise<ShareDraftView>;
+  shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
+  shareDraftDiscard(slug: string): Promise<void>;
+  shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
   marketplaceInstall(id: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
@@ -2743,6 +2748,17 @@ export function createActions(
       invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
+    shareDraftStart: (slug) => invoke('shareDraftStart', { slug }),
+    async shareDraftGet(slug) {
+      const result = await call('shareDraftGet', { slug });
+      if (result.ok) return result.value as ShareDraftView;
+      if (result.error.code === 'share-draft-not-found') return undefined;
+      throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+    },
+    async shareDraftDiscard(slug) {
+      await invoke('shareDraftDiscard', { slug });
+    },
+    shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
     async marketplaceInstall(id, sectionId) {
       return openCreatedBot(await installMarketplaceBot(call, id), sectionId);
     },

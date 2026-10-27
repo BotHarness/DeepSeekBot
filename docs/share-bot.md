@@ -1,46 +1,24 @@
 # Share a Bot to the Bot Marketplace
 
-Sharing a Bot publishes its Memory Repository as a public GitHub repository. When someone finds it in the Bot Marketplace and clicks **Install**, the repository is cloned into a new Bot with the same memory. Your Bot itself, its chats, Workspace grants and IM connections are not shared, and later conversations on your side are not synced to installed copies.
+You can share a Bot two ways: upload it to the Tobs Marketplace with your Tobs account, or push it to a public repository on your GitHub. Either way, only a **Share Draft** goes out: a copy of the Bot's Memory files that Tob checks with you first, without any Git history. When someone installs it from the Bot Marketplace, they get a new Bot with the same memory. Your Bot itself, its chats, Workspace grants and IM connections are not shared, and later conversations on your side are not synced to installed copies.
 
 ## Not ready to go public? Send a zip
 
-To hand a Bot to someone you know, or move it to another computer, you don't need GitHub: export a zip with **Share** at the top right of the Bot profile, and the other person uses **Import from zip** to get a new Bot. See [Export and import a Bot](/docs/bot-zip).
+To hand a Bot to someone you know, or move it to another computer, you don't need the Marketplace: export a zip with **Share** at the top right of the Bot profile, and the other person uses **Import from zip** to get a new Bot. See [Export and import a Bot](/docs/bot-zip).
 
-## Before publishing: check what becomes public
+## Share with Tob (recommended)
 
-Anyone can read a public repository, including files deleted earlier in its Git history. Memory may hold personal details you told the Bot, keys, or summaries of private conversations. Look through it first:
+1. Open the Bot's profile, click **⋯** at the top right, then **Share to Marketplace**. (In the Bot Marketplace, **Upload a Bot → Share a Bot** does the same.)
+2. Click **Check with Tob**. Tob copies the Bot's files into a Share Draft and opens its DM. It goes through the files one at a time and, for anything that looks private, such as keys, passwords, email addresses, phone numbers or private conversations, asks you whether to keep it, rewrite it or drop it. The Bot's own Memory is never changed.
+3. When every file is decided, the upload form opens on the draft. Choose where it goes:
+   - **Tobs Marketplace**: sign in to your Tobs account, pick an author name the first time, check the name, bio and tags, and upload. No GitHub account is needed.
+   - **My GitHub**: Tob pushes the draft as a new public repository with one commit and the `botharness-bot` topic, and sends you the URL. The Host needs the [GitHub CLI](https://cli.github.com/) signed in with `gh auth login`.
 
-1. Open **Bot DM → Channel sidebar → Memory files** and open each file.
-2. Open **Memory evolution** and check the commit history for anything that should stay private.
+Because the draft has no history, files deleted earlier in the Bot's Git history never become public.
 
-![Memory files shows every file that will become public, including .botharness/bot.json](/guides/share-bot/01-memory-files-zh.webp)
+## Publish the Memory Repository yourself
 
-Deleting a file is not enough if sensitive content appears in the history. The prompt below handles that by pushing a single new commit without history.
-
-## Option 1: let the Bot publish itself (recommended)
-
-The computer running Tobs (the Host) needs the [GitHub CLI](https://cli.github.com/), signed in with `gh auth login`. The Bot asks for your approval before each command, so you see every step.
-
-Copy this and send it in the DM of the Bot you want to share:
-
-```text
-Please share your Memory repository to the BotHarness Bot Marketplace. Follow these steps and tell me the result after each one:
-
-1. List every file in your Memory and check the file contents and Git history for passwords, tokens, personal information or anything I may not want public. List what you find and wait for my confirmation before going on. Do not push anything before I confirm.
-2. If there is no README.md, write a short one: who you are, what you are good at, and how to use you. Then write the same introduction in the other language: README.zh-CN.md in Chinese if README.md is in English, or README.en.md in English if it is in Chinese.
-3. Check that .botharness/bot.json exists (Tobs normally creates it). If it is missing, create it with your name, 1 to 3 tags and a one-sentence bio (at most 160 characters in every language), as {"name": "Name", "tags": ["Tag"], "bio": "One sentence"}; if it exists, keep what is there. Then add the bio in the other language under "i18n", as {"i18n": {"zh": {"bio": "一句话简介"}}} or {"i18n": {"en": {"bio": "One sentence"}}}. Leave the avatar and banner files in .botharness/ (avatar.png, avatar.recipe.json, banner.png and so on) as they are, and commit the whole .botharness/ folder when you push, so people who import you see the same avatar.
-4. Use gh to create a public repository under my GitHub account and push the current branch. Name it after you in English, and tell me the name before creating it. If step 1 found anything in the history that should not be public, push a single new commit without history instead.
-5. Add the botharness-bot topic: gh repo edit --add-topic botharness-bot
-6. Send me the repository URL.
-```
-
-![Sending the prompt to the Bot you want to share](/guides/share-bot/02-prompt-zh.webp)
-
-The Bot lists what it found and waits for you. After you confirm, it creates the repository, pushes, adds the topic and sends you the URL.
-
-## Option 2: publish it yourself
-
-Find the Bot's Memory Repository path under **Settings → Workspace grants**, then run (replace `<path>` and `<name>`):
+This publishes the whole Memory Repository, including its Git history, without Tob's check, so look through the files and history first. Find the Bot's Memory Repository path under **Settings → Workspace grants**, then run (replace `<path>` and `<name>`):
 
 ```bash
 cd <path>

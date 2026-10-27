@@ -18,10 +18,6 @@ import {
 } from '../../../market/src/upload-files.js';
 import { planUpload, type UploadPlan } from './uploaded-bots.js';
 
-// A Share Draft (CONTEXT.md) is a sanitized copy of one Bot's Memory files that Tob prepares
-// with the Human before an upload. It lives under the Host's own data folder, never inside the
-// source Memory Repository, and uploads and GitHub exports read only from it (ADR-0267).
-
 export type ShareDraftFileStatus = 'pending' | 'kept' | 'rewritten' | 'dropped';
 export type ShareDraftFlag = 'secret' | 'email' | 'phone' | 'url-credential' | 'private-key';
 
@@ -55,6 +51,8 @@ export interface ShareDraftSummary {
   flagged: number;
   updatedAt: string;
 }
+
+export type ShareDraftView = ShareDraft & { summary: ShareDraftSummary };
 
 export type ShareDraftDecision = { keep: true } | { drop: true } | { rewrite: string };
 
@@ -287,7 +285,6 @@ export function createShareDrafts(deps: {
       return { ok: true, value: { discarded: existed } };
     },
 
-    // The files an upload or an export may read: only a ready draft's kept and rewritten files.
     source(slug: string): Result<{ dir: string; plan: UploadPlan; draft: ShareDraft }> {
       const draft = load(slug);
       if (!draft.ok)
@@ -312,7 +309,6 @@ export function createShareDrafts(deps: {
       };
     },
 
-    // Copies a ready draft into a fresh folder without any Git history, for a GitHub push.
     exportTo(slug: string, target: string): Result<{ path: string; files: number }> {
       const source = this.source(slug);
       if (!source.ok) return source;

@@ -155,7 +155,6 @@ export function createMarketplaceUploads(deps: {
       return signed((token) => client.saveAuthor(token, input));
     },
 
-    // Uploads read only a ready Share Draft, never the source Memory (ADR-0267).
     plan(slug: string): Result<UploadPlan> {
       const source = deps.drafts.source(slug);
       return source.ok ? { ok: true, value: source.value.plan } : source;
