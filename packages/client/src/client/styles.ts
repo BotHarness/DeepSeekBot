@@ -56,6 +56,9 @@ export const CSS =
 .bh-composer-recovery > p button, .bh-composer-draft-version button { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base); border: ${border.hairline} solid ${color.border}; border-radius: ${radius.sm}; padding: ${space.x2} ${space.x3}; cursor: pointer; }
 .bh-composer-recovery > p button:hover, .bh-composer-draft-version button:hover { background: var(--bh-hover); }
 .bh-composer-recovery > p button:focus-visible, .bh-composer-draft-version button:focus-visible { outline: ${border.focus} solid var(--bh-accent); outline-offset: ${space.x1}; }
+:root {
+  --bh-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
 .bh-root {
   --bh-chat-card-inset: ${space.x4};
   /* @bh-brand-aliases:start — thin BotHarness brand map onto DSH semantic
@@ -3324,8 +3327,8 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   outline: none;
 }
 .bh-message-group-avatar-link { cursor: pointer; }
-/* Header working status: the composer status stays the live region, so this
-   copy is hidden from assistive tech. */
+/* Header working status: a visually hidden status region in the chat pane
+   announces the same Bots, so this copy is hidden from assistive tech. */
 .bh-header-working {
   display: inline-flex;
   flex: 0 1 auto;
@@ -3335,7 +3338,7 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
   padding-left: ${space.x3};
   border-left: ${border.hairline} solid ${color.divider};
   transform-origin: left center;
-  animation: bh-header-working-enter 220ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  animation: bh-header-working-enter 180ms var(--bh-ease-out) both;
 }
 .bh-header-working-avatars { flex-shrink: 0; }
 .bh-header-working-summary {
@@ -3353,11 +3356,19 @@ html[data-botharness-motion='reduce'] .bh-chat-body { transition: none; }
 }
 .bh-header-working-ellipsis i:nth-child(2) { animation-delay: 0.2s; }
 .bh-header-working-ellipsis i:nth-child(3) { animation-delay: 0.4s; }
-html[data-botharness-motion='reduce'] .bh-header-working,
+html[data-botharness-motion='reduce'] .bh-header-working { animation-name: bh-fade-in; }
 html[data-botharness-motion='reduce'] .bh-header-working-ellipsis i { animation: none; }
 @keyframes bh-header-working-enter {
-  from { opacity: 0; transform: scale(0.6); }
+  from { opacity: 0; transform: scale(0.95); }
   to { opacity: 1; transform: none; }
+}
+@keyframes bh-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes bh-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 @keyframes bh-timeline-working-dot {
   0%, 60%, 100% { opacity: 0.25; }
@@ -3490,12 +3501,12 @@ html[data-botharness-motion='reduce'] .bh-header-working-ellipsis i { animation:
 }
 .bh-bubble-enter {
   transform-origin: left bottom;
-  animation: bh-bubble-enter 240ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  animation: bh-bubble-enter 220ms var(--bh-ease-out) both;
 }
 .bh-message-group-me .bh-bubble-enter { transform-origin: right bottom; }
-html[data-botharness-motion='reduce'] .bh-bubble-enter { animation: none; }
+html[data-botharness-motion='reduce'] .bh-bubble-enter { animation-name: bh-fade-in; }
 @keyframes bh-bubble-enter {
-  from { opacity: 0; transform: scale(0.6); }
+  from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: none; }
 }
 .bh-bubble {
@@ -3634,20 +3645,21 @@ html[data-botharness-motion='reduce'] .bh-bubble-enter { animation: none; }
 .bh-reading-dots i:nth-child(3) { animation-delay: 0.4s; }
 html[data-botharness-motion='reduce'] .bh-reading-dots i { animation: none; }
 [data-badge-motion='enter'] {
-  animation: bh-badge-in 240ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  animation: bh-badge-in 180ms var(--bh-ease-out) both;
 }
 [data-badge-motion='leave'] {
-  animation: bh-badge-out 180ms ease-in both;
+  animation: bh-badge-out 150ms var(--bh-ease-out) both;
   pointer-events: none;
 }
-html[data-botharness-motion='reduce'] [data-badge-motion] { animation-duration: 1ms; }
+html[data-botharness-motion='reduce'] [data-badge-motion='enter'] { animation-name: bh-fade-in; }
+html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-name: bh-fade-out; }
 @keyframes bh-badge-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
 }
 @keyframes bh-badge-out {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.6); }
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: scale(0.9); }
 }
 .bh-message-group-me {
   --bh-bubble-me-fill: var(--bh-bubble-me-fill-light, color-mix(in srgb, ${color.accent} 90%, ${color.fg}));

@@ -148,7 +148,7 @@ export function MessageReading({
       data-badge-motion={motion}
       aria-hidden={motion === 'leave' ? true : undefined}
       onAnimationEnd={(event) => {
-        if (motion === 'leave' && event.animationName === 'bh-badge-out') onLeft?.();
+        if (motion === 'leave' && event.target === event.currentTarget) onLeft?.();
       }}
     >
       {shown.map((botSlug) => (

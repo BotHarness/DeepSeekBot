@@ -152,6 +152,10 @@ Every new or changed Web, desktop or mobile interface follows [UI design](docs/a
 
 Building or changing in-harness UI follows the `dsh-ui` skill: DSH tokens (central alias table, no inline hex), `ui-primitives`, the native inset contract, and the measure-the-shell workflow (ADR-0028). For net-new UI, the skill's `references/design-references.md` names the external precedents (coss.com/ui, Beautiful UI, shadcn/ui, Lucide) — patterns to adapt rather than dependencies, except vendored Lucide glyphs (ADR-0032).
 
+### Motion
+
+Animation is part of the product's feel. Any new or changed animation on web, desktop or mobile follows Emil Kowalski's skills (third-party, locked in `skills-lock.json`): `animate` to build web motion, `animate-expo` for React Native and Expo, `review-animations` before you ship it, `improve-animations` to audit existing motion, `animation-performance` for dropped frames, and `emil-design-eng` / `animation-vocabulary` for the shared rules and words. They decide whether something animates, its easing, duration and properties, and its reduced-motion behavior; extend the repo's motion tokens instead of adding parallel curves.
+
 ### UI copy
 
 Visible text on web, desktop and mobile follows [UI copy](docs/agents/ui-copy.md): call a PersonaBot "Bot" in the UI, and keep hints, captions and errors short and plain in both English and Chinese. `PersonaBot` stays the term in code and developer docs.

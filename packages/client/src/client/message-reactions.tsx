@@ -312,7 +312,7 @@ export function MessageReactionChips({
               {...stylex.props(styles.chip, pressed && styles.chipMine)}
               onClick={() => onReact?.(reaction.emoji, !pressed)}
               onAnimationEnd={(event) => {
-                if (leaving && event.animationName === 'bh-badge-out') onLeft?.(reaction.emoji);
+                if (leaving && event.target === event.currentTarget) onLeft?.(reaction.emoji);
               }}
             >
               <span aria-hidden="true" {...stylex.props(styles.chipEmoji)}>

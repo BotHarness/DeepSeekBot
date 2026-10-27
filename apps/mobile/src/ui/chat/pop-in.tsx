@@ -9,33 +9,47 @@ import Animated, {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { motion } from '../design/tokens';
+import { easeOut, motion, popScale } from '../design/tokens';
 import { useMounted } from '../mounted';
 
-export function usePopIn(enabled: boolean, show = true, onHidden?: () => void) {
+const EASE_OUT = Easing.bezier(...easeOut);
+
+export function usePopIn(
+  enabled: boolean,
+  {
+    show = true,
+    onHidden,
+    from = popScale.bubble,
+    duration = motion.bubble,
+    exit = motion.badgeExit,
+  }: {
+    show?: boolean;
+    onHidden?: (() => void) | undefined;
+    from?: number;
+    duration?: number;
+    exit?: number;
+  } = {},
+) {
   const reduced = useReducedMotion();
-  const appear = useSharedValue(enabled && !reduced ? 0 : 1);
+  const start = reduced ? 1 : from;
+  const appear = useSharedValue(enabled ? 0 : 1);
   const style = useAnimatedStyle(() => ({
-    opacity: appear.value,
-    transform: [{ scale: 0.6 + 0.4 * appear.value }],
+    opacity: appear.get(),
+    transform: [{ scale: start + (1 - start) * appear.get() }],
   }));
   const ref = useMounted<ViewInstance>(() => {
     if (show) {
-      if (appear.value < 1)
-        appear.value = withTiming(1, { duration: motion.bubble, easing: Easing.out(Easing.quad) });
+      if (appear.get() < 1) appear.set(withTiming(1, { duration, easing: EASE_OUT }));
       return;
     }
-    if (reduced || onHidden === undefined) {
-      appear.value = 0;
-      onHidden?.();
+    if (onHidden === undefined) {
+      appear.set(0);
       return;
     }
-    appear.value = withTiming(
-      0,
-      { duration: motion.badgeExit, easing: Easing.in(Easing.quad) },
-      (finished) => {
+    appear.set(
+      withTiming(0, { duration: exit, easing: EASE_OUT }, (finished) => {
         if (finished === true) scheduleOnRN(onHidden);
-      },
+      }),
     );
   }, [show]);
   return { ref, style };
@@ -54,7 +68,12 @@ export function PopIn({
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
-  const pop = usePopIn(enabled, show, onHidden);
+  const pop = usePopIn(enabled, {
+    show,
+    onHidden,
+    from: popScale.badge,
+    duration: motion.badge,
+  });
   return (
     <Animated.View style={[style, pop.style]}>
       <View ref={pop.ref}>{children}</View>

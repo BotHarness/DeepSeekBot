@@ -76,6 +76,7 @@ export const Easing = {
   linear: (t: number) => t,
   out: (curve: unknown) => curve,
   in: (curve: unknown) => curve,
+  bezier: () => (t: number) => t,
   quad: (t: number) => t * t,
 };
 export class Keyframe {

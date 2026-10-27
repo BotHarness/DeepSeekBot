@@ -190,9 +190,14 @@ export const motion = {
   composer: 160,
   lift: 500,
   menu: 160,
-  bubble: 240,
-  badgeExit: 180,
+  bubble: 220,
+  badge: 180,
+  badgeExit: 150,
 } as const;
+
+export const easeOut = [0.23, 1, 0.32, 1] as const;
+
+export const popScale = { bubble: 0.92, badge: 0.9 } as const;
 
 export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 
