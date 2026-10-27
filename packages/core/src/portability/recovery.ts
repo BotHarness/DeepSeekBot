@@ -50,8 +50,6 @@ export function createProfileRecovery(
     },
     requireExecution(slug: string) {
       const recovery = row(slug);
-      // Activation retires the restore gate: later Model Plan changes are the Human's own, and
-      // model readiness still validates every route before a Turn uses it.
       if (recovery === undefined || recovery.activated_session_id) return;
       throw new ProfileBackupError(
         'activation-required',

@@ -902,7 +902,6 @@ it('exports through the Settings transport only after a current preview, inspect
     { ...route, model: 'drifted-model' },
     plan.revision,
   );
-  // Activation retires the restore gate; the Human's later model change is not a new restore.
   expect(() => restored.profileRecovery.requireExecution('keeper')).not.toThrow();
   const unavailable: ModelCatalog = {
     list: async () => [],
