@@ -2,6 +2,11 @@ import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
 import {
+  summarizeTurnInput,
+  type BotSystemPromptView,
+  type TurnInputView,
+} from '../runtime/prompt-inspection.js';
+import {
   approveGrantRequest,
   type GrantRequestApprovalResult,
 } from '../workspaces/grant-requests.js';
@@ -15,7 +20,11 @@ import {
   type ManualCompactionResult,
 } from '../runtime/idle-compaction.js';
 import {
+  COMPACTION_HEADROOM_TOKENS,
+  COMPACTION_THRESHOLD_RATIO,
   isCacheLifetimeSeconds,
+  isCompactionHeadroomTokens,
+  isCompactionThresholdRatio,
   MAX_CACHE_LIFETIME_SECONDS,
   type IdleCompactionRoute,
   type IdleCompactionSettings,
@@ -365,6 +374,21 @@ import type {
   BotStateTracker,
   SessionState,
 } from '../state/bot-state.js';
+import { PROMPT_PARTS, promptTextHash, type PromptPartId } from '../prompts/prompt-parts.js';
+import {
+  PROMPT_LIMITS,
+  applyPromptLimitEdits,
+  parsePromptLimitEdits,
+} from '../prompts/prompt-limits.js';
+import {
+  applyPromptPartEdits,
+  parsePromptPartEdits,
+  type PromptPreset,
+  type PromptPresetFailure,
+  type ResolvedPromptLimit,
+  type ResolvedPromptPart,
+} from '../prompts/prompt-presets.js';
+import type { PromptSettings } from '../prompts/prompt-settings.js';
 
 export interface ActivityOverview {
   actionCount: number;
@@ -548,6 +572,7 @@ export interface BridgeMethods {
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
   botContext(payload: unknown): Promise<BridgeResult<BotContextWindow>>;
+  botSystemPrompt(payload: unknown): Promise<BridgeResult<BotSystemPromptView>>;
   channelBotStop(
     payload: unknown,
   ): Promise<BridgeResult<{ stopped: { botSlug: string; sessionId: string; messageId: string } }>>;
@@ -762,6 +787,9 @@ export interface BridgeMethods {
   botToolTrace(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
+  botTurnInput(
+    payload: unknown,
+  ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnInputView[] }>>;
   botTools(payload: unknown): BridgeResult<{ sessionId: 'direct'; tools: DirectBotToolSpec[] }>;
   botToolRun(
     payload: unknown,
@@ -838,6 +866,18 @@ export interface BridgeMethods {
   ): BridgeResult<{ templates: ApprovalTemplateEntry[]; selected?: string | null }>;
   approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
   approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
+  promptParts(
+    payload: unknown,
+  ): BridgeResult<{ parts: PromptPartView[]; limits: PromptLimitView[] }>;
+  promptPresets(
+    payload: unknown,
+  ): BridgeResult<{ presets: PromptPreset[]; globalPresetId: string | null }>;
+  promptPresetCreate(payload: unknown): BridgeResult<{ preset: PromptPreset }>;
+  promptPresetUpdate(payload: unknown): BridgeResult<{ preset: PromptPreset }>;
+  promptPresetDelete(payload: unknown): BridgeResult<{ id: string; clearedBots: string[] }>;
+  promptGlobalSet(payload: unknown): BridgeResult<{ presetId: string | null }>;
+  botPrompt(payload: unknown): BridgeResult<BotPromptView>;
+  botPromptSet(payload: unknown): BridgeResult<BotPromptView>;
   approvalTemplateDelete(
     payload: unknown,
   ): BridgeResult<{ template: { name: string }; clearedBots: string[] }>;
@@ -847,6 +887,7 @@ export interface BridgeMethods {
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
+  compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
@@ -900,6 +941,14 @@ export interface IdleCompactionView {
   minimumIdleSeconds: number;
   scheduled: number;
   routes: IdleCompactionRouteView[];
+  threshold: {
+    ratio: number;
+    headroomTokens: number;
+    ratioSet: boolean;
+    headroomSet: boolean;
+    ratioRange: { defaultValue: number; min: number; max: number };
+    headroomRange: { defaultValue: number; min: number; max: number };
+  };
 }
 
 export interface IdleCompactionDeps {
@@ -907,6 +956,7 @@ export interface IdleCompactionDeps {
   scheduler: Pick<IdleCompaction, 'describe' | 'scheduled'>;
   routes(): IdleCompactionRoute[];
   rescan(): void;
+  applyThreshold?(): void;
   compactBot?(slug: string): Promise<ManualCompactionResult>;
   compactReservedSession?(sessionId: string): Promise<ManualCompactionResult>;
 }
@@ -957,6 +1007,8 @@ function storageFailure(
 
 export interface BridgeMethodsDeps {
   botContext?(slug: string): Promise<BotContextWindow>;
+  botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
+  prompts?: PromptSettings;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
@@ -1221,6 +1273,60 @@ function telemetryUnavailable(): BridgeResult<never> {
   };
 }
 
+export interface PromptPartView {
+  id: PromptPartId;
+  kind: 'system' | 'turn';
+  section: string;
+  defaultText: string;
+  defaultHash: string;
+}
+
+export interface BotPromptView {
+  slug: string;
+  presetId: string | null;
+  globalPresetId: string | null;
+  sessionId: string | null;
+  pending: boolean;
+  parts: ResolvedPromptPart[];
+  limits: ResolvedPromptLimit[];
+}
+
+export interface PromptLimitView {
+  id: (typeof PROMPT_LIMITS)[number]['id'];
+  group: 'inbox' | 'review';
+  defaultValue: number;
+  min: number;
+  max: number;
+}
+
+function promptPresetFailure(reason: PromptPresetFailure): BridgeResult<never> {
+  const message: Record<PromptPresetFailure, string> = {
+    'invalid-input': 'The Prompt Preset name or part text is invalid',
+    'not-found': 'Unknown Prompt Preset',
+    'stale-revision': 'The Prompt Preset changed; read it again before editing',
+    'duplicate-name': 'Another Prompt Preset already has this name',
+    unavailable: 'Prompt Presets are unavailable',
+  };
+  return { ok: false, error: { code: `prompt-preset-${reason}`, message: message[reason] } };
+}
+
+function botPromptView(
+  deps: Pick<BridgeMethodsDeps, 'registry' | 'runtime'>,
+  prompts: PromptSettings,
+  slug: string,
+): BotPromptView {
+  const sessionId = deps.runtime?.currentOrchestratorSessionId?.(slug) ?? null;
+  return {
+    slug,
+    presetId: deps.registry.get(slug)?.promptPreset ?? null,
+    globalPresetId: prompts.library.globalPresetId() ?? null,
+    sessionId,
+    pending: prompts.pending(slug, sessionId ?? undefined),
+    parts: prompts.resolved(slug),
+    limits: prompts.resolvedLimits(slug),
+  };
+}
+
 function invalidInput(message: string): BridgeResult<never> {
   return { ok: false, error: { code: 'invalid-input', message } };
 }
@@ -1337,6 +1443,18 @@ function idleCompactionView(deps: IdleCompactionDeps): IdleCompactionView {
     minimumIdleSeconds: MIN_IDLE_MS / 1000,
     scheduled: deps.scheduler.scheduled(),
     routes: deps.scheduler.describe(deps.routes()),
+    threshold: {
+      ratio:
+        (setting === 'invalid' ? undefined : setting.thresholdRatio) ??
+        COMPACTION_THRESHOLD_RATIO.defaultValue,
+      headroomTokens:
+        (setting === 'invalid' ? undefined : setting.headroomTokens) ??
+        COMPACTION_HEADROOM_TOKENS.defaultValue,
+      ratioSet: setting !== 'invalid' && setting.thresholdRatio !== undefined,
+      headroomSet: setting !== 'invalid' && setting.headroomTokens !== undefined,
+      ratioRange: COMPACTION_THRESHOLD_RATIO,
+      headroomRange: COMPACTION_HEADROOM_TOKENS,
+    },
   };
 }
 
@@ -2520,6 +2638,17 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return unavailable();
       }
     },
+    async botSystemPrompt(payload) {
+      const slug = asSlug(payload);
+      if (!slug) return invalidInput('slug is required');
+      if (!deps.registry.get(slug)) return unknownBot(slug);
+      if (!deps.botSystemPrompt) return unavailable();
+      try {
+        return { ok: true, value: await deps.botSystemPrompt(slug) };
+      } catch {
+        return unavailable();
+      }
+    },
     async channelBotStop(payload) {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');
@@ -3607,6 +3736,140 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (!result.ok) return templateWriteFailure(name, result.reason);
       return { ok: true, value: { template: templateEntry(result.template) } };
     },
+    promptParts() {
+      return {
+        ok: true,
+        value: {
+          parts: PROMPT_PARTS.map((part) => ({
+            id: part.id,
+            kind: part.kind,
+            section: part.section,
+            defaultText: part.defaultText,
+            defaultHash: promptTextHash(part.defaultText),
+          })),
+          limits: PROMPT_LIMITS.map(({ id, group, defaultValue, min, max }) => ({
+            id,
+            group,
+            defaultValue,
+            min,
+            max,
+          })),
+        },
+      };
+    },
+    promptPresets() {
+      if (deps.prompts === undefined) return unavailable();
+      const library = deps.prompts.library;
+      return {
+        ok: true,
+        value: { presets: library.list(), globalPresetId: library.globalPresetId() ?? null },
+      };
+    },
+    promptPresetCreate(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const source = asObject(payload);
+      const parts = source['parts'] === undefined ? {} : parsePromptPartEdits(source['parts']);
+      const limits = source['limits'] === undefined ? {} : parsePromptLimitEdits(source['limits']);
+      if (typeof source['name'] !== 'string' || parts === undefined || limits === undefined)
+        return invalidInput(
+          'name, optional parts ({partId: text}) and limits ({limitId: integer in range}) are required',
+        );
+      const result = deps.prompts.library.create({ name: source['name'], parts, limits });
+      return result.ok
+        ? { ok: true, value: { preset: result.value } }
+        : promptPresetFailure(result.reason);
+    },
+    promptPresetUpdate(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const source = asObject(payload);
+      const parts =
+        source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
+      const limits =
+        source['limits'] === undefined ? undefined : parsePromptLimitEdits(source['limits']);
+      const expected = source['expectedRevision'];
+      if (
+        typeof source['id'] !== 'string' ||
+        (source['name'] !== undefined && typeof source['name'] !== 'string') ||
+        (source['parts'] !== undefined && parts === undefined) ||
+        (source['limits'] !== undefined && limits === undefined) ||
+        (expected !== undefined && !Number.isSafeInteger(expected))
+      )
+        return invalidInput(
+          'id, and optional name, parts, limits and expectedRevision are required',
+        );
+      const result = deps.prompts.library.update(source['id'], {
+        ...(typeof source['name'] === 'string' ? { name: source['name'] } : {}),
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+        ...(expected === undefined ? {} : { expectedRevision: expected as number }),
+      });
+      return result.ok
+        ? { ok: true, value: { preset: result.value } }
+        : promptPresetFailure(result.reason);
+    },
+    promptPresetDelete(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const id = asObject(payload)['id'];
+      if (typeof id !== 'string') return invalidInput('id is required');
+      const result = deps.prompts.library.delete(id);
+      if (!result.ok) return promptPresetFailure(result.reason);
+      const clearedBots = deps.registry
+        .list()
+        .filter((record) => record.promptPreset === id)
+        .map((record) => record.slug);
+      for (const slug of clearedBots) deps.registry.setPromptSettings(slug, { preset: null });
+      return { ok: true, value: { id, clearedBots } };
+    },
+    promptGlobalSet(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const presetId = asObject(payload)['presetId'];
+      if (presetId !== null && typeof presetId !== 'string')
+        return invalidInput('presetId (a Prompt Preset id, or null for built-in) is required');
+      const result = deps.prompts.library.setGlobalPresetId(presetId ?? undefined);
+      return result.ok ? { ok: true, value: result.value } : promptPresetFailure(result.reason);
+    },
+    botPrompt(payload) {
+      if (deps.prompts === undefined) return unavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      return { ok: true, value: botPromptView(deps, deps.prompts, slug) };
+    },
+    botPromptSet(payload) {
+      const prompts = deps.prompts;
+      if (prompts === undefined) return unavailable();
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      const record = deps.registry.get(slug);
+      if (record === undefined) return unknownBot(slug);
+      const source = asObject(payload);
+      const presetId = source['presetId'];
+      const parts =
+        source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
+      const limits =
+        source['limits'] === undefined ? undefined : parsePromptLimitEdits(source['limits']);
+      if (
+        (presetId !== undefined && presetId !== null && typeof presetId !== 'string') ||
+        (source['parts'] !== undefined && parts === undefined) ||
+        (source['limits'] !== undefined && limits === undefined)
+      )
+        return invalidInput(
+          'optional presetId (id or null), parts ({partId: text|null}) and limits ({limitId: integer|null}) are required',
+        );
+      if (typeof presetId === 'string' && prompts.library.get(presetId) === undefined)
+        return promptPresetFailure('not-found');
+      const result = deps.registry.setPromptSettings(slug, {
+        ...(presetId === undefined ? {} : { preset: presetId }),
+        ...(parts === undefined
+          ? {}
+          : { overrides: applyPromptPartEdits(record.promptOverrides ?? {}, parts) }),
+        ...(limits === undefined
+          ? {}
+          : { limits: applyPromptLimitEdits(record.promptLimits ?? {}, limits) }),
+      });
+      if (!result.ok) return unknownBot(slug);
+      return { ok: true, value: botPromptView(deps, prompts, slug) };
+    },
     approvalTemplateDelete(payload) {
       const name = asObject(payload)['name'];
       if (typeof name !== 'string') return invalidInput('name is required');
@@ -3702,6 +3965,31 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
+      deps.idleCompaction.rescan();
+      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
+    },
+    compactionThresholdSet(payload) {
+      if (deps.idleCompaction === undefined) return unavailable();
+      const object = asObject(payload);
+      const ratio = object['thresholdRatio'];
+      const headroom = object['headroomTokens'];
+      if (
+        (ratio === undefined && headroom === undefined) ||
+        (ratio !== undefined && ratio !== null && !isCompactionThresholdRatio(ratio)) ||
+        (headroom !== undefined && headroom !== null && !isCompactionHeadroomTokens(headroom))
+      )
+        return invalidInput(
+          `thresholdRatio (${COMPACTION_THRESHOLD_RATIO.min}-${COMPACTION_THRESHOLD_RATIO.max}) and/or headroomTokens (integer ${COMPACTION_HEADROOM_TOKENS.min}-${COMPACTION_HEADROOM_TOKENS.max}) are required; null restores the default`,
+        );
+      try {
+        deps.idleCompaction.settings.setThreshold({
+          ...(ratio === undefined ? {} : { thresholdRatio: ratio as number | null }),
+          ...(headroom === undefined ? {} : { headroomTokens: headroom as number | null }),
+        });
+      } catch (error) {
+        return invalidInput(error instanceof Error ? error.message : String(error));
+      }
+      deps.idleCompaction.applyThreshold?.();
       deps.idleCompaction.rescan();
       return { ok: true, value: idleCompactionView(deps.idleCompaction) };
     },
@@ -6375,6 +6663,29 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const log = await deps.readUsageSessionLog(sessionId);
       if (log === undefined) return unavailable();
       return { ok: true, value: { slug, sessionId, ...summarizeToolTrace(log.events, { turns }) } };
+    },
+    async botTurnInput(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const source = asObject(payload) ?? {};
+      const turns = source['turns'] === undefined ? 1 : source['turns'];
+      if (typeof turns !== 'number' || !Number.isInteger(turns) || turns < 1 || turns > 20)
+        return invalidInput('turns must be an integer from 1 to 20');
+      const roots = deps.ownership.rootsFor(slug);
+      const requested = source['sessionId'];
+      if (requested !== undefined && typeof requested !== 'string')
+        return invalidInput('sessionId must be a string');
+      const sessionId =
+        requested ??
+        deps.runtime?.currentOrchestratorSessionId?.(slug) ??
+        [...roots].reverse().find((root) => root.rootRole === 'orchestrator')?.sessionId;
+      if (sessionId === undefined || !roots.some((root) => root.sessionId === sessionId))
+        return invalidInput('The Session does not belong to this PersonaBot');
+      if (deps.readUsageSessionLog === undefined) return unavailable();
+      const log = await deps.readUsageSessionLog(sessionId);
+      if (log === undefined) return unavailable();
+      return { ok: true, value: { slug, sessionId, ...summarizeTurnInput(log.events, { turns }) } };
     },
     botTools() {
       const tools = deps.runtime?.directBotTools?.();

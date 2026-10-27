@@ -54,6 +54,11 @@ export const LIFECYCLE_COMMANDS = [
     description: 'inspect current Orchestrator context occupancy and model capacity',
   },
   {
+    command: 'bot-system-prompt',
+    description:
+      "show the system prompt a Bot's Orchestrator Session uses now, its sections, and whether a newer one is pending",
+  },
+  {
     command: 'bot-new-session',
     description: "retire an idle Bot's Orchestrator Session; the next message starts a fresh one",
   },
@@ -267,6 +272,7 @@ export async function runOnlineManagement(
   if (command === 'bot-new-session') return rpc('botNewSession', { slug });
   if (command === 'bot-compact') return rpc('botCompact', { slug });
   if (command === 'bot-context') return rpc('botContext', { slug });
+  if (command === 'bot-system-prompt') return rpc('botSystemPrompt', { slug });
   if (command === 'bot-delete-preview') return rpc('deletionPreview', { slug });
   if (command === 'bot-delete-memory-folder') return rpc('deletionMemoryFolder', { slug });
   if (command === 'bot-delete-confirm')

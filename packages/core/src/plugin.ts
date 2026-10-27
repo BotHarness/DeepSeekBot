@@ -1,5 +1,6 @@
 import { createWindowZoomControl, WINDOW_ZOOM_CONTROL_PATH } from './window-zoom/control.js';
 import { compactUnknownContext, contextCapacity } from './runtime/context-window.js';
+import { messageText, systemPromptFromLog } from './runtime/prompt-inspection.js';
 
 import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/setup.js';
 import { nativeReleaseRuntime } from './release/compatibility.js';
@@ -83,9 +84,9 @@ import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
 import type { Context } from '@deepseek-ai/cordis';
-import type {} from '@deepseek-ai/dsh-agent';
+import { assembleContextFor } from '@deepseek-ai/dsh-agent';
 import type {} from '@deepseek-ai/dsh-session';
-import type {} from '@deepseek-ai/dsh-system-prompt';
+import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
@@ -224,6 +225,7 @@ import {
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import {
   compactionThresholdTokens,
+  type CompactionThresholdPolicy,
   createIdleCompaction,
   IdleCompactionError,
   runCompactCommand,
@@ -276,6 +278,9 @@ import {
   type BotSubagentPresetConfig,
 } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
+import { promptTextOf } from './prompts/prompt-parts.js';
+import { createPromptPresetLibrary, promptPartTexts } from './prompts/prompt-presets.js';
+import { createPromptSettings, type PromptSettings } from './prompts/prompt-settings.js';
 
 export const name = 'botharness-core';
 
@@ -313,6 +318,7 @@ export interface CompactionRefreshSink {
   memory: {
     refreshPersonaAfterCompaction(botSlug: string, sessionId: string): { refreshed: boolean };
   };
+  prompts?: { refreshAfterCompaction(sessionId: string): { refreshed: boolean } };
   warn(message: string): void;
 }
 
@@ -322,12 +328,21 @@ export function handleCompactionEvent(
   eventType: string,
 ): void {
   if (eventType !== COMPACTION_END_EVENT) return;
+  refreshSessionTexts(sink, sessionId);
+}
+
+export function refreshSessionTexts(sink: CompactionRefreshSink, sessionId: string): void {
   const owner = sink.ownership.resolve(sessionId);
   if (owner === undefined) return;
   try {
     sink.memory.refreshPersonaAfterCompaction(owner.botSlug, sessionId);
   } catch (error) {
     sink.warn(`botharness: persona refresh after compaction failed: ${String(error)}`);
+  }
+  try {
+    sink.prompts?.refreshAfterCompaction(sessionId);
+  } catch (error) {
+    sink.warn(`botharness: prompt refresh after compaction failed: ${String(error)}`);
   }
 }
 
@@ -393,6 +408,7 @@ export const Config: Schema<BotHarnessConfig> = Schema.object({
 });
 
 export interface BotHarnessCore {
+  prompts: PromptSettings;
   profileRecovery: ProfileRecovery;
   rootDir: string;
   onboarding: BotOnboarding;
@@ -928,7 +944,19 @@ export function createCore(
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
+  const prompts = createPromptSettings({
+    library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
+    registry,
+    ownership,
+  });
   runtime = createBotRuntime({
+    promptText: (slug) => {
+      const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
+      return sessionId === undefined
+        ? promptTextOf(promptPartTexts(prompts.resolved(slug)))
+        : prompts.textForSession(sessionId);
+    },
+    promptLimits: (slug) => prompts.limits(slug),
     tob,
     triageContinuation: options.triageContinuation === true,
     inboxHistory,
@@ -1029,6 +1057,7 @@ export function createCore(
   });
   if (operationalDatabase.mode === 'ready') schedules.start();
   return {
+    prompts,
     deletions,
     profileRecovery,
     contentPurge,
@@ -1182,6 +1211,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const agentAdapter = createDshBotAgentAdapter({
     agents: ctx.agents,
+    promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
@@ -1583,10 +1613,35 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         .catch(() => undefined);
   };
   const reviewing = new Set<string>();
+  const idleCompactionSettings = createIdleCompactionSettings(join(dshHome, 'botharness'));
+  const compactionPolicy = (): CompactionThresholdPolicy => {
+    const value = idleCompactionSettings.read();
+    if (value === 'invalid') return {};
+    return {
+      ...(value.thresholdRatio === undefined ? {} : { thresholdRatio: value.thresholdRatio }),
+      ...(value.headroomTokens === undefined ? {} : { headroomTokens: value.headroomTokens }),
+    };
+  };
+  let compactionBaseConfig: Record<string, unknown> | undefined;
+  const applyCompactionPolicy = (): void => {
+    const engine = ctx.get('compaction') as unknown as
+      | { config?: Record<string, unknown> }
+      | undefined;
+    const config = engine?.config;
+    if (engine === undefined || typeof config !== 'object' || !('thresholdRatio' in config)) return;
+    compactionBaseConfig ??= config;
+    const policy = compactionPolicy();
+    const thresholdRatio = policy.thresholdRatio ?? compactionBaseConfig['thresholdRatio'];
+    const headroomTokens = policy.headroomTokens ?? compactionBaseConfig['headroomTokens'];
+    if (config['thresholdRatio'] === thresholdRatio && config['headroomTokens'] === headroomTokens)
+      return;
+    engine.config = Object.freeze({ ...compactionBaseConfig, thresholdRatio, headroomTokens });
+  };
   installNativeSubagentWake(ctx, core.runtime);
   ctx.on(
     'agent/pre-step',
     async ({ agent, signal }, next) => {
+      applyCompactionPolicy();
       if (isApprovalReviewSession(agent.session.id))
         return reviewing.has(agent.session.id) ? next() : { kind: 'reject' };
       try {
@@ -1604,7 +1659,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       if (permissionDenial(agent.session) !== undefined) return { kind: 'reject' };
       const contextOwner = core.ownership.resolve(agent.session.id);
       if (contextOwner?.rootRole === 'orchestrator' && contextOwner.parentSessionId === undefined)
-        await compactUnknownContext(agent, signal);
+        await compactUnknownContext(agent, signal, compactionPolicy());
       return next();
     },
     { global: true },
@@ -1613,7 +1668,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     join(dshHome, 'botharness', 'approval-templates'),
   );
   const approvalReviewer = createApprovalReviewerSettings(join(dshHome, 'botharness'));
-  const idleCompactionSettings = createIdleCompactionSettings(join(dshHome, 'botharness'));
   const liveAgent = (sessionId: string) =>
     ctx.agents.list().find((agent) => agent.session.id === sessionId);
   const idleCompaction = createIdleCompaction({
@@ -1639,7 +1693,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     threshold: async (agent, route) => {
       const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
       return compactionThresholdTokens(
-        {},
+        compactionPolicy(),
         route,
         contextCapacity(info.context?.contextWindow).contextWindow,
         agent.session.requestHeader()?.config.maxTokens ?? info.defaultMaxTokens ?? 0,
@@ -1654,7 +1708,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(`idle-compaction ${JSON.stringify(event)}`),
   });
   ctx.effect(() => () => idleCompaction.close(), 'botharness: idle compaction');
-  const compactReservedSession = (sessionId: string) => idleCompaction.compactNow(sessionId, true);
+  const compactReservedSession = async (sessionId: string) => {
+    const result = await idleCompaction.compactNow(sessionId, true);
+    if (result.outcome === 'nothing')
+      refreshSessionTexts(
+        {
+          ownership: core.ownership,
+          memory: core.memory,
+          prompts: core.prompts,
+          warn: (message) => ctx.logger.warn(message),
+        },
+        sessionId,
+      );
+    return result;
+  };
   const compactBot = (slug: string) =>
     core.runtime.compactOrchestrator
       ? core.runtime.compactOrchestrator(slug, compactReservedSession)
@@ -1674,6 +1741,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return template === undefined ? undefined : { name: template.name, text: template.text };
     },
     templateInUse,
+    excerptLimits: (slug) => {
+      const limits = core.prompts.limits(slug);
+      return {
+        humanMessages: limits['review-human-messages'],
+        humanMessageChars: limits['review-human-message-chars'],
+        toolCalls: limits['review-tool-calls'],
+      };
+    },
     review: createApprovalReviewRunner({
       setting: () => approvalReviewer.model(),
       botRoute: (slug) => {
@@ -1698,6 +1773,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         return {
           sessionId,
           cwd,
+          timeoutMs: core.prompts.limits(request.botSlug)['review-timeout-seconds'] * 1000,
           botName: core.registry.get(request.botSlug)?.displayName ?? request.botSlug,
           ...(typeof titles?.rename === 'function'
             ? { rename: (session, title) => titles.rename!(session, title) }
@@ -2288,6 +2364,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     release: releaseService,
   });
   const bridgeMethods = createBridgeMethods({
+    prompts: core.prompts,
     botContext: async (slug) => {
       const sessionId = core.runtime.currentOrchestratorSessionId?.(slug) ?? null;
       const agent = sessionId === null ? undefined : liveAgent(sessionId);
@@ -2305,11 +2382,59 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           : null,
         ...capacity,
         thresholdTokens: compactionThresholdTokens(
-          {},
+          compactionPolicy(),
           route,
           capacity.contextWindow,
           request?.maxTokens ?? info.defaultMaxTokens ?? 0,
         ),
+      };
+    },
+    botSystemPrompt: async (slug) => {
+      const sessionId =
+        core.runtime.currentOrchestratorSessionId?.(slug) ??
+        [...core.ownership.rootsFor(slug)]
+          .reverse()
+          .find((root) => root.rootRole === 'orchestrator')?.sessionId ??
+        null;
+      const agent = sessionId === null ? undefined : liveAgent(sessionId);
+      if (agent === undefined) {
+        const query = ctx.get('sessionQuery') as unknown as
+          | { readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }> }
+          | undefined;
+        const logged =
+          sessionId === null || query === undefined
+            ? null
+            : systemPromptFromLog((await query.readSession(sessionId)).events);
+        return {
+          sessionId,
+          loaded: false,
+          effectiveText: logged,
+          effectiveSource: logged === null ? 'none' : 'log',
+          next: null,
+          pending: sessionId !== null && core.prompts.pending(slug, sessionId),
+        };
+      }
+      const nodes = agent.session.surface.nodes
+        .map((seq) => agent.session.eventAt(seq))
+        .filter((event) => event?.type === 'system/message')
+        .map((event) => messageText((event!.data as { message: unknown }).message))
+        .filter((text) => text !== '');
+      const effectiveText = nodes.at(-1) ?? null;
+      const assembly = await agent.ctx.systemPrompt.assemble(assembleContextFor(agent));
+      const text = renderPrompt(assembly);
+      return {
+        sessionId,
+        loaded: true,
+        effectiveText,
+        effectiveSource: effectiveText === null ? 'none' : 'session',
+        next: {
+          text,
+          sections: assembly.sections.map(({ name, text }) => ({ name, text })),
+          contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
+        },
+        pending:
+          core.prompts.pending(slug, sessionId ?? undefined) ||
+          (sessionId !== null && core.memory.personaPending?.(sessionId) === true),
       };
     },
     cloudConnections,
@@ -2318,6 +2443,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     idleCompaction: {
       settings: idleCompactionSettings,
       scheduler: idleCompaction,
+      applyThreshold: applyCompactionPolicy,
       routes: () => {
         let fallback: { provider: string; model: string } | undefined;
         try {
@@ -2908,6 +3034,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         {
           ownership: core.ownership,
           memory: core.memory,
+          prompts: core.prompts,
           warn: (message) => ctx.logger.warn(message),
         },
         session.id,

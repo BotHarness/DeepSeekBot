@@ -987,6 +987,14 @@ _Avoid_: Settings UI, settings page, preferences, admin panel, dashboard, web co
 One sidebar destination of Bot Settings: a stable id, label, order, and a renderer for one coherent group of profile-wide settings.
 _Avoid_: tab, page, settings item, Panel
 
+**Prompt Part**:
+One named piece of behavior text in a Bot's system prompt or per-turn templates, such as how to report progress, that a Human may rewrite. The tool, delivery and Inbox contracts around it are not Prompt Parts and stay fixed (ADR-0263).
+_Avoid_: prompt section (a DSH system prompt section holds several parts plus fixed contract text), template
+
+**Prompt Preset**:
+A named set of Prompt Part texts in the Profile. Each part resolves per Bot from the Bot's own override, its chosen preset, the global preset, then the built-in text. A running Session keeps the texts it started with until compaction or a new Session.
+_Avoid_: system prompt preset, Model Preset (which chooses models), persona
+
 **Access policy**:
 The per-PersonaBot list of users and chats allowed to reach it.
 _Avoid_: whitelist, permissions, ACL

@@ -2518,6 +2518,15 @@ const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
   },
 };
 
+const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
+  generation: 109,
+  module: 'session-ownership',
+  description: 'Freeze each Session Prompt Preset text at its first assembly',
+  migrate(database) {
+    database.exec('ALTER TABLE session_ownership ADD COLUMN prompt_snapshot TEXT;');
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2626,4 +2635,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   DEVICE_NOTIFICATION_PREFERENCE_MIGRATION,
   DEVICE_LIVE_ACTIVITY_MIGRATION,
   ASSIGNMENT_TITLE_MIGRATION,
+  SESSION_PROMPT_SNAPSHOT_MIGRATION,
 ]);

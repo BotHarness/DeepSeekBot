@@ -1,4 +1,4 @@
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { actionColor, border, color, radius, space, text } from './ds/tokens.stylex.js';
 export const COMPOSER_CONTEXT_CSS = `
 .bh-group-grant-members {display:flex;flex-wrap:wrap;gap:${space.x3};padding:0;border:0;min-width:0;}
 .bh-group-grant-members legend {padding:0;margin-bottom:${space.x3};font-weight:${text.strong};}
@@ -29,5 +29,11 @@ export const COMPOSER_CONTEXT_CSS = `
 .bh-composer-usage-meter {height:5px;overflow:hidden;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover);}
 .bh-composer-usage-meter span {display:block;height:100%;border-radius:inherit;background:var(--bh-bot-color,var(--dsw-alias-label-secondary));}
 .bh-composer-usage-footer {margin-top:${space.x2};padding-top:${space.x4};border-top:${border.hairline} solid ${color.divider};}
+.bh-composer-usage-actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:${space.x2};margin:0 0 ${space.x5};}
+.bh-composer-usage-popover .bh-composer-usage-actions button {justify-content:center;gap:${space.x2};min-width:0;min-height:36px;padding:${space.x2};border-radius:${radius.md};background:${actionColor.secondary};white-space:nowrap;}
+.bh-composer-usage-popover .bh-composer-usage-actions button:hover:not(:disabled) {background:${actionColor.hover};}
+.bh-composer-usage-popover .bh-composer-usage-actions button:disabled {cursor:default;opacity:.6;}
+.bh-composer-usage-actions button svg {flex-shrink:0;}
+.bh-composer-usage-actions button span {min-width:0;overflow:hidden;text-overflow:ellipsis;}
 .bh-composer-usage-popover .bh-composer-usage-details {width:100%;min-height:40px;padding:${space.x3} ${space.x4};border-radius:${radius.sm};box-sizing:border-box;}
 `;

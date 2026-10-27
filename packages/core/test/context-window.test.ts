@@ -14,6 +14,13 @@ it('uses model capacity and labels a 200K fallback honestly', () => {
   expect(
     compactionThresholdTokens({}, { provider: 'custom', model: 'unknown' }, 200_000, 32_000),
   ).toBe(102_464);
+  const unknown = { provider: 'custom', model: 'unknown' };
+  expect(compactionThresholdTokens({ headroomTokens: 262_144 }, unknown, 200_000, 32_000)).toBe(
+    102_464,
+  );
+  expect(compactionThresholdTokens({ headroomTokens: 8_192 }, unknown, 200_000, 32_000)).toBe(
+    159_808,
+  );
 });
 
 it('retains the latest message and never selects the system prompt', () => {

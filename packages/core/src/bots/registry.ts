@@ -60,6 +60,8 @@ import type {
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
+import { parsePromptLimitValues, type PromptLimitValues } from '../prompts/prompt-limits.js';
+import { parsePromptPartOverrides, type PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface MemoryRepositoryInitialization {
   ok: boolean;
@@ -124,6 +126,14 @@ export interface PersonaBotRegistry {
   setBrowserAccess(slug: string, enabled: boolean): UpdatePersonaBotResult;
   setBrowserProfile(slug: string, profile: string): UpdatePersonaBotResult;
   setApprovalTemplate(slug: string, template: string | undefined): UpdatePersonaBotResult;
+  setPromptSettings(
+    slug: string,
+    settings: {
+      preset?: string | null;
+      overrides?: PromptPartOverrides;
+      limits?: PromptLimitValues;
+    },
+  ): UpdatePersonaBotResult;
   setStandingLimits(slug: string, limits: StandingLimits): UpdatePersonaBotResult;
   inheritModel(slug: string, expectedRevision: number): UpdatePersonaBotResult;
   applyModelPreset(slug: string, preset: ModelPreset): UpdatePersonaBotResult;
@@ -219,10 +229,20 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       'browserAccess',
       'browserProfile',
       'approvalTemplate',
+      'promptPreset',
     ] as const) {
       if (record[key] !== undefined) Object.assign(result, { [key]: record[key] });
     }
     if (record.primaryColor !== undefined) result.primaryColor = { ...record.primaryColor };
+    if (record.promptOverrides !== undefined) {
+      const overrides = parsePromptPartOverrides(record.promptOverrides);
+      if (overrides !== undefined && Object.keys(overrides).length > 0)
+        result.promptOverrides = overrides;
+    }
+    if (record.promptLimits !== undefined) {
+      const limits = parsePromptLimitValues(record.promptLimits);
+      if (Object.keys(limits).length > 0) result.promptLimits = limits;
+    }
     if (record.standingLimits !== undefined)
       result.standingLimits = {
         soul: record.standingLimits.soul,
@@ -811,6 +831,22 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       if (record === undefined) return { ok: false, reason: 'not-found' };
       if (template === undefined) delete record.approvalTemplate;
       else record.approvalTemplate = template;
+      write(record);
+      return { ok: true, record };
+    },
+    setPromptSettings(slug, settings) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      if (settings.preset === null) delete record.promptPreset;
+      else if (settings.preset !== undefined) record.promptPreset = settings.preset;
+      if (settings.overrides !== undefined) {
+        if (Object.keys(settings.overrides).length === 0) delete record.promptOverrides;
+        else record.promptOverrides = settings.overrides;
+      }
+      if (settings.limits !== undefined) {
+        if (Object.keys(settings.limits).length === 0) delete record.promptLimits;
+        else record.promptLimits = settings.limits;
+      }
       write(record);
       return { ok: true, record };
     },

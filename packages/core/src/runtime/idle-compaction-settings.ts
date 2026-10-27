@@ -16,6 +16,29 @@ export interface IdleCompactionRoute {
 export interface IdleCompactionSettingsValue {
   enabled: boolean;
   cacheLifetimes: Record<string, number>;
+  thresholdRatio?: number;
+  headroomTokens?: number;
+}
+
+export const COMPACTION_THRESHOLD_RATIO = { defaultValue: 0.8, min: 0.5, max: 0.95 };
+export const COMPACTION_HEADROOM_TOKENS = { defaultValue: 65_536, min: 8_192, max: 262_144 };
+
+export function isCompactionThresholdRatio(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    value >= COMPACTION_THRESHOLD_RATIO.min &&
+    value <= COMPACTION_THRESHOLD_RATIO.max
+  );
+}
+
+export function isCompactionHeadroomTokens(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= COMPACTION_HEADROOM_TOKENS.min &&
+    value <= COMPACTION_HEADROOM_TOKENS.max
+  );
 }
 
 export interface RouteCacheObservation {
@@ -28,6 +51,10 @@ export interface IdleCompactionSettings {
   read(): IdleCompactionSettingsValue | 'invalid';
   setEnabled(enabled: boolean): IdleCompactionSettingsValue;
   setCacheLifetime(route: IdleCompactionRoute, seconds: number | null): IdleCompactionSettingsValue;
+  setThreshold(threshold: {
+    thresholdRatio?: number | null;
+    headroomTokens?: number | null;
+  }): IdleCompactionSettingsValue;
   observations(): Record<string, RouteCacheObservation>;
   saveObservation(key: string, observation: RouteCacheObservation): void;
 }
@@ -57,8 +84,17 @@ function readJson(file: string): unknown {
 function parseSettings(parsed: unknown): IdleCompactionSettingsValue | 'invalid' {
   if (parsed === undefined) return { enabled: true, cacheLifetimes: {} };
   if (typeof parsed !== 'object' || parsed === null) return 'invalid';
-  const record = parsed as { enabled?: unknown; cacheLifetimes?: unknown };
+  const record = parsed as {
+    enabled?: unknown;
+    cacheLifetimes?: unknown;
+    thresholdRatio?: unknown;
+    headroomTokens?: unknown;
+  };
   if (record.enabled !== undefined && typeof record.enabled !== 'boolean') return 'invalid';
+  if (record.thresholdRatio !== undefined && !isCompactionThresholdRatio(record.thresholdRatio))
+    return 'invalid';
+  if (record.headroomTokens !== undefined && !isCompactionHeadroomTokens(record.headroomTokens))
+    return 'invalid';
   const lifetimes = record.cacheLifetimes ?? {};
   if (typeof lifetimes !== 'object' || lifetimes === null || Array.isArray(lifetimes))
     return 'invalid';
@@ -67,7 +103,12 @@ function parseSettings(parsed: unknown): IdleCompactionSettingsValue | 'invalid'
     if (!isCacheLifetimeSeconds(seconds)) return 'invalid';
     cacheLifetimes[key] = seconds;
   }
-  return { enabled: record.enabled ?? true, cacheLifetimes };
+  return {
+    enabled: record.enabled ?? true,
+    cacheLifetimes,
+    ...(record.thresholdRatio === undefined ? {} : { thresholdRatio: record.thresholdRatio }),
+    ...(record.headroomTokens === undefined ? {} : { headroomTokens: record.headroomTokens }),
+  };
 }
 
 function count(value: unknown): number | undefined {
@@ -106,6 +147,16 @@ export function createIdleCompactionSettings(dir: string): IdleCompactionSetting
       if (seconds === null) delete cacheLifetimes[routeKey(route)];
       else cacheLifetimes[routeKey(route)] = seconds;
       return write({ ...value, cacheLifetimes });
+    },
+    setThreshold(threshold) {
+      const next: IdleCompactionSettingsValue = { ...current() };
+      if (threshold.thresholdRatio === null) delete next.thresholdRatio;
+      else if (threshold.thresholdRatio !== undefined)
+        next.thresholdRatio = threshold.thresholdRatio;
+      if (threshold.headroomTokens === null) delete next.headroomTokens;
+      else if (threshold.headroomTokens !== undefined)
+        next.headroomTokens = threshold.headroomTokens;
+      return write(next);
     },
     observations() {
       if (observed !== undefined) return observed;

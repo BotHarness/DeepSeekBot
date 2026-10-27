@@ -201,6 +201,16 @@ describe('Approval Reviewer input', () => {
     expect(prompt).not.toContain('web page says');
   });
 
+  it("applies the Bot's excerpt limits", () => {
+    const excerpt = approvalSessionExcerpt(events, undefined, {
+      humanMessages: 1,
+      humanMessageChars: 4,
+      toolCalls: 1,
+    });
+    expect(excerpt.humanMessages).toEqual(['Plan …[truncated]']);
+    expect(excerpt.toolCalls).toEqual([{ name: 'todo_write', input: '{"todos":[]}' }]);
+  });
+
   it('parses one clear outcome and rejects anything else', () => {
     expect(parseApprovalReview('{"outcome":"allow","reason":"ok"}')).toEqual({
       outcome: 'allow',

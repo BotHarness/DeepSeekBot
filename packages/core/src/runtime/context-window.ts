@@ -1,7 +1,7 @@
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction';
-import { compactionThresholdTokens } from './idle-compaction.js';
+import { compactionThresholdTokens, type CompactionThresholdPolicy } from './idle-compaction.js';
 
 export const UNKNOWN_CONTEXT_WINDOW = 200_000;
 
@@ -37,7 +37,11 @@ export function fallbackCompactionRange(session: Session) {
   return undefined;
 }
 
-export async function compactUnknownContext(agent: Agent, signal: AbortSignal): Promise<void> {
+export async function compactUnknownContext(
+  agent: Agent,
+  signal: AbortSignal,
+  policy: CompactionThresholdPolicy = {},
+): Promise<void> {
   const request = agent.session.requestHeader()?.config;
   if (!request) return;
   const info = await agent.ctx.llm.resolveModelInfo(request.provider, request.model, signal);
@@ -46,7 +50,7 @@ export async function compactUnknownContext(agent: Agent, signal: AbortSignal): 
   const compaction = agent.ctx.get('compaction');
   if (!meter || !compaction) throw new Error('Context protection is unavailable');
   const threshold = compactionThresholdTokens(
-    {},
+    policy,
     request,
     UNKNOWN_CONTEXT_WINDOW,
     request.maxTokens ?? info.defaultMaxTokens ?? 0,

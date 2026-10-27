@@ -82,6 +82,10 @@ export interface SessionOwnership {
 
   refreshPersonaSnapshot(sessionId: string, body: string, at: string): SessionPersonaSnapshot;
 
+  promptSnapshot(sessionId: string): string | undefined;
+
+  writePromptSnapshot(sessionId: string, body: string, replace: boolean): string;
+
   list(): SessionOwnershipRecord[];
 }
 
@@ -283,13 +287,15 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
                     SET bot_slug = ?, root_role = ?, provenance = 'repair',
                         cwd_reference = COALESCE(?, cwd_reference),
                         persona_snapshot = CASE WHEN bot_slug = ? THEN persona_snapshot END,
-                        persona_snapshot_at = CASE WHEN bot_slug = ? THEN persona_snapshot_at END
+                        persona_snapshot_at = CASE WHEN bot_slug = ? THEN persona_snapshot_at END,
+                        prompt_snapshot = CASE WHEN bot_slug = ? THEN prompt_snapshot END
                   WHERE session_id = ?`,
               )
               .run(
                 input.botSlug,
                 input.rootRole,
                 input.cwdReference ?? null,
+                input.botSlug,
                 input.botSlug,
                 input.botSlug,
                 input.sessionId,
@@ -306,6 +312,44 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
     },
     repairRevision(sessionId) {
       return repairRevisions.get(sessionId) ?? 0;
+    },
+    promptSnapshot(sessionId) {
+      return database.read(
+        (connection) =>
+          (
+            connection
+              .prepare('SELECT prompt_snapshot FROM session_ownership WHERE session_id = ?')
+              .get(sessionId) as { prompt_snapshot: string | null } | undefined
+          )?.prompt_snapshot ?? undefined,
+      );
+    },
+    writePromptSnapshot(sessionId, body, replace) {
+      try {
+        return database.transaction(
+          (connection) => {
+            if (readRow(connection, sessionId) === undefined) {
+              throw new SessionOwnershipError(`Unknown Session ownership: ${sessionId}`);
+            }
+            connection
+              .prepare(
+                replace
+                  ? 'UPDATE session_ownership SET prompt_snapshot = ? WHERE session_id = ?'
+                  : 'UPDATE session_ownership SET prompt_snapshot = ? WHERE session_id = ? AND prompt_snapshot IS NULL',
+              )
+              .run(body, sessionId);
+            const row = connection
+              .prepare('SELECT prompt_snapshot FROM session_ownership WHERE session_id = ?')
+              .get(sessionId) as { prompt_snapshot: string | null } | undefined;
+            if (row?.prompt_snapshot == null) {
+              throw new Error(`Prompt snapshot write failed: ${sessionId}`);
+            }
+            return row.prompt_snapshot;
+          },
+          ['session-ownership'],
+        );
+      } catch (error) {
+        return rethrowDomainError(error);
+      }
     },
     personaSnapshot(sessionId) {
       return database.read((connection) => readPersonaSnapshot(connection, sessionId));

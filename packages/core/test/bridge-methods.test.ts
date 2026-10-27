@@ -333,6 +333,54 @@ describe('bridge methods', () => {
     expect((await methods.botToolTrace({ slug: 'nobody' })).ok).toBe(false);
     expect(read).toHaveBeenCalledTimes(1);
   });
+  it("reads a Bot's recent turn input from its own Session log only", async () => {
+    const ownership = createTestOwnership({
+      'session-ada': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'session-other': { botSlug: 'outsider', rootRole: 'orchestrator' },
+    });
+    const read = vi.fn(async () => ({
+      events: [
+        { type: 'turn/start', seq: 1, time: 1, data: { turn: 1 } },
+        {
+          type: 'user/message',
+          seq: 2,
+          time: 2,
+          data: { source: { kind: 'user' }, content: [{ type: 'text', text: 'Hi' }] },
+        },
+      ],
+      inheritedEventCount: 0,
+    }));
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    expect(await methods.botTurnInput({ slug: 'ada', sessionId: 'session-ada' })).toMatchObject({
+      ok: true,
+      value: {
+        slug: 'ada',
+        sessionId: 'session-ada',
+        turns: [{ turn: 1, messages: [{ step: 1, source: 'user', text: 'Hi' }] }],
+      },
+    });
+    expect((await methods.botTurnInput({ slug: 'ada', sessionId: 'session-other' })).ok).toBe(
+      false,
+    );
+    expect(
+      (await methods.botTurnInput({ slug: 'ada', sessionId: 'session-ada', turns: 21 })).ok,
+    ).toBe(false);
+    expect((await methods.botTurnInput({ slug: 'nobody' })).ok).toBe(false);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect((await methods.botSystemPrompt({ slug: 'ada' })).ok).toBe(false);
+  });
   it('lists and runs direct Bot tools through the runtime and traces them as session direct', async () => {
     const run = vi.fn(async (_slug: string, tool: string) => {
       if (tool === 'create_assignment')

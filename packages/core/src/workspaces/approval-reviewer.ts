@@ -45,6 +45,12 @@ export const REVIEW_TIMEOUT_MS = 60_000;
 const MAX_HUMAN_MESSAGES = 8;
 const MAX_HUMAN_MESSAGE_CHARS = 1_500;
 const MAX_TOOL_CALLS = 12;
+
+export interface ApprovalExcerptLimits {
+  humanMessages: number;
+  humanMessageChars: number;
+  toolCalls: number;
+}
 const MAX_TOOL_INPUT_CHARS = 600;
 const MAX_CALL_INPUT_CHARS = 8_000;
 const MAX_REASON_CHARS = 300;
@@ -128,6 +134,11 @@ function textOf(content: unknown): string {
 export function approvalSessionExcerpt(
   events: readonly { type: string; data?: unknown }[],
   currentCallId?: string,
+  limits: ApprovalExcerptLimits = {
+    humanMessages: MAX_HUMAN_MESSAGES,
+    humanMessageChars: MAX_HUMAN_MESSAGE_CHARS,
+    toolCalls: MAX_TOOL_CALLS,
+  },
 ): ApprovalSessionExcerpt {
   const humanMessages: string[] = [];
   const toolCalls: ApprovalSessionExcerpt['toolCalls'] = [];
@@ -135,7 +146,7 @@ export function approvalSessionExcerpt(
     const data = event.data as Record<string, unknown> | undefined;
     if (event.type === 'user/message') {
       const text = textOf(data?.['content']).trim();
-      if (text.length > 0) humanMessages.push(clip(text, MAX_HUMAN_MESSAGE_CHARS));
+      if (text.length > 0) humanMessages.push(clip(text, limits.humanMessageChars));
     } else if (event.type === 'assistant/message') {
       const message = data?.['message'] as { content?: unknown } | undefined;
       if (!Array.isArray(message?.content)) continue;
@@ -161,8 +172,8 @@ export function approvalSessionExcerpt(
     }
   }
   return {
-    humanMessages: humanMessages.slice(-MAX_HUMAN_MESSAGES),
-    toolCalls: toolCalls.slice(-MAX_TOOL_CALLS),
+    humanMessages: humanMessages.slice(Math.max(0, humanMessages.length - limits.humanMessages)),
+    toolCalls: toolCalls.slice(Math.max(0, toolCalls.length - limits.toolCalls)),
   };
 }
 
