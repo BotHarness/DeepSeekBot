@@ -64,6 +64,21 @@ function startHarness(): Harness {
     stat: async (id: string) => (stored.has(id) ? {} : undefined),
   } as never);
   ctx.provide('agents', host as never);
+  const latest = (
+    session: { snapshotEvents(): Array<{ type: string; data: unknown }> },
+    type: string,
+  ) =>
+    session.snapshotEvents().findLast((event) => event.type === type)?.data as
+      | Record<string, string>
+      | undefined;
+  ctx.provide('sandboxPolicy', {
+    resolve: ({ session }: { session: never }) => ({
+      mode: latest(session, 'sandbox/mode')?.['mode'] ?? 'danger-full-access',
+    }),
+  } as never);
+  ctx.provide('approval', {
+    overrideOf: (session: never) => latest(session, 'approval/policy')?.['policy'],
+  } as never);
   ctx.provide('workspaceRegistry', {
     get: (id: string) =>
       id === 'test-workspace'

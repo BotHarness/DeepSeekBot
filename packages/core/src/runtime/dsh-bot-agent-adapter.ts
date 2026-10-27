@@ -28,8 +28,6 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools';
 import type { InboxOpenFilter } from './inbox-triage.js';
-import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
-import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval';
 
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
@@ -274,6 +272,8 @@ export interface DshBotAgentAdapterOptions {
 
   authorizeBorrow?: (agent: Agent, role: 'orchestrator' | 'assignment') => void;
 
+  admitSession?: (agent: Agent) => void;
+
   onOrchestratorFileSetup?: (agentCtx: Context, agent: Agent) => Promise<() => Promise<void>>;
 
   onAgentSetup?: (agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void;
@@ -411,6 +411,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
+  readonly #admitSession: DshBotAgentAdapterOptions['admitSession'];
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
   readonly #onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
   readonly #onAgentSetup:
@@ -447,6 +448,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#orchestratorCwd = options.orchestratorCwd;
     this.#defaultAgentPreset = options.defaultAgentPreset;
     this.#authorizeBorrow = options.authorizeBorrow;
+    this.#admitSession = options.admitSession;
     this.#onAgentSetup = options.onAgentSetup;
     this.#onOrchestratorFileSetup = options.onOrchestratorFileSetup;
     this.#resolveAgentPresets = options.resolveAgentPresets;
@@ -747,8 +749,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     };
     const borrowedDisposers: Array<() => void | Promise<void>> = [];
     const setup = async (agentCtx: Context, agent: Agent, borrowed = false): Promise<void> => {
-      setSandboxMode(agent.session, 'workspace-write');
-      setApprovalPolicy(agent.session, 'ask');
+      this.#admitSession?.(agent);
       this.#onAgentSetup?.(agentCtx, agent, {
         botSlug: run.bot.slug,
         rootRole: 'orchestrator',
@@ -3562,11 +3563,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       ...(meta === undefined ? {} : { meta }),
       agentOptions: resolvedAgentOptions,
       setup: async (agentCtx, agent, borrowed = false) => {
-        if (agent.session.header.cwd !== run.permission.primaryCwd) {
-          throw new Error('Assignment Session cwd differs from its Workspace Grant snapshot');
-        }
-        setSandboxMode(agent.session, run.permission.mode);
-        setApprovalPolicy(agent.session, run.permission.approval);
+        this.#admitSession?.(agent);
         const disposePurgeFence = agentCtx.tools.guard(() => {
           try {
             this.#runs.get(run.sessionId)?.run.requireContent?.();
