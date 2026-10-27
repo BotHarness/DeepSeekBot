@@ -117,7 +117,7 @@ it('keeps the tried route and offers readable recovery instead of a raw network 
     },
     'zh-CN',
   );
-  expect(view.textContent).toContain('请检查手机网络');
+  expect(view.textContent).toContain('检查手机网络');
   expect(view.textContent).not.toContain('Network unavailable');
   expect(view.textContent).toContain('https://example.test');
   const button = view.querySelector('button');

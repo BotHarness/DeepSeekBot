@@ -37,6 +37,19 @@ Examples:
 - Keep product names that the UI shows in English (Bot, Orchestrator, Assignment, provider) in English; do not mix in a second translation for the same thing.
 - Use full-width punctuation and no space between Chinese characters and punctuation; keep one space between Chinese and Latin words.
 
+## Platform differences
+
+Copy is shared by iOS and Android. It differs only where the platforms' own conventions differ:
+
+- **Capitalization (English).** iOS buttons, alert actions, menu items and navigation titles use Apple's title case; everything else, and all of Android, uses sentence case. Write strings in sentence case; the mobile controls apply title case on iOS (`controlCase` in `apps/mobile/src/ui/platform-copy.ios.ts`).
+- **The tap verb (Chinese).** iOS says 「轻点」 and Android says 「点按」, as each system does. Use `tapVerb` instead of writing either one. Leave the verb out when the control already makes the action clear.
+- **Platform-only names.** Lock Screen, Live Activities, Dynamic Island and other one-platform features appear only on that platform.
+
+## Please and failures
+
+- Leave out 「请」 and "Please" in labels, hints, empty states and errors. Keep 「请」 only when the reader must go outside the app, for example 「请在系统设置中允许通知」 or 「请在电脑上复制新的链接」.
+- Say what failed, then what to do: 「保存失败，再试一次。」 rather than 「无法保存，请重试。」 Keep 「无法」 for what cannot be done at all (「无法撤销」).
+
 ## Where copy lives
 
 - Mobile: `apps/mobile/src/ui/strings.ts` (English and Chinese), `apps/mobile/locales/` and the permission texts in `apps/mobile/app.json`. See [apps/mobile/DESIGN.md](../../apps/mobile/DESIGN.md).

@@ -3,6 +3,7 @@ import { Pressable, View, type ViewInstance } from 'react-native';
 
 import { radius, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
+import { controlCase } from '../platform-copy';
 import { BackIcon } from '../shell/back-icon';
 import { CheckIcon, CloseIcon } from '../shell/icons';
 import { useStrings } from '../strings';
@@ -103,7 +104,7 @@ export function DrawerHeader({
           >
             {icon === undefined ? null : <View accessible={false}>{icon}</View>}
             <Text variant="title" strong style={{ flexShrink: 1, textAlign: 'center' }}>
-              {title}
+              {controlCase(title)}
             </Text>
           </View>
         </View>
