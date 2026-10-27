@@ -57,6 +57,16 @@ it.each(['compact', 'new-session'] as const)(
     expect(controller.getSnapshot()).toEqual({ pending: undefined, notice: 'busy' });
   },
 );
+it('points compaction of a never-saved Session to a new Session', async () => {
+  const controller = createSessionMaintenance('dm-ada', 'ada', {
+    compact: async () => {
+      throw { code: 'session-unsaved' };
+    },
+    newSession: async () => undefined,
+  });
+  await controller.run('compact');
+  expect(controller.getSnapshot()).toEqual({ pending: undefined, notice: 'unsaved' });
+});
 it('refuses group and mismatched DM scope before calling Host', async () => {
   const port = { compact: vi.fn(), newSession: vi.fn() };
   for (const channel of ['group-team', 'dm-other', undefined]) {

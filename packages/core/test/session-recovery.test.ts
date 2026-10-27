@@ -12,8 +12,15 @@ afterEach(async () => {
   }
 });
 
-async function fixture(sideEffect = false) {
+function namedError(name: string, message: string): Error {
+  const error = new Error(message);
+  error.name = name;
+  return error;
+}
+
+async function fixture(sideEffect = false, { unsaved = false } = {}) {
   const archived = new Set<string>();
+  const saved = new Set<string>();
   const runs: string[] = [];
   const loaded: string[] = [];
   const core = createCore({
@@ -21,12 +28,17 @@ async function fixture(sideEffect = false) {
     agents: {
       runOrchestrator: async (run) => {
         runs.push(run.sessionId);
+        if (runs.length === 1 && unsaved)
+          throw new Error('Model route is unavailable: deepseek/unknown-model');
+        saved.add(run.sessionId);
         if (runs.length === 1) {
           if (sideEffect) await run.channels.send({ body: 'Already sent' });
           throw new Error('Agent turn ended without completion: max-tokens');
         }
       },
       loadOrchestrator: async (run) => {
+        if (!saved.has(run.sessionId))
+          throw namedError('SessionUnavailableError', 'Original Session is unavailable');
         loaded.push(run.sessionId);
       },
       runAssignment: async () => {},
@@ -35,6 +47,11 @@ async function fixture(sideEffect = false) {
     },
     sessionArchive: () => ({
       archiveSession: async (id) => {
+        if (!saved.has(id))
+          throw namedError(
+            'WorkspaceUnknownSessionError',
+            `cannot archive session '${id}': live sessions and session persistence hold no such session`,
+          );
         archived.add(id);
       },
       unarchiveSession: async (id) => {
@@ -192,4 +209,39 @@ it('refuses mismatched failure references before changing a Session', async () =
   });
   expect(result.ok).toBe(false);
   expect(fx.archived.size).toBe(0);
+});
+
+it('starts a new Session when the failed first Turn never saved its Session', async () => {
+  const fx = await fixture(false, { unsaved: true });
+  await fx.core.runtime.recoverDmMessage!({
+    ...fx.input,
+    action: 'new-session',
+    compact: async () => false,
+  });
+  await fx.core.runtime.whenIdle();
+  expect(fx.runs).toHaveLength(2);
+  expect(fx.runs[1]).not.toBe(fx.runs[0]);
+  expect(fx.core.runtime.currentOrchestratorSessionId!('ada')).toBe(fx.runs[1]);
+  expect(fx.archived.size).toBe(0);
+});
+
+it('starts a fresh Session from the Bot menu when the current Session was never saved', async () => {
+  const fx = await fixture(false, { unsaved: true });
+  await expect(fx.methods.botNewSession({ slug: 'ada' })).resolves.toEqual({
+    ok: true,
+    value: { started: true },
+  });
+  expect(fx.core.runtime.currentOrchestratorSessionId!('ada')).not.toBe(fx.runs[0]);
+});
+
+it('points compaction of a never-saved Session to a new Session', async () => {
+  const fx = await fixture(false, { unsaved: true });
+  const result = fx.core.runtime.recoverDmMessage!({
+    ...fx.input,
+    action: 'compact',
+    compact: async () => true,
+  });
+  await expect(result).rejects.toMatchObject({ code: 'session-unsaved' });
+  await expect(result).rejects.toThrow(/new Session/);
+  expect(fx.runs).toHaveLength(1);
 });
