@@ -1507,6 +1507,23 @@ const en = {
     revokeDetail: 'The Bot will ask you again before using it.',
     revokeFailed: "Couldn't revoke the rule.",
   },
+  profilePermissions: {
+    workspace: 'Workspace grants',
+    access: 'Computer and browser access',
+    accessSummary: (browser: boolean, computer: boolean): string =>
+      browser && computer
+        ? 'Browser and computer'
+        : browser
+          ? 'Browser only'
+          : computer
+            ? 'Computer only'
+            : 'Off',
+    browser: 'Browser',
+    browserDetail: (name: string) => `${name} can open and use web pages in its own browser.`,
+    computer: 'Computer',
+    computerDetail: (name: string) => `${name} can see the screen and use the mouse and keyboard.`,
+    accessFailed: (detail: string) => `Couldn’t save the change. ${detail}`,
+  },
   profileAssignmentState: {
     working: 'Working',
     idle: 'Idle',
@@ -3359,6 +3376,17 @@ const zh: typeof en = {
     revokeRule: (name: string) => `撤销 ${name} 的规则`,
     revokeDetail: 'Bot 下次使用前会重新询问你。',
     revokeFailed: '无法撤销这条规则。',
+  },
+  profilePermissions: {
+    workspace: '工作区授权',
+    access: '电脑和浏览器使用权',
+    accessSummary: (browser: boolean, computer: boolean): string =>
+      browser && computer ? '浏览器和电脑' : browser ? '仅浏览器' : computer ? '仅电脑' : '关闭',
+    browser: '浏览器',
+    browserDetail: (name: string) => `${name} 可以在自己的浏览器里打开和操作网页。`,
+    computer: '电脑',
+    computerDetail: (name: string) => `${name} 可以看到屏幕并使用鼠标和键盘。`,
+    accessFailed: (detail: string) => `未能保存更改。${detail}`,
   },
   profileAssignmentState: {
     working: '进行中',

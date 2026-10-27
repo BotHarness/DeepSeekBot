@@ -325,6 +325,26 @@ describe('Bot profile page', () => {
     expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
   });
 
+  it('places Permissions between the overview and the Bot settings', async () => {
+    const view = await render(
+      <BotProfileSheet
+        tab="settings"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        initialProfile={empty}
+        load={async () => empty}
+        permissions={<span data-testid="permissions-rows">Workspace grants</span>}
+        actions={actions()}
+      />,
+    );
+    const order = headers(view);
+    const permissions = order.indexOf(t.approvals.permissions);
+    expect(permissions).toBeGreaterThan(-1);
+    expect(order.indexOf(t.profileSettingsBot)).toBeGreaterThan(permissions);
+    expect(view.querySelector('[data-testid="permissions-rows"]')).not.toBeNull();
+  });
+
   it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {
     const request = Promise.withResolvers<BotProfile>();
     const view = await render(
