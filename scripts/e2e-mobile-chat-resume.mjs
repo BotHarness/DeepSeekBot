@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
 import { setTimeout } from 'node:timers/promises';
 
 const args = process.argv.slice(2);
@@ -15,6 +16,16 @@ assert(lease.active === true && lease.owner === option('--owner'), 'IOS_QA_LEASE
 for (const key of ['driver', 'stateDir', 'session', 'udid'])
   assert(typeof lease[key] === 'string' && lease[key], `Missing lease ${key}`);
 const message = option('--message');
+const readingRegion = option('--reading-region').split(',').map(Number);
+assert(
+  readingRegion.length === 4 &&
+    readingRegion.every(Number.isFinite) &&
+    readingRegion[0] >= 0 &&
+    readingRegion[1] >= 0 &&
+    readingRegion[2] > 0 &&
+    readingRegion[3] > 0,
+  'READING_REGION_MUST_BE_X_Y_WIDTH_HEIGHT_IN_POINTS',
+);
 const seconds = Number(option('--seconds'));
 assert(Number.isFinite(seconds) && seconds >= 5 && seconds <= 30, 'Use 5–30 background seconds');
 const out = resolve(option('--out'));
@@ -91,24 +102,39 @@ function processId(label) {
   assert(matches.length === 1, 'DEV_PROCESS_NOT_UNIQUE');
   return matches[0].processIdentifier;
 }
-function anchor(data, baseline) {
-  const nodes = snapshot(data).nodes;
-  if (!baseline)
-    return (
-      nodes.find((node) => node.label === message && node.identifier) ??
-      nodes.find((node) => node.label === message)
-    );
-  return (
-    nodes.find((node) => baseline.identifier && node.identifier === baseline.identifier) ??
-    nodes.find(
-      (node) =>
-        node.label === message &&
-        ['width', 'height'].every(
-          (key) =>
-            Number.isFinite(node.rect?.[key]) && Math.abs(node.rect[key] - baseline.rect[key]) <= 2,
-        ),
-    )
+function readingPixels(before) {
+  const modules = resolve('node_modules/.pnpm');
+  const module = readdirSync(modules).find((name) => name.startsWith('pngjs@'));
+  assert(module, 'Install the locked workspace dependencies first');
+  const { PNG } = createRequire(resolve(modules, module, 'node_modules/'))('pngjs');
+  const first = PNG.sync.read(readFileSync(join(out, 'before.private.png')));
+  const last = PNG.sync.read(readFileSync(join(out, 'after.private.png')));
+  assert(first.width === last.width && first.height === last.height, 'VIEWPORT_CHANGED');
+  const viewport = snapshot(before).viewport;
+  const scale = first.width / viewport.width;
+  const [x, y, width, height] = readingRegion.map((value) => Math.round(value * scale));
+  assert(x + width <= first.width && y + height <= first.height, 'READING_REGION_OUTSIDE_IMAGE');
+  assert(
+    readingRegion[1] + readingRegion[3] <= field(before).rect.y,
+    'READING_REGION_OVERLAPS_COMPOSER',
   );
+  let changed = 0;
+  const colors = new Set();
+  for (let row = y; row < y + height; row++)
+    for (let column = x; column < x + width; column++) {
+      const offset = (row * first.width + column) * 4;
+      const a = first.data.subarray(offset, offset + 3);
+      const b = last.data.subarray(offset, offset + 3);
+      if (!a.equals(b)) changed++;
+      if (colors.size < 32) colors.add(a.toString('hex'));
+    }
+  assert(colors.size >= 16, 'READING_REGION_HAS_NO_VISIBLE_CONTENT');
+  return {
+    regionPoints: readingRegion,
+    pixels: width * height,
+    changedPixels: changed,
+    unchanged: changed === 0,
+  };
 }
 
 let backgrounded = false;
@@ -122,7 +148,6 @@ try {
   assert(facts(before).messageVisible && facts(before).composerVisible, 'INVALID_FOCUSED_BASELINE');
   drive('before-image', 'screenshot', join(out, 'before.private.png'));
   const beforePid = processId('process-before');
-  const beforeAnchor = anchor(before);
   backgrounded = true;
   const home = drive('background', 'open', 'com.apple.springboard', '--foreground');
   assert(home.appBundleId === 'com.apple.springboard', 'BACKGROUND_TRIGGER_NOT_PROVEN');
@@ -131,16 +156,7 @@ try {
   backgrounded = false;
   drive('after-image', 'screenshot', join(out, 'after.private.png'));
   const afterPid = processId('process-after');
-  const afterAnchor = anchor(after, beforeAnchor);
-  const anchorUnchanged =
-    beforeAnchor &&
-    afterAnchor &&
-    ['x', 'y', 'width', 'height'].every(
-      (key) =>
-        Number.isFinite(beforeAnchor.rect?.[key]) &&
-        Number.isFinite(afterAnchor.rect?.[key]) &&
-        Math.abs(beforeAnchor.rect[key] - afterAnchor.rect[key]) <= 2,
-    );
+  const reading = readingPixels(before);
   const result = {
     backgroundSeconds: seconds,
     keyboardExpected: !closed,
@@ -148,7 +164,8 @@ try {
     after: facts(after),
     draftUnchanged: field(before)?.value === field(after)?.value,
     sameProcess: beforePid === afterPid,
-    readingAnchorUnchanged: Boolean(anchorUnchanged),
+    readingAnchorUnchanged: reading.unchanged,
+    readingPixels: reading,
   };
   result.pass =
     result.after.messageVisible &&
