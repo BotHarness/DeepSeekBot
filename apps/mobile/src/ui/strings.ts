@@ -1523,6 +1523,7 @@ const en = {
     computer: 'Computer',
     computerDetail: (name: string) => `${name} can see the screen and use the mouse and keyboard.`,
     accessFailed: (detail: string) => `Couldn’t save the change. ${detail}`,
+    accessRetry: 'Couldn’t save the change. Try again.',
   },
   profileAssignmentState: {
     working: 'Working',
@@ -3387,6 +3388,7 @@ const zh: typeof en = {
     computer: '电脑',
     computerDetail: (name: string) => `${name} 可以看到屏幕并使用鼠标和键盘。`,
     accessFailed: (detail: string) => `未能保存更改。${detail}`,
+    accessRetry: '未能保存更改，请重试。',
   },
   profileAssignmentState: {
     working: '进行中',

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { botAccess, setBotAccess, type BotAccess, type BotAccessKind } from '../../host/bot-access';
-import { errorText } from '../../host/bot-settings';
+import { errorText, HostAnswerInvalid } from '../../host/bot-settings';
 import type { HostClient, RosterBot } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
@@ -44,7 +44,7 @@ export function useBotAccessSwitches(client: HostClient, bot: RosterBot) {
         delete next[kind];
         return next;
       });
-      setError(errorText(failure));
+      setError(failure instanceof HostAnswerInvalid ? '' : errorText(failure));
     }
   };
   return { value, change, error };
@@ -97,7 +97,7 @@ export function BotAccessScreen({ client, bot }: { client: HostClient; bot: Rost
       <SettingsSection on={SHEET_GROUP}>{KINDS.map(row)}</SettingsSection>
       {access.error === undefined ? null : (
         <Text accessibilityRole="alert" tone="danger">
-          {copy.accessFailed(access.error)}
+          {access.error === '' ? copy.accessRetry : copy.accessFailed(access.error)}
         </Text>
       )}
     </ScrollView>

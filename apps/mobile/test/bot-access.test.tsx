@@ -124,6 +124,16 @@ describe('Bot access switches', () => {
     expect(client.refresh).not.toHaveBeenCalled();
   });
 
+  it('keeps Host method names out of the message when the answer is invalid', async () => {
+    const client = hostClient(async () => ({ bot: { slug: 'other', browserAccess: true } }));
+    const { toggle } = await render(client);
+    await act(async () => toggle('browser').click());
+    expect(toggle('browser').checked).toBe(false);
+    expect(container!.querySelector('[role="alert"]')?.textContent).toBe(
+      t.profilePermissions.accessRetry,
+    );
+  });
+
   it('refuses an answer for another Bot', async () => {
     const client = hostClient(async () => ({ bot: { slug: 'other', browserAccess: true } }));
     await expect(setBotAccess(client, 'scout', 'browser', true)).rejects.toThrow(
