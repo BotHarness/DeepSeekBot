@@ -19,6 +19,7 @@ android {
 }
 
 dependencies {
+  implementation 'com.facebook.react:react-android'
   if (findProject(':expo-ui') != null) {
     implementation project(':expo-ui')
   } else {
