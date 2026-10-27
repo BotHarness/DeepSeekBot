@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo } from 'react';
 
-import { loadMemoryFile, loadMemoryFiles } from '../../../src/host/bot-profile';
+import { loadMemoryFile, loadMemoryFiles, memoryRouteParams } from '../../../src/host/bot-profile';
 import { nativeMemoryPreview } from '../../../src/host/native-memory-preview';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { MemoryFolderView } from '../../../src/ui/chat/memory-browser';
@@ -14,10 +14,12 @@ export default function MemoryScreen() {
     slug,
     path = '',
     kind,
+    role,
   } = useLocalSearchParams<{
     slug: string;
     path?: string;
     kind?: 'folder' | 'file';
+    role?: string;
   }>();
   const router = useRouter();
   const { client } = useHostSession();
@@ -45,6 +47,7 @@ export default function MemoryScreen() {
             key={`${slug}:${path}`}
             load={loadFile}
             preview={{ client: client!, io: nativeMemoryPreview, slug, path }}
+            role={role === 'soul' || role === 'coreMemory' ? role : undefined}
           />
         )
       ) : loadFiles === undefined ? null : (
@@ -54,7 +57,7 @@ export default function MemoryScreen() {
           onOpen={(entry) =>
             router.push({
               pathname: '/bot/[slug]/memory',
-              params: { slug: slug ?? '', path: entry.path, kind: entry.kind },
+              params: memoryRouteParams(slug ?? '', entry),
             })
           }
         />

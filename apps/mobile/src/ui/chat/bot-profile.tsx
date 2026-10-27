@@ -4,9 +4,10 @@ import { Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 
 import {
-  memoryEntries,
+  unpinnedEntries,
   type BotProfile,
   type MemoryEntry,
+  type PinnedMemory,
   type ProfileAssignment,
   type ProfilePart,
 } from '../../host/bot-profile';
@@ -37,7 +38,12 @@ import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
 import { AssignmentActivityIcon } from './assignment-marks';
 import { botStateTone } from './bot-tone';
-import { MemoryEntryRow } from './memory-browser';
+import {
+  MemoryGridRow,
+  MemoryPinnedCards,
+  memoryGridRows,
+  useMemoryColumns,
+} from './memory-browser';
 import {
   NewRoutineButton,
   RoutineGroupCard,
@@ -63,13 +69,10 @@ import {
 import { ProfileZoomTarget } from './profile-zoom-target';
 
 const ICON = 22;
-const COLLAPSED_LINES = 6;
-const LONG_TEXT = 280;
 
 export const PROFILE_SECTIONS = [
   'work',
   'activity',
-  'identity',
   'memory',
   'routines',
   'channels',
@@ -78,9 +81,9 @@ export const PROFILE_SECTIONS = [
 export type ProfileSection = (typeof PROFILE_SECTIONS)[number];
 
 type RowBody =
-  | { kind: 'text'; label?: string; body: string }
   | { kind: 'item'; title: string; detail?: string }
-  | { kind: 'entry'; entry: MemoryEntry }
+  | { kind: 'pinned'; pinned: PinnedMemory[] }
+  | { kind: 'grid'; entries: MemoryEntry[]; columns: number; lead: boolean }
   | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
@@ -169,6 +172,7 @@ export function assignmentRows(part: ProfilePart<ProfileAssignment[]> | undefine
 export function profileRows(
   profile: BotProfile | undefined,
   channels: RosterChannel[],
+  columns = 3,
 ): Record<ProfileSection, Row[]> {
   return {
     work: assignmentRows(profile?.work),
@@ -176,19 +180,24 @@ export function profileRows(
       'activity',
       partRows(profile?.activity, 'activity', (activity) => [{ kind: 'activity', activity }]),
     ),
-    identity: frame(
-      'identity',
-      partRows(profile?.identity, 'identity', (soul) =>
-        soul === undefined ? [] : [{ kind: 'text', body: soul }],
-      ),
-    ),
     memory: frame(
       'memory',
-      partRows(profile?.memory, 'memory', (memory) =>
-        memoryEntries(memory.files, '').map((entry) => ({
-          kind: 'entry',
-          entry,
-        })),
+      partRows(profile?.memory, 'memory', (memory): RowBody[] =>
+        memory.status === 'unavailable'
+          ? [{ kind: 'note', text: t.memoryNotAttached }]
+          : [
+              { kind: 'pinned', pinned: memory.pinned },
+              ...(memory.files.length === 0
+                ? [{ kind: 'note' as const, text: t.profileEmpty.memory }]
+                : memoryGridRows(unpinnedEntries(memory.files, memory.pinned), columns).map(
+                    (entries, index): RowBody => ({
+                      kind: 'grid',
+                      entries,
+                      columns,
+                      lead: index === 0,
+                    }),
+                  )),
+            ],
       ),
     ),
     routines: frame(
@@ -497,30 +506,24 @@ export function WorkListRow({
 function ProfileRow({
   bot,
   row,
-  expanded,
-  onToggle,
   onRetry,
   actions,
 }: {
   bot: RosterBot;
   row: Row;
-  expanded: boolean;
-  onToggle(): void;
   onRetry(): void;
   actions: BotProfileActions;
 }) {
-  const t = useStrings();
   const theme = useDesignTheme();
   if (row.kind === 'activity')
     return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
-  if (row.kind === 'entry')
+  if (row.kind === 'pinned')
+    return <MemoryPinnedCards pinned={row.pinned} onOpen={actions.onOpenMemory} />;
+  if (row.kind === 'grid')
     return (
-      <MemoryEntryRow
-        entry={row.entry}
-        first={row.first}
-        last={row.last}
-        onOpen={actions.onOpenMemory}
-      />
+      <View style={{ paddingTop: row.lead ? space.x5 : space.x2 }}>
+        <MemoryGridRow entries={row.entries} columns={row.columns} onOpen={actions.onOpenMemory} />
+      </View>
     );
   if (
     row.kind === 'day' ||
@@ -553,35 +556,7 @@ function ProfileRow({
         )}
       </View>
     );
-  const long = row.body.length > LONG_TEXT || row.body.split('\n').length > COLLAPSED_LINES;
-  return (
-    <View style={shape}>
-      {row.label === undefined ? null : (
-        <Text variant="meta" tone="muted" strong>
-          {row.label}
-        </Text>
-      )}
-      <Text selectable numberOfLines={long && !expanded ? COLLAPSED_LINES : undefined}>
-        {row.body}
-      </Text>
-      {long ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={expanded ? t.showLess : t.showMore}
-          onPress={onToggle}
-          style={{
-            minHeight: theme.touch,
-            justifyContent: 'center',
-            alignSelf: 'flex-start',
-          }}
-        >
-          <Text tone="accent" strong>
-            {expanded ? t.showLess : t.showMore}
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
-  );
+  return null;
 }
 
 function SubHeading({ children }: { children: string }) {
@@ -669,7 +644,7 @@ export function BotProfilePage({
   const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const columns = useMemoryColumns();
   const tabs = profileTabs('bot');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs);
   const read = useCallback(() => {
@@ -682,25 +657,10 @@ export function BotProfilePage({
     };
   }, [load]);
   useFocusEffect(read);
-  const rows = profileRows(content.ready ? profile : undefined, channels);
+  const rows = profileRows(content.ready ? profile : undefined, channels, columns);
   const rowOf = (row: Row): ShellRow => ({
     key: row.key,
-    render: () => (
-      <ProfileRow
-        bot={bot}
-        row={row}
-        expanded={expanded.has(row.key)}
-        onRetry={read}
-        actions={actions}
-        onToggle={() =>
-          setExpanded((current) => {
-            const next = new Set(current);
-            if (!next.delete(row.key)) next.add(row.key);
-            return next;
-          })
-        }
-      />
-    ),
+    render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={actions} />,
   });
   const node = (key: string, render: () => ReactNode): ShellRow => ({
     key,
@@ -716,7 +676,7 @@ export function BotProfilePage({
       ],
     },
     memory: {
-      rows: [...rows.identity.map(rowOf), heading('memory'), ...rows.memory.map(rowOf)],
+      rows: rows.memory.map(rowOf),
     },
     routines: {
       ...(actions.onNewRoutine === undefined

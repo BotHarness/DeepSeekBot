@@ -1,9 +1,10 @@
 import { loadProfileActivity } from './bot-activity';
-import type { HostClient, RosterChannel, RosterView } from './client';
+import { MethodRefused, type HostClient, type RosterChannel, type RosterView } from './client';
 import type {
   BotScheduleSummary,
   MemoryFile,
   MemorySnapshot,
+  MemoryStanding,
   ProfileActivity,
   WorkspaceGrantSummary,
 } from './wire';
@@ -12,13 +13,21 @@ export type ProfilePart<T> =
   | { status: 'ready'; value: T; staleError?: string }
   | { status: 'failed'; error: string };
 
-export interface ProfileMemory {
-  files: string[];
+export type PinnedRole = MemoryStanding['role'];
+
+export interface PinnedMemory {
+  role: PinnedRole;
+  path: string;
+  present: boolean;
 }
+
+export type ProfileMemory =
+  | { status: 'attached'; files: string[]; pinned: PinnedMemory[] }
+  | { status: 'unavailable' };
 
 export type MemoryEntry =
   | { kind: 'folder'; name: string; path: string; count: number }
-  | { kind: 'file'; name: string; path: string };
+  | { kind: 'file'; name: string; path: string; role?: PinnedRole };
 
 export interface ProfileBotRef {
   slug: string;
@@ -43,7 +52,6 @@ export interface ProfileAssignment {
 
 export interface BotProfile {
   work: ProfilePart<ProfileAssignment[]>;
-  identity: ProfilePart<string | undefined>;
   memory: ProfilePart<ProfileMemory>;
   routines: ProfilePart<BotScheduleSummary[]>;
   files: ProfilePart<WorkspaceGrantSummary[]>;
@@ -103,7 +111,6 @@ export function botProfileResource(client: HostClient, bot: ProfileBotRef): BotP
             const value = queries.getQueryData<BotProfile>(queryKey);
             return {
               work: keepSuccessful(next.work, value?.work),
-              identity: keepSuccessful(next.identity, value?.identity),
               memory: keepSuccessful(next.memory, value?.memory),
               routines: keepSuccessful(next.routines, value?.routines),
               files: keepSuccessful(next.files, value?.files),
@@ -128,7 +135,25 @@ export function botProfileResource(client: HostClient, bot: ProfileBotRef): BotP
   return resource;
 }
 
-const SOUL = 'SOUL.md';
+const PINNED: readonly { role: PinnedRole; path: string }[] = [
+  { role: 'soul', path: 'SOUL.md' },
+  { role: 'coreMemory', path: 'MEMORY.md' },
+];
+
+export function pinnedMemory(snapshot: Pick<MemorySnapshot, 'files' | 'standing'>): PinnedMemory[] {
+  return PINNED.map(({ role, path: fallback }) => {
+    const path = snapshot.standing.find((entry) => entry.role === role)?.path ?? fallback;
+    return { role, path, present: snapshot.files.includes(path) };
+  });
+}
+
+export function profileMemory(snapshot: MemorySnapshot): ProfileMemory {
+  return { status: 'attached', files: snapshot.files, pinned: pinnedMemory(snapshot) };
+}
+
+export function memoryUnavailable(error: unknown): boolean {
+  return error instanceof MethodRefused && error.code === 'memory-unavailable';
+}
 
 function settle<T>(work: Promise<T>): Promise<ProfilePart<T>> {
   return work.then(
@@ -205,25 +230,26 @@ export function memoryEntries(files: readonly string[], folder: string): MemoryE
     .concat(leaves.sort(byName));
 }
 
+export function memoryRouteParams(slug: string, entry: MemoryEntry) {
+  return {
+    slug,
+    path: entry.path,
+    kind: entry.kind,
+    ...(entry.kind === 'file' && entry.role !== undefined ? { role: entry.role } : {}),
+  };
+}
+
+export function unpinnedEntries(files: readonly string[], pinned: readonly PinnedMemory[]) {
+  const paths = new Set(pinned.map((entry) => entry.path));
+  return memoryEntries(files, '').filter(
+    (entry) => entry.kind === 'folder' || !paths.has(entry.path),
+  );
+}
+
 export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Promise<BotProfile> {
   const channel = dmChannel(client, bot);
-  const snapshot = channel.then(async (channelId) => ({
-    channelId,
-    snapshot: await snapshotOf(client, channelId),
-  }));
-  const soul = async () => {
-    const { channelId, snapshot: current } = await snapshot;
-    const path = current.standing.find((entry) => entry.role === 'soul')?.path ?? SOUL;
-    if (!current.files.includes(path)) return undefined;
-    const { file } = await client.call<{ file?: MemoryFile }>('memoryFile', {
-      channelId,
-      path,
-    });
-    return file === undefined || file.binary === true || file.body.trim() === ''
-      ? undefined
-      : file.body.trim();
-  };
-  const [work, identity, memory, routines, files, activity] = await Promise.all([
+  const snapshot = channel.then((channelId) => snapshotOf(client, channelId));
+  const [work, memory, routines, files, activity] = await Promise.all([
     settle(
       client
         .call<{
@@ -231,8 +257,15 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
         }>('assignments', { slug: bot.slug })
         .then((result) => workRows(result.assignments)),
     ),
-    settle(soul()),
-    settle(snapshot.then(({ snapshot: current }): ProfileMemory => ({ files: current.files }))),
+    settle(
+      snapshot.then(
+        (current) => profileMemory(current),
+        (error: unknown): ProfileMemory => {
+          if (memoryUnavailable(error)) return { status: 'unavailable' };
+          throw error;
+        },
+      ),
+    ),
     settle(
       client
         .call<{
@@ -249,7 +282,7 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
     ),
     settle(channel.then((channelId) => loadProfileActivity(client, channelId, { weeks: 1 }))),
   ]);
-  return { work, identity, memory, routines, files, activity };
+  return { work, memory, routines, files, activity };
 }
 
 export function workRows(assignments: readonly ProfileAssignment[]): ProfileAssignment[] {

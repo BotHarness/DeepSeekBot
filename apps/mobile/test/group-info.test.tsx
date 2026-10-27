@@ -13,6 +13,7 @@ vi.mock('expo-router', async () => {
   };
 });
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Alert: { alert: (...args: unknown[]) => alert(...args) },

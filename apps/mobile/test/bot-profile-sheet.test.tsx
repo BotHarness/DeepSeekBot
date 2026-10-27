@@ -28,6 +28,7 @@ vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/bot-avatar', () => ({
   BotAvatar: ({ bot }: { bot: { slug: string } }) =>
@@ -129,14 +130,15 @@ const assignments = [
 
 const full: BotProfile = {
   work: { status: 'ready', value: assignments },
-  identity: {
-    status: 'ready',
-    value: profileWire.rpc.memoryFile['SOUL.md'].file.body,
-  },
   memory: {
     status: 'ready',
     value: {
+      status: 'attached',
       files: profileWire.rpc.memorySnapshot.snapshot.files,
+      pinned: [
+        { role: 'soul', path: 'SOUL.md', present: true },
+        { role: 'coreMemory', path: 'MEMORY.md', present: true },
+      ],
     },
   },
   routines: {
@@ -152,8 +154,17 @@ const full: BotProfile = {
 
 const empty: BotProfile = {
   work: { status: 'ready', value: [] },
-  identity: { status: 'ready', value: undefined },
-  memory: { status: 'ready', value: { files: [] } },
+  memory: {
+    status: 'ready',
+    value: {
+      status: 'attached',
+      files: [],
+      pinned: [
+        { role: 'soul', path: 'SOUL.md', present: false },
+        { role: 'coreMemory', path: 'MEMORY.md', present: false },
+      ],
+    },
+  },
   routines: { status: 'ready', value: [] },
   files: { status: 'ready', value: [] },
   activity: {
@@ -368,9 +379,11 @@ describe('Bot profile page', () => {
     });
     expect(view.textContent).toContain('Full settings');
     await openTab(view, 'memory');
-    expect(view.textContent).toContain('Standing rules:');
+    const notes = '[data-testid="memory-entry-notes"]';
+    expect(view.querySelector(notes)).not.toBeNull();
     await act(async () => request.resolve(empty));
-    expect(view.textContent).not.toContain('Standing rules:');
+    expect(view.querySelector(notes)).toBeNull();
+    expect(view.textContent).toContain(t.memoryPinnedMissing);
   });
 
   it('moves the identity, memory, routines, Channels and folders into their tabs', async () => {
@@ -393,9 +406,8 @@ describe('Bot profile page', () => {
     );
     expect(view.textContent).toContain(profileWire.bot.description);
     expect(view.textContent).toContain('researcher');
-    expect(view.textContent).toContain('Standing rules:');
-    expect(view.textContent).not.toContain('Vain prefers summaries under 100 words.');
-    expect(headers(view)).toEqual([bot.displayName, t.profileTabs.memory, t.profileSection.memory]);
+    expect(view.textContent).not.toContain('Standing rules:');
+    expect(headers(view)).toEqual([bot.displayName, t.profileTabs.memory]);
     await openTab(view, 'routines');
     expect(view.textContent).toContain('Morning digest');
     expect(view.textContent).toContain(t.routineDaily('09:00'));
@@ -522,7 +534,7 @@ describe('Bot profile page', () => {
     expect(handlers.onNotifications).toHaveBeenCalledTimes(1);
   });
 
-  it('lists the top of the Memory tree and opens a folder or a file', async () => {
+  it('pins SOUL.md and MEMORY.md above a grid of the other Memory files', async () => {
     const handlers = actions();
     const view = await render(
       <BotProfileSheet
@@ -537,21 +549,65 @@ describe('Bot profile page', () => {
     const entries = [...view.querySelectorAll('button')]
       .map((node) => node.getAttribute('aria-label'))
       .filter((label) => label !== null && !label.startsWith(t.avatarChange));
-    expect(entries).toEqual(
+    const memoryEntries = entries.filter((label) => !label!.startsWith(t.profileTabs.work));
+    expect(memoryEntries).toEqual(
       expect.arrayContaining([
+        `SOUL.md, ${t.memoryPinned.soul}`,
+        `MEMORY.md, ${t.memoryPinned.coreMemory}`,
         `.botharness, ${t.memoryItems(2)}`,
         `notes, ${t.memoryItems(1)}`,
         '.gitattributes',
-        'MEMORY.md',
-        'SOUL.md',
       ]),
     );
+    expect(memoryEntries).not.toContain('SOUL.md');
+    expect(memoryEntries).not.toContain('MEMORY.md');
+    const grid = view.querySelector('[data-testid="memory-pinned"]')!;
+    expect(
+      grid.compareDocumentPosition(view.querySelector('[data-testid="memory-entry-notes"]')!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     await act(async () => button(view, `notes, ${t.memoryItems(1)}`)!.click());
-    await act(async () => button(view, 'MEMORY.md')!.click());
+    await act(async () => button(view, `SOUL.md, ${t.memoryPinned.soul}`)!.click());
+    await act(async () => button(view, `MEMORY.md, ${t.memoryPinned.coreMemory}`)!.click());
     expect(handlers.onOpenMemory.mock.calls).toEqual([
       [{ kind: 'folder', name: 'notes', path: 'notes', count: 1 }],
-      [{ kind: 'file', name: 'MEMORY.md', path: 'MEMORY.md' }],
+      [{ kind: 'file', name: 'SOUL.md', path: 'SOUL.md', role: 'soul' }],
+      [{ kind: 'file', name: 'MEMORY.md', path: 'MEMORY.md', role: 'coreMemory' }],
     ]);
+  });
+
+  it('explains that Memory is not attached, and keeps missing pinned files closed', async () => {
+    const handlers = actions();
+    const view = await render(
+      <BotProfileSheet
+        tab="memory"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => ({
+          ...full,
+          memory: { status: 'ready', value: { status: 'unavailable' } },
+        })}
+        actions={handlers}
+      />,
+    );
+    expect(view.textContent).toContain(t.memoryNotAttached);
+    expect(view.querySelector('[data-testid="memory-pinned"]')).toBeNull();
+
+    act(() => root?.unmount());
+    const missing = await render(
+      <BotProfileSheet
+        tab="memory"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => empty}
+        actions={handlers}
+      />,
+    );
+    expect(missing.textContent).toContain(t.profileEmpty.memory);
+    await act(async () => button(missing, `SOUL.md, ${t.memoryPinnedMissing}`)!.click());
+    expect(handlers.onOpenMemory).not.toHaveBeenCalled();
   });
 
   it('navigates routines and creation without mounting another sheet', async () => {

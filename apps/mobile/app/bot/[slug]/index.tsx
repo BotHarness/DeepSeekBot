@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { botChannels, botProfileResource } from '../../../src/host/bot-profile';
+import { botChannels, botProfileResource, memoryRouteParams } from '../../../src/host/bot-profile';
 import { botRoutines } from '../../../src/host/routines';
 import { setBotAvatar } from '../../../src/host/bot-avatar';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
@@ -183,7 +183,7 @@ export default function BotProfileScreen() {
         onOpenMemory: (entry) =>
           router.push({
             pathname: '/bot/[slug]/memory',
-            params: { slug: bot.slug, path: entry.path, kind: entry.kind },
+            params: memoryRouteParams(bot.slug, entry),
           }),
       }}
     />
