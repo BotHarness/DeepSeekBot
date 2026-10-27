@@ -292,7 +292,7 @@ it('an old Host Profile cannot open a same-named Bot after the source changes', 
   root = createRoot(node);
   await act(async () => root!.render(<BotProfileScreen />));
   expect(node.textContent).toContain(t.sourceChanged);
-  expect(node.querySelector('[data-testid="profile-tab-heading"]')).toBeNull();
+  expect(node.querySelector('[data-testid^="profile-tab-content-"]')).toBeNull();
   expect(state.routes[state.index]?.key).toBe('profile');
 });
 
@@ -461,9 +461,7 @@ it('shows the DM files in the Files tab and keeps the profile and conversation',
   root = createRoot(node);
   await act(async () => root!.render(<BotProfileScreen />));
   await openFilesTab();
-  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-    t.profileTabs.files,
-  );
+  expect(node.querySelector('[data-testid="profile-tab-content-files"]')).not.toBeNull();
   expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   expect(state.routes[state.index]?.key).toBe('original-profile');
   navigation.dispatch({ type: 'GO_BACK' });
@@ -499,13 +497,9 @@ it('shows the group files in the Group Profile without leaving the parent Channe
   document.body.append(node);
   root = createRoot(node);
   await act(async () => root!.render(<GroupInfoScreen />));
-  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-    t.profileTabs.members,
-  );
+  expect(node.querySelector('[data-testid="profile-tab-content-members"]')).not.toBeNull();
   await openFilesTab();
-  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-    t.profileTabs.files,
-  );
+  expect(node.querySelector('[data-testid="profile-tab-content-files"]')).not.toBeNull();
   expect(node.querySelector('[data-testid="channel-files-segments"]')).not.toBeNull();
   expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   expect(state.routes[state.index]?.key).toBe('group-details');
@@ -609,7 +603,7 @@ it.each(['refused', 'other-channel', 'other-host'])(
     root = createRoot(node);
     await act(async () => root!.render(<BotProfileScreen />));
     if (reason === 'other-host') {
-      expect(node.querySelector('[data-testid="profile-tab-heading"]')).toBeNull();
+      expect(node.querySelector('[data-testid^="profile-tab-content-"]')).toBeNull();
       return;
     }
     await openFilesTab();
@@ -681,9 +675,7 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
   expect(node.textContent).not.toContain(t.groupDisband);
   expect(node.textContent).not.toContain(t.groupRename);
   expect(node.querySelector(`[role="tablist"][aria-label="${t.profileTabsLabel}"]`)).toBeNull();
-  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-    t.profileTabs.files,
-  );
+  expect(node.querySelector('[data-testid="profile-tab-content-files"]')).not.toBeNull();
   expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   fixture.snapshot.connection = {
     status: 'refused',
