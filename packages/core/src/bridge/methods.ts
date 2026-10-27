@@ -152,7 +152,7 @@ import {
   summarizeShareDraft,
   type ShareDraft,
   type ShareDrafts,
-  type ShareDraftSummary,
+  type ShareDraftView,
 } from '../marketplace/share-draft.js';
 import type { UploadFileKind } from '../../../market/src/upload-files.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
@@ -590,8 +590,6 @@ export interface MessagingAppsView {
   apps: MessagingApp[];
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
-
-export type ShareDraftView = ShareDraft & { summary: ShareDraftSummary };
 
 export interface BridgeMethods {
   tobHome(

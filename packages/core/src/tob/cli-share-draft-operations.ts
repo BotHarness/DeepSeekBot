@@ -2,9 +2,6 @@ import type { BridgeMethods, BridgeResult } from '../bridge/methods.js';
 import type { PrepareTobOperation, TobCliCapability } from './cli-operations.js';
 import { TobError } from './service.js';
 
-// Tob works on a Share Draft the Human started from a Bot's profile (ADR-0267). It reads the
-// draft and records a decision per file; the source Memory is never reachable from here, and
-// starting, exporting or uploading a draft stays with the Human.
 export const TOB_SHARE_DRAFT_CAPABILITIES: readonly TobCliCapability[] = [
   {
     command: 'share-draft-show',
