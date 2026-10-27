@@ -12,11 +12,12 @@ import {
   type ProfilePart,
 } from '../../host/bot-profile';
 import type { RosterBot, RosterChannel } from '../../host/client';
+import type { MemoryChange, MemoryChangesPage } from '../../host/memory-changes';
 import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
 import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { edge, profileShell, radius, rowGlyph, space } from '../design/tokens';
+import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
 import { useFocusEffect } from 'expo-router';
 import { Text } from '../primitives/text';
@@ -52,6 +53,9 @@ import {
   type RoutineGroup,
 } from './profile-routines';
 import { LoadingIndicator } from '../primitives/loading-indicator';
+import { Button } from '../primitives/button';
+import { Segmented } from '../primitives/segmented';
+import { memoryChangeTime, useMemoryChanges, type MemoryChanges } from './memory-changes';
 import {
   AvatarSettings,
   EditableAvatar,
@@ -84,6 +88,8 @@ type RowBody =
   | { kind: 'item'; title: string; detail?: string }
   | { kind: 'pinned'; pinned: PinnedMemory[] }
   | { kind: 'grid'; entries: MemoryEntry[]; columns: number; lead: boolean }
+  | { kind: 'commit'; change: MemoryChange }
+  | { kind: 'more'; busy: boolean }
   | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
@@ -94,11 +100,14 @@ type RowBody =
 
 type Row = RowBody & { key: string; first: boolean; last: boolean };
 
+type MemoryView = 'files' | 'changes';
+
 export interface BotProfileActions {
   onComputer?(): void;
   onBrowser?(): void;
   onNotifications(): void;
   onOpenMemory(entry: MemoryEntry): void;
+  onOpenMemoryChange?(change: MemoryChange): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
   onOpenAssignment?(assignment: ProfileAssignment): void;
   onNewRoutine?(): void;
@@ -135,7 +144,12 @@ function localDay(iso: string): string {
   return Number.isNaN(at.getTime()) ? '' : at.toDateString();
 }
 
-export function workRowBodies(assignments: readonly ProfileAssignment[], now = new Date()) {
+function dayRows<T>(
+  items: readonly T[],
+  at: (item: T) => string,
+  body: (item: T) => RowBody,
+  now: Date,
+): RowBody[] {
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   const label = (iso: string) => {
@@ -153,13 +167,44 @@ export function workRowBodies(assignments: readonly ProfileAssignment[], now = n
   };
   const rows: RowBody[] = [];
   let previous: string | undefined;
-  for (const assignment of assignments) {
-    const day = localDay(assignment.updatedAt);
-    if (day !== previous) rows.push({ kind: 'day', label: label(assignment.updatedAt) });
+  for (const item of items) {
+    const day = localDay(at(item));
+    if (day !== previous) rows.push({ kind: 'day', label: label(at(item)) });
     previous = day;
-    rows.push({ kind: 'assignment', assignment });
+    rows.push(body(item));
   }
   return rows;
+}
+
+export function workRowBodies(assignments: readonly ProfileAssignment[], now = new Date()) {
+  return dayRows(
+    assignments,
+    (assignment) => assignment.updatedAt,
+    (assignment) => ({ kind: 'assignment', assignment }),
+    now,
+  );
+}
+
+export function memoryChangeRows(changes: MemoryChanges, now = new Date()): Row[] {
+  if (!changes.loaded)
+    return frame(
+      'memory',
+      changes.error === undefined
+        ? [{ kind: 'loading' }]
+        : [{ kind: 'failed', error: changes.error }],
+    );
+  return frame('memory', [
+    ...(changes.commits.length === 0
+      ? [{ kind: 'note' as const, text: t.memoryChangesEmpty }]
+      : dayRows(
+          changes.commits,
+          (change) => change.authoredAt,
+          (change) => ({ kind: 'commit', change }),
+          now,
+        )),
+    ...(changes.error === undefined ? [] : [{ kind: 'failed' as const, error: changes.error }]),
+    ...(changes.hasMore ? [{ kind: 'more' as const, busy: changes.busy }] : []),
+  ]);
 }
 
 export function assignmentRows(part: ProfilePart<ProfileAssignment[]> | undefined): Row[] {
@@ -507,11 +552,13 @@ function ProfileRow({
   bot,
   row,
   onRetry,
+  onMore,
   actions,
 }: {
   bot: RosterBot;
   row: Row;
   onRetry(): void;
+  onMore?: (() => void) | undefined;
   actions: BotProfileActions;
 }) {
   const theme = useDesignTheme();
@@ -521,7 +568,7 @@ function ProfileRow({
     return <MemoryPinnedCards pinned={row.pinned} onOpen={actions.onOpenMemory} />;
   if (row.kind === 'grid')
     return (
-      <View style={{ paddingTop: row.lead ? space.x5 : space.x2 }}>
+      <View style={{ paddingTop: row.lead ? space.x5 : memoryGrid.gap }}>
         <MemoryGridRow entries={row.entries} columns={row.columns} onOpen={actions.onOpenMemory} />
       </View>
     );
@@ -534,6 +581,55 @@ function ProfileRow({
   )
     return <WorkListRow row={row} onRetry={onRetry} onOpen={actions.onOpenAssignment} />;
   const shape = rowShape(theme, row);
+  if (row.kind === 'commit') {
+    const { change } = row;
+    const time = memoryChangeTime(change.authoredAt);
+    const status = change.status === 'accepted' ? '' : t.memoryChangeStatus[change.status];
+    return (
+      <Pressable
+        testID={`memory-change-${change.sha}`}
+        accessibilityRole="button"
+        accessibilityLabel={[change.subject, status, time].filter((part) => part !== '').join(', ')}
+        accessibilityHint={t.memoryChangeOpen}
+        disabled={actions.onOpenMemoryChange === undefined}
+        onPress={() => actions.onOpenMemoryChange?.(change)}
+        style={({ pressed }) => [
+          shape,
+          {
+            minHeight: theme.touch,
+            gap: space.x1,
+            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+          },
+        ]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+          <Text numberOfLines={2} style={{ flex: 1 }}>
+            {change.subject}
+          </Text>
+          <Text variant="meta" tone="muted">
+            {time}
+          </Text>
+        </View>
+        {status === '' ? null : (
+          <Text variant="meta" tone="warning">
+            {status}
+          </Text>
+        )}
+      </Pressable>
+    );
+  }
+  if (row.kind === 'more')
+    return (
+      <View style={{ paddingTop: space.x3, alignItems: 'center' }}>
+        <Button
+          label={t.memoryChangesMore}
+          variant="text"
+          testID="memory-changes-more"
+          busy={row.busy}
+          onPress={() => onMore?.()}
+        />
+      </View>
+    );
   if (row.kind === 'routine-group')
     return (
       <RoutineGroupCard
@@ -624,6 +720,7 @@ export function BotProfilePage({
   permissions,
   workActions,
   files,
+  memoryChanges,
   initialProfile,
   avatar,
   tabMemory,
@@ -636,6 +733,7 @@ export function BotProfilePage({
   permissions?: ReactNode;
   workActions?: ReactNode;
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
+  memoryChanges?: ((offset: number) => Promise<MemoryChangesPage>) | undefined;
   initialProfile?: BotProfile | undefined;
   avatar: AvatarActions;
   tabMemory: ProfileTabMemory;
@@ -658,9 +756,28 @@ export function BotProfilePage({
   }, [load]);
   useFocusEffect(read);
   const rows = profileRows(content.ready ? profile : undefined, channels, columns);
+  const [memoryView, setMemoryView] = useState<MemoryView>('files');
+  const changes = useMemoryChanges(memoryChanges);
+  const attached =
+    memoryChanges !== undefined &&
+    profile?.memory.status === 'ready' &&
+    profile.memory.value.status === 'attached';
+  const showChanges = attached && memoryView === 'changes';
   const rowOf = (row: Row): ShellRow => ({
     key: row.key,
     render: () => <ProfileRow bot={bot} row={row} onRetry={read} actions={actions} />,
+  });
+  const changeRowOf = (row: Row): ShellRow => ({
+    key: `changes:${row.key}`,
+    render: () => (
+      <ProfileRow
+        bot={bot}
+        row={row}
+        onRetry={changes.reload}
+        onMore={changes.more}
+        actions={actions}
+      />
+    ),
   });
   const node = (key: string, render: () => ReactNode): ShellRow => ({
     key,
@@ -676,7 +793,31 @@ export function BotProfilePage({
       ],
     },
     memory: {
-      rows: rows.memory.map(rowOf),
+      rows: [
+        ...(attached
+          ? [
+              node('memory:views', () => (
+                <View testID="memory-views" style={{ paddingBottom: space.x5 }}>
+                  <Segmented<MemoryView>
+                    label={t.memoryViews}
+                    options={[
+                      { value: 'files', label: t.memoryViewFiles },
+                      { value: 'changes', label: t.memoryViewChanges },
+                    ]}
+                    value={memoryView}
+                    onChange={(next) => {
+                      setMemoryView(next);
+                      if (next === 'changes') changes.reload();
+                    }}
+                  />
+                </View>
+              )),
+            ]
+          : []),
+        ...(showChanges
+          ? memoryChangeRows(changes.state).map(changeRowOf)
+          : rows.memory.map(rowOf)),
+      ],
     },
     routines: {
       ...(actions.onNewRoutine === undefined

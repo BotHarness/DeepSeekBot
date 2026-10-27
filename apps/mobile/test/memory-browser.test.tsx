@@ -69,7 +69,10 @@ describe('Memory browser', () => {
     const view = await render(
       <MemoryFolderView folder=".botharness" load={async () => files} onOpen={onOpen} />,
     );
-    expect(labels(view)).toEqual(['banner.png', 'bot.json']);
+    expect(labels(view)).toEqual([
+      `banner.png, ${t.memoryKind.image}`,
+      `bot.json, ${t.memoryKind.data}`,
+    ]);
     await act(async () => view.querySelector<HTMLButtonElement>('button')!.click());
     expect(onOpen).toHaveBeenCalledWith({
       kind: 'file',
@@ -90,7 +93,13 @@ describe('Memory browser', () => {
         onOpen={() => {}}
       />,
     );
-    expect(labels(view)).toEqual([`e, ${t.memoryItems(1)}`, 'a.md', 'b.png', 'c.json', 'd']);
+    expect(labels(view)).toEqual([
+      `e, ${t.memoryItems(1)}`,
+      `a.md, ${t.memoryKind.text}`,
+      `b.png, ${t.memoryKind.image}`,
+      `c.json, ${t.memoryKind.data}`,
+      `d, ${t.memoryKind.other}`,
+    ]);
     expect(
       [...view.querySelectorAll('[data-testid^="memory-entry-"]')].map(
         (node) =>

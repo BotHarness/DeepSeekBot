@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { botChannels, botProfileResource, memoryRouteParams } from '../../../src/host/bot-profile';
+import { loadMemoryChanges } from '../../../src/host/memory-changes';
 import { botRoutines } from '../../../src/host/routines';
 import { setBotAvatar } from '../../../src/host/bot-avatar';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
@@ -108,6 +109,7 @@ export default function BotProfileScreen() {
             )
           : undefined
       }
+      memoryChanges={(offset) => loadMemoryChanges(client, bot, offset)}
       settings={<BotSettingsPanel client={client} bot={bot} />}
       permissions={
         <BotPermissions
@@ -184,6 +186,11 @@ export default function BotProfileScreen() {
           router.push({
             pathname: '/bot/[slug]/memory',
             params: memoryRouteParams(bot.slug, entry),
+          }),
+        onOpenMemoryChange: (change) =>
+          router.push({
+            pathname: '/bot/[slug]/memory-commit',
+            params: { slug: bot.slug, sha: change.sha, at: change.authoredAt },
           }),
       }}
     />

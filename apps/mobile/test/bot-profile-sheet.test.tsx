@@ -552,7 +552,7 @@ describe('Bot profile page', () => {
         `MEMORY.md, ${t.memoryPinned.coreMemory}`,
         `.botharness, ${t.memoryItems(2)}`,
         `notes, ${t.memoryItems(1)}`,
-        '.gitattributes',
+        `.gitattributes, ${t.memoryKind.other}`,
       ]),
     );
     expect(memoryEntries).not.toContain('SOUL.md');
@@ -570,6 +570,86 @@ describe('Bot profile page', () => {
       [{ kind: 'file', name: 'SOUL.md', path: 'SOUL.md', role: 'soul' }],
       [{ kind: 'file', name: 'MEMORY.md', path: 'MEMORY.md', role: 'coreMemory' }],
     ]);
+  });
+
+  it('switches Memory between Files and Changes, lists commits by day and pages older ones', async () => {
+    const handlers = { ...actions(), onOpenMemoryChange: vi.fn() };
+    const now = new Date();
+    const sha = (digit: string) => digit.repeat(40);
+    const memoryChanges = vi.fn(async (offset: number) =>
+      offset === 0
+        ? {
+            commits: [
+              {
+                sha: sha('a'),
+                subject: 'Remember the Thursday seminar',
+                authoredAt: now.toISOString(),
+                status: 'accepted' as const,
+              },
+              {
+                sha: sha('b'),
+                subject: 'Edit SOUL.md',
+                authoredAt: now.toISOString(),
+                status: 'pending' as const,
+              },
+            ],
+            hasMore: true,
+          }
+        : {
+            commits: [
+              {
+                sha: sha('c'),
+                subject: 'Initial Memory',
+                authoredAt: '2024-01-02T10:00:00.000Z',
+                status: 'accepted' as const,
+              },
+            ],
+            hasMore: false,
+          },
+    );
+    const view = await render(
+      <BotProfileSheet
+        tab="memory"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        memoryChanges={memoryChanges}
+        actions={handlers}
+      />,
+    );
+    const segment = (label: string) =>
+      view.querySelector<HTMLButtonElement>(
+        `[data-testid="memory-views"] [role="tab"][aria-label="${label}"]`,
+      )!;
+    expect(view.querySelector('[data-testid="memory-pinned"]')).not.toBeNull();
+    expect(memoryChanges).not.toHaveBeenCalled();
+
+    await act(async () => segment(t.memoryViewChanges).click());
+    await act(async () => undefined);
+    expect(memoryChanges).toHaveBeenCalledWith(0);
+    expect(view.querySelector('[data-testid="memory-pinned"]')).toBeNull();
+    expect(view.textContent).toContain(t.usageToday);
+    expect(view.textContent).toContain('Remember the Thursday seminar');
+    expect(view.textContent).toContain(t.memoryChangeStatus.pending);
+
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>(`[data-testid="memory-change-${sha('a')}"]`)!.click(),
+    );
+    expect(handlers.onOpenMemoryChange).toHaveBeenCalledWith(
+      expect.objectContaining({ sha: sha('a') }),
+    );
+
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="memory-changes-more"]')!.click(),
+    );
+    await act(async () => undefined);
+    expect(memoryChanges).toHaveBeenLastCalledWith(2);
+    expect(view.textContent).toContain('Initial Memory');
+    expect(view.querySelector('[data-testid="memory-changes-more"]')).toBeNull();
+
+    await act(async () => segment(t.memoryViewFiles).click());
+    expect(view.querySelector('[data-testid="memory-pinned"]')).not.toBeNull();
   });
 
   it('explains that Memory is not attached, and keeps missing pinned files closed', async () => {
