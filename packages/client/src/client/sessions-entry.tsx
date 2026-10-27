@@ -35,6 +35,7 @@ import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { color, radius } from './ds/tokens.stylex.js';
 import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
+import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
 
 const styles = stylex.create({
   groups: { display: 'flex', flexDirection: 'column' },
@@ -106,6 +107,7 @@ function SessionsPanel({
       return next;
     });
   const [archiveError, setArchiveError] = useState<string>();
+  const [work, setWork] = useState<{ sessionId: string; title: string }>();
   const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
   const sessions = useClientStore((state) => state.sessions);
   const conversationRevision = useClientStore((state) => state.conversation.revision);
@@ -182,6 +184,7 @@ function SessionsPanel({
     const subagents =
       row.subagentCount === undefined || botSlug === undefined ? undefined : row.subagentCount;
     const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
+    const workable = row.role === 'assignment' && botSlug !== undefined;
     const archivable = !(
       row.role !== 'assignment' ||
       row.section === 'working' ||
@@ -228,11 +231,18 @@ function SessionsPanel({
             <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
           )
         }
-        {...(!archivable && subagents === undefined
+        {...(!archivable && !workable && subagents === undefined
           ? {}
           : {
               trailing: (
                 <>
+                  {workable ? (
+                    <AssignmentWorkButton
+                      title={row.title}
+                      onOpen={() => setWork({ sessionId: row.sessionId, title: row.title })}
+                      t={t}
+                    />
+                  ) : null}
                   {subagents === undefined ? null : (
                     <SessionSubagentToggle
                       count={subagents}
@@ -438,6 +448,17 @@ function SessionsPanel({
           })
         )}
       </div>
+      {work === undefined || botSlug === undefined ? null : (
+        <AssignmentWorkDialog
+          actions={actions}
+          botSlug={botSlug}
+          sessionId={work.sessionId}
+          title={work.title}
+          canOpen={native.byId[work.sessionId] !== undefined}
+          onClose={() => setWork(undefined)}
+          t={t}
+        />
+      )}
     </div>
   );
 }

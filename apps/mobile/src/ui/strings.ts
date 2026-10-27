@@ -1543,6 +1543,12 @@ const en = {
     olderSteps: (count: number) => `${count} earlier ${count === 1 ? 'step' : 'steps'} not shown`,
     olderSubagents: (count: number) =>
       `${count} earlier ${count === 1 ? 'Subagent' : 'Subagents'} not shown`,
+    olderRounds: (count: number) =>
+      `${count} earlier ${count === 1 ? 'round' : 'rounds'} not shown`,
+    round: (index: number) => `Round ${index}`,
+    roundKind: { created: 'Created by the Orchestrator', continued: 'Orchestrator sent more' },
+    instruction: 'Orchestrator instruction',
+    earlier: 'Earlier steps',
     askInChat: 'To stop or archive this Assignment, ask the Bot in chat.',
     notFound: 'This Assignment is no longer available.',
     reportState: {
@@ -3448,6 +3454,11 @@ const zh: typeof en = {
     noSteps: '还没有步骤。',
     olderSteps: (count: number) => `还有 ${count} 个更早的步骤未显示`,
     olderSubagents: (count: number) => `还有 ${count} 个更早的 Subagent 未显示`,
+    olderRounds: (count: number) => `还有 ${count} 轮更早的记录未显示`,
+    round: (index: number) => `第 ${index} 轮`,
+    roundKind: { created: 'Orchestrator 新建', continued: 'Orchestrator 追加请求' },
+    instruction: 'Orchestrator 的指示',
+    earlier: '更早的步骤',
     askInChat: '要停止或归档这个 Assignment，在聊天里告诉 Bot。',
     notFound: '这个 Assignment 已不可用。',
     reportState: {
