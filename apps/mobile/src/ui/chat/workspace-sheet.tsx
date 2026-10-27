@@ -494,6 +494,7 @@ export function WorkspaceSheet({
             data: readonly BrowseRow[];
           }
         >
+          nestedScrollEnabled
           style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
           sections={sections}
           keyExtractor={(row) => row.key}

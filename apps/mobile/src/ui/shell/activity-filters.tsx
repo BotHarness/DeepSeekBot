@@ -174,6 +174,7 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
         />
       ) : null}
       <FlatList
+        nestedScrollEnabled
         ListHeaderComponent={
           <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
             <DrawerHeader title={t.activityOptions} onClose={onClose} />

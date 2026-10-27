@@ -150,6 +150,7 @@ export function ModelSheet({
     };
     body = (
       <SectionList<Row, { title: string; data: readonly Row[] }>
+        nestedScrollEnabled
         style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
         sections={sections}
         keyExtractor={(row) => row.key}
