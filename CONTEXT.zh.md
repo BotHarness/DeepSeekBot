@@ -1126,3 +1126,4 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 - Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 把工作区面板作为 Chats 导航栈的根。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
+- 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。
