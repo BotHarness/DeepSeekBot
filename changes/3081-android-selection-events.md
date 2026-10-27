@@ -1,8 +1,11 @@
 ---
-kind: fix
-area: mobile
+section: Fixed
 ---
 
-Fix Android native startup failing when local tab selection events collide with React Native's selection event.
+## en
 
-修复 Android 原生标签控件的选择事件与 React Native 重名时导致的启动失败。
+- Android native tabs avoid a selection event collision that could prevent the app from opening ([#3081](https://github.com/BotHarness/DeepSeekBot/issues/3081)).
+
+## zh
+
+- 修复 Android 原生标签控件的选择事件重名可能导致应用无法打开的问题（[#3081](https://github.com/BotHarness/DeepSeekBot/issues/3081)）。
