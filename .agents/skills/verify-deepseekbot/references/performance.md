@@ -28,8 +28,9 @@ mounted (`--no-load-all` keeps only the opening window), waits three seconds and
 | `scriptMs`, `layoutMs`, `recalcStyleMs` | Where idle main-thread time went |
 | `styleRecalcs` | ~60 per second means something re-styles every frame |
 | `nodes`, `mountedMessages` | DOM size; cost per frame and per render scales with it |
-| `skippedBlocks` | Message blocks marked `data-offscreen` (rendering skipped); near all of them when the whole history is mounted and you sit at the latest message |
-| `scroll` | `--scroll-check` (default with `--load-all`): steps one viewport at a time from the latest message to the top. `jumps`/`maxJumpPx` count steps where the first visible message moved after the scroll settled; `skippedInView`/`emptyInView` count blocks in view that were still skipped or had zero height. All four must be 0 |
+| `loadedMessages` | Messages the Client holds (`data-loaded-messages` on the chat body); with `--load-all` it equals the fixture size |
+| `timelineGaps` | Spacer divs standing in for far message groups. With the whole history loaded and the view at the latest message, `mountedMessages` stays near one or two viewports' worth |
+| `scroll` | `--scroll-check` (default with `--load-all`): steps one viewport at a time from the latest message to the top. `jumps`/`maxJumpPx` count steps where the same visible message moved by more than 1px after the scroll settled; `gapsInView`/`emptyInView` count gaps intersecting the view or blocks with zero height. All four must be 0 |
 | `typing.p50/p95/max` | Percentiles over the Event Timing entries (`keydown`, `keypress`, `input`, `keyup`) of at least 16 ms recorded while typing 43 characters; each entry runs from the input to the next paint. Entries under 16 ms are not recorded, and one key yields several entries |
 | `typing.scriptMs` | Script time spent while typing; a high value means each key re-renders far too much |
 | `idleHottest`, `typing.hottest` | Top self-time functions from the CPU profile (`--profile`) |
@@ -68,16 +69,19 @@ Paint, Layerize and style work per frame. Profiles are `<label>.idle.cpuprofile`
 - Headless Chromium does not run the desktop-only paths (`dsh-app://app` window zoom and its
   tooltip observer). A clean headless result does not clear a desktop report; say which paths
   ran.
-- Far message blocks are skipped by `timeline-offscreen.ts`: `content-visibility: hidden` plus
-  the measured height inline, toggled on scroll. Three traps it avoids, each seen on a real run:
-  a skipped flex item has no content-based minimum height, so the column shrinks it to 0 unless
-  it has `flex-shrink: 0`; `content-visibility: auto` registers an internal
-  IntersectionObserver per block, recomputed on every animation frame; and `scrollIntoView` or
-  `getBoundingClientRect` on content inside a skipped block is wrong, so call
-  `revealOffscreen(element)` before scrolling to or measuring a message.
+- Far message groups are not mounted: `timeline-window.ts` replaces runs of them with one
+  `.bh-timeline-gap` whose height is the sum of their measured heights. A group that was never
+  measured always renders, and so do the focus target and the group carrying the unread
+  divider, so `scrollIntoView` and anchors keep working. Spacing between groups is padding on
+  `[data-follows]`, not margin, so a measured height includes it and a gap matches exactly.
+  The near range updates synchronously in the native scroll listener, before React's
+  `onScroll`, so the read mark never sees a gap in view after a large drag.
+- Earlier attempts with `content-visibility` failed on real runs: a skipped flex item shrinks to
+  0 without `flex-shrink: 0`, `contain-intrinsic-size: auto` reports 0 before first paint, and
+  `content-visibility: auto` registers an internal IntersectionObserver recomputed every frame.
 - `IntersectionObserverController::computeIntersections` high in a trace means too many observed
-  targets: every target is recomputed each frame while anything animates. Timeline avatars use
-  `observeVisibility`, which stops observing while their block is skipped.
+  targets: every target is recomputed each frame while anything animates.
+- Before blaming an animation, run `document.getAnimations()` in the page; it lists what runs.
 - Summarize a trace by thread and event name before guessing; most idle cost is native (style,
   intersections, commit), not JavaScript, and does not show in a CPU profile.
 - Seeding 600 messages takes about two minutes. Reuse the fixture.

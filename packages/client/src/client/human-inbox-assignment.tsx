@@ -186,7 +186,9 @@ export function HumanInboxAssignment({
         </p>
       ) : (
         <>
-          <h3 className="bh-human-inbox-purpose is-collapsed">{context!.purpose}</h3>
+          <h3 className="bh-human-inbox-purpose is-collapsed" title={context!.description}>
+            {context!.title}
+          </h3>
           <div className="bh-human-inbox-context-window">
             <HumanInboxContextEdge
               direction="older"

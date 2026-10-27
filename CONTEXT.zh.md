@@ -156,6 +156,14 @@ _避免使用_：binding、workspace mapping、cwd inference、session membershi
 一条对 Human 有意义、由 PersonaBot 的 Orchestrator 选择独立推进的持续事项。它没有单独的持久 identity 或 lifecycle；其 canonical runtime identity 是承载它的 Assignment Session 的 DSH Session id。
 _避免使用_：Work、work item、task entity、job entity、worker
 
+**Assignment Title**：
+Assignment 的简短、面向 Human 的名称，由 Orchestrator 在创建 Assignment Session 时选定，让 Human 在列表中一眼认出这条工作线。
+_避免使用_：purpose、task name、prompt、Continuity Key
+
+**Assignment Description**：
+用一两句话说明 Assignment 要做什么，由 Orchestrator 与 Assignment Title 一起选定。它既不是发给 Assignment Session 的指令，也不是结果报告。
+_避免使用_：purpose（历史用法）、prompt、Assignment Request、Assignment Report
+
 **Assignment Session**：
 执行且只执行一个 Assignment、由 PersonaBot 拥有的独立 root Session；v1 中它只有一个 working directory。它由 Orchestrator 创建和管理，不要求 Human 另开 Conversation；一个 PersonaBot 可以同时拥有多个 Assignment Session，而 DSH Subagent 永远不算 Assignment Session。
 _避免使用_：Work Session、Worker Session、Executor Session、task Session、child Session
@@ -165,7 +173,7 @@ _避免使用_：Work Session、Worker Session、Executor Session、task Session
 _避免使用_：worker、PersonaBot、Orchestrator、Assignment Session
 
 **Assignment Directory**：
-一种以 PersonaBot 为作用域的持久 read model，当前 Orchestrator 通过它显式列出并寻址自己拥有的 Assignment Session，包括 purpose、Continuity Key、Workspace、源自 DSH 的活动状态与 last-run facts、依赖关系、最新语义报告以及后代活动聚合。它将 execution facts 与 reported outcomes 分开，由 Session Ownership 和 DSH facts 重建，并在需要时查询，而不是完整注入每个 turn。列表支持筛选、文本搜索、排序与 opaque-cursor pagination，默认隐藏 Archived Assignment，且绝不会把 DSH Subagent 扁平化为顶层 Assignment。
+一种以 PersonaBot 为作用域的持久 read model，当前 Orchestrator 通过它显式列出并寻址自己拥有的 Assignment Session，包括 Assignment Title 与 Assignment Description、Continuity Key、Workspace、源自 DSH 的活动状态与 last-run facts、依赖关系、最新语义报告以及后代活动聚合。它将 execution facts 与 reported outcomes 分开，由 Session Ownership 和 DSH facts 重建，并在需要时查询，而不是完整注入每个 turn。列表支持筛选、文本搜索（覆盖 Assignment Title 与 Description 等）、排序与 opaque-cursor pagination，默认隐藏 Archived Assignment，且绝不会把 DSH Subagent 扁平化为顶层 Assignment。
 _避免使用_：task list、AgentHandle map、cwd scan、Orchestrator memory
 
 **Archived Assignment**：

@@ -2485,7 +2485,7 @@ export const zh = {
   'sourcePolicy.immediateOption': '每条报告立即唤醒',
   'sourcePolicy.groupEditTitle': '普通群消息默认唤醒',
   'sourcePolicy.groupEditDescription':
-    '影响之后进入 Bot 收件箱的普通群消息；已设置的单群唤醒设置优先，直接 @ 始终即时送达。',
+    '影响之后进入 Bot 收件箱的普通群消息；单群设置优先，但选了仅直接 @ 或静默时，单群设置不会让它更常被唤醒。直接 @ 始终即时送达。',
   'sourcePolicy.groupAllOption': '每条普通消息立即唤醒',
   'sourcePolicy.groupDigestOption': '汇总后唤醒',
   'sourcePolicy.groupMentionsOption': '仅直接 @ 唤醒',
@@ -7054,7 +7054,7 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'sourcePolicy.immediateOption': 'Wake for every report',
   'sourcePolicy.groupEditTitle': 'Ordinary Group default wake',
   'sourcePolicy.groupEditDescription':
-    'Applies to later ordinary Group messages. A saved per-Group preference takes priority, and direct mentions always arrive immediately.',
+    'Applies to later ordinary Group messages. A saved per-Group preference takes priority, but cannot wake the Bot more often than Only direct mentions or Silent. Direct mentions always arrive immediately.',
   'sourcePolicy.groupAllOption': 'Wake for every ordinary message',
   'sourcePolicy.groupDigestOption': 'Wake after digest threshold',
   'sourcePolicy.groupMentionsOption': 'Only direct mentions wake',

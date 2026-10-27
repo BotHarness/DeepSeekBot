@@ -74,6 +74,60 @@ const item = (overrides: Partial<HumanAttentionItem>): HumanAttentionItem => ({
 });
 
 describe('Home conversations', () => {
+  it('uses canonical DM and group creation times without changing message recency', () => {
+    const createdAt = '2026-10-14T07:00:00.000Z';
+    const empty: RosterView = {
+      bots: [{ ...roster.bots[1]! }],
+      channels: [{ id: 'empty-group', name: 'New group', members: [], memberCount: 0 }],
+      activityChannels: [
+        {
+          id: 'dm-bo',
+          name: 'Bo',
+          type: 'dm',
+          members: ['bo'],
+          createdAt,
+          updatedAt: '2026-10-14T12:00:00.000Z',
+        },
+        { id: 'empty-group', name: 'New group', type: 'group', members: [], createdAt },
+      ],
+    };
+    const rows = conversations(empty, []);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.at).toBeUndefined();
+      expect(row.createdAt).toBe(createdAt);
+      expect(shortTime(row.at ?? row.createdAt, new Date(createdAt))).not.toBe('');
+    }
+    const withCreation = { ...roster, activityChannels: empty.activityChannels ?? [] };
+    expect(conversations(withCreation, []).map((row) => row.key)).toEqual(
+      conversations(roster, []).map((row) => row.key),
+    );
+
+    const messageAt = '2026-10-14T13:00:00.000Z';
+    const updated = conversations(
+      {
+        ...empty,
+        bots: empty.bots.map((bot) => ({ ...bot, preview: 'Hello', previewAt: messageAt })),
+        channels: empty.channels.map((channel) => ({
+          ...channel,
+          preview: 'Hello',
+          previewAt: messageAt,
+        })),
+      },
+      [],
+    );
+    for (const row of updated) {
+      expect(row.at ?? row.createdAt).toBe(messageAt);
+      expect(row.createdAt).toBe(createdAt);
+    }
+  });
+
+  it('does not invent a creation timestamp when channel metadata is unavailable', () => {
+    const empty = conversations(roster, []).find((row) => row.key === 'bot:bo')!;
+    expect(empty.createdAt).toBeUndefined();
+    expect(shortTime(empty.at ?? empty.createdAt, new Date())).toBe('');
+  });
+
   it('mixes Bot DMs and Channels by latest activity', () => {
     expect(conversations(roster, []).map((row) => row.key)).toEqual([
       'bot:cy',

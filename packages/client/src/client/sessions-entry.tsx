@@ -194,7 +194,7 @@ function SessionsPanel({
             }
           : { icon: 'list-checks', iconLabel: role })}
         title={row.title}
-        hint={row.cwd}
+        hint={[row.description, row.cwd].filter(Boolean).join('\n') || undefined}
         mainClassName="bh-session-row"
         state={row.status}
         muted={native.byId[row.sessionId] === undefined}

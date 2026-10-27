@@ -8,7 +8,7 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { Workspace, type WorkspaceOptions } from './workspace.js';
 import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
-import { insideOffscreenBlock, revealOffscreen, useOffscreenBlocks } from './timeline-offscreen.js';
+import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
@@ -1682,8 +1682,7 @@ function ConversationView({
     const visible = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]'))
       .filter((candidate) => {
         const id = candidate.dataset['messageId'];
-        if (id === undefined || !committedIds.has(id) || insideOffscreenBlock(candidate))
-          return false;
+        if (id === undefined || !committedIds.has(id)) return false;
         const bounds = candidate.getBoundingClientRect();
         return bounds.top < viewport.bottom && bounds.bottom > viewport.top;
       })
@@ -1997,10 +1996,7 @@ function ConversationView({
       return;
     prependAnchor.current = {
       firstId: messages[0]?.id,
-      y: (() => {
-        const first = element.querySelector<HTMLElement>('[data-message-id]');
-        return first === null ? undefined : revealOffscreen(first).getBoundingClientRect().top;
-      })(),
+      y: element.querySelector<HTMLElement>('[data-message-id]')?.getBoundingClientRect().top,
       top: element.scrollTop,
       height: element.scrollHeight,
     };
@@ -2134,11 +2130,23 @@ function ConversationView({
     [channelId, displayMessages],
   );
   const imageGallery = useMessageImageGallery(galleryImages, t);
-  const offscreenBlock = useOffscreenBlocks();
+  const groupKeys = useMemo(() => messageGroups.map((group) => group.key), [messageGroups]);
+  const pinnedGroups = useMemo(() => {
+    const pinned = new Set<string>();
+    const focus = conversation.focusMessageId;
+    messageGroups.forEach((group, index) => {
+      if (
+        (focus !== undefined && group.messages.some((message) => message.id === focus)) ||
+        (unreadAfter !== undefined && messageGroups[index - 1]?.messages.at(-1)?.id === unreadAfter)
+      )
+        pinned.add(group.key);
+    });
+    return pinned;
+  }, [messageGroups, unreadAfter, conversation.focusMessageId]);
+  const timelineWindow = useTimelineWindow(groupKeys, pinnedGroups);
   const placeUnreadDivider = (element: HTMLDivElement): boolean => {
     const divider = element.querySelector<HTMLElement>('[data-unread-divider]');
     if (divider === null) return false;
-    revealOffscreen(divider);
     const viewport = element.getBoundingClientRect();
     element.scrollTop += divider.getBoundingClientRect().top - viewport.top - viewport.height / 4;
     followingLatest.current =
@@ -2151,6 +2159,7 @@ function ConversationView({
   const timelineMount = useMountedResource<HTMLDivElement>(
     (element) => {
       scrollRef.current = element;
+      timelineWindow.rootRef(element);
       if (conversation.timeline.olderError !== undefined) prependAnchor.current = null;
       if (conversation.status === 'ready') {
         if (conversation.focusMessageId !== undefined && conversation.timeline.hasNewer) {
@@ -2163,7 +2172,7 @@ function ConversationView({
             element.querySelectorAll<HTMLElement>('[data-message-id]'),
           ).find((candidate) => candidate.dataset['messageId'] === anchor.firstId);
           if (retained !== undefined && anchor.y !== undefined) {
-            element.scrollTop += revealOffscreen(retained).getBoundingClientRect().top - anchor.y;
+            element.scrollTop += retained.getBoundingClientRect().top - anchor.y;
           } else {
             element.scrollTop = anchor.top + element.scrollHeight - anchor.height;
           }
@@ -2209,7 +2218,7 @@ function ConversationView({
         const target = Array.from(element.querySelectorAll<HTMLElement>('[data-message-id]')).find(
           (candidate) => candidate.dataset['messageId'] === id,
         );
-        if (target !== undefined) revealOffscreen(target).scrollIntoView({ block: 'center' });
+        target?.scrollIntoView({ block: 'center' });
         focusTimer = window.setTimeout(() => {
           const current = store.getSnapshot().conversation;
           if (current.channel?.id === channelId && current.focusMessageId === id) {
@@ -2848,6 +2857,7 @@ function ConversationView({
           <div
             className="bh-chat-body"
             ref={timelineMount}
+            data-loaded-messages={displayMessages.length}
             onScroll={onTimelineScroll}
             onTransitionEnd={(event) => {
               if (
@@ -2891,7 +2901,19 @@ function ConversationView({
               <EmptyConversation channel={channel} bot={bot} t={t} />
             ) : null}
             <MessageSelectionContext.Provider value={messageSelection}>
-              {messageGroups.map((group, index, groups) => {
+              {timelineWindow.runs.map((run) => {
+                const groups = messageGroups;
+                if (run.kind === 'gap')
+                  return (
+                    <div
+                      key={`gap:${groups[run.from]!.key}`}
+                      className="bh-timeline-gap"
+                      aria-hidden="true"
+                      style={{ height: run.height }}
+                    />
+                  );
+                const index = run.index;
+                const group = groups[index]!;
                 const first = group.messages[0]!;
                 const previous = groups[index - 1]?.messages.at(-1);
                 const firstDay = Number.isFinite(Date.parse(first.at))
@@ -2902,7 +2924,13 @@ function ConversationView({
                     ? new Date(previous.at).toDateString()
                     : undefined;
                 return (
-                  <div key={group.key} ref={offscreenBlock} className="bh-message-block">
+                  <div
+                    key={group.key}
+                    ref={timelineWindow.blockRef(group.key)}
+                    className="bh-message-block"
+                    data-group-key={group.key}
+                    data-follows={index > 0 ? '' : undefined}
+                  >
                     {unreadAfter !== undefined && previous?.id === unreadAfter ? (
                       <TimelineUnreadDivider label={t('messages.newDivider')} />
                     ) : null}

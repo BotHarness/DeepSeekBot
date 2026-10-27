@@ -256,7 +256,7 @@ export class FakeAgentHost implements DshAgentHost {
     const createAssignment = scope.tools.find((tool) => tool.name === 'create_assignment');
     if (createAssignment !== undefined) {
       await createAssignment.execute(
-        { purpose: '核对发布状态', grant_id: 'grant-1' },
+        { title: '核对发布状态', description: '核对发布状态', grant_id: 'grant-1' },
         {} as ToolRunContext,
       );
       const channelSend = scope.tools.find((tool) => tool.name === 'bot_send_message');

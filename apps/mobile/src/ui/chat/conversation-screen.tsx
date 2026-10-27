@@ -19,13 +19,7 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import Animated, {
-  useAnimatedReaction,
-  useAnimatedRef,
-  useAnimatedStyle,
-  useScrollOffset,
-  useSharedValue,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useScrollOffset } from 'react-native-reanimated';
 
 import {
   chatBackgrounds,
@@ -84,6 +78,7 @@ import { ActivityRow } from './activity-row';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
+import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -97,7 +92,6 @@ import {
   useHeaderOverlap,
   useHeaderPadding,
 } from './native-header';
-import { anchorShift, anchorStep } from './follow-latest';
 import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -125,7 +119,6 @@ import type { Rect } from './menu-placement';
 import { chatRows, messageGroups, type ChatRow } from './message-groups';
 import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
-import { WorkingStatus } from './working-status';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
 import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
@@ -434,7 +427,6 @@ function ChatConversation({
   );
 
   const [reactError, setReactError] = useState(false);
-  const [workingHeight, setWorkingHeight] = useState(0);
   const list = useAnimatedRef<FlatList<Row>>();
   const jumped = useRef<string | undefined>(undefined);
   const focusPage = useRef<string | undefined>(undefined);
@@ -508,39 +500,13 @@ function ChatConversation({
     },
     [list, content],
   );
-  const followingLatest = useSharedValue(true);
-  const latestEnd = useSharedValue(0);
-  const workingAnchor = useSharedValue(0);
-  const setPlaybackFollowing = playback?.setFollowing;
-  const followChange = useCallback(
-    (following: boolean) => {
-      followingLatest.value = following;
-      setPlaybackFollowing?.(following);
-    },
-    [followingLatest, setPlaybackFollowing],
-  );
-  const latestChange = useCallback(
-    (offset: number) => {
-      latestEnd.value = offset;
-    },
-    [latestEnd],
-  );
-  useAnimatedReaction(
-    () => [scroll.value, latestEnd.value, followingLatest.value] as const,
-    ([offset, end, following]) => {
-      workingAnchor.value = anchorStep(workingAnchor.value, offset, end, following);
-    },
-  );
-  const workingStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: anchorShift(workingAnchor.value, scroll.value) }],
-  }));
   const latest = useChannelViewport(
     list,
     visible,
-    followChange,
+    playback?.setFollowing,
     headerOverlap,
     snapshot.status === 'live' && visible.length === 0,
-    latestChange,
+    shownDrafts.length > 0,
   );
   const { composerHeight, viewportHeight, viewportLayout } = latest;
   const stage = useMemo(
@@ -1103,10 +1069,12 @@ function ChatConversation({
         {botDmName}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
+      <WorkingStatus bots={working} />
     </Pressable>
   ) : (
     <ChannelTitle
       channel={channel}
+      working={working}
       connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
       onPress={() =>
@@ -1120,7 +1088,14 @@ function ChatConversation({
   const ios = Platform.OS === 'ios';
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
   const titleItem = (
-    <View style={{ maxWidth: windowWidth - (theme.touch + space.x5) * 2 }}>{title}</View>
+    <View
+      style={{
+        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+      }}
+    >
+      {title}
+    </View>
   );
   const notice = hostRefused
     ? t.refused
@@ -1162,7 +1137,6 @@ function ChatConversation({
   const topFade =
     notice !== undefined ? 0 : floatingHeader ? headerPadding : glassHeader ? 0 : headerOverlap;
   const composerCover = Math.max(0, composerHeight - space.x3 - space.x2);
-  const workingReserve = working.length > 0 ? workingHeight : 0;
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
@@ -1207,6 +1181,7 @@ function ChatConversation({
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
                     style={{
+                      width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
                       maxWidth: windowWidth - (theme.touch + space.x5) * 2,
                       marginHorizontal: space.x3,
                     }}
@@ -1390,7 +1365,7 @@ function ChatConversation({
                   ),
                   justifyContent: 'flex-end',
                   paddingTop: space.x3 + listTop,
-                  paddingBottom: composerHeight + edgeFade.bottom + workingReserve,
+                  paddingBottom: composerHeight + edgeFade.bottom,
                 }}
                 data={rows}
                 keyExtractor={(row) => row.key}
@@ -1502,7 +1477,7 @@ function ChatConversation({
                 style={{
                   position: 'absolute',
                   top: listTop,
-                  bottom: composerHeight + edgeFade.bottom + workingReserve,
+                  bottom: composerHeight + edgeFade.bottom,
                   left: 0,
                   right: 0,
                   justifyContent: 'flex-end',
@@ -1519,23 +1494,6 @@ function ChatConversation({
                 ) : null}
               </View>
             ) : null}
-            {working.length > 0 ? (
-              <Animated.View
-                pointerEvents="none"
-                onLayout={(event) => setWorkingHeight(event.nativeEvent.layout.height)}
-                style={[
-                  {
-                    position: 'absolute',
-                    bottom: composerHeight + edgeFade.bottom,
-                    left: 0,
-                    right: 0,
-                  },
-                  workingStyle,
-                ]}
-              >
-                <WorkingStatus bots={working} />
-              </Animated.View>
-            ) : null}
             {topFade > 0 ? (
               <EdgeFade
                 edge="top"
@@ -1546,7 +1504,7 @@ function ChatConversation({
             ) : null}
             <EdgeFade
               edge="bottom"
-              height={composerCover + edgeFade.bottom + workingReserve}
+              height={composerCover + edgeFade.bottom}
               cover={composerCover}
               solid={composerCover}
               color={fadeColor}
