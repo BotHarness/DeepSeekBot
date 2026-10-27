@@ -4,6 +4,8 @@
 - Date: 2026-10-26
 - Related: ADR-0221, ADR-0222, ADR-0233, ADR-0234
 
+> Partly superseded by [ADR-0268](0268-tob-mode-replaces-home.md) (2026-10-27): Home is no longer a Global panel; its rail switch toggles Tob Mode, and onboarding step 5 enters Tob Mode in both layout modes.
+
 ## Context
 
 The two-level workspace of ADR-0221/0222 lets the Human move, split and resize every Global panel and Channel subpanel. It serves Humans who want to arrange their own workbench, but a new Human does not know where a newly opened panel will appear or where to open it from. Default placement makes this worse: Home (`zone: 'center'`) splits below Messages, and Activity Center and Messages without a remembered position stack below the last column. Freedom and predictability are hard to provide in one layout.

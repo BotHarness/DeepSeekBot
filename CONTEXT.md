@@ -27,16 +27,20 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. Its primary purpose is to help create and manage other Bots, inspect their progress and surface attention items; conversation is the management interface. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
 The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the DeepSeekBot CLI through native Shell; the Host grants only explicitly supported operations for the current accepted Human DM execution and retains ownership, approval and revision checks. This role is not unrestricted CLI or administrator access.
 _Avoid_: Home panel, global Orchestrator
 
-**Home**:
-A global Dock panel that presents the Human's cross-Bot overview, Bot creation entry points and an input addressed to Tob. Continuing a conversation uses the same Tob DM in the Messages panel; Home remains an independent overview rather than another conversation history.
-_Avoid_: Tob, Bot Profile, Channel subpanel
+**Tob Mode**:
+A presentation of the active Environment's Tob DM in which the Human talks only to Tob: Channel navigation and every other panel are hidden, while the Messages panel keeps its own subpanels. It is the same Tob DM and history, never a second conversation, and leaving it restores the previous view unchanged. It replaces the former Home panel.
+_Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
+
+**Tob Delegation**:
+Tob handing a Human's request to the colleague PersonaBot it judges best suited, as an ordinary message in their Bot-to-Bot DM, then reporting the colleague's result back in its Human DM. Tob sends without asking the Human first; the Human sees each send as an action notice. It carries no approval authority: the colleague's own approvals still go to the Human.
+_Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.

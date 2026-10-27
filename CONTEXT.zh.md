@@ -27,16 +27,20 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。其主要用途是帮助创建和管理其他 Bot、调取工作进展并汇总待处理事项，对话是管理入口。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
 为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 DeepSeekBot CLI；Host 只为当前已准入的 Human DM 执行授予明确支持的操作，保留身份、审批和 revision 校验。总管身份不等于无限制 CLI 或管理员权限。
 _避免使用_：Home 面板、全局 Orchestrator
 
-**Home**：
-一个全局 Dock panel，提供跨 Bot 概览、Bot 创建入口和面向 Tob 的消息输入。持续对话使用消息面板中的同一个 Tob DM；Home 保持为独立概览，不形成第二套聊天历史。
-_避免使用_：Tob、Bot Profile、Channel 子面板
+**Tob 模式（Tob Mode）**：
+当前环境 Tob DM 的一种呈现方式：Human 只与 Tob 对话，Channel 导航和其他面板全部隐藏，消息面板自身的子面板保留。它就是同一个 Tob DM 与同一份历史，不是第二个对话；退出后恢复之前的视图且不做改动。它取代了原来的 Home 面板。
+_避免使用_：Home、Home 面板、拖布模式、personal agent 模式
+
+**Tob 委派（Tob Delegation）**：
+Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
+_避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
