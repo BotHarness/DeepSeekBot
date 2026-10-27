@@ -17,13 +17,13 @@ vi.mock('../src/ui/primitives/text', () => ({
   Text: ({ children, testID }: { children: ReactNode; testID?: string }) =>
     createElement('span', { 'data-testid': testID }, children),
 }));
-vi.mock('../src/ui/shell/navigation-action', () => ({
-  NavigationAction: (props: { label: string; onPress(): void }) =>
-    createElement('button', { 'aria-label': props.label }),
-}));
 vi.mock('../src/ui/shell/header-icon-button', () => ({
-  HeaderIconButton: (props: { label: string; children: ReactNode }) =>
-    createElement('button', { 'aria-label': props.label }, props.children),
+  HeaderIconButton: (props: { icon: string; label: string; testID?: string }) =>
+    createElement('button', {
+      'aria-label': props.label,
+      'data-icon': props.icon,
+      'data-testid': props.testID,
+    }),
 }));
 
 const { viewerHeaderOptions } = await import('../src/ui/shell/viewer-header');
@@ -35,7 +35,7 @@ const action = {
   key: 'hand-back',
   label: 'Hand back',
   symbol: { type: 'sfSymbol' as const, name: 'hand.raised.slash' as const },
-  icon: createElement('i'),
+  icon: 'hand-back' as const,
   onPress: handBack,
 };
 
@@ -96,6 +96,26 @@ it('uses the Material top app bar on Android and leaves the trailing slot empty 
   };
   expect(options.headerShown).toBe(true);
   expect(options.unstable_headerLeftItems).toBeUndefined();
-  expect(renderToStaticMarkup(options.headerLeft())).toContain('Close the Computer');
+  const leading = renderToStaticMarkup(options.headerLeft());
+  expect(leading).toContain('Close the Computer');
+  expect(leading).toContain('data-icon="close"');
+  expect(leading).toContain('data-testid="viewer-close"');
   expect(options.headerRight()).toBeNull();
+});
+
+it('gives the Android trailing action its own native icon', () => {
+  device.os = 'android';
+  const options = viewerHeaderOptions({
+    theme,
+    title: 'Ada · Computer',
+    status: '',
+    driving: true,
+    closeLabel: 'Close the Computer',
+    onClose: close,
+    action,
+  }) as unknown as { headerRight(): ReactElement };
+  const trailing = renderToStaticMarkup(options.headerRight());
+  expect(trailing).toContain('aria-label="Hand back"');
+  expect(trailing).toContain('data-icon="hand-back"');
+  expect(trailing).toContain('data-testid="viewer-hand-back"');
 });
