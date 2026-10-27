@@ -586,7 +586,12 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
     const members = humanMembers(id);
     const reactionsById = channelReactions(id);
     return rows.flatMap((row) => {
-      const original: ChannelMessage = parseMessage(row.payload_json, row.body, row.message_id, id) ?? {
+      const original: ChannelMessage = parseMessage(
+        row.payload_json,
+        row.body,
+        row.message_id,
+        id,
+      ) ?? {
         id: row.message_id,
         at: row.created_at,
         author: { kind: 'system' },
