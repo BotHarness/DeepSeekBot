@@ -34,6 +34,7 @@ import { LoadingIndicator } from './loading-indicator';
 import { RowIcon, rowSymbol, type RowIconName } from './row-icon';
 import { SettingsFormContext } from './settings-form-context';
 import type { SettingsRowProps, SettingsSectionProps } from './settings-form-row';
+import type { SettingsRowControl } from './settings-row-model';
 import { Text as RowText } from './text';
 import { Toggle, type ToggleProps } from './toggle';
 
@@ -43,6 +44,7 @@ type Trailing =
   | { kind: 'check' }
   | { kind: 'progress' }
   | { kind: 'value'; text: string; digits: boolean }
+  | { kind: 'add' }
   | { kind: 'hosted'; node: ReactElement };
 
 const PRIMARY = { type: 'hierarchical', style: 'primary' } as const;
@@ -68,6 +70,41 @@ function nativeTrailing(trailing: ReactNode): Trailing {
     }
   }
   return { kind: 'hosted', node: element };
+}
+
+function controlTrailing(
+  control: SettingsRowControl,
+  label: string,
+): { end: Trailing; chevron: boolean } {
+  switch (control.kind) {
+    case 'switch':
+      return {
+        end: {
+          kind: 'toggle',
+          props: {
+            label,
+            value: control.value,
+            onChange: control.onChange,
+            ...(control.disabled === undefined ? {} : { disabled: control.disabled }),
+            ...(control.testID === undefined ? {} : { testID: control.testID }),
+          },
+        },
+        chevron: false,
+      };
+    case 'check':
+      return { end: { kind: 'check' }, chevron: false };
+    case 'busy':
+      return { end: { kind: 'progress' }, chevron: false };
+    case 'value':
+      return {
+        end: { kind: 'value', text: control.text, digits: true },
+        chevron: control.chevron === true,
+      };
+    case 'chevron':
+      return { end: { kind: 'none' }, chevron: true };
+    case 'add':
+      return { end: { kind: 'add' }, chevron: false };
+  }
 }
 
 function nativeLeading(leading: ReactNode): { name: RowIconName; color?: ColorValue } | undefined {
@@ -101,7 +138,10 @@ export function FormRow({
   detail,
   tone = 'fg',
   strong = false,
+  icon,
+  iconTone,
   leading,
+  control,
   trailing,
   accessory,
   selected,
@@ -111,8 +151,14 @@ export function FormRow({
   onPress,
 }: SettingsRowProps) {
   const theme = useDesignTheme();
-  const symbol = nativeLeading(leading);
-  const end = nativeTrailing(trailing);
+  const symbol =
+    icon === undefined
+      ? nativeLeading(leading)
+      : { name: icon, ...(iconTone === undefined ? {} : { color: theme.color[iconTone] }) };
+  const fromControl =
+    control === undefined ? undefined : controlTrailing(control, accessibilityLabel ?? title);
+  const end = fromControl?.end ?? nativeTrailing(trailing);
+  const showChevron = fromControl?.chevron === true || disclosure;
   const titleStyle =
     tone === 'fg'
       ? foregroundStyle(PRIMARY)
@@ -198,10 +244,12 @@ export function FormRow({
       />
     ) : end.kind === 'progress' ? (
       <ProgressView />
+    ) : end.kind === 'add' ? (
+      <Image systemName="plus" modifiers={[foregroundStyle(theme.color.accent)]} />
     ) : end.kind === 'hosted' ? (
       <Hosted>{end.node}</Hosted>
     ) : null;
-  const chevron = disclosure ? (
+  const chevron = showChevron ? (
     <Image
       systemName="chevron.right"
       modifiers={[font({ textStyle: 'footnote', weight: 'semibold' }), foregroundStyle(TERTIARY)]}
