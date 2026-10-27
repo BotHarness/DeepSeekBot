@@ -668,8 +668,11 @@ describe('Uploaded Bots in the Market panel', () => {
 
         await click(host, '更新 Helper');
         expect(document.body.textContent).toContain('更新 Helper');
-        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('2选择 Bot');
+        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('1选择 Bot');
+        expect(host.querySelectorAll('[aria-label="上传步骤"] li')).toHaveLength(5);
         await click(host, 'Writer');
+        expect(host.querySelector('[data-market-direct="draft"]')).not.toBeNull();
+        await click(host, '下一步');
         expect(plan).toHaveBeenCalledWith('writer');
         const values = [
           ...host
@@ -680,7 +683,6 @@ describe('Uploaded Bots in the Market panel', () => {
         await click(host, '下一步');
         const review = host.querySelector('[data-market-direct="review"]')!;
         expect(review.textContent).toContain('1 个文件，10 B');
-        await act(async () => review.querySelector<HTMLElement>('input[type="checkbox"]')!.click());
         await click(host, '替换全部文件');
         expect(upload).toHaveBeenCalledWith('writer', {
           displayName: 'Helper',
@@ -701,6 +703,7 @@ describe('Uploaded Bots in the Market panel', () => {
       {
         marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
         marketplaceMine: mine,
+        shareDraftGet: vi.fn(async () => draftView('ready')),
         marketplaceUploadPlan: plan,
         marketplaceUpload: upload,
         marketplaceDelete: remove,

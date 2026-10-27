@@ -290,6 +290,7 @@ it('reads an Uploaded Bot file summary and its text files through the Host', asy
 it('lists, replaces and deletes my uploads, marking earlier installs as author-updated', async () => {
   const f = fixture();
   const { slug, memory } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
@@ -312,6 +313,7 @@ it('lists, replaces and deletes my uploads, marking earlier installs as author-u
 
   f.market.clock.value = new Date('2026-10-06T09:00:00Z');
   write(memory, 'notes/today.md', 'Rewritten.');
+  readyDraft(f, slug);
   const replaced = await f.bridge.marketplaceUpload({
     slug,
     displayName: 'Helper 2',
