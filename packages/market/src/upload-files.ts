@@ -2,6 +2,7 @@ export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 export const MAX_UPLOAD_FILES = 2_000;
 export const MAX_UPLOAD_FILE_BYTES = 5 * 1024 * 1024;
 export const MAX_BOTS_PER_ACCOUNT = 20;
+export const MAX_REPLACEMENTS_PER_HOUR = 10;
 export const MAX_UPLOAD_PATH_LENGTH = 300;
 
 export type UploadFileKind = 'text' | 'script' | 'image';

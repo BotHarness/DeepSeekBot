@@ -11,6 +11,7 @@ import {
   imageContentType,
   isUploadPath,
   MAX_BOTS_PER_ACCOUNT,
+  MAX_REPLACEMENTS_PER_HOUR,
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_FILE_BYTES,
   MAX_UPLOAD_FILES,
@@ -21,6 +22,7 @@ import {
 
 export const MAX_AUTHOR_NAME_LENGTH = 40;
 export const PENDING_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000;
+const REPLACEMENT_WINDOW_MS = 60 * 60 * 1000;
 
 const AUTHOR_ID_ALPHABET = '23456789abcdefghjkmnpqrstuvwxyz';
 const AUTHOR_ID_LENGTH = 6;
@@ -53,7 +55,9 @@ export type UploadRefusal =
   | 'upload-not-found'
   | 'file-not-in-upload'
   | 'file-mismatch'
-  | 'files-missing';
+  | 'files-missing'
+  | 'bot-not-found'
+  | 'replace-limit';
 
 export const UPLOAD_REFUSAL_STATUS: Record<UploadRefusal, number> = {
   'author-required': 409,
@@ -71,6 +75,8 @@ export const UPLOAD_REFUSAL_STATUS: Record<UploadRefusal, number> = {
   'file-not-in-upload': 404,
   'file-mismatch': 422,
   'files-missing': 409,
+  'bot-not-found': 404,
+  'replace-limit': 429,
 };
 
 export type UploadResult<T> =
@@ -90,6 +96,7 @@ interface UploadRow {
   bot_id: string;
   presentation: string;
   created_at: string;
+  replaces: string | null;
 }
 
 interface Presentation {
@@ -147,6 +154,8 @@ export interface Uploads {
     bytes: Uint8Array<ArrayBuffer>,
   ): Promise<UploadResult<{ path: string }>>;
   publish(account: string, uploadId: string, origin: string): Promise<UploadResult<string>>;
+  remove(account: string, botId: string): Promise<boolean>;
+  removeAccount(account: string): Promise<void>;
   files(botId: string): Promise<UploadedFile[]>;
   readFile(
     botId: string,
@@ -200,6 +209,46 @@ export function createUploads(deps: {
     }
   };
 
+  const filesOf = async (botId: string) =>
+    (
+      await db
+        .prepare(
+          "SELECT COALESCE(files_id, node_id) AS files FROM indexed_repositories WHERE node_id = ? AND source = 'upload'",
+        )
+        .bind(botId)
+        .first<{ files: string }>()
+    )?.files;
+
+  const owned = (account: string, botId: string) =>
+    db
+      .prepare(
+        `SELECT node_id, COALESCE(files_id, node_id) AS files FROM indexed_repositories
+         WHERE node_id = ? AND source = 'upload' AND author_account = ?`,
+      )
+      .bind(botId, account)
+      .first<{ node_id: string; files: string }>();
+
+  const discardPending = async (where: string, value: string) => {
+    const { results } = await db
+      .prepare(`SELECT upload_id, bot_id FROM uploads WHERE ${where} = ?`)
+      .bind(value)
+      .all<{ upload_id: string; bot_id: string }>();
+    for (const row of results) {
+      await discardBotFiles(row.bot_id);
+      await db.prepare('DELETE FROM uploads WHERE upload_id = ?').bind(row.upload_id).run();
+    }
+  };
+
+  const remove = async (account: string, botId: string) => {
+    const row = await owned(account, botId);
+    if (row === null) return false;
+    await discardPending('replaces', botId);
+    await discardBotFiles(row.files);
+    await db.prepare('DELETE FROM reports WHERE node_id = ?').bind(botId).run();
+    await db.prepare('DELETE FROM indexed_repositories WHERE node_id = ?').bind(botId).run();
+    return true;
+  };
+
   const readText = async (botId: string, path: string, maxBytes: number) => {
     const object = await bucket.get(fileKey(botId, path));
     if (object === null || object.size > maxBytes) return undefined;
@@ -208,6 +257,20 @@ export function createUploads(deps: {
 
   return {
     author,
+    remove,
+
+    async removeAccount(account) {
+      const { results } = await db
+        .prepare(
+          "SELECT node_id FROM indexed_repositories WHERE author_account = ? AND source = 'upload'",
+        )
+        .bind(account)
+        .all<{ node_id: string }>();
+      for (const row of results) await remove(account, row.node_id);
+      await discardPending('account', account);
+      await db.prepare('DELETE FROM upload_replacements WHERE account = ?').bind(account).run();
+      await db.prepare('DELETE FROM authors WHERE account = ?').bind(account).run();
+    },
 
     async saveAuthor(account, input) {
       const name = typeof input.displayName === 'string' ? input.displayName.trim() : '';
@@ -250,6 +313,8 @@ export function createUploads(deps: {
 
     async begin(account, input) {
       if ((await author(account)) === null) return refuse('author-required');
+      const replaces = input['replaces'];
+      if (replaces !== undefined && typeof replaces !== 'string') return refuse('invalid-upload');
       const presentation = parsePresentation(input);
       const files = input['files'];
       if (presentation === undefined || !Array.isArray(files) || files.length === 0)
@@ -279,14 +344,32 @@ export function createUploads(deps: {
         manifest.push({ path, size, sha256, kind });
       }
       await discardStale(account);
-      const counted = await db
-        .prepare(
-          `SELECT (SELECT count(*) FROM indexed_repositories WHERE author_account = ? AND source = 'upload')
-                + (SELECT count(*) FROM uploads WHERE account = ?) AS total`,
-        )
-        .bind(account, account)
-        .first<{ total: number }>();
-      if ((counted?.total ?? 0) >= MAX_BOTS_PER_ACCOUNT) return refuse('bot-limit');
+      const now = deps.now();
+      if (replaces === undefined) {
+        const counted = await db
+          .prepare(
+            `SELECT (SELECT count(*) FROM indexed_repositories WHERE author_account = ? AND source = 'upload')
+                  + (SELECT count(*) FROM uploads WHERE account = ? AND replaces IS NULL) AS total`,
+          )
+          .bind(account, account)
+          .first<{ total: number }>();
+        if ((counted?.total ?? 0) >= MAX_BOTS_PER_ACCOUNT) return refuse('bot-limit');
+      } else {
+        if ((await owned(account, replaces)) === null) return refuse('bot-not-found');
+        const since = new Date(now.getTime() - REPLACEMENT_WINDOW_MS).toISOString();
+        const recent = await db
+          .prepare(
+            'SELECT count(*) AS total FROM upload_replacements WHERE account = ? AND created_at > ?',
+          )
+          .bind(account, since)
+          .first<{ total: number }>();
+        if ((recent?.total ?? 0) >= MAX_REPLACEMENTS_PER_HOUR) return refuse('replace-limit');
+        await discardPending('replaces', replaces);
+        await db
+          .prepare('INSERT INTO upload_replacements (account, bot_id, created_at) VALUES (?, ?, ?)')
+          .bind(account, replaces, now.toISOString())
+          .run();
+      }
       const botId = `U_${random(AUTHOR_ID_ALPHABET, 20)}`;
       const id = random('0123456789abcdef', 32);
       await db
@@ -300,11 +383,11 @@ export function createUploads(deps: {
         .run();
       await db
         .prepare(
-          'INSERT INTO uploads (upload_id, account, bot_id, presentation, created_at) VALUES (?, ?, ?, ?, ?)',
+          'INSERT INTO uploads (upload_id, account, bot_id, presentation, created_at, replaces) VALUES (?, ?, ?, ?, ?, ?)',
         )
-        .bind(id, account, botId, JSON.stringify(presentation), deps.now().toISOString())
+        .bind(id, account, botId, JSON.stringify(presentation), now.toISOString(), replaces ?? null)
         .run();
-      return { ok: true, value: { id, botId } };
+      return { ok: true, value: { id, botId: replaces ?? botId } };
     },
 
     async putFile(account, uploadId, path, bytes) {
@@ -340,17 +423,23 @@ export function createUploads(deps: {
         .first<{ path: string }>();
       if (missing !== null) return refuse('files-missing', missing.path);
       const presentation = JSON.parse(pending.presentation) as Presentation;
-      const botId = pending.bot_id;
+      const filesId = pending.bot_id;
+      const replaced = pending.replaces === null ? null : await owned(account, pending.replaces);
+      if (pending.replaces !== null && replaced === null) {
+        await discardPending('upload_id', uploadId);
+        return refuse('bot-not-found');
+      }
+      const botId = pending.replaces ?? filesId;
       const names = new Set(
         (
           await db
             .prepare('SELECT path FROM uploaded_files WHERE bot_id = ?')
-            .bind(botId)
+            .bind(filesId)
             .all<{ path: string }>()
         ).results.map((row) => row.path),
       );
       const descriptorText = names.has(BOT_DESCRIPTOR_PATH)
-        ? await readText(botId, BOT_DESCRIPTOR_PATH, MAX_DESCRIPTOR_BYTES)
+        ? await readText(filesId, BOT_DESCRIPTOR_PATH, MAX_DESCRIPTOR_BYTES)
         : undefined;
       const descriptor =
         descriptorText === undefined ? undefined : parseBotDescriptor(descriptorText);
@@ -369,11 +458,41 @@ export function createUploads(deps: {
       const readme =
         readmePath === undefined
           ? null
-          : ((await readText(botId, readmePath, MAX_UPLOAD_FILE_BYTES))?.slice(
+          : ((await readText(filesId, readmePath, MAX_UPLOAD_FILE_BYTES))?.slice(
               0,
               MAX_README_LENGTH,
             ) ?? null);
       const now = deps.now().toISOString();
+      if (replaced !== null) {
+        await db
+          .prepare(
+            `UPDATE indexed_repositories SET
+               owner = ?, name = ?, description = ?, pushed_at = ?, last_refreshed_at = ?,
+               readme = ?, readme_pushed_at = ?, display_name = ?, roles = ?, bio = ?, banner = ?,
+               avatar = ?, files_id = ?
+             WHERE node_id = ?`,
+          )
+          .bind(
+            owner.name,
+            presentation.displayName,
+            presentation.bio,
+            now,
+            now,
+            readme,
+            now,
+            presentation.displayName,
+            JSON.stringify(presentation.tags),
+            presentation.bio,
+            presented(descriptor?.banner),
+            presented(descriptor?.avatar),
+            filesId,
+            botId,
+          )
+          .run();
+        await db.prepare('DELETE FROM uploads WHERE upload_id = ?').bind(uploadId).run();
+        await discardBotFiles(replaced.files);
+        return { ok: true, value: botId };
+      }
       await db
         .prepare(
           `INSERT INTO indexed_repositories (
@@ -409,11 +528,13 @@ export function createUploads(deps: {
     },
 
     async files(botId) {
+      const files = await filesOf(botId);
+      if (files === undefined) return [];
       const { results } = await db
         .prepare(
           'SELECT path, size, kind FROM uploaded_files WHERE bot_id = ? AND stored = 1 ORDER BY path',
         )
-        .bind(botId)
+        .bind(files)
         .all<UploadedFile>();
       return results;
     },
@@ -421,15 +542,15 @@ export function createUploads(deps: {
     async readFile(botId, path) {
       const listed = await db
         .prepare(
-          `SELECT f.kind AS kind FROM uploaded_files f
-           JOIN indexed_repositories r ON r.node_id = f.bot_id
-           WHERE f.bot_id = ? AND f.path = ? AND f.stored = 1
+          `SELECT f.kind AS kind, f.bot_id AS files FROM indexed_repositories r
+           JOIN uploaded_files f ON f.bot_id = COALESCE(r.files_id, r.node_id)
+           WHERE r.node_id = ? AND f.path = ? AND f.stored = 1
              AND r.source = 'upload' AND r.visibility = 'listed'`,
         )
         .bind(botId, path)
-        .first<{ kind: UploadFileKind }>();
+        .first<{ kind: UploadFileKind; files: string }>();
       if (listed === null) return undefined;
-      const object = await bucket.get(fileKey(botId, path));
+      const object = await bucket.get(fileKey(listed.files, path));
       if (object === null) return undefined;
       return {
         bytes: await object.arrayBuffer(),

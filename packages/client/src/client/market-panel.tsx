@@ -13,6 +13,7 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
+import { MyUploadsDialog } from './market-mine.js';
 import { MarketUploadDialog } from './market-upload.js';
 import {
   MarketplaceAvatar,
@@ -90,6 +91,7 @@ export function MarketPanelView({
   const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t), { includeUploads: true });
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
+  const [mine, setMine] = useState(false);
   const { list, filters } = browse;
   return (
     <div className="bh-market-panel" ref={browse.mount} data-market-panel>
@@ -97,9 +99,14 @@ export function MarketPanelView({
         browse={browse}
         t={t}
         action={
-          <Button variant="primary" onClick={() => setUploading(true)}>
-            {t('market.panel.upload')}
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setMine(true)}>
+              {t('market.mine.open')}
+            </Button>
+            <Button variant="primary" onClick={() => setUploading(true)}>
+              {t('market.panel.upload')}
+            </Button>
+          </>
         }
       />
       <MarketplaceListStatus browse={browse} t={t} />
@@ -131,6 +138,16 @@ export function MarketPanelView({
           }}
         />
       )}
+      {mine ? (
+        <MyUploadsDialog
+          actions={actions}
+          registry={registry}
+          t={t}
+          onUpdated={browse.prepend}
+          onDeleted={browse.remove}
+          onClose={() => setMine(false)}
+        />
+      ) : null}
       {uploading ? (
         <MarketUploadDialog
           actions={actions}

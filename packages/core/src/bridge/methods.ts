@@ -130,6 +130,7 @@ import type {
 import { MessagingError, type MessagingTarget } from '../messaging/provider.js';
 import { OperationalDatabaseError } from '../database/owner.js';
 import type {
+  MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceClient,
   MarketplaceDetail,
@@ -953,6 +954,8 @@ export interface BridgeMethods {
   marketplaceUpload(
     payload: unknown,
   ): Promise<BridgeResult<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>>;
+  marketplaceMine(payload: unknown): Promise<BridgeResult<{ bots: MarketplaceAuthoredBot[] }>>;
+  marketplaceDelete(payload: unknown): Promise<BridgeResult<{ deleted: true }>>;
   marketplaceInstall(payload: unknown): Promise<
     BridgeResult<{
       bot: PersonaBotDetail;
@@ -1815,6 +1818,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }),
     );
     return { ok: false, error: { code: result.code, message: result.code } };
+  };
+  const withInstalls = (entry: MarketplaceEntry): MarketplaceEntry => {
+    if (entry.source !== 'upload') return entry;
+    const copies = deps.registry
+      .list()
+      .flatMap((record) => (record.marketplaceListing?.id === entry.id ? [record] : []));
+    if (copies.length === 0) return entry;
+    return {
+      ...entry,
+      installed: {
+        bots: copies.map((record) => record.slug),
+        authorUpdated: copies.some(
+          (record) => Date.parse(record.marketplaceListing!.pushedAt) < Date.parse(entry.pushedAt),
+        ),
+      },
+    };
   };
   const marketplaceUnavailable = (): { ok: false; error: { code: string; message: string } } => ({
     ok: false,
@@ -3591,7 +3610,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (source['includeUploads'] !== undefined && typeof source['includeUploads'] !== 'boolean')
         return Promise.resolve(invalidInput('invalid includeUploads'));
       if (source['includeUploads'] === true) query.includeUploads = true;
-      return marketplaceCall((client) => client.list(query));
+      return marketplaceCall(async (client) => {
+        const page = await client.list(query);
+        return page.ok
+          ? { ok: true, value: { ...page.value, bots: page.value.bots.map(withInstalls) } }
+          : page;
+      });
     },
     marketplaceTopics() {
       return marketplaceCall((client) => client.topics());
@@ -3672,7 +3696,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       }
       const lang = marketplaceLang(langValue);
       if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      return marketplaceCall((client) => client.detail(id.trim(), lang));
+      return marketplaceCall(async (client) => {
+        const detail = await client.detail(id.trim(), lang);
+        return detail.ok
+          ? { ok: true, value: { ...detail.value, bot: withInstalls(detail.value.bot) } }
+          : detail;
+      });
     },
     marketplaceSubmit(payload) {
       const { url, altcha } = asObject(payload);
@@ -3747,14 +3776,40 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           (!Array.isArray(tags) || !tags.every((tag) => typeof tag === 'string')))
       )
         return invalidInput('invalid upload payload');
+      const replaces = source['replaces'];
+      if (replaces !== undefined && (typeof replaces !== 'string' || replaces.trim().length === 0))
+        return invalidInput('invalid replaces');
       const trimmedBio = bio.value?.trim();
       return uploadResult(
         await deps.marketplaceUploads.upload(slug, {
           displayName: displayName.trim(),
           ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
           ...(tags === undefined ? {} : { tags: tags as string[] }),
+          ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
         }),
       );
+    },
+    async marketplaceMine(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return invalidInput('invalid lang');
+      const mine = await deps.marketplaceUploads.mine(lang);
+      return uploadResult(
+        mine.ok
+          ? {
+              ok: true,
+              value: {
+                bots: mine.value.map((entry) => ({ ...entry, bot: withInstalls(entry.bot) })),
+              },
+            }
+          : mine,
+      );
+    },
+    async marketplaceDelete(payload) {
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const { id } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      return uploadResult(await deps.marketplaceUploads.remove(id.trim()));
     },
     async marketplaceInstall(payload) {
       if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
@@ -3778,10 +3833,15 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         try {
           deps.telemetry?.capture?.('marketplace_bot_installed');
         } catch {}
+        const listing = prepared.value.entry;
+        const marked = deps.registry.setMarketplaceListing(created.record.slug, {
+          id: listing.id,
+          pushedAt: listing.pushedAt,
+        });
         return {
           ok: true,
           value: {
-            ...detailOf(created.record),
+            ...detailOf(marked.ok ? marked.record : created.record),
             channelId: created.channelId,
             ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
             listing: prepared.value.entry,

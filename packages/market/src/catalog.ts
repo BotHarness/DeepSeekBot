@@ -236,8 +236,16 @@ export interface MarketplaceDetail {
   files?: UploadedFile[];
 }
 
+export interface AuthoredBot {
+  bot: MarketplaceEntry;
+  files: number;
+  bytes: number;
+  blocked: boolean;
+}
+
 export interface Catalog {
   submit(url: string): Promise<SubmissionResult>;
+  authored(account: string, language?: MarketplaceLanguage): Promise<AuthoredBot[]>;
   detail(id: string, language?: MarketplaceLanguage): Promise<MarketplaceDetail | undefined>;
   list(options: ListOptions): Promise<MarketplacePage | undefined>;
   topics(): Promise<TopicCount[]>;
@@ -387,6 +395,28 @@ export function createCatalog(deps: {
               : { mode: 'updated', key: last.pushed_at, nodeId: last.node_id },
         ),
       };
+    },
+
+    async authored(account, language) {
+      const { results } = await db
+        .prepare(
+          `SELECT r.*,
+             (SELECT count(*) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_count,
+             (SELECT COALESCE(sum(f.size), 0) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_bytes
+           FROM indexed_repositories r
+           WHERE r.author_account = ? AND r.source = 'upload'
+           ORDER BY r.pushed_at DESC, r.node_id DESC`,
+        )
+        .bind(account)
+        .all<RepositoryRow & { file_count: number; file_bytes: number }>();
+      return results.map((row) => ({
+        bot: entryFromRow(row, language),
+        files: row.file_count,
+        bytes: row.file_bytes,
+        blocked: row.visibility !== 'listed',
+      }));
     },
 
     async detail(id, language) {

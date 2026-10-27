@@ -17,6 +17,7 @@ export const HOST_ADMIN_OPTIONS = {
   confirm: { type: 'boolean' },
   'accept-terms': { type: 'boolean' },
   'include-uploads': { type: 'boolean' },
+  replaces: { type: 'string' },
 } as const;
 
 export interface HostAdminValues {
@@ -40,6 +41,7 @@ export interface HostAdminValues {
   'operation-key'?: string;
   'accept-terms'?: boolean;
   'include-uploads'?: boolean;
+  replaces?: string;
 }
 
 export const HOST_ADMIN_COMMANDS = [
@@ -73,6 +75,14 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'marketplace-upload',
     description: "publish a Bot's Memory files to the Bot Marketplace; needs --confirm",
+  },
+  {
+    command: 'marketplace-mine',
+    description: 'list your own Uploaded Bots, with file counts and whether one is blocked',
+  },
+  {
+    command: 'marketplace-delete',
+    description: 'delete one of your Uploaded Bots from the Bot Marketplace; needs --confirm',
   },
   {
     command: 'marketplace-install',
@@ -146,6 +156,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-author': 0,
   'marketplace-upload-plan': 1,
   'marketplace-upload': 1,
+  'marketplace-mine': 0,
+  'marketplace-delete': 1,
   'marketplace-install': 1,
   'release-check': 0,
   'release-install': 1,
@@ -190,10 +202,12 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('--sort must be updated, created or stars, on marketplace-list.');
   if (
     values.lang !== undefined &&
-    ((command !== 'marketplace-list' && command !== 'marketplace-detail') ||
+    ((command !== 'marketplace-list' &&
+      command !== 'marketplace-detail' &&
+      command !== 'marketplace-mine') ||
       (values.lang !== 'zh' && values.lang !== 'en'))
   )
-    usage('--lang must be zh or en, on marketplace-list or marketplace-detail.');
+    usage('--lang must be zh or en, on marketplace-list, marketplace-detail or marketplace-mine.');
   if (command === 'marketplace-report' && values.reason !== undefined) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
       usage(`--reason must be at most ${String(MAX_REPORT_REASON_LENGTH)} characters.`);
@@ -202,6 +216,12 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('--include-uploads only applies to marketplace-list.');
   if (command === 'marketplace-author' && (values.name === undefined || !values.name.trim()))
     usage('marketplace-author needs --name <display name>.');
+  if (values.replaces !== undefined && command !== 'marketplace-upload')
+    usage('--replaces only applies to marketplace-upload.');
+  if (command === 'marketplace-delete' && values.confirm !== true)
+    usage(
+      'marketplace-delete erases the Uploaded Bot, its files and counts for everyone. Pass --confirm.',
+    );
   if (command === 'marketplace-upload') {
     if (values.name === undefined || !values.name.trim())
       usage('marketplace-upload needs --name <listing name>.');
@@ -393,8 +413,13 @@ export async function runHostAdminCommand(
         displayName: values.name!.trim(),
         ...(description === undefined || description === '' ? {} : { bio: description }),
         ...(values.role === undefined ? {} : { tags: values.role.map((role) => role.trim()) }),
+        ...(values.replaces === undefined ? {} : { replaces: values.replaces.trim() }),
       });
     }
+    case 'marketplace-mine':
+      return rpc('marketplaceMine', values.lang === undefined ? {} : { lang: values.lang });
+    case 'marketplace-delete':
+      return rpc('marketplaceDelete', { id: target });
     case 'marketplace-install':
       return rpc('marketplaceInstall', {
         id: target,

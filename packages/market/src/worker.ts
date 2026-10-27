@@ -201,7 +201,11 @@ export function createMarketHandler(
         },
       });
     }
-    if (url.pathname === '/v1/me' || url.pathname.startsWith('/v1/uploads')) {
+    if (
+      url.pathname === '/v1/me' ||
+      url.pathname.startsWith('/v1/me/') ||
+      url.pathname.startsWith('/v1/uploads')
+    ) {
       if (deps.uploads === undefined) return failure(503, 'uploads-unavailable');
       const token = bearer(request);
       const account = token === undefined ? undefined : await deps.uploads.verifier.verify(token);
@@ -209,6 +213,10 @@ export function createMarketHandler(
       const store = deps.uploads.store;
       if (url.pathname === '/v1/me') {
         if (request.method === 'GET') return json(200, { author: await store.author(account) });
+        if (request.method === 'DELETE') {
+          await store.removeAccount(account);
+          return json(200, { deleted: true });
+        }
         if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
         const body = await readBody(request);
         const saved = await store.saveAuthor(account, {
@@ -216,6 +224,19 @@ export function createMarketHandler(
           acceptTerms: body?.['acceptTerms'],
         });
         return saved.ok ? json(200, { author: saved.value }) : refused(saved);
+      }
+      if (url.pathname === '/v1/me/bots') {
+        if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+        const lang = parseMarketplaceLanguage(url.searchParams.get('lang'));
+        return json(200, { bots: await catalog.authored(account, lang) });
+      }
+      const mine = /^\/v1\/me\/bots\/([^/]+)$/u.exec(url.pathname);
+      if (mine !== null) {
+        if (request.method !== 'DELETE') return failure(405, 'method-not-allowed');
+        const id = decodePath(mine[1]!);
+        return id !== undefined && (await store.remove(account, id))
+          ? json(200, { deleted: true })
+          : failure(404, 'bot-not-found');
       }
       if (url.pathname === '/v1/uploads') {
         if (request.method !== 'POST') return failure(405, 'method-not-allowed');

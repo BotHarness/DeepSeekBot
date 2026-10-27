@@ -243,6 +243,15 @@ export function publishesBotMemory(input: string): boolean {
   return PUBLISH_PATTERNS.some((pattern) => pattern.test(input));
 }
 
+const MARKETPLACE_DELETE_PATTERNS: readonly RegExp[] = [
+  /marketplace-delete\b/iu,
+  /\bmarketplaceDelete\b/u,
+];
+
+export function deletesMarketplaceBot(input: string): boolean {
+  return MARKETPLACE_DELETE_PATTERNS.some((pattern) => pattern.test(input));
+}
+
 const CHANGING_SUBCOMMANDS = new Set(['set', 'edit', 'update', 'delete', 'rm', 'remove']);
 const TEMPLATE_FILE = /approval-templates\/+([^\s"'`;&|)\\/]*)/giu;
 
@@ -276,5 +285,7 @@ export function requiresHumanDecision(
   input: string,
   inUse: (name: string) => boolean = () => true,
 ): boolean {
-  return changesApprovalPolicy(input, inUse) || publishesBotMemory(input);
+  return (
+    changesApprovalPolicy(input, inUse) || publishesBotMemory(input) || deletesMarketplaceBot(input)
+  );
 }
