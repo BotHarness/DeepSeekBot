@@ -8,6 +8,7 @@ import {
 } from './localization.js';
 import { prepareReadme } from './readme.js';
 import { createRepositoryStore, isEligible, type RepositoryRow } from './repositories.js';
+import type { UploadedFile } from './uploads.js';
 
 export interface MarketplaceEntry {
   id: string;
@@ -30,6 +31,15 @@ export interface MarketplaceEntry {
   cloneUrl: string;
   defaultBranch: string;
   headCommit: { sha: string; committedAt: string } | null;
+  source: MarketplaceSource;
+  author: MarketplaceAuthor | null;
+}
+
+export type MarketplaceSource = 'github' | 'upload';
+
+export interface MarketplaceAuthor {
+  name: string;
+  id: string;
 }
 
 export type MarketplaceBanner = { recipe: { scene: string; seed: number } } | { image: string };
@@ -128,6 +138,11 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
       row.head_sha !== null && row.head_committed_at !== null
         ? { sha: row.head_sha, committedAt: row.head_committed_at }
         : null,
+    source: row.source,
+    author:
+      row.source === 'upload' && row.author_id !== null
+        ? { name: row.owner, id: row.author_id }
+        : null,
   };
 }
 
@@ -200,6 +215,7 @@ export interface ListOptions {
   query?: string;
   topic?: string;
   language?: MarketplaceLanguage;
+  includeUploads?: boolean;
 }
 
 export interface TopicCount {
@@ -217,6 +233,7 @@ export interface MarketplaceDetail {
   readmeLanguage: MarketplaceLanguage | null;
   readmeLanguages: MarketplaceLanguage[];
   commitSha: string | null;
+  files?: UploadedFile[];
 }
 
 export interface Catalog {
@@ -230,6 +247,7 @@ export function createCatalog(deps: {
   db: D1Database;
   github: GitHubClient;
   now: () => Date;
+  uploadedFiles?: (id: string) => Promise<UploadedFile[]>;
 }): Catalog {
   const { db, github } = deps;
 
@@ -283,6 +301,7 @@ export function createCatalog(deps: {
           : ` AND (EXISTS (SELECT 1 FROM json_each(r.topics) WHERE value = ?)
                    OR EXISTS (SELECT 1 FROM json_each(r.roles) WHERE value = ?))`;
       const topicValues = options.topic === undefined ? [] : [options.topic, options.topic];
+      const sourceClause = options.includeUploads === true ? '' : " AND r.source = 'github'";
 
       if (query.length > 0) {
         if (cursor !== undefined && cursor.mode !== 'search') return undefined;
@@ -295,7 +314,7 @@ export function createCatalog(deps: {
               .prepare(
                 `SELECT r.* FROM indexed_repositories_fts f
                  JOIN indexed_repositories r ON r.rowid = f.rowid
-                 WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${topicClause}
+                 WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${sourceClause}${topicClause}
                  ORDER BY bm25(indexed_repositories_fts, 10.0, 4.0, 4.0, 1.0, 4.0, 2.0), r.node_id
                  LIMIT ? OFFSET ?`,
               )
@@ -303,7 +322,7 @@ export function createCatalog(deps: {
           : db
               .prepare(
                 `SELECT r.* FROM indexed_repositories r
-                 WHERE r.visibility = 'listed'${terms
+                 WHERE r.visibility = 'listed'${sourceClause}${terms
                    .map(
                      () =>
                        " AND instr(lower(r.name || ' ' || coalesce(r.description, '') || ' ' || r.topics || ' ' || r.roles || ' ' || coalesce(r.readme, '') || ' ' || coalesce(r.search_text, '')), lower(?)) > 0",
@@ -343,7 +362,7 @@ export function createCatalog(deps: {
       const { results } = await db
         .prepare(
           `SELECT r.* FROM indexed_repositories r
-           WHERE r.visibility = 'listed'${topicClause}${after}
+           WHERE r.visibility = 'listed'${sourceClause}${topicClause}${after}
            ORDER BY ${order}
            LIMIT ?`,
         )
@@ -375,15 +394,22 @@ export function createCatalog(deps: {
       if (row === null || row.visibility !== 'listed') return undefined;
       const ref = row.head_sha ?? row.default_branch;
       const readme = localizedReadme(row, language);
+      const uploaded = row.source === 'upload';
       return {
         bot: entryFromRow(row, language),
         readme:
           readme.markdown === null
             ? null
-            : prepareReadme(readme.markdown, { owner: row.owner, name: row.name, ref }),
+            : prepareReadme(readme.markdown, {
+                owner: row.owner,
+                name: row.name,
+                ref,
+                ...(uploaded ? { filesBase: `${row.html_url}/files` } : {}),
+              }),
         readmeLanguage: readme.language,
         readmeLanguages: readmeLanguages(row),
         commitSha: row.head_sha,
+        ...(uploaded ? { files: (await deps.uploadedFiles?.(row.node_id)) ?? [] } : {}),
       };
     },
 

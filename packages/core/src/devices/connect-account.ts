@@ -46,6 +46,7 @@ export interface ConnectAccount {
   activity: ActivityProvider;
   status(): AccountStatus;
   verifyOffer(body: string, signature: string | undefined): Promise<OfferVerification>;
+  accessToken(options?: { fresh?: boolean }): Promise<string | undefined>;
   start(): Promise<void>;
   signIn(): Promise<AccountResult>;
   signOut(): Promise<AccountResult>;
@@ -554,6 +555,17 @@ export function createConnectAccount(options: {
     },
     status: () => ({ ...status }),
     verifyOffer,
+    accessToken: (options) =>
+      serial(async () => {
+        if (status.state !== 'signed-in') return undefined;
+        try {
+          const current = await read();
+          if (current === undefined) return undefined;
+          return options?.fresh !== true && cached !== undefined ? cached : await refresh(current);
+        } catch {
+          return undefined;
+        }
+      }),
     async start() {
       startWatch();
       await sync();

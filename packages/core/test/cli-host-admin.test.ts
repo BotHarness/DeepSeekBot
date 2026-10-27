@@ -131,6 +131,57 @@ describe('Bot Marketplace commands', () => {
     expect(live.calls).toEqual([]);
   });
 
+  it('uploads and installs Uploaded Bots through the Host', async () => {
+    const live = await host((method) => ok({ method }));
+    await invoke(['marketplace-list', '--include-uploads'], live.url);
+    await invoke(['marketplace-account'], live.url);
+    await invoke(['marketplace-author', '--name', ' 爱丽丝 ', '--accept-terms'], live.url);
+    await invoke(['marketplace-upload-plan', 'bot-1'], live.url);
+    await invoke(
+      [
+        'marketplace-upload',
+        'bot-1',
+        '--name',
+        'Helper',
+        '--description',
+        'Writes things down',
+        '--role',
+        'writing',
+        '--confirm',
+      ],
+      live.url,
+    );
+    await invoke(['marketplace-install', 'U_abc', '--operation-key', 'install-0001'], live.url);
+    expect(live.calls).toEqual([
+      { method: 'marketplaceList', args: { query: { includeUploads: true } } },
+      { method: 'marketplaceAccount', args: {} },
+      { method: 'marketplaceAuthorSave', args: { displayName: '爱丽丝', acceptTerms: true } },
+      { method: 'marketplaceUploadPlan', args: { slug: 'bot-1' } },
+      {
+        method: 'marketplaceUpload',
+        args: {
+          slug: 'bot-1',
+          displayName: 'Helper',
+          bio: 'Writes things down',
+          tags: ['writing'],
+        },
+      },
+      { method: 'marketplaceInstall', args: { id: 'U_abc', operationKey: 'install-0001' } },
+    ]);
+  });
+
+  it('needs --confirm and a name before uploading a Bot', async () => {
+    const live = await host(() => ok({}));
+    for (const argv of [
+      ['marketplace-upload', 'bot-1', '--name', 'Helper'],
+      ['marketplace-upload', 'bot-1', '--confirm'],
+      ['marketplace-author'],
+      ['marketplace-detail', 'x', '--include-uploads'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([]);
+  });
+
   it('solves the Host challenge before submitting or reporting, like the Web UI', async () => {
     const key = 'challenge-key';
     const live = await host(async (method, args) => {

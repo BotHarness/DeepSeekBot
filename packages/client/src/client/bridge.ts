@@ -46,6 +46,7 @@ import {
   type MarketplaceQuery,
   type MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
+import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
@@ -2063,6 +2064,27 @@ export async function submitMarketplaceRepository(
   );
   if (result === undefined) throw new Error('invalid marketplaceSubmit response');
   return result.bot;
+}
+
+export async function installMarketplaceBot(call: BridgeCall, id: string): Promise<BotSummary> {
+  const value = await unwrap(call, 'marketplaceInstall', { id });
+  const bot = parseBotSummary(asRecord(value)?.['bot']);
+  if (bot === undefined) throw new Error('invalid marketplaceInstall response');
+  return bot;
+}
+
+export async function uploadMarketplaceBot(
+  call: BridgeCall,
+  slug: string,
+  presentation: { displayName: string; bio?: string; tags?: string[] },
+): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+  const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
+  const parsed = parseMarketplaceSubmission(value);
+  if (parsed === undefined) throw new Error('invalid marketplaceUpload response');
+  return {
+    bot: parsed.bot,
+    skipped: Array.isArray(value?.['skipped']) ? (value['skipped'] as UploadPlan['skipped']) : [],
+  };
 }
 
 export async function reportMarketplaceBot(
