@@ -466,7 +466,7 @@ const HomeContent = memo(function HomeContent({
           }
         >
           {(headerTravel) => (
-            <LastChatSwipe enabled={!searching && query === ''}>
+            <LastChatSwipe enabled={!searching && !searchFocused && query === ''}>
               <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
                 {(pull) => (
                   <Animated.FlatList<EnvironmentChatItem>
