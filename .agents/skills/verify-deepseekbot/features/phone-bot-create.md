@@ -7,6 +7,7 @@ Git import uses the same target, confirmation, operation record and completion p
 ## Sub-features
 
 - `target`: All explicitly chooses from every paired Host; a scoped Host is inherited. Changing the target preserves the draft and does not switch browsing.
+- `pair-return`: From the Environment step, add a new paired Host and finish its customization. Save or Back returns to the same creation flow, step and draft; pairing started elsewhere retains the normal workspace landing behavior. Verify the actual native navigation, not only reducer tests.
 - `form`: native name/persona fields, optional Bio/tags, validation and keyboard-safe submission.
 - `android-page`: blank Bot and direct Git forms use full pages with native navigation Back, Settings-style grouped fields and Compose action buttons. Confirm actual keyboard/focus, text scaling and Back behavior; JavaScript adapter tests do not prove native rendering.
 - `channel-page`: Android New Channel selects a Remote Host, name and multiple eligible Bots in a virtualized native-checkbox list. Changing Host immediately clears candidates and selection, retains the name, ignores late reads and never resurrects old selections. Submission retains the original pairing/input/key; a continuation notice survives leaving the form.

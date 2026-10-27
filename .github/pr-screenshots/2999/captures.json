@@ -1,0 +1,26 @@
+{
+  "environment": "Physical POCO 24069PC21G, Android 16, arm64 Debug, zh-CN, dark mode, font scale 1.0, 1220x2712, density 480",
+  "beforeNative": "17c969b9afad01074f1d902c8e105b55675a9807357094d829e784001433ab66",
+  "afterNative": "fa5e8e08d99f229ba89fab9ca9291b8adc5edb3f131d68506adda7e24f4b9a62",
+  "processing": "System status bar cropped and proportional resize; app UI unchanged. After captures show the retained Name step after returning to Environment and pressing Next.",
+  "captures": [
+    {
+      "file": "before.png",
+      "source": "64f3008cc99f9a50c7dc59d7c719232c2720a6bd",
+      "time": "2026-10-27T15:31:47.7380237Z",
+      "sha256": "1f92f7256f78db7c135676df9bc121750a7797d07171814dccdd969a37bf66d0"
+    },
+    {
+      "file": "save.png",
+      "source": "d73d4ed4b516e4070cb41dffa216409b3cc310be",
+      "time": "2026-10-27T15:53:11.4675585Z",
+      "sha256": "81112e494d04a7433645c1e54acc1412fc14148951310d84c77907835440ee94"
+    },
+    {
+      "file": "back.png",
+      "source": "d73d4ed4b516e4070cb41dffa216409b3cc310be",
+      "time": "2026-10-27T15:57:46.5897205Z",
+      "sha256": "81112e494d04a7433645c1e54acc1412fc14148951310d84c77907835440ee94"
+    }
+  ]
+}

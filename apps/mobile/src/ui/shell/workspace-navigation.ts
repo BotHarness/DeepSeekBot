@@ -26,6 +26,24 @@ export async function selectCloudWorkspace(
   });
 }
 
+export function openPairedHostSetup(navigation: ChannelNavigation, hostId: string): boolean {
+  if (!navigation.isReady()) return false;
+  const state = appStackState(navigation.getRootState());
+  if (!state) return false;
+  if (
+    state.routes[state.index]?.name === 'pair' &&
+    state.routes[state.index - 1]?.name === '(bot-creation)'
+  ) {
+    navigation.dispatch({
+      type: 'REPLACE',
+      target: state.key,
+      payload: { name: 'host-look', params: { hostId } },
+    });
+    return true;
+  }
+  return resetWorkspaceRoot(navigation, undefined, hostId);
+}
+
 export function resetWorkspaceRoot(
   navigation: ChannelNavigation,
   cloud?: CloudWorkspaceRoot,
