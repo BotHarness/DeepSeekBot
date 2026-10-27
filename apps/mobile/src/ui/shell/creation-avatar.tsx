@@ -1,11 +1,10 @@
 import { Image as CachedImage } from 'expo-image';
+import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { Image, View } from 'react-native';
 
-import {
-  avatarSvg,
-  seededAvatarFor,
-} from '../../../../../packages/core/src/bots/avatar-appearance';
+import { avatarSvg } from '../../../../../packages/core/src/bots/avatar-appearance';
+import { creationAvatarRecipe, randomAvatarSeed } from '../../host/bot-avatar-choice';
 import type { BotAvatarChoice } from '../../host/bot-creation';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { useDesignTheme } from '../design/theme';
@@ -14,30 +13,28 @@ import { Button } from '../primitives/creation-button';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { creationCopy as copy } from './bot-creation-copy';
-
-export function randomAvatarSeed() {
-  return Math.random().toString(36).slice(2, 12);
-}
+import { useStrings } from '../strings';
 
 export function CreationAvatarPreview({
   avatar,
-  name,
   imported,
   size = creationAvatar.size,
+  testID,
 }: {
   avatar: BotAvatarChoice | undefined;
   name: string;
   imported: boolean;
   size?: number;
+  testID?: string;
 }) {
   const theme = useDesignTheme();
-  const seed = avatar?.kind === 'generated' ? avatar.seed : imported ? undefined : name || 'Bot';
   const svg = useMemo(
-    () => (seed === undefined ? undefined : avatarSvg(seededAvatarFor(seed, undefined))),
-    [seed],
+    () => (imported && !avatar ? undefined : avatarSvg(creationAvatarRecipe(avatar))),
+    [avatar, imported],
   );
   return (
     <View
+      testID={testID}
       accessibilityRole="image"
       accessibilityLabel={copy.avatar}
       style={{
@@ -83,19 +80,25 @@ export function CreationAvatar({
   disabled: boolean;
   onChange(avatar: BotAvatarChoice): void;
 }) {
+  const t = useStrings();
   const choosePhoto = async () => {
     const image = await pickAvatarImage().catch(() => undefined);
     if (image) onChange({ kind: 'photo', image });
   };
   return (
     <View style={{ alignItems: 'center', gap: space.x3 }}>
-      <CreationAvatarPreview avatar={avatar} name={name} imported={imported} />
+      <CreationAvatarPreview
+        avatar={avatar}
+        name={name}
+        imported={imported}
+        testID="create-bot-avatar-preview"
+      />
       {imported && !avatar ? (
         <Text tone="muted" style={{ textAlign: 'center' }}>
           {copy.sourceAvatar}
         </Text>
       ) : null}
-      <View style={{ flexDirection: 'row', alignSelf: 'stretch', gap: space.x3 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'stretch', gap: space.x3 }}>
         <View style={{ flex: 1 }}>
           <Button
             label={copy.shuffleAvatar}
@@ -110,6 +113,14 @@ export function CreationAvatar({
             testID="create-bot-avatar-photo"
             disabled={disabled}
             onPress={() => void choosePhoto()}
+          />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button
+            label={t.avatarEditor.title}
+            testID="create-bot-avatar-customize"
+            disabled={disabled}
+            onPress={() => router.push('/create-bot-avatar')}
           />
         </View>
       </View>

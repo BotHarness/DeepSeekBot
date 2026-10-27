@@ -800,11 +800,13 @@ it('keeps the created Bot and raises a notice when its avatar cannot be applied'
   expect(controller.getSnapshot().notice).toBeUndefined();
 });
 
-it('does not apply anything when the default generated avatar is kept', async () => {
+it('applies the exact initial avatar so creating the Bot does not replace its preview', async () => {
   await named('Plain Bot');
+  const before = controller.getSnapshot().record;
+  if (before.kind !== 'draft') throw Error('Expected draft');
   await press('create-bot-submit');
   await act(async () => finish?.());
-  expect(applied).toEqual([]);
+  expect(applied).toEqual([{ channelId: 'dm-new-bot', avatar: before.draft.avatar }]);
 });
 
 it('keeps the Android identity header and footer mounted while only step content changes', async () => {

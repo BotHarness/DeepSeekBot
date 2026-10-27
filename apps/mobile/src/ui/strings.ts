@@ -20,6 +20,12 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  avatarEditor: {
+    title: 'Customize',
+    preview: 'Avatar preview',
+    saveFailed: 'Could not save the avatar. Try again.',
+    unavailable: 'Open Bot creation to customize its avatar.',
+  },
   lockScreen: {
     title: 'Lock Screen status',
     track: 'Track latest request',
@@ -2059,6 +2065,12 @@ const en = {
 };
 
 const zh: typeof en = {
+  avatarEditor: {
+    title: '捏人',
+    preview: '头像预览',
+    saveFailed: '头像未保存，请重试。',
+    unavailable: '请先打开创建 Bot。',
+  },
   lockScreen: {
     title: '锁屏状态',
     track: '跟踪最新请求',

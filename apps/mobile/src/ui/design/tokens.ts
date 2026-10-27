@@ -113,6 +113,13 @@ export const materialButton = { icon: 18, iconGap: space.x3 } as const;
 export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
 
 export const creationAvatar = { size: 112 } as const;
+export const avatarEditor = {
+  preview: 112,
+  tile: 64,
+  color: 40,
+  columns: 3,
+  largeColumns: 2,
+} as const;
 export const creationHeader = {
   avatar: 40,
   progressSpring: {
