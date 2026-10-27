@@ -41,6 +41,7 @@ import {
 import { InviteSheet } from './invite-sheet';
 import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
 import { profileTabs, type ProfileTabMemory } from './profile-tabs';
+import { ProfileHero } from './profile-hero';
 import { ProfileZoomTarget } from './profile-zoom-target';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
@@ -448,7 +449,6 @@ export function GroupProfilePage({
 
   const shell = (filesBody: ProfileTabBody) => (
     <ProfileShell
-      title={channel.name}
       identity={
         <GroupIdentity
           channel={channel}
@@ -510,38 +510,24 @@ function GroupIdentity({
 }) {
   const t = useStrings();
   return (
-    <View
-      style={{
-        alignItems: 'center',
-        gap: space.x3,
-        paddingTop: space.x5,
-        paddingBottom: space.x5,
-        paddingHorizontal: space.x5,
-      }}
+    <ProfileHero
+      name={channel.name}
+      avatar={
+        <ProfileZoomTarget>
+          <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
+            <GroupMark
+              avatar={channel.avatar}
+              size={profileShell.avatar}
+              corner={radius.round}
+              variant="display"
+            />
+          </EditableAvatar>
+        </ProfileZoomTarget>
+      }
     >
-      <ProfileZoomTarget>
-        <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
-          <GroupMark
-            avatar={channel.avatar}
-            size={profileShell.avatar}
-            corner={radius.round}
-            variant="display"
-          />
-        </EditableAvatar>
-      </ProfileZoomTarget>
-      <View style={{ alignItems: 'center', gap: space.x1 }}>
-        <Text
-          accessibilityRole="header"
-          variant="display"
-          numberOfLines={2}
-          style={{ textAlign: 'center' }}
-        >
-          {channel.name}
-        </Text>
-        <Text variant="meta" tone="muted">
-          {t.members(channel.memberCount)}
-        </Text>
-      </View>
+      <Text variant="meta" tone="muted">
+        {t.members(channel.memberCount)}
+      </Text>
       {error === undefined ? null : (
         <Text
           accessibilityRole="alert"
@@ -552,7 +538,7 @@ function GroupIdentity({
           {error}
         </Text>
       )}
-    </View>
+    </ProfileHero>
   );
 }
 
