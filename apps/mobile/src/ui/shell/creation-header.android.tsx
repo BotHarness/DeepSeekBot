@@ -10,6 +10,7 @@ import {
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, size, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
 import { View, type ViewInstance } from 'react-native';
+import { useRef } from 'react';
 import Animated, {
   ReduceMotion,
   useAnimatedProps,
@@ -38,7 +39,10 @@ export function CreationHeader({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const t = useStrings();
-  const hasIdentity = Boolean(name.trim() || avatar);
+  const retainedAvatar = useRef(avatar);
+  if (avatar !== undefined || progress !== 1) retainedAvatar.current = avatar;
+  const portrait = avatar ?? (progress === 1 ? retainedAvatar.current : undefined);
+  const hasIdentity = Boolean(name.trim() || portrait);
   const completion = useSharedValue(progress ?? 0);
   const determinate = useSharedValue(progress !== undefined);
   const animate = useMounted<ViewInstance>(() => {
@@ -104,7 +108,7 @@ export function CreationHeader({
               {hasIdentity ? (
                 <RNHostView modifiers={[size(creationHeader.avatar, creationHeader.avatar)]}>
                   <CreationAvatarPreview
-                    avatar={avatar}
+                    avatar={portrait}
                     name={name.trim()}
                     imported={imported}
                     size={creationHeader.avatar}

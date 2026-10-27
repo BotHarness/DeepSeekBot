@@ -100,7 +100,9 @@ const OptionTile = memo(function OptionTile({
       <Text variant="meta" style={{ textAlign: 'center' }}>
         {title}
       </Text>
-      {selected ? <CheckIcon color={theme.color.accent} size={theme.type.meta.line} /> : null}
+      <View style={{ height: theme.type.meta.line }}>
+        {selected ? <CheckIcon color={theme.color.accent} size={theme.type.meta.line} /> : null}
+      </View>
     </Pressable>
   );
 });
@@ -170,6 +172,8 @@ export function AvatarCustomizer({
     const next = family === 'line' ? seededLineRecipe(seed) : seededAvatarFor(seed, 2);
     setRecipe(next);
     setBase(next);
+    if (!avatarCategories(next).includes(category))
+      setCategory(next.family === 'line' ? 'eyes' : 'hair');
   };
   const save = async () => {
     if (busy) return;
@@ -225,14 +229,15 @@ export function AvatarCustomizer({
         </View>
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
+            flexDirection: theme.largeText ? 'column' : 'row',
+            alignItems: theme.largeText ? 'stretch' : 'center',
             gap: space.x2,
             paddingHorizontal: space.x4,
           }}
         >
           <FlatList
             testID="avatar-editor-categories"
+            style={{ flex: theme.largeText ? undefined : 1 }}
             horizontal
             data={avatarCategories(recipe)}
             keyExtractor={(value) => value}
