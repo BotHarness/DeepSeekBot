@@ -27,6 +27,10 @@ import {
   createTobBotProfileOperations,
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
+import {
+  createTobShareDraftOperations,
+  TOB_SHARE_DRAFT_CAPABILITIES,
+} from './tob/cli-share-draft-operations.js';
 import { followCompanion } from './companions/live.js';
 import {
   createTobService,
@@ -123,6 +127,7 @@ import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
+import { createShareDrafts } from './marketplace/share-draft.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import {
   createLoadingReleaseService,
@@ -1323,6 +1328,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobMaintenanceOperations(command, args)) ??
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
+                    (await tobShareDraftOperations(command, args)) ??
                     (await tobChannelOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
@@ -1344,6 +1350,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_MAINTENANCE_CAPABILITIES,
                   ...TOB_BOT_CREATE_CAPABILITIES,
                   ...TOB_BOT_PROFILE_CAPABILITIES,
+                  ...TOB_SHARE_DRAFT_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
@@ -2425,6 +2432,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const marketplaceClient = createMarketplaceClient({
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
   });
+  const shareDrafts = createShareDrafts({
+    root: join(dshHome, 'botharness', 'share-drafts'),
+    memoryDir: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    log: (event) => ctx.logger.info(JSON.stringify(event)),
+  });
   const bridgeMethods = createBridgeMethods({
     prompts: core.prompts,
     botContext: async (slug) => {
@@ -2607,10 +2620,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     marketplaceUploads: createMarketplaceUploads({
       client: marketplaceClient,
       account: () => connectAccount,
-      memoryDir: (slug) =>
-        core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+      drafts: shareDrafts,
       log: (event) => ctx.logger.info(JSON.stringify(event)),
     }),
+    shareDrafts,
     release: releaseService,
     plugins: pluginUpdates,
     telemetry,
@@ -2703,6 +2716,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  const tobShareDraftOperations = createTobShareDraftOperations({ bridge: () => bridgeMethods });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,

@@ -64,6 +64,7 @@ import type {
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
+import type { ShareDraftView } from './methods.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,
@@ -2188,6 +2189,39 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags }));
   }
 
+  shareDraftStart(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftStart({ slug }));
+  }
+
+  shareDraftGet(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftGet({ slug }));
+  }
+
+  shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
+    return unwrap(this.methods.shareDraftFile({ slug, path }));
+  }
+
+  shareDraftDecide(
+    slug: string,
+    path: string,
+    decision: 'keep' | 'drop' | 'rewrite',
+    text?: string,
+  ): ShareDraftView {
+    return unwrap(this.methods.shareDraftDecide({ slug, path, decision, text }));
+  }
+
+  shareDraftFinish(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftFinish({ slug }));
+  }
+
+  shareDraftDiscard(slug: string): { discarded: boolean } {
+    return unwrap(this.methods.shareDraftDiscard({ slug }));
+  }
+
+  async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
+    return unwrapAsync(this.methods.shareDraftExport({ slug }));
+  }
+
   async marketplaceInstall(
     id: string,
     operationKey?: string,
@@ -2522,6 +2556,13 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceAuthorSave',
   'marketplaceUploadPlan',
   'marketplaceUpload',
+  'shareDraftStart',
+  'shareDraftGet',
+  'shareDraftFile',
+  'shareDraftDecide',
+  'shareDraftFinish',
+  'shareDraftDiscard',
+  'shareDraftExport',
   'marketplaceInstall',
   'releaseInfo',
   'releaseUpdate',
