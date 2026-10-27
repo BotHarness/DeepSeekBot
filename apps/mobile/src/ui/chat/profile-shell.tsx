@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
 import { profileShell, radius, space, swipeRow } from '../design/tokens';
-import { systemSegmented } from '../design/system-tokens';
+import { systemSegmented } from '../design/system-shape';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
 import { SheetGrabber } from '../primitives/sheet-grabber';
 import { Text } from '../primitives/text';
@@ -143,7 +143,7 @@ export function ProfileShell({
             style={{
               paddingHorizontal: space.x5,
               paddingVertical: space.x3,
-              backgroundColor: stuck ? 'transparent' : theme.overlay.fill,
+              backgroundColor: theme.overlay.fill,
             }}
           >
             <View

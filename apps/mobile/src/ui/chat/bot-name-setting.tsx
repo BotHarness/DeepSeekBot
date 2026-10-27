@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { errorText } from '../../host/bot-settings';
@@ -98,10 +98,12 @@ export function BotNameSetting({
   name,
   onSave,
   on = 'sheet',
+  leading,
 }: {
   name: string;
   onSave(name: string): Promise<void>;
   on?: LayerName;
+  leading?: ReactNode;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -113,6 +115,7 @@ export function BotNameSetting({
         testID="bot-name-change"
         title={t.botName}
         detail={name}
+        leading={leading}
         accessibilityLabel={`${t.botRename}, ${name}`}
         trailing={<ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />}
         onPress={() => setEditing(true)}

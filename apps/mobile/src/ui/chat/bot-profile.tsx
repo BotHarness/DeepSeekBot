@@ -750,18 +750,24 @@ export function BotProfilePage({
                 </View>
               )),
             ]),
-        section(
-          'settings:notifications',
-          <SettingsSection on="raised">
-            <SettingsRow
-              on="raised"
-              testID="profile-notifications"
-              title={t.profileNotifications}
-              trailing={<ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />}
-              onPress={actions.onNotifications}
-            />
-          </SettingsSection>,
-        ),
+        ...(content.ready && settings !== undefined
+          ? []
+          : [
+              section(
+                'settings:notifications',
+                <SettingsSection on="raised">
+                  <SettingsRow
+                    on="raised"
+                    testID="profile-notifications"
+                    title={t.profileNotifications}
+                    trailing={
+                      <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+                    }
+                    onPress={actions.onNotifications}
+                  />
+                </SettingsSection>,
+              ),
+            ]),
         section(
           'settings:avatar',
           <AvatarSettings

@@ -12,7 +12,7 @@ import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { LoadingIndicator } from '../primitives/loading-indicator';
-import { ChevronRightIcon, CpuIcon } from '../shell/icons';
+import { ActivityIcon, ChevronRightIcon, CpuIcon, PersonIcon, PhotoIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { modelLabel } from './composer-labels';
@@ -75,6 +75,7 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
           'name',
           <BotNameSetting
             on="raised"
+            leading={<PersonIcon color={theme.color.fg} size={ICON} />}
             name={bot.displayName}
             onSave={(name) => renameBot(client, bot.slug, name)}
           />,
@@ -102,8 +103,27 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
                 on="raised"
                 testID="bot-chat-background"
                 title={t.chatBackground.title}
+                leading={<PhotoIcon color={theme.color.fg} size={ICON} />}
                 trailing={openingBackground ? <LoadingIndicator /> : chevron}
                 onPress={openingBackground ? undefined : () => void openBackground()}
+              />,
+            )}
+        {saved == null
+          ? null
+          : divided(
+              'notifications',
+              <SettingsRow
+                on="raised"
+                testID="profile-notifications"
+                title={t.profileNotifications}
+                leading={<ActivityIcon color={theme.color.fg} size={ICON} />}
+                trailing={chevron}
+                onPress={() =>
+                  router.push({
+                    pathname: '/bot/[slug]/notifications',
+                    params: { slug: bot.slug, hostId: saved.hostId },
+                  })
+                }
               />,
             )}
       </SettingsSection>

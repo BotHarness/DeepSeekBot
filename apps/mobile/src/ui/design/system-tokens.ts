@@ -1,4 +1,4 @@
-import { Platform, PlatformColor } from 'react-native';
+import { PlatformColor } from 'react-native';
 
 export { variantRamp as systemType } from './system-type';
 
@@ -14,8 +14,4 @@ export const systemColors = {
   fill: PlatformColor('systemFill'),
 } as const;
 
-const iosMajor = Platform.OS === 'ios' ? Number.parseInt(String(Platform.Version), 10) : 0;
-
-export const systemSegmented = {
-  radius: iosMajor >= 26 ? 9999 : 9,
-} as const;
+export { systemSegmented } from './system-shape';
