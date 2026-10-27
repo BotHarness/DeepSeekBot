@@ -3125,6 +3125,180 @@ export async function loadSessionSubagents(
   return { subagents, omitted };
 }
 
+const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
+
+export interface AssignmentWorkStep {
+  status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
+  kind: string;
+  tool: string;
+  detail?: string;
+  at: string;
+  round?: number;
+}
+
+export interface AssignmentWorkLane {
+  role: 'main' | 'subagent';
+  index: number;
+  sessionId: string;
+  title?: string;
+  route?: SessionModelRoute;
+  state: SessionSubagent['state'];
+  round?: number;
+  entries: AssignmentWorkStep[];
+  omitted: number;
+}
+
+export interface AssignmentWorkRound {
+  index: number;
+  kind: 'created' | 'continued';
+  at: string;
+  instruction?: string;
+}
+
+export interface AssignmentWork {
+  title: string;
+  description: string;
+  activity: ChannelAssignmentSummary['activity'];
+  latestReport?: {
+    state: NonNullable<ChannelAssignmentSummary['latestReport']>['state'];
+    summary: string;
+    at?: string;
+  };
+  rounds: AssignmentWorkRound[];
+  lanes: AssignmentWorkLane[];
+  omittedSubagents: number;
+  omittedRounds: number;
+}
+
+function positiveCount(value: unknown): number {
+  return typeof value === 'number' && value > 0 ? value : 0;
+}
+
+function workStepOf(value: unknown): AssignmentWorkStep[] {
+  const entry = asRecord(value);
+  const status = entry?.['status'];
+  const tool = entry?.['tool'];
+  const at = entry?.['at'];
+  if (
+    !WORK_STEP_STATUSES.includes(status as string) ||
+    typeof tool !== 'string' ||
+    typeof at !== 'string'
+  )
+    return [];
+  const kind = entry?.['kind'];
+  const detail = entry?.['detail'];
+  const round = entry?.['round'];
+  return [
+    {
+      status: status as AssignmentWorkStep['status'],
+      kind: typeof kind === 'string' ? kind : 'other',
+      tool,
+      ...(typeof detail === 'string' && detail.trim() !== '' ? { detail } : {}),
+      at,
+      ...(typeof round === 'number' ? { round } : {}),
+    },
+  ];
+}
+
+function workLaneOf(value: unknown): AssignmentWorkLane[] {
+  const lane = asRecord(value);
+  const role = lane?.['role'];
+  const index = lane?.['index'];
+  const sessionId = lane?.['sessionId'];
+  const state = lane?.['state'];
+  const entries = lane?.['entries'];
+  if (
+    (role !== 'main' && role !== 'subagent') ||
+    typeof index !== 'number' ||
+    typeof sessionId !== 'string' ||
+    !Array.isArray(entries)
+  )
+    return [];
+  const title = lane?.['title'];
+  const route = parseSessionModelRoute(lane?.['route']);
+  const round = lane?.['round'];
+  return [
+    {
+      role,
+      index,
+      sessionId,
+      ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
+      ...(route === undefined ? {} : { route }),
+      state: SUBAGENT_LANE_STATES.includes(state as string)
+        ? (state as SessionSubagent['state'])
+        : 'idle',
+      ...(typeof round === 'number' ? { round } : {}),
+      entries: entries.flatMap(workStepOf),
+      omitted: positiveCount(lane?.['omitted']),
+    },
+  ];
+}
+
+function workRoundOf(value: unknown): AssignmentWorkRound[] {
+  const round = asRecord(value);
+  const index = round?.['index'];
+  const kind = round?.['kind'];
+  const at = round?.['at'];
+  if (
+    typeof index !== 'number' ||
+    (kind !== 'created' && kind !== 'continued') ||
+    typeof at !== 'string'
+  )
+    return [];
+  const instruction = round?.['instruction'];
+  return [
+    {
+      index,
+      kind,
+      at,
+      ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
+    },
+  ];
+}
+
+export async function loadAssignmentWork(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<AssignmentWork> {
+  const value = asRecord(await unwrap(call, 'assignmentTimeline', { slug, sessionId }));
+  const assignment = asRecord(value?.['assignment']);
+  const lanes = value?.['lanes'];
+  const title = assignment?.['title'];
+  const activity = assignment?.['activity'];
+  if (
+    typeof title !== 'string' ||
+    !ASSIGNMENT_ACTIVITIES.includes(activity as string) ||
+    !Array.isArray(lanes)
+  )
+    throw new Error('invalid assignmentTimeline response');
+  const description = assignment?.['description'];
+  const report = asRecord(assignment?.['latestReport']);
+  const reportState = report?.['state'];
+  const reportSummary = report?.['summary'];
+  const reportAt = report?.['at'];
+  const rounds = value?.['rounds'];
+  return {
+    title,
+    description: typeof description === 'string' ? description : '',
+    activity: activity as AssignmentWork['activity'],
+    ...(ASSIGNMENT_REPORT_STATES.includes(reportState as string) &&
+    typeof reportSummary === 'string'
+      ? {
+          latestReport: {
+            state: reportState as NonNullable<AssignmentWork['latestReport']>['state'],
+            summary: reportSummary,
+            ...(typeof reportAt === 'string' ? { at: reportAt } : {}),
+          },
+        }
+      : {}),
+    rounds: Array.isArray(rounds) ? rounds.flatMap(workRoundOf) : [],
+    lanes: lanes.flatMap(workLaneOf),
+    omittedSubagents: positiveCount(value?.['omittedSubagents']),
+    omittedRounds: positiveCount(value?.['omittedRounds']),
+  };
+}
+
 export async function loadGroupWakePolicies(
   call: BridgeCall,
   channelId: string,

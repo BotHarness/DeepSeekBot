@@ -7,6 +7,7 @@ export class SessionRecoveryError extends Error {
       | 'session-changed'
       | 'retry-unavailable'
       | 'compaction-failed'
+      | 'session-unsaved'
       | 'recovery-unavailable',
     message: string,
   ) {

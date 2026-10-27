@@ -5,6 +5,7 @@ export type SessionMaintenanceNotice =
   | 'nothing'
   | 'busy'
   | 'failed'
+  | 'unsaved'
   | 'unavailable';
 export interface SessionMaintenancePort {
   compact(slug: string): Promise<unknown>;
@@ -51,8 +52,9 @@ export function createSessionMaintenance(
             notice = result.outcome;
         }
       } catch (error) {
-        if (error && typeof error === 'object' && 'code' in error && error.code === 'bot-busy')
-          notice = 'busy';
+        const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+        if (code === 'bot-busy') notice = 'busy';
+        else if (code === 'session-unsaved') notice = 'unsaved';
       } finally {
         pending = undefined;
         publish({ pending: undefined, notice });

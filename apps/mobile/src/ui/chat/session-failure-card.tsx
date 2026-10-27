@@ -34,6 +34,7 @@ export function SessionFailureCard({
     nothing: t.sessionRecovery.nothing,
     busy: t.sessionRecovery.busy,
     failed: t.sessionRecovery.compactionFailed,
+    unsaved: t.sessionRecovery.unsaved,
     unavailable: t.sessionRecovery.failed,
   };
   const refusal = failure.code === undefined ? undefined : t.sessionRecovery.refused[failure.code];

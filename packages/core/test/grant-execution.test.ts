@@ -5,6 +5,7 @@ import {
 } from '@deepseek-ai/dsh-subagent';
 
 import {
+  alignAssignmentPermission,
   alignOrchestratorPermission,
   alignOrchestratorSubagentPermission,
   borrowedAgentDenial,
@@ -876,6 +877,77 @@ describe('Workspace Grant execution boundary', () => {
     expect(
       borrowedAgentDenial(core, state.assignment, 'assignment', state.policy, state.approval),
     ).toMatch(/snapshot is missing/);
+  });
+  it('lets the Host borrow a native Assignment whose mode drifted from its snapshot', () => {
+    const state = fixture();
+    const appended: Array<[string, unknown]> = [];
+    const assignment = {
+      id: assignmentSessionId,
+      header: { cwd },
+      append: (type: string, data: { mode?: string; policy?: string }) => {
+        appended.push([type, data]);
+        if (type === 'sandbox/mode') state.resolvePolicy.mockReturnValue({ mode: data.mode! });
+        if (type === 'approval/policy') state.overrideOf.mockReturnValue(data.policy!);
+      },
+    } as never;
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    state.overrideOf.mockReturnValue('never');
+    expect(grantExecutionDenial(state.core, assignment, state.policy, state.approval)).toMatch(
+      /differs from its snapshot/,
+    );
+    expect(
+      borrowedAgentDenial(state.core, assignment, 'assignment', state.policy, state.approval),
+    ).toBeUndefined();
+    expect(appended).toEqual([
+      ['sandbox/mode', { mode: 'workspace-write' }],
+      ['approval/policy', { policy: 'ask' }],
+    ]);
+    expect(alignAssignmentPermission(state.core, assignment, state.policy, state.approval)).toBe(
+      false,
+    );
+  });
+  it('keeps refusing a drifted Assignment whose Grant or working directory no longer matches', () => {
+    const state = fixture();
+    const append = vi.fn();
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    const moved = { id: assignmentSessionId, header: { cwd: '/tmp/elsewhere' }, append } as never;
+    expect(
+      borrowedAgentDenial(state.core, moved, 'assignment', state.policy, state.approval),
+    ).toMatch(/snapshot is missing or mismatched/);
+    const assignment = { id: assignmentSessionId, header: { cwd }, append } as never;
+    state.requireActive.mockImplementation(() => {
+      throw new Error('revoked');
+    });
+    expect(
+      borrowedAgentDenial(state.core, assignment, 'assignment', state.policy, state.approval),
+    ).toMatch(/permission mode differs from its snapshot/);
+    expect(append).not.toHaveBeenCalled();
+  });
+  it('leaves delegated Assignment Subagents to their own snapshot check', () => {
+    const state = fixture();
+    const core = {
+      ...(state.core as object),
+      ownership: {
+        resolve: (sessionId: string) =>
+          sessionId === 'assignment-child'
+            ? {
+                sessionId,
+                botSlug,
+                rootRole: 'assignment',
+                provenance: 'subagent',
+                parentSessionId: assignmentSessionId,
+              }
+            : { sessionId, botSlug, rootRole: 'assignment' },
+      },
+    } as never;
+    const append = vi.fn();
+    const child = {
+      id: 'assignment-child',
+      header: { cwd, parentSession: assignmentSessionId },
+      append,
+    } as never;
+    expect(alignAssignmentPermission(core, child, state.policy, state.approval)).toBeUndefined();
+    expect(append).not.toHaveBeenCalled();
   });
 });
 

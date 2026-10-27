@@ -716,8 +716,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
   async loadOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     this.#assertOpen();
-    if (this.#hasSession && !(await this.#hasSession(run.sessionId)))
-      throw new Error('Original Session is unavailable');
+    if (this.#hasSession && !(await this.#hasSession(run.sessionId))) {
+      const error = new Error('Original Session is unavailable');
+      error.name = 'SessionUnavailableError';
+      throw error;
+    }
     await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
     await this.#orchestratorHandle(run);
   }

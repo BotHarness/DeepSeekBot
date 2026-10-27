@@ -128,7 +128,9 @@ import {
   loadGroupWakePolicies,
   loadChannelAssignments,
   loadSessionSubagents,
+  loadAssignmentWork,
   type SessionSubagent,
+  type AssignmentWork,
   deleteGroupChannel,
   createPersonaBot,
   type CreatedBot,
@@ -928,6 +930,7 @@ export interface BridgeActions {
     slug: string,
     sessionId: string,
   ): Promise<{ subagents: SessionSubagent[]; omitted: number }>;
+  assignmentWork?(slug: string, sessionId: string): Promise<AssignmentWork>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -3336,6 +3339,9 @@ export function createActions(
     },
     sessionSubagents(slug, sessionId) {
       return loadSessionSubagents(call, slug, sessionId);
+    },
+    assignmentWork(slug, sessionId) {
+      return loadAssignmentWork(call, slug, sessionId);
     },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);
