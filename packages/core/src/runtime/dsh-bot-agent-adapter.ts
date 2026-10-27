@@ -279,6 +279,8 @@ export interface DshBotAgentAdapterOptions {
 
   observeTurnFailure?: (provider: string, code: string) => void;
 
+  turnRefusal?: (sessionId: string) => string | undefined;
+
   promptText?: (sessionId: string) => PromptText;
 }
 
@@ -346,6 +348,7 @@ function requireCompletedTurn(
   cancelledTurn?: AssignmentAgentRun['cancelledTurn'],
   failedTurn?: AssignmentAgentRun['failedTurn'],
   observeFailure?: (code: string) => void,
+  refusal?: string,
 ): { turn: number; endSeq: number } {
   const turnEnd = handle.agent.session
     .snapshotEvents(fromSeq)
@@ -381,6 +384,7 @@ function requireCompletedTurn(
     throw new Error(
       'OUTPUT_TOKEN_LIMIT: The model reached its output limit before completing this reply',
     );
+  if (reason.kind === 'blocked' && refusal !== undefined) throw new Error(refusal);
   throw new Error(`Agent turn ended without completion: ${reason.kind}`);
 }
 
@@ -398,6 +402,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #subagentTools: DshBotAgentAdapterOptions['subagentTools'];
   readonly #prepareModelRoute: DshBotAgentAdapterOptions['prepareModelRoute'];
   readonly #observeTurnFailure: DshBotAgentAdapterOptions['observeTurnFailure'];
+  readonly #turnRefusal: DshBotAgentAdapterOptions['turnRefusal'];
   readonly #promptText: (sessionId: string) => PromptText;
   readonly #hasSession: DshBotAgentAdapterOptions['hasSession'];
   readonly #orchestratorCwd: ((bot: PersonaBotRecord) => string | undefined) | undefined;
@@ -435,6 +440,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#subagentTools = options.subagentTools;
     this.#prepareModelRoute = options.prepareModelRoute;
     this.#observeTurnFailure = options.observeTurnFailure;
+    this.#turnRefusal = options.turnRefusal;
     this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
     this.#hasSession = options.hasSession;
     this.#orchestratorCwd = options.orchestratorCwd;
@@ -512,9 +518,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       await handle.agent.whenIdle();
       if (this.#humanStops.has(run.sessionId) && turnAborted(handle, fromSeq)) return;
       const provider = selection?.current?.provider;
-      requireCompletedTurn(handle, fromSeq, undefined, undefined, (code) => {
-        if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
-      });
+      requireCompletedTurn(
+        handle,
+        fromSeq,
+        undefined,
+        undefined,
+        (code) => {
+          if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
+        },
+        this.#turnRefusal?.(run.sessionId),
+      );
     } finally {
       this.#humanStops.delete(run.sessionId);
       this.#drafts.end(run.sessionId);
@@ -676,6 +689,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         (code) => {
           if (provider !== undefined) this.#observeTurnFailure?.(provider, code);
         },
+        this.#turnRefusal?.(run.sessionId),
       );
       run.completedTurn?.(completion);
       if (run.resume === true) return;

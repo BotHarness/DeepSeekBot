@@ -11,6 +11,7 @@ import {
   deviceToolAuthorization,
   grantExecutionDenial,
   isDshGovernedTool,
+  sessionRefusalMessage,
   grantToolExecutionDenial,
   orchestratorPermission,
   requiresHumanToolApproval,
@@ -757,6 +758,58 @@ describe('Workspace Grant execution boundary', () => {
     expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toMatch(
       /differs from this PersonaBot's access setting/,
     );
+  });
+  it.each([
+    [
+      'Orchestrator Session requires its Memory working directory',
+      'MEMORY_CWD_MISMATCH',
+      'Start a new Session',
+    ],
+    [
+      "Orchestrator Session permission differs from this PersonaBot's access setting",
+      'SESSION_PERMISSION_MISMATCH',
+      'Full access',
+    ],
+    [
+      "Orchestrator Subagent permission differs from this PersonaBot's access setting",
+      'SESSION_PERMISSION_MISMATCH',
+      'Full access',
+    ],
+    [
+      'Assignment Session permission snapshot is missing or mismatched',
+      'ASSIGNMENT_PERMISSION_MISMATCH',
+      'new Assignment',
+    ],
+    [
+      'Assignment Session permission mode differs from its snapshot',
+      'ASSIGNMENT_PERMISSION_MISMATCH',
+      'new Assignment',
+    ],
+    [
+      'Assignment Workspace Grant is missing, revoked, or unavailable',
+      'GRANT_UNAVAILABLE',
+      'Authorize the folder again',
+    ],
+    [
+      'Assignment Workspace Grant no longer matches its permission snapshot',
+      'GRANT_UNAVAILABLE',
+      'Authorize the folder again',
+    ],
+    [
+      'DSH permission services are unavailable for BotHarness Session',
+      'PERMISSION_UNAVAILABLE',
+      'Restart the Host',
+    ],
+    ['BotHarness Session has no durable owner', 'SESSION_OWNER_MISSING', 'Start a new Session'],
+    ['BotHarness Session ownership is cyclic', 'SESSION_OWNER_MISSING', 'Start a new Session'],
+    ['Unknown BotHarness Session role', 'SESSION_OWNER_MISSING', 'Start a new Session'],
+    ['PersonaBot identity is deleted or unavailable', 'BOT_UNAVAILABLE', undefined],
+    ['Something new', 'SESSION_REFUSED', undefined],
+  ])('names the refusal %s and its Human fix', (denial, code, fix) => {
+    const message = sessionRefusalMessage(denial);
+    expect(message.startsWith(`${code}: The Host refused this turn: ${denial}.`)).toBe(true);
+    if (fix === undefined) expect(message).toBe(`${code}: The Host refused this turn: ${denial}.`);
+    else expect(message).toContain(fix);
   });
   it('aligns a natively resumed Orchestrator whose access setting changed while it was idle', () => {
     const state = fixture();

@@ -382,6 +382,31 @@ const en = {
     newDone: 'New session ready for your next message',
     compacted: 'Context compacted',
     nothing: 'Nothing to compact yet',
+    refused: {
+      MEMORY_CWD_MISMATCH: [
+        "The session's working directory is not this Bot's Memory directory",
+        'Start a new session; it opens in the Memory directory.',
+      ],
+      SESSION_PERMISSION_MISMATCH: [
+        "Session permissions differ from this Bot's access setting",
+        "Start a new session, or check Full access in this Bot's workspace settings.",
+      ],
+      ASSIGNMENT_PERMISSION_MISMATCH: [
+        'Assignment permissions differ from their snapshot',
+        'Ask the Bot to start a new Assignment.',
+      ],
+      GRANT_UNAVAILABLE: [
+        "The Assignment's Workspace Grant was revoked or no longer matches",
+        'Authorize the folder again on a Workspace Grant card, then ask the Bot to start a new Assignment.',
+      ],
+      PERMISSION_UNAVAILABLE: [
+        'DSH permission services are unavailable',
+        'Restart the Host and retry.',
+      ],
+      BOT_UNAVAILABLE: ['This Bot is deleted or unavailable'],
+      SESSION_OWNER_MISSING: ['The session has no owner record', 'Start a new session.'],
+      SESSION_REFUSED: ['The Host refused this turn'],
+    } as Record<string, readonly [string, string?]>,
   },
   createHere: 'Create or join',
   chooseCreationTarget: 'Choose where to create',
@@ -2361,6 +2386,25 @@ const zh: typeof en = {
     newDone: '已开启新会话，可以发送下一条消息',
     compacted: '上下文已压缩',
     nothing: '当前没有可压缩的内容',
+    refused: {
+      MEMORY_CWD_MISMATCH: [
+        '会话的工作目录不是这个 Bot 的 Memory 目录',
+        '开启新会话即可，新会话会在 Memory 目录中打开。',
+      ],
+      SESSION_PERMISSION_MISMATCH: [
+        '会话权限与这个 Bot 的访问设置不一致',
+        '开启新会话，或检查这个 Bot 工作区设置里的“完全访问”开关。',
+      ],
+      ASSIGNMENT_PERMISSION_MISMATCH: ['事项的权限与创建时的快照不一致', '让 Bot 新建一个事项。'],
+      GRANT_UNAVAILABLE: [
+        '事项的工作区授权已撤销或不再匹配',
+        '在工作区授权卡片上重新授权文件夹，然后让 Bot 新建一个事项。',
+      ],
+      PERMISSION_UNAVAILABLE: ['DSH 权限服务不可用', '重启 Host 后重试。'],
+      BOT_UNAVAILABLE: ['这个 Bot 已删除或不可用'],
+      SESSION_OWNER_MISSING: ['会话缺少归属记录', '开启新会话即可。'],
+      SESSION_REFUSED: ['Host 拒绝了这一轮'],
+    },
   },
   createHere: '创建或加入',
   chooseCreationTarget: '选择创建位置',
