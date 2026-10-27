@@ -191,6 +191,7 @@ import {
   toggleSelection,
   type MessageSelection,
 } from './message-selection-state.js';
+import { useAvatarFollow } from './avatar-follow.js';
 import { useMountedResource } from './mounted-resource.js';
 import * as stylex from '@stylexjs/stylex';
 import { IconButton } from './ds/icon-button.js';
@@ -671,14 +672,17 @@ const MessageGroupView = memo(function MessageGroupView({
       ? bots.find((candidate) => candidate.slug === currentDmBotSlug)
       : undefined;
   const bubbleStyle = humanBubbleStyle(botNameSource(dmBot), surface.background);
+  const lastId = group.messages[group.messages.length - 1]!.id;
+  const arriving = arrivals?.has(lastId) === true;
+  const follow = useAvatarFollow(lastId, arriving);
   return (
     <div
-      className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
+      className={`bh-message-group${human ? ' bh-message-group-me' : ''}${arriving && group.messages.length === 1 ? ' bh-message-group-enter' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}
     >
       {avatar === undefined ? null : (
-        <span className="bh-message-group-avatar">
+        <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
             author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
               <button

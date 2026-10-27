@@ -544,6 +544,7 @@ export const MessageBubble = memo(function MessageBubble({
         inset={row.paddingTop}
         style={row}
         bubble={surface}
+        entering={enter}
       />
     );
   return <View style={row}>{surface}</View>;

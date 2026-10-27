@@ -3509,6 +3509,20 @@ html[data-botharness-motion='reduce'] .bh-bubble-enter { animation-name: bh-fade
   from { opacity: 0; transform: scale(0.92); }
   to { opacity: 1; transform: none; }
 }
+.bh-message-group-enter .bh-message-group-avatar {
+  transform-origin: center bottom;
+  animation: bh-avatar-enter 220ms var(--bh-ease-out) both;
+}
+.bh-message-group-enter .bh-message-identity {
+  animation: bh-fade-in 220ms var(--bh-ease-out) both;
+}
+html[data-botharness-motion='reduce'] .bh-message-group-enter .bh-message-group-avatar {
+  animation-name: bh-fade-in;
+}
+@keyframes bh-avatar-enter {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
 .bh-bubble {
   text-align: left;
   width: fit-content;

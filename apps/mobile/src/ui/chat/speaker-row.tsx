@@ -1,11 +1,14 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { View, type LayoutChangeEvent, type ViewStyle, type ViewInstance } from 'react-native';
 import Animated, {
+  Easing,
   makeMutable,
   measure,
   useAnimatedRef,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
+  withTiming,
   type AnimatedRef,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -13,9 +16,11 @@ import Animated, {
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { easeOut, motion, popScale, space } from '../design/tokens';
+import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { AVATAR_CORNER } from './bubble-shape';
+import { usePopIn } from './pop-in';
 import { groupSpan, speakerLift, type SpeakerRowLayout } from './speaker-span';
 
 export type Speaker = {
@@ -86,6 +91,7 @@ export function SpeakerRow({
   style,
   bubble,
   after,
+  entering = false,
 }: {
   speaker: Speaker;
   rowKey: string;
@@ -93,6 +99,7 @@ export function SpeakerRow({
   style: ViewStyle;
   bubble: ReactNode;
   after?: ReactNode;
+  entering?: boolean;
 }) {
   const stage = useContext(SpeakerStageContext);
   const row = useAnimatedRef<ViewInstance>();
@@ -117,11 +124,12 @@ export function SpeakerRow({
               surface={surface}
               laidOut={laidOut}
               inset={inset}
+              entering={entering}
             />
           ) : null}
         </Animated.View>
         <View style={{ flex: 1, gap: space.x1 }}>
-          {speaker.first ? <AuthorName name={speaker.name} /> : null}
+          {speaker.first ? <AuthorName name={speaker.name} entering={entering} /> : null}
           <Animated.View
             ref={surface}
             collapsable={false}
@@ -145,6 +153,7 @@ function StickyAvatar({
   surface,
   laidOut,
   inset,
+  entering,
 }: {
   speaker: Speaker;
   stage: SpeakerStage | undefined;
@@ -152,13 +161,22 @@ function StickyAvatar({
   surface: AnimatedRef<ViewInstance>;
   laidOut: SharedValue<number>;
   inset: number;
+  entering: boolean;
 }) {
+  const reduced = useReducedMotion();
+  const follows = entering && !speaker.first && !reduced;
+  const follow = useSharedValue(follows ? 1 : 0);
+  const glide = useMounted<ViewInstance>(() => {
+    if (follow.get() > 0)
+      follow.set(withTiming(0, { duration: motion.bubble, easing: Easing.bezier(...easeOut) }));
+  }, []);
+  const pop = usePopIn(entering && speaker.first, { from: popScale.badge });
   const scroll = stage?.scroll;
   const viewport = stage?.viewport;
   const viewportLayout = stage?.viewportLayout;
   const floor = stage?.floor ?? 0;
   const span = stage?.registry.span(speaker.group);
-  const motion = useAnimatedStyle(() => {
+  const place = useAnimatedStyle(() => {
     if (scroll === undefined || viewport === undefined || span === undefined)
       return { opacity: 1, transform: [{ translateY: 0 }] };
     const settled =
@@ -176,11 +194,18 @@ function StickyAvatar({
       rest,
       span: span.value + inset,
     });
-    return { opacity: 1, transform: [{ translateY: rest - lift }] };
+    const distance = rest + SPEAKER_AVATAR + inset;
+    return { opacity: 1, transform: [{ translateY: rest - lift - follow.get() * distance }] };
   });
   return (
-    <Animated.View style={[{ position: 'absolute', top: 0, left: 0 }, motion]}>
-      <SpeakerAvatar speaker={speaker} />
+    <Animated.View style={[{ position: 'absolute', top: 0, left: 0 }, place]}>
+      <Animated.View style={[{ transformOrigin: 'center bottom' }, pop.style]}>
+        <View ref={pop.ref}>
+          <View ref={glide}>
+            <SpeakerAvatar speaker={speaker} />
+          </View>
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -209,10 +234,15 @@ function SpeakerAvatar({ speaker }: { speaker: Speaker }) {
   );
 }
 
-function AuthorName({ name }: { name: string }) {
+function AuthorName({ name, entering }: { name: string; entering: boolean }) {
+  const pop = usePopIn(entering, { from: 1 });
   return (
-    <Text variant="meta" tone="muted" strong numberOfLines={1}>
-      {name}
-    </Text>
+    <Animated.View style={pop.style}>
+      <View ref={pop.ref}>
+        <Text variant="meta" tone="muted" strong numberOfLines={1}>
+          {name}
+        </Text>
+      </View>
+    </Animated.View>
   );
 }
