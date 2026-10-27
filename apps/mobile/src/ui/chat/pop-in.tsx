@@ -34,8 +34,8 @@ export function usePopIn(
   }));
   const ref = useMounted<ViewInstance>(() => {
     if (show) {
-      if (opacity.get() < 1) opacity.set(withSpring(1, spring.effects.fast));
-      if (grow.get() < 1) grow.set(withSpring(1, spring.spatial.fast));
+      opacity.set(withSpring(1, spring.effects.fast));
+      grow.set(withSpring(1, spring.spatial.fast));
       return;
     }
     if (onHidden === undefined) {
