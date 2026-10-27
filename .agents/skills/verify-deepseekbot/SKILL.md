@@ -63,6 +63,9 @@ Bot mode is slow, hot or laggy, measure before and after with `scripts/perf-idle
 It seeds a long Group without a model, mounts the whole history, and reports idle main-thread
 time, typing latency per key and the hottest functions. Follow
 [the performance guide](references/performance.md) for the A/B protocol and how to read it.
+Add `--budget scripts/perf-budgets/timeline.json` so the run fails on a regression; the rules
+for when to measure and what evidence a PR needs are in
+[performance observation and verification](../../../docs/agents/ax-performance.md).
 
 ## Native mobile
 
