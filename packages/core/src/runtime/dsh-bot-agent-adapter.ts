@@ -563,7 +563,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#drafts.accept(sessionId, frame);
   }
 
-  /** Drop the handle of an Agent DSH disposed on its own, such as on a plugin reload. */
   forgetAgent(agent: Agent): void {
     const sessionId = String(agent.session.id);
     if (this.#handles.get(sessionId)?.agent === agent) this.#forgetHandle(sessionId);
@@ -576,10 +575,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#assignmentSelections.delete(sessionId);
   }
 
-  /**
-   * The cached handle only while DSH still holds its Agent. A disposed Agent
-   * cannot run another Turn, so its handle is released and the caller resumes.
-   */
   async #liveHandle(sessionId: string): Promise<AgentHandle | undefined> {
     const handle = this.#handles.get(sessionId);
     if (handle === undefined || this.#agents.get === undefined) return handle;

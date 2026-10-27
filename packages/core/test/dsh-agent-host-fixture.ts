@@ -70,7 +70,6 @@ export class FakeAgentHost implements DshAgentHost {
   readonly #cwdBySession = new Map<string, string | undefined>();
   readonly #live = new Map<string, Agent>();
 
-  /** DSH disposes a live Agent on its own, as a plugin reload or a borrowed owner's release does. */
   disposeFromDsh(sessionId: string): Agent {
     const agent = this.#live.get(sessionId);
     if (agent === undefined) throw new Error(`No live Agent for ${sessionId}`);
