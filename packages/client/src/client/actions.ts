@@ -18,7 +18,12 @@ import type {
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { unreadAfterAnchor } from './timeline-position.js';
-import { reactToChannelMessage, searchChannelMessages } from './bridge.js';
+import {
+  reactToChannelMessage,
+  searchAllMessages,
+  searchChannelMessages,
+  type MessageSearchPage,
+} from './bridge.js';
 import { toggledReactions } from './message-reactions-model.js';
 import {
   gitInstalling,
@@ -638,6 +643,7 @@ export interface BridgeActions {
     text: string,
     cursor?: string,
   ): Promise<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  searchMessages?(text: string, cursor?: string): Promise<MessageSearchPage>;
   markChannelRead(channelId: string): Promise<void>;
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
@@ -2302,6 +2308,9 @@ export function createActions(
     },
     searchChannel(channelId, text, cursor) {
       return searchChannelMessages(call, channelId, text, cursor);
+    },
+    searchMessages(text, cursor) {
+      return searchAllMessages(call, text, cursor);
     },
     async markChannelRead(channelId) {
       const messageId = clientStore

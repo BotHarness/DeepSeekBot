@@ -1678,6 +1678,48 @@ export async function searchChannelMessages(
   };
 }
 
+export interface MessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface MessageSearchPage {
+  hits: MessageSearchHit[];
+  nextCursor?: string;
+}
+
+export async function searchAllMessages(
+  call: BridgeCall,
+  text: string,
+  cursor?: string,
+  limit = 8,
+): Promise<MessageSearchPage> {
+  const value = asRecord(
+    await unwrap(call, 'messageSearch', {
+      text,
+      limit,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
+  const hits = value?.['hits'];
+  const nextCursor = value?.['nextCursor'];
+  if (!Array.isArray(hits) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+    throw new Error('invalid messageSearch response');
+  return {
+    hits: hits.flatMap((entry) => {
+      const hit = asRecord(entry);
+      const message = parseChannelMessage(hit?.['message']);
+      const channelId = hit?.['channelId'];
+      const snippet = hit?.['snippet'];
+      return message === undefined || typeof channelId !== 'string' || typeof snippet !== 'string'
+        ? []
+        : [{ channelId, message, snippet }];
+    }),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  };
+}
+
 export function parseChannelMessages(value: unknown): ChannelMessage[] {
   const messages = asRecord(value)?.['messages'];
   if (!Array.isArray(messages)) return [];

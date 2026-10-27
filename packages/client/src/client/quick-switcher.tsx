@@ -1,4 +1,12 @@
-import { Fragment, useId, useMemo, useState, type KeyboardEvent, type ReactElement } from 'react';
+import {
+  Fragment,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactElement,
+} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   IconSearchOutlineRegular,
@@ -8,16 +16,20 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';
+import type { MessageSearchHit, MessageSearchPage } from './bridge.js';
 import { isBotDmChannel } from './channel-kind.js';
+import { searchSnippet } from './conversation-search.js';
 import { GroupChannelIcon } from './group-avatar-stack.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import { formatRelativeTime } from './labels.js';
+import { LoadingSkeleton } from './loading-skeleton.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
 import type { ShortcutBindings } from './shortcut-bindings.js';
 import { useMountedResource } from './mounted-resource.js';
 import { rankQuickSwitcher, type QuickSwitcherEntry } from './quick-switcher-rank.js';
 import type { SettingsSearchResult } from './settings-search.js';
-import type { BotSummary } from './store.js';
+import type { BotSummary, ChannelMessage } from './store.js';
 
 const styles = stylex.create({
   dialog: {
@@ -135,7 +147,30 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
   },
+  time: {
+    flexShrink: 0,
+    color: color.subtle,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    whiteSpace: 'nowrap',
+  },
+  mark: {
+    backgroundColor: 'transparent',
+    color: color.fg,
+    fontWeight: text.strong,
+  },
+  more: {
+    color: color.accentText,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
+  skeleton: {
+    paddingInline: space.x1,
+    listStyle: 'none',
+  },
 });
+
+const MESSAGE_SEARCH_DEBOUNCE_MS = 150;
 
 export const QUICK_SWITCHER_SETTINGS_LIMIT = 12;
 
@@ -144,13 +179,30 @@ export interface QuickSwitcherSettings {
   open(result: SettingsSearchResult): void;
 }
 
+export interface QuickSwitcherMessages {
+  search(text: string, cursor?: string): Promise<MessageSearchPage>;
+  open(hit: MessageSearchHit): void;
+}
+
 type QuickSwitcherItem =
   | { readonly kind: 'channel'; readonly entry: QuickSwitcherEntry }
+  | { readonly kind: 'message'; readonly hit: MessageSearchHit }
+  | { readonly kind: 'more' }
   | { readonly kind: 'setting'; readonly result: SettingsSearchResult };
+
+interface MessageResults {
+  readonly query: string;
+  readonly hits: readonly MessageSearchHit[];
+  readonly nextCursor?: string | undefined;
+  readonly loading: boolean;
+}
+
+const NO_MESSAGES: MessageResults = { query: '', hits: [], loading: false };
 
 export interface QuickSwitcherProps {
   entries: readonly QuickSwitcherEntry[];
   settings?: QuickSwitcherSettings | undefined;
+  messages?: QuickSwitcherMessages | undefined;
   bots: ReadonlyMap<string, BotSummary>;
   activityOf: (bot: BotSummary) => PersonaBotActivityState;
   shortcutBindings: ShortcutBindings;
@@ -162,6 +214,7 @@ export interface QuickSwitcherProps {
 export function QuickSwitcher({
   entries,
   settings,
+  messages,
   bots,
   activityOf,
   shortcutBindings,
@@ -180,16 +233,109 @@ export function QuickSwitcher({
         : settings.search(query).slice(0, QUICK_SWITCHER_SETTINGS_LIMIT),
     [settings, query],
   );
+  const [found, setFound] = useState<MessageResults>(NO_MESSAGES);
+  const sequence = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const searchMessages = async (text: string, cursor?: string): Promise<void> => {
+    if (messages === undefined) return;
+    const current = ++sequence.current;
+    setFound((previous) => ({
+      ...(cursor === undefined ? { ...NO_MESSAGES, query: text } : previous),
+      loading: true,
+    }));
+    try {
+      const page = await messages.search(text, cursor);
+      if (current !== sequence.current) return;
+      setFound((previous) => ({
+        query: text,
+        hits: cursor === undefined ? page.hits : [...previous.hits, ...page.hits],
+        nextCursor: page.nextCursor,
+        loading: false,
+      }));
+    } catch {
+      if (current === sequence.current) setFound({ query: text, hits: [], loading: false });
+    }
+  };
+  const scheduleMessages = (text: string): void => {
+    if (timer.current !== undefined) clearTimeout(timer.current);
+    timer.current = undefined;
+    const trimmed = text.trim();
+    if (messages === undefined) return;
+    if (trimmed.length === 0) {
+      sequence.current += 1;
+      setFound(NO_MESSAGES);
+      return;
+    }
+    setFound({ ...NO_MESSAGES, query: trimmed, loading: true });
+    timer.current = setTimeout(() => {
+      timer.current = undefined;
+      void searchMessages(trimmed);
+    }, MESSAGE_SEARCH_DEBOUNCE_MS);
+  };
+  const stopMessages = useMountedResource<HTMLSpanElement>(
+    () => () => {
+      sequence.current += 1;
+      if (timer.current !== undefined) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const entryByChannel = useMemo(
+    () => new Map(entries.map((entry) => [entry.channel.id, entry])),
+    [entries],
+  );
   const items: QuickSwitcherItem[] = [
     ...results.map((entry) => ({ kind: 'channel' as const, entry })),
+    ...found.hits.map((hit) => ({ kind: 'message' as const, hit })),
+    ...(found.nextCursor === undefined ? [] : [{ kind: 'more' as const }]),
     ...settingResults.map((result) => ({ kind: 'setting' as const, result })),
   ];
+  const firstSetting = items.length - settingResults.length;
   const activeIndex = items.length === 0 ? -1 : Math.min(active, items.length - 1);
   const activeItem = activeIndex < 0 ? undefined : items[activeIndex];
   const openItem = (item: QuickSwitcherItem): void => {
     if (item.kind === 'channel') onOpen(item.entry);
-    else settings?.open(item.result);
+    else if (item.kind === 'message') messages?.open(item.hit);
+    else if (item.kind === 'more') {
+      if (!found.loading) void searchMessages(found.query, found.nextCursor);
+    } else settings?.open(item.result);
   };
+  const authorOf = (message: ChannelMessage): string => {
+    switch (message.author.kind) {
+      case 'human':
+        return t('main.author.human');
+      case 'system':
+        return t('main.author.system');
+      case 'bot':
+        return bots.get(message.author.slug)?.displayName ?? message.author.slug;
+      case 'bridged':
+        return message.author.source;
+    }
+  };
+  const channelIcon = (entry: QuickSwitcherEntry): ReactElement =>
+    entry.bot === undefined ? (
+      <GroupChannelIcon
+        channel={entry.channel}
+        bots={bots}
+        className={stylex.props(styles.icon).className ?? ''}
+        groupClassName="bh-group-channel-icon"
+        size={28}
+        hashSize={18}
+        t={t}
+      />
+    ) : (
+      <PersonaBotAvatar
+        t={t}
+        personaBotId={entry.bot.slug}
+        name={entry.bot.displayName}
+        src={entry.bot.avatar}
+        appearance={entry.bot.appearance}
+        avatarSeed={entry.bot.avatarSeed}
+        state={activityOf(entry.bot)}
+        activity={entry.bot.activity}
+        attention={entry.bot.attention}
+        size={28}
+      />
+    );
   const optionId = (index: number): string => `${listId}-option-${index}`;
   const scrollActive = useMountedResource<HTMLLIElement>(
     (node) => {
@@ -223,6 +369,17 @@ export function QuickSwitcher({
       onClose();
     }
   };
+  const messageSkeleton =
+    found.loading && found.hits.length === 0 ? (
+      <>
+        <li role="presentation" {...stylex.props(styles.heading, styles.groupHeading)}>
+          {t('quickSwitcher.messages')}
+        </li>
+        <li role="presentation" {...stylex.props(styles.skeleton)}>
+          <LoadingSkeleton kind="roster" label={t('quickSwitcher.messagesLoading')} />
+        </li>
+      </>
+    ) : null;
   const empty = query.trim().length === 0;
   const heading = empty ? t('quickSwitcher.recent') : t('quickSwitcher.results');
   const subtitle = (entry: QuickSwitcherEntry): string => {
@@ -261,6 +418,7 @@ export function QuickSwitcher({
         onChange={(event) => {
           setQuery(event.currentTarget.value);
           setActive(0);
+          scheduleMessages(event.currentTarget.value);
         }}
         onKeyDown={onKeyDown}
       />
@@ -279,11 +437,62 @@ export function QuickSwitcher({
             onClick: () => openItem(item),
             ...stylex.props(styles.row, index === activeIndex && styles.active),
           };
+          const messagesHeading =
+            index === results.length ? (
+              <li role="presentation" {...stylex.props(styles.heading, styles.groupHeading)}>
+                {t('quickSwitcher.messages')}
+              </li>
+            ) : null;
+          if (item.kind === 'message') {
+            const { hit } = item;
+            const entry = entryByChannel.get(hit.channelId);
+            const snippet = searchSnippet(hit.snippet, found.query);
+            return (
+              <Fragment key={`message:${hit.channelId}:${hit.message.id}`}>
+                {messagesHeading}
+                <li
+                  {...rowProps}
+                  data-message-id={hit.message.id}
+                  data-channel-id={hit.channelId}
+                >
+                  {entry === undefined ? (
+                    <span {...stylex.props(styles.icon)} />
+                  ) : (
+                    channelIcon(entry)
+                  )}
+                  <span {...stylex.props(styles.copy)}>
+                    <span {...stylex.props(styles.name)}>{entry?.name ?? hit.channelId}</span>
+                    <span {...stylex.props(styles.meta)}>
+                      {authorOf(hit.message)}: {snippet.before}
+                      {snippet.match === '' ? null : (
+                        <mark {...stylex.props(styles.mark)}>{snippet.match}</mark>
+                      )}
+                      {snippet.after}
+                    </span>
+                  </span>
+                  <time dateTime={hit.message.at} {...stylex.props(styles.time)}>
+                    {formatRelativeTime(Date.parse(hit.message.at), Date.now(), t)}
+                  </time>
+                </li>
+              </Fragment>
+            );
+          }
+          if (item.kind === 'more') {
+            return (
+              <li key="more" {...rowProps} data-message-search-more="">
+                <span {...stylex.props(styles.icon)} />
+                <span {...stylex.props(styles.copy, styles.more)}>
+                  {found.loading ? t('quickSwitcher.messagesLoading') : t('search.more')}
+                </span>
+              </li>
+            );
+          }
           if (item.kind === 'setting') {
             const { result } = item;
             return (
               <Fragment key={`setting:${result.section}:${result.title}`}>
-                {index === results.length ? (
+                {index === firstSetting ? messageSkeleton : null}
+                {index === firstSetting ? (
                   <li role="presentation" {...stylex.props(styles.heading, styles.groupHeading)}>
                     {t('quickSwitcher.settings')}
                   </li>
@@ -307,30 +516,7 @@ export function QuickSwitcher({
           const { entry } = item;
           return (
             <li key={entry.channel.id} {...rowProps} data-channel-id={entry.channel.id}>
-              {entry.bot === undefined ? (
-                <GroupChannelIcon
-                  channel={entry.channel}
-                  bots={bots}
-                  className={stylex.props(styles.icon).className ?? ''}
-                  groupClassName="bh-group-channel-icon"
-                  size={28}
-                  hashSize={18}
-                  t={t}
-                />
-              ) : (
-                <PersonaBotAvatar
-                  t={t}
-                  personaBotId={entry.bot.slug}
-                  name={entry.bot.displayName}
-                  src={entry.bot.avatar}
-                  appearance={entry.bot.appearance}
-                  avatarSeed={entry.bot.avatarSeed}
-                  state={activityOf(entry.bot)}
-                  activity={entry.bot.activity}
-                  attention={entry.bot.attention}
-                  size={28}
-                />
-              )}
+              {channelIcon(entry)}
               <span {...stylex.props(styles.copy)}>
                 <span {...stylex.props(styles.name)}>{entry.name}</span>
                 <span {...stylex.props(styles.meta)}>{subtitle(entry)}</span>
@@ -338,8 +524,10 @@ export function QuickSwitcher({
             </li>
           );
         })}
+        {settingResults.length === 0 ? messageSkeleton : null}
       </ul>
-      {items.length === 0 ? (
+      <span ref={stopMessages} hidden />
+      {items.length === 0 && !found.loading ? (
         <p role="status" {...stylex.props(styles.empty)}>
           {empty ? t('quickSwitcher.empty') : t('quickSwitcher.noMatches')}
         </p>

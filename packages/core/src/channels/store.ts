@@ -132,6 +132,24 @@ export interface ChannelMessageQueryPage {
   nextCursor?: string;
 }
 
+export interface HumanMessageSearchRequest {
+  text: string;
+  limit: number;
+  cursor?: string;
+  excludeChannelIds?: readonly string[];
+}
+
+export interface HumanMessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface HumanMessageSearchPage {
+  hits: HumanMessageSearchHit[];
+  nextCursor?: string;
+}
+
 export interface PreparedChannelMessageQuery {
   text?: string;
   authorBotId?: string;
@@ -434,6 +452,7 @@ export interface ChannelStore {
     id: string,
     options: Pick<ChannelMessageQueryOptions, 'text' | 'cursor' | 'limit'>,
   ): ChannelMessageQueryPage | undefined;
+  searchAllHumanMessages?(request: HumanMessageSearchRequest): HumanMessageSearchPage;
   readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
   readHumanJournalPage(id: string, request: ChannelJournalRequest): ChannelJournalPage | undefined;

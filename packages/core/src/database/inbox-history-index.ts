@@ -1,7 +1,8 @@
-export const INBOX_HISTORY_INDEX_SQL = `
+function inboxHistoryIndexSql(attachmentNames: string): string {
+  return `
   CREATE VIEW inbox_history_documents AS
   SELECT e.rowid AS rowid, e.source_event_id,
-    trim(e.body || ' ' ||
+    trim(e.body || ' ' ||${attachmentNames}
       CASE WHEN json_type(e.payload_json, '$.memoryCommit') IS NOT NULL THEN
         'Memory commit 记忆提交 ' ||
         coalesce(json_extract(e.payload_json, '$.memoryCommit.subject'), '') || ' ' ||
@@ -48,4 +49,27 @@ export const INBOX_HISTORY_INDEX_SQL = `
          json_extract(e.payload_json, '$.causeSourceEventId'));
   END;
   INSERT INTO inbox_history_fts(inbox_history_fts) VALUES ('rebuild');
+`;
+}
+
+export const INBOX_HISTORY_INDEX_SQL = inboxHistoryIndexSql('');
+
+// Triggers cannot read json_each, so the names come from fixed positions: a message carries at
+// most ten attachments.
+const ATTACHMENT_NAMES_SQL = Array.from(
+  { length: 10 },
+  (_, index) => `
+      coalesce(json_extract(e.payload_json, '$.attachments[${index}].name') || ' ', '') ||`,
+).join('');
+
+/** Generation 112 also indexes each attachment's file name, so global message search finds files. */
+export const MESSAGE_SEARCH_INDEX_SQL = `
+  DROP TRIGGER inbox_history_insert;
+  DROP TRIGGER inbox_history_before_update;
+  DROP TRIGGER inbox_history_after_update;
+  DROP TRIGGER inbox_history_delete;
+  DROP TRIGGER inbox_history_purge;
+  DROP TABLE inbox_history_fts;
+  DROP VIEW inbox_history_documents;
+  ${inboxHistoryIndexSql(ATTACHMENT_NAMES_SQL)}
 `;

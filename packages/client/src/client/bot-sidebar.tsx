@@ -180,6 +180,7 @@ import {
 import { store, type BotSummary, type ChannelSummary, type ClientState } from './store.js';
 import {
   errorMessage,
+  type MessageSearchHit,
   type ModelCatalogView,
   type ModelPlanStateView,
   type ModelRouteView,
@@ -1838,7 +1839,10 @@ export function BotSidebar({
       : actions.openBot(channel.botSlug));
   };
 
-  const openQuickSwitcherEntry = ({ channel }: QuickSwitcherEntry): void => {
+  const openQuickSwitcherEntry = (
+    { channel }: Pick<QuickSwitcherEntry, 'channel'>,
+    then?: () => Promise<void>,
+  ): void => {
     setQuickSwitcherOpen(false);
     openLocalConversation();
     setChannelSelection((current) =>
@@ -1851,7 +1855,16 @@ export function BotSidebar({
     );
     void (channel.botSlug === undefined
       ? actions.openChannel(channel.id)
-      : actions.openBot(channel.botSlug));
+      : actions.openBot(channel.botSlug)
+    ).then(then);
+  };
+
+  const openQuickSwitcherMessage = ({ channelId, message }: MessageSearchHit): void => {
+    const channel = state.channels.find((item) => item.id === channelId);
+    if (channel === undefined) return;
+    openQuickSwitcherEntry({ channel }, () =>
+      actions.openAround(channelId, message.id),
+    );
   };
 
   const openChannelMenu = (request: ChannelMenuRequest): void => {
@@ -2999,6 +3012,11 @@ export function BotSidebar({
                     quickSwitcherSettings.open(result);
                   },
                 }
+          }
+          messages={
+            actions.searchMessages === undefined
+              ? undefined
+              : { search: actions.searchMessages, open: openQuickSwitcherMessage }
           }
           bots={botBySlug}
           activityOf={(bot) => personaBotActivity(state, bot)}
