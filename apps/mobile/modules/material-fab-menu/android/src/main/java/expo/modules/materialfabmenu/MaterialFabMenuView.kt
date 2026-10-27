@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
@@ -49,6 +50,7 @@ class FabMenuItem : Record {
 }
 
 private const val ADD = "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"
+private val MENU_INSET = 16.dp
 private const val CLOSE =
   "M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
 
@@ -75,6 +77,8 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
   }
 
   init {
+    clipChildren = false
+    clipToPadding = false
     addView(ComposeView(context).apply {
       setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
       setContent {
@@ -95,6 +99,27 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
           ) {
             FloatingActionButtonMenu(
               expanded = expanded,
+              modifier = Modifier.layout { measurable, constraints ->
+                val inset = MENU_INSET.roundToPx()
+                val placeable = measurable.measure(
+                  constraints.copy(
+                    minWidth = 0,
+                    minHeight = 0,
+                    maxWidth = constraints.maxWidth + inset * 2,
+                    maxHeight = constraints.maxHeight + inset,
+                  ),
+                )
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                  val at = menuPlacement(
+                    constraints.maxWidth,
+                    constraints.maxHeight,
+                    placeable.width,
+                    placeable.height,
+                    inset,
+                  )
+                  placeable.placeRelative(at.x, at.y)
+                }
+              },
               button = {
                 ToggleFloatingActionButton(
                   checked = expanded,
