@@ -138,7 +138,11 @@ try {
     readingAnchorUnchanged: Boolean(anchorUnchanged),
   };
   result.pass =
-    result.after.messageVisible && result.after.composerVisible && result.draftUnchanged;
+    result.after.messageVisible &&
+    result.after.composerVisible &&
+    result.draftUnchanged &&
+    result.sameProcess &&
+    result.readingAnchorUnchanged;
   save('result.json', JSON.stringify(result, null, 2) + '\n');
   console.log(JSON.stringify(result));
   assert(result.pass, 'CHAT_RESUME_BLANK_OR_DRAFT_LOST');

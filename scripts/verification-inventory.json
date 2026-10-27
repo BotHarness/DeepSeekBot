@@ -2404,7 +2404,7 @@
       "behaviors": ["phone.composer"],
       "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry, draft retention, same Dev PID and stable known-message geometry (2pt rounding tolerance). Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
       "task": 2933,
-      "sha256": "d3dfb20d406a9a3375f525fbeed20d4b209f607ab658525cde49654b63d093b0"
+      "sha256": "80b62217790360181aaf73209995d9c0345376ef768efee784b6f2e3b59a97a2"
     }
   ],
   "native": [
