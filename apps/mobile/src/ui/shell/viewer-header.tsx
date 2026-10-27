@@ -1,11 +1,10 @@
 import type { Stack } from 'expo-router';
-import type { ComponentProps, ReactElement } from 'react';
+import type { ComponentProps } from 'react';
 import { Platform, View } from 'react-native';
 
 import type { DesignTheme } from '../design/theme';
 import { Text } from '../primitives/text';
-import { HeaderIconButton } from './header-icon-button';
-import { NavigationAction } from './navigation-action';
+import { HeaderIconButton, type HeaderIcon as HeaderButtonIcon } from './header-icon-button';
 
 type ScreenOptions = Exclude<ComponentProps<typeof Stack.Screen>['options'], Function | undefined>;
 type HeaderItem = ReturnType<NonNullable<ScreenOptions['unstable_headerRightItems']>>[number];
@@ -15,7 +14,7 @@ export type ViewerHeaderAction = {
   key: string;
   label: string;
   symbol: HeaderIcon;
-  icon: ReactElement;
+  icon: HeaderButtonIcon;
   onPress(): void;
 };
 
@@ -92,17 +91,16 @@ export function viewerHeaderOptions({
   return {
     ...base,
     headerLeft: () => (
-      <NavigationAction close size={theme.touch} label={closeLabel} onPress={onClose} />
+      <HeaderIconButton icon="close" label={closeLabel} testID="viewer-close" onPress={onClose} />
     ),
     headerRight: () =>
       action === undefined ? null : (
         <HeaderIconButton
+          icon={action.icon}
           label={action.label}
           testID={`viewer-${action.key}`}
           onPress={action.onPress}
-        >
-          {action.icon}
-        </HeaderIconButton>
+        />
       ),
   };
 }

@@ -24,12 +24,10 @@ import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import type { IconTabOption } from '../primitives/icon-tabs';
 import { useSheetContent } from '../primitives/sheet-content';
-import { HeaderIconButton } from '../shell/header-icon-button';
+import { HeaderIconButton, type HeaderIcon } from '../shell/header-icon-button';
 import {
-  BrowserIcon,
   ChevronRightIcon,
   ClockIcon,
-  ComputerIcon,
   FolderIcon,
   MembersIcon,
   MemoryIcon,
@@ -72,8 +70,6 @@ import {
   type RememberedProfileKind,
 } from './profile-tabs';
 import { ProfileHero } from './profile-hero';
-
-const ICON = 22;
 
 export const PROFILE_SECTIONS = [
   'work',
@@ -313,15 +309,10 @@ function RoundAction({
 }: {
   label: string;
   testID: string;
-  icon: (color: string) => ReactNode;
+  icon: HeaderIcon;
   onPress(): void;
 }) {
-  const theme = useDesignTheme();
-  return (
-    <HeaderIconButton label={label} testID={testID} onPress={onPress}>
-      {icon(theme.color.fg)}
-    </HeaderIconButton>
-  );
+  return <HeaderIconButton icon={icon} label={label} testID={testID} onPress={onPress} />;
 }
 
 function BotIdentity({
@@ -358,7 +349,7 @@ function BotIdentity({
             <RoundAction
               label={t.profileBrowser}
               testID="profile-browser"
-              icon={(color) => <BrowserIcon color={color} size={ICON} />}
+              icon="browser"
               onPress={actions.onBrowser}
             />
           )}
@@ -366,7 +357,7 @@ function BotIdentity({
             <RoundAction
               label={t.profileComputer}
               testID="profile-computer"
-              icon={(color) => <ComputerIcon color={color} size={ICON} />}
+              icon="computer"
               onPress={actions.onComputer}
             />
           )}

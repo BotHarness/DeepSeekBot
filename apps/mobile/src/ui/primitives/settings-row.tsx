@@ -9,6 +9,8 @@ import { pressTint, useDesignTheme } from '../design/theme';
 import { ChevronRightIcon } from '../shell/icons';
 import { Text } from './text';
 import { segmentCorners } from '../design/segment-corners';
+import { useSettingsFormPlace } from './settings-form-context';
+import { FormRow, FormSection } from './settings-form-row';
 
 function SettingsFrame({
   onPress,
@@ -29,22 +31,12 @@ function SettingsFrame({
   );
 }
 
-export function SettingsRow({
-  title,
-  detail,
-  tone = 'fg',
-  strong = false,
-  leading,
-  trailing,
-  accessory,
-  selected,
-  expanded,
-  disclosure = false,
-  accessibilityLabel,
-  testID,
-  on = 'sheet',
-  onPress,
-}: {
+export function SettingsRow(props: SettingsRowProps) {
+  if (useSettingsFormPlace() !== false) return <FormRow {...props} />;
+  return <SettingsRowView {...props} />;
+}
+
+type SettingsRowProps = {
   title: string;
   detail?: string;
   tone?: ColorRole;
@@ -59,7 +51,24 @@ export function SettingsRow({
   testID?: string;
   on?: LayerName;
   onPress?: (() => void) | undefined;
-}) {
+};
+
+function SettingsRowView({
+  title,
+  detail,
+  tone = 'fg',
+  strong = false,
+  leading,
+  trailing,
+  accessory,
+  selected,
+  expanded,
+  disclosure = false,
+  accessibilityLabel,
+  testID,
+  on = 'sheet',
+  onPress,
+}: SettingsRowProps) {
   const theme = useDesignTheme();
   const layer = theme.layer[on];
   const android = Platform.OS === 'android';
@@ -134,17 +143,19 @@ export function SettingsRow({
   );
 }
 
-export function SettingsSection({
-  title,
-  footer,
-  on = 'sheet',
-  children,
-}: {
+type SettingsSectionProps = {
   title?: string;
   footer?: string | undefined;
   on?: LayerName;
   children: ReactNode;
-}) {
+};
+
+export function SettingsSection(props: SettingsSectionProps) {
+  if (useSettingsFormPlace() !== false) return <FormSection {...props} />;
+  return <SettingsSectionView {...props} />;
+}
+
+function SettingsSectionView({ title, footer, on = 'sheet', children }: SettingsSectionProps) {
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';
   const rows = android ? Children.toArray(children) : [];

@@ -13,7 +13,7 @@ import { Platform } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { HeaderGlyph, type HeaderActionProps } from './header-glyph';
+import type { HeaderActionProps } from './header-glyph';
 import { HeaderIconButton } from './header-icon-button';
 
 const symbols = {
@@ -26,9 +26,13 @@ export function HeaderAction({ icon, label, testID, active = false, onPress }: H
   const theme = useDesignTheme();
   if (Number.parseInt(String(Platform.Version), 10) < 26)
     return (
-      <HeaderIconButton label={label} testID={testID} selected={active} onPress={onPress}>
-        <HeaderGlyph icon={icon} active={active} />
-      </HeaderIconButton>
+      <HeaderIconButton
+        icon={icon}
+        label={label}
+        testID={testID}
+        selected={active}
+        onPress={onPress}
+      />
     );
   return (
     <Host
