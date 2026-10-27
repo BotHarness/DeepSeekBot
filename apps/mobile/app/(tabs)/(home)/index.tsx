@@ -394,7 +394,7 @@ const HomeContent = memo(function HomeContent({
   return (
     <>
       <Stack.Screen options={{ title: environment.title, headerShown: false }} />
-      <HostDrawerEdge>
+      <HostDrawerEdge anywhere>
         <HomeHeader
           environment={environment}
           connection={selectedHost?.snapshot.connection}

@@ -5,6 +5,10 @@ import { materialDrawer, modalRail } from '../design/tokens';
 
 export const DRAWER_SHARE = 0.85;
 export const EDGE_WIDTH = 24;
+const EDGE_DRAG_START = 10;
+const EDGE_VERTICAL_FAIL = 15;
+const ANYWHERE_DRAG_START = 24;
+const ANYWHERE_VERTICAL_FAIL = 8;
 const SETTLE_SHARE = 0.4;
 const FLING = 500;
 
@@ -66,6 +70,25 @@ export function drawerWidth(windowWidth: number, os: string = 'ios'): number {
   if (os === 'android')
     return Math.min(materialDrawer.width, windowWidth - materialDrawer.scrimGutter);
   return Math.min(modalRail.maxWidth, Math.round(windowWidth * DRAWER_SHARE));
+}
+
+export function drawerSwipe(
+  os: string,
+  anywhere: boolean,
+): {
+  push: boolean;
+  activeX: number;
+  failY: number;
+  hitSlop?: { left: number; width: number };
+} {
+  return anywhere && os === 'android'
+    ? { push: true, activeX: ANYWHERE_DRAG_START, failY: ANYWHERE_VERTICAL_FAIL }
+    : {
+        push: false,
+        activeX: EDGE_DRAG_START,
+        failY: EDGE_VERTICAL_FAIL,
+        hitSlop: { left: 0, width: EDGE_WIDTH },
+      };
 }
 
 export function settleOpen(progress: number, velocityX: number): boolean {
