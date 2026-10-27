@@ -182,7 +182,10 @@ function DockedHostDrawer({ children }: { children: ReactNode }) {
   const mount = useMounted<ViewInstance>(() => {
     if (!focused) return;
     dock(1);
-    return () => dock(-1);
+    return () => {
+      dockedOpenChange(false);
+      dock(-1);
+    };
   }, [focused]);
   return (
     <View ref={mount} style={{ flex: 1 }} collapsable={false}>
