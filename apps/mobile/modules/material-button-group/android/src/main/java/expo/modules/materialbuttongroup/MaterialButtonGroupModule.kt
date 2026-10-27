@@ -8,10 +8,10 @@ class MaterialButtonGroupModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MaterialButtonGroup")
     ExpoUIView<ButtonGroupProps>("MaterialButtonGroupView") {
-      val onSelect by Event<ButtonGroupSelectEvent>()
+      val onButtonSelect by Event<ButtonGroupSelectEvent>()
 
       Content { props ->
-        ButtonGroupContent(props) { onSelect(ButtonGroupSelectEvent(it)) }
+        ButtonGroupContent(props) { onButtonSelect(ButtonGroupSelectEvent(it)) }
       }
     }
   }

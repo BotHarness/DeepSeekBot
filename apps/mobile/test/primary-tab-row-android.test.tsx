@@ -31,7 +31,7 @@ vi.mock('expo', () => ({
       tabs: NativeTab[];
       selected: string;
       containerColor?: string;
-      onSelect(event: { nativeEvent: { value: string } }): void;
+      onTabSelect(event: { nativeEvent: { value: string } }): void;
     }) =>
       createElement(
         'nav',
@@ -45,7 +45,7 @@ vi.mock('expo', () => ({
               'aria-selected': String(tab.value === props.selected),
               'aria-label': tab.accessibilityLabel ?? tab.label,
               'data-dot': tab.dotColor,
-              onClick: () => props.onSelect({ nativeEvent: { value: tab.value } }),
+              onClick: () => props.onTabSelect({ nativeEvent: { value: tab.value } }),
             },
             tab.label,
           ),
@@ -124,13 +124,13 @@ describe('Android primary tab row', () => {
 
 describe('Android Activity tabs', () => {
   it('shows Needs you and For you as native tabs and moves on a tap', async () => {
-    const onSelect = vi.fn();
+    const onTabSelect = vi.fn();
     await render(
       <ActivityTabs
         selected="replies"
         marks={NO_ACTIVITY_MARKS}
         position={undefined as never}
-        onSelect={onSelect}
+        onTabSelect={onTabSelect}
       />,
     );
     expect(tabs().map((tab) => tab.textContent)).toEqual([
@@ -140,7 +140,7 @@ describe('Android Activity tabs', () => {
     expect(selected().map((tab) => tab.textContent)).toEqual([t.inboxSections.replies]);
     expect(tabs().some((tab) => tab.hasAttribute('data-dot'))).toBe(false);
     await act(async () => tabs()[0]?.click());
-    expect(onSelect).toHaveBeenCalledWith('action');
+    expect(onTabSelect).toHaveBeenCalledWith('action');
   });
 
   it('marks a tab with content by a warning dot (Needs you) or an accent dot (For you), no count', async () => {
@@ -149,7 +149,7 @@ describe('Android Activity tabs', () => {
         selected="action"
         marks={{ action: true, replies: true }}
         position={undefined as never}
-        onSelect={() => {}}
+        onTabSelect={() => {}}
       />,
     );
     const [needsYou, forYou] = tabs().map((tab) => tab.getAttribute('data-dot'));
@@ -185,7 +185,7 @@ describe('Android Activity tabs', () => {
         selected="all"
         marks={NO_ACTIVITY_MARKS}
         position={undefined as never}
-        onSelect={() => {}}
+        onTabSelect={() => {}}
       />,
     );
     expect(selected()).toEqual([]);

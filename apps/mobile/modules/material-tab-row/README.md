@@ -17,7 +17,7 @@ colour of its own except the optional `containerColor`, the canvas the row sits 
 - TalkBack hears each tab as a Tab with its selected state and its full `accessibilityLabel`
   (default: the label), whatever the visible truncation. An optional `dotColor` shows a small
   Material `Badge` dot after the label (no number); say what it means in `accessibilityLabel`.
-- Pressing a tab sends `onSelect` with its value; the test tag is `tab-<value>`.
+- Pressing a tab sends `onTabSelect` with its value; the test tag is `tab-<value>`.
 
 A new Android development build is required. CI tests `:material-tab-row:testDebugUnitTest`.
 iOS keeps its own tab views.
