@@ -68,6 +68,25 @@ describe('Usage projection', () => {
       data: { header: { config: { provider: 'opencode-go', model: 'b' } } },
     });
     expect(usage.latestRoute('root')).toEqual({ provider: 'opencode-go', model: 'b' });
+    usage.handleSessionEvent('root', {
+      type: 'request/header',
+      time: TURN_END + 2,
+      seq: 3,
+      data: {
+        header: { config: { provider: 'opencode-go', model: 'b', reasoningEffort: 'high' } },
+      },
+    });
+    usage.handleSessionEvent('root', {
+      type: 'request/context',
+      time: TURN_END + 3,
+      seq: 4,
+      data: { provider: 'opencode-go', model: 'b' },
+    });
+    expect(usage.latestRoute('root')).toEqual({
+      provider: 'opencode-go',
+      model: 'b',
+      reasoningEffort: 'high',
+    });
     expect(usage.latestRoute('other')).toBeUndefined();
   });
 
