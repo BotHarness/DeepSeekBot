@@ -71,6 +71,8 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'bot-limit': 'market.error.botLimit',
   'nothing-to-upload': 'market.error.nothingToUpload',
   'listing-not-installable': 'market.error.botNotFound',
+  'not-an-uploaded-bot': 'market.error.botNotFound',
+  'replace-limit': 'market.error.replaceLimit',
 };
 
 export const MAX_REPORT_REASON_LENGTH = 500;
@@ -228,6 +230,11 @@ export function MarketplaceMeta({
       >
         {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
       </span>
+      {bot.installed?.authorUpdated === true ? (
+        <span data-market-author-updated="">
+          <Tag tone="info">{t('market.authorUpdated')}</Tag>
+        </span>
+      ) : null}
       {created && bot.createdAt !== undefined ? (
         <span title={day(bot.createdAt)}>
           {t('market.created', { date: ago(bot.createdAt, t) })}
@@ -571,6 +578,7 @@ export interface MarketplaceBrowse {
   retry(): void;
   loadMore(): void;
   prepend(bot: MarketplaceEntry): void;
+  remove(id: string): void;
 }
 
 const SORT_STORAGE_KEY = 'botharness.marketplace.sort';
@@ -674,6 +682,12 @@ export function useMarketplaceBrowse(
         current.status === 'ready'
           ? { ...current, bots: [bot, ...current.bots.filter((item) => item.id !== bot.id)] }
           : { status: 'ready', bots: [bot], loadingMore: false },
+      ),
+    remove: (id) =>
+      setList((current) =>
+        current.status === 'ready'
+          ? { ...current, bots: current.bots.filter((item) => item.id !== id) }
+          : current,
       ),
   };
 }

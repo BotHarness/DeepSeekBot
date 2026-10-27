@@ -221,6 +221,7 @@ import {
 } from './workspaces/tool-approval.js';
 import {
   changesApprovalPolicy,
+  deletesMarketplaceBot,
   publishesBotMemory,
   requiresHumanDecision,
   createApprovalTemplateLibrary,
@@ -2175,12 +2176,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
                     : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
                       ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
-                      : changesApprovalPolicy(
-                            JSON.stringify(execution.arguments) ?? '',
-                            templateInUse,
-                          )
-                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                      : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
+                        ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                        : changesApprovalPolicy(
+                              JSON.stringify(execution.arguments) ?? '',
+                              templateInUse,
+                            )
+                          ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                          : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
         if (outcome !== 'allowed-once') {
