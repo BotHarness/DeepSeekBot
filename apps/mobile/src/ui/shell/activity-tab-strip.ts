@@ -2,11 +2,28 @@ import { I18nManager } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 
+import type { InboxSnapshot } from '../../host/inbox';
+import type { DesignTheme } from '../design/theme';
 import { swipeRow } from '../design/tokens';
 import type { ActivitySection } from './activity-filters';
 
-export const ACTIVITY_TABS = [{ key: 'action' }, { key: 'replies' }, { key: 'unread' }] as const;
+export const ACTIVITY_TABS = [{ key: 'action' }, { key: 'replies' }] as const;
 export type ActivityTab = (typeof ACTIVITY_TABS)[number];
+export type ActivityTabMarks = Readonly<Record<ActivityTab['key'], boolean>>;
+
+export const NO_ACTIVITY_MARKS: ActivityTabMarks = { action: false, replies: false };
+
+export function activityTabMarks(snapshot: InboxSnapshot): ActivityTabMarks {
+  if (snapshot.status !== 'ready') return NO_ACTIVITY_MARKS;
+  return {
+    action: snapshot.sections.action.length > 0,
+    replies: snapshot.sections.replies.length > 0,
+  };
+}
+
+export function activityDotColor(theme: DesignTheme, key: ActivityTab['key']): string {
+  return key === 'action' ? theme.color.warning : theme.color.accent;
+}
 
 export function steppedActivityTab(
   selected: ActivitySection,

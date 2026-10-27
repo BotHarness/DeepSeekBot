@@ -26,7 +26,7 @@ export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
 export const DEFAULT_ACTIVITY: ActivityFilter = { section: 'action', bot: undefined };
 export const ACTIVITY_SECTIONS: readonly ActivitySection[] = [
   'all',
-  ...INBOX_SECTIONS,
+  ...INBOX_SECTIONS.filter((section) => section !== 'unread'),
   'snoozed',
   'cleared',
 ];

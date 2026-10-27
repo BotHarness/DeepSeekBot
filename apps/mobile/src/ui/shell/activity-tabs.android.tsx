@@ -7,15 +7,23 @@ import { useDesignTheme } from '../design/theme';
 import { PrimaryTabRow } from '../primitives/primary-tab-row.android';
 import { useStrings } from '../strings';
 import type { ActivitySection } from './activity-filters';
-import { ACTIVITY_TABS, activityStripSwipe, type ActivityTab } from './activity-tab-strip';
+import {
+  ACTIVITY_TABS,
+  activityDotColor,
+  activityStripSwipe,
+  type ActivityTab,
+  type ActivityTabMarks,
+} from './activity-tab-strip';
 
 export { ACTIVITY_TABS, type ActivityTab } from './activity-tab-strip';
 
 export function ActivityTabs({
   selected,
+  marks,
   onSelect,
 }: {
   selected: ActivitySection;
+  marks: ActivityTabMarks;
   position: SceneRendererProps['position'];
   onSelect(section: ActivityTab['key']): void;
 }) {
@@ -28,7 +36,16 @@ export function ActivityTabs({
       <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
         <PrimaryTabRow
           testID="activity-tabs"
-          tabs={ACTIVITY_TABS.map(({ key }) => ({ value: key, label: t.inboxSections[key] }))}
+          tabs={ACTIVITY_TABS.map(({ key }) => ({
+            value: key,
+            label: t.inboxSections[key],
+            ...(marks[key]
+              ? {
+                  dotColor: activityDotColor(theme, key),
+                  accessibilityLabel: t.activityTabNew(t.inboxSections[key]),
+                }
+              : {}),
+          }))}
           value={selected}
           onChange={onSelect}
           containerColor={theme.color.base}
