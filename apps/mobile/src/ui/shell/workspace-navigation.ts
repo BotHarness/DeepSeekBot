@@ -1,5 +1,6 @@
 import { appStackState, type ChannelNavigation } from './channel-navigation';
 import type { CloudWorkspace } from '../../cloud/workspace-directory';
+import { workspaceStackRoot } from './workspace-panel-root';
 
 export type CloudWorkspaceRoot = {
   instanceId: string;
@@ -65,10 +66,7 @@ export function resetWorkspaceRoot(
             history: [{ type: 'route', key: tabsState.routes[home]?.key }],
             routes: tabsState.routes.map((route) =>
               route.state?.type === 'stack'
-                ? {
-                    ...route,
-                    state: { ...route.state, index: 0, routes: route.state.routes.slice(0, 1) },
-                  }
+                ? { ...route, state: workspaceStackRoot(route.state) }
                 : route,
             ),
           },
