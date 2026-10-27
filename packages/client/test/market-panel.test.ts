@@ -604,6 +604,38 @@ describe('Uploaded Bots in the Market panel', () => {
     }
   });
 
+  it('asks a signed-out user to register before sharing a preselected Bot', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const actions = {
+      marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+      marketplaceUploadPlan: vi.fn(async () => ({ files: [], skipped: [], totalBytes: 0 })),
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(MarketUploadDialog, {
+            actions: actions as unknown as BridgeActions,
+            registry: { open: vi.fn() } as unknown as DockPanelRegistry,
+            t: zhTranslate,
+            onListed: vi.fn(),
+            onClose: vi.fn(),
+            initialSlug: 'writer',
+          }),
+        ),
+      );
+      expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
+        'account',
+      );
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
   it('shows the author and folder tree, and installs an Uploaded Bot through the Host', async () => {
     const install = vi.fn(async () => bot('helper-copy'));
     await withPanel(

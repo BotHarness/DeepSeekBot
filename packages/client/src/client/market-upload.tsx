@@ -202,9 +202,7 @@ export function MarketUploadDialog({
     onClose();
   });
   const [route, setRoute] = useState<Route>(preselected === undefined ? 'choose' : 'direct');
-  const [rawStep, setStep] = useState<DirectStep>(
-    preselected === undefined ? 'account' : 'details',
-  );
+  const [rawStep, setStep] = useState<DirectStep>('account');
   const [chosen, setChosen] = useState<BotSummary | undefined>(preselected);
   const [account, setAccount] = useState<AccountState>({ status: 'loading' });
   const [signIn, setSignIn] = useState<{ userCode: string; verificationUri: string }>();
