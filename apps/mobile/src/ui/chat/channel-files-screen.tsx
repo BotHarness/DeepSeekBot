@@ -7,17 +7,17 @@ import type { HostClient } from '../../host/client';
 import type { MessageAttachment } from '../../host/conversation';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { shareAttachment } from '../../host/share-attachment';
-import { edge, space } from '../design/tokens';
+import { channelMedia, edge, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
 import { Button } from '../primitives/button';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { showActionMenu } from '../primitives/app-dialog';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { Text } from '../primitives/text';
-import { FileIcon, PhotoIcon } from '../shell/icons';
 import { conversationHref } from '../shell/open-conversation';
 import { navigateChannel } from '../shell/channel-navigation';
 import { useStrings } from '../strings';
+import { FileTypeIcon, fileTypeLabel } from './channel-media';
 import { ImageViewer } from './image-viewer';
 import { fileSize } from './message-attachments';
 
@@ -174,14 +174,10 @@ export function useChannelFilesList(
           : shareFailed
             ? t.channelFiles.fileUnavailable
             : undefined;
-  const renderFile = (item: ChannelFile) => {
+  const actionsFor = (item: ChannelFile): MenuAction[] => {
     const attachment = item.attachment;
     const disabled = !available || attachment.source === undefined;
-    const busy = sharing === attachment.key;
-    const date = new Date(item.at).toLocaleString();
-    const Icon = attachment.kind === 'image' ? PhotoIcon : FileIcon;
-    const rowId = item.key.toLowerCase().replace(/[^a-z0-9-]/gu, '-');
-    const actions: MenuAction[] = [
+    return [
       ...(disabled || sharing !== undefined
         ? []
         : [
@@ -203,6 +199,23 @@ export function useChannelFilesList(
           ]
         : []),
     ];
+  };
+  const openActions = (item: ChannelFile, actions = actionsFor(item)) =>
+    showActionMenu(
+      item.attachment.name,
+      actions.map((action) => ({
+        text: action.label,
+        icon: action.icon,
+        onPress: action.run,
+      })),
+    );
+  const renderFile = (item: ChannelFile) => {
+    const attachment = item.attachment;
+    const disabled = !available || attachment.source === undefined;
+    const busy = sharing === attachment.key;
+    const date = new Date(item.at).toLocaleString();
+    const rowId = item.key.toLowerCase().replace(/[^a-z0-9-]/gu, '-');
+    const actions = actionsFor(item);
     return (
       <View
         style={{
@@ -234,9 +247,11 @@ export function useChannelFilesList(
           })}
         >
           {busy ? (
-            <LoadingIndicator size="control" />
+            <View style={{ width: channelMedia.typeTile, alignItems: 'center' }}>
+              <LoadingIndicator size="control" />
+            </View>
           ) : (
-            <Icon color={theme.color.muted} size={theme.type.title.line} />
+            <FileTypeIcon attachment={attachment} />
           )}
           <View style={{ flex: 1, gap: space.x2 }}>
             <Text strong numberOfLines={2}>
@@ -251,7 +266,7 @@ export function useChannelFilesList(
                 : attachment.source === undefined
                   ? t.attachmentElsewhere
                   : [
-                      attachment.mime ?? t.fileKind,
+                      fileTypeLabel(attachment) || t.fileKind,
                       attachment.size === undefined ? undefined : fileSize(attachment.size),
                     ]
                       .filter(Boolean)
@@ -264,23 +279,21 @@ export function useChannelFilesList(
           label={t.conversationActions(attachment.name)}
           disabled={!available}
           actions={actions}
-          onOpen={() =>
-            showActionMenu(
-              attachment.name,
-              actions.map((action) => ({
-                text: action.label,
-                icon: action.icon,
-                onPress: action.run,
-              })),
-            )
-          }
+          onOpen={() => openActions(item, actions)}
         />
       </View>
     );
   };
   return {
     files: snapshot.files,
+    status: snapshot.status,
+    hasOlder: snapshot.hasOlder,
+    available,
     renderFile,
+    openImage: (item: ChannelFile) => {
+      if (available) setPreviewKey(item.key);
+    },
+    openActions: (item: ChannelFile) => openActions(item),
     header:
       notice === undefined ? undefined : (
         <View style={{ gap: space.x3, paddingBottom: space.x5 }}>

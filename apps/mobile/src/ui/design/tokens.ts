@@ -286,3 +286,9 @@ export const profileShell = {
   tabFade: 140,
   dismissDistance: 96,
 } as const;
+
+export const channelMedia = {
+  columns: 3,
+  gap: space.x1,
+  typeTile: 44,
+} as const;
