@@ -10,6 +10,7 @@ import {
   type ActivityDetail,
   type ActivityWindow,
   type ModelUsage,
+  type UsageBucket,
 } from '../../host/bot-activity';
 import type { RosterBot } from '../../host/client';
 import { compactTokenCount, dayLabel, weekdayLabel } from '../../host/usage-days';
@@ -107,6 +108,12 @@ function barLabel(detail: ActivityDetail, day: string): string | undefined {
   return detail.buckets.length <= 7 ? weekdayLabel(day) : undefined;
 }
 
+function bucketLabel(detail: ActivityDetail, bucket: UsageBucket): string {
+  if (bucket.first === bucket.last)
+    return detail.buckets.length <= 7 ? weekdayLabel(bucket.first) : dayLabel(bucket.first);
+  return `${dayLabel(bucket.first)} – ${dayLabel(bucket.last)}`;
+}
+
 function nullableCount(value: number | null): string {
   return value === null ? t.activityUnknown : compactTokenCount(value);
 }
@@ -161,6 +168,14 @@ function TokenCard({ detail, range }: { detail: ActivityDetail; range: string })
             segments: [bucket.split.cached, bucket.split.uncached, bucket.split.output],
             label: barLabel(detail, bucket.first),
           }))}
+          read={(index) => {
+            const bucket = detail.buckets[index]!;
+            const { cached, uncached, output } = bucket.split;
+            return {
+              label: bucketLabel(detail, bucket),
+              value: t.activityTokens(compactTokenCount(cached + uncached + output)),
+            };
+          }}
           colors={tones}
           height={chart.plot}
           empty={theme.layer.raised.inset}
@@ -234,6 +249,13 @@ function EventsCard({ detail, range }: { detail: ActivityDetail; range: string }
             segments: [bucket.events],
             label: barLabel(detail, bucket.first),
           }))}
+          read={(index) => {
+            const bucket = detail.buckets[index]!;
+            return {
+              label: bucketLabel(detail, bucket),
+              value: t.activityCount(bucket.events),
+            };
+          }}
           colors={[theme.color.accent]}
           height={chart.spark}
           empty={theme.layer.raised.inset}
