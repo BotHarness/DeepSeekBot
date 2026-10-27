@@ -22,7 +22,7 @@ export function createMessageDisplayPreferences(storage: {
   write(mode: MessageDisplayMode): void;
 }) {
   let snapshot: { mode: MessageDisplayMode; loaded: boolean; storageError: boolean } = {
-    mode: 'streaming',
+    mode: 'complete',
     loaded: false,
     storageError: false,
   };

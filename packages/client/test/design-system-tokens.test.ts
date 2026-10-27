@@ -138,7 +138,6 @@ const ALLOWANCES: readonly Allowance[] = [
     values: ['32px', '34px', '36px'],
     selectors: [
       '.bh-message-group:has(.bh-bubble-selecting)',
-      '.bh-timeline-working-more',
       '.bh-workspace-folder-detail',
       '.bh-memory-commit-row',
       '.bh-channel-activity-senders',

@@ -62,7 +62,7 @@ describe('device-local message display', () => {
     ]) {
       const preferences = createMessageDisplayPreferences({ read, write() {} });
       await preferences.ready;
-      expect(preferences.getSnapshot().mode).toBe('streaming');
+      expect(preferences.getSnapshot().mode).toBe('complete');
       expect(preferences.getSnapshot().loaded).toBe(true);
     }
   });

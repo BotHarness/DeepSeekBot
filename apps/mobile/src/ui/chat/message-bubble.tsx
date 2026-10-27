@@ -3,6 +3,7 @@ import {
   useCallback,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
   type ComponentProps,
   type ReactNode,
@@ -13,8 +14,10 @@ import {
   Platform,
   Pressable,
   View,
+  useWindowDimensions,
   type AccessibilityRole,
   type DimensionValue,
+  type LayoutChangeEvent,
   type ViewInstance,
 } from 'react-native';
 import Animated, {
@@ -30,6 +33,7 @@ import {
   reactedByMe,
   type ConversationDraft,
   type ConversationMessage,
+  type ConversationReaction,
   type MessageAttachment,
 } from '../../host/conversation';
 import type { RosterBot } from '../../host/client';
@@ -43,6 +47,7 @@ import { haptic } from '../haptics';
 import { useStrings, t } from '../strings';
 import {
   BADGE_OVERLAP,
+  singleLine,
   BUBBLE_MAX,
   bubbleCorners,
   bubbleRow,
@@ -53,6 +58,7 @@ import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
+import { PopIn, usePopIn } from './pop-in';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
 
@@ -68,6 +74,7 @@ export function deliveryLabel(message: ConversationMessage): string | undefined 
 const PENDING_FEEDBACK_MS = 3_000;
 
 const NO_READERS: readonly string[] = [];
+const NO_REACTIONS: readonly ConversationReaction[] = [];
 
 const NO_BOTS: readonly RosterBot[] = [];
 
@@ -112,7 +119,9 @@ export function BubbleBody({
   streaming = false,
   deliveryAccessibility = true,
   onImageReady,
+  onLayout,
 }: {
+  onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
   group: BubbleGroup;
@@ -129,6 +138,7 @@ export function BubbleBody({
   return (
     <StreamSurface
       active={streaming}
+      {...(onLayout === undefined ? {} : { onLayout })}
       style={{
         ...bubbleShape(human, group),
         ...fill,
@@ -289,6 +299,8 @@ function PressableBubble({
   );
 }
 
+const entered = new Set<string>();
+
 export function secondTap(last: number | undefined, now: number): boolean {
   return last !== undefined && now - last <= doubleTap.window;
 }
@@ -310,7 +322,9 @@ export const MessageBubble = memo(function MessageBubble({
   lifted = false,
   streaming = false,
   rowKey = message.id,
+  entering = false,
 }: {
+  entering?: boolean;
   message: ConversationMessage;
   first?: boolean;
   last?: boolean;
@@ -333,6 +347,27 @@ export const MessageBubble = memo(function MessageBubble({
   const failed = message.delivery === 'failed';
   const label = deliveryLabel(message);
   const pendingFeedback = usePendingFeedback(message);
+  const theme = useDesignTheme();
+  const { fontScale } = useWindowDimensions();
+  const [compact, setCompact] = useState(false);
+  const [enter] = useState(() => {
+    const fresh = entering && !entered.has(rowKey);
+    entered.add(rowKey);
+    return fresh;
+  });
+  const pop = usePopIn(enter);
+  const [readingStill, setReadingStill] = useState(readers.length > 0);
+  if (readingStill && readers.length === 0) setReadingStill(false);
+  const [reactionsStill] = useState(
+    () => new Set((message.reactions ?? []).map((reaction) => reaction.emoji)),
+  );
+  const reactions = streaming ? NO_REACTIONS : (message.reactions ?? NO_REACTIONS);
+  const [chipsMounted, setChipsMounted] = useState(reactions.length > 0);
+  if (!chipsMounted && reactions.length > 0) setChipsMounted(true);
+  const reading = streaming ? NO_READERS : readers;
+  const [shownReading, setShownReading] = useState(reading);
+  if (reading.length > 0 && reading.join('\n') !== shownReading.join('\n'))
+    setShownReading(reading);
   if (message.author === 'system')
     return (
       <View
@@ -347,12 +382,14 @@ export const MessageBubble = memo(function MessageBubble({
   const actionable =
     !streaming &&
     (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
-  const reactions = streaming ? [] : (message.reactions ?? []);
-  const group = { first, last, avatar: speaker?.last === true };
+  const group = { first, last, avatar: speaker?.last === true, compact };
   const bubble = (
     <BubbleBody
       message={message}
       group={group}
+      onLayout={(event) =>
+        setCompact(singleLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
+      }
       onOpenImage={onOpenImage}
       onShare={onShare}
       deliveryAccessibility={
@@ -398,14 +435,18 @@ export const MessageBubble = memo(function MessageBubble({
     ) : (
       bubble
     );
-  const reading = streaming ? NO_READERS : readers;
-  const badged = reactions.length > 0 || reading.length > 0;
+  const badged = chipsMounted || shownReading.length > 0;
   const framed = (
-    <View
-      style={{
-        alignSelf: human ? 'flex-end' : 'flex-start',
-        maxWidth: BUBBLE_MAX,
-      }}
+    <Animated.View
+      ref={pop.ref}
+      style={[
+        {
+          alignSelf: human ? 'flex-end' : 'flex-start',
+          maxWidth: BUBBLE_MAX,
+          transformOrigin: human ? 'right bottom' : 'left bottom',
+        },
+        pop.style,
+      ]}
     >
       {content}
       {badged ? (
@@ -421,9 +462,10 @@ export const MessageBubble = memo(function MessageBubble({
             gap: space.x2,
           }}
         >
-          {reactions.length === 0 ? null : (
+          {!chipsMounted ? null : (
             <ReactionChips
               reactions={reactions}
+              still={reactionsStill}
               human={human}
               botName={botName}
               {...(onReact === undefined
@@ -434,14 +476,19 @@ export const MessageBubble = memo(function MessageBubble({
                   })}
             />
           )}
-          {reading.length === 0 ? null : (
-            <View style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}>
-              <ReadingBadge messageId={message.id} readers={reading} bots={bots} />
-            </View>
+          {shownReading.length === 0 ? null : (
+            <PopIn
+              enabled={!readingStill}
+              show={reading.length > 0}
+              onHidden={() => setShownReading(NO_READERS)}
+              style={human ? { marginRight: 'auto' } : { marginLeft: 'auto' }}
+            >
+              <ReadingBadge messageId={message.id} readers={shownReading} bots={bots} />
+            </PopIn>
           )}
         </View>
       ) : null}
-    </View>
+    </Animated.View>
   );
   const surface = human ? (
     <View
@@ -497,6 +544,7 @@ export const MessageBubble = memo(function MessageBubble({
         inset={row.paddingTop}
         style={row}
         bubble={surface}
+        entering={enter}
       />
     );
   return <View style={row}>{surface}</View>;

@@ -36,106 +36,6 @@ import {
 } from '../src/client/channel-composer.js';
 
 describe('Channel composer', () => {
-  it('renders a compact keyboard disclosure for live activity outside the rounded composer', () => {
-    const markup = renderToStaticMarkup(
-      createElement(ChannelComposer, {
-        value: 'hello',
-        placeholder: '发消息给 Ada',
-        sending: false,
-        activity: {
-          items: [{ personaBotId: 'ada', name: 'Ada', state: 'thinking' }],
-          summary: 'Ada 正在思考',
-        },
-        onChange: () => undefined,
-        onSubmit: () => undefined,
-      }),
-    );
-
-    expect(markup).toContain('class="bh-composer-shell"');
-    expect(markup).toContain('class="bh-composer-activity-status"');
-    expect(markup.indexOf('bh-composer-activity-status')).toBeLessThan(
-      markup.indexOf('class="bh-composer bh-composer-'),
-    );
-    expect(markup).toContain('class="bh-avatar-facepile bh-composer-activity-facepile"');
-    expect(markup).toContain('style="width:28px;height:28px"');
-    expect(markup).toContain('<details class="bh-composer-activity-status">');
-    expect(markup).toContain('<summary');
-    expect(markup).toContain('role="status" aria-live="polite"');
-    expect(markup).not.toContain('<details open');
-    expect(markup).toContain('Ada 正在思考');
-    expect(markup).toContain('<textarea');
-    expect(markup).toContain('hello');
-    expect(markup).toContain('class="bh-composer bh-composer-compact"');
-    expect(markup).not.toContain('bh-composer-with-footer');
-    expect(markup).toContain('data-layout="compact"');
-  });
-
-  it('renders declared public text as escaped content inside the folded disclosure', () => {
-    const markup = renderToStaticMarkup(
-      createElement(ChannelComposer, {
-        value: '',
-        placeholder: 'Message',
-        sending: false,
-        activity: {
-          summary: 'Opening a browser tab',
-          items: [
-            {
-              personaBotId: 'ada',
-              name: 'Ada',
-              state: 'working',
-              activity: {
-                toolKind: 'other',
-                effect: 'generic-working',
-                startedAt: 1000,
-                activeToolCount: 1,
-                publicDetail: '<b>Opening a browser tab</b>',
-              },
-            },
-          ],
-        },
-        onChange: () => undefined,
-        onSubmit: () => undefined,
-      }),
-    );
-    expect(markup).toContain('bh-composer-activity-session-latest');
-    expect(markup).toContain('&lt;b&gt;Opening a browser tab&lt;/b&gt;');
-    expect(markup).not.toContain('<details class="bh-composer-activity-status" open');
-  });
-
-  it('discloses the safe trusted execution source and active Session count', () => {
-    const markup = renderToStaticMarkup(
-      createElement(ChannelComposer, {
-        value: '',
-        placeholder: 'Ada',
-        sending: false,
-        activity: {
-          summary: 'Ada 正在执行',
-          items: [
-            {
-              personaBotId: 'ada',
-              name: 'Ada',
-              state: 'working',
-              activity: {
-                effect: 'executing',
-                toolKind: 'execute',
-                toolName: 'bash',
-                startedAt: 1000,
-                activeToolCount: 3,
-                sources: [{ role: 'assignment', count: 2 }],
-              },
-            },
-          ],
-        },
-        onChange: () => undefined,
-        onSubmit: () => undefined,
-      }),
-    );
-    expect(markup).toContain('任务会话 ×2');
-    expect(markup).toContain('3 个工具');
-    expect(markup).toContain('bash');
-    expect(markup).not.toContain('sessionId');
-    expect(markup).not.toContain('<details open');
-  });
   it('shows a selected Bot only inside the draft, without a second chip row', () => {
     const markup = renderToStaticMarkup(
       createElement(ChannelComposer, {
@@ -153,7 +53,7 @@ describe('Channel composer', () => {
     expect(markup).not.toContain('bh-composer-selected-mentions');
   });
 
-  it('does not render status chrome when no active projection is available', () => {
+  it('renders no status chrome above the composer', () => {
     const markup = renderToStaticMarkup(
       createElement(ChannelComposer, {
         value: '',
@@ -334,102 +234,6 @@ describe('Channel composer', () => {
     expect(fitComposerTextarea(element as never)).toEqual({ expanded: true, height: 144 });
     expect(style).toEqual({ height: '144px', overflowY: 'auto' });
   });
-});
-
-it('puts only the latest activity inside each Session block and does not repeat the Bot name', () => {
-  const markup = renderToStaticMarkup(
-    createElement(ChannelComposer, {
-      value: '',
-      placeholder: 'Message',
-      sending: false,
-      onChange: () => undefined,
-      onSubmit: () => undefined,
-      activity: {
-        summary: 'Ada working',
-        items: [
-          {
-            personaBotId: 'ada',
-            name: 'Ada',
-            state: 'working',
-            sessions: [
-              {
-                id: 'activity-11111111-1111-4111-8111-111111111111',
-                role: 'assignment',
-                name: 'Inspect <layout>',
-                revision: 1,
-                at: 1000,
-                state: 'thinking',
-              },
-              {
-                id: 'activity-22222222-2222-4222-8222-222222222222',
-                role: 'assignment',
-                name: 'Verify compact activity',
-                revision: 2,
-                at: 2000,
-                state: 'working',
-                activity: {
-                  effect: 'generic-working',
-                  toolKind: 'other',
-                  toolName: 'browser_tabs',
-                  publicDetail: '<public operation>',
-                  startedAt: 2000,
-                  activeToolCount: 1,
-                },
-              },
-            ],
-          },
-        ],
-      },
-    }),
-  );
-  expect(markup).toContain('<details class="bh-composer-activity-status">');
-  expect(markup.match(/class="bh-composer-activity-session"/gu)).toHaveLength(2);
-  expect(markup).toContain('Inspect &lt;layout&gt;');
-  expect(markup).toContain('Verify compact activity');
-  expect(markup).not.toContain('任务会话 1');
-  expect(markup).toContain('<ul class="bh-composer-activity-details"');
-  expect(markup).toContain('dateTime="1970-01-01T00:00:02.000Z"');
-  expect(markup).toContain('&lt;public operation&gt;');
-  expect(markup).not.toContain('<public operation>');
-  expect(markup).not.toContain('<strong>Ada</strong>');
-  expect(markup).not.toContain('bh-composer-activity-trace');
-  expect(markup).not.toContain('bh-composer-activity-session-header');
-  expect(markup).not.toContain('bh-composer-activity-bot');
-});
-
-it('identifies Session ownership with avatars only when multiple Bots are active', () => {
-  const markup = renderToStaticMarkup(
-    createElement(ChannelComposer, {
-      value: '',
-      placeholder: 'Group',
-      sending: false,
-      onChange: () => undefined,
-      onSubmit: () => undefined,
-      activity: {
-        summary: '2 bots working',
-        items: ['Ada', 'Bob'].map((name, index): PersonaBotFacepileItem => ({
-          personaBotId: name.toLowerCase(),
-          name,
-          state: 'thinking',
-          sessions: [
-            {
-              id: `activity-${String(index).padStart(8, '0')}-1111-4111-8111-111111111111`,
-              role: 'orchestrator',
-              revision: 1,
-              at: 1000,
-              state: 'thinking',
-            },
-          ],
-        })),
-      },
-    }),
-  );
-  const body = markup.slice(markup.indexOf('bh-composer-activity-details'));
-  expect(body.match(/class="bh-persona-avatar"/gu)).toHaveLength(2);
-  expect(body).toContain('aria-label="Ada：正在思考"');
-  expect(body).toContain('aria-label="Bob：正在思考"');
-  expect(body).not.toContain('<strong>Ada</strong>');
-  expect(body).not.toContain('<strong>Bob</strong>');
 });
 
 it('supports Shift+Enter sending while plain Enter remains a newline', () => {

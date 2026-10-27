@@ -268,12 +268,18 @@ export function MessageReactionChips({
   mine,
   names,
   onReact,
+  live,
+  still,
+  onLeft,
   t,
 }: {
   reactions: readonly ChannelReaction[];
   mine: boolean;
   names(actor: ChannelReaction['actors'][number]): string;
   onReact?: ((emoji: string, active: boolean) => void) | undefined;
+  live?: ReadonlySet<string> | undefined;
+  still?: ReadonlySet<string> | undefined;
+  onLeft?: ((emoji: string) => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   if (reactions.length === 0) return null;
@@ -286,6 +292,7 @@ export function MessageReactionChips({
     >
       {reactions.map((reaction) => {
         const pressed = reactedByMe(reaction);
+        const leaving = live !== undefined && !live.has(reaction.emoji);
         const who = reaction.actors.map(names).join(t('message.reaction.separator'));
         const label = t('message.reaction.summary', {
           emoji: reaction.emoji,
@@ -297,10 +304,16 @@ export function MessageReactionChips({
               type="button"
               aria-pressed={pressed}
               aria-label={label}
-              disabled={onReact === undefined}
+              disabled={onReact === undefined || leaving}
               data-reaction={reaction.emoji}
+              data-badge-motion={
+                leaving ? 'leave' : still?.has(reaction.emoji) === false ? 'enter' : undefined
+              }
               {...stylex.props(styles.chip, pressed && styles.chipMine)}
               onClick={() => onReact?.(reaction.emoji, !pressed)}
+              onAnimationEnd={(event) => {
+                if (leaving && event.target === event.currentTarget) onLeft?.(reaction.emoji);
+              }}
             >
               <span aria-hidden="true" {...stylex.props(styles.chipEmoji)}>
                 {reaction.emoji}

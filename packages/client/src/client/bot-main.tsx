@@ -112,10 +112,12 @@ import {
 import {
   ChannelDeliveryReceipt,
   DeliveryReceiptsVisible,
-  MessageReading,
   readingBots,
 } from './channel-delivery-receipt.js';
+import { BubbleBadges } from './bubble-badges.js';
 import { BotInboxDialog } from './bot-inbox-dialog.js';
+import { StreamReplies } from './stream-replies.js';
+import { useMessageArrivals } from './message-arrivals.js';
 import { MessageCopyAction } from './message-copy-action.js';
 import { MessageAuthorHoverCard, messageAuthorCardModel } from './message-author-card.js';
 import { isBotDmChannel, isHumanReadOnlyDmChannel } from './channel-kind.js';
@@ -158,8 +160,9 @@ import {
 } from './dm-actions.js';
 import {
   timelineWorkingRows,
-  timelineWorkingRowsCover,
-  TimelineWorkingRowsView,
+  HeaderWorkingStatus,
+  WorkingAnnouncement,
+  WorkingSummary,
 } from './timeline-working-rows.js';
 import { groupComposerActivity } from './group-composer-activity.js';
 import { attentionCount } from './activity-attention.js';
@@ -169,6 +172,7 @@ import {
   type BotSummary,
   type ChannelAttachmentRef,
   type ChannelMessage,
+  type ChannelReaction,
   type ChannelSummary,
   type ClientState,
 } from './store.js';
@@ -187,6 +191,7 @@ import {
   toggleSelection,
   type MessageSelection,
 } from './message-selection-state.js';
+import { useAvatarFollow } from './avatar-follow.js';
 import { useMountedResource } from './mounted-resource.js';
 import * as stylex from '@stylexjs/stylex';
 import { IconButton } from './ds/icon-button.js';
@@ -204,7 +209,6 @@ import {
 import { TimelineUnreadDivider } from './timeline-unread-divider.js';
 import { AutoCollapseMessages, foldableMessage, MessageFold } from './message-fold.js';
 import {
-  MessageReactionChips,
   MessageReactionPicker,
   MessageReactionSurface,
   ReactionIcon,
@@ -400,11 +404,13 @@ const BUBBLE_LONG_PRESS_TOLERANCE_PX = 10;
 
 export function MessageBubbleWrap({
   message,
+  entering = false,
   focused,
   onContextMenu,
   children,
 }: {
   message: ChannelMessage;
+  entering?: boolean;
   focused: boolean;
   onContextMenu(message: ChannelMessage, x: number, y: number): void;
   children?: ReactNode;
@@ -434,7 +440,7 @@ export function MessageBubbleWrap({
   return (
     <div
       ref={mount}
-      className={`bh-bubble-wrap${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
+      className={`bh-bubble-wrap${entering ? ' bh-bubble-enter' : ''}${focused ? ' bh-bubble-focused' : ''}${message.failed === undefined ? '' : ' bh-bubble-wrap-failed'}${selection?.active === true ? ' bh-bubble-selecting' : ''}`}
       data-message-id={message.id}
       {...(selection?.active === true && selectable
         ? {
@@ -541,10 +547,13 @@ interface InboxTarget {
 }
 
 const NO_HUMAN_MEMBERS: readonly ChannelHumanMember[] = [];
+const NO_REACTIONS: readonly ChannelReaction[] = [];
+const NO_READERS: readonly string[] = [];
 
 const MessageGroupView = memo(function MessageGroupView({
   humanMembers = [],
   group,
+  arrivals,
   channelId,
   bots,
   focusMessageId,
@@ -568,6 +577,7 @@ const MessageGroupView = memo(function MessageGroupView({
   humanMembers?: readonly ChannelHumanMember[];
   gallery?: Gallery | undefined;
   group: MessageGroup;
+  arrivals?: ReadonlySet<string> | undefined;
   channelId?: string | undefined;
   focusMessageId?: string | undefined;
   currentDmBotSlug?: string | undefined;
@@ -662,14 +672,17 @@ const MessageGroupView = memo(function MessageGroupView({
       ? bots.find((candidate) => candidate.slug === currentDmBotSlug)
       : undefined;
   const bubbleStyle = humanBubbleStyle(botNameSource(dmBot), surface.background);
+  const lastId = group.messages[group.messages.length - 1]!.id;
+  const arriving = arrivals?.has(lastId) === true;
+  const follow = useAvatarFollow(lastId, arriving);
   return (
     <div
-      className={`bh-message-group${human ? ' bh-message-group-me' : ''}`}
+      className={`bh-message-group${human ? ' bh-message-group-me' : ''}${arriving && group.messages.length === 1 ? ' bh-message-group-enter' : ''}`}
       data-group-size={group.messages.length}
       style={bubbleStyle}
     >
       {avatar === undefined ? null : (
-        <span className="bh-message-group-avatar">
+        <span ref={follow} className="bh-message-group-avatar">
           {withAuthorCard(
             author.kind === 'bot' && currentDmBotSlug !== author.slug ? (
               <button
@@ -743,6 +756,7 @@ const MessageGroupView = memo(function MessageGroupView({
             <MessageBubbleWrap
               key={message.id}
               message={message}
+              entering={arrivals?.has(message.id) === true}
               focused={focusMessageId === message.id}
               onContextMenu={onContextMenu}
             >
@@ -811,23 +825,19 @@ const MessageGroupView = memo(function MessageGroupView({
                     </span>
                   ) : null}
                 </div>
-                {(message.reactions ?? []).length > 0 ||
-                (reading?.get(message.id)?.length ?? 0) > 0 ? (
-                  <div className="bh-bubble-badges">
-                    <MessageReactionChips
-                      reactions={message.reactions ?? []}
-                      mine={human}
-                      names={reactorName}
-                      onReact={
-                        onReact === undefined || !reactableMessage(message)
-                          ? undefined
-                          : (emoji, active) => onReact(message, emoji, active)
-                      }
-                      t={t}
-                    />
-                    <MessageReading readers={reading?.get(message.id) ?? []} bots={bots} t={t} />
-                  </div>
-                ) : null}
+                <BubbleBadges
+                  reactions={message.reactions ?? NO_REACTIONS}
+                  readers={reading?.get(message.id) ?? NO_READERS}
+                  mine={human}
+                  names={reactorName}
+                  onReact={
+                    onReact === undefined || !reactableMessage(message)
+                      ? undefined
+                      : (emoji, active) => onReact(message, emoji, active)
+                  }
+                  bots={bots}
+                  t={t}
+                />
                 <div className="bh-bubble-toolbar">
                   <div className="bh-bubble-actions">
                     {onReact !== undefined && reactableMessage(message) ? (
@@ -1123,6 +1133,7 @@ function ConversationView({
     return () => window.clearInterval(timer);
   }, [inboxOpen, dockBotSlug, actions]);
   const sendKey = useContext(ComposerSendKeyContext);
+  const streamReplies = useContext(StreamReplies);
   const settingsScope = resolveChannelSidebarContext(state)?.scope ?? 'channel';
   const settingsEntries = useSyncExternalStore(
     channelSidebar.subscribe,
@@ -1278,21 +1289,6 @@ function ConversationView({
     },
     [companion, scopeKey],
   );
-  const activityOverlayPane = useScopedRef<HTMLElement | null>(scopeKey, null);
-  const resizeActivityOverlay = useCallback(
-    (height: number): void => {
-      const timeline = scrollRef.current;
-      const pane = timeline?.closest<HTMLElement>('.bh-chat-pane') ?? activityOverlayPane.current;
-      if (pane === null) return;
-      activityOverlayPane.current = pane;
-      const following =
-        followingLatest.current && !store.getSnapshot().conversation.timeline.hasNewer;
-      if (height > 0) pane.style.setProperty('--bh-activity-overlay-inset', `${height + 6}px`);
-      else pane.style.removeProperty('--bh-activity-overlay-inset');
-      if (following && timeline !== null) timeline.scrollTop = timeline.scrollHeight;
-    },
-    [scopeKey],
-  );
   const prependAnchor = useScopedRef<{
     firstId: string | undefined;
     y: number | undefined;
@@ -1340,7 +1336,8 @@ function ConversationView({
     () => dmMemoryDisplaySnapshot(dmBotSlug),
   );
   const messages = conversation.messages;
-  const timelineDrafts = conversation.timeline.hasNewer ? undefined : conversation.drafts;
+  const timelineDrafts =
+    conversation.timeline.hasNewer || !streamReplies ? undefined : conversation.drafts;
   const displayMessages = useMemo<readonly ChannelMessage[]>(() => {
     const visible = visibleDmMessages(messages, hiddenActions);
     if (timelineDrafts === undefined || timelineDrafts.length === 0) return visible;
@@ -1457,7 +1454,7 @@ function ConversationView({
                 ? `${composerFacepile[0]?.name ?? 'PersonaBot'} ${personaBotPresentationSummary(composerFacepile[0]?.state ?? 'idle', composerFacepile[0]?.activity, composerFacepile[0]?.attention, t)}`
                 : t('main.activity.bots', { count: composerFacepile.length }),
           };
-  const streamingBotSlugs = new Set(conversation.drafts.map((item) => item.botSlug));
+  const streamingBotSlugs = new Set(timelineDrafts?.map((item) => item.botSlug));
   const latestMessage = messages.findLast(
     (item) =>
       item.botDmAction === undefined &&
@@ -1470,18 +1467,11 @@ function ConversationView({
       item.toolAutoApprovalPause === undefined,
   );
   const workingRows = timelineWorkingRows(
-    conversation.status === 'ready' && !conversation.timeline.hasNewer
-      ? composerActivity
-      : undefined,
+    conversation.status === 'ready' ? composerActivity : undefined,
     streamingBotSlugs,
     latestMessage?.author.kind === 'bot' ? latestMessage.author.slug : undefined,
   );
-  const composerActivityConcealed =
-    atLatest &&
-    conversation.status === 'ready' &&
-    !conversation.timeline.hasNewer &&
-    timelineWorkingRowsCover(composerActivity, workingRows, streamingBotSlugs);
-  const workingRowsKey = `${workingRows.items.map((item) => item.personaBotId).join(',')}+${workingRows.more}`;
+  const dmWorking = channel?.type !== 'group' && workingRows.items.length > 0;
   const channelId = channel?.id;
   const reactToMessage =
     readOnlyDm || channelId === undefined || actions.reactToMessage === undefined
@@ -2108,6 +2098,14 @@ function ConversationView({
     () => groupChannelMessages(displayMessages, unreadAfter),
     [displayMessages, unreadAfter],
   );
+  const arrivalIds = useMemo(
+    () =>
+      displayMessages
+        .filter((item) => !streamReplies || item.author.kind !== 'bot')
+        .map((item) => item.id),
+    [displayMessages, streamReplies],
+  );
+  const arrivals = useMessageArrivals(channelId, arrivalIds, conversation.status === 'ready');
   const galleryImages = useMemo<GalleryImage[]>(
     () =>
       channelId === undefined
@@ -2255,7 +2253,6 @@ function ConversationView({
       conversation.timeline.olderError,
       conversation.timeline.newerError,
       messages,
-      workingRowsKey,
     ],
   );
 
@@ -2597,12 +2594,8 @@ function ConversationView({
   const inboxAvailable =
     dockBotSlug !== undefined && dockEntryProps !== undefined && inboxEntry !== undefined;
   const conversationPane = (
-    <section
-      ref={companionReadMount}
-      className="bh-chat-pane"
-      data-activity-concealed={composerActivityConcealed ? 'true' : undefined}
-      {...fileDrop.handlers}
-    >
+    <section ref={companionReadMount} className="bh-chat-pane" {...fileDrop.handlers}>
+      <WorkingAnnouncement rows={workingRows} t={t} />
       {fileDrop.active ? (
         <ConversationFileDropOverlay
           label={t('composer.dropFiles')}
@@ -2655,6 +2648,7 @@ function ConversationView({
                       t={t}
                       onOpenActivity={openProfileView}
                       onToggleProfile={openProfileView}
+                      status={<HeaderWorkingStatus rows={workingRows} t={t} />}
                     />
                   ),
                 )}
@@ -2707,7 +2701,9 @@ function ConversationView({
                       ) : (
                         <ChannelMark />
                       )}
-                      <ConversationTitle>{title}</ConversationTitle>
+                      <ConversationTitle>
+                        {dmWorking ? <WorkingSummary rows={workingRows} t={t} /> : title}
+                      </ConversationTitle>
                       {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
                     </button>
                   ),
@@ -2748,7 +2744,9 @@ function ConversationView({
                         size={22}
                         indicator={false}
                       />
-                      <ConversationTitle>{title}</ConversationTitle>
+                      <ConversationTitle>
+                        {dmWorking ? <WorkingSummary rows={workingRows} t={t} /> : title}
+                      </ConversationTitle>
                       {menu === undefined ? null : <ChannelMenuCaret attention={menu.attention} />}
                     </button>
                   ),
@@ -3066,6 +3064,7 @@ function ConversationView({
                         <MessageGroupView
                           humanMembers={channel?.humanMembers ?? NO_HUMAN_MEMBERS}
                           group={group}
+                          arrivals={arrivals}
                           reading={reading}
                           channelId={channelId}
                           actions={actions}
@@ -3120,7 +3119,6 @@ function ConversationView({
               })}
             </MessageSelectionContext.Provider>
             {imageGallery.lightbox}
-            <TimelineWorkingRowsView rows={workingRows} t={t} />
             {conversation.timeline.hasNewer ? (
               <div className="bh-timeline-newer-sentinel">
                 {conversation.timeline.loadingNewer ? (
@@ -3318,9 +3316,6 @@ function ConversationView({
                     uploadControllers.current.delete(id);
                     setUploadItems((current) => current.filter((item) => item.id !== id));
                   }}
-                  activity={composerActivity}
-                  activityConcealed={composerActivityConcealed}
-                  onActivityOverlayResize={resizeActivityOverlay}
                   reply={
                     replyTarget === undefined
                       ? undefined
@@ -3463,6 +3458,11 @@ function ConversationView({
                 workspaceEnabled && channel !== undefined
                   ? {
                       title,
+                      ...(dmWorking
+                        ? { label: <WorkingSummary rows={workingRows} t={t} /> }
+                        : channel.type === 'group'
+                          ? { status: <HeaderWorkingStatus rows={workingRows} t={t} /> }
+                          : {}),
                       icon:
                         channel.type === 'group' || botDm ? (
                           <GroupChannelIcon
@@ -3744,19 +3744,26 @@ export function BotMain({
     () => prefs?.source.getSnapshot().showDeliveryReceipts ?? false,
     () => false,
   );
+  const streamReplies = useSyncExternalStore(
+    prefs?.source.subscribe ?? subscribeWithoutPrefs,
+    () => prefs?.source.getSnapshot().streamReplies ?? false,
+    () => false,
+  );
   return (
     <DeliveryReceiptsVisible.Provider value={showDeliveryReceipts}>
-      <AutoCollapseMessages.Provider value={autoCollapseMessages}>
-        <MessageDeveloperMode.Provider value={developerMode}>
-          <ComposerSendKeyContext.Provider value={sendKey}>
-            <AppearanceContext.Provider value={appearance}>
-              <Workspace options={workspace} t={props.t ?? zhTranslate}>
-                <BotMainContent {...props} />
-              </Workspace>
-            </AppearanceContext.Provider>
-          </ComposerSendKeyContext.Provider>
-        </MessageDeveloperMode.Provider>
-      </AutoCollapseMessages.Provider>
+      <StreamReplies.Provider value={streamReplies}>
+        <AutoCollapseMessages.Provider value={autoCollapseMessages}>
+          <MessageDeveloperMode.Provider value={developerMode}>
+            <ComposerSendKeyContext.Provider value={sendKey}>
+              <AppearanceContext.Provider value={appearance}>
+                <Workspace options={workspace} t={props.t ?? zhTranslate}>
+                  <BotMainContent {...props} />
+                </Workspace>
+              </AppearanceContext.Provider>
+            </ComposerSendKeyContext.Provider>
+          </MessageDeveloperMode.Provider>
+        </AutoCollapseMessages.Provider>
+      </StreamReplies.Provider>
     </DeliveryReceiptsVisible.Provider>
   );
 }
