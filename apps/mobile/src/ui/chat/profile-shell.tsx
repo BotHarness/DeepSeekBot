@@ -3,6 +3,7 @@ import {
   FlatList,
   I18nManager,
   Platform,
+  Pressable,
   View,
   useWindowDimensions,
   type NativeScrollEvent,
@@ -23,6 +24,7 @@ import { spring } from '../design/motion';
 import { profileShell, space, swipeRow } from '../design/tokens';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
 import { DrawerMaterial } from '../primitives/drawer-material';
+import { SheetGrabber } from '../primitives/sheet-grabber';
 import { Text } from '../primitives/text';
 import { NavigationAction } from '../shell/navigation-action';
 import { useStrings } from '../strings';
@@ -215,37 +217,48 @@ export function ProfileShell({
       onLayout={open}
       style={[{ flex: 1, backgroundColor: theme.overlay.fill }, openingStyle]}
     >
-      <View
-        style={{
-          paddingTop: insets.top + space.x3,
-          paddingBottom: space.x3,
-          paddingHorizontal: space.x5,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-          backgroundColor: theme.overlay.fill,
-        }}
-      >
-        <NavigationAction
-          close={Platform.OS !== 'android'}
-          back={Platform.OS === 'android'}
-          size={theme.touch}
-          label={Platform.OS === 'android' ? t.back : t.close}
+      {Platform.OS === 'android' ? (
+        <Pressable
+          testID="profile-handle"
+          accessibilityRole="button"
+          accessibilityLabel={t.close}
           onPress={onClose}
-        />
-        <Animated.View style={[{ flex: 1 }, titleStyle]} pointerEvents="none">
-          <Text
-            strong
-            numberOfLines={1}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-            style={{ textAlign: 'center' }}
-          >
-            {title}
-          </Text>
-        </Animated.View>
-        <View style={{ width: theme.touch }} />
-      </View>
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: theme.touch,
+            backgroundColor: theme.overlay.fill,
+          }}
+        >
+          <SheetGrabber />
+        </Pressable>
+      ) : (
+        <View
+          style={{
+            paddingTop: insets.top + space.x3,
+            paddingBottom: space.x3,
+            paddingHorizontal: space.x5,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x4,
+            backgroundColor: theme.overlay.fill,
+          }}
+        >
+          <NavigationAction close size={theme.touch} label={t.close} onPress={onClose} />
+          <Animated.View style={[{ flex: 1 }, titleStyle]} pointerEvents="none">
+            <Text
+              strong
+              numberOfLines={1}
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={{ textAlign: 'center' }}
+            >
+              {title}
+            </Text>
+          </Animated.View>
+          <View style={{ width: theme.touch }} />
+        </View>
+      )}
       <GestureDetector gesture={swipe}>
         <View style={{ flex: 1 }}>
           <AnimatedList
@@ -258,6 +271,7 @@ export function ProfileShell({
             onScroll={onScroll}
             onScrollEndDrag={onScrollEndDrag}
             scrollEventThrottle={16}
+            nestedScrollEnabled
             initialNumToRender={8}
             maxToRenderPerBatch={6}
             keyboardShouldPersistTaps="handled"
