@@ -54,7 +54,7 @@ import { NavigationDestinations } from '../src/ui/shell/navigation-destinations.
 import { router } from 'expo-router';
 import { t } from '../src/ui/strings';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-it('keeps the Activity icon and labels, and shows the pending count as a Material 3 badge', async () => {
+it('keeps the Activity icon and labels, marks pending items with a Material 3 dot badge and speaks the count', async () => {
   const requireAsset = createRequire(import.meta.url);
   const assets = ['activity', 'chats', 'settings'].map((name) =>
     requireAsset.resolve('../assets/toolbar/' + name + '.xml'),
@@ -114,8 +114,11 @@ it('keeps the Activity icon and labels, and shows the pending count as a Materia
         expect(button.querySelector('[data-slot="label"]')?.textContent).toBe(t.activity);
         expect(button.querySelector('[data-slot="icon"] i')).not.toBeNull();
         const badge = button.querySelector('[data-slot="badge"] b');
-        expect(badge?.textContent ?? '').toBe(expected);
-        if (count > 0) expect(badge?.getAttribute('data-container')).toBe('default');
+        expect(Boolean(badge)).toBe(count > 0);
+        if (badge) {
+          expect(badge.textContent).toBe('');
+          expect(badge.getAttribute('data-container')).not.toBe('default');
+        }
         expect(button.getAttribute('aria-label')).toBe(
           count === 0 ? t.activity : `${t.activity}, ${t.activityPendingLabel(expected)}`,
         );

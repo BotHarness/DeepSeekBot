@@ -122,6 +122,8 @@ export const theme = {
   color: {
     accent: 'accent',
     warning: 'warning',
+    fg: 'fg',
+    base: 'base',
     warningSoft: 'warningSoft',
     success: 'success',
     danger: 'danger',

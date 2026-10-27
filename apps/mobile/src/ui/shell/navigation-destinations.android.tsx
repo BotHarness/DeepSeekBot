@@ -10,7 +10,7 @@ import { fillMaxWidth, semantics, testID, weight } from '@expo/ui/jetpack-compos
 import { useDesignTheme } from '../design/theme';
 import { materialNavigationBar } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
-import { MaterialCountBadge } from '../primitives/count-badge.android';
+import { MaterialDotBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
 
@@ -80,7 +80,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 {showCount ? (
                   <BadgedBox>
                     <BadgedBox.Badge>
-                      <MaterialCountBadge count={item.count} tone="needs-you" />
+                      <MaterialDotBadge tone="needs-you" />
                     </BadgedBox.Badge>
                     {icon}
                   </BadgedBox>

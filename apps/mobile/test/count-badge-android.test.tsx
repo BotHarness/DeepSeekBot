@@ -26,7 +26,7 @@ import { CountBadge } from '../src/ui/primitives/count-badge.android';
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 it.each([
-  ['needs-you', 3, '3', undefined, undefined],
+  ['needs-you', 3, '3', 'warning', 'fg'],
   ['unread', 100, '99+', 'role:primary', 'role:onPrimary'],
   ['muted', 12, '12', 'role:surfaceContainerHighest', 'role:onSurfaceVariant'],
 ] as const)(

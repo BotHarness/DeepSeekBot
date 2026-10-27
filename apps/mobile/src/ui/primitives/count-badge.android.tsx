@@ -8,19 +8,29 @@ import type { CountBadgeTone } from './count-badge';
 
 export type { CountBadgeTone } from './count-badge';
 
-export function MaterialCountBadge({ count, tone }: { count: number; tone: CountBadgeTone }) {
+function useBadgeColors(tone: CountBadgeTone) {
+  const theme = useDesignTheme();
   const roles = useMaterialRoles();
-  const colors =
-    tone === 'unread'
+  return tone === 'needs-you'
+    ? {
+        containerColor: theme.color.warning,
+        contentColor: theme.color[theme.scheme === 'dark' ? 'base' : 'fg'],
+      }
+    : tone === 'unread'
       ? { containerColor: roles.primary, contentColor: roles.onPrimary }
-      : tone === 'muted'
-        ? { containerColor: roles.surfaceContainerHighest, contentColor: roles.onSurfaceVariant }
-        : {};
+      : { containerColor: roles.surfaceContainerHighest, contentColor: roles.onSurfaceVariant };
+}
+
+export function MaterialCountBadge({ count, tone }: { count: number; tone: CountBadgeTone }) {
   return (
-    <Badge {...colors}>
+    <Badge {...useBadgeColors(tone)}>
       <Text>{badgeCount(count)}</Text>
     </Badge>
   );
+}
+
+export function MaterialDotBadge({ tone }: { tone: CountBadgeTone }) {
+  return <Badge {...useBadgeColors(tone)} />;
 }
 
 export function CountBadge({
