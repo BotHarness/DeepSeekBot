@@ -221,6 +221,23 @@ export function createActivitySession(options: {
         ? state.target
         : undefined;
     },
+    async assignment(linkId: string): Promise<string | undefined> {
+      await ready;
+      const target = state.target?.linkId === linkId ? state.target : undefined;
+      const host = target && options.host(target.hostId);
+      if (!target || !host) return undefined;
+      const status = await options.remote
+        .request(host, 'status', { clientActivityId: target.clientActivityId })
+        .catch(() => undefined);
+      const id = status?.['assignmentId'];
+      return status?.['channelId'] === target.channelId &&
+        status['messageId'] === target.messageId &&
+        typeof id === 'string' &&
+        id.length > 0 &&
+        id.length <= 128
+        ? id
+        : undefined;
+    },
     start: async (target: ActivityTarget) => {
       const selectedHostId = options.currentHostId();
       const initiatingRevision = options.sourceChangeRevision();

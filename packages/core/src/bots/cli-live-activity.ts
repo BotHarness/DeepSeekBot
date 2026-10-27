@@ -15,12 +15,12 @@ export async function runDeviceActivity(
   const operation = rest[0] ?? 'capability';
   if (
     rest.length > 1 ||
-    !['capability', 'prepare', 'register', 'stop'].includes(operation) ||
+    !['capability', 'prepare', 'register', 'stop', 'status'].includes(operation) ||
     !values['device-file']
   )
     throw new CliLiveError(
       'usage',
-      'Use device-activity capability|prepare|register|stop --device-file <pairing.json>; mutations require --activity-stdin.',
+      'Use device-activity capability|prepare|register|stop|status --device-file <pairing.json>; every operation except capability reads --activity-stdin.',
     );
   let host;
   let body: Record<string, unknown> = {};
@@ -44,7 +44,7 @@ export async function runDeviceActivity(
   try {
     return await activity.request(
       host,
-      operation as 'capability' | 'prepare' | 'register' | 'stop',
+      operation as 'capability' | 'prepare' | 'register' | 'stop' | 'status',
       body,
     );
   } catch (error) {

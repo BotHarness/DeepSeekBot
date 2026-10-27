@@ -2335,6 +2335,14 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             ? [message]
             : [];
         });
+        const assignment = db
+          .prepare(`
+          SELECT link.session_id FROM request_assignments link
+          JOIN assignments a ON a.session_id = link.session_id AND a.bot_slug = ?
+          WHERE link.request_source_event_id = ?
+          ORDER BY link.linked_at DESC, link.rowid DESC LIMIT 1
+        `)
+          .get(botSlug, request.source_event_id) as { session_id: string } | undefined;
         const completed = request.resolved_at !== null && request.resolution === 'done';
         const ignored = request.resolved_at !== null && request.resolution === 'ignored';
         const uncertain = ['needs-repair', 'retryable'].includes(request.attempt_state);
@@ -2355,6 +2363,7 @@ export function createSqliteChannelStore(options: SqliteChannelStoreOptions): Ch
             ),
           },
           replies,
+          ...(assignment === undefined ? {} : { assignmentId: assignment.session_id }),
         };
       });
     },

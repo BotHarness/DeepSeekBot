@@ -88,6 +88,7 @@ export interface ChannelSendStatus {
   state: string;
   progress: ChannelRequestProgress;
   replies: ChannelMessage[];
+  assignmentId?: string;
 }
 
 export interface ChannelMessageCommit {

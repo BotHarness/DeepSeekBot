@@ -19,7 +19,7 @@ export interface ActivityRegistration {
 export interface HostActivity {
   request(
     host: SavedHost,
-    operation: 'capability' | 'prepare' | 'register' | 'stop',
+    operation: 'capability' | 'prepare' | 'register' | 'stop' | 'status',
     body?: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
 }
