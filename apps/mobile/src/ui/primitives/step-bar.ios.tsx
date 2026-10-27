@@ -18,10 +18,10 @@ import { space, stepBar } from '../design/tokens';
 import { useStrings } from '../strings';
 import { useLiquidGlass } from './drawer-material';
 import { Text as BodyText } from './text';
-import { stepBarAccessibilityLabel, stepBarLabel, type StepBarProps } from './step-bar';
+import { stepBarAccessibilityLabel, stepBarLabel, type StepBarProps } from './step-bar-contract';
 
-export { stepBarLabel } from './step-bar';
-export type { StepBarAction, StepBarProps } from './step-bar';
+export { stepBarLabel } from './step-bar-contract';
+export type { StepBarAction, StepBarProps } from './step-bar-contract';
 
 export function StepBar({ primary, back, step, note, error }: StepBarProps) {
   const t = useStrings();
