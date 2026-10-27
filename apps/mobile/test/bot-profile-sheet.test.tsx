@@ -569,7 +569,7 @@ describe('Bot profile page', () => {
     await act(async () => open.click());
     expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
     expect(headers(view)).toEqual(
-      expect.arrayContaining([t.routineGroup.daily, t.routineGroup.other]),
+      expect.arrayContaining([t.profileTabs.routines, t.routineGroup.daily, t.routineGroup.other]),
     );
     expect(headers(view)).not.toContain(t.routineGroup.weekly);
     expect(
@@ -596,6 +596,7 @@ describe('Bot profile page', () => {
     );
     expect(button(view, t.routineNew)).toBeNull();
     expect(view.textContent).toContain('Morning digest');
+    expect(headers(view)).not.toContain(t.profileTabs.routines);
   });
 
   it('runs a routine from its swipe action and reloads the list', async () => {

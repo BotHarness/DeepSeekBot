@@ -187,12 +187,21 @@ export function ProfileShell({
             testID={`profile-tab-content-${tab}`}
             style={{
               flexDirection: 'row',
-              justifyContent: 'flex-end',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: space.x3,
               paddingTop: space.x2,
-              paddingBottom: body.action === undefined ? 0 : space.x2,
+              paddingBottom: body.action === undefined ? 0 : space.x1,
             }}
           >
-            {body.action}
+            {body.action === undefined ? null : (
+              <>
+                <Text testID="profile-tab-heading" accessibilityRole="header" strong>
+                  {t.profileTabs[tab]}
+                </Text>
+                {body.action}
+              </>
+            )}
           </View>,
         );
       case 'row':
