@@ -1,25 +1,25 @@
 <!-- deepseekbot-readme-status:v1 -->
 # DeepSeekBot repository status / 仓库状态
 
-Last successful update / 最后成功更新: **2026-10-27T05:13:02Z**
+Last successful update / 最后成功更新: **2026-10-27T12:21:02Z**
 
 | Metric / 指标 | Value / 数值 |
 | --- | ---: |
-| Stars | 344 |
-| Forks | 21 |
-| Open issues / 未关闭问题 | 283 |
-| Open PRs / 未关闭 PR | 27 |
-| Closed PRs in 30 days / 30 天内关闭 PR | 1314 |
-| Commits in 30 days / 30 天内提交 | 2530 |
+| Stars | 353 |
+| Forks | 23 |
+| Open issues / 未关闭问题 | 265 |
+| Open PRs / 未关闭 PR | 26 |
+| Closed PRs in 30 days / 30 天内关闭 PR | 1337 |
+| Commits in 30 days / 30 天内提交 | 2539 |
 | Latest stable release / 最新稳定版本 | v1.5.2 |
 
-Window / 统计窗口（UTC）: 2026-09-27T05:13:02Z → 2026-10-27T05:13:02Z (inclusive / 含边界).
+Window / 统计窗口（UTC）: 2026-09-27T12:21:02Z → 2026-10-27T12:21:02Z (inclusive / 含边界).
 
 Closed PRs include merged PRs, using GitHub's current closed state and closed_at date; issues are counted separately. Commits use committer dates across all history reachable from the default branch, including merge and bot commits. These are activity counts, not unique changes or a productivity measure. GitHub search can lag behind recent events.
 
 关闭 PR 包含已合并 PR，按 GitHub 当前关闭状态及 closed_at 时间统计；Issues 单独计数。提交按默认分支所有可达历史的提交者时间统计，包含合并与机器人提交。这些是活动次数，不代表独立改动数或生产力；GitHub 搜索可能有延迟。
 
-Default branch / 默认分支: [main at abfaeae23e9d46c17712ef5c7a6ff9d8d68eb14c](https://github.com/BotHarness/DeepSeekBot/commit/abfaeae23e9d46c17712ef5c7a6ff9d8d68eb14c).
+Default branch / 默认分支: [main at f39d57eed3793e7ca42d2994aadbced1d14794d6](https://github.com/BotHarness/DeepSeekBot/commit/f39d57eed3793e7ca42d2994aadbced1d14794d6).
 
 Updated every six hours after the workflow is merged. Delayed or failed runs leave the last successful snapshot intact. GitHub image caching may delay visible updates. README prose and release highlights are maintained separately.
 
