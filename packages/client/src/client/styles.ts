@@ -1948,47 +1948,6 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
 }
 .bh-market-tile-foot .bh-market-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
 .bh-market-tile-foot > button { flex-shrink: 0; border: 0; }
-.bh-market-upload-section {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x2};
-  min-width: 0;
-}
-.bh-market-upload-bots {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x1};
-}
-.bh-market-upload-bot {
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
-  min-width: 0;
-  padding: ${space.x2} ${space.x2};
-  border-radius: ${radius.md};
-}
-.bh-market-upload-bot:hover { background: var(--bh-hover); }
-.bh-market-direct {
-  display: flex;
-  flex-direction: column;
-  gap: ${space.x3};
-  min-width: 0;
-}
-.bh-market-direct-head {
-  display: flex;
-  align-items: center;
-  gap: ${space.x3};
-  min-width: 0;
-}
-.bh-market-direct-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: ${space.x2};
-}
-.bh-market-code {
-  font-family: var(--dsw-font-family-mono, monospace);
-  font-weight: ${text.strong};
-}
 .bh-market-files {
   display: flex;
   flex-direction: column;
@@ -2116,14 +2075,6 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
 }
-.bh-market-upload-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--dsw-alias-label-primary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 /* A profile card: banner on top, the Bot's avatar half over its lower edge, identity below. */
 .bh-market-row {
   position: relative;
@@ -2229,8 +2180,7 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   font-weight: ${text.regular};
 }
 .bh-market-owner,
-[data-market-author],
-[data-market-direct] {
+[data-market-author] {
   font-feature-settings: 'calt' 0;
 }
 .bh-market-description {

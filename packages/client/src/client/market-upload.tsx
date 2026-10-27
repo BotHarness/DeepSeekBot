@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactElement } from 'react';
-
+import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
@@ -9,37 +9,104 @@ import type {
 } from '../../../core/src/marketplace/uploaded-bots.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
+import { errorMessage } from './bridge.js';
+import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
+import { appendConversationDraft, conversationDraftKey } from './conversation-draft.js';
+import type { DockPanelRegistry } from './dock-panels.js';
 import { Callout } from './ds/callout.js';
+import { ChoiceButton } from './ds/choice-button.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
-import type { BotHarnessTranslate } from './locale.js';
+import { PanelDialog } from './ds/panel-dialog.js';
+import { StepProgress } from './ds/step-progress.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { fileSize } from './market-files.js';
-import { marketplaceError } from './marketplace.js';
+import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
+import {
+  MarketplaceSubmitField,
+  marketplaceError,
+  marketplaceLanguage,
+  useMarketplaceSubmit,
+} from './marketplace.js';
 import { useMountedResource } from './mounted-resource.js';
-import type { BotSummary } from './store.js';
+import { store, type BotSummary } from './store.js';
 
 const CONNECT_PATH = './api/botharness/devices/connect';
 const ACCOUNT_POLL_MS = 3000;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 const MAX_TAGS = 8;
 
+type Route = 'choose' | 'direct' | 'github' | 'repo';
+type DirectStep = 'account' | 'bot' | 'details' | 'review';
+
+const DIRECT_STEPS: readonly DirectStep[] = ['account', 'bot', 'details', 'review'];
+
+const TITLES: Record<Route, BotHarnessKey> = {
+  choose: 'market.upload.title',
+  direct: 'market.direct.title',
+  github: 'market.upload.byBot',
+  repo: 'market.upload.byUrl',
+};
+
 type AccountState =
   | { status: 'loading' }
   | { status: 'error'; cause: unknown }
   | { status: 'ready'; account: MarketplaceAccount };
 
-type Step =
-  | { kind: 'pick' }
-  | { kind: 'author'; bot: BotSummary }
-  | { kind: 'form'; bot: BotSummary; plan?: UploadPlan; planCause?: unknown };
+const styles = stylex.create({
+  body: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
+  choices: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
+  code: {
+    alignSelf: 'center',
+    paddingBlock: space.x3,
+    paddingInline: space.x5,
+    borderRadius: radius.sm,
+    backgroundColor: color.surface,
+    color: color.fg,
+    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+    letterSpacing: '0.12em',
+    userSelect: 'all',
+  },
+  summary: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x4,
+    padding: space.x4,
+    borderRadius: radius.md,
+    backgroundColor: color.surface,
+    minWidth: 0,
+  },
+  summaryCopy: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  summaryName: {
+    color: color.fg,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.strong,
+  },
+  summaryMeta: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+    fontFeatureSettings: '"calt" 0',
+    overflowWrap: 'anywhere',
+  },
+});
 
-function tagList(text: string): string[] {
+function tagList(value: string): string[] {
   const tags: string[] = [];
-  for (const part of text.split(/[,，]/u)) {
+  for (const part of value.split(/[,，]/u)) {
     const tag = part.trim();
     if (tag.length > 0 && !tags.includes(tag)) tags.push(tag);
   }
   return tags.slice(0, MAX_TAGS);
+}
+
+function publishable(bots: readonly BotSummary[]): BotSummary[] {
+  return bots.filter((bot) => !bot.deleted && bot.tob === undefined);
 }
 
 async function startConnectSignIn(): Promise<{ userCode: string; verificationUri: string }> {
@@ -59,25 +126,95 @@ async function startConnectSignIn(): Promise<{ userCode: string; verificationUri
   return { userCode: body['userCode'], verificationUri: body['verificationUri'] };
 }
 
-export function MarketDirectUpload({
-  actions,
+function BotAvatar({
+  bot,
+  size,
+  t,
+}: {
+  bot: BotSummary;
+  size: number;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <PersonaBotAvatar
+      personaBotId={bot.slug}
+      name={bot.displayName}
+      src={bot.avatar}
+      appearance={bot.appearance}
+      avatarSeed={bot.avatarSeed}
+      size={size}
+      indicator={false}
+      still
+      t={t}
+    />
+  );
+}
+
+function BotChoices({
   bots,
   t,
-  onListed,
+  disabled = false,
+  onChoose,
 }: {
-  actions: BridgeActions;
   bots: readonly BotSummary[];
   t: BotHarnessTranslate;
-  onListed: (bot: MarketplaceEntry) => void;
+  disabled?: boolean;
+  onChoose: (bot: BotSummary) => void;
 }): ReactElement {
+  if (bots.length === 0) return <Note>{t('market.upload.noBots')}</Note>;
+  return (
+    <div {...stylex.props(styles.choices)} role="list">
+      {bots.map((bot) => (
+        <div key={bot.slug} role="listitem">
+          <ChoiceButton
+            title={bot.displayName}
+            leading={<BotAvatar bot={bot} size={28} t={t} />}
+            disabled={disabled}
+            data={{ 'data-market-bot-choice': bot.slug }}
+            onClick={() => onChoose(bot)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MarketUploadDialog({
+  actions,
+  registry,
+  t,
+  onListed,
+  onClose,
+  initialSlug,
+}: {
+  actions: BridgeActions;
+  registry: DockPanelRegistry;
+  t: BotHarnessTranslate;
+  onListed: (bot: MarketplaceEntry) => void;
+  onClose: () => void;
+  initialSlug?: string | undefined;
+}): ReactElement {
+  const roster = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
+  const bots = publishable(roster);
+  const preselected = bots.find((bot) => bot.slug === initialSlug);
+  const submit = useMarketplaceSubmit(actions, (bot) => {
+    onListed(bot);
+    onClose();
+  });
+  const [route, setRoute] = useState<Route>(preselected === undefined ? 'choose' : 'direct');
+  const [rawStep, setStep] = useState<DirectStep>(
+    preselected === undefined ? 'account' : 'details',
+  );
+  const [chosen, setChosen] = useState<BotSummary | undefined>(preselected);
   const [account, setAccount] = useState<AccountState>({ status: 'loading' });
   const [signIn, setSignIn] = useState<{ userCode: string; verificationUri: string }>();
-  const [step, setStep] = useState<Step>({ kind: 'pick' });
   const [authorName, setAuthorName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [name, setName] = useState('');
-  const [bio, setBio] = useState('');
-  const [tags, setTags] = useState('');
+  const [name, setName] = useState(preselected?.displayName ?? '');
+  const [bio, setBio] = useState(preselected?.description ?? '');
+  const [tags, setTags] = useState(preselected?.roles.join(', ') ?? '');
+  const [plan, setPlan] = useState<{ value?: UploadPlan; cause?: unknown }>({});
+  const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [cause, setCause] = useState<unknown>();
   const mounted = useRef(true);
@@ -93,9 +230,22 @@ export function MarketDirectUpload({
     }
   };
 
+  const loadPlan = (bot: BotSummary): void => {
+    setPlan({});
+    void actions.marketplaceUploadPlan(bot.slug).then(
+      (value) => {
+        if (mounted.current) setPlan({ value });
+      },
+      (planCause: unknown) => {
+        if (mounted.current) setPlan({ cause: planCause });
+      },
+    );
+  };
+
   const mount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     void loadAccount();
+    if (preselected !== undefined) loadPlan(preselected);
     return () => {
       mounted.current = false;
     };
@@ -110,29 +260,11 @@ export function MarketDirectUpload({
     return () => clearInterval(timer);
   }, [signIn]);
 
-  const openForm = (bot: BotSummary): void => {
-    setName(bot.displayName);
-    setBio(bot.description ?? '');
-    setTags(bot.roles.join(', '));
-    setCause(undefined);
-    setStep({ kind: 'form', bot });
-    void actions.marketplaceUploadPlan(bot.slug).then(
-      (plan) => {
-        if (mounted.current) setStep({ kind: 'form', bot, plan });
-      },
-      (planCause: unknown) => {
-        if (mounted.current) setStep({ kind: 'form', bot, planCause });
-      },
-    );
-  };
-
-  const choose = (bot: BotSummary): void => {
-    if (account.status !== 'ready') return;
-    if (account.account.author === null) {
-      setCause(undefined);
-      setStep({ kind: 'author', bot });
-    } else openForm(bot);
-  };
+  const ready = account.status === 'ready' ? account.account : undefined;
+  const author = ready?.author ?? null;
+  const accountDone = ready?.signedIn === true && author !== null;
+  const step: DirectStep =
+    rawStep === 'account' && accountDone ? (chosen === undefined ? 'bot' : 'details') : rawStep;
 
   const run = async (work: () => Promise<void>): Promise<void> => {
     setBusy(true);
@@ -146,71 +278,143 @@ export function MarketDirectUpload({
     }
   };
 
+  const go = (next: DirectStep): void => {
+    setCause(undefined);
+    setStep(next);
+  };
+
+  const choose = (bot: BotSummary): void => {
+    setChosen(bot);
+    setName(bot.displayName);
+    setBio(bot.description ?? '');
+    setTags(bot.roles.join(', '));
+    setChecked(false);
+    loadPlan(bot);
+    go('details');
+  };
+
+  const publishByBot = (bot: BotSummary): Promise<void> =>
+    run(async () => {
+      await actions.openBot(bot.slug);
+      const scope = conversationDraftKey(store.getSnapshot());
+      if (scope !== undefined)
+        appendConversationDraft(scope, MARKET_SHARE_PROMPT[marketplaceLanguage(t)]);
+      registry.open(CHANNEL_BODY_PANEL);
+      onClose();
+    });
+
+  const back = (): void => {
+    setCause(undefined);
+    if (route !== 'direct') setRoute('choose');
+    else if (step === 'review') go('details');
+    else if (step === 'details' && preselected === undefined) go('bot');
+    else {
+      setStep('account');
+      setRoute('choose');
+    }
+  };
+
   const failure =
-    cause === undefined ? null : <Note tone="danger">{marketplaceError(cause, t)}</Note>;
+    cause === undefined ? null : (
+      <Note tone="danger">
+        {route === 'github'
+          ? t('market.upload.failed', { error: errorMessage(cause) })
+          : marketplaceError(cause, t)}
+      </Note>
+    );
 
-  const content = ((): ReactElement => {
-    if (account.status === 'loading')
-      return (
-        <span className="bh-market-state" role="status">
-          {t('market.direct.loading')}
-        </span>
-      );
-    if (account.status === 'error')
-      return (
-        <Note tone="danger">
-          {t('market.direct.accountFailed', { error: marketplaceError(account.cause, t) })}
-        </Note>
-      );
+  let body: ReactNode;
+  let primary: ReactNode = null;
 
-    if (!account.account.signedIn)
-      return (
-        <div className="bh-market-direct" data-market-direct="signed-out">
-          <span className="bh-market-hint">{t('market.direct.signInHint')}</span>
-          {signIn === undefined ? (
-            <div>
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async () => {
-                    const started = await startConnectSignIn();
-                    if (mounted.current) setSignIn(started);
-                  })
-                }
-              >
-                {t('market.direct.signIn')}
-              </Button>
-            </div>
+  if (route === 'choose') {
+    body = (
+      <div {...stylex.props(styles.choices)}>
+        <ChoiceButton
+          title={t('market.direct.title')}
+          description={t('market.upload.route.directHint')}
+          data={{ 'data-market-route': 'direct' }}
+          onClick={() => {
+            setCause(undefined);
+            setRoute('direct');
+          }}
+        />
+        <ChoiceButton
+          title={t('market.upload.byBot')}
+          description={t('market.upload.route.githubHint')}
+          data={{ 'data-market-route': 'github' }}
+          onClick={() => {
+            setCause(undefined);
+            setRoute('github');
+          }}
+        />
+        <ChoiceButton
+          title={t('market.upload.byUrl')}
+          description={t('market.upload.route.repoHint')}
+          data={{ 'data-market-route': 'repo' }}
+          onClick={() => setRoute('repo')}
+        />
+      </div>
+    );
+  } else if (route === 'github') {
+    body = (
+      <>
+        <Note>{t('market.upload.byBotHint')}</Note>
+        <BotChoices bots={bots} t={t} disabled={busy} onChoose={(bot) => void publishByBot(bot)} />
+        {failure}
+      </>
+    );
+  } else if (route === 'repo') {
+    body = <MarketplaceSubmitField submit={submit} t={t} />;
+  } else {
+    let content: ReactNode;
+    if (step === 'account') {
+      if (account.status === 'loading') content = <Note>{t('market.direct.loading')}</Note>;
+      else if (account.status === 'error')
+        content = (
+          <Note tone="danger">
+            {t('market.direct.accountFailed', { error: marketplaceError(account.cause, t) })}
+          </Note>
+        );
+      else if (!account.account.signedIn) {
+        content =
+          signIn === undefined ? (
+            <Note>{t('market.direct.signInHint')}</Note>
           ) : (
-            <Callout data={{ 'data-market-sign-in': '' }}>
-              {t('devices.connect.confirm')}{' '}
-              <code className="bh-market-code">{signIn.userCode}</code>
-              <div>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-                >
-                  {t('devices.connect.openPage')}
-                </Button>
-              </div>
-            </Callout>
-          )}
-          {failure}
-        </div>
-      );
-
-    const author = account.account.author;
-
-    if (step.kind === 'author')
-      return (
-        <div className="bh-market-direct" data-market-direct="author">
+            <>
+              <Note>{t('devices.connect.confirm')}</Note>
+              <code {...stylex.props(styles.code)} data-market-sign-in="">
+                {signIn.userCode}
+              </code>
+              <span ref={poll} hidden />
+            </>
+          );
+        primary =
+          signIn === undefined ? (
+            <Button
+              variant="primary"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  const started = await startConnectSignIn();
+                  if (mounted.current) setSignIn(started);
+                })
+              }
+            >
+              {t('market.direct.signIn')}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
+            >
+              {t('devices.connect.openPage')}
+            </Button>
+          );
+      } else {
+        content = (
           <FieldStack>
             <TextField
               label={t('market.author.name')}
-              hint={t('market.author.nameHint')}
               value={authorName}
               maxLength={MAX_AUTHOR_NAME_LENGTH}
               initialFocus
@@ -222,179 +426,155 @@ export function MarketDirectUpload({
               label={t('market.author.terms')}
             />
           </FieldStack>
-          {failure}
-          <div className="bh-market-direct-actions">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => setStep({ kind: 'pick' })}
-            >
-              {t('market.back')}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy || authorName.trim().length === 0 || !acceptTerms}
-              onClick={() =>
-                void run(async () => {
-                  const saved = await actions.marketplaceAuthorSave(authorName.trim(), true);
-                  if (!mounted.current) return;
-                  setAccount({ status: 'ready', account: { ...account.account, author: saved } });
-                  openForm(step.bot);
-                })
-              }
-            >
-              {t('market.author.continue')}
-            </Button>
-          </div>
-        </div>
+        );
+        primary = (
+          <Button
+            variant="primary"
+            disabled={busy || authorName.trim().length === 0 || !acceptTerms}
+            onClick={() =>
+              void run(async () => {
+                const saved = await actions.marketplaceAuthorSave(authorName.trim(), true);
+                if (mounted.current && ready !== undefined)
+                  setAccount({ status: 'ready', account: { ...ready, author: saved } });
+              })
+            }
+          >
+            {t('market.author.continue')}
+          </Button>
+        );
+      }
+    } else if (step === 'bot') {
+      content = <BotChoices bots={bots} t={t} onChoose={choose} />;
+    } else if (step === 'details') {
+      content = (
+        <FieldStack>
+          <TextField
+            label={t('market.direct.name')}
+            value={name}
+            maxLength={60}
+            initialFocus
+            onChange={setName}
+          />
+          <TextAreaField
+            label={t('market.direct.bio')}
+            value={bio}
+            maxLength={160}
+            rows={2}
+            onChange={setBio}
+          />
+          <TextField
+            label={t('market.direct.tags')}
+            placeholder={t('market.direct.tagsHint')}
+            value={tags}
+            onChange={setTags}
+          />
+        </FieldStack>
       );
-
-    if (step.kind === 'form') {
-      const { bot, plan } = step;
-      return (
-        <div className="bh-market-direct" data-market-direct="form">
-          <div className="bh-market-direct-head">
-            <PersonaBotAvatar
-              personaBotId={bot.slug}
-              name={bot.displayName}
-              src={bot.avatar}
-              appearance={bot.appearance}
-              avatarSeed={bot.avatarSeed}
-              size={40}
-              indicator={false}
-              still
-              t={t}
-            />
-            <span className="bh-market-copy">
-              <span className="bh-market-card-name">{bot.displayName}</span>
-              {author === null ? null : (
-                <span className="bh-market-owner" data-market-author-id={author.id}>
-                  {t('market.direct.as', { name: author.name, id: author.id })}
+      primary = (
+        <Button variant="primary" disabled={!name.trim()} onClick={() => go('review')}>
+          {t('market.direct.next')}
+        </Button>
+      );
+    } else {
+      const files = plan.value;
+      content = (
+        <>
+          {chosen === undefined ? null : (
+            <div {...stylex.props(styles.summary)}>
+              <BotAvatar bot={chosen} size={40} t={t} />
+              <span {...stylex.props(styles.summaryCopy)}>
+                <span {...stylex.props(styles.summaryName)}>{name.trim()}</span>
+                <span
+                  {...stylex.props(styles.summaryMeta)}
+                  data-market-plan={files?.files.length ?? ''}
+                >
+                  {[
+                    author === null ? undefined : `${author.name} #${author.id}`,
+                    files === undefined
+                      ? plan.cause === undefined
+                        ? t('market.direct.planLoading')
+                        : marketplaceError(plan.cause, t)
+                      : t('market.direct.plan', {
+                          count: String(files.files.length),
+                          size: fileSize(files.totalBytes),
+                        }),
+                  ]
+                    .filter((part) => part !== undefined)
+                    .join(' · ')}
                 </span>
-              )}
-            </span>
-          </div>
-          <FieldStack>
-            <TextField
-              label={t('market.direct.name')}
-              value={name}
-              maxLength={60}
-              onChange={setName}
-            />
-            <TextAreaField
-              label={t('market.direct.bio')}
-              value={bio}
-              maxLength={160}
-              rows={2}
-              onChange={setBio}
-            />
-            <TextField
-              label={t('market.direct.tags')}
-              hint={t('market.direct.tagsHint')}
-              value={tags}
-              onChange={setTags}
-            />
-          </FieldStack>
-          <span className="bh-market-hint" data-market-plan={plan?.files.length ?? ''}>
-            {plan === undefined
-              ? step.planCause === undefined
-                ? t('market.direct.planLoading')
-                : marketplaceError(step.planCause, t)
-              : t('market.direct.plan', {
-                  count: String(plan.files.length),
-                  size: fileSize(plan.totalBytes),
-                })}
-          </span>
-          {plan === undefined || plan.skipped.length === 0 ? null : (
-            <span className="bh-market-hint" data-market-skipped={plan.skipped.length}>
-              {t('market.direct.skipped', {
-                files: plan.skipped.map((file) => file.path).join(', '),
-              })}
-            </span>
+              </span>
+            </div>
           )}
-          <Callout tone="warning" role="note" title={t('market.direct.secretsTitle')}>
-            {t('market.direct.secrets')}
+          {files === undefined || files.skipped.length === 0 ? null : (
+            <Note>
+              {t('market.direct.skipped', {
+                files: files.skipped.map((file) => file.path).join(', '),
+              })}
+            </Note>
+          )}
+          <Callout tone="warning" title={t('market.direct.secretsTitle')}>
+            <Checkbox checked={checked} onChange={setChecked} label={t('market.direct.secrets')} />
           </Callout>
-          {failure}
-          <div className="bh-market-direct-actions">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => setStep({ kind: 'pick' })}
-            >
-              {t('market.back')}
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              disabled={busy || plan === undefined || plan.files.length === 0 || !name.trim()}
-              onClick={() =>
-                void run(async () => {
-                  const trimmedBio = bio.trim();
-                  const uploaded = await actions.marketplaceUpload(bot.slug, {
-                    displayName: name.trim(),
-                    ...(trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
-                    tags: tagList(tags),
-                  });
-                  if (mounted.current) onListed(uploaded.bot);
-                })
-              }
-            >
-              {busy ? t('market.direct.uploading') : t('market.direct.upload')}
-            </Button>
-          </div>
-        </div>
+        </>
+      );
+      primary = (
+        <Button
+          variant="primary"
+          disabled={busy || !checked || files === undefined || files.files.length === 0}
+          onClick={() =>
+            void run(async () => {
+              if (chosen === undefined) return;
+              const trimmedBio = bio.trim();
+              const uploaded = await actions.marketplaceUpload(chosen.slug, {
+                displayName: name.trim(),
+                ...(trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
+                tags: tagList(tags),
+              });
+              if (!mounted.current) return;
+              onListed(uploaded.bot);
+              onClose();
+            })
+          }
+        >
+          {busy ? t('market.direct.uploading') : t('market.direct.upload')}
+        </Button>
       );
     }
-
-    return (
-      <div className="bh-market-direct" data-market-direct="pick">
-        <span className="bh-market-hint">
-          {author === null
-            ? t('market.direct.pickHint')
-            : t('market.direct.as', { name: author.name, id: author.id })}
-        </span>
-        {bots.length === 0 ? (
-          <span className="bh-market-state">{t('market.upload.noBots')}</span>
-        ) : (
-          <div className="bh-market-upload-bots" role="list">
-            {bots.map((bot) => (
-              <div key={bot.slug} className="bh-market-upload-bot" role="listitem">
-                <PersonaBotAvatar
-                  personaBotId={bot.slug}
-                  name={bot.displayName}
-                  src={bot.avatar}
-                  appearance={bot.appearance}
-                  avatarSeed={bot.avatarSeed}
-                  size={28}
-                  indicator={false}
-                  still
-                  t={t}
-                />
-                <span className="bh-market-upload-name">{bot.displayName}</span>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  aria-label={t('market.direct.uploadLabel', { name: bot.displayName })}
-                  onClick={() => choose(bot)}
-                >
-                  {t('market.direct.choose')}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+    body = (
+      <>
+        <StepProgress
+          label={t('market.direct.progress')}
+          steps={DIRECT_STEPS.map((id) => t(`market.direct.step.${id}`))}
+          step={DIRECT_STEPS.indexOf(step)}
+        />
+        <div {...stylex.props(styles.body)} data-market-direct={step}>
+          {content}
+          {failure}
+        </div>
+      </>
     );
-  })();
+  }
 
   return (
-    <div ref={mount} className="bh-market-direct-root">
-      {content}
-      {signIn === undefined ? null : <span ref={poll} hidden />}
-    </div>
+    <PanelDialog
+      size="small"
+      title={t(TITLES[route])}
+      closeLabel={t('common.close')}
+      onClose={onClose}
+      scroll
+      data={{ 'data-market-upload': route }}
+      secondary={
+        route === 'choose' ? undefined : (
+          <Button variant="outline" disabled={busy} onClick={back}>
+            {t('market.back')}
+          </Button>
+        )
+      }
+      actions={primary ?? undefined}
+    >
+      <div ref={mount} {...stylex.props(styles.body)}>
+        {body}
+      </div>
+    </PanelDialog>
   );
 }
