@@ -23,7 +23,7 @@ function adapterWith(
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void,
 ) {
   return createDshBotAgentAdapter({
-    ...(observePreparation === undefined ? {} : { observePreparation }),
+    ...(observePreparation === undefined ? {} : { observePreparation, preparationVisibleMs: 0 }),
     agents: host,
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
     orchestratorCwd: () => '/memory/ada',
@@ -42,8 +42,9 @@ describe('a Turn stuck before its Agent starts', () => {
     const adapter = adapterWith(host, prepare, undefined, preparing);
     try {
       const stuck = adapter.runOrchestrator(run);
-      await vi.waitFor(() => expect(prepare).toHaveBeenCalledTimes(1));
-      expect(preparing.mock.calls).toEqual([[BOT.slug, run.sessionId, true]]);
+      await vi.waitFor(() =>
+        expect(preparing.mock.calls).toEqual([[BOT.slug, run.sessionId, true]]),
+      );
 
       expect(adapter.stopOrchestratorTurn?.(BOT.slug)).toBe(run.sessionId);
       await expect(stuck).resolves.toBeUndefined();

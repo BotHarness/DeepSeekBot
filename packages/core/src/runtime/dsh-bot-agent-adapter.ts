@@ -283,6 +283,8 @@ export interface DshBotAgentAdapterOptions {
 
   preparationTimeoutMs?: number;
 
+  preparationVisibleMs?: number;
+
   observePreparation?: (botSlug: string, sessionId: string, preparing: boolean) => void;
 }
 
@@ -389,6 +391,7 @@ function requireCompletedTurn(
 }
 
 const PREPARATION_TIMEOUT_MS = 120_000;
+const PREPARATION_VISIBLE_MS = 1_000;
 
 class PreparationStopped extends Error {
   constructor() {
@@ -440,6 +443,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #preparations = new Map<string, AbortController>();
   readonly #preparationTimeoutMs: number;
   readonly #observePreparation: DshBotAgentAdapterOptions['observePreparation'];
+  readonly #preparationVisibleMs: number;
   readonly #drafts: ChannelDraftTracker;
   #closed = false;
 
@@ -463,6 +467,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#drafts = new ChannelDraftTracker(options.publishDraft ?? (() => undefined));
     this.#preparationTimeoutMs = options.preparationTimeoutMs ?? PREPARATION_TIMEOUT_MS;
     this.#observePreparation = options.observePreparation;
+    this.#preparationVisibleMs = options.preparationVisibleMs ?? PREPARATION_VISIBLE_MS;
   }
 
   async #prepare<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
@@ -533,16 +538,23 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       });
     try {
       let handle: AgentHandle;
-      this.#observePreparation?.(run.bot.slug, run.sessionId, true);
+      let shown = false;
+      const reveal = setTimeout(() => {
+        shown = true;
+        this.#observePreparation?.(run.bot.slug, run.sessionId, true);
+      }, this.#preparationVisibleMs);
+      reveal.unref?.();
       try {
         handle = await this.#prepare(run.sessionId, async () => {
           await this.#prepareModelRoute?.(run.bot.slug, 'orchestrator');
           return this.#orchestratorHandle(run);
         });
       } catch (error) {
-        this.#observePreparation?.(run.bot.slug, run.sessionId, false);
         if (error instanceof PreparationStopped && this.#humanStops.has(run.sessionId)) return;
         throw error;
+      } finally {
+        clearTimeout(reveal);
+        if (shown) this.#observePreparation?.(run.bot.slug, run.sessionId, false);
       }
       if (this.#stoppedBots.has(run.bot.slug)) throw new Error('PersonaBot is deleted');
       this.#orchestratorBridgeTools.get(run.sessionId)?.(
@@ -560,10 +572,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.setExecutionReady?.(true);
       const text = [run.message, run.inbox].filter((part) => part.trim().length > 0).join('\n\n');
       if (run.acceptNativeInput !== undefined) {
-        if (!run.acceptNativeInput()) {
-          this.#observePreparation?.(run.bot.slug, run.sessionId, false);
-          return;
-        }
+        if (!run.acceptNativeInput()) return;
       } else
         handle.agent.followup(
           createUserMessage({
