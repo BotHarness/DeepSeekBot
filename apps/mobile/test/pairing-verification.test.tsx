@@ -204,6 +204,50 @@ it.each([false, true])(
     expect(pairing.finishSetup()).toBe(false);
   },
 );
+it.each([false, true])(
+  'returns from new environment customization to the retained creation flow (batch: %s)',
+  async (batch) => {
+    pairingOptions = { stayOnPage: batch };
+    history.push('(bot-creation)', { hostId: 'original', flow: 'zip', step: '0' });
+    const creation = history.state.routes.at(-1);
+    history.push('pair');
+    const { approve } = await setup();
+    await click('pairing-fingerprint-match');
+    await approve();
+    mocks.dismissTo.mockClear();
+    const saved: SavedHost = {
+      hostId: 'added',
+      hostName: 'New environment',
+      routes: ['https://new.example'],
+      deviceId: 'phone',
+      credential: 'test',
+    };
+    mocks.save.mockImplementation(async () =>
+      mocks.getState.mockReturnValue({ hosts: [saved], saved }),
+    );
+    mocks.pairHost.mockImplementation(async (options: Parameters<typeof pairHost>[0]) => {
+      await options.save(saved);
+      return { ok: true };
+    });
+    await act(async () => {
+      await pairing.pair('new-link', 'paste');
+    });
+    if (batch) act(() => pairing.finishSetup());
+    expect(history.state.routes.map((route) => route.name)).toEqual([
+      '(tabs)',
+      '(bot-creation)',
+      'host-look',
+    ]);
+    expect(history.state.routes[1]).toEqual(creation);
+    expect(history.state.routes.at(-1)?.params).toEqual({ hostId: 'added' });
+    expect(mocks.dismissTo).not.toHaveBeenCalled();
+    history.back();
+    expect(history.state.routes.at(-1)).toEqual(creation);
+    expect(pairing.finishSetup()).toBe(false);
+    history.back();
+  },
+);
+
 it('refuses an alternate registration of an already saved Host before opening a channel', async () => {
   pairingOptions = { stayOnPage: true, preventDuplicates: true };
   view = document.createElement('div');
