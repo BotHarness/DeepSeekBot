@@ -65,6 +65,15 @@ export function PersonIcon(props: IconProps) {
   return <Glyph {...props} d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7.5 8a7.5 7.5 0 0 1 15 0" />;
 }
 
+export function MembersIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6.5 8a6.5 6.5 0 0 1 13 0M16 4.3a3.5 3.5 0 0 1 0 6.4M18.5 13.6a6.5 6.5 0 0 1 3 5.4"
+    />
+  );
+}
+
 export function SettingsIcon(props: IconProps) {
   return (
     <Glyph

@@ -378,6 +378,9 @@ it('All opens the routed Group Profile even when the enclosing sheet still has a
       },
     ],
   };
+  const settings = node.querySelector<HTMLElement>('[data-testid="profile-tab-settings"]');
+  expect(settings).not.toBeNull();
+  await act(async () => settings!.click());
   const notifications = [...node.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
     button.textContent?.includes(t.notifications),
   );
@@ -466,7 +469,7 @@ it('shows the DM files in the Files tab and keeps the profile and conversation',
   expect(state.routes[state.index]?.key).toBe('original-dm');
 });
 
-it('opens the exact group files from details without changing the parent Channel', async () => {
+it('shows the group files in the Group Profile without leaving the parent Channel', async () => {
   fixture.snapshot.roster!.channels = [
     { id: 'group-a', name: 'Group', members: [], memberCount: 0 },
   ];
@@ -495,14 +498,15 @@ it('opens the exact group files from details without changing the parent Channel
   document.body.append(node);
   root = createRoot(node);
   await act(async () => root!.render(<GroupInfoScreen />));
-  const files = node.querySelector<HTMLButtonElement>('[data-testid="channel-files-open"]');
-  expect(files).not.toBeNull();
-  await act(async () => files!.click());
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'channel-files',
-    params: { hostId: 'host-a', channelId: 'group-a' },
-  });
-  navigation.dispatch({ type: 'GO_BACK' });
+  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
+    t.profileTabs.members,
+  );
+  await openFilesTab();
+  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
+    t.profileTabs.files,
+  );
+  expect(node.querySelector('[data-testid="channel-files-segments"]')).not.toBeNull();
+  expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   expect(state.routes[state.index]?.key).toBe('group-details');
   navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes[state.index]?.key).toBe('original-channel');

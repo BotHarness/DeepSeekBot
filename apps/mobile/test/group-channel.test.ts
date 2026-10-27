@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { createHostClient, type HostClient, type HostSnapshot } from '../src/host/client';
-import { groupActions, groupInfo } from '../src/host/group-channel';
+import { groupActions, groupInfo, loadGroupAssignments } from '../src/host/group-channel';
 import { FakeHost } from './fake-host';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
@@ -150,5 +150,36 @@ describe('Group Channel info', () => {
 
     await expect(actions.invite('fay')).rejects.toThrow('Bot is already invited');
     await expect(actions.disband()).rejects.toThrow('not disbanded');
+  });
+
+  it('reads the group Assignments, newest first and without archived ones', async () => {
+    const fake = host();
+    const assignment = (sessionId: string, updatedAt: string, archivedAt?: string) => ({
+      sessionId,
+      botSlug: 'bo',
+      title: sessionId,
+      description: '',
+      activity: 'idle',
+      createdAt: updatedAt,
+      updatedAt,
+      ...(archivedAt === undefined ? {} : { archivedAt }),
+    });
+    fake.methods.set('channelAssignments', () => ({
+      assignments: [
+        assignment('older', '2026-10-25T08:00:00.000Z'),
+        assignment('archived', '2026-10-27T08:00:00.000Z', '2026-10-27T09:00:00.000Z'),
+        assignment('newer', '2026-10-26T08:00:00.000Z'),
+      ],
+    }));
+    const target = await connected(fake);
+    const rows = await loadGroupAssignments(target, channelId);
+
+    expect(rows.map((row) => [row.sessionId, row.botSlug])).toEqual([
+      ['newer', 'bo'],
+      ['older', 'bo'],
+    ]);
+    expect(fake.calls.find((call) => call.method === 'channelAssignments')?.args).toEqual({
+      channelId,
+    });
   });
 });

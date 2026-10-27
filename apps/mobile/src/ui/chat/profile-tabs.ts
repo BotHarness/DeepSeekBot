@@ -1,16 +1,25 @@
-export const BOT_PROFILE_TABS = ['work', 'memory', 'files', 'routines', 'settings'] as const;
-export type ProfileTab = (typeof BOT_PROFILE_TABS)[number];
+const PROFILE_TABS = ['work', 'memory', 'files', 'routines', 'settings', 'members'] as const;
+export type ProfileTab = (typeof PROFILE_TABS)[number];
 
+export const BOT_PROFILE_TABS: readonly ProfileTab[] = [
+  'work',
+  'memory',
+  'files',
+  'routines',
+  'settings',
+];
+export const GROUP_PROFILE_TABS: readonly ProfileTab[] = ['members', 'files', 'work', 'settings'];
 export const BOT_PAIR_TABS: readonly ProfileTab[] = ['files'];
 
-export type ProfileKind = 'bot' | 'bot-pair';
+export type ProfileKind = 'bot' | 'group' | 'bot-pair';
+export type RememberedProfileKind = Exclude<ProfileKind, 'bot-pair'>;
 
 export function profileTabs(kind: ProfileKind): readonly ProfileTab[] {
-  return kind === 'bot' ? BOT_PROFILE_TABS : BOT_PAIR_TABS;
+  return kind === 'bot' ? BOT_PROFILE_TABS : kind === 'group' ? GROUP_PROFILE_TABS : BOT_PAIR_TABS;
 }
 
 export function isProfileTab(value: unknown): value is ProfileTab {
-  return typeof value === 'string' && (BOT_PROFILE_TABS as readonly string[]).includes(value);
+  return typeof value === 'string' && (PROFILE_TABS as readonly string[]).includes(value);
 }
 
 export function openingTab(tabs: readonly ProfileTab[], remembered: unknown): ProfileTab {
@@ -27,8 +36,8 @@ export function swipedTab(
 }
 
 export interface ProfileTabMemory {
-  get(kind: 'bot'): ProfileTab | undefined;
-  remember(kind: 'bot', tab: ProfileTab): void;
+  get(kind: RememberedProfileKind): ProfileTab | undefined;
+  remember(kind: RememberedProfileKind, tab: ProfileTab): void;
   subscribe(listener: () => void): () => void;
 }
 

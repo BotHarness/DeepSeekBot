@@ -28,6 +28,7 @@ import {
   ClockIcon,
   ComputerIcon,
   FolderIcon,
+  MembersIcon,
   MemoryIcon,
   SettingsIcon,
   WorkIcon,
@@ -52,7 +53,13 @@ import {
   type AvatarActions,
 } from './avatar-editor';
 import { ProfileShell, type ProfileRow as ShellRow, type ProfileTabBody } from './profile-shell';
-import { openingTab, profileTabs, type ProfileTab, type ProfileTabMemory } from './profile-tabs';
+import {
+  openingTab,
+  profileTabs,
+  type ProfileTab,
+  type ProfileTabMemory,
+  type RememberedProfileKind,
+} from './profile-tabs';
 import { ProfileZoomTarget } from './profile-zoom-target';
 
 const ICON = 22;
@@ -152,15 +159,19 @@ export function workRowBodies(assignments: readonly ProfileAssignment[], now = n
   return rows;
 }
 
+export function assignmentRows(part: ProfilePart<ProfileAssignment[]> | undefined): Row[] {
+  return frame(
+    'work',
+    partRows(part, 'work', (work) => workRowBodies(work)),
+  );
+}
+
 export function profileRows(
   profile: BotProfile | undefined,
   channels: RosterChannel[],
 ): Record<ProfileSection, Row[]> {
   return {
-    work: frame(
-      'work',
-      partRows(profile?.work, 'work', (work) => workRowBodies(work)),
-    ),
+    work: assignmentRows(profile?.work),
     activity: frame(
       'activity',
       partRows(profile?.activity, 'activity', (activity) => [{ kind: 'activity', activity }]),
@@ -219,6 +230,7 @@ const TAB_GLYPHS: Record<ProfileTab, typeof WorkIcon> = {
   files: FolderIcon,
   routines: ClockIcon,
   settings: SettingsIcon,
+  members: MembersIcon,
 };
 
 export function profileTabOptions(tabs: readonly ProfileTab[]): IconTabOption<ProfileTab>[] {
@@ -363,34 +375,34 @@ function BotIdentity({
   );
 }
 
-function ProfileRow({
-  bot,
+function rowShape(theme: ReturnType<typeof useDesignTheme>, row: Row) {
+  return {
+    backgroundColor: theme.layer.raised.fill,
+    paddingHorizontal: space.x5,
+    paddingVertical: space.x4,
+    borderTopLeftRadius: row.first ? radius.md : 0,
+    borderTopRightRadius: row.first ? radius.md : 0,
+    borderBottomLeftRadius: row.last ? radius.md : 0,
+    borderBottomRightRadius: row.last ? radius.md : 0,
+    borderBottomWidth: row.last ? 0 : edge.hairline,
+    borderBottomColor: theme.color.divider,
+    gap: space.x2,
+  };
+}
+
+export type WorkRow = Row;
+
+export function WorkListRow({
   row,
-  expanded,
-  onToggle,
   onRetry,
-  actions,
+  onOpen,
 }: {
-  bot: RosterBot;
   row: Row;
-  expanded: boolean;
-  onToggle(): void;
   onRetry(): void;
-  actions: BotProfileActions;
+  onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  if (row.kind === 'activity')
-    return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
-  if (row.kind === 'entry')
-    return (
-      <MemoryEntryRow
-        entry={row.entry}
-        first={row.first}
-        last={row.last}
-        onOpen={actions.onOpenMemory}
-      />
-    );
   if (row.kind === 'day')
     return (
       <Text
@@ -405,18 +417,7 @@ function ProfileRow({
         {row.label}
       </Text>
     );
-  const shape = {
-    backgroundColor: theme.layer.raised.fill,
-    paddingHorizontal: space.x5,
-    paddingVertical: space.x4,
-    borderTopLeftRadius: row.first ? radius.md : 0,
-    borderTopRightRadius: row.first ? radius.md : 0,
-    borderBottomLeftRadius: row.last ? radius.md : 0,
-    borderBottomRightRadius: row.last ? radius.md : 0,
-    borderBottomWidth: row.last ? 0 : edge.hairline,
-    borderBottomColor: theme.color.divider,
-    gap: space.x2,
-  };
+  const shape = rowShape(theme, row);
   if (row.kind === 'assignment') {
     const { assignment } = row;
     const time = new Date(assignment.updatedAt).toLocaleTimeString(undefined, {
@@ -425,19 +426,18 @@ function ProfileRow({
     });
     const state = t.profileAssignmentState[assignment.activity];
     const description = assignment.description?.trim() ?? '';
-    const open = actions.onOpenAssignment;
     return (
       <Pressable
         testID={`profile-assignment-${assignment.sessionId}`}
-        accessibilityRole={open === undefined ? undefined : 'button'}
+        accessibilityRole={onOpen === undefined ? undefined : 'button'}
         accessibilityLabel={[assignment.title, state, description, time]
           .filter((part) => part !== '')
           .join(', ')}
         accessibilityHint={
-          open === undefined ? undefined : t.profileAssignmentOpen(assignment.title)
+          onOpen === undefined ? undefined : t.profileAssignmentOpen(assignment.title)
         }
-        disabled={open === undefined}
-        onPress={() => open?.(assignment)}
+        disabled={onOpen === undefined}
+        onPress={() => onOpen?.(assignment)}
         style={({ pressed }) => [
           shape,
           {
@@ -470,17 +470,6 @@ function ProfileRow({
       </Pressable>
     );
   }
-  if (row.kind === 'routine-group')
-    return (
-      <RoutineGroupCard
-        group={row.group}
-        routines={row.routines}
-        first={row.first}
-        changes={actions.routines}
-        onOpen={actions.onOpenRoutine}
-        onChanged={onRetry}
-      />
-    );
   if (row.kind === 'loading')
     return (
       <View style={[shape, { flexDirection: 'row', alignItems: 'center', gap: space.x3 }]}>
@@ -501,6 +490,57 @@ function ProfileRow({
       <View style={shape}>
         <Text tone="muted">{row.text}</Text>
       </View>
+    );
+  return null;
+}
+
+function ProfileRow({
+  bot,
+  row,
+  expanded,
+  onToggle,
+  onRetry,
+  actions,
+}: {
+  bot: RosterBot;
+  row: Row;
+  expanded: boolean;
+  onToggle(): void;
+  onRetry(): void;
+  actions: BotProfileActions;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  if (row.kind === 'activity')
+    return <ActivityGlance bot={bot} activity={row.activity} onOpen={actions.onOpenActivity} />;
+  if (row.kind === 'entry')
+    return (
+      <MemoryEntryRow
+        entry={row.entry}
+        first={row.first}
+        last={row.last}
+        onOpen={actions.onOpenMemory}
+      />
+    );
+  if (
+    row.kind === 'day' ||
+    row.kind === 'assignment' ||
+    row.kind === 'loading' ||
+    row.kind === 'failed' ||
+    row.kind === 'note'
+  )
+    return <WorkListRow row={row} onRetry={onRetry} onOpen={actions.onOpenAssignment} />;
+  const shape = rowShape(theme, row);
+  if (row.kind === 'routine-group')
+    return (
+      <RoutineGroupCard
+        group={row.group}
+        routines={row.routines}
+        first={row.first}
+        changes={actions.routines}
+        onOpen={actions.onOpenRoutine}
+        onChanged={onRetry}
+      />
     );
   if (row.kind === 'item')
     return (
@@ -591,12 +631,13 @@ function SettingsRowLink({
   );
 }
 
-export function useRememberedProfileTab(memory: ProfileTabMemory, tabs: readonly ProfileTab[]) {
-  const remembered = useSyncExternalStore(memory.subscribe, () => memory.get('bot'));
-  return [
-    openingTab(tabs, remembered),
-    (next: ProfileTab) => memory.remember('bot', next),
-  ] as const;
+export function useRememberedProfileTab(
+  memory: ProfileTabMemory,
+  tabs: readonly ProfileTab[],
+  kind: RememberedProfileKind = 'bot',
+) {
+  const remembered = useSyncExternalStore(memory.subscribe, () => memory.get(kind));
+  return [openingTab(tabs, remembered), (next: ProfileTab) => memory.remember(kind, next)] as const;
 }
 
 export function BotProfilePage({
@@ -665,7 +706,7 @@ export function BotProfilePage({
   });
   const heading = (section: ProfileSection) =>
     node(`${section}:heading`, () => <SubHeading>{t.profileSection[section]}</SubHeading>);
-  const bodies: Record<Exclude<ProfileTab, 'files'>, ProfileTabBody> = {
+  const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
@@ -722,7 +763,7 @@ export function BotProfilePage({
       options={profileTabOptions(tabs)}
       tab={tab}
       onTab={setTab}
-      body={tab === 'files' ? filesBody : bodies[tab]}
+      body={tab === 'files' || tab === 'members' ? filesBody : bodies[tab]}
       onClose={actions.onClose}
     />
   );

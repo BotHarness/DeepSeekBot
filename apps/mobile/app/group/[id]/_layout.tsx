@@ -13,10 +13,11 @@ export default function GroupLayout() {
 
   return (
     <HostScope value={hostId ?? origin}>
-      <SheetStack>
+      <SheetStack fullScreen>
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="chat-background" options={{ title: t.chatBackground.title }} />
         <Stack.Screen name="notifications" options={{ title: t.notifications }} />
+        <Stack.Screen name="assignment/[session]" />
       </SheetStack>
     </HostScope>
   );

@@ -796,7 +796,7 @@ const en = {
   paused: 'Paused',
   members: (count: number) => (count === 1 ? '1 member' : `${count} members`),
   groupInfo: 'Group info',
-  groupInfoHint: 'Opens the group info',
+  groupInfoHint: 'Opens the group profile',
   groupMembersSection: 'Members',
   groupJoinsSection: 'Join requests',
   groupSettingsSection: 'Group',
@@ -1472,6 +1472,7 @@ const en = {
     files: 'Files',
     routines: 'Routines',
     settings: 'Settings',
+    members: 'Members',
   },
   profileSettingsBot: 'Bot',
   approvals: {
@@ -2678,7 +2679,7 @@ const zh: typeof en = {
   paused: '已暂停',
   members: (count: number) => `${count} 位成员`,
   groupInfo: '群组信息',
-  groupInfoHint: '打开群组信息',
+  groupInfoHint: '打开群组资料',
   groupMembersSection: '成员',
   groupJoinsSection: '入群申请',
   groupSettingsSection: '群组',
@@ -3330,6 +3331,7 @@ const zh: typeof en = {
     files: '文件',
     routines: '定时',
     settings: '设置',
+    members: '成员',
   },
   profileSettingsBot: 'Bot',
   approvals: {
