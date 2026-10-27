@@ -355,14 +355,15 @@ export function createUploads(deps: {
       const descriptor =
         descriptorText === undefined ? undefined : parseBotDescriptor(descriptorText);
       const base = `${origin}/v1/bots/${botId}/files`;
-      const banner = descriptor?.banner;
-      const storedBanner =
-        banner === undefined
+      const presented = <T>(art: { recipe: T } | { image: string } | undefined): string | null =>
+        art === undefined
           ? null
-          : 'recipe' in banner
-            ? { recipe: banner.recipe }
-            : names.has(banner.image) && imageContentType(banner.image) !== undefined
-              ? { image: `${base}/${banner.image.split('/').map(encodeURIComponent).join('/')}` }
+          : 'recipe' in art
+            ? JSON.stringify({ recipe: art.recipe })
+            : names.has(art.image) && imageContentType(art.image) !== undefined
+              ? JSON.stringify({
+                  image: `${base}/${art.image.split('/').map(encodeURIComponent).join('/')}`,
+                })
               : null;
       const readmePath = [...names].find((name) => /^readme\.md$/iu.test(name));
       const readme =
@@ -378,9 +379,9 @@ export function createUploads(deps: {
           `INSERT INTO indexed_repositories (
             node_id, owner, name, html_url, clone_url, description, topics, stars, pushed_at,
             default_branch, head_sha, head_committed_at, visibility, first_seen_at, last_refreshed_at,
-            created_at, readme, readme_pushed_at, display_name, roles, bio, banner, source,
-            author_account, author_id
-          ) VALUES (?, ?, ?, ?, '', ?, '[]', 0, ?, 'main', NULL, NULL, 'listed', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'upload', ?, ?)`,
+            created_at, readme, readme_pushed_at, display_name, roles, bio, banner, avatar,
+            source, author_account, author_id
+          ) VALUES (?, ?, ?, ?, '', ?, '[]', 0, ?, 'main', NULL, NULL, 'listed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'upload', ?, ?)`,
         )
         .bind(
           botId,
@@ -397,7 +398,8 @@ export function createUploads(deps: {
           presentation.displayName,
           JSON.stringify(presentation.tags),
           presentation.bio,
-          storedBanner === null ? null : JSON.stringify(storedBanner),
+          presented(descriptor?.banner),
+          presented(descriptor?.avatar),
           account,
           owner.id,
         )

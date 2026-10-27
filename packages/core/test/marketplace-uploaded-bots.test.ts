@@ -164,6 +164,9 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
     author: { name: 'Alice' },
     displayName: 'Helper',
   });
+  expect(uploaded.value.bot.avatar).toEqual({
+    image: `https://market.test/v1/bots/${uploaded.value.bot.id}/files/.botharness/avatar.png`,
+  });
 
   const listed = await f.bridge.marketplaceList({ includeUploads: true });
   expect(listed.ok && listed.value.bots.map((bot) => bot.id)).toEqual([uploaded.value.bot.id]);

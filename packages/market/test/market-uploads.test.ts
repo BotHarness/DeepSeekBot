@@ -164,6 +164,9 @@ describe('Uploading a Bot', () => {
       stars: 0,
       headCommit: null,
     });
+    expect(bot['avatar']).toEqual({
+      image: `${bot['htmlUrl'] as string}/files/.botharness/avatar.png`,
+    });
 
     const defaults = (await (await market.request('/v1/bots')).json()) as {
       bots: Array<{ id: string; source: string; author: unknown }>;

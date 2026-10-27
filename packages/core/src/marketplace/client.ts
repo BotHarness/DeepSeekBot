@@ -128,22 +128,28 @@ function record(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function parseBanner(value: unknown): MarketplaceBanner | null {
+function artImage(value: unknown, filesBase: string | undefined): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  if (value.startsWith(ART_IMAGE_ORIGIN)) return value;
+  return filesBase !== undefined && value.startsWith(filesBase) ? value : undefined;
+}
+
+function parseBanner(value: unknown, filesBase?: string): MarketplaceBanner | null {
   const source = record(value);
   if (source === undefined) return null;
   if (isPixelBannerRecipe(source['recipe'])) {
     return { recipe: { scene: source['recipe'].scene, seed: source['recipe'].seed } };
   }
-  const image = source['image'];
-  return typeof image === 'string' && image.startsWith(ART_IMAGE_ORIGIN) ? { image } : null;
+  const image = artImage(source['image'], filesBase);
+  return image === undefined ? null : { image };
 }
 
-function parseAvatar(value: unknown): MarketplaceAvatar | null {
+function parseAvatar(value: unknown, filesBase?: string): MarketplaceAvatar | null {
   const source = record(value);
   if (source === undefined) return null;
   if (isAvatarRecipe(source['recipe'])) return { recipe: canonicalRecipe(source['recipe']) };
-  const image = source['image'];
-  return typeof image === 'string' && image.startsWith(ART_IMAGE_ORIGIN) ? { image } : null;
+  const image = artImage(source['image'], filesBase);
+  return image === undefined ? null : { image };
 }
 
 function parseEntry(value: unknown): MarketplaceEntry | undefined {
@@ -169,6 +175,11 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
   const displayName = source['displayName'];
   const roles = Array.isArray(source['tags']) ? source['tags'] : source['roles'];
   const bio = source['bio'];
+  const htmlUrl = source['htmlUrl'] as string;
+  const filesBase =
+    source['source'] === 'upload' && htmlUrl.startsWith('https://')
+      ? `${htmlUrl}/files/`
+      : undefined;
   return {
     id: source['id'] as string,
     owner: source['owner'] as string,
@@ -181,8 +192,8 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
     description: typeof bio === 'string' && bio.length > 0 ? bio : description,
     descriptionGenerated:
       typeof bio === 'string' && bio.length > 0 && source['bioGenerated'] === true,
-    banner: parseBanner(source['banner']),
-    avatar: parseAvatar(source['avatar']),
+    banner: parseBanner(source['banner'], filesBase),
+    avatar: parseAvatar(source['avatar'], filesBase),
     topics: topics.filter((topic): topic is string => typeof topic === 'string'),
     stars,
     pushedAt: source['pushedAt'] as string,
