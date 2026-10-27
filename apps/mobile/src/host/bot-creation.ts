@@ -10,7 +10,12 @@ export interface BotCreationDraft {
   description: string;
   tags: string;
   source?: GitImportDraft | ZipImportDraft;
+  avatar?: BotAvatarChoice;
 }
+
+export type BotAvatarChoice =
+  | { kind: 'generated'; seed: string }
+  | { kind: 'photo'; image: string };
 
 export interface ZipImportDraft extends ZipImportSource {
   defaultsApplied?: true;
@@ -60,6 +65,7 @@ export type CreationRecord = (
       operation: BotCreationOperation;
       mutationStarted: boolean;
       acknowledged?: boolean;
+      avatar?: BotAvatarChoice;
     }
 ) & { unavailableOperations?: BotCreationOperation[] };
 
@@ -70,6 +76,7 @@ export interface CreationSnapshot {
   receipt?: CreationReceipt | undefined;
   error?: string | undefined;
   transfer?: { bytes: number; total: number } | undefined;
+  notice?: 'avatar-failed' | undefined;
 }
 
 export class BotCreationFailure extends Error {
@@ -238,6 +245,35 @@ function draftSource(value: unknown): GitImportDraft | ZipImportDraft {
   };
 }
 
+const AVATAR_IMAGE = /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/u;
+
+function avatarChoice(value: unknown): Pick<BotCreationDraft, 'avatar'> {
+  if (value === undefined) return {};
+  if (object(value) && value.kind === 'generated' && typeof value.seed === 'string' && value.seed)
+    return { avatar: { kind: 'generated', seed: value.seed } };
+  if (
+    object(value) &&
+    value.kind === 'photo' &&
+    typeof value.image === 'string' &&
+    AVATAR_IMAGE.test(value.image)
+  )
+    return { avatar: { kind: 'photo', image: value.image } };
+  throw new BotCreationFailure('storage-invalid');
+}
+
+export function repositoryName(gitUrl: string): string {
+  const path = gitUrl
+    .trim()
+    .replace(/[?#].*$/u, '')
+    .replace(/\/+$/u, '');
+  const last = path.split(/[/:]/u).at(-1) ?? '';
+  return last
+    .replace(/\.git$/iu, '')
+    .replace(/[-_]+/gu, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
 function unpreviewed(source: GitImportDraft | ZipImportDraft): GitImportDraft | ZipImportDraft {
   const { preview: _preview, ...draft } = source;
   return draft;
@@ -265,6 +301,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
           description: d.description,
           tags: d.tags,
           ...(d.source === undefined ? {} : { source: draftSource(d.source) }),
+          ...avatarChoice(d.avatar),
         },
       };
   }
@@ -296,6 +333,7 @@ export function parseCreationRecord(value: unknown): CreationRecord {
         ...unavailableOperations,
         mutationStarted: value.mutationStarted,
         ...(value.acknowledged === true ? { acknowledged: true } : {}),
+        ...avatarChoice(value.avatar),
         operation: {
           hostId: o.hostId,
           deviceId: o.deviceId,
@@ -361,6 +399,11 @@ export interface BotCreationPort {
     progress?: (bytes: number, total: number) => void,
   ): Promise<CreationReceipt>;
   deviceId(hostId: string): string | undefined;
+  applyAvatar?(
+    operation: BotCreationOperation,
+    receipt: Extract<CreationReceipt, { status: 'created' }>,
+    avatar: BotAvatarChoice,
+  ): Promise<void>;
 }
 
 export function createBotCreationController(options: {
@@ -426,7 +469,14 @@ export function createBotCreationController(options: {
     if (!allowCreate && receipt === null) return 'pending';
     if (options.port.deviceId(operation.hostId) !== operation.deviceId)
       throw new BotCreationFailure('target-unpaired');
-    const record: CreationRecord = { kind: 'submitted', operation, mutationStarted: true };
+    const record: CreationRecord = {
+      kind: 'submitted',
+      operation,
+      mutationStarted: true,
+      ...(snapshot.record.kind === 'submitted' && snapshot.record.avatar
+        ? { avatar: snapshot.record.avatar }
+        : {}),
+    };
     try {
       await save(record);
     } catch {
@@ -440,6 +490,24 @@ export function createBotCreationController(options: {
       throw new BotCreationFailure('target-unpaired');
     publish({ receipt: created });
     return created.status === 'created' ? 'created' : 'pending';
+  };
+  const applyAvatar = async <T>(result: T): Promise<T> => {
+    const record = snapshot.record;
+    const receipt = snapshot.receipt;
+    if (record.kind !== 'submitted' || !record.avatar || receipt?.status !== 'created')
+      return result;
+    if (options.port.deviceId(record.operation.hostId) !== record.operation.deviceId) return result;
+    try {
+      await options.port.applyAvatar?.(record.operation, receipt, record.avatar);
+    } catch {
+      publish({ notice: 'avatar-failed' });
+    }
+    const { avatar: _avatar, ...settled } = record;
+    try {
+      await save(settled);
+    } catch {}
+    publish({ record: settled });
+    return result;
   };
   const run = (
     work: () => Promise<void | 'created' | 'recovered' | 'pending'>,
@@ -701,6 +769,7 @@ export function createBotCreationController(options: {
           kind: 'draft',
           draft: {
             ...draft,
+            displayName: draft.displayName || repositoryName(preview.gitUrl),
             source: {
               ...source,
               gitUrl: preview.gitUrl,
@@ -722,7 +791,12 @@ export function createBotCreationController(options: {
         }
       }, 'preview');
     },
-    enter(entry: { kind: 'all' } | { kind: 'host'; hostId: string } | { kind: 'resume' }) {
+    enter(
+      entry:
+        | { kind: 'all'; hostId?: string }
+        | { kind: 'host'; hostId: string }
+        | { kind: 'resume' },
+    ) {
       return run(async () => {
         await ready;
         if (storageFailed || entry.kind === 'resume' || snapshot.record.kind !== 'draft') return;
@@ -730,7 +804,7 @@ export function createBotCreationController(options: {
           kind: 'draft',
           draft: {
             ...snapshot.record.draft,
-            hostId: entry.kind === 'host' ? entry.hostId : '',
+            hostId: entry.hostId ?? '',
             ...(snapshot.record.draft.source
               ? { source: unpreviewed(snapshot.record.draft.source) }
               : {}),
@@ -748,7 +822,8 @@ export function createBotCreationController(options: {
       return run(async () => {
         await ready;
         if (storageFailed) throw new BotCreationFailure('storage-invalid');
-        if (snapshot.record.kind === 'submitted') return reconcile(snapshot.record.operation, true);
+        if (snapshot.record.kind === 'submitted')
+          return applyAvatar(await reconcile(snapshot.record.operation, true));
         const draft = snapshot.record.draft;
         if (!draft.displayName.trim()) throw new BotCreationFailure('name-required');
         const deviceId = options.port.deviceId(draft.hostId);
@@ -778,14 +853,19 @@ export function createBotCreationController(options: {
           input: normalizedBlankInput(draft),
           ...(source ? { source: importSource(source) } : {}),
         };
-        const record: CreationRecord = { kind: 'submitted', operation, mutationStarted: false };
+        const record: CreationRecord = {
+          kind: 'submitted',
+          operation,
+          mutationStarted: false,
+          ...(draft.avatar ? { avatar: draft.avatar } : {}),
+        };
         try {
           await save(record);
         } catch {
           throw new BotCreationFailure('storage-write');
         }
         publish({ record });
-        return reconcile(operation, true);
+        return applyAvatar(await reconcile(operation, true));
       }, 'submit');
     },
     resume() {
@@ -793,7 +873,9 @@ export function createBotCreationController(options: {
         await ready;
         if (storageFailed) throw new BotCreationFailure('storage-invalid');
         if (snapshot.record.kind === 'submitted')
-          return reconcile(snapshot.record.operation, snapshot.record.mutationStarted);
+          return applyAvatar(
+            await reconcile(snapshot.record.operation, snapshot.record.mutationStarted),
+          );
       }, 'recover');
     },
     editBeforeSend() {
@@ -816,6 +898,7 @@ export function createBotCreationController(options: {
             persona: input.persona ?? '',
             description: input.description ?? '',
             tags: input.roles?.join(', ') ?? '',
+            ...(previous.avatar ? { avatar: previous.avatar } : {}),
             ...(previous.operation.source
               ? {
                   source: sourceDraft(previous.operation.source),
@@ -830,6 +913,9 @@ export function createBotCreationController(options: {
           publish({ error: 'storage-write' });
         }
       });
+    },
+    dismissNotice() {
+      if (snapshot.notice) publish({ notice: undefined });
     },
     async acknowledge(operationKey: string) {
       if (

@@ -747,6 +747,10 @@ _Avoid_: reply mode, answer position, visibility
 
 ### Host and setup
 
+**Environment**:
+The user-facing name for one paired Host as the mobile app lists, adds, and chooses it (Chinese: 环境); a PersonaBot is created in exactly one Environment.
+_Avoid_: computer, 电脑, machine, device (Computer already names a PersonaBot's work surface)
+
 **PersonaBot registry**:
 The Host module that owns PersonaBot definitions, archive state, bindings, and Session ownership; its operational records live in the BotHarness operational database while Soul content remains in files.
 _Avoid_: config file, database, fleet

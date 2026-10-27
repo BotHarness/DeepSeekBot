@@ -63,6 +63,8 @@ vi.mock('../src/host/native-bot-creation', () => ({
     ready: Promise.resolve(),
     getSnapshot: () => fixture.state,
     resume: fixture.resume,
+    subscribe: () => () => {},
+    dismissNotice: () => {},
   },
 }));
 vi.mock('../src/host/host-session', () => ({

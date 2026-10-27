@@ -103,6 +103,9 @@ export const loadingIndicator = {
   control: 20,
   controlStroke: 2.5,
 } as const;
+export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
+
+export const creationAvatar = { size: 112 } as const;
 export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {

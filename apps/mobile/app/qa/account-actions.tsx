@@ -19,7 +19,7 @@ export default function AccountActionsFixtureRoute() {
 
 function AccountActionsFixture() {
   const t = useStrings();
-  const params = useLocalSearchParams<{ scenario?: string }>();
+  const params = useLocalSearchParams<{ scenario?: string; pairing?: string }>();
   const scenarios: AccountFixtureScenario[] = [
     'success',
     'delete-partial',
@@ -27,6 +27,7 @@ function AccountActionsFixture() {
     'session-write',
     'expired-retry',
     'completion-write',
+    'environments',
   ];
   const scenario = scenarios.find((value) => value === params.scenario) ?? 'success';
   const [reset, setReset] = useState(0);
@@ -42,22 +43,25 @@ function AccountActionsFixture() {
       <AccountHosts
         key={scenario}
         account={fixture.account}
-        busy={false}
+        busy={params.pairing !== undefined}
+        pairing={params.pairing}
         saved={fixture.saved()}
         results={{}}
         onPair={async () => {}}
       />
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: space.x4 }}>
-        <Text>{t.accountFixture.notice}</Text>
-        <Button
-          testID="account-fixture-reset"
-          label={t.accountFixture.reset}
-          onPress={() => setReset((value) => value + 1)}
-        />
-        <Text testID="account-fixture-result" selectable>
-          {snapshot}
-        </Text>
-      </ScrollView>
+      {scenario === 'environments' ? null : (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: space.x4 }}>
+          <Text>{t.accountFixture.notice}</Text>
+          <Button
+            testID="account-fixture-reset"
+            label={t.accountFixture.reset}
+            onPress={() => setReset((value) => value + 1)}
+          />
+          <Text testID="account-fixture-result" selectable>
+            {snapshot}
+          </Text>
+        </ScrollView>
+      )}
     </View>
   );
 }

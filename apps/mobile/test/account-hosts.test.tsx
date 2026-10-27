@@ -16,6 +16,7 @@ vi.mock('../src/ui/primitives/account-panel', () => ({
           onClick={() => p.onToggle(row.id)}
         >
           {row.name} {row.detail}
+          {row.pairing ? ' pairing' : ''}
         </button>
       ))}
       <button aria-label="add" disabled={!p.selectedCount || p.busy} onClick={p.onAdd}>
@@ -488,4 +489,39 @@ it('retries a failed cleanup in the same Android confirmation without repeating 
     deletes: 1,
     refreshes: 2,
   });
+});
+
+it('marks only the Environment being paired', async () => {
+  const account = {
+    pendingDeletion: vi.fn(async () => false),
+    finishLocalCleanup: vi.fn(),
+    actionKey: vi.fn(async () => 'session-a'),
+    email: vi.fn(async () => 'alice@example.com' as string | null | undefined),
+    signIn: vi.fn(),
+    hosts: vi.fn(async () => ({
+      ok: true as const,
+      value: [studio, { ...studio, id: 'hlaptop', name: 'Laptop' }],
+    })),
+    signOut: vi.fn(),
+    deleteAccount: vi.fn(),
+  };
+  host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () =>
+    root!.render(
+      <AccountHosts
+        account={account}
+        busy
+        pairing="hstudio"
+        saved={[]}
+        results={{}}
+        onPair={vi.fn()}
+      />,
+    ),
+  );
+  const row = (label: string) =>
+    host!.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.textContent;
+  expect(row('Studio')).toContain('pairing');
+  expect(row('Laptop')).not.toContain('pairing');
 });

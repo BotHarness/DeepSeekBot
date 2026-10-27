@@ -20,6 +20,7 @@ export default function PairAccountScreen() {
   const batch = useRef<AbortController | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<string>();
+  const [current, setCurrent] = useState<string>();
   const [results, setResults] = useState<Record<string, AccountPairResult>>({});
   const add = async (hosts: ConnectHost[]) => {
     if (batch.current) return;
@@ -33,9 +34,13 @@ export default function PairAccountScreen() {
         signal: operation.signal,
         pair: (host) => {
           setProgress(t.pairAccount.progress(++index, hosts.length));
+          setCurrent(host.id);
           return pairing.pair(`account:${host.id}`, 'account', true, host.id);
         },
-        result: (host, result) => setResults((old) => ({ ...old, [host.id]: result })),
+        result: (host, result) => {
+          setCurrent(undefined);
+          setResults((old) => ({ ...old, [host.id]: result }));
+        },
       });
       if (!operation.signal.aborted) pairing.finishSetup();
     } finally {
@@ -43,6 +48,7 @@ export default function PairAccountScreen() {
         batch.current = undefined;
         setBusy(false);
         setProgress(undefined);
+        setCurrent(undefined);
       }
     }
   };
@@ -69,14 +75,16 @@ export default function PairAccountScreen() {
       };
     }, [params.account]),
   );
+  const attention = pairing.busy && Boolean(pairing.verification ?? pairing.fingerprint);
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: t.pairAccount.computers }} />
-      {pairing.busy ? <PairingVerification pairing={pairing} progress={progress} /> : null}
-      <View style={{ flex: 1, display: pairing.busy ? 'none' : 'flex' }}>
+      {attention ? <PairingVerification pairing={pairing} progress={progress} /> : null}
+      <View style={{ flex: 1, display: attention ? 'none' : 'flex' }}>
         <AccountHosts
           account={connectAccount}
           busy={busy}
+          pairing={current}
           saved={session.hosts}
           results={results}
           onPair={add}
