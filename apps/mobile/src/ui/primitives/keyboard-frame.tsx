@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
-import { KeyboardAvoidingView, View, type ColorValue, type LayoutChangeEvent } from 'react-native';
-import { KeyboardProvider, useKeyboardState } from 'react-native-keyboard-controller';
+import { View, type ColorValue, type LayoutChangeEvent } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  KeyboardProvider,
+  useKeyboardState,
+} from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { space } from '../design/tokens';
@@ -36,6 +40,7 @@ export function KeyboardChatFrame({
   return (
     <View ref={onMount} style={{ flex: 1, backgroundColor }}>
       {background}
+      {/* Native keyboard height avoids iOS background snapshot frames with screenY=0. */}
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior="padding"

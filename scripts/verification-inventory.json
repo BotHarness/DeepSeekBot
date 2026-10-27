@@ -2397,6 +2397,14 @@
       "reason": "Real paired-device requests through Expo Web against a task-owned Host; checks retention, erasure, Tob and sections. Native acceptance remains separate.",
       "task": 2783,
       "sha256": "6dea0c5c116ad31febe69cae9d14f5bffa458a3f355a682f2830a6f7a673e6f7"
+    },
+    {
+      "path": "scripts/e2e-mobile-chat-resume.mjs",
+      "category": "mapped",
+      "behaviors": ["phone.composer"],
+      "reason": "Assigned physical iOS QA session only; existing Dev QA chat, actual SpringBoard background then resume without relaunch, known message visibility, composer geometry and draft retention. Requires caller-owned session/cleanup and screenshot review for real keyboard presence. No build, pairing or message send; no Simulator/Android/performance claim. Native regression goes red on the #2933 keyboard-open blank pane.",
+      "task": 2933,
+      "sha256": "b47338341bffa6744c71a775f410914265a59e3ed88bedc9cde6507568c5c3ff"
     }
   ],
   "native": [

@@ -41,7 +41,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone Chats swipe actions and Remote Host section creation | no | none (shared-device native path) | [phone-chat-row-actions.md](phone-chat-row-actions.md) |
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |
-| Native mobile message composer | no (except Bot reply) | none (shared-device native path) | [phone-composer.md](phone-composer.md) |
+| Native mobile message composer | no (except Bot reply) | `scripts/e2e-mobile-chat-resume.mjs` (assigned physical iOS session; other checks use the shared-device native path) | [phone-composer.md](phone-composer.md) |
 | Native mobile Channel files, preview/share and original message | no | none (shared-device native path) | [phone-channel-files.md](phone-channel-files.md) |
 | Mobile press feedback, semantic haptics and local setting | no (except seeding a real decision) | none (shared-device native and physical-device path) | [phone-haptic-feedback.md](phone-haptic-feedback.md) |
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |
