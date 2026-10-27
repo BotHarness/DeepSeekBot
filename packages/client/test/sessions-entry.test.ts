@@ -318,6 +318,10 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
       '[data-session-subagents-toggle]',
     );
     expect(toggles).toHaveLength(1);
+    const work = [...container.querySelectorAll('[data-assignment-work-open]')];
+    expect(work.map((button) => button.getAttribute('aria-label'))).toEqual([
+      zhTranslate('assignmentWork.open', { title: 'Build' }),
+    ]);
     expect(container.textContent).toContain('deepseek/deepseek-v4-pro · high');
     expect(container.textContent).toContain('opencode-go/deepseek-v4.1-flash');
     expect(sessionSubagents).not.toHaveBeenCalled();

@@ -4,11 +4,13 @@ import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
+  groupTimeline,
   laneLabel,
   loadAssignmentTimeline,
   type AssignmentTimeline,
   type AssignmentTimelineEntry,
   type AssignmentTimelineLane,
+  type AssignmentTimelineRound,
 } from '../../host/assignment-timeline';
 import { errorText } from '../../host/bot-settings';
 import type { HostClient } from '../../host/client';
@@ -162,11 +164,57 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
   );
 }
 
+function RoundHeading({ round }: { round: AssignmentTimelineRound | undefined }) {
+  const t = useStrings();
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        flexWrap: 'wrap',
+        gap: space.x2,
+        paddingTop: space.x5,
+      }}
+    >
+      <Text accessibilityRole="header" strong>
+        {round === undefined ? t.assignmentDetail.earlier : t.assignmentDetail.round(round.index)}
+      </Text>
+      {round === undefined ? null : (
+        <Text variant="meta" tone="muted">
+          {[t.assignmentDetail.roundKind[round.kind], stepTime(round.at)]
+            .filter((part) => part !== '')
+            .join(' · ')}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+function Instruction({ text }: { text: string }) {
+  const t = useStrings();
+  return (
+    <View style={{ paddingTop: space.x3 }}>
+      <Group>
+        <View
+          testID="assignment-instruction"
+          style={{ paddingHorizontal: space.x5, paddingVertical: space.x4, gap: space.x1 }}
+        >
+          <Text variant="meta" tone="muted">
+            {t.assignmentDetail.instruction}
+          </Text>
+          <Text selectable>{text}</Text>
+        </View>
+      </Group>
+    </View>
+  );
+}
+
 export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const { assignment } = timeline;
   const report = assignment.latestReport;
+  const main = timeline.lanes.find((lane) => lane.role === 'main');
   return (
     <View style={{ paddingHorizontal: space.x5 }}>
       <View
@@ -228,8 +276,31 @@ export function AssignmentDetail({ timeline }: { timeline: AssignmentTimeline })
         </>
       )}
       <Heading>{t.assignmentDetail.timeline}</Heading>
-      {timeline.lanes.map((lane) => (
-        <Lane key={lane.sessionId} lane={lane} />
+      {timeline.omittedRounds === 0 ? null : (
+        <Text variant="meta" tone="muted">
+          {t.assignmentDetail.olderRounds(timeline.omittedRounds)}
+        </Text>
+      )}
+      {groupTimeline(timeline).map((group, index) => (
+        <View
+          key={group.round?.index ?? 'earlier'}
+          testID={`assignment-round-${group.round?.index ?? 'earlier'}`}
+        >
+          {group.round === undefined && timeline.rounds.length === 0 ? null : (
+            <RoundHeading round={group.round} />
+          )}
+          {group.round?.instruction === undefined ? null : (
+            <Instruction text={group.round.instruction} />
+          )}
+          {main === undefined ? null : (
+            <Lane
+              lane={{ ...main, entries: group.main, omitted: index === 0 ? main.omitted : 0 }}
+            />
+          )}
+          {group.subagents.map((lane) => (
+            <Lane key={lane.sessionId} lane={lane} />
+          ))}
+        </View>
       ))}
       {timeline.omittedSubagents === 0 ? null : (
         <Text variant="meta" tone="muted" style={{ paddingTop: space.x3 }}>

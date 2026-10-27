@@ -118,6 +118,80 @@ describe('Assignment detail', () => {
     expect(view.querySelector('button')).toBeNull();
   });
 
+  it('groups MAIN steps and Subagents under the Orchestrator round that started them', async () => {
+    const view = await render(
+      <AssignmentDetail
+        timeline={parseAssignmentTimeline({
+          ...wire,
+          rounds: [
+            { index: 1, kind: 'created', at: now, instruction: 'Check the stores' },
+            { index: 2, kind: 'continued', at: now, instruction: 'Now check Play too' },
+            { index: 'x', kind: 'continued', at: now },
+          ],
+          omittedRounds: 1,
+          lanes: [
+            {
+              role: 'main',
+              index: 0,
+              sessionId: 'asg-1',
+              omitted: 0,
+              entries: [
+                {
+                  status: 'done',
+                  kind: 'fetch',
+                  tool: 'open',
+                  detail: 'apple.com',
+                  at: now,
+                  round: 1,
+                },
+                {
+                  status: 'done',
+                  kind: 'fetch',
+                  tool: 'open',
+                  detail: 'play.google.com',
+                  at: now,
+                  round: 2,
+                },
+              ],
+            },
+            {
+              role: 'subagent',
+              index: 1,
+              sessionId: 'sub-1',
+              title: 'Check App Store',
+              round: 1,
+              omitted: 0,
+              entries: [],
+            },
+            {
+              role: 'subagent',
+              index: 2,
+              sessionId: 'sub-2',
+              title: 'Check Play',
+              round: 2,
+              omitted: 0,
+              entries: [],
+            },
+          ],
+        })}
+      />,
+    );
+    const first = view.querySelector('[data-testid="assignment-round-1"]')!.textContent ?? '';
+    const second = view.querySelector('[data-testid="assignment-round-2"]')!.textContent ?? '';
+    expect(view.querySelector('[data-testid="assignment-round-earlier"]')).toBeNull();
+    expect(first).toContain(t.assignmentDetail.round(1));
+    expect(first).toContain(t.assignmentDetail.roundKind.created);
+    expect(first).toContain('Check the stores');
+    expect(first).toContain('apple.com');
+    expect(first).toContain('SUBAGENT 01');
+    expect(first).not.toContain('SUBAGENT 02');
+    expect(second).toContain(t.assignmentDetail.roundKind.continued);
+    expect(second).toContain('Now check Play too');
+    expect(second).toContain('play.google.com');
+    expect(second).toContain('Check Play');
+    expect(view.textContent).toContain(t.assignmentDetail.olderRounds(1));
+  });
+
   it('explains when the Assignment is gone', async () => {
     const client = {
       call: vi.fn(async () => {
