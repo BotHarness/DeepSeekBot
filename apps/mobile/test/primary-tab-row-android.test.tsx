@@ -124,13 +124,13 @@ describe('Android primary tab row', () => {
 
 describe('Android Activity tabs', () => {
   it('shows Needs you and For you as native tabs and moves on a tap', async () => {
-    const onTabSelect = vi.fn();
+    const onSelect = vi.fn();
     await render(
       <ActivityTabs
         selected="replies"
         marks={NO_ACTIVITY_MARKS}
         position={undefined as never}
-        onTabSelect={onTabSelect}
+        onSelect={onSelect}
       />,
     );
     expect(tabs().map((tab) => tab.textContent)).toEqual([
@@ -140,7 +140,7 @@ describe('Android Activity tabs', () => {
     expect(selected().map((tab) => tab.textContent)).toEqual([t.inboxSections.replies]);
     expect(tabs().some((tab) => tab.hasAttribute('data-dot'))).toBe(false);
     await act(async () => tabs()[0]?.click());
-    expect(onTabSelect).toHaveBeenCalledWith('action');
+    expect(onSelect).toHaveBeenCalledWith('action');
   });
 
   it('marks a tab with content by a warning dot (Needs you) or an accent dot (For you), no count', async () => {
@@ -149,7 +149,7 @@ describe('Android Activity tabs', () => {
         selected="action"
         marks={{ action: true, replies: true }}
         position={undefined as never}
-        onTabSelect={() => {}}
+        onSelect={() => {}}
       />,
     );
     const [needsYou, forYou] = tabs().map((tab) => tab.getAttribute('data-dot'));
@@ -185,7 +185,7 @@ describe('Android Activity tabs', () => {
         selected="all"
         marks={NO_ACTIVITY_MARKS}
         position={undefined as never}
-        onTabSelect={() => {}}
+        onSelect={() => {}}
       />,
     );
     expect(selected()).toEqual([]);
