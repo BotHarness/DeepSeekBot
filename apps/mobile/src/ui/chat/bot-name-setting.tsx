@@ -5,7 +5,9 @@ import { errorText } from '../../host/bot-settings';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import type { LayerName } from '../design/layers';
+import type { RowIconName } from '../primitives/row-icon';
+import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
@@ -51,7 +53,7 @@ function RenameBotSheet({
       }}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
           <TextField
             testID="bot-name-input"
@@ -94,24 +96,28 @@ function RenameBotSheet({
 export function BotNameSetting({
   name,
   onSave,
+  on = 'sheet',
+  icon,
 }: {
   name: string;
   onSave(name: string): Promise<void>;
+  on?: LayerName;
+  icon?: RowIconName;
 }) {
   const t = useStrings();
   const [editing, setEditing] = useState(false);
   return (
     <>
-      <SettingsSection>
-        <SettingsRow
-          testID="bot-name-change"
-          title={t.botName}
-          detail={name}
-          accessibilityLabel={`${t.botRename}, ${name}`}
-          control={{ kind: 'chevron' }}
-          onPress={() => setEditing(true)}
-        />
-      </SettingsSection>
+      <SettingsRow
+        on={on}
+        testID="bot-name-change"
+        title={t.botName}
+        detail={name}
+        icon={icon}
+        accessibilityLabel={`${t.botRename}, ${name}`}
+        control={{ kind: 'chevron' }}
+        onPress={() => setEditing(true)}
+      />
       {editing ? (
         <RenameBotSheet name={name} onSave={onSave} onClose={() => setEditing(false)} />
       ) : null}

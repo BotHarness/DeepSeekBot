@@ -3,7 +3,7 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-type NativeTab = { value: string; label: string; count?: number; accessibilityLabel?: string };
+type NativeTab = { value: string; label: string; dotColor?: string; accessibilityLabel?: string };
 
 vi.mock('react-native', async () => await import('./react-native-shim'));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
@@ -44,7 +44,7 @@ vi.mock('expo', () => ({
               role: 'tab',
               'aria-selected': String(tab.value === props.selected),
               'aria-label': tab.accessibilityLabel ?? tab.label,
-              'data-count': tab.count,
+              'data-dot': tab.dotColor,
               onClick: () => props.onSelect({ nativeEvent: { value: tab.value } }),
             },
             tab.label,
@@ -56,7 +56,12 @@ vi.mock('expo', () => ({
 import { PrimaryTabRow } from '../src/ui/primitives/primary-tab-row.android';
 import { ActivityTabs } from '../src/ui/shell/activity-tabs.android';
 import { WorkspaceTabs } from '../src/ui/shell/workspace-tabs.android';
-import { steppedActivityTab } from '../src/ui/shell/activity-tab-strip';
+import {
+  activityDotColor,
+  activityTabMarks,
+  NO_ACTIVITY_MARKS,
+  steppedActivityTab,
+} from '../src/ui/shell/activity-tab-strip';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -80,7 +85,7 @@ describe('Android primary tab row', () => {
       <PrimaryTabRow
         tabs={[
           { value: 'a', label: 'Alpha' },
-          { value: 'b', label: 'Beta', count: 3, accessibilityLabel: 'Beta, 3 items' },
+          { value: 'b', label: 'Beta', dotColor: 'yellow-token', accessibilityLabel: 'Beta, new' },
         ]}
         value="b"
         onChange={() => {}}
@@ -94,8 +99,9 @@ describe('Android primary tab row', () => {
       'true',
     );
     expect(host.querySelector('[data-container]')?.getAttribute('data-container')).toBe('canvas');
-    expect(selected().map((tab) => tab.getAttribute('aria-label'))).toEqual(['Beta, 3 items']);
-    expect(selected()[0]?.getAttribute('data-count')).toBe('3');
+    expect(selected().map((tab) => tab.getAttribute('aria-label'))).toEqual(['Beta, new']);
+    expect(selected()[0]?.getAttribute('data-dot')).toBe('yellow-token');
+    expect(tabs()[0]?.hasAttribute('data-dot')).toBe(false);
     expect(tabs()[0]?.getAttribute('aria-label')).toBe('Alpha');
   });
 
@@ -117,29 +123,77 @@ describe('Android primary tab row', () => {
 });
 
 describe('Android Activity tabs', () => {
-  it('shows the three sections as native tabs and moves on a tap', async () => {
+  it('shows Needs you and For you as native tabs and moves on a tap', async () => {
     const onSelect = vi.fn();
     await render(
-      <ActivityTabs selected="replies" position={undefined as never} onSelect={onSelect} />,
+      <ActivityTabs
+        selected="replies"
+        marks={NO_ACTIVITY_MARKS}
+        position={undefined as never}
+        onSelect={onSelect}
+      />,
     );
     expect(tabs().map((tab) => tab.textContent)).toEqual([
       t.inboxSections.action,
       t.inboxSections.replies,
-      t.inboxSections.unread,
     ]);
     expect(selected().map((tab) => tab.textContent)).toEqual([t.inboxSections.replies]);
-    await act(async () => tabs()[2]?.click());
-    expect(onSelect).toHaveBeenCalledWith('unread');
+    expect(tabs().some((tab) => tab.hasAttribute('data-dot'))).toBe(false);
+    await act(async () => tabs()[0]?.click());
+    expect(onSelect).toHaveBeenCalledWith('action');
+  });
+
+  it('marks a tab with content by a warning dot (Needs you) or an accent dot (For you), no count', async () => {
+    await render(
+      <ActivityTabs
+        selected="action"
+        marks={{ action: true, replies: true }}
+        position={undefined as never}
+        onSelect={() => {}}
+      />,
+    );
+    const [needsYou, forYou] = tabs().map((tab) => tab.getAttribute('data-dot'));
+    const theme = { color: { warning: 'warning', accent: 'accent' } } as never;
+    expect(activityDotColor(theme, 'action')).toBe('warning');
+    expect(activityDotColor(theme, 'replies')).toBe('accent');
+    expect(needsYou).toBeTruthy();
+    expect(forYou).toBeTruthy();
+    expect(needsYou).not.toBe(forYou);
+    expect(tabs().map((tab) => tab.getAttribute('aria-label'))).toEqual([
+      t.activityTabNew(t.inboxSections.action),
+      t.activityTabNew(t.inboxSections.replies),
+    ]);
+    expect(tabs().map((tab) => tab.textContent)).toEqual([
+      t.inboxSections.action,
+      t.inboxSections.replies,
+    ]);
+  });
+
+  it('marks only sections that have items once the inbox is ready', () => {
+    expect(activityTabMarks({ status: 'loading' })).toEqual(NO_ACTIVITY_MARKS);
+    expect(
+      activityTabMarks({
+        status: 'ready',
+        sections: { action: [{} as never], replies: [], unread: [{} as never], handled: [] },
+      }),
+    ).toEqual({ action: true, replies: false });
   });
 
   it('keeps All and handled history without a selected tab', async () => {
-    await render(<ActivityTabs selected="all" position={undefined as never} onSelect={() => {}} />);
+    await render(
+      <ActivityTabs
+        selected="all"
+        marks={NO_ACTIVITY_MARKS}
+        position={undefined as never}
+        onSelect={() => {}}
+      />,
+    );
     expect(selected()).toEqual([]);
   });
 
   it('steps to the neighbouring tab on a strip swipe and stops at either end', () => {
     expect(steppedActivityTab('action', true)).toBe('replies');
-    expect(steppedActivityTab('unread', true)).toBeUndefined();
+    expect(steppedActivityTab('replies', true)).toBeUndefined();
     expect(steppedActivityTab('replies', false)).toBe('action');
     expect(steppedActivityTab('action', false)).toBeUndefined();
     expect(steppedActivityTab('handled', true)).toBe('replies');

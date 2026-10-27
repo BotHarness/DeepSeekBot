@@ -8,12 +8,12 @@ import { useDesignTheme } from '../design/theme';
 export type PrimaryTab<T extends string> = {
   value: T;
   label: string;
-  count?: number;
+  dotColor?: string;
   accessibilityLabel?: string;
 };
 
 type NativePrimaryTabRowProps = ViewProps & {
-  tabs: { value: string; label: string; count?: number; accessibilityLabel?: string }[];
+  tabs: { value: string; label: string; dotColor?: string; accessibilityLabel?: string }[];
   selected: string;
   containerColor?: string;
   onSelect(event: { nativeEvent: { value: string } }): void;
@@ -52,7 +52,7 @@ export function PrimaryTabRow<T extends string>({
           tabs={tabs.map((tab) => ({
             value: tab.value,
             label: tab.label,
-            ...(tab.count === undefined ? {} : { count: tab.count }),
+            ...(tab.dotColor === undefined ? {} : { dotColor: tab.dotColor }),
             ...(tab.accessibilityLabel === undefined
               ? {}
               : { accessibilityLabel: tab.accessibilityLabel }),

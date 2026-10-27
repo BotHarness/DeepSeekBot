@@ -13,3 +13,5 @@ export const systemColors = {
   secondaryGroupedBackground: PlatformColor('secondarySystemGroupedBackground'),
   fill: PlatformColor('systemFill'),
 } as const;
+
+export { systemSegmented } from './system-shape';
