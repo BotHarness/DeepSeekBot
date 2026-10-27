@@ -110,6 +110,7 @@ export const Keyboard = {
   metrics: () => undefined,
   dismiss() {},
 };
+export const PlatformColor = (name: string) => ({ semantic: [name] });
 export const Platform = {
   OS: 'web',
   select: <T>(options: { default?: T; web?: T }) => options.web ?? options.default,

@@ -1,4 +1,4 @@
-import { PlatformColor } from 'react-native';
+import { Platform, PlatformColor } from 'react-native';
 
 export { variantRamp as systemType } from './system-type';
 
@@ -12,4 +12,10 @@ export const systemColors = {
   groupedBackground: PlatformColor('systemGroupedBackground'),
   secondaryGroupedBackground: PlatformColor('secondarySystemGroupedBackground'),
   fill: PlatformColor('systemFill'),
+} as const;
+
+const iosMajor = Platform.OS === 'ios' ? Number.parseInt(String(Platform.Version), 10) : 0;
+
+export const systemSegmented = {
+  radius: iosMajor >= 26 ? 9999 : 9,
 } as const;

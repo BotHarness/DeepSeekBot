@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useMemo, useCallback, useRef, useState } from 'react';
+import { useMemo, useCallback, useRef, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 
 import { botSettings, errorText } from '../../host/bot-settings';
@@ -56,38 +56,69 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
   );
   const model = modelLabel(context.model);
   const chevron = <ChevronRightIcon color={theme.color.muted} size={ICON} />;
+  const divided = (key: string, row: ReactNode, first = false) => (
+    <View
+      key={key}
+      style={
+        first
+          ? undefined
+          : { borderTopWidth: edge.hairline, borderTopColor: theme.layer.raised.divider }
+      }
+    >
+      {row}
+    </View>
+  );
   return (
-    <View ref={context.mount} style={{ alignSelf: 'stretch', gap: space.x4 }}>
-      <BotNameSetting name={bot.displayName} onSave={(name) => renameBot(client, bot.slug, name)} />
-      <SettingsSection title={t.composerContext}>
-        <SettingsRow
-          title={t.contextModel}
-          detail={model}
-          accessibilityLabel={`${t.contextModel} · ${bot.displayName} · ${model}`}
-          leading={<CpuIcon color={theme.color.fg} size={ICON} />}
-          trailing={chevron}
-          onPress={() => {
-            router.push({ pathname: '/bot/[slug]/model', params: { slug: bot.slug } });
-          }}
-        />
-      </SettingsSection>
-      {saved == null ? null : (
-        <SettingsSection>
+    <View ref={context.mount} style={{ alignSelf: 'stretch', gap: space.x5 }}>
+      <SettingsSection title={t.profileSettingsBot} on="raised">
+        {divided(
+          'name',
+          <BotNameSetting
+            on="raised"
+            name={bot.displayName}
+            onSave={(name) => renameBot(client, bot.slug, name)}
+          />,
+          true,
+        )}
+        {divided(
+          'model',
           <SettingsRow
-            testID="bot-chat-background"
-            title={t.chatBackground.title}
-            trailing={openingBackground ? <LoadingIndicator /> : chevron}
-            onPress={openingBackground ? undefined : () => void openBackground()}
-          />
-        </SettingsSection>
-      )}
+            on="raised"
+            title={t.contextModel}
+            detail={model}
+            accessibilityLabel={`${t.contextModel} · ${bot.displayName} · ${model}`}
+            leading={<CpuIcon color={theme.color.fg} size={ICON} />}
+            trailing={chevron}
+            onPress={() => {
+              router.push({ pathname: '/bot/[slug]/model', params: { slug: bot.slug } });
+            }}
+          />,
+        )}
+        {saved == null
+          ? null
+          : divided(
+              'background',
+              <SettingsRow
+                on="raised"
+                testID="bot-chat-background"
+                title={t.chatBackground.title}
+                trailing={openingBackground ? <LoadingIndicator /> : chevron}
+                onPress={openingBackground ? undefined : () => void openBackground()}
+              />,
+            )}
+      </SettingsSection>
       {backgroundError === undefined ? null : (
         <Text accessibilityRole="alert" tone="danger">
           {backgroundError}
         </Text>
       )}
       {saved == null ? null : (
-        <DmActivitySettings hostId={saved.hostId} botSlug={bot.slug} name={bot.displayName} />
+        <DmActivitySettings
+          on="raised"
+          hostId={saved.hostId}
+          botSlug={bot.slug}
+          name={bot.displayName}
+        />
       )}
     </View>
   );

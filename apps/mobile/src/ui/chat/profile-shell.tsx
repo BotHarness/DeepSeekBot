@@ -13,7 +13,6 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
   useAnimatedStyle,
-  useReducedMotion,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
@@ -21,12 +20,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
-import { profileShell, space, swipeRow } from '../design/tokens';
+import { profileShell, radius, space, swipeRow } from '../design/tokens';
+import { systemSegmented } from '../design/system-tokens';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
-import { DrawerMaterial } from '../primitives/drawer-material';
 import { SheetGrabber } from '../primitives/sheet-grabber';
 import { Text } from '../primitives/text';
-import { NavigationAction } from '../shell/navigation-action';
 import { useStrings } from '../strings';
 import { swipedTab, type ProfileTab } from './profile-tabs';
 
@@ -50,11 +48,7 @@ type Item =
 
 const AnimatedList = Animated.createAnimatedComponent(FlatList<Item>);
 
-const IOS_VERSION = Platform.OS === 'ios' ? Number.parseInt(String(Platform.Version), 10) : 0;
-
-export const zoomTransition = IOS_VERSION >= 18;
-
-export const systemTransition = zoomTransition || Platform.OS === 'android';
+const tabsRadius = Platform.OS === 'ios' ? systemSegmented.radius : radius.round;
 
 export function ProfileShell({
   identity,
@@ -76,22 +70,12 @@ export function ProfileShell({
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const reduced = useReducedMotion();
   const { width } = useWindowDimensions();
   const list = useRef<FlatList<Item>>(null);
   const offset = useSharedValue(0);
   const [identityHeight, setIdentityHeight] = useState(0);
   const [stuck, setStuck] = useState(false);
   const showTabs = tabs.length > 1;
-
-  const opening = useSharedValue(systemTransition || reduced ? 1 : profileShell.openScale);
-  const opened = useRef(false);
-  const open = () => {
-    if (opened.current) return;
-    opened.current = true;
-    opening.value = withSpring(1, spring.spatial.default);
-  };
-  const openingStyle = useAnimatedStyle(() => ({ transform: [{ scale: opening.value }] }));
 
   const fade = useSharedValue(1);
   const select = (next: ProfileTab) => {
@@ -109,10 +93,6 @@ export function ProfileShell({
     offset.value = y;
     const next = showTabs && identityHeight > 0 && y >= identityHeight;
     if (next !== stuck) setStuck(next);
-  };
-  const onScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (systemTransition) return;
-    if (event.nativeEvent.contentOffset.y < -profileShell.dismissDistance) onClose();
   };
 
   const step = (forward: boolean) => {
@@ -166,8 +146,21 @@ export function ProfileShell({
               backgroundColor: stuck ? 'transparent' : theme.overlay.fill,
             }}
           >
-            {stuck ? <DrawerMaterial rounded glassPanel /> : null}
-            <IconTabs label={t.profileTabsLabel} options={options} value={tab} onChange={select} />
+            <View
+              testID="profile-tabs-plate"
+              style={{
+                borderRadius: tabsRadius,
+                backgroundColor: theme.overlay.fill,
+                boxShadow: stuck ? profileShell.stuckTabsShadow[theme.scheme] : undefined,
+              }}
+            >
+              <IconTabs
+                label={t.profileTabsLabel}
+                options={options}
+                value={tab}
+                onChange={select}
+              />
+            </View>
           </View>
         );
       case 'top':
@@ -203,10 +196,10 @@ export function ProfileShell({
   };
 
   return (
-    <Animated.View
+    <View
       testID="profile-page"
-      onLayout={open}
-      style={[{ flex: 1, backgroundColor: theme.overlay.fill }, openingStyle]}
+      onAccessibilityEscape={onClose}
+      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
     >
       {Platform.OS === 'android' ? (
         <Pressable
@@ -224,19 +217,7 @@ export function ProfileShell({
           <SheetGrabber />
         </Pressable>
       ) : (
-        <View
-          style={{
-            paddingTop: insets.top + space.x3,
-            paddingBottom: space.x3,
-            paddingHorizontal: space.x5,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x4,
-            backgroundColor: theme.overlay.fill,
-          }}
-        >
-          <NavigationAction close size={theme.touch} label={t.close} onPress={onClose} />
-        </View>
+        <View style={{ height: space.x5, backgroundColor: theme.overlay.fill }} />
       )}
       <GestureDetector gesture={swipe}>
         <View style={{ flex: 1 }}>
@@ -248,7 +229,6 @@ export function ProfileShell({
             renderItem={({ item }) => render(item)}
             stickyHeaderIndices={showTabs ? [1] : undefined}
             onScroll={onScroll}
-            onScrollEndDrag={onScrollEndDrag}
             scrollEventThrottle={16}
             nestedScrollEnabled
             initialNumToRender={8}
@@ -260,6 +240,6 @@ export function ProfileShell({
         </View>
       </GestureDetector>
       {body.overlay}
-    </Animated.View>
+    </View>
   );
 }

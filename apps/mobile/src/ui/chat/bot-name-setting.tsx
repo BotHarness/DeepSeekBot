@@ -6,7 +6,8 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import type { LayerName } from '../design/layers';
+import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { ChevronRightIcon } from '../shell/icons';
@@ -96,25 +97,26 @@ function RenameBotSheet({
 export function BotNameSetting({
   name,
   onSave,
+  on = 'sheet',
 }: {
   name: string;
   onSave(name: string): Promise<void>;
+  on?: LayerName;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const [editing, setEditing] = useState(false);
   return (
     <>
-      <SettingsSection>
-        <SettingsRow
-          testID="bot-name-change"
-          title={t.botName}
-          detail={name}
-          accessibilityLabel={`${t.botRename}, ${name}`}
-          trailing={<ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />}
-          onPress={() => setEditing(true)}
-        />
-      </SettingsSection>
+      <SettingsRow
+        on={on}
+        testID="bot-name-change"
+        title={t.botName}
+        detail={name}
+        accessibilityLabel={`${t.botRename}, ${name}`}
+        trailing={<ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />}
+        onPress={() => setEditing(true)}
+      />
       {editing ? (
         <RenameBotSheet name={name} onSave={onSave} onClose={() => setEditing(false)} />
       ) : null}
