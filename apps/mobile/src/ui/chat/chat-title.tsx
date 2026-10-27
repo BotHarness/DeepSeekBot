@@ -1,4 +1,3 @@
-import type { Href } from 'expo-router';
 import { ConnectionProgress } from '../primitives/connection-progress';
 import { Pressable, View } from 'react-native';
 
@@ -10,7 +9,6 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
-import { ProfileZoomSource } from './profile-zoom-source';
 import { botBusy } from './bot-tone';
 import { stepLabel } from './bot-steps';
 
@@ -20,13 +18,11 @@ export function ChatTitle({
   bot,
   fallback,
   connectionLabel,
-  profileHref,
   onPress,
 }: {
   bot: RosterBot | undefined;
   fallback: string;
   connectionLabel?: string | undefined;
-  profileHref?: Href;
   onPress(): void;
 }) {
   const t = useStrings();
@@ -35,7 +31,7 @@ export function ChatTitle({
   const name = bot?.displayName ?? fallback;
   const activity =
     bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
-  const chip = (press: (() => void) | undefined) => (
+  const chip = (press: () => void) => (
     <Pressable
       testID="bot-details-chip"
       accessibilityRole="button"
@@ -67,11 +63,5 @@ export function ChatTitle({
       <ConnectionProgress active={connectionLabel !== undefined} />
     </Pressable>
   );
-  return profileHref === undefined || bot === undefined ? (
-    chip(onPress)
-  ) : (
-    <ProfileZoomSource href={profileHref} onPress={onPress}>
-      {chip}
-    </ProfileZoomSource>
-  );
+  return chip(onPress);
 }

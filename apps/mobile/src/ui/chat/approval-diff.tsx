@@ -7,8 +7,7 @@ import { radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-
-export const DIFF_LINES = 40;
+import { DIFF_LINES } from './approval-diff-limit';
 
 export function FileDiff({ change }: { change: ApprovalFileChange }) {
   const t = useStrings();

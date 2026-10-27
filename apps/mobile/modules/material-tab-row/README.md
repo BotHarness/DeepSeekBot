@@ -15,8 +15,8 @@ colour of its own except the optional `containerColor`, the canvas the row sits 
   ellipsis when it does not fit. The Host measures the row (`matchContents`), so React Native gives
   it the height it needs.
 - TalkBack hears each tab as a Tab with its selected state and its full `accessibilityLabel`
-  (default: the label), whatever the visible truncation. An optional `count` shows as a Material
-  `Badge` (hidden at zero, capped at 99+).
+  (default: the label), whatever the visible truncation. An optional `dotColor` shows a small
+  Material `Badge` dot after the label (no number); say what it means in `accessibilityLabel`.
 - Pressing a tab sends `onSelect` with its value; the test tag is `tab-<value>`.
 
 A new Android development build is required. CI tests `:material-tab-row:testDebugUnitTest`.

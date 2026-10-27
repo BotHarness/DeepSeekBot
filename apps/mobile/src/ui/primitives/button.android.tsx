@@ -22,6 +22,7 @@ import { loadingIndicator, materialButton } from '../design/tokens';
 import { controlCase } from '../platform-copy';
 import { useStrings } from '../strings';
 import type { Button as SharedButton, ButtonSymbol } from './button';
+import { useComposeTree } from './compose-tree';
 
 export type { ButtonTone } from '../design/controls';
 export type { ButtonSymbol } from './button';
@@ -55,6 +56,7 @@ export function Button({
   const t = useStrings();
   const theme = useDesignTheme();
   const roles = useMaterialRoles();
+  const tree = useComposeTree();
   const danger = tone === 'danger';
   const Control =
     variant === 'text'
@@ -67,6 +69,35 @@ export function Button({
     : variant === 'text'
       ? { contentColor: roles.error }
       : { containerColor: roles.error, contentColor: roles.onError };
+  const control = (
+    <Control
+      enabled={!disabled && !busy}
+      onClick={onPress}
+      {...(colors ? { colors } : {})}
+      modifiers={[
+        ...(tree?.fill === false ? [] : [fillMaxWidth()]),
+        defaultMinSize({ minHeight: theme.touch }),
+        ...(id ? [testID(id)] : []),
+      ]}
+    >
+      <Row horizontalArrangement={{ spacedBy: materialButton.iconGap }} verticalAlignment="center">
+        {busy ? (
+          <CircularProgressIndicator
+            strokeWidth={loadingIndicator.controlStroke}
+            strokeCap="round"
+            modifiers={[
+              size(materialButton.icon, materialButton.icon),
+              semantics({ contentDescription: t.loading }),
+            ]}
+          />
+        ) : symbol ? (
+          <Icon source={symbols[symbol]} size={materialButton.icon} />
+        ) : null}
+        <Text style={{ textAlign: 'center' }}>{controlCase(label)}</Text>
+      </Row>
+    </Control>
+  );
+  if (tree !== undefined) return control;
   return (
     <Host
       matchContents={{ vertical: true }}
@@ -75,35 +106,7 @@ export function Button({
       ignoreSafeAreaKeyboardInsets
       style={{ alignSelf: 'stretch' }}
     >
-      <Control
-        enabled={!disabled && !busy}
-        onClick={onPress}
-        {...(colors ? { colors } : {})}
-        modifiers={[
-          fillMaxWidth(),
-          defaultMinSize({ minHeight: theme.touch }),
-          ...(id ? [testID(id)] : []),
-        ]}
-      >
-        <Row
-          horizontalArrangement={{ spacedBy: materialButton.iconGap }}
-          verticalAlignment="center"
-        >
-          {busy ? (
-            <CircularProgressIndicator
-              strokeWidth={loadingIndicator.controlStroke}
-              strokeCap="round"
-              modifiers={[
-                size(materialButton.icon, materialButton.icon),
-                semantics({ contentDescription: t.loading }),
-              ]}
-            />
-          ) : symbol ? (
-            <Icon source={symbols[symbol]} size={materialButton.icon} />
-          ) : null}
-          <Text style={{ textAlign: 'center' }}>{controlCase(label)}</Text>
-        </Row>
-      </Control>
+      {control}
     </Host>
   );
 }

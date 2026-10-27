@@ -3,14 +3,11 @@
 package expo.modules.materialsearchbar
 
 import android.view.View
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AppBarWithSearch
@@ -37,9 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -64,6 +59,8 @@ class SearchResult : Record {
   @Field val title: String = ""
   @Field val subtitle: String = ""
   @Field val initial: String = ""
+  @Field val image: String = ""
+  @Field val dimmed: Boolean = false
   @Field val section: String = ""
   @Field val trailing: String = ""
 }
@@ -98,7 +95,7 @@ private const val CLEAR =
 
 /**
  * The M3 search app bar and its full-screen search, placed inside `Host` so the pill, the search
- * window and the result avatars paint with the Host's seeded Material theme.
+ * window and the result rows paint with the Host's seeded Material theme.
  */
 @Composable
 fun FunctionalComposableScope.SearchBarContent(
@@ -208,7 +205,7 @@ fun FunctionalComposableScope.SearchBarContent(
   }
 }
 
-/** One search result row: initial avatar, title, optional subtitle and trailing time. */
+/** One search result row: avatar, title, optional subtitle and trailing time. */
 @Composable
 private fun SearchResultItem(result: SearchResult, onPick: () -> Unit) {
   val trailing: (@Composable () -> Unit)? =
@@ -230,18 +227,7 @@ private fun SearchResultItem(result: SearchResult, onPick: () -> Unit) {
   ListItem(
     onClick = onPick,
     modifier = Modifier.testTag("search-result"),
-    leadingContent = {
-      Box(
-        modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
-        contentAlignment = Alignment.Center,
-      ) {
-        Text(
-          result.initial,
-          color = MaterialTheme.colorScheme.onPrimary,
-          style = MaterialTheme.typography.titleMedium,
-        )
-      }
-    },
+    leadingContent = { ResultAvatar(result) },
     supportingContent = subtitle,
     trailingContent = trailing,
     colors = ListItemDefaults.colors(

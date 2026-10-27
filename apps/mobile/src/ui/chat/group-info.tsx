@@ -42,7 +42,6 @@ import { InviteSheet } from './invite-sheet';
 import { ProfileShell, type ProfileRow, type ProfileTabBody } from './profile-shell';
 import { profileTabs, type ProfileTabMemory } from './profile-tabs';
 import { ProfileHero } from './profile-hero';
-import { ProfileZoomTarget } from './profile-zoom-target';
 import { Sheet, SheetActions, SheetCallout } from './sheet';
 
 const ON = 'raised' as const;
@@ -155,7 +154,7 @@ function RenameSheet({
       onClose={onClose}
       avoidKeyboard
     >
-      <KeyboardFormScroll enabled={false}>
+      <KeyboardFormScroll enabled={false} nestedScrollEnabled>
         <TextField
           value={draft}
           onChangeText={setDraft}
@@ -511,16 +510,14 @@ function GroupIdentity({
     <ProfileHero
       name={channel.name}
       avatar={
-        <ProfileZoomTarget>
-          <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
-            <GroupMark
-              avatar={channel.avatar}
-              size={profileShell.avatar}
-              corner={radius.round}
-              variant="display"
-            />
-          </EditableAvatar>
-        </ProfileZoomTarget>
+        <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
+          <GroupMark
+            avatar={channel.avatar}
+            size={profileShell.avatar}
+            corner={radius.round}
+            variant="display"
+          />
+        </EditableAvatar>
       }
     >
       <Text variant="meta" tone="muted">

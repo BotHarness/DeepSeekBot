@@ -78,7 +78,6 @@ import { ActivityRow } from './activity-row';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
-import { ProfileZoomSource } from './profile-zoom-source';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
@@ -1120,24 +1119,16 @@ function ChatConversation({
       bot={bot}
       connectionLabel={connectionLabel}
       fallback={slug ?? ''}
-      profileHref={profileHref}
       onPress={() => router.push(profileHref)}
     />
   ) : botDm ? (
-    saved && !hostRefused ? (
-      <ProfileZoomSource href={pairHref} onPress={() => router.push(pairHref)}>
-        {pairChip}
-      </ProfileZoomSource>
-    ) : (
-      pairChip(undefined)
-    )
+    pairChip(saved && !hostRefused ? () => router.push(pairHref) : undefined)
   ) : (
     <ChannelTitle
       channel={channel}
       working={working}
       connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
-      profileHref={groupHref}
       onPress={() => router.push(groupHref)}
     />
   );

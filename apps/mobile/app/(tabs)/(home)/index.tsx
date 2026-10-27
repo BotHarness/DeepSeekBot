@@ -55,10 +55,12 @@ import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
+import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import {
   chatsSearchResults,
   messageSearchResults,
 } from '../../../src/ui/chat/chats-search-results';
+import { avatarImageUri } from '../../../src/host/native-notification-avatars';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
 import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
@@ -108,6 +110,7 @@ const HomeContent = memo(function HomeContent({
   const t = useStrings();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
+  const showWorkspaces = useWorkspacePanel();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
   useFocusEffect(
@@ -358,8 +361,8 @@ const HomeContent = memo(function HomeContent({
     () =>
       Platform.OS === 'android'
         ? [
-            ...chatsSearchResults(displayed, query, searchAppBar.recent),
-            ...messageSearchResults(messageItems, t.searchMessages, new Date()),
+            ...chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri),
+            ...messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri),
           ]
         : [],
     [displayed, query, messageItems, t],
@@ -496,10 +499,11 @@ const HomeContent = memo(function HomeContent({
   return (
     <>
       <Stack.Screen options={{ title: environment.title, headerShown: false }} />
-      <HostDrawerEdge anywhere>
+      <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
           connection={selectedHost?.snapshot.connection}
+          onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
               <ChatsSearchBar

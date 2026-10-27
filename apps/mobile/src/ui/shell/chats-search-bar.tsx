@@ -3,6 +3,8 @@ export type ChatsSearchResult = {
   title: string;
   subtitle: string;
   initial: string;
+  image: string;
+  dimmed: boolean;
   section?: string;
   trailing?: string;
 };

@@ -152,6 +152,12 @@ async function clearSearch(view: HTMLElement): Promise<void> {
   });
 }
 
+async function showAll(view: HTMLElement) {
+  await press(button(view, t.activityOptions));
+  await press(button(view, t.filterAll));
+  await press(button(view, t.cancel));
+}
+
 function button(view: HTMLElement, label: string): HTMLButtonElement {
   const found = view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
   if (found === null) throw new Error(`no button ${label}`);
@@ -297,8 +303,8 @@ describe('Activity feed', () => {
     const view = await feed(fake, ready([]), 'slow-host', 5000);
     expect(view.querySelector('[data-testid="list-skeleton"]')).not.toBeNull();
     expect(button(view, t.inboxSections.action).getAttribute('aria-selected')).toBe('true');
-    await press(button(view, t.inboxSections.unread));
-    expect(button(view, t.inboxSections.unread).getAttribute('aria-selected')).toBe('true');
+    await press(button(view, t.inboxSections.replies));
+    expect(button(view, t.inboxSections.replies).getAttribute('aria-selected')).toBe('true');
     expect(view.textContent).not.toContain(t.inboxEmpty);
     await act(async () => release());
     await settle();
@@ -324,7 +330,7 @@ describe('Activity feed', () => {
       200,
       open,
     );
-    await press(button(view, t.inboxSections.unread));
+    await showAll(view);
     const row = view.querySelector<HTMLElement>('[data-testid="inbox-row-long-unread"]')!;
     expect(row.textContent).not.toContain('FULL_END');
     expect(row.textContent!.length).toBeLessThan(700);
@@ -385,7 +391,7 @@ describe('Activity feed', () => {
     });
     await settle();
     expect(queries.at(-1)?.search).toBe('budget');
-    expect(view.querySelectorAll('[role=tab]')).toHaveLength(3);
+    expect(view.querySelectorAll('[role=tab]')).toHaveLength(2);
     expect(queries.at(-1)?.category).toBe('action');
     expect(view.querySelector(`button[aria-label="${t.close}"]`)).toBeNull();
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
@@ -401,7 +407,7 @@ describe('Activity feed', () => {
     expect(view.querySelector('textarea')?.value).toBe('');
     expect(queries.at(-1)?.search).toBeUndefined();
     expect(view.textContent).toContain(t.inboxSections.action);
-    expect(view.textContent).toContain(t.inboxSections.unread);
+    expect(view.textContent).toContain(t.inboxSections.replies);
   });
 
   it('shows one no-results message instead of empty sections for an unmatched search', async () => {
@@ -421,7 +427,7 @@ describe('Activity feed', () => {
     });
     await settle();
     expect(view.textContent).toContain(t.activityNoResults);
-    expect(view.querySelectorAll('[role=tab]')).toHaveLength(3);
+    expect(view.querySelectorAll('[role=tab]')).toHaveLength(2);
     await clearSearch(view);
     expect(view.textContent).not.toContain(t.activityNoResults);
     expect(view.textContent).toContain(t.inboxSections.action);
@@ -487,8 +493,7 @@ describe('Activity feed', () => {
     await press(button(view, t.activityOptions));
     await press(button(view, question.botSlug));
     await press(button(view, t.cancel));
-    await press(button(view, t.inboxSections.unread));
-    expect(view.textContent).toContain('2');
+    await showAll(view);
     expect(view.querySelector('[data-testid="inbox-row-unread:team"]')).not.toBeNull();
     await press(button(view, t.activityOptions));
     await press(button(view, t.filterAllBots));
@@ -496,7 +501,7 @@ describe('Activity feed', () => {
     expect(view.textContent).toContain('10');
   });
 
-  it('switches three tabs immediately and keeps All and handled history in filters', async () => {
+  it('switches the two tabs immediately and keeps All and handled history in filters', async () => {
     const unread: HumanAttentionItem = {
       ...reply,
       id: 'unread:team',
@@ -512,7 +517,7 @@ describe('Activity feed', () => {
       sections: { action: [question], replies: [reply], unread: [unread], handled: [done] },
     });
     expect(view.querySelector('[data-testid="inbox-row-done-1"]')).toBeNull();
-    expect(view.querySelectorAll('[role=tab]')).toHaveLength(3);
+    expect(view.querySelectorAll('[role=tab]')).toHaveLength(2);
     expect(button(view, t.inboxSections.action).getAttribute('aria-selected')).toBe('true');
     expect(post(view, question)).not.toBeNull();
     expect(view.querySelector('[data-testid="inbox-row-reply-1"]')).toBeNull();
@@ -520,8 +525,7 @@ describe('Activity feed', () => {
     expect(post(view, question)).toBeNull();
     expect(button(view, t.inboxSections.replies).getAttribute('aria-selected')).toBe('true');
     expect(view.querySelector('[data-testid="inbox-row-reply-1"]')).not.toBeNull();
-    await press(button(view, t.inboxSections.unread));
-    expect(view.querySelector('[data-testid="inbox-row-unread:team"]')).not.toBeNull();
+    expect(view.textContent).not.toContain(t.inboxSections.unread);
     await press(button(view, t.inboxSections.action));
     expect(post(view, question)).not.toBeNull();
     await press(button(view, t.activityOptions));
@@ -585,15 +589,15 @@ describe('Activity feed', () => {
     });
     await press(button(view, t.inboxSections.replies));
     const replied = view.querySelector('[data-testid="inbox-row-reply-1"]')!;
-    expect(replied.textContent).toContain(`${t.kind.reply ?? t.otherKind} · ${reply.botSlug}`);
+    expect(replied.textContent).toContain(reply.botSlug);
+    expect(replied.textContent).toContain(`${t.kind.reply ?? t.otherKind} · `);
     expect(replied.textContent?.split(reply.summary).length).toBe(2);
     await press(button(view, t.activityOptions));
     await press(button(view, t.inboxSections.handled));
     await press(button(view, t.cancel));
     const handled = view.querySelector('[data-testid="inbox-row-done-1"]')!;
-    expect(handled.textContent).toContain(
-      `${t.kind['user-question']} · ${done.botSlug} · ${done.summary}`,
-    );
+    expect(handled.textContent).toContain(done.botSlug);
+    expect(handled.textContent).toContain(`${t.kind['user-question']} · ${done.summary}`);
   });
 
   it.each(['search', 'channel', 'tab', 'swipe'] as const)(
@@ -802,21 +806,17 @@ describe('Activity feed', () => {
       sort: 'oldest',
       channelId: 'other-channel',
     });
-    await press(view.querySelector<HTMLElement>('[data-testid="pager-next"]')!);
-    expect(queries.at(-1)).toMatchObject({
-      category: 'unread',
-      sort: 'oldest',
-      channelId: 'other-channel',
-    });
     const fetched = queries.length;
+    await press(view.querySelector<HTMLElement>('[data-testid="pager-next"]')!);
+    expect(queries.length).toBe(fetched);
     await press(view.querySelector<HTMLElement>('[data-testid="pager-previous"]')!);
     expect(queries.length).toBe(fetched + 1);
-    expect(queries.findLast((query) => query.category === 'replies')).toMatchObject({
-      category: 'replies',
+    expect(queries.at(-1)).toMatchObject({
+      category: 'action',
       sort: 'oldest',
       channelId: 'other-channel',
     });
-    expect(button(view, t.inboxSections.replies).getAttribute('aria-selected')).toBe('true');
+    expect(button(view, t.inboxSections.action).getAttribute('aria-selected')).toBe('true');
   });
 
   it('keeps a post that lost to another device and says so', async () => {

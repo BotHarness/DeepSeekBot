@@ -35,6 +35,7 @@ export function DeliverySheet({
       onClose={onClose}
     >
       <FlatList
+        nestedScrollEnabled
         data={rows}
         keyExtractor={(row) => row.botSlug}
         contentContainerStyle={{
