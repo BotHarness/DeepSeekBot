@@ -249,6 +249,28 @@ describe('Bot descriptor sync', () => {
     expect(git(memoryDir, 'status', '--porcelain')).toBe('');
   });
 
+  it('drops an invalid retained translation instead of failing the sync', () => {
+    const registry = registryAt(tempRoot());
+    registry.create({ slug: 'doubao', displayName: '豆包', workspaces: [] });
+    const memoryDir = registry.memoryDirFor('doubao')!;
+    writeFileSync(
+      join(memoryDir, '.botharness/bot.json'),
+      JSON.stringify({
+        name: '豆包',
+        badges: ['beta'],
+        i18n: { en: { name: 'Doubao', bio: 'x'.repeat(161) } },
+      }),
+    );
+
+    expect(registry.update('doubao', { description: '包在我身上' }).ok).toBe(true);
+
+    expect(descriptorOf(memoryDir)).toMatchObject({
+      bio: '包在我身上',
+      badges: ['beta'],
+      i18n: { en: { name: 'Doubao' } },
+    });
+  });
+
   it('ignores the snapshot recipe once the image no longer matches it', () => {
     const registry = registryAt(tempRoot());
     registry.create({ slug: 'artist', displayName: 'Artist', workspaces: [] });

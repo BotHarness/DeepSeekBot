@@ -56,8 +56,12 @@ function imageAvatar(dataUrl: string): { path: string; bytes: Buffer } | undefin
 function readExisting(memoryDir: string): Record<string, unknown> | undefined {
   try {
     const text = readFileSync(join(memoryDir, BOT_DESCRIPTOR_PATH), 'utf8');
-    if (parseBotDescriptor(text) === undefined) return undefined;
-    return JSON.parse(text) as Record<string, unknown>;
+    const parsed = parseBotDescriptor(text);
+    if (parsed === undefined) return undefined;
+    const existing = JSON.parse(text) as Record<string, unknown>;
+    if (parsed.i18n === undefined) delete existing['i18n'];
+    else existing['i18n'] = parsed.i18n;
+    return existing;
   } catch {
     return undefined;
   }
@@ -115,6 +119,10 @@ export function syncBotDescriptor(
   const bio = clip(record.description ?? '', MAX_DESCRIPTOR_BIO_LENGTH);
   if (bio.length > 0) descriptor['bio'] = bio;
 
+  const banner = record.banner ?? seededBotBanner(record.displayName || record.slug);
+  const bannerEntry = 'recipe' in banner ? { recipe: banner.recipe } : { image: BOT_BANNER_FILE };
+  const primaryColor = portablePrimaryColor(record);
+
   let image: { path: string; bytes: Buffer } | undefined;
   let recipeFile: string | undefined;
   let avatar: BotDescriptorAvatar | undefined;
@@ -123,7 +131,11 @@ export function syncBotDescriptor(
     descriptor['avatar'] = existing['avatar'];
   } else if (record.appearance !== undefined) {
     avatar = { recipe: { ...record.appearance.recipe } };
-    const inline = `${JSON.stringify({ ...descriptor, avatar }, null, 2)}\n`;
+    const inline = `${JSON.stringify(
+      { ...descriptor, avatar, banner: bannerEntry, primaryColor },
+      null,
+      2,
+    )}\n`;
     const snapshot = record.avatar === undefined ? undefined : imageAvatar(record.avatar);
     if (Buffer.byteLength(inline, 'utf8') > MAX_DESCRIPTOR_BYTES && snapshot !== undefined) {
       image = snapshot;
@@ -141,10 +153,8 @@ export function syncBotDescriptor(
     if (isAvatarRecipe(seeded)) avatar = { recipe: { ...canonicalRecipe(seeded) } };
   }
   if (avatar !== undefined) descriptor['avatar'] = avatar;
-  const banner = record.banner ?? seededBotBanner(record.displayName || record.slug);
-  descriptor['banner'] =
-    'recipe' in banner ? { recipe: banner.recipe } : { image: BOT_BANNER_FILE };
-  descriptor['primaryColor'] = portablePrimaryColor(record);
+  descriptor['banner'] = bannerEntry;
+  descriptor['primaryColor'] = primaryColor;
 
   const text = `${JSON.stringify(descriptor, null, 2)}\n`;
   if (
