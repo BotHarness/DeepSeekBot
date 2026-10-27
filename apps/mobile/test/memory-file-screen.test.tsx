@@ -9,6 +9,7 @@ type NativeItem = {
   variant?: string;
   disabled?: boolean;
   onPress?(): void;
+  menu?: { items: { label: string; onPress(): void }[] };
 };
 
 const nav = vi.hoisted(() => ({
@@ -59,6 +60,27 @@ vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: vi.fn(() => null) }));
 vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: vi.fn() }));
+vi.mock('../src/ui/primitives/split-button', () => ({
+  SplitButton: (props: {
+    label: string;
+    menuLabel: string;
+    items: { key: string; label: string }[];
+    onPress(): void;
+    onPick(key: string): void;
+  }) =>
+    createElement(
+      'div',
+      { 'data-split': props.menuLabel },
+      createElement('button', { 'aria-label': props.label, onClick: props.onPress }),
+      props.items.map((item) =>
+        createElement('button', {
+          key: item.key,
+          'aria-label': item.label,
+          onClick: () => props.onPick(item.key),
+        }),
+      ),
+    ),
+}));
 vi.mock('../src/ui/primitives/fading-text', () => ({ FadingText: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/ui/shell/icons', async () => ({
@@ -70,6 +92,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
 import { Platform } from 'react-native';
 
 import { MethodRefused } from '../src/host/client';
+import { copyMessage } from '../src/ui/chat/message-menu';
 import type { MemoryFile } from '../src/host/wire';
 import { MemoryFileScreen, memoryEditable } from '../src/ui/chat/memory-file-screen';
 import { t } from '../src/ui/strings';
@@ -227,12 +250,40 @@ describe('Memory file editing', () => {
     expect(memoryEditable(undefined)).toBe(false);
   });
 
+  it('puts Edit, Copy all and History in an Android split button', async () => {
+    const os = Platform.OS;
+    Object.assign(Platform, { OS: 'android' });
+    const history = vi.fn();
+    try {
+      await render({
+        title: 'SOUL.md',
+        load: async () => file('Old soul'),
+        save: vi.fn(),
+        onHistory: history,
+      });
+      expect(headerHost!.querySelector('[data-split]')?.getAttribute('data-split')).toBe(
+        t.memoryMore('SOUL.md'),
+      );
+      await click(header(t.memoryCopy));
+      expect(copyMessage).toHaveBeenLastCalledWith('Old soul');
+      await click(header(t.memoryHistory));
+      expect(history).toHaveBeenCalledTimes(1);
+      await click(header(t.memoryEditShort));
+      expect(editor()?.value).toBe('Old soul');
+    } finally {
+      Object.assign(Platform, { OS: os });
+    }
+  });
+
   it('uses native bar button items on iOS', async () => {
     const os = Platform.OS;
     Object.assign(Platform, { OS: 'ios' });
     try {
       await render({ title: 'SOUL.md', load: async () => file('Old soul'), save: vi.fn() });
-      expect(nav.items?.().map((item) => item.identifier)).toEqual(['memory-edit']);
+      expect(nav.items?.().map((item) => item.identifier)).toEqual(['memory-edit', 'memory-more']);
+      expect(nav.items!()[1]!.menu!.items.map((item) => item.label)).toEqual([t.memoryCopy]);
+      nav.items!()[1]!.menu!.items[0]!.onPress();
+      expect(copyMessage).toHaveBeenLastCalledWith('Old soul');
       await act(async () => nav.items!()[0]!.onPress!());
       const items = nav.items!();
       expect(items.map((item) => item.identifier ?? item.type)).toEqual([

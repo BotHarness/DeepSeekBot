@@ -53,6 +53,12 @@ export default function MemoryScreen() {
             }
             preview={{ client: client!, io: nativeMemoryPreview, slug, path }}
             role={role === 'soul' || role === 'coreMemory' ? role : undefined}
+            onHistory={() =>
+              router.push({
+                pathname: '/bot/[slug]/memory-history',
+                params: { slug: slug ?? '', path, name: title },
+              })
+            }
           />
         )
       ) : loadFiles === undefined ? null : (

@@ -155,7 +155,7 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
       requireAcceptance().imageFile(botSlug, path, source, revision),
     history: (botSlug, limit) => requireAcceptance().history(botSlug, limit),
     diff: (botSlug, sha) => requireAcceptance().diff(botSlug, sha),
-    gitGraph: (botSlug, offset) => requireAcceptance().gitGraph(botSlug, offset),
+    gitGraph: (botSlug, offset, path) => requireAcceptance().gitGraph(botSlug, offset, path),
     gitCommitDiff: (botSlug, sha) => requireAcceptance().gitCommitDiff(botSlug, sha),
     workingChanges: (botSlug) => requireAcceptance().workingChanges(botSlug),
     workingDiff: (botSlug, path, kind) => requireAcceptance().workingDiff(botSlug, path, kind),

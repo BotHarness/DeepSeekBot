@@ -14,6 +14,7 @@ import { confirmDestructive } from '../primitives/app-dialog';
 import { Button } from '../primitives/button';
 import { ReadFailure } from '../primitives/read-failure';
 import { SheetSaveButton } from '../primitives/sheet-save-button';
+import { SplitButton } from '../primitives/split-button';
 import { TextInput } from '../primitives/system-text';
 import { Text } from '../primitives/text';
 import { HeaderIconButton } from '../shell/header-icon-button';
@@ -21,6 +22,14 @@ import { CloseIcon, PencilIcon } from '../shell/icons';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
 import { MemoryFileView } from './memory-file-view';
+import { copyMessage } from './message-menu';
+
+const paths = {
+  edit: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
+  copy: 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z',
+  history:
+    'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.95 8.95 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z',
+} as const;
 
 export function memoryEditable(file: MemoryFile | undefined): file is MemoryFile {
   return file !== undefined && file.binary !== true && file.image === undefined;
@@ -34,12 +43,14 @@ export function MemoryFileScreen({
   save,
   role,
   preview,
+  onHistory,
 }: {
   title: string;
   load: () => Promise<MemoryFile | undefined>;
   save: (body: string, expectedHead: string) => Promise<string>;
   role?: PinnedRole | undefined;
   preview?: { client: HostClient; io: MemoryPreviewIO; slug: string; path: string };
+  onHistory?: (() => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -100,6 +111,17 @@ export function MemoryFileScreen({
   };
 
   const canEdit = memoryEditable(file) && kept === undefined;
+  const copyable = memoryEditable(file);
+  const more = [
+    ...(copyable ? [{ key: 'copy', label: t.memoryCopy, path: paths.copy }] : []),
+    ...(onHistory === undefined
+      ? []
+      : [{ key: 'history', label: t.memoryHistory, path: paths.history }]),
+  ];
+  const pickMore = (key: string) => {
+    if (key === 'copy' && copyable) copyMessage(file.body);
+    if (key === 'history') onHistory?.();
+  };
   const header = editing ? (
     <View style={{ flexDirection: 'row', gap: space.x3 }}>
       <HeaderIconButton
@@ -117,6 +139,16 @@ export function MemoryFileScreen({
         onPress={() => void submit()}
       />
     </View>
+  ) : canEdit && Platform.OS === 'android' ? (
+    <SplitButton
+      testID="memory-edit"
+      label={t.memoryEditShort}
+      path={paths.edit}
+      menuLabel={t.memoryMore(title)}
+      items={more}
+      onPress={() => startEditing()}
+      onPick={pickMore}
+    />
   ) : canEdit ? (
     <HeaderIconButton
       label={t.memoryEdit(title)}
@@ -156,17 +188,46 @@ export function MemoryFileScreen({
                           onPress: stopEditing,
                         },
                       ]
-                    : canEdit
-                      ? [
-                          {
-                            type: 'button',
-                            identifier: 'memory-edit',
-                            label: t.memoryEdit(title),
-                            icon: { type: 'sfSymbol', name: 'square.and.pencil' },
-                            onPress: () => startEditing(),
-                          },
-                        ]
-                      : [],
+                    : [
+                        ...(canEdit
+                          ? [
+                              {
+                                type: 'button' as const,
+                                identifier: 'memory-edit',
+                                label: t.memoryEdit(title),
+                                icon: {
+                                  type: 'sfSymbol' as const,
+                                  name: 'square.and.pencil' as const,
+                                },
+                                onPress: () => startEditing(),
+                              },
+                            ]
+                          : []),
+                        ...(more.length === 0
+                          ? []
+                          : [
+                              {
+                                type: 'menu' as const,
+                                identifier: 'memory-more',
+                                label: t.memoryMore(title),
+                                icon: { type: 'sfSymbol' as const, name: 'ellipsis' as const },
+                                menu: {
+                                  items: more.map((item) => ({
+                                    type: 'action' as const,
+                                    label: item.label,
+                                    icon: {
+                                      type: 'sfSymbol' as const,
+                                      name:
+                                        item.key === 'copy'
+                                          ? ('doc.on.doc' as const)
+                                          : ('clock.arrow.circlepath' as const),
+                                    },
+                                    onPress: () => pickMore(item.key),
+                                  })),
+                                },
+                              },
+                            ]),
+                      ],
               }
             : { title, headerRight: () => header }
         }

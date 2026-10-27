@@ -1,6 +1,6 @@
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
 
 import {
   unpinnedEntries,
@@ -20,6 +20,7 @@ import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../desi
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
 import { useFocusEffect } from 'expo-router';
 import { Text } from '../primitives/text';
+import { useMounted } from '../mounted';
 import type { IconTabOption } from '../primitives/icon-tabs';
 import { useSheetContent } from '../primitives/sheet-content';
 import { HeaderIconButton } from '../shell/header-icon-button';
@@ -185,7 +186,11 @@ export function workRowBodies(assignments: readonly ProfileAssignment[], now = n
   );
 }
 
-export function memoryChangeRows(changes: MemoryChanges, now = new Date()): Row[] {
+export function memoryChangeRows(
+  changes: MemoryChanges,
+  now = new Date(),
+  empty = t.memoryChangesEmpty,
+): Row[] {
   if (!changes.loaded)
     return frame(
       'memory',
@@ -195,7 +200,7 @@ export function memoryChangeRows(changes: MemoryChanges, now = new Date()): Row[
     );
   return frame('memory', [
     ...(changes.commits.length === 0
-      ? [{ kind: 'note' as const, text: t.memoryChangesEmpty }]
+      ? [{ kind: 'note' as const, text: empty }]
       : dayRows(
           changes.commits,
           (change) => change.authoredAt,
@@ -834,6 +839,45 @@ export function BotProfilePage({
             ],
           })
         : files(tab === 'files', shell)}
+    </View>
+  );
+}
+
+export function MemoryFileChanges({
+  bot,
+  load,
+  onOpen,
+}: {
+  bot: RosterBot;
+  load: (offset: number) => Promise<MemoryChangesPage>;
+  onOpen(change: MemoryChange): void;
+}) {
+  const changes = useMemoryChanges(load);
+  const mount = useMounted<ViewInstance>(() => changes.reload(), [load]);
+  const actions: BotProfileActions = {
+    onNotifications: () => undefined,
+    onOpenMemory: () => undefined,
+    onOpenActivity: () => undefined,
+    onClose: () => undefined,
+    onOpenMemoryChange: onOpen,
+  };
+  return (
+    <View ref={mount} style={{ flex: 1 }}>
+      <FlatList
+        testID="memory-file-history"
+        data={memoryChangeRows(changes.state, new Date(), t.memoryHistoryEmpty)}
+        keyExtractor={(row) => row.key}
+        contentContainerStyle={{ padding: space.x5 }}
+        renderItem={({ item }) => (
+          <ProfileRow
+            bot={bot}
+            row={item}
+            onRetry={changes.reload}
+            onMore={changes.more}
+            actions={actions}
+          />
+        )}
+      />
     </View>
   );
 }
