@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
@@ -147,6 +148,13 @@ import type {
   MarketplaceUploads,
   UploadPlan,
 } from '../marketplace/uploaded-bots.js';
+import {
+  summarizeShareDraft,
+  type ShareDraft,
+  type ShareDrafts,
+  type ShareDraftView,
+} from '../marketplace/share-draft.js';
+import type { UploadFileKind } from '../../../market/src/upload-files.js';
 import type { InstallReceipts } from '../marketplace/install-receipts.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
 import {
@@ -959,6 +967,15 @@ export interface BridgeMethods {
   ): Promise<BridgeResult<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>>;
   marketplaceMine(payload: unknown): Promise<BridgeResult<{ bots: MarketplaceAuthoredBot[] }>>;
   marketplaceDelete(payload: unknown): Promise<BridgeResult<{ deleted: true }>>;
+  shareDraftStart(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftGet(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftFile(
+    payload: unknown,
+  ): BridgeResult<{ path: string; kind: UploadFileKind; text?: string }>;
+  shareDraftDecide(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftFinish(payload: unknown): BridgeResult<ShareDraftView>;
+  shareDraftDiscard(payload: unknown): BridgeResult<{ discarded: boolean }>;
+  shareDraftExport(payload: unknown): Promise<BridgeResult<{ path: string; files: number }>>;
   marketplaceInstall(payload: unknown): Promise<
     BridgeResult<{
       bot: PersonaBotDetail;
@@ -1133,6 +1150,7 @@ export interface BridgeMethodsDeps {
   createBotId?: () => string;
   marketplace?: MarketplaceClient;
   marketplaceUploads?: MarketplaceUploads;
+  shareDrafts?: ShareDrafts;
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
   plugins?: PluginUpdateService;
@@ -1846,6 +1864,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     ok: false,
     error: { code: 'marketplace-unavailable', message: 'Bot Marketplace is unavailable' },
   });
+  const shareDraftSlug = (payload: unknown): string | undefined => {
+    const slug = asSlug(payload);
+    return slug === undefined ||
+      deps.registry.get(slug) === undefined ||
+      deps.tob?.isTob(slug) === true
+      ? undefined
+      : slug;
+  };
+  const draftResult = (
+    result: { ok: true; value: ShareDraft } | { ok: false; code: string; path?: string },
+  ): BridgeResult<ShareDraftView> =>
+    uploadResult(
+      result.ok
+        ? { ok: true, value: { ...result.value, summary: summarizeShareDraft(result.value) } }
+        : result,
+    );
   const uploadResult = <T>(
     result: { ok: true; value: T } | { ok: false; code: string; path?: string },
   ): BridgeResult<T> => {
@@ -3837,6 +3871,61 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const { id } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
       return uploadResult(await deps.marketplaceUploads.remove(id.trim()));
+    },
+    shareDraftStart(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return draftResult(deps.shareDrafts.start(slug));
+    },
+    shareDraftGet(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return draftResult(deps.shareDrafts.get(slug));
+    },
+    shareDraftFile(payload) {
+      const slug = shareDraftSlug(payload);
+      const { path } = asObject(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined || typeof path !== 'string' || path.length === 0)
+        return invalidInput('slug and path are required');
+      return uploadResult(deps.shareDrafts.read(slug, path));
+    },
+    shareDraftDecide(payload) {
+      const slug = shareDraftSlug(payload);
+      const { path, decision, text } = asObject(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined || typeof path !== 'string' || path.length === 0)
+        return invalidInput('slug and path are required');
+      if (decision === 'keep')
+        return draftResult(deps.shareDrafts.decide(slug, path, { keep: true }));
+      if (decision === 'drop')
+        return draftResult(deps.shareDrafts.decide(slug, path, { drop: true }));
+      if (decision === 'rewrite' && typeof text === 'string')
+        return draftResult(deps.shareDrafts.decide(slug, path, { rewrite: text }));
+      return invalidInput('decision must be keep, drop, or rewrite with text');
+    },
+    shareDraftFinish(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return draftResult(deps.shareDrafts.finish(slug));
+    },
+    shareDraftDiscard(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      return uploadResult(deps.shareDrafts.discard(slug));
+    },
+    async shareDraftExport(payload) {
+      const slug = shareDraftSlug(payload);
+      if (deps.shareDrafts === undefined || deps.tob === undefined) return marketplaceUnavailable();
+      if (slug === undefined) return invalidInput('slug must name one of your Bots');
+      const home = await deps.tob.ensure();
+      return uploadResult(
+        deps.shareDrafts.exportTo(slug, join(home.workspacePath, 'share-exports', slug)),
+      );
     },
     async marketplaceInstall(payload) {
       if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();

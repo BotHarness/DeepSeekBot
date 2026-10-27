@@ -11,6 +11,7 @@ import {
   MARKETPLACE_HOST_FILE,
   type InstallReceipts,
 } from '../src/marketplace/install-receipts.js';
+import { createShareDrafts } from '../src/marketplace/share-draft.js';
 import { createMarketplaceUploads } from '../src/marketplace/uploaded-bots.js';
 import type { MemoryCloneResult } from '../src/memory/clone.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
@@ -191,7 +192,10 @@ describe('installing from the Marketplace', () => {
     const uploads = createMarketplaceUploads({
       client: marketClient(market),
       account: () => undefined,
-      memoryDir: () => undefined,
+      drafts: createShareDrafts({
+        root: mkdtempSync(join(tmpdir(), 'share-drafts-')),
+        memoryDir: () => undefined,
+      }),
     });
     expect(await uploads.installInput(id)).toMatchObject({
       ok: true,

@@ -4,15 +4,10 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
-import { PersonaBotAvatar } from './avatar.js';
-import { errorMessage } from './bridge.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import { appendConversationDraft, conversationDraftKey } from './conversation-draft.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
-import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
 import { MyUploadsDialog } from './market-mine.js';
 import { MarketUploadDialog } from './market-upload.js';
 import {

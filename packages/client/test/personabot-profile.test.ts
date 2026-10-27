@@ -46,6 +46,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
     IconSettingsOutlineRegular: stub,
     IconUserOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
+    IconShareOutlineRegular: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
     Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>

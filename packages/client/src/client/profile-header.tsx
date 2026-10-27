@@ -5,6 +5,7 @@ import { BANNER_SCENES, seededBannerRecipe } from '@botharness/pixel-banner';
 import {
   Button,
   IconEllipsisOutlineRegular,
+  IconShareOutlineRegular,
   IconTrashOutlineRegular,
   type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives';
@@ -24,6 +25,7 @@ import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-
 import { botPrimaryColorOf } from './bot-primary-color.js';
 import { PrimaryColorModal } from './primary-color-editor.js';
 import { ProfileTags } from './profile-tags.js';
+import { openShareFlow } from './share-flow.js';
 import type { BotBannerView, BotSummary, ChannelSummary } from './store.js';
 import {
   MAX_BOT_BIO_LENGTH,
@@ -513,6 +515,11 @@ export function ProfileHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuItems: readonly MenuEntry[] = [
     {
+      id: 'share-market',
+      label: t('market.share'),
+      icon: <IconShareOutlineRegular size={16} />,
+    },
+    {
       id: 'delete',
       label: t('deletion.title'),
       icon: <IconTrashOutlineRegular size={16} />,
@@ -578,6 +585,7 @@ export function ProfileHeader({
                 onSelect={(id) => {
                   setMenuOpen(false);
                   if (id === 'delete') onDelete();
+                  if (id === 'share-market') openShareFlow(bot.slug);
                 }}
                 onClose={() => setMenuOpen(false)}
               />
