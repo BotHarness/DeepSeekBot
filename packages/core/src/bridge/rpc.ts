@@ -57,6 +57,7 @@ import type {
   MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceTopic,
@@ -2159,6 +2160,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
   }
 
+  async marketplaceFileView(id: string, path: string): Promise<MarketplaceFileView> {
+    return unwrapAsync(this.methods.marketplaceFileView({ id, path }));
+  }
+
   async marketplaceAccount(): Promise<MarketplaceAccount> {
     return unwrapAsync(this.methods.marketplaceAccount());
   }
@@ -2510,6 +2515,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceSubmit',
   'marketplaceTopics',
   'marketplaceDetail',
+  'marketplaceFileView',
   'marketplaceChallenge',
   'marketplaceReport',
   'marketplaceAccount',

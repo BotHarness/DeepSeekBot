@@ -13,7 +13,8 @@ import { Callout } from './ds/callout.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { fileSize, marketplaceError } from './marketplace.js';
+import { fileSize } from './market-files.js';
+import { marketplaceError } from './marketplace.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotSummary } from './store.js';
 

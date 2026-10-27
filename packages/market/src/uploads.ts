@@ -16,7 +16,9 @@ import {
   MAX_UPLOAD_FILES,
   sha256Hex,
   uploadFileKind,
+  uploadFileType,
   type UploadFileKind,
+  type UploadFileType,
 } from './upload-files.js';
 
 export const MAX_AUTHOR_NAME_LENGTH = 40;
@@ -152,6 +154,14 @@ export interface Uploads {
     botId: string,
     path: string,
   ): Promise<{ bytes: ArrayBuffer; contentType: string } | undefined>;
+  readText(botId: string, path: string): Promise<UploadedText | null | undefined>;
+}
+
+export interface UploadedText {
+  path: string;
+  size: number;
+  type: UploadFileType;
+  text: string;
 }
 
 export function createUploads(deps: {
@@ -199,6 +209,17 @@ export function createUploads(deps: {
       await db.prepare('DELETE FROM uploads WHERE bot_id = ?').bind(row.bot_id).run();
     }
   };
+
+  const listedFile = (botId: string, path: string) =>
+    db
+      .prepare(
+        `SELECT f.kind AS kind FROM uploaded_files f
+         JOIN indexed_repositories r ON r.node_id = f.bot_id
+         WHERE f.bot_id = ? AND f.path = ? AND f.stored = 1
+           AND r.source = 'upload' AND r.visibility = 'listed'`,
+      )
+      .bind(botId, path)
+      .first<{ kind: UploadFileKind }>();
 
   const readText = async (botId: string, path: string, maxBytes: number) => {
     const object = await bucket.get(fileKey(botId, path));
@@ -418,16 +439,22 @@ export function createUploads(deps: {
       return results;
     },
 
+    async readText(botId, path) {
+      const listed = await listedFile(botId, path);
+      if (listed === null) return undefined;
+      if (listed.kind === 'image') return null;
+      const object = await bucket.get(fileKey(botId, path));
+      if (object === null) return undefined;
+      return {
+        path,
+        size: object.size,
+        type: uploadFileType(path, listed.kind),
+        text: new TextDecoder().decode(await object.arrayBuffer()),
+      };
+    },
+
     async readFile(botId, path) {
-      const listed = await db
-        .prepare(
-          `SELECT f.kind AS kind FROM uploaded_files f
-           JOIN indexed_repositories r ON r.node_id = f.bot_id
-           WHERE f.bot_id = ? AND f.path = ? AND f.stored = 1
-             AND r.source = 'upload' AND r.visibility = 'listed'`,
-        )
-        .bind(botId, path)
-        .first<{ kind: UploadFileKind }>();
+      const listed = await listedFile(botId, path);
       if (listed === null) return undefined;
       const object = await bucket.get(fileKey(botId, path));
       if (object === null) return undefined;
