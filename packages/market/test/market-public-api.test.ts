@@ -25,6 +25,8 @@ const ENTRY_SHAPE = {
   cloneUrl: expect.any(String),
   defaultBranch: expect.any(String),
   headCommit: { sha: expect.any(String), committedAt: expect.any(String) },
+  source: 'github',
+  author: null,
 };
 
 async function listedMarket() {

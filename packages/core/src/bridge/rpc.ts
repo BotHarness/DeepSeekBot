@@ -54,6 +54,7 @@ import type {
 } from '../messaging/conversation-ingest.js';
 import type { UsageOverviewPeriod } from '../usage/overview.js';
 import type {
+  MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
   MarketplacePage,
@@ -61,6 +62,7 @@ import type {
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,
@@ -2157,6 +2159,42 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
   }
 
+  async marketplaceAccount(): Promise<MarketplaceAccount> {
+    return unwrapAsync(this.methods.marketplaceAccount());
+  }
+
+  async marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms?: boolean,
+  ): Promise<MarketplaceAuthorAccount> {
+    return unwrapAsync(this.methods.marketplaceAuthorSave({ displayName, acceptTerms }));
+  }
+
+  marketplaceUploadPlan(slug: string): UploadPlan {
+    return unwrap(this.methods.marketplaceUploadPlan({ slug }));
+  }
+
+  async marketplaceUpload(
+    slug: string,
+    displayName: string,
+    bio?: string,
+    tags?: string[],
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags }));
+  }
+
+  async marketplaceInstall(
+    id: string,
+    operationKey?: string,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+    listing: MarketplaceEntry;
+  }> {
+    return unwrapAsync(this.methods.marketplaceInstall({ id, operationKey }));
+  }
+
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
     return unwrap(this.methods.releaseInfo(since === undefined ? {} : { since }));
   }
@@ -2474,6 +2512,11 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceDetail',
   'marketplaceChallenge',
   'marketplaceReport',
+  'marketplaceAccount',
+  'marketplaceAuthorSave',
+  'marketplaceUploadPlan',
+  'marketplaceUpload',
+  'marketplaceInstall',
   'releaseInfo',
   'releaseUpdate',
   'releaseInstall',

@@ -39,6 +39,9 @@ export interface RepositoryRow {
   summary_checked_at: string | null;
   summary_failures: number;
   search_text: string | null;
+  source: 'github' | 'upload';
+  author_account: string | null;
+  author_id: string | null;
 }
 
 export const MAX_README_LENGTH = 200_000;
@@ -211,7 +214,9 @@ export function createRepositoryStore(deps: {
 
     async listedIds() {
       const { results } = await db
-        .prepare("SELECT node_id FROM indexed_repositories WHERE visibility = 'listed'")
+        .prepare(
+          "SELECT node_id FROM indexed_repositories WHERE visibility = 'listed' AND source = 'github'",
+        )
         .all<{ node_id: string }>();
       return results.map((row) => row.node_id);
     },
@@ -219,7 +224,7 @@ export function createRepositoryStore(deps: {
     async refreshableIds() {
       const { results } = await db
         .prepare(
-          "SELECT node_id FROM indexed_repositories WHERE visibility <> 'blocked' ORDER BY node_id",
+          "SELECT node_id FROM indexed_repositories WHERE visibility <> 'blocked' AND source = 'github' ORDER BY node_id",
         )
         .all<{ node_id: string }>();
       return results.map((row) => row.node_id);

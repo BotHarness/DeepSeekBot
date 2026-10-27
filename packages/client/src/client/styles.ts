@@ -1968,6 +1968,65 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   border-radius: ${radius.md};
 }
 .bh-market-upload-bot:hover { background: var(--bh-hover); }
+.bh-market-direct {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x3};
+  min-width: 0;
+}
+.bh-market-direct-head {
+  display: flex;
+  align-items: center;
+  gap: ${space.x3};
+  min-width: 0;
+}
+.bh-market-direct-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: ${space.x2};
+}
+.bh-market-code {
+  font-family: var(--dsw-font-family-mono, monospace);
+  font-weight: ${text.strong};
+}
+.bh-market-files {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x2};
+  min-width: 0;
+  font-size: ${text.bodySize};
+}
+.bh-market-file-list {
+  margin: 0;
+  padding: 0 0 0 ${space.x4};
+  list-style: none;
+}
+.bh-market-files > .bh-market-file-list { padding-left: 0; }
+.bh-market-file-folder {
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--dsw-font-family-mono, monospace);
+}
+.bh-market-file {
+  display: flex;
+  align-items: center;
+  gap: ${space.x2};
+  min-width: 0;
+  padding: ${space.x1} 0;
+}
+.bh-market-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family-mono, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bh-market-file-size {
+  flex-shrink: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: ${text.metaSize};
+}
 .bh-market-upload-name {
   flex: 1;
   min-width: 0;
@@ -2079,6 +2138,11 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   color: var(--dsw-alias-label-tertiary);
   font-size: ${text.metaSize};
   font-weight: ${text.regular};
+}
+.bh-market-owner,
+[data-market-author],
+[data-market-direct] {
+  font-feature-settings: 'calt' 0;
 }
 .bh-market-description {
   color: var(--dsw-alias-label-secondary);

@@ -27,6 +27,8 @@ const detail: MarketplaceDetail = {
     cloneUrl: 'https://github.com/example/writer.git',
     defaultBranch: 'main',
     headCommit: { sha: 'a'.repeat(40), committedAt: '2026-10-23' },
+    source: 'github',
+    author: null,
   },
   commitSha: 'a'.repeat(40),
   readme: '# Writer',

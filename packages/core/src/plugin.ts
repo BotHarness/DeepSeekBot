@@ -122,6 +122,8 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
+import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
+import type { ConnectAccount } from './devices/connect-account.js';
 import {
   createLoadingReleaseService,
   installedRelease,
@@ -218,6 +220,8 @@ import {
 } from './workspaces/tool-approval.js';
 import {
   changesApprovalPolicy,
+  publishesBotMemory,
+  requiresHumanDecision,
   createApprovalTemplateLibrary,
 } from './workspaces/approval-templates.js';
 import {
@@ -1473,7 +1477,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }),
     'botharness: attachment sweep',
   );
+  let connectAccount: ConnectAccount | undefined;
   mountDevicePairing(ctx, {
+    onAccount: (account) => {
+      connectAccount = account;
+    },
     requestStatus: (channelId, messageId) => core.channels.humanSendStatus?.(channelId, messageId),
     database: core.operationalDatabase,
     dshHome,
@@ -2130,7 +2138,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       const fullAccess = sessionHasFullAccess(core, agent.session.id);
       if (
         fullAccess &&
-        !changesApprovalPolicy(JSON.stringify(execution.arguments) ?? '', templateInUse)
+        !requiresHumanDecision(JSON.stringify(execution.arguments) ?? '', templateInUse)
       )
         return next();
       const approval = ctx.get('approval') as ApprovalService | undefined;
@@ -2164,12 +2172,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ? 'This PersonaBot wants to edit the selected original attachment. All references to this file will show its current contents.'
                   : execution.name === 'bot_create'
                     ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
-                    : changesApprovalPolicy(
-                          JSON.stringify(execution.arguments) ?? '',
-                          templateInUse,
-                        )
-                      ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                      : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                    : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
+                      ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
+                      : changesApprovalPolicy(
+                            JSON.stringify(execution.arguments) ?? '',
+                            templateInUse,
+                          )
+                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
         if (outcome !== 'allowed-once') {
@@ -2412,6 +2422,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )?.capability?.().kind === 'native',
   });
   ctx.effect(() => () => folders.close(), 'botharness: folder reader');
+  const marketplaceClient = createMarketplaceClient({
+    baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
+  });
   const bridgeMethods = createBridgeMethods({
     prompts: core.prompts,
     botContext: async (slug) => {
@@ -2590,8 +2603,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     userQuestions,
     toolRules: core.toolRules,
     assignmentAccess: core.assignmentAccess,
-    marketplace: createMarketplaceClient({
-      baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
+    marketplace: marketplaceClient,
+    marketplaceUploads: createMarketplaceUploads({
+      client: marketplaceClient,
+      account: () => connectAccount,
+      memoryDir: (slug) =>
+        core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+      log: (event) => ctx.logger.info(JSON.stringify(event)),
     }),
     release: releaseService,
     plugins: pluginUpdates,

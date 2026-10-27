@@ -13,6 +13,7 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
+import { MarketDirectUpload } from './market-upload.js';
 import {
   MarketplaceAvatar,
   MarketplaceBanner,
@@ -25,6 +26,7 @@ import {
   MarketplaceSubmitField,
   marketplaceLanguage,
   marketplaceName,
+  marketplaceOwner,
   useMarketplaceBrowse,
   useMarketplaceSubmit,
   type MarketplaceFlowStart,
@@ -59,7 +61,9 @@ function MarketplaceTile({
           <MarketplaceAvatar bot={bot} size={40} t={t} />
           <span className="bh-market-copy">
             <span className="bh-market-card-name">{marketplaceName(bot)}</span>
-            <span className="bh-market-owner">{bot.fullName}</span>
+            <span className="bh-market-owner">
+              {bot.source === 'upload' ? marketplaceOwner(bot) : bot.fullName}
+            </span>
           </span>
         </span>
       </button>
@@ -130,6 +134,18 @@ function UploadDialog({
         </Button>
       }
     >
+      <section className="bh-market-upload-section" data-market-direct-upload>
+        <strong>{t('market.direct.title')}</strong>
+        <MarketDirectUpload
+          actions={actions}
+          bots={candidates}
+          t={t}
+          onListed={(bot) => {
+            onListed(bot);
+            onClose();
+          }}
+        />
+      </section>
       <section className="bh-market-upload-section">
         <strong>{t('market.upload.byBot')}</strong>
         <span className="bh-market-hint">{t('market.upload.byBotHint')}</span>
@@ -185,7 +201,7 @@ export function MarketPanelView({
   registry: DockPanelRegistry;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t));
+  const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t), { includeUploads: true });
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
   const { list, filters } = browse;

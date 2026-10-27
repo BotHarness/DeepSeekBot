@@ -15,6 +15,8 @@ export const HOST_ADMIN_OPTIONS = {
   decision: { type: 'string' },
   capability: { type: 'string', multiple: true },
   confirm: { type: 'boolean' },
+  'accept-terms': { type: 'boolean' },
+  'include-uploads': { type: 'boolean' },
 } as const;
 
 export interface HostAdminValues {
@@ -33,6 +35,11 @@ export interface HostAdminValues {
   'confirmation-stdin'?: boolean;
   enabled?: boolean;
   disabled?: boolean;
+  name?: string;
+  description?: string;
+  'operation-key'?: string;
+  'accept-terms'?: boolean;
+  'include-uploads'?: boolean;
 }
 
 export const HOST_ADMIN_COMMANDS = [
@@ -51,6 +58,26 @@ export const HOST_ADMIN_COMMANDS = [
     description: 'list a public GitHub Bot repository on the Bot Marketplace',
   },
   { command: 'marketplace-report', description: 'report a Bot Marketplace listing for review' },
+  {
+    command: 'marketplace-account',
+    description: 'read the Connect sign-in and Bot Marketplace author used for uploads',
+  },
+  {
+    command: 'marketplace-author',
+    description: 'choose the author display name; the first time needs --accept-terms',
+  },
+  {
+    command: 'marketplace-upload-plan',
+    description: "list which of a Bot's files an upload would include or skip",
+  },
+  {
+    command: 'marketplace-upload',
+    description: "publish a Bot's Memory files to the Bot Marketplace; needs --confirm",
+  },
+  {
+    command: 'marketplace-install',
+    description: 'install an Uploaded Bot from the Bot Marketplace as a fresh Bot',
+  },
   { command: 'release-check', description: 'check the release channel for a newer version' },
   { command: 'release-install', description: 'install a newer release; needs --confirm' },
   {
@@ -115,6 +142,11 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-detail': 1,
   'marketplace-submit': 1,
   'marketplace-report': 1,
+  'marketplace-account': 0,
+  'marketplace-author': 0,
+  'marketplace-upload-plan': 1,
+  'marketplace-upload': 1,
+  'marketplace-install': 1,
   'release-check': 0,
   'release-install': 1,
   'release-restart': 0,
@@ -165,6 +197,18 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   if (command === 'marketplace-report' && values.reason !== undefined) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
       usage(`--reason must be at most ${String(MAX_REPORT_REASON_LENGTH)} characters.`);
+  }
+  if (values['include-uploads'] === true && command !== 'marketplace-list')
+    usage('--include-uploads only applies to marketplace-list.');
+  if (command === 'marketplace-author' && (values.name === undefined || !values.name.trim()))
+    usage('marketplace-author needs --name <display name>.');
+  if (command === 'marketplace-upload') {
+    if (values.name === undefined || !values.name.trim())
+      usage('marketplace-upload needs --name <listing name>.');
+    if (values.confirm !== true)
+      usage(
+        'marketplace-upload makes this Bot’s Memory files public. Check them for secrets, then pass --confirm.',
+      );
   }
   if ((command === 'release-install' || command === 'release-restart') && values.confirm !== true)
     usage(
@@ -308,6 +352,7 @@ export async function runHostAdminCommand(
           ...(values.sort === undefined ? {} : { sort: values.sort }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(values.lang === undefined ? {} : { lang: values.lang }),
+          ...(values['include-uploads'] === true ? { includeUploads: true } : {}),
         },
       });
     case 'marketplace-topics':
@@ -330,6 +375,31 @@ export async function runHostAdminCommand(
         ...(reason === '' ? {} : { reason }),
       });
     }
+    case 'marketplace-account':
+      return rpc('marketplaceAccount', {});
+    case 'marketplace-author':
+      return {
+        author: await rpc('marketplaceAuthorSave', {
+          displayName: values.name!.trim(),
+          acceptTerms: values['accept-terms'] === true,
+        }),
+      };
+    case 'marketplace-upload-plan':
+      return rpc('marketplaceUploadPlan', { slug: target });
+    case 'marketplace-upload': {
+      const description = values.description?.trim();
+      return rpc('marketplaceUpload', {
+        slug: target,
+        displayName: values.name!.trim(),
+        ...(description === undefined || description === '' ? {} : { bio: description }),
+        ...(values.role === undefined ? {} : { tags: values.role.map((role) => role.trim()) }),
+      });
+    }
+    case 'marketplace-install':
+      return rpc('marketplaceInstall', {
+        id: target,
+        ...(values['operation-key'] === undefined ? {} : { operationKey: values['operation-key'] }),
+      });
     case 'release-check':
       return rpc('releaseUpdate', values.force === true ? { force: true } : {});
     case 'release-install': {
