@@ -892,7 +892,7 @@ describe('bridge typert service', () => {
       'limit',
     ]);
     expect(parameterNames(service.followCompanion)).toEqual(['resume', 'lastEventId', 'signal']);
-    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args']);
+    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args', 'sessionId']);
     expect(parameterNames(service.memoryMove)).toEqual(['slug', 'location']);
   });
 

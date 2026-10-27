@@ -236,7 +236,7 @@ Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，Pers
 
 新建 Assignment 的模型选择由当前 Bot Model Plan 管理：Human 在 Profile 保存精确 provider／model 集合、各模型允许及默认的 effort 和整体默认路由，Host Bridge 在写入前对照 DSH 当前 Model Catalog 校验并递增 Bot 计划修订。Orchestrator 通过 `list_assignment_models` 读取该集合，再在 `create_assignment` 中省略选择以使用整体默认值，或指定获准的模型与 effort；Host 在认领 Session 和启动工作前拒绝越界选择。选定路由随 Assignment ownership 记录保存在 `botharness.db`，并通过该 Assignment 独有的 DSH Agent-scoped Model Selection 进入真实请求；读取 Assignment 或 Host 重启不会把选择改为后来更新的 Bot 默认值。这个切片不修改 Orchestrator 路由或 DSH 部署默认值（#504）。
 
-PersonaBot 的 Agent scope 提供 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`；Host 在每次启动子代理时从该 Bot 的最新 Model Plan 验证路由，并用 DSH LLM Service 预检可用性，再交给 DSH Subagent Service 创建真正的子会话。Bot scope 拒绝绕过计划的原生 Subagent 工具调用。省略路由时，获准的父路由被继承；已从当前计划移除的旧 Assignment 路由改用当前 Assignment 默认值，并在工具结果中告知父 Agent。子代理沿用根会话的 Workspace Grant 与工作目录；DSH 子会话原生的 `never` 审批策略不放宽根会话的模式约束（#508）。
+PersonaBot 的 Assignment 会话提供 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`；Orchestrator 会话不提供这些工具，改用 `create_assignment` 委派，调用原生或 Bot Subagent 工具会被拒绝（ADR-0265）。Host 在每次启动子代理时从该 Bot 的最新 Model Plan 验证路由，并用 DSH LLM Service 预检可用性，再交给 DSH Subagent Service 创建真正的子会话。Bot scope 拒绝绕过计划的原生 Subagent 工具调用。省略路由时，获准的父路由被继承；已从当前计划移除的旧 Assignment 路由改用当前 Assignment 默认值，并在工具结果中告知父 Agent。子代理沿用根会话的 Workspace Grant 与工作目录；DSH 子会话原生的 `never` 审批策略不放宽根会话的模式约束（#508）。
 
 Model Route Readiness 在 Profile 查询及 Orchestrator／Assignment 新 Turn 入口读取同一 PersonaBot Registry。旧 `model` 字符串只有在 DSH Model Catalog 唯一匹配且路由配置有效时才迁移为独立 Model Plan；有歧义或缺失则保留旧值并等待 Human 选择，绝不拼接部署默认 provider。修复状态即时计算，不是第二套策略存储。请求前校验精确 provider／model／effort；provider 在真正执行时拒绝凭据则通过 DSH `turn/end` 和现有 Channel Session failure 通知给出修复指引。成功应用 Model Preset 后移除旧字段，保持 Agent preset 不变，下一次 Turn 使用修复后的路由（#500）。
 
@@ -1342,7 +1342,7 @@ Under ADR-0245, `scroll-motion` travels through the existing Local Computer vide
 
 ### 独立 Subagent 的原生组合
 
-独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用复用存活 Orchestrator 的原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。
+独立 `bot_subagent` 依次选择允许的显式 preset、配置的子 Agent preset、DSH registry 当前系统默认值；fork 保留父级原生组合。此应用定义策略与 Model Plan 路由校验独立。直接 CLI 调用用 `--session` 指定存活的 Assignment，复用其原生工具执行链；没有父 Agent 时拒绝，不隐式创建。DSH 继续拥有 preset 与子 Agent 生命周期（ADR-0251）。
 
 后台 Subagent 的原生回报在 prompt assembly 前进入现有 BotRuntime 队列，以实际 Adapter 工具上下文就绪为准恢复父 Agent；与普通用户输入竞争时共用已准备的回合，清理间隙则等待。新回合不继承上一条用户消息的 Source Event 或 Channel，消息仍由模型按需显式发送。CLI direct 调用单独标记，停止与追加只选择真实 Orchestrator 回合（ADR-0252）。
 

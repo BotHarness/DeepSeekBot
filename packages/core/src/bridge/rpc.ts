@@ -1888,9 +1888,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     tool: string,
     args?: Record<string, unknown>,
+    sessionId?: string,
   ): Promise<{ slug: string; tool: string; sessionId: 'direct'; result: unknown }> {
     return unwrapAsync(
-      this.methods.botToolRun({ slug, tool, ...(args === undefined ? {} : { args }) }),
+      this.methods.botToolRun({
+        slug,
+        tool,
+        ...(args === undefined ? {} : { args }),
+        ...(sessionId === undefined ? {} : { sessionId }),
+      }),
     );
   }
 

@@ -1413,15 +1413,15 @@ macOS 继续使用现有 `computer-start --target local`、`computer-video statu
 
 ### 原生 Subagent preset 与直接调用
 
-`bot_subagent` 依次选择允许的显式 `agent_preset`、配置的 `subagent.agentPreset`、当前 DSH 系统默认 preset。`subagent.allowedAgentPresets` 允许显式选择；省略时不允许显式选择。这些原生 preset 控制工具和人格，与允许的 LLM 路由独立。`bot_subagent_fork` 继承父 preset，并拒绝 `agent_preset`。
+只有 Assignment 会话带有 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`。Orchestrator 用 `create_assignment` 委派；它调用原生或 Bot Subagent 工具时会被拒绝，并提示改用 `create_assignment`（ADR-0265）。`bot_subagent` 依次选择允许的显式 `agent_preset`、配置的 `subagent.agentPreset`、当前 DSH 系统默认 preset。`subagent.allowedAgentPresets` 允许显式选择；省略时不允许显式选择。这些原生 preset 控制工具和人格，与允许的 LLM 路由独立。`bot_subagent_fork` 继承父 preset，并拒绝 `agent_preset`。
 
-`bot-tool` 支持 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`。这些命令要求现有存活的 Orchestrator Agent，包括私聊结束后处于 idle 的 Agent。调用经过其原生工具执行链，不会创建或恢复父 Agent。`parent-unavailable` 表示没有存活父 Agent，应先向 Bot 发送私聊。原生策略拒绝仍返回错误。通过 `bot-trace --session direct` 查看直接调用结果，通过子 Session 查看实际执行历史。
+`bot-tool` 支持 `bot_subagent`、`bot_subagent_fork` 和 `list_bot_subagent_models`，需用 `--session <assignment-session-id>` 指定该 Bot 的一个 Assignment 会话（`assignments` 可列出）。该 Assignment Agent 必须存活，包括汇报后处于 idle 的 Agent。调用经过其原生工具执行链，不会创建或恢复父 Agent。`parent-unavailable` 表示该会话不存在、不是这个 Bot 的 Assignment，或没有存活 Agent，应先继续该 Assignment。其他 Bot 工具不接受 `--session`。原生策略拒绝仍返回错误。通过 `bot-trace --session direct` 查看直接调用结果，通过子 Session 查看实际执行历史。
 
-后台子任务的原生回报可以唤醒该存活父 Agent。BotRuntime 在恢复请求前准备新的工具上下文和当前模型，不借用上一条私聊的来源或目标。如需投递结果，应在委派任务中明确回复来源或发送目标。前台 CLI 调用不会遮蔽另一个用户回合的停止与追加指令。参见 ADR-0252。
+后台子任务的原生回报可以唤醒该存活的 Assignment。BotRuntime 在恢复请求前准备新的工具上下文和当前模型，不借用上一条私聊的来源或目标。如需投递结果，应在委派任务中明确回复来源或发送目标。前台 CLI 调用不会遮蔽另一个用户回合的停止与追加指令。参见 ADR-0252。
 
 ```sh
-printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
-printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin
+printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --session <assignment-session-id> --args-stdin
+printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --session <assignment-session-id> --args-stdin
 ```
 
 `computer-open-permission-settings` 在本机 Computer 所在的 macOS Host 上打开指定隐私设置页，不会自动授权。用户在系统设置里开启权限，必要时重启运行 DSH 的应用，再重新检查。`computer-status` 返回稳定的安装失败原因与各项缺失的 macOS 权限；技术细节保留在诊断信息中。

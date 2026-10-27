@@ -3425,7 +3425,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         if (parent === undefined)
           throw new DirectBotToolError(
             'parent-unavailable',
-            'No live Orchestrator Agent is available; send this Bot a DM before calling its Subagent tools',
+            isBotSubagentModelTool(name)
+              ? 'No live Assignment Agent is available for this Session; continue the Assignment before calling its Subagent tools'
+              : 'No live Orchestrator Agent is available; send this Bot a DM before calling its private tools',
           );
         if (PRIVATE_INPUT_TOOLS.has(name) && parent.ctx.tools.get(name, parent) === undefined)
           throw new DirectBotToolError(

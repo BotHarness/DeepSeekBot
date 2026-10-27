@@ -57,6 +57,30 @@ async function invoke(argv: string[], url: string, stdin = '') {
 }
 
 describe('Harness Bot tool runner commands', () => {
+  it('names the Assignment parent of a Subagent tool with --session', async () => {
+    const live = await host(() => ({
+      ok: true,
+      value: { slug: 'ada', tool: 'bot_subagent', sessionId: 'direct', result: 'done' },
+    }));
+    const result = await invoke(
+      ['bot-tool', 'ada', 'bot_subagent', '--session', 'assign-1', '--args-stdin'],
+      live.url,
+      JSON.stringify({ description: 'Review', prompt: 'Review' }),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'botToolRun',
+        args: {
+          slug: 'ada',
+          tool: 'bot_subagent',
+          args: { description: 'Review', prompt: 'Review' },
+          sessionId: 'assign-1',
+        },
+      },
+    ]);
+  });
+
   it('carries an explicit Group freshness decision and returns the owning coded outcome', async () => {
     const args = {
       channel_id: 'group',

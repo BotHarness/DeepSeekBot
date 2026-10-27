@@ -279,7 +279,7 @@ Usage:
   tobs group-activity <channel>
   tobs bot-trace <id> [--turns <1-20>] [--session <session-id>|direct]
   tobs bot-tools
-  tobs bot-tool <id> <tool> [--args-stdin]
+  tobs bot-tool <id> <tool> [--args-stdin] [--session <assignment-session-id>]
   tobs computer-tools
   tobs computer-tool <id> <tool> [--args-stdin] [--out <absolute-file>]
   tobs todos

@@ -1458,15 +1458,15 @@ When `status` advertises `continuousScroll:true`, iOS and `computer-video input 
 
 ### Native Subagent presets and direct calls
 
-`bot_subagent` selects an explicitly allowed `agent_preset`, then the configured `subagent.agentPreset`, then the current DSH system default. `subagent.allowedAgentPresets` permits explicit choices; omitting it disables explicit selection. These native presets control tools and persona, independently of allowed LLM routes. `bot_subagent_fork` inherits the parent preset and rejects `agent_preset`.
+Only Assignment Sessions have `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models`. An Orchestrator delegates with `create_assignment`; its native and Bot Subagent tools are refused with a pointer to `create_assignment` (ADR-0265). `bot_subagent` selects an explicitly allowed `agent_preset`, then the configured `subagent.agentPreset`, then the current DSH system default. `subagent.allowedAgentPresets` permits explicit choices; omitting it disables explicit selection. These native presets control tools and persona, independently of allowed LLM routes. `bot_subagent_fork` inherits the parent preset and rejects `agent_preset`.
 
-The `bot-tool` command also supports `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models`. These commands require an existing live Orchestrator Agent, including one that is idle after a DM. They use its native tool pipeline and do not create or resume a parent. `parent-unavailable` means the Bot has no live parent; first send it a DM. Native policy refusals remain errors. Use `bot-trace --session direct` for the direct-call result and the child's Session for its execution history.
+The `bot-tool` command also supports `bot_subagent`, `bot_subagent_fork` and `list_bot_subagent_models` with `--session <assignment-session-id>`, one of the Bot's Assignment Sessions (`assignments` lists them). The Assignment Agent must be live, including one that is idle after a report. The call uses its native tool pipeline and does not create or resume a parent. `parent-unavailable` means the Session is missing, is not this Bot's Assignment, or has no live Agent; continue the Assignment first. Other Bot tools reject `--session`. Native policy refusals remain errors. Use `bot-trace --session direct` for the direct-call result and the child's Session for its execution history.
 
-A background child's native report may wake that live parent. BotRuntime prepares fresh tool context and the current model before the resumed request, without borrowing the previous DM's source or target. Include the intended reply source or explicit destination in the delegated task when a result should be delivered. A foreground CLI call does not block stop or steering of a separate Human turn. See ADR-0252.
+A background child's native report may wake that live Assignment. BotRuntime prepares fresh tool context and the current model before the resumed request, without borrowing the previous DM's source or target. Include the intended reply source or explicit destination in the delegated task when a result should be delivered. A foreground CLI call does not block stop or steering of a separate Human turn. See ADR-0252.
 
 ```sh
-printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --args-stdin
-printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --args-stdin
+printf '%s' '{"description":"Review","prompt":"Review the supplied task","run_in_background":false}' | deepseekbot bot-tool <slug> bot_subagent --session <assignment-session-id> --args-stdin
+printf '%s' '{}' | deepseekbot bot-tool <slug> list_bot_subagent_models --session <assignment-session-id> --args-stdin
 ```
 
 `computer-open-permission-settings` opens the selected macOS privacy pane on the Local Computer Host; it does not grant permission. The Human enables access in System Settings, restarts the app running DSH when required, then checks again. `computer-status` retains coded setup refusals and individual missing macOS permissions; technical details remain in diagnostics.

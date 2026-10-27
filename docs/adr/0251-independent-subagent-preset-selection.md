@@ -1,6 +1,6 @@
 # ADR-0251: Independent Subagent preset selection
 
-Status: Accepted
+Status: Accepted; the direct-call parent is replaced by ADR-0265
 
 Date: 2026-10-25
 
