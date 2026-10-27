@@ -145,6 +145,10 @@ import type {
   MarketplaceUploads,
   UploadPlan,
 } from '../marketplace/uploaded-bots.js';
+import type {
+  InstallReviewResult,
+  MarketplaceInstallReviews,
+} from '../marketplace/install-review.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
 import {
   MAX_DESCRIPTOR_BIO_LENGTH,
@@ -953,6 +957,7 @@ export interface BridgeMethods {
   marketplaceUpload(
     payload: unknown,
   ): Promise<BridgeResult<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>>;
+  marketplaceInstallReview(payload: unknown): Promise<BridgeResult<InstallReviewResult>>;
   marketplaceInstall(payload: unknown): Promise<
     BridgeResult<{
       bot: PersonaBotDetail;
@@ -1127,6 +1132,7 @@ export interface BridgeMethodsDeps {
   createBotId?: () => string;
   marketplace?: MarketplaceClient;
   marketplaceUploads?: MarketplaceUploads;
+  marketplaceInstallReviews?: MarketplaceInstallReviews;
   release?: ReleaseService;
   plugins?: PluginUpdateService;
   telemetry?: {
@@ -3756,10 +3762,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         }),
       );
     },
-    async marketplaceInstall(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const { id, operationKey } = asObject(payload);
+    async marketplaceInstallReview(payload) {
+      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
+      const { id, lang } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (lang !== undefined && lang !== 'en' && lang !== 'zh') return invalidInput('invalid lang');
+      return uploadResult(await deps.marketplaceInstallReviews.review(id.trim(), lang));
+    },
+    async marketplaceInstall(payload) {
+      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
+      const { id, reviewId, operationKey } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (typeof reviewId !== 'string' || reviewId.length === 0)
+        return {
+          ok: false,
+          error: { code: 'review-required', message: 'Run marketplaceInstallReview first' },
+        };
       if (operationKey !== undefined && typeof operationKey !== 'string')
         return invalidInput('invalid operationKey');
       const imports =
@@ -3768,11 +3786,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
           : undefined);
       if (imports === undefined) return invalidInput('Bot import is unavailable');
-      const prepared = await deps.marketplaceUploads.installInput(id.trim());
+      const prepared = deps.marketplaceInstallReviews.staged(id.trim(), reviewId);
       if (!prepared.ok) return uploadResult(prepared);
       try {
         const created = await imports.create(
-          operationKey ?? `marketplace:${randomUUID()}`,
+          operationKey ?? `marketplace:${reviewId}`,
           prepared.value.input,
         );
         try {
@@ -3784,7 +3802,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...detailOf(created.record),
             channelId: created.channelId,
             ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
-            listing: prepared.value.entry,
+            listing: prepared.value.listing,
           },
         };
       } catch (error) {

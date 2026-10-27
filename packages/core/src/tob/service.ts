@@ -35,6 +35,7 @@ export function isTob(database: OperationalDatabaseModulePort, slug: string): bo
 export interface TobService {
   ensure(): Promise<TobHome>;
   isTob(slug: string): boolean;
+  slug(): string | undefined;
   readSetting(): TobSetting;
   writeSetting(value: number, expectedRevision: number, authorize: () => void): Promise<TobSetting>;
 }
@@ -110,6 +111,12 @@ export function createTobService(options: {
       return pending;
     },
     isTob: (slug) => isTob(database, slug),
+    slug: () =>
+      (
+        database.read((db) =>
+          db.prepare('SELECT bot_slug FROM tob_identity WHERE singleton = 1').get(),
+        ) as { bot_slug: string } | undefined
+      )?.bot_slug,
     readSetting,
     async writeSetting(value, expectedRevision, authorize) {
       if (

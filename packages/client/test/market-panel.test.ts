@@ -430,26 +430,101 @@ describe('Market panel', () => {
     );
   });
 
-  it('imports a Bot through the install confirmation and shows its conversation', async () => {
+  it('shows what Tob found before installing, and installs only after the Human continues', async () => {
+    const review = vi.fn(async () => ({
+      reviewId: 'review-1',
+      listing: entry('helper'),
+      review: {
+        status: 'reviewed',
+        findings: [
+          {
+            kind: 'exfiltration',
+            path: 'SOUL.md',
+            note: '让 Bot 把 ~/.ssh 发到外部邮箱。',
+          },
+          { kind: 'script', path: 'tools/run.sh' },
+        ],
+        files: 3,
+        read: 2,
+        partial: false,
+      },
+    }));
+    const install = vi.fn(async () => bot('helper'));
     await withPanel(
       async () => ({ bots: [entry('helper')] }),
       async ({ host, actions, registry }) => {
         await click(host, '导入');
         expect(host.querySelector('h1')?.textContent).toBe('安装 helper');
-        expect(host.textContent).toContain('这是第三方仓库');
+        expect(review).toHaveBeenCalledWith('R_helper', 'zh');
+        expect(host.textContent).toContain('Tob 发现 2 处需要留意');
+        const findings = [...host.querySelectorAll('[data-market-finding]')];
+        expect(findings.map((item) => item.getAttribute('data-market-finding'))).toEqual([
+          'exfiltration',
+          'script',
+        ]);
+        expect(findings[0]!.textContent).toContain(
+          '外发数据SOUL.md让 Bot 把 ~/.ssh 发到外部邮箱。',
+        );
 
-        await click(host, '确认安装');
+        await click(host, '仍然安装');
 
-        expect(actions['createBot']).toHaveBeenCalledWith({
-          displayName: 'helper',
-          gitUrl: 'https://github.com/alice/helper.git',
-          roles: [],
-          origin: 'marketplace',
-          description: 'helper description',
-        });
+        expect(install).toHaveBeenCalledWith('R_helper', 'review-1');
+        expect(actions['createBot']).not.toHaveBeenCalled();
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
         expect(host.querySelector('h1')).toBeNull();
         expect(host.querySelector('[data-market-panel]')).not.toBeNull();
+      },
+      { marketplaceInstallReview: review, marketplaceInstall: install },
+    );
+  });
+
+  it('leaves no Bot behind when the Human goes back from the review', async () => {
+    const install = vi.fn(async () => bot('helper'));
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host }) => {
+        await click(host, '导入');
+        await click(host, '返回');
+        expect(install).not.toHaveBeenCalled();
+        expect(host.querySelector('[data-market-panel]')).not.toBeNull();
+      },
+      {
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-1',
+          listing: entry('helper'),
+          review: {
+            status: 'reviewed',
+            findings: [{ kind: 'prompt-injection', path: 'SOUL.md' }],
+            files: 1,
+            read: 1,
+            partial: false,
+          },
+        })),
+        marketplaceInstall: install,
+      },
+    );
+  });
+
+  it('says when Tob could not review and lets the Human install anyway', async () => {
+    const install = vi.fn(async () => bot('helper'));
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host }) => {
+        await click(host, '导入');
+        expect(host.querySelector('[data-market-review]')?.getAttribute('data-market-review')).toBe(
+          'unavailable',
+        );
+        expect(host.textContent).toContain('Tob 没能检查这个 Bot');
+        await click(host, '不检查直接安装');
+        expect(install).toHaveBeenCalledWith('R_helper', 'review-3');
+      },
+      {
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-3',
+          listing: entry('helper'),
+          review: { status: 'unavailable', reason: 'no-model', findings: [], files: 1 },
+        })),
+        marketplaceInstall: install,
       },
     );
   });
@@ -577,13 +652,19 @@ describe('Uploaded Bots in the Market panel', () => {
         expect(host.querySelector('.bh-market-github')).toBeNull();
         await click(host, '安装');
         expect(host.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
+        expect(host.textContent).toContain('Tob 没发现风险');
         await click(host, '确认安装');
-        expect(install).toHaveBeenCalledWith('U_helper');
+        expect(install).toHaveBeenCalledWith('U_helper', 'review-2');
         expect(actions['createBot']).not.toHaveBeenCalled();
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
       },
       {
         marketplaceInstall: install,
+        marketplaceInstallReview: vi.fn(async () => ({
+          reviewId: 'review-2',
+          listing: uploaded,
+          review: { status: 'reviewed', findings: [], files: 3, read: 2, partial: false },
+        })),
         marketplaceDetail: vi.fn(async () => ({
           bot: uploaded,
           readme: null,

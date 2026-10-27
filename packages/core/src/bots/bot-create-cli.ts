@@ -211,7 +211,8 @@ Usage:
   tobs marketplace-author --name <display name> [--accept-terms]
   tobs marketplace-upload-plan <bot-id>
   tobs marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] --confirm
-  tobs marketplace-install <listing-id> [--operation-key <key>]
+  tobs marketplace-install <listing-id> [--lang zh|en]
+  tobs marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
   tobs data-reset-preview
   tobs data-reset-confirm --confirmation-stdin --confirm
   tobs telemetry-status

@@ -17,6 +17,7 @@ export const HOST_ADMIN_OPTIONS = {
   confirm: { type: 'boolean' },
   'accept-terms': { type: 'boolean' },
   'include-uploads': { type: 'boolean' },
+  review: { type: 'string' },
 } as const;
 
 export interface HostAdminValues {
@@ -40,6 +41,7 @@ export interface HostAdminValues {
   'operation-key'?: string;
   'accept-terms'?: boolean;
   'include-uploads'?: boolean;
+  review?: string;
 }
 
 export const HOST_ADMIN_COMMANDS = [
@@ -76,7 +78,8 @@ export const HOST_ADMIN_COMMANDS = [
   },
   {
     command: 'marketplace-install',
-    description: 'install an Uploaded Bot from the Bot Marketplace as a fresh Bot',
+    description:
+      'have Tob review a Bot Marketplace listing, then install it with --review <id> --confirm',
   },
   { command: 'release-check', description: 'check the release channel for a newer version' },
   { command: 'release-install', description: 'install a newer release; needs --confirm' },
@@ -190,16 +193,29 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage('--sort must be updated, created or stars, on marketplace-list.');
   if (
     values.lang !== undefined &&
-    ((command !== 'marketplace-list' && command !== 'marketplace-detail') ||
+    ((command !== 'marketplace-list' &&
+      command !== 'marketplace-detail' &&
+      command !== 'marketplace-install') ||
       (values.lang !== 'zh' && values.lang !== 'en'))
   )
-    usage('--lang must be zh or en, on marketplace-list or marketplace-detail.');
+    usage(
+      '--lang must be zh or en, on marketplace-list, marketplace-detail or marketplace-install.',
+    );
   if (command === 'marketplace-report' && values.reason !== undefined) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
       usage(`--reason must be at most ${String(MAX_REPORT_REASON_LENGTH)} characters.`);
   }
   if (values['include-uploads'] === true && command !== 'marketplace-list')
     usage('--include-uploads only applies to marketplace-list.');
+  if (values.review !== undefined && command !== 'marketplace-install')
+    usage('--review only applies to marketplace-install.');
+  if (
+    command === 'marketplace-install' &&
+    (values.review === undefined) !== (values.confirm !== true)
+  )
+    usage(
+      'Run marketplace-install <listing-id> first to see what Tob found, then install with --review <review-id> --confirm.',
+    );
   if (command === 'marketplace-author' && (values.name === undefined || !values.name.trim()))
     usage('marketplace-author needs --name <display name>.');
   if (command === 'marketplace-upload') {
@@ -395,11 +411,35 @@ export async function runHostAdminCommand(
         ...(values.role === undefined ? {} : { tags: values.role.map((role) => role.trim()) }),
       });
     }
-    case 'marketplace-install':
-      return rpc('marketplaceInstall', {
-        id: target,
-        ...(values['operation-key'] === undefined ? {} : { operationKey: values['operation-key'] }),
-      });
+    case 'marketplace-install': {
+      if (values.review === undefined) {
+        const reviewed = record(
+          await rpc('marketplaceInstallReview', {
+            id: target,
+            ...(values.lang === undefined ? {} : { lang: values.lang }),
+          }),
+        );
+        return {
+          ...reviewed,
+          installed: false,
+          next: [
+            `deepseekbot marketplace-install ${target} --review ${String(reviewed['reviewId'])} --confirm`,
+          ],
+        };
+      }
+      return {
+        ...record(
+          await rpc('marketplaceInstall', {
+            id: target,
+            reviewId: values.review,
+            ...(values['operation-key'] === undefined
+              ? {}
+              : { operationKey: values['operation-key'] }),
+          }),
+        ),
+        installed: true,
+      };
+    }
     case 'release-check':
       return rpc('releaseUpdate', values.force === true ? { force: true } : {});
     case 'release-install': {

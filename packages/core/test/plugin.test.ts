@@ -796,6 +796,7 @@ describe('plugin entry', () => {
       'marketplaceAuthorSave',
       'marketplaceUploadPlan',
       'marketplaceUpload',
+      'marketplaceInstallReview',
       'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',

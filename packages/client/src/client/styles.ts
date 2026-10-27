@@ -2307,21 +2307,89 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
 .bh-market-facts a {
   color: var(--dsw-alias-state-business-primary);
 }
-.bh-market-risk {
+.bh-market-review {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${space.x3};
+  border-radius: ${radius.sm};
+  padding: ${space.x3} ${space.x4};
+  background: ${color.surface};
+  color: var(--dsw-alias-label-secondary);
+  font-size: ${text.bodySize};
+  line-height: ${text.bodyLine};
+}
+.bh-market-review[data-tone='clean'] {
+  color: ${color.success};
+}
+.bh-market-review-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${color.accent};
+  animation: bh-market-review-pulse 1.2s ease-in-out infinite;
+}
+@keyframes bh-market-review-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bh-market-review-pulse { animation: none; }
+}
+.bh-market-review-result {
   display: flex;
   flex-direction: column;
-  gap: ${space.x2};
-  border: ${border.hairline} solid var(--dsw-alias-state-warning-secondary);
-  border-radius: ${radius.sm};
-  padding: ${space.x3} ${space.x3};
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
-  font-size: ${text.metaSize};
-  line-height: ${text.metaLine};
+  gap: ${space.x3};
+  min-width: 0;
 }
-.bh-market-risk strong {
-  color: var(--dsw-alias-state-warning-primary);
-  font-size: ${text.bodySize};
+.bh-market-findings {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x3};
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bh-market-finding {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: ${space.x3};
+  align-items: start;
+}
+.bh-market-finding-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: ${radius.sm};
+  background: ${color.surface};
+  color: ${color.danger};
+}
+.bh-market-finding-icon[data-tone='script'] {
+  color: ${color.warning};
+}
+.bh-market-finding-body {
+  display: flex;
+  flex-direction: column;
+  gap: ${space.x1};
+  min-width: 0;
+  color: var(--dsw-alias-label-secondary);
+}
+.bh-market-finding-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: ${space.x3};
+}
+.bh-market-finding-head strong {
+  color: var(--dsw-alias-label-primary);
+  font-weight: ${text.strong};
+}
+.bh-market-finding-head code {
+  font-family: var(--dsw-font-family-mono, monospace);
+  color: var(--dsw-alias-label-tertiary);
+  overflow-wrap: anywhere;
 }
 
 /* Hidden Channel recovery is portaled under body; never depend on .bh-root. */

@@ -172,6 +172,9 @@ function stubActions(): BridgeActions {
     marketplaceUpload: vi.fn(async () => {
       throw new Error('unused');
     }),
+    marketplaceInstallReview: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceInstall: vi.fn(async () => {
       throw new Error('unused');
     }),
