@@ -49,6 +49,7 @@ import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
+import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { chatsSearchResults } from '../../../src/ui/chat/chats-search-results';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
 import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
@@ -87,6 +88,7 @@ const HomeContent = memo(function HomeContent({
   const t = useStrings();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
+  const showWorkspaces = useWorkspacePanel();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
   useFocusEffect(
@@ -411,10 +413,11 @@ const HomeContent = memo(function HomeContent({
   return (
     <>
       <Stack.Screen options={{ title: environment.title, headerShown: false }} />
-      <HostDrawerEdge anywhere>
+      <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
           connection={selectedHost?.snapshot.connection}
+          onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
               <ChatsSearchBar

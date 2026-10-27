@@ -322,6 +322,7 @@ vi.mock('../src/host/native-section-collapse', async () => {
       useSyncExternalStore(sectionCollapse.subscribe, () => sectionCollapse.collapsed(hostId)),
   };
 });
+vi.mock('../src/ui/shell/use-workspace-panel', () => ({ useWorkspacePanel: () => undefined }));
 vi.mock('expo-symbols', () => ({
   SymbolView: ({ size }: { size: number }) => <span data-symbol-size={size} />,
 }));
