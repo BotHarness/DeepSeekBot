@@ -252,11 +252,7 @@ describe('Group profile', () => {
     expect(text).toContain(t.groupInvited);
     expect(text).toContain(t.groupJoinAsk);
     const headers = [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
-    expect(headers).toEqual([
-      'Launch',
-      t.groupJoinsSection,
-      t.groupMembersSection,
-    ]);
+    expect(headers).toEqual(['Launch', t.groupJoinsSection, t.groupMembersSection]);
     for (const slug of ['ada', 'bo', 'cy', 'di'])
       expect(view.querySelector(`[data-testid="avatar-${slug}"]`)).not.toBeNull();
     expect(button(view, t.groupInvite)).not.toBeNull();
