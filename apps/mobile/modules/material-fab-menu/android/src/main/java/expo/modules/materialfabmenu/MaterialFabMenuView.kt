@@ -67,6 +67,28 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
   var itemContainer by mutableStateOf("")
   var itemContent by mutableStateOf("")
   var reduceMotion by mutableStateOf(false)
+  private var measureOnAttach = false
+
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    if (!isAttachedToWindow) {
+      measureOnAttach = true
+      setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+      return
+    }
+    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+  }
+
+  override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+    if (isAttachedToWindow) super.onLayout(changed, left, top, right, bottom)
+  }
+
+  override fun onAttachedToWindow() {
+    super.onAttachedToWindow()
+    if (measureOnAttach) {
+      measureOnAttach = false
+      post { if (isAttachedToWindow) requestLayout() }
+    }
+  }
 
   private fun toggle() {
     val next = nextExpanded(expanded, available) ?: return
