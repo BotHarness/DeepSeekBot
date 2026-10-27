@@ -24,7 +24,7 @@ vi.mock('expo', () => ({
     (props: {
       items: { key: string; label: string; path: string }[];
       expanded: boolean;
-      enabled: boolean;
+      available: boolean;
       label: string;
       closeLabel: string;
       onToggle(event: { nativeEvent: { expanded: boolean } }): void;
@@ -36,7 +36,7 @@ vi.mock('expo', () => ({
         createElement('button', {
           'aria-label': props.expanded ? props.closeLabel : props.label,
           onClick: () =>
-            (props.enabled || props.expanded) &&
+            (props.available || props.expanded) &&
             props.onToggle({ nativeEvent: { expanded: !props.expanded } }),
         }),
         props.expanded

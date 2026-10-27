@@ -10,7 +10,7 @@ glyph halfway through the morph. Items are accent full pills with a Material Sym
 label; the test tags are `creation-menu-trigger` and `creation-<key>`.
 
 JavaScript owns the expanded state and the view's size: `onToggle` reports the toggle and
-`onPick` the chosen item key. The toggle does not open while `enabled` is false, but it always
+`onPick` the chosen item key. The toggle does not open while `available` is false, but it always
 closes. Colours come from the app's theme as CSS hex strings.
 
 A new Android development build is required. CI tests `:material-fab-menu:testDebugUnitTest`.

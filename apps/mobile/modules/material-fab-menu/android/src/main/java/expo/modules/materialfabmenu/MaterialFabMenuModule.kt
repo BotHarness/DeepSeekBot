@@ -10,7 +10,7 @@ class MaterialFabMenuModule : Module() {
       Events("onToggle", "onPick")
       Prop("items") { view: MaterialFabMenuView, value: List<FabMenuItem> -> view.items = value }
       Prop("expanded") { view: MaterialFabMenuView, value: Boolean -> view.expanded = value }
-      Prop("enabled") { view: MaterialFabMenuView, value: Boolean -> view.enabled = value }
+      Prop("available") { view: MaterialFabMenuView, value: Boolean -> view.available = value }
       Prop("label") { view: MaterialFabMenuView, value: String -> view.label = value }
       Prop("closeLabel") { view: MaterialFabMenuView, value: String -> view.closeLabel = value }
       Prop("dark") { view: MaterialFabMenuView, value: Boolean -> view.dark = value }

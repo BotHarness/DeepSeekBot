@@ -58,7 +58,7 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
   val onPick by EventDispatcher()
   var items by mutableStateOf<List<FabMenuItem>>(emptyList())
   var expanded by mutableStateOf(false)
-  var enabled by mutableStateOf(true)
+  var available by mutableStateOf(true)
   var label by mutableStateOf("")
   var closeLabel by mutableStateOf("")
   var dark by mutableStateOf(false)
@@ -69,7 +69,7 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
   var reduceMotion by mutableStateOf(false)
 
   private fun toggle() {
-    val next = nextExpanded(expanded, enabled) ?: return
+    val next = nextExpanded(expanded, available) ?: return
     expanded = next
     onToggle(mapOf("expanded" to next))
   }
@@ -128,7 +128,7 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
               items.forEach { item ->
                 val icon = remember(item.path) { vector(item.path) }
                 FloatingActionButtonMenuItem(
-                  onClick = { if (enabled) onPick(mapOf("key" to item.key)) },
+                  onClick = { if (available) onPick(mapOf("key" to item.key)) },
                   text = { Text(item.label) },
                   icon = { Icon(icon, contentDescription = null) },
                   modifier = Modifier.testTag("creation-${item.key}"),

@@ -21,7 +21,7 @@ import { fabMenuPath, type FabMenuIcon } from './fab-menu-paths';
 type NativeFabMenuProps = ViewProps & {
   items: { key: string; label: string; path: string }[];
   expanded: boolean;
-  enabled: boolean;
+  available: boolean;
   label: string;
   closeLabel: string;
   dark: boolean;
@@ -123,7 +123,7 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
           path: fabMenuPath[entry.icon],
         }))}
         expanded={open}
-        enabled={!props.busy}
+        available={!props.busy}
         label={t.createHere}
         closeLabel={t.close}
         dark={theme.scheme === 'dark'}
