@@ -5,6 +5,9 @@ import type { ModelCatalog } from '../models/catalog.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import { ProfileBackupError } from './files.js';
 
+const AUTHORIZE_WHERE =
+  'Open Settings → Environment backup, choose Authorize model for this Bot, then Activate Bot';
+
 export function createProfileRecovery(
   database: OperationalDatabaseOwner,
   registry: PersonaBotRegistry,
@@ -47,17 +50,13 @@ export function createProfileRecovery(
     },
     requireExecution(slug: string) {
       const recovery = row(slug);
-      if (recovery === undefined) return;
-      const bot = registry.get(slug);
-      if (
-        !bot ||
-        !recovery.activated_session_id ||
-        bot.modelPlan?.revision !== recovery.authorized_plan_revision
-      )
-        throw new ProfileBackupError(
-          'activation-required',
-          'Review restored environment readiness, authorize the model and explicitly activate this Bot',
-        );
+      // Activation retires the restore gate: later Model Plan changes are the Human's own, and
+      // model readiness still validates every route before a Turn uses it.
+      if (recovery === undefined || recovery.activated_session_id) return;
+      throw new ProfileBackupError(
+        'activation-required',
+        `This Bot was restored from an Environment backup and is not active yet. ${AUTHORIZE_WHERE}.`,
+      );
     },
     async status(catalog?: ModelCatalog) {
       const saved = receipt();
@@ -77,7 +76,11 @@ export function createProfileRecovery(
               } catch {
                 reason = 'model-unavailable';
               }
-            if (!reason && recovery?.authorized_plan_revision !== bot.modelPlan?.revision)
+            if (
+              !reason &&
+              !recovery?.activated_session_id &&
+              recovery?.authorized_plan_revision !== bot.modelPlan?.revision
+            )
               reason = 'model-authorization-required';
             return {
               slug: bot.slug,
@@ -114,6 +117,10 @@ export function createProfileRecovery(
     activate(slug: string, acknowledgeSplitBrain: boolean) {
       const recovery = row(slug);
       const bot = registry.get(slug);
+      if (acknowledgeSplitBrain && bot && recovery?.activated_session_id) {
+        registry.setPaused(slug, false);
+        return String(recovery.activated_session_id);
+      }
       if (
         !acknowledgeSplitBrain ||
         !bot ||
@@ -123,12 +130,8 @@ export function createProfileRecovery(
       )
         throw new ProfileBackupError(
           'activation-required',
-          'Disaster Restore acknowledgement and target-local model authorization are required',
+          `Disaster Restore acknowledgement and target-local model authorization are required. ${AUTHORIZE_WHERE}.`,
         );
-      if (recovery.activated_session_id) {
-        registry.setPaused(slug, false);
-        return String(recovery.activated_session_id);
-      }
       const sessionId = 'botharness-' + randomUUID();
       const cwdReference = registry.memoryDirFor(slug);
       port.transaction((db) => {

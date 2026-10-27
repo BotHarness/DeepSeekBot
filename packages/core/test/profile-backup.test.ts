@@ -241,7 +241,7 @@ it('restores the fixed historical v1 archive without rewriting it and keeps cold
     expect(restored.registry.getHistorical('deleted-retained')).toBeDefined();
     expect(restored.ownership.contentAvailable('old-orchestrator')).toBe(false);
     expect(() => restored.profileRecovery.requireExecution('keeper')).toThrow(
-      'explicitly activate',
+      'Settings → Environment backup',
     );
   };
   verify();
@@ -454,7 +454,9 @@ it('round trips the complete core, custom/deleted Memory, editable attachment id
   expect(restored.channels.message(channel.id, 'kept')?.body).toBe('Sensitive synthetic history');
   expect(restored.ownership.resolve('old-orchestrator')?.botSlug).toBe('keeper');
   expect(restored.ownership.contentAvailable('old-orchestrator')).toBe(false);
-  expect(() => restored.profileRecovery.requireExecution('keeper')).toThrow('explicitly activate');
+  expect(() => restored.profileRecovery.requireExecution('keeper')).toThrow(
+    'Settings → Environment backup',
+  );
   expect(() => restored.profileRecovery.activate('keeper', true)).toThrow();
   await restored.profileRecovery.authorizeModel('keeper', catalog);
   expect(() => restored.profileRecovery.activate('keeper', false)).toThrow();
@@ -900,7 +902,8 @@ it('exports through the Settings transport only after a current preview, inspect
     { ...route, model: 'drifted-model' },
     plan.revision,
   );
-  expect(() => restored.profileRecovery.requireExecution('keeper')).toThrow();
+  // Activation retires the restore gate; the Human's later model change is not a new restore.
+  expect(() => restored.profileRecovery.requireExecution('keeper')).not.toThrow();
   const unavailable: ModelCatalog = {
     list: async () => [],
     validate: async () => {
@@ -908,7 +911,7 @@ it('exports through the Settings transport only after a current preview, inspect
     },
   };
   await expect(restored.profileRecovery.authorizeModel('keeper', unavailable)).rejects.toThrow();
-  expect(() => restored.profileRecovery.requireExecution('keeper')).toThrow();
+  expect(() => restored.profileRecovery.requireExecution('keeper')).not.toThrow();
 });
 
 it('rejects a self-consistent manifest whose database references omitted attachment bytes and preserves the source', async () => {
