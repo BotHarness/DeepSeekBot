@@ -2,17 +2,25 @@ import { Pressable, View } from 'react-native';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius } from '../design/tokens';
 import { NavigationMaterial } from './navigation-material';
+import { BackIcon } from './back-icon';
 import { CloseIcon, PlusIcon } from './icons';
 
 export type NavigationActionProps = {
   size: number;
   label: string;
   close?: boolean;
+  back?: boolean;
   onPress(): void;
 };
-export function NavigationAction({ size, label, close = false, onPress }: NavigationActionProps) {
+export function NavigationAction({
+  size,
+  label,
+  close = false,
+  back = false,
+  onPress,
+}: NavigationActionProps) {
   const theme = useDesignTheme();
-  const Icon = close ? CloseIcon : PlusIcon;
+  const Icon = back ? BackIcon : close ? CloseIcon : PlusIcon;
   return (
     <View style={{ width: size, height: size, borderRadius: radius.round, overflow: 'hidden' }}>
       <NavigationMaterial circle />

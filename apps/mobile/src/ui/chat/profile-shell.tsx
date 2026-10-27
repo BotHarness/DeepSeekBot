@@ -52,6 +52,8 @@ const IOS_VERSION = Platform.OS === 'ios' ? Number.parseInt(String(Platform.Vers
 
 export const zoomTransition = IOS_VERSION >= 18;
 
+export const systemTransition = zoomTransition || Platform.OS === 'android';
+
 export function ProfileShell({
   title,
   identity,
@@ -82,7 +84,7 @@ export function ProfileShell({
   const [stuck, setStuck] = useState(false);
   const showTabs = tabs.length > 1;
 
-  const opening = useSharedValue(zoomTransition || reduced ? 1 : profileShell.openScale);
+  const opening = useSharedValue(systemTransition || reduced ? 1 : profileShell.openScale);
   const opened = useRef(false);
   const open = () => {
     if (opened.current) return;
@@ -116,7 +118,7 @@ export function ProfileShell({
     if (next !== stuck) setStuck(next);
   };
   const onScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (zoomTransition) return;
+    if (systemTransition) return;
     if (event.nativeEvent.contentOffset.y < -profileShell.dismissDistance) onClose();
   };
 
@@ -224,7 +226,13 @@ export function ProfileShell({
           backgroundColor: theme.overlay.fill,
         }}
       >
-        <NavigationAction close size={theme.touch} label={t.close} onPress={onClose} />
+        <NavigationAction
+          close={Platform.OS !== 'android'}
+          back={Platform.OS === 'android'}
+          size={theme.touch}
+          label={Platform.OS === 'android' ? t.back : t.close}
+          onPress={onClose}
+        />
         <Animated.View style={[{ flex: 1 }, titleStyle]} pointerEvents="none">
           <Text
             strong
