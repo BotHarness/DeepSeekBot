@@ -401,6 +401,8 @@ describe('bridge methods', () => {
       ok: true,
       value: {
         assignment,
+        rounds: [],
+        omittedRounds: 0,
         omittedSubagents: 0,
         lanes: [
           {

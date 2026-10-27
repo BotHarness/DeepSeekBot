@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   summarizeAssignmentTimeline,
   summarizeSubagentLanes,
+  TIMELINE_INSTRUCTION_CHARS,
   TIMELINE_LANE_ENTRIES,
   TIMELINE_SUBAGENTS,
 } from '../src/runtime/assignment-timeline.js';
@@ -34,6 +35,54 @@ function result(seq: number, callId: string, isError = false): DshSessionEvent {
 }
 
 describe('Assignment timeline', () => {
+  it('splits the Assignment into the rounds the Orchestrator started or continued', () => {
+    const at = (seq: number) => Date.UTC(2026, 9, 27, 0, 0, seq);
+    const event = (seq: number, type: string, data: Record<string, unknown> = {}) => ({
+      type,
+      seq,
+      time: at(seq),
+      data,
+    });
+    const user = (seq: number, text: string, kind = 'user') =>
+      event(seq, 'user/message', { source: { kind }, content: [{ type: 'text', text }] });
+    const timeline = summarizeAssignmentTimeline({
+      main: {
+        sessionId: 'asg-1',
+        events: [
+          event(1, 'turn/start', { turn: 1 }),
+          user(2, 'Count the lines\n\nof README.md'),
+          user(3, 'Current runtime context.', 'runtime-context'),
+          call(4, 'c1', 'bot_subagent', {}),
+          result(5, 'c1'),
+          event(6, 'turn/end', { reason: 'completed' }),
+          event(10, 'turn/start', { turn: 2 }),
+          user(11, `Append the date ${'x'.repeat(400)}`),
+          call(12, 'c2', 'edit', {}),
+          result(13, 'c2'),
+          event(14, 'turn/end', { reason: 'completed' }),
+        ],
+      },
+      subagents: [{ sessionId: 'sub-1', events: [event(4, 'turn/start'), event(5, 'turn/end')] }],
+    });
+    expect(timeline.rounds).toEqual([
+      {
+        index: 1,
+        kind: 'created',
+        at: new Date(at(1)).toISOString(),
+        instruction: 'Count the lines of README.md',
+      },
+      expect.objectContaining({ index: 2, kind: 'continued', at: new Date(at(10)).toISOString() }),
+    ]);
+    expect(timeline.rounds[1]!.instruction).toHaveLength(TIMELINE_INSTRUCTION_CHARS);
+    expect(timeline.rounds[1]!.instruction!.endsWith('…')).toBe(true);
+    expect(timeline.omittedRounds).toBe(0);
+    expect(timeline.lanes[0]!.entries.map((entry) => [entry.tool, entry.round])).toEqual([
+      ['bot_subagent', 1],
+      ['edit', 2],
+    ]);
+    expect(timeline.lanes[1]).toMatchObject({ role: 'subagent', round: 1 });
+  });
+
   it('groups the Assignment Agent as MAIN and Subagents as SUBAGENT 01, 02…', () => {
     const timeline = summarizeAssignmentTimeline({
       main: {
@@ -77,14 +126,15 @@ describe('Assignment timeline', () => {
       ['subagent', 2, 'sub-b'],
     ]);
     expect(timeline.lanes[0]!.entries).toEqual([
-      { status: 'done', kind: 'read', tool: 'read', at: '2026-10-27T00:00:01.000Z' },
-      { status: 'failed', kind: 'execute', tool: 'bash', at: '2026-10-27T00:00:03.000Z' },
+      { status: 'done', kind: 'read', tool: 'read', at: '2026-10-27T00:00:01.000Z', round: 1 },
+      { status: 'failed', kind: 'execute', tool: 'bash', at: '2026-10-27T00:00:03.000Z', round: 1 },
       {
         status: 'running',
         kind: 'fetch',
         tool: 'browser_open',
         detail: 'example.com',
         at: '2026-10-27T00:00:05.000Z',
+        round: 1,
       },
     ]);
     expect(timeline.lanes[1]).toMatchObject({
