@@ -1,14 +1,13 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { View, type LayoutChangeEvent, type ViewStyle, type ViewInstance } from 'react-native';
 import Animated, {
-  Easing,
   makeMutable,
   measure,
   useAnimatedRef,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withTiming,
+  withSpring,
   type AnimatedRef,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -16,7 +15,8 @@ import Animated, {
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { easeOut, motion, popScale, space } from '../design/tokens';
+import { spring } from '../design/motion';
+import { popScale, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Text } from '../primitives/text';
 import { AVATAR_CORNER } from './bubble-shape';
@@ -167,8 +167,7 @@ function StickyAvatar({
   const follows = entering && !speaker.first && !reduced;
   const follow = useSharedValue(follows ? 1 : 0);
   const glide = useMounted<ViewInstance>(() => {
-    if (follow.get() > 0)
-      follow.set(withTiming(0, { duration: motion.bubble, easing: Easing.bezier(...easeOut) }));
+    if (follow.get() > 0) follow.set(withSpring(0, spring.spatial.fast));
   }, []);
   const pop = usePopIn(entering && speaker.first, { from: popScale.badge });
   const scroll = stage?.scroll;

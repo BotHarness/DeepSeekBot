@@ -29,6 +29,20 @@ Older rules below that prescribe a custom surface where a native component exist
 
 Back closes the topmost surface before it leaves the screen: an in-screen surface that is not its own route, such as the composer's attach tray, holds the screen with Expo Router's `usePreventRemove` and closes itself; the full client steps back through its web history first, while its floating exit still leaves at once. Do not add `BackHandler` listeners for new surfaces. The predictive back preview does not run yet: React Native 0.86's `ReactActivity` registers an always-enabled `OnBackPressedCallback` on targetSdk 36, so the system has no back-to-home animation to show and JS screens do not follow the gesture progress. Do not claim predictive back until that callback is released when the root route cannot go back.
 
+## Motion
+
+Motion follows each platform (ADR-0264). Pick a role from `spring` in `src/ui/design/motion.ts`; the iOS and Android values differ, the role does not.
+
+| Role              | Use for                                                                               | iOS                                     | Android                            |
+| ----------------- | ------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------------------- |
+| `spatial.fast`    | small feedback: a bubble, badge or menu appearing, a press released                   | SwiftUI `.snappy` (0.35 s, bounce 0.15) | M3 Expressive spatial fast         |
+| `spatial.default` | a surface moving or resizing: the composer, a list closing a gap, the profile opening | `.smooth` (0.5 s)                       | spatial default                    |
+| `spatial.slow`    | large surfaces travelling far                                                         | `.smooth` (0.7 s)                       | spatial slow                       |
+| `effects.*`       | opacity and colour; never overshoots                                                  | `.smooth` (0.2 / 0.3 / 0.5 s)           | effects fast / default / slow      |
+| `release`         | a dragged surface let go: drawer, swipe row, image or browser snap-back               | spatial default, critically damped      | spatial default, critically damped |
+
+Time-driven animations (stream reveal, click ripple, long-press lift, fling-away) keep fixed durations with `decelerateCurve`. Screen pushes, sheets and menus use the system's own transitions.
+
 ## Application dialogs
 
 - Application-owned confirmations and choice menus use `showAppDialog` (or `confirmDestructive` / `showActionMenu`) and the root `AppDialogHost`. Do not call React Native `Alert.alert` directly from a screen or feature. Per Native first, iOS shows system alerts (menus follow [iOS menus and native controls](#ios-menus-and-native-controls)), and Android shows the Material 3 `AlertDialog` from `@expo/ui/jetpack-compose`, themed by `seedColor` = accent. Operating-system permission prompts, photo pickers and the share sheet remain system-owned.

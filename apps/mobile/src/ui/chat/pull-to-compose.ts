@@ -1,13 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
 import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import {
-  ReduceMotion,
-  useSharedValue,
-  withTiming,
-  type SharedValue,
-} from 'react-native-reanimated';
+import { useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
 
-import { motion } from '../design/tokens';
+import { spring } from '../design/motion';
 import { haptic } from '../haptics';
 import { atLatest, distanceFromLatest } from './follow-latest';
 
@@ -91,10 +86,7 @@ export function usePullToCompose({
           ? pulledPast(event.nativeEvent.contentOffset.y, from.current) >= threshold
           : atLatest(distance) && flickedPast(-(event.nativeEvent.velocity?.y ?? 0), flick);
       from.current = undefined;
-      progress.value = withTiming(0, {
-        duration: motion.composer,
-        reduceMotion: ReduceMotion.System,
-      });
+      progress.value = withSpring(0, spring.release);
       reach(false);
       if (!enabled || !composes) return;
       if (flick !== undefined) haptic('pull');

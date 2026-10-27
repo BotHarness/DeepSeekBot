@@ -34,7 +34,7 @@ vi.mock('react-native-reanimated', () => ({
       },
     }))[0],
   useDerivedValue: <T,>(read: () => T) => ({ get: read }),
-  withTiming: (value: number) => value,
+  withSpring: (value: number) => value,
   ReduceMotion: { System: 'system' },
 }));
 

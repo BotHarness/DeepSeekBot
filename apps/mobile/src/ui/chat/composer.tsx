@@ -9,17 +9,13 @@ import {
   useWindowDimensions,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  ReduceMotion,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { PickSource, PickedFile } from '../../host/pick-files';
 import { pressTint, useDesignTheme } from '../design/theme';
-import { edge, motion, radius, space } from '../design/tokens';
+import { spring } from '../design/motion';
+import { edge, radius, space } from '../design/tokens';
 import { HardwareSend } from '../primitives/hardware-send';
 import { Text } from '../primitives/text';
 import { ArrowUpIcon, ChevronUpIcon, CloseIcon, FileIcon, LockIcon } from '../shell/icons';
@@ -222,11 +218,7 @@ export function Composer({
   const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
   const settlePill = (next: number) => {
     if (pill.height === 0) pillHeight.value = next;
-    else
-      pillHeight.value = withTiming(next, {
-        duration: motion.composer,
-        reduceMotion: ReduceMotion.System,
-      });
+    else pillHeight.value = withSpring(next, spring.spatial.default);
   };
   const listening = dictating(dictation);
   const actions = composerActions({

@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import type { ColorValue } from 'react-native';
 import { View } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useDerivedValue, withSpring } from 'react-native-reanimated';
 
 import { useDesignTheme } from '../design/theme';
-import { materialNavigationBar, motion, radius, tabMotion } from '../design/tokens';
+import { spring } from '../design/motion';
+import { materialNavigationBar, radius, tabMotion } from '../design/tokens';
 import { badgeCount } from '../primitives/badge-count';
 import { Text } from '../primitives/text';
 
@@ -23,7 +24,7 @@ export function NavigationIcon({
 }) {
   const theme = useDesignTheme();
   const progress = useDerivedValue(() =>
-    withTiming(countVisible && count > 0 ? 1 : 0, { duration: motion.menu }),
+    withSpring(countVisible && count > 0 ? 1 : 0, spring.spatial.fast),
   );
   const iconStyle = useAnimatedStyle(() => ({
     opacity: 1 - progress.value,

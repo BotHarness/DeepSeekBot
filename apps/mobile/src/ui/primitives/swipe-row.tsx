@@ -2,7 +2,6 @@ import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Pressable, View, type ColorValue } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  ReduceMotion,
   runOnJS,
   useAnimatedStyle,
   useReducedMotion,
@@ -13,7 +12,8 @@ import Animated, {
 
 import { haptic } from '../haptics';
 import { useDesignTheme, type DesignTheme } from '../design/theme';
-import { drawerSpring, space, swipeRow } from '../design/tokens';
+import { spring } from '../design/motion';
+import { space, swipeRow } from '../design/tokens';
 import { showActionMenu } from './app-dialog';
 import { settleSwipe, swipeArmed } from './swipe-row-model';
 import { Text } from './text';
@@ -80,9 +80,7 @@ export function SwipeRow({
   const settleTo = useCallback(
     (to: number) => {
       'worklet';
-      offset.value = reduced
-        ? withTiming(to, { duration: 0 })
-        : withSpring(to, { ...drawerSpring, reduceMotion: ReduceMotion.System });
+      offset.value = reduced ? withTiming(to, { duration: 0 }) : withSpring(to, spring.release);
     },
     [offset, reduced],
   );

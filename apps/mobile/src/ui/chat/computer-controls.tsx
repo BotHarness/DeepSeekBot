@@ -11,6 +11,7 @@ import Animated, {
 import { COMPUTER_KEYS, WHEEL_STEP, type ComputerModifier } from '../../host/computer-viewer';
 import { buttonColors } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
+import { spring } from '../design/motion';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import {
@@ -67,7 +68,7 @@ export function ComputerMousePad({
       runOnJS(roll)(event.translationY);
     })
     .onFinalize(() => {
-      knob.value = withSpring(0, { damping: 20, stiffness: 260 });
+      knob.value = withSpring(0, spring.release);
     });
 
   const knobStyle = useAnimatedStyle(() => ({ transform: [{ translateY: knob.value }] }));

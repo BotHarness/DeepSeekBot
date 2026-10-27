@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import Animated, {
-  cancelAnimation,
   Easing,
+  cancelAnimation,
   ReduceMotion,
   useAnimatedReaction,
   useAnimatedStyle,
@@ -14,6 +14,7 @@ import Animated, {
 
 import type { StageZoom } from '../../host/browser-viewer';
 import { videoPointerPosition } from '../../host/local-video-pointer';
+import { decelerateCurve } from '../design/motion';
 import { computerClickRipple as ripple, edge, pointer, radius } from '../design/tokens';
 import type { Size } from './zoom-math';
 
@@ -65,7 +66,7 @@ export function ComputerClickRipple({
             )
           : withTiming(1, {
               duration: ripple.duration,
-              easing: Easing.bezier(0.23, 1, 0.32, 1),
+              easing: Easing.bezier(...decelerateCurve),
               reduceMotion: ReduceMotion.System,
             }),
       );

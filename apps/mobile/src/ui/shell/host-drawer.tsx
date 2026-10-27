@@ -15,7 +15,6 @@ import {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   makeMutable,
-  ReduceMotion,
   runOnJS,
   useAnimatedStyle,
   useReducedMotion,
@@ -50,7 +49,8 @@ import { useHostLook } from '../../host/native-host-look';
 import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
-import { drawerSpring, edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
+import { spring } from '../design/motion';
+import { edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
 import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { CountBadge } from '../primitives/count-badge';
 import { Text } from '../primitives/text';
@@ -100,7 +100,7 @@ function hidden(): void {
 function slide(open: boolean, velocity = 0): void {
   progress.value = withSpring(
     open ? 1 : 0,
-    { ...drawerSpring, velocity, clamp: { min: 0, max: 1 }, reduceMotion: ReduceMotion.System },
+    { ...spring.release, velocity, overshootClamping: true },
     (finished) => {
       if (finished === true && !open) runOnJS(hidden)();
     },

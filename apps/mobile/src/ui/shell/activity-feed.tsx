@@ -67,6 +67,7 @@ import { BotAvatar } from '../bot-avatar';
 import { ApprovalCard } from '../chat/approval-card';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
+import { spring, springy } from '../design/motion';
 import { space, undoBar } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { CountBadge } from '../primitives/count-badge';
@@ -96,6 +97,8 @@ const LOADING: InboxSnapshot = { status: 'loading' };
 const EMPTY_SOURCE = { getSnapshot: () => LOADING, subscribe: () => () => {} };
 const ACTIVITY_ROUTES = [...ACTIVITY_TABS];
 const SUMMARY_PREVIEW_LIMIT = 512;
+const ROW_LAYOUT = springy(LinearTransition.springify(), spring.spatial.default);
+const ROW_EXIT = springy(FadeOut.springify(), spring.effects.fast);
 
 function itemSummary(item: HumanAttentionItem): string {
   const tool = item.kind === 'tool-approval' ? approvalSummaryTool(item.summary) : undefined;
@@ -926,7 +929,7 @@ const ActivityPage = memo(function ActivityPage({
             }}
             data={[{ kind: 'status', key: 'status' } as const, ...rows]}
             keyExtractor={(row) => row.key}
-            itemLayoutAnimation={LinearTransition}
+            itemLayoutAnimation={ROW_LAYOUT}
             ListFooterComponentStyle={{ flexGrow: 1 }}
             ListFooterComponent={
               <Pressable accessible={false} onPress={() => dismissSearch()} style={{ flex: 1 }} />
@@ -1002,7 +1005,7 @@ const ActivityPage = memo(function ActivityPage({
                   />
                 );
               return (
-                <Animated.View exiting={FadeOut.duration(220)}>
+                <Animated.View exiting={ROW_EXIT}>
                   {rowClient === undefined ? null : (
                     <Post
                       client={rowClient}
