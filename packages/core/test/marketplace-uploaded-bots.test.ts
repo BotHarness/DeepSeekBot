@@ -252,6 +252,7 @@ it('refuses to install a GitHub listing through the upload path', async () => {
 it('reads an Uploaded Bot file summary and its text files through the Host', async () => {
   const f = fixture();
   const { slug } = sourceBot(f);
+  readyDraft(f, slug);
   f.session.state = 'signed-in';
   await f.bridge.marketplaceAuthorSave({ displayName: 'Alice', acceptTerms: true });
   const uploaded = await f.bridge.marketplaceUpload({ slug, displayName: 'Helper' });
