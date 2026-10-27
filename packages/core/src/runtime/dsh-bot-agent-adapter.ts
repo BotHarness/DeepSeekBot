@@ -667,12 +667,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#assignmentSelections.delete(sessionId);
   }
 
-  async #liveHandle(sessionId: string): Promise<AgentHandle | undefined> {
+  #liveHandle(sessionId: string): AgentHandle | undefined {
     const handle = this.#handles.get(sessionId);
     if (handle === undefined || this.#agents.get === undefined) return handle;
     if (this.#agents.get(SessionId(sessionId)) === handle.agent) return handle;
     this.#forgetHandle(sessionId);
-    await handle.dispose().catch(() => undefined);
+    void handle.dispose().catch(() => undefined);
     return undefined;
   }
 
@@ -838,7 +838,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun): Promise<AgentHandle> {
-    const existing = await this.#liveHandle(run.sessionId);
+    const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const resolvedAgentOptions = agentOptions(
       run,
@@ -3654,7 +3654,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
-    const existing = await this.#liveHandle(run.sessionId);
+    const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#defaultAgentPreset);
     const resolvedAgentOptions = agentOptions(
