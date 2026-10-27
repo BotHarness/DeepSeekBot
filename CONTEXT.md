@@ -1129,3 +1129,4 @@ How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS workspace panel as the Chats stack root.
 - Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
+- Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.
