@@ -33,6 +33,10 @@ export const KeyboardAvoidingView = View;
 export const Modal = (props: Props) =>
   props['visible'] === true ? createElement('div', { role: 'dialog' }, props.children) : null;
 export const useWindowDimensions = () => ({ width: 390, height: 844, scale: 3, fontScale: 1 });
+export const Dimensions = {
+  get: useWindowDimensions,
+  addEventListener: (_event: string, _listener: () => void) => ({ remove() {} }),
+};
 export const ActivityIndicator = () => createElement('span', { role: 'progressbar' });
 export const RefreshControl = () => null;
 export const Image = () => createElement('img');

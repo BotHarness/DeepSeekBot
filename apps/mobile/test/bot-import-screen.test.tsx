@@ -73,6 +73,8 @@ vi.mock('expo-router', () => ({
     },
   },
   router: { push: vi.fn(), back: vi.fn(), dismiss: vi.fn() },
+  useNavigation: () => ({ goBack: vi.fn() }),
+  useIsFocused: () => true,
   useLocalSearchParams: () => fixture.params,
   useFocusEffect: (effect: () => void | (() => void)) => useLayoutEffect(effect, [effect]),
 }));
@@ -279,7 +281,7 @@ it('opens Android blank creation as a back-navigable page with its action pinned
   await act(async () => root.render(<CreateBotScreen />));
   expect(element.querySelector('[role="dialog"]')).toBeNull();
   expect(fixture.screen).toHaveBeenLastCalledWith(
-    expect.objectContaining({ headerShown: true, presentation: 'card', headerBackVisible: false }),
+    expect.objectContaining({ headerShown: false, presentation: 'card', headerBackVisible: false }),
   );
   expect(element.textContent).toContain(t.botCreation.prompt.environment);
   expect(labelled(t.botCreation.next)).toBeDefined();

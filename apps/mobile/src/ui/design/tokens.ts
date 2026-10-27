@@ -106,7 +106,15 @@ export const loadingIndicator = {
 export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
 
 export const creationAvatar = { size: 112 } as const;
-export const creationHeader = { avatar: 40 } as const;
+export const creationHeader = {
+  avatar: 40,
+  progressSpring: {
+    mass: 1,
+    stiffness: 50,
+    damping: 2 * Math.sqrt(50),
+    overshootClamping: true,
+  },
+} as const;
 export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {

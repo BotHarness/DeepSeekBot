@@ -1,5 +1,12 @@
-import { Stack, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import {
+  Stack,
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+  useNavigation,
+  useIsFocused,
+} from 'expo-router';
+import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { AppState, Platform, View, type ViewInstance } from 'react-native';
 import { useHostSession, useHostSessions } from '../../host/host-session';
 import { liveGlance } from '../../host/host-glance';
@@ -52,7 +59,23 @@ function flowTitle(flow: CreationFlow) {
         : copy.title;
 }
 
+export const CreationContext = createContext<ReturnType<typeof useCreationModel> | undefined>(
+  undefined,
+);
+
 export function CreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
+  const shared = useContext(CreationContext);
+  return shared ? <CreationStepContent index={0} /> : <LegacyCreateBotScreen {...props} />;
+}
+
+export function CreateBotStepScreen() {
+  const shared = useContext(CreationContext);
+  const { step } = useLocalSearchParams<{ step?: string }>();
+  const index = Math.max(1, Number.parseInt(step ?? '1', 10) || 1);
+  return shared ? <CreationStepContent index={index} /> : <LegacyCreateBotStepScreen />;
+}
+
+function LegacyCreateBotScreen(props: { initialSource?: CreationEntrySource } = {}) {
   useStrings();
   const { ready, mount } = useSheetContent();
   return (
@@ -63,32 +86,40 @@ export function CreateBotScreen(props: { initialSource?: CreationEntrySource } =
   );
 }
 
-export function CreateBotStepScreen() {
+function LegacyCreateBotStepScreen() {
   useStrings();
   const { flow, step } = useLocalSearchParams<{ flow?: string; step?: string }>();
   const index = Math.max(1, Number.parseInt(step ?? '1', 10) || 1);
   return <CreationStep index={index} {...(isCreationFlow(flow) ? { flow } : {})} />;
 }
 
-function CreationStep({
+export function useCreationModel({
   index,
   initialSource = 'blank',
   flow: routeFlow,
+  initialEntry,
+  presented = true,
 }: {
   index: number;
   initialSource?: CreationEntrySource;
   flow?: CreationFlow;
+  initialEntry?: { hostId?: string | undefined; entry?: string | undefined };
+  presented?: boolean;
 }) {
   const t = useStrings();
-  const { hostId, entry } = useLocalSearchParams<{ hostId?: string; entry?: string }>();
+  const localEntry = useLocalSearchParams<{ hostId?: string; entry?: string }>();
+  const { hostId, entry } = useRef(initialEntry ?? localEntry).current;
+  const navigation = useNavigation('/');
+  const initialIndex = useRef(index).current;
+  const entering = initialIndex === 0;
   const { hosts } = useHostSession();
   const feeds = useHostSessions();
   const theme = useDesignTheme();
   const state = useBotCreation();
   const first = index === 0;
-  const [entryReady, setEntryReady] = useState(!first);
+  const [entryReady, setEntryReady] = useState(presented && !entering);
   const visibility = useRef(createCreationVisibility(AppState.currentState === 'active')).current;
-  const ready = useRef(!first);
+  const ready = useRef(presented && !entering);
   const choices: EnvironmentChoice[] = hosts.map((host) => {
     const feed = feeds.find((candidate) => candidate.saved.hostId === host.hostId);
     return {
@@ -99,6 +130,7 @@ function CreationStep({
   const choicesRef = useRef(choices);
   choicesRef.current = choices;
   const mounted = useMounted<ViewInstance>(() => {
+    if (!presented) return;
     let live = true;
     const subscription = AppState.addEventListener('change', (state) =>
       visibility.appState(state === 'active'),
@@ -111,9 +143,13 @@ function CreationStep({
         !current.busy &&
         visibility.takeAutoOpen()
       )
-        void openCreatedBot(visibility.lease(), index);
+        void openCreatedBot(visibility.lease());
     });
-    if (first)
+    if (!entering) {
+      ready.current = true;
+      setEntryReady(true);
+    }
+    if (entering)
       void botCreation.ready.then(async () => {
         if (!live) return;
         const stillHere = visibility.lease();
@@ -143,12 +179,12 @@ function CreationStep({
       });
     return () => {
       live = false;
-      if (first) ready.current = false;
+      if (entering) ready.current = false;
       off();
       subscription.remove();
       visibility.blur();
     };
-  }, [entry, hostId, visibility, initialSource, first, index]);
+  }, [entry, hostId, visibility, initialSource, entering, initialIndex, presented]);
   useFocusEffect(
     useCallback(() => {
       visibility.focus();
@@ -161,7 +197,7 @@ function CreationStep({
       return () => {
         visibility.blur();
       };
-    }, [visibility]),
+    }, [visibility, presented]),
   );
   const draft = state.record.kind === 'draft' ? state.record.draft : undefined;
   const submitted = state.record.kind === 'submitted';
@@ -194,11 +230,12 @@ function CreationStep({
     const ids = hostKey ? hostKey.split('\n') : [];
     const previous = known.current;
     known.current = ids;
+    if (!presented || !entryReady) return;
     const current = botCreation.getSnapshot().record;
     if (!previous || current.kind !== 'draft' || ids.includes(current.draft.hostId)) return;
     const added = ids.find((id) => !previous.includes(id));
     if (added) void botCreation.edit({ ...current.draft, hostId: added });
-  }, [hostKey]);
+  }, [hostKey, presented, entryReady]);
   const waiting = state.busy && submitted;
   const [slow, setSlow] = useState(false);
   const slowMount = useMounted<ViewInstance>(() => {
@@ -208,7 +245,7 @@ function CreationStep({
     return () => clearTimeout(timer);
   }, [waiting]);
   const working = useRef(false);
-  const exit = () => (first ? router.back() : router.dismiss(index + 1));
+  const exit = () => navigation.goBack();
   const next = async () => {
     if (working.current || state.busy || !draft) return;
     working.current = true;
@@ -243,7 +280,7 @@ function CreationStep({
       working.current = false;
     }
   };
-  const openResult = () => openCreatedBot(visibility.lease(), index);
+  const openResult = () => openCreatedBot(visibility.lease());
   const title =
     flow === 'git' && gitSource?.origin === 'marketplace' ? copy.importTitle : flowTitle(flow);
   const error = state.error
@@ -335,305 +372,384 @@ function CreationStep({
               error,
             }
           : undefined;
+  return {
+    t,
+    theme,
+    state,
+    draft,
+    entryReady,
+    flow,
+    steps,
+    position,
+    step,
+    last,
+    importing,
+    gitSource,
+    hosts,
+    choices,
+    hostName,
+    edit,
+    source,
+    target,
+    targetId,
+    title,
+    exit,
+    bar,
+    mounted,
+    pairedMount,
+    slowMount,
+  };
+}
+
+function CreationStep(props: Parameters<typeof useCreationModel>[0]) {
+  const model = useCreationModel(props);
+  const {
+    t,
+    theme,
+    state,
+    draft,
+    steps,
+    position,
+    importing,
+    title,
+    exit,
+    bar,
+    mounted,
+    pairedMount,
+    slowMount,
+  } = model;
+  const { index } = props;
   return (
-    <View
-      ref={mounted}
-      style={{
-        flex: 1,
-        backgroundColor: Platform.OS === 'android' ? theme.color.base : theme.overlay.fill,
-      }}
-    >
-      <Stack.Screen
-        options={{
-          headerShown: Platform.OS !== 'android',
-          presentation: 'card',
-          contentStyle: {
-            backgroundColor: Platform.OS === 'android' ? theme.color.base : theme.overlay.fill,
-          },
-          title,
-          headerBackVisible: false,
-          ...(Platform.OS === 'ios'
-            ? {
-                unstable_headerLeftItems: () => [
-                  {
-                    type: 'button' as const,
-                    label: t.close,
-                    identifier: 'create-bot-close',
-                    icon: { type: 'sfSymbol' as const, name: 'xmark' as const },
-                    onPress: exit,
-                  },
-                ],
-              }
-            : {}),
+    <CreationContext.Provider value={model}>
+      <View
+        ref={mounted}
+        style={{
+          flex: 1,
+          backgroundColor: Platform.OS === 'android' ? theme.color.base : theme.overlay.fill,
         }}
-      />
-      <CreationHeader
-        title={title}
-        name={
-          draft?.displayName ??
-          (state.record.kind === 'submitted' ? state.record.operation.input.displayName : '')
-        }
-        avatar={
-          draft?.avatar ?? (state.record.kind === 'submitted' ? state.record.avatar : undefined)
-        }
-        imported={importing}
-        step={{ index: position + 1, total: steps.length }}
-        progress={
-          draft
-            ? position / steps.length
-            : state.receipt?.status === 'created'
-              ? 1
-              : state.busy
-                ? undefined
-                : (steps.length - 1) / steps.length
-        }
-        onClose={exit}
-      />
-      <View ref={pairedMount} style={{ flex: 1 }}>
-        <KeyboardFormScroll
-          mode={Platform.OS === 'ios' ? 'layout' : 'insets'}
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
-        >
-          {!state.loaded || !entryReady ? (
-            <Text>{copy.working}</Text>
-          ) : draft ? (
-            <>
-              <Text variant="title" strong>
-                {importing && step === 'persona' ? copy.prompt.importDetails : copy.prompt[step]}
-              </Text>
-              {step === 'environment' ? (
-                hosts.length === 0 ? (
-                  <View style={{ gap: space.x3 }}>
-                    <Text strong>{copy.noEnvironments}</Text>
-                    <Text tone="muted">{copy.noEnvironmentsHint}</Text>
-                    <Button
-                      label={copy.addEnvironment}
-                      testID="create-bot-pair"
-                      tone="primary"
-                      onPress={() => router.push('/pair')}
-                    />
-                  </View>
-                ) : (
-                  <>
-                    <EnvironmentList
-                      title={copy.destination}
-                      value={draft.hostId}
-                      disabled={state.busy}
-                      options={botCreationTargets(
-                        hosts.map((host) => ({ hostId: host.hostId, name: hostName(host.hostId) })),
-                      ).map((option) => {
-                        const status =
-                          choices.find((choice) => choice.hostId === option.value)?.status ??
-                          'checking';
-                        return {
-                          ...option,
-                          detail:
-                            status === 'online'
-                              ? t.hostOnline
-                              : status === 'offline'
-                                ? t.hostOffline
-                                : t.hostChecking,
-                          disabled: status === 'offline',
-                        };
-                      })}
-                      onChange={(hostId) => edit({ hostId })}
-                    />
-                    <Button
-                      label={copy.addEnvironment}
-                      variant="text"
-                      testID="create-bot-pair"
-                      onPress={() => router.push('/pair')}
-                    />
-                  </>
-                )
-              ) : null}
-              {step === 'git' && gitSource ? (
-                <TextField
-                  testID="import-bot-git-url"
-                  accessibilityLabel={copy.gitUrl}
-                  value={gitSource.gitUrl}
-                  onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
-                  editable={!state.busy}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  keyboardType="url"
+      >
+        <Stack.Screen
+          options={{
+            headerShown: Platform.OS !== 'android',
+            presentation: 'card',
+            contentStyle: {
+              backgroundColor: Platform.OS === 'android' ? theme.color.base : theme.overlay.fill,
+            },
+            title,
+            headerBackVisible: false,
+            ...(Platform.OS === 'ios'
+              ? {
+                  unstable_headerLeftItems: () => [
+                    {
+                      type: 'button' as const,
+                      label: t.close,
+                      identifier: 'create-bot-close',
+                      icon: { type: 'sfSymbol' as const, name: 'xmark' as const },
+                      onPress: exit,
+                    },
+                  ],
+                }
+              : {}),
+          }}
+        />
+        <CreationHeader
+          title={title}
+          name={
+            draft?.displayName ??
+            (state.record.kind === 'submitted' ? state.record.operation.input.displayName : '')
+          }
+          avatar={
+            draft?.avatar ?? (state.record.kind === 'submitted' ? state.record.avatar : undefined)
+          }
+          imported={importing}
+          step={{ index: position + 1, total: steps.length }}
+          progress={
+            draft
+              ? position / steps.length
+              : state.receipt?.status === 'created'
+                ? 1
+                : state.busy
+                  ? undefined
+                  : (steps.length - 1) / steps.length
+          }
+          onClose={exit}
+        />
+        <View ref={pairedMount} style={{ flex: 1 }}>
+          <CreationStepContent index={index} />
+        </View>
+        <View ref={slowMount}>
+          {bar ? (
+            <KeyboardFormFooter>
+              <StepBar {...bar} />
+            </KeyboardFormFooter>
+          ) : null}
+        </View>
+      </View>
+    </CreationContext.Provider>
+  );
+}
+
+function CreationStepContent({ index }: { index: number }) {
+  const focused = useIsFocused();
+  const model = useContext(CreationContext);
+  if (!model) throw new Error('Creation step requires its flow owner');
+  const {
+    t,
+    state,
+    draft,
+    entryReady,
+    flow,
+    importing,
+    gitSource,
+    hosts,
+    choices,
+    hostName,
+    edit,
+    source,
+    target,
+    targetId,
+  } = model;
+  const steps = creationSteps(flow);
+  const position = Math.min(index, steps.length - 1);
+  const step = steps[position]!;
+  const last = position === steps.length - 1;
+  return (
+    <KeyboardFormScroll
+      enabled={focused}
+      mode={Platform.OS === 'ios' ? 'layout' : 'insets'}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
+    >
+      {!state.loaded || !entryReady ? (
+        <Text>{copy.working}</Text>
+      ) : draft ? (
+        <>
+          <Text variant="title" strong>
+            {importing && step === 'persona' ? copy.prompt.importDetails : copy.prompt[step]}
+          </Text>
+          {step === 'environment' ? (
+            hosts.length === 0 ? (
+              <View style={{ gap: space.x3 }}>
+                <Text strong>{copy.noEnvironments}</Text>
+                <Text tone="muted">{copy.noEnvironmentsHint}</Text>
+                <Button
+                  label={copy.addEnvironment}
+                  testID="create-bot-pair"
+                  tone="primary"
+                  onPress={() => router.push('/pair')}
                 />
-              ) : null}
-              {step === 'zip' ? (
-                <>
-                  {draft.source?.kind === 'zip' ? (
-                    <View style={{ gap: space.x2 }}>
-                      <Text strong>{copy.zipFile}</Text>
-                      <Text selectable>{draft.source.fileName}</Text>
-                      <Text tone="muted">{copy.zipSize(draft.source.sizeBytes)}</Text>
-                    </View>
-                  ) : null}
-                  <Button
-                    label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.chooseZip}
-                    testID="import-bot-zip-pick"
-                    tone={draft.source?.kind === 'zip' ? 'secondary' : 'primary'}
-                    disabled={state.busy}
-                    onPress={() => void botCreation.beginZip()}
-                  />
-                  {state.transfer ? (
-                    <Text accessibilityLiveRegion="polite">
-                      {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
-                    </Text>
-                  ) : null}
-                </>
-              ) : null}
-              {step === 'identity' ? (
-                <CreationAvatar
-                  avatar={draft.avatar}
-                  name={draft.displayName.trim()}
-                  imported={importing}
+              </View>
+            ) : (
+              <>
+                <EnvironmentList
+                  title={copy.destination}
+                  value={draft.hostId}
                   disabled={state.busy}
-                  onChange={(avatar) => edit({ avatar })}
+                  options={botCreationTargets(
+                    hosts.map((host) => ({ hostId: host.hostId, name: hostName(host.hostId) })),
+                  ).map((option) => {
+                    const status =
+                      choices.find((choice) => choice.hostId === option.value)?.status ??
+                      'checking';
+                    return {
+                      ...option,
+                      detail:
+                        status === 'online'
+                          ? t.hostOnline
+                          : status === 'offline'
+                            ? t.hostOffline
+                            : t.hostChecking,
+                      disabled: status === 'offline',
+                    };
+                  })}
+                  onChange={(hostId) => edit({ hostId })}
                 />
-              ) : null}
-              {step === 'identity' ? (
-                <TextField
-                  testID="create-bot-name"
-                  accessibilityLabel={copy.name}
-                  value={draft.displayName}
-                  onChangeText={(displayName) => edit({ displayName })}
-                  editable={!state.busy}
-                  maxLength={120}
+                <Button
+                  label={copy.addEnvironment}
+                  variant="text"
+                  testID="create-bot-pair"
+                  onPress={() => router.push('/pair')}
                 />
-              ) : null}
-              {step === 'confirm' ? (
+              </>
+            )
+          ) : null}
+          {step === 'git' && gitSource ? (
+            <TextField
+              testID="import-bot-git-url"
+              accessibilityLabel={copy.gitUrl}
+              value={gitSource.gitUrl}
+              onChangeText={(gitUrl) => edit({ source: { kind: 'git', gitUrl } })}
+              editable={!state.busy}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+          ) : null}
+          {step === 'zip' ? (
+            <>
+              {draft.source?.kind === 'zip' ? (
                 <View style={{ gap: space.x2 }}>
-                  <Text strong>{copy.source}</Text>
-                  <Text selectable>{gitSource?.gitUrl}</Text>
-                  {gitSource?.listingId ? (
-                    <Button
-                      label={t.marketplace.refreshListing}
-                      testID="import-bot-refresh-listing"
-                      disabled={state.busy}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/marketplace-bot',
-                          params: { id: gitSource.listingId!, entry: 'refresh' },
-                        })
-                      }
-                    />
-                  ) : null}
-                  <Text strong>{copy.destination}</Text>
-                  <Text selectable>{hostName(draft.hostId)}</Text>
-                  <Text strong>{copy.name}</Text>
-                  <Text selectable>{draft.displayName}</Text>
+                  <Text strong>{copy.zipFile}</Text>
+                  <Text selectable>{draft.source.fileName}</Text>
+                  <Text tone="muted">{copy.zipSize(draft.source.sizeBytes)}</Text>
                 </View>
               ) : null}
-              {step === 'persona' && flow === 'blank' ? (
-                <TextField
-                  testID="create-bot-persona"
-                  accessibilityLabel={copy.persona}
-                  placeholder={copy.personaHint}
-                  value={draft.persona}
-                  onChangeText={(persona) => edit({ persona })}
-                  multiline
-                  editable={!state.busy}
-                />
-              ) : null}
-              {step === 'persona' || step === 'confirm' ? (
-                <>
-                  <TextField
-                    testID="create-bot-bio"
-                    accessibilityLabel={copy.bio}
-                    value={draft.description}
-                    onChangeText={(description) => edit({ description })}
-                    multiline
-                    editable={!state.busy}
-                  />
-                  <TextField
-                    testID="create-bot-tags"
-                    accessibilityLabel={copy.tags}
-                    value={draft.tags}
-                    onChangeText={(tags) => edit({ tags })}
-                    editable={!state.busy}
-                  />
-                  <Text tone="muted">{copy.model}</Text>
-                </>
-              ) : null}
-              {last && state.transfer ? (
-                <Text accessibilityLiveRegion="polite">
-                  {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
-                </Text>
-              ) : null}
-            </>
-          ) : state.record.kind === 'submitted' ? (
-            <View style={{ gap: space.x5 }}>
-              <Text variant="title" strong>
-                {state.record.operation.input.displayName}
-              </Text>
-              {source ? (
-                <Text selectable>{source.kind === 'zip' ? source.fileName : source.gitUrl}</Text>
-              ) : null}
+              <Button
+                label={draft.source?.kind === 'zip' ? copy.chooseAnotherZip : copy.chooseZip}
+                testID="import-bot-zip-pick"
+                tone={draft.source?.kind === 'zip' ? 'secondary' : 'primary'}
+                disabled={state.busy}
+                onPress={() => void botCreation.beginZip()}
+              />
               {state.transfer ? (
                 <Text accessibilityLiveRegion="polite">
                   {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
                 </Text>
               ) : null}
-              <Text
-                selectable
-              >{`${copy.destination}: ${target ? hostName(target.hostId) : copy.targetUnavailable}`}</Text>
-              <Text tone="muted">
-                {state.record.mutationStarted ? copy.targetFixed : copy.beforeSend}
-              </Text>
-              {state.receipt || state.record.mutationStarted ? (
-                <Text accessibilityLiveRegion="polite">
-                  {state.busy
-                    ? importing
-                      ? copy.importing
-                      : copy.creating
-                    : state.receipt?.status === 'created'
-                      ? copy.completed
-                      : state.receipt
-                        ? copy.accepted
-                        : copy.uncertain}
-                </Text>
-              ) : null}
-              {source?.kind === 'zip' &&
-              (state.error === 'zip-file-missing' ||
-                state.error === 'zip-file-changed' ||
-                state.error === 'zip-file-read') ? (
+            </>
+          ) : null}
+          {step === 'identity' ? (
+            <CreationAvatar
+              avatar={draft.avatar}
+              name={draft.displayName.trim()}
+              imported={importing}
+              disabled={state.busy}
+              onChange={(avatar) => edit({ avatar })}
+            />
+          ) : null}
+          {step === 'identity' ? (
+            <TextField
+              testID="create-bot-name"
+              accessibilityLabel={copy.name}
+              value={draft.displayName}
+              onChangeText={(displayName) => edit({ displayName })}
+              editable={!state.busy}
+              maxLength={120}
+            />
+          ) : null}
+          {step === 'confirm' ? (
+            <View style={{ gap: space.x2 }}>
+              <Text strong>{copy.source}</Text>
+              <Text selectable>{gitSource?.gitUrl}</Text>
+              {gitSource?.listingId ? (
                 <Button
-                  label={copy.restoreZip}
-                  testID="import-bot-zip-restore"
+                  label={t.marketplace.refreshListing}
+                  testID="import-bot-refresh-listing"
                   disabled={state.busy}
-                  onPress={() => void botCreation.restoreZip()}
+                  onPress={() =>
+                    router.push({
+                      pathname: '/marketplace-bot',
+                      params: { id: gitSource.listingId!, entry: 'refresh' },
+                    })
+                  }
                 />
               ) : null}
-              {state.error === 'git-source-changed' ||
-              state.error === 'creation-identity-unavailable' ? (
-                <Text>{copy.previousKept}</Text>
-              ) : null}
-              {state.receipt?.status === 'created' ? (
-                <Button
-                  label={source ? copy.importAnother : copy.another}
-                  testID="create-bot-another"
-                  onPress={() => void botCreation.another(targetId)}
-                />
-              ) : null}
-              {!state.record.mutationStarted && !state.receipt && !state.busy ? (
-                <Button
-                  label={copy.edit}
-                  testID="create-bot-edit"
-                  onPress={() => void botCreation.editBeforeSend()}
-                />
-              ) : null}
+              <Text strong>{copy.destination}</Text>
+              <Text selectable>{hostName(draft.hostId)}</Text>
+              <Text strong>{copy.name}</Text>
+              <Text selectable>{draft.displayName}</Text>
             </View>
           ) : null}
-        </KeyboardFormScroll>
-      </View>
-      <View ref={slowMount}>
-        {bar ? (
-          <KeyboardFormFooter>
-            <StepBar {...bar} />
-          </KeyboardFormFooter>
-        ) : null}
-      </View>
-    </View>
+          {step === 'persona' && flow === 'blank' ? (
+            <TextField
+              testID="create-bot-persona"
+              accessibilityLabel={copy.persona}
+              placeholder={copy.personaHint}
+              value={draft.persona}
+              onChangeText={(persona) => edit({ persona })}
+              multiline
+              editable={!state.busy}
+            />
+          ) : null}
+          {step === 'persona' || step === 'confirm' ? (
+            <>
+              <TextField
+                testID="create-bot-bio"
+                accessibilityLabel={copy.bio}
+                value={draft.description}
+                onChangeText={(description) => edit({ description })}
+                multiline
+                editable={!state.busy}
+              />
+              <TextField
+                testID="create-bot-tags"
+                accessibilityLabel={copy.tags}
+                value={draft.tags}
+                onChangeText={(tags) => edit({ tags })}
+                editable={!state.busy}
+              />
+              <Text tone="muted">{copy.model}</Text>
+            </>
+          ) : null}
+          {last && state.transfer ? (
+            <Text accessibilityLiveRegion="polite">
+              {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+            </Text>
+          ) : null}
+        </>
+      ) : state.record.kind === 'submitted' ? (
+        <View style={{ gap: space.x5 }}>
+          <Text variant="title" strong>
+            {state.record.operation.input.displayName}
+          </Text>
+          {source ? (
+            <Text selectable>{source.kind === 'zip' ? source.fileName : source.gitUrl}</Text>
+          ) : null}
+          {state.transfer ? (
+            <Text accessibilityLiveRegion="polite">
+              {copy.zipProgress(state.transfer.bytes, state.transfer.total)}
+            </Text>
+          ) : null}
+          <Text
+            selectable
+          >{`${copy.destination}: ${target ? hostName(target.hostId) : copy.targetUnavailable}`}</Text>
+          <Text tone="muted">
+            {state.record.mutationStarted ? copy.targetFixed : copy.beforeSend}
+          </Text>
+          {state.receipt || state.record.mutationStarted ? (
+            <Text accessibilityLiveRegion="polite">
+              {state.busy
+                ? importing
+                  ? copy.importing
+                  : copy.creating
+                : state.receipt?.status === 'created'
+                  ? copy.completed
+                  : state.receipt
+                    ? copy.accepted
+                    : copy.uncertain}
+            </Text>
+          ) : null}
+          {source?.kind === 'zip' &&
+          (state.error === 'zip-file-missing' ||
+            state.error === 'zip-file-changed' ||
+            state.error === 'zip-file-read') ? (
+            <Button
+              label={copy.restoreZip}
+              testID="import-bot-zip-restore"
+              disabled={state.busy}
+              onPress={() => void botCreation.restoreZip()}
+            />
+          ) : null}
+          {state.error === 'git-source-changed' ||
+          state.error === 'creation-identity-unavailable' ? (
+            <Text>{copy.previousKept}</Text>
+          ) : null}
+          {state.receipt?.status === 'created' ? (
+            <Button
+              label={source ? copy.importAnother : copy.another}
+              testID="create-bot-another"
+              onPress={() => void botCreation.another(targetId)}
+            />
+          ) : null}
+          {!state.record.mutationStarted && !state.receipt && !state.busy ? (
+            <Button
+              label={copy.edit}
+              testID="create-bot-edit"
+              onPress={() => void botCreation.editBeforeSend()}
+            />
+          ) : null}
+        </View>
+      ) : null}
+    </KeyboardFormScroll>
   );
 }

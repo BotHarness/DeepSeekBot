@@ -12,6 +12,10 @@ vi.mock('react-native', async () => ({
     },
   },
   useWindowDimensions: () => ({ width: 390, height: 844, scale: 3, fontScale: device.scale }),
+  Dimensions: {
+    get: () => ({ width: 390, height: 844, scale: 3, fontScale: device.scale }),
+    addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+  },
   Text: ({
     style,
     allowFontScaling,

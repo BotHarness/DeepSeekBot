@@ -27,6 +27,7 @@ export function Button({
       matchContents={{ vertical: true }}
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
+      ignoreSafeAreaKeyboardInsets
     >
       <Control
         enabled={!disabled && !busy}
