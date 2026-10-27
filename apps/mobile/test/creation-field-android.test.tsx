@@ -24,11 +24,12 @@ vi.mock('@expo/ui/jetpack-compose', () => {
       children?: ReactNode;
     }) => {
       native.change = onValueChange;
-      return createElement('div', null, children);
+      return createElement('div', { 'data-field': true }, children);
     },
     { Label: Slot, Placeholder: Slot, SupportingText: Slot },
   );
   return {
+    Column: Slot,
     Host: Slot,
     Text: Slot,
     TextField: Field,
@@ -149,4 +150,24 @@ it('commits the native Enter buffer and clears it without replaying older compos
   expect(native.buffer).toBe('');
   expect(native.writes).toEqual(['']);
   expect(native.mounts).toBe(1);
+});
+
+it('retains the native editable view while the first and last chips change', async () => {
+  const draw = (hasChip: boolean) =>
+    act(() =>
+      root.render(
+        <CreationField
+          value="Pending"
+          onSubmitValue={() => {}}
+          leadingContent={hasChip ? <button>Tag</button> : null}
+        />,
+      ),
+    );
+  await draw(false);
+  const field = container.querySelector('[data-field]');
+  await draw(true);
+  expect(container.querySelector('[data-field]')).toBe(field);
+  await draw(false);
+  expect(container.querySelector('[data-field]')).toBe(field);
+  expect(native.buffer).toBe('Pending');
 });

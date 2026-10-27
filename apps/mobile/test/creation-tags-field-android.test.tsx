@@ -50,15 +50,22 @@ vi.mock('../src/ui/primitives/creation-field', () => ({
     onChangeText,
     onSubmitValue,
     editable,
+    leadingContent,
   }: {
     value: string;
     onChangeText(text: string): void;
     onSubmitValue(text: string): void;
     editable: boolean;
+    leadingContent?: ReactNode;
   }) => {
     native.change = onChangeText;
     native.enter = onSubmitValue;
-    return <input value={value} readOnly disabled={!editable} />;
+    return (
+      <>
+        {leadingContent}
+        <input value={value} readOnly disabled={!editable} />
+      </>
+    );
   },
 }));
 vi.mock('../src/ui/design/theme', async () => {

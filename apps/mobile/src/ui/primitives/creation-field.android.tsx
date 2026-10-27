@@ -1,8 +1,9 @@
-import { Host, Text, TextField, useNativeState } from '@expo/ui/jetpack-compose';
+import { Column, Host, Text, TextField, useNativeState } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
 import { useContext, useLayoutEffect, useRef, type ComponentProps } from 'react';
 import { View, type ViewInstance } from 'react-native';
 import { useDesignTheme } from '../design/theme';
+import { space } from '../design/tokens';
 import type { CreationField as SharedCreationField } from './creation-field';
 import { KeyboardFormNativeFocus } from './keyboard-form-context';
 
@@ -21,6 +22,7 @@ export function CreationField({
   invalid,
   onSubmitValue,
   supportingText,
+  leadingContent,
 }: ComponentProps<typeof SharedCreationField>) {
   const theme = useDesignTheme();
   const focus = useContext(KeyboardFormNativeFocus);
@@ -33,6 +35,71 @@ export function CreationField({
     if (echoed >= 0) pendingEchoes.current.splice(0, echoed + 1);
     else if (text.get() !== value) text.set(value);
   }, [text, value]);
+  const field = (
+    <TextField
+      onFocusChanged={(next) => {
+        focused.current = next;
+        if (wrapper.current) focus?.(wrapper.current, next);
+      }}
+      value={text}
+      onValueChange={(next) => {
+        if (onSubmitValue && /[\r\n]/u.test(next)) {
+          pendingEchoes.current.push('');
+          text.set('');
+          onSubmitValue(next);
+          return;
+        }
+        pendingEchoes.current.push(next);
+        onChangeText?.(next);
+      }}
+      enabled={editable !== false}
+      singleLine={!multiline && !onSubmitValue}
+      minLines={multiline ? 3 : 1}
+      {...(onSubmitValue ? { maxLines: 1 } : {})}
+      {...(maxLength === undefined ? {} : { maxLength })}
+      isError={invalid ?? false}
+      keyboardOptions={{
+        capitalization: autoCapitalize ?? 'sentences',
+        autoCorrectEnabled: autoCorrect ?? true,
+        keyboardType: keyboardType === 'url' ? 'uri' : 'text',
+        ...(onSubmitValue ? { imeAction: 'none' as const } : {}),
+      }}
+      colors={{
+        focusedContainerColor: theme.layer.field.fill,
+        unfocusedContainerColor: theme.layer.field.fill,
+        disabledContainerColor: theme.layer.field.fill,
+        focusedTextColor: theme.color.fg,
+        unfocusedTextColor: theme.color.fg,
+        focusedLabelColor: theme.color.accent,
+        unfocusedLabelColor: theme.color.muted,
+        focusedIndicatorColor: theme.color.accent,
+        unfocusedIndicatorColor: theme.color.borderField,
+        focusedSupportingTextColor: theme.color.muted,
+        unfocusedSupportingTextColor: theme.color.muted,
+      }}
+      modifiers={[
+        fillMaxWidth(),
+        ...(id ? [testID(id)] : []),
+        ...(accessibilityLabel ? [semantics({ contentDescription: accessibilityLabel })] : []),
+      ]}
+    >
+      {accessibilityLabel ? (
+        <TextField.Label>
+          <Text>{accessibilityLabel}</Text>
+        </TextField.Label>
+      ) : null}
+      {placeholder ? (
+        <TextField.Placeholder>
+          <Text>{placeholder}</Text>
+        </TextField.Placeholder>
+      ) : null}
+      {supportingText ? (
+        <TextField.SupportingText>
+          <Text>{supportingText}</Text>
+        </TextField.SupportingText>
+      ) : null}
+    </TextField>
+  );
   return (
     <View
       ref={wrapper}
@@ -46,69 +113,14 @@ export function CreationField({
         seedColor={theme.color.accent}
         ignoreSafeAreaKeyboardInsets
       >
-        <TextField
-          onFocusChanged={(next) => {
-            focused.current = next;
-            if (wrapper.current) focus?.(wrapper.current, next);
-          }}
-          value={text}
-          onValueChange={(next) => {
-            if (onSubmitValue && /[\r\n]/u.test(next)) {
-              pendingEchoes.current.push('');
-              text.set('');
-              onSubmitValue(next);
-              return;
-            }
-            pendingEchoes.current.push(next);
-            onChangeText?.(next);
-          }}
-          enabled={editable !== false}
-          singleLine={!multiline && !onSubmitValue}
-          minLines={multiline ? 3 : 1}
-          {...(onSubmitValue ? { maxLines: 1 } : {})}
-          {...(maxLength === undefined ? {} : { maxLength })}
-          isError={invalid ?? false}
-          keyboardOptions={{
-            capitalization: autoCapitalize ?? 'sentences',
-            autoCorrectEnabled: autoCorrect ?? true,
-            keyboardType: keyboardType === 'url' ? 'uri' : 'text',
-            ...(onSubmitValue ? { imeAction: 'none' as const } : {}),
-          }}
-          colors={{
-            focusedContainerColor: theme.layer.field.fill,
-            unfocusedContainerColor: theme.layer.field.fill,
-            disabledContainerColor: theme.layer.field.fill,
-            focusedTextColor: theme.color.fg,
-            unfocusedTextColor: theme.color.fg,
-            focusedLabelColor: theme.color.accent,
-            unfocusedLabelColor: theme.color.muted,
-            focusedIndicatorColor: theme.color.accent,
-            unfocusedIndicatorColor: theme.color.borderField,
-            focusedSupportingTextColor: theme.color.muted,
-            unfocusedSupportingTextColor: theme.color.muted,
-          }}
-          modifiers={[
-            fillMaxWidth(),
-            ...(id ? [testID(id)] : []),
-            ...(accessibilityLabel ? [semantics({ contentDescription: accessibilityLabel })] : []),
-          ]}
-        >
-          {accessibilityLabel ? (
-            <TextField.Label>
-              <Text>{accessibilityLabel}</Text>
-            </TextField.Label>
-          ) : null}
-          {placeholder ? (
-            <TextField.Placeholder>
-              <Text>{placeholder}</Text>
-            </TextField.Placeholder>
-          ) : null}
-          {supportingText ? (
-            <TextField.SupportingText>
-              <Text>{supportingText}</Text>
-            </TextField.SupportingText>
-          ) : null}
-        </TextField>
+        {onSubmitValue ? (
+          <Column verticalArrangement={{ spacedBy: space.x2 }} modifiers={[fillMaxWidth()]}>
+            {leadingContent}
+            {field}
+          </Column>
+        ) : (
+          field
+        )}
       </Host>
     </View>
   );

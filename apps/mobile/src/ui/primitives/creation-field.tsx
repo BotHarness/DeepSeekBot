@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 import { space } from '../design/tokens';
 import { TextField } from './text-field';
@@ -8,9 +8,15 @@ import { Text } from './text';
 export type CreationFieldProps = ComponentProps<typeof TextField> & {
   onSubmitValue?(value: string): void;
   supportingText?: string;
+  leadingContent?: ReactNode;
 };
 
-export function CreationField({ onSubmitValue, supportingText, ...props }: CreationFieldProps) {
+export function CreationField({
+  onSubmitValue,
+  supportingText,
+  leadingContent,
+  ...props
+}: CreationFieldProps) {
   const field = (
     <TextField
       {...props}
@@ -25,6 +31,7 @@ export function CreationField({ onSubmitValue, supportingText, ...props }: Creat
   if (Platform.OS !== 'android')
     return (
       <View style={{ gap: space.x2 }}>
+        {leadingContent}
         {props.accessibilityLabel ? <Text strong>{props.accessibilityLabel}</Text> : null}
         {field}
         {supportingText ? (
