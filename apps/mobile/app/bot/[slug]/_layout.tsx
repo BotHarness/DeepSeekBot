@@ -20,6 +20,7 @@ export default function BotProfileLayout() {
         <Stack.Screen name="memory" />
         <Stack.Screen name="activity" />
         <Stack.Screen name="routine/[id]" />
+        <Stack.Screen name="assignment/[id]" />
         <Stack.Screen name="routine-new" />
         <Stack.Screen name="routine-edit/[id]" />
         <Stack.Screen name="model" />

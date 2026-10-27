@@ -163,6 +163,12 @@ import {
   AssignmentReplyTargetError,
   type HumanAssignmentContext,
 } from '../runtime/assignment-human-context.js';
+import {
+  summarizeAssignmentTimeline,
+  TIMELINE_SUBAGENTS,
+  type AssignmentTimelineLane,
+  type PublicToolCall,
+} from '../runtime/assignment-timeline.js';
 import { createMessageAttachmentFiles } from '../attachments/message-files.js';
 import { attachmentIntent } from '../attachments/ref.js';
 import type { AttachmentStore } from '../attachments/store.js';
@@ -756,6 +762,13 @@ export interface BridgeMethods {
   assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
   channelAssignments(payload: unknown): BridgeResult<{ assignments: ChannelAssignmentSummary[] }>;
   assignment(payload: unknown): BridgeResult<{ assignment: AssignmentDetail }>;
+  assignmentTimeline(payload: unknown): Promise<
+    BridgeResult<{
+      assignment: AssignmentDetail;
+      lanes: AssignmentTimelineLane[];
+      omittedSubagents: number;
+    }>
+  >;
   workspaceOptions(
     payload: unknown,
   ): BridgeResult<{ workspaces: { id: string; path: string; title: string }[] }>;
@@ -1059,6 +1072,7 @@ export interface BridgeMethodsDeps {
   memory?: MemoryService;
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
+  describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -6136,6 +6150,40 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const assignment = deps.runtime?.getAssignment(slug, sessionId);
       if (assignment === undefined) return unknownAssignment(sessionId);
       return { ok: true, value: { assignment } };
+    },
+    async assignmentTimeline(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const assignment = deps.runtime?.getAssignment(slug, sessionId);
+      if (assignment === undefined) return unknownAssignment(sessionId);
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const sessionOf = async (id: string) => ({
+        sessionId: id,
+        events: (await read(id))?.events ?? [],
+      });
+      const subagents = deps.ownership
+        .descendantsOf(sessionId)
+        .filter((record) => record.botSlug === slug && record.provenance === 'subagent');
+      const [main, ...children] = await Promise.all([
+        sessionOf(sessionId),
+        ...subagents.slice(-TIMELINE_SUBAGENTS).map((record) => sessionOf(record.sessionId)),
+      ]);
+      const timeline = summarizeAssignmentTimeline({
+        main: main!,
+        subagents: [
+          ...subagents
+            .slice(0, Math.max(0, subagents.length - TIMELINE_SUBAGENTS))
+            .map((record) => ({ sessionId: record.sessionId, events: [] })),
+          ...children,
+        ],
+        describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
+      });
+      return { ok: true, value: { assignment, ...timeline } };
     },
     workspaceOptions() {
       try {

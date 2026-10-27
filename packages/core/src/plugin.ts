@@ -269,7 +269,7 @@ import {
 } from './state/bot-state.js';
 import { ActivityToolDetails, createToolDetailIndex } from './state/tool-details.js';
 import { createDshActivityProjection } from './state/dsh-activity.js';
-import { readPublicToolDetail } from './state/tool-activity.js';
+import { readPublicToolDetail, toolKindForView } from './state/tool-activity.js';
 import { createUsageProjection, type UsageProjection } from './usage/usage.js';
 import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
 import {
@@ -459,6 +459,26 @@ export interface BotHarnessCore {
   cloudWork?: CloudWork;
   toolRules: ToolApprovalRuleStore;
   assignmentAccess: AssignmentAccessStore;
+}
+
+function describeToolCall(
+  ctx: Context,
+  sessionId: string,
+  name: string,
+  args: unknown,
+  unscoped = false,
+) {
+  const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
+  if (agent === undefined && !unscoped) return undefined;
+  const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);
+  if (definition === undefined) return undefined;
+  const view = definition.presentCall?.(args);
+  const publicDetail = readPublicToolDetail(definition, args);
+  return {
+    name: definition.name,
+    ...(view === undefined ? {} : { view }),
+    ...(publicDetail === undefined ? {} : { publicDetail }),
+  };
 }
 
 function reviewerRejectionText(reason: string): string {
@@ -2507,6 +2527,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ownership: core.ownership,
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
+    describeToolCall: (sessionId, name, args) => {
+      const call = describeToolCall(ctx, sessionId, name, args, true);
+      if (call === undefined) return undefined;
+      return {
+        kind: toolKindForView(call.view),
+        ...(call.publicDetail === undefined ? {} : { detail: call.publicDetail }),
+      };
+    },
     readUsageSessionLog: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
         | {
@@ -2995,19 +3023,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ctx.agents
         .list()
         .some((agent) => agent.session.id === sessionId && agent.status === 'running'),
-    describeCall: (sessionId, name, args) => {
-      const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
-      if (agent === undefined) return undefined;
-      const definition = ctx.tools.get(name, agent);
-      if (definition === undefined) return undefined;
-      const view = definition.presentCall?.(args);
-      const publicDetail = readPublicToolDetail(definition, args);
-      return {
-        name: definition.name,
-        ...(view === undefined ? {} : { view }),
-        ...(publicDetail === undefined ? {} : { publicDetail }),
-      };
-    },
+    describeCall: (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
   });
   ctx.effect(() =>
     core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),

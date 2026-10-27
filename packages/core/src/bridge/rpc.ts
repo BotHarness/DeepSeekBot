@@ -6,6 +6,7 @@ import type { BotCreationReceipt } from '../bots/creation.js';
 import type { BotZipUploadStatus } from '../bots/zip-upload.js';
 import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
+import type { AssignmentTimelineLane } from '../runtime/assignment-timeline.js';
 import type { PartLibraryEntry } from '../bots/part-library.js';
 import type { OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { HttpsFallback } from '../memory/clone.js';
@@ -1701,6 +1702,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.assignment({ slug, sessionId }));
   }
 
+  assignmentTimeline(
+    slug: string,
+    sessionId: string,
+  ): Promise<{
+    assignment: AssignmentDetail;
+    lanes: AssignmentTimelineLane[];
+    omittedSubagents: number;
+  }> {
+    return unwrapAsync(this.methods.assignmentTimeline({ slug, sessionId }));
+  }
+
   workspaceOptions(): { workspaces: { id: string; path: string; title: string }[] } {
     return unwrap(this.methods.workspaceOptions({}));
   }
@@ -2335,6 +2347,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignments',
   'channelAssignments',
   'assignment',
+  'assignmentTimeline',
   'workspaceOptions',
   'messageAttachmentTarget',
   'channelMediaTarget',
