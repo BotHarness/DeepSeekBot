@@ -58,6 +58,10 @@ export const INBOX_COMMANDS = [
     description: "list or search a Bot's Assignments with their Title and Description",
   },
   { command: 'assignment', description: "inspect one of a Bot's Assignments" },
+  {
+    command: 'assignment-timeline',
+    description: "read an Assignment's MAIN and SUBAGENT timeline (public summaries only)",
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -384,6 +388,13 @@ function prepare(
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
       return {
         method: 'assignment',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'assignment-timeline': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'assignmentTimeline',
         args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }

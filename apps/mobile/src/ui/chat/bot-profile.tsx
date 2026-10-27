@@ -15,7 +15,7 @@ import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
 import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { edge, profileShell, radius, space } from '../design/tokens';
+import { edge, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
 import { useFocusEffect } from 'expo-router';
 import { Text } from '../primitives/text';
@@ -34,6 +34,7 @@ import {
 } from '../shell/icons';
 import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
+import { AssignmentActivityIcon } from './assignment-marks';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
 import {
@@ -89,6 +90,7 @@ export interface BotProfileActions {
   onNotifications(): void;
   onOpenMemory(entry: MemoryEntry): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
+  onOpenAssignment?(assignment: ProfileAssignment): void;
   onNewRoutine?(): void;
   routines?: RoutineChanges;
   onOpenActivity(): void;
@@ -422,31 +424,50 @@ function ProfileRow({
       minute: '2-digit',
     });
     const state = t.profileAssignmentState[assignment.activity];
+    const description = assignment.description?.trim() ?? '';
+    const open = actions.onOpenAssignment;
     return (
-      <View
+      <Pressable
         testID={`profile-assignment-${assignment.sessionId}`}
-        accessible
-        accessibilityLabel={[assignment.title, state, time].join(', ')}
-        style={[shape, { gap: space.x1 }]}
+        accessibilityRole={open === undefined ? undefined : 'button'}
+        accessibilityLabel={[assignment.title, state, description, time]
+          .filter((part) => part !== '')
+          .join(', ')}
+        accessibilityHint={
+          open === undefined ? undefined : t.profileAssignmentOpen(assignment.title)
+        }
+        disabled={open === undefined}
+        onPress={() => open?.(assignment)}
+        style={({ pressed }) => [
+          shape,
+          {
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: space.x3,
+            minHeight: theme.touch,
+            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+          },
+        ]}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-          <Text numberOfLines={2} style={{ flex: 1 }}>
-            {assignment.title}
-          </Text>
-          <Text variant="meta" tone="muted">
-            {time}
-          </Text>
+        <View style={{ paddingTop: (theme.type.body.line - rowGlyph.size) / 2 }}>
+          <AssignmentActivityIcon activity={assignment.activity} size={rowGlyph.size} />
         </View>
-        <Text
-          variant="meta"
-          tone={assignment.activity === 'error' ? 'danger' : 'muted'}
-          numberOfLines={2}
-        >
-          {assignment.latestReport === undefined
-            ? state
-            : `${state} · ${assignment.latestReport.summary}`}
-        </Text>
-      </View>
+        <View style={{ flex: 1, gap: space.x1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
+            <Text numberOfLines={2} style={{ flex: 1 }}>
+              {assignment.title}
+            </Text>
+            <Text variant="meta" tone="muted">
+              {time}
+            </Text>
+          </View>
+          {description === '' ? null : (
+            <Text variant="meta" tone="muted" numberOfLines={2}>
+              {description}
+            </Text>
+          )}
+        </View>
+      </Pressable>
     );
   }
   if (row.kind === 'routine-group')

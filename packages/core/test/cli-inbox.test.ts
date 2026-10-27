@@ -316,11 +316,13 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       live.url,
     );
     await invoke(['assignment', 'ada', '--session', 'sess-1'], live.url);
+    await invoke(['assignment-timeline', 'ada', '--session', 'sess-1'], live.url);
     for (const argv of [
       ['assignments'],
       ['assignments', 'ada', '--activity', 'busy'],
       ['assignments', 'ada', '--limit', '0'],
       ['assignment', 'ada'],
+      ['assignment-timeline', 'ada'],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
     expect(live.calls).toEqual([
@@ -337,6 +339,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
         },
       },
       { method: 'assignment', args: { slug: 'ada', sessionId: 'sess-1' } },
+      { method: 'assignmentTimeline', args: { slug: 'ada', sessionId: 'sess-1' } },
     ]);
   });
 

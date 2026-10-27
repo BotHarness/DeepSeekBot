@@ -740,6 +740,7 @@ describe('bridge typert service', () => {
       'assignments',
       'channelAssignments',
       'assignment',
+      'assignmentTimeline',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',

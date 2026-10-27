@@ -116,6 +116,7 @@ const assignments = [
   {
     sessionId: 'assignment-1',
     title: 'Summarise the week of papers',
+    description: 'Read this week’s papers and send a short digest.',
     activity: 'working' as const,
     latestReport: {
       state: 'progress' as const,
@@ -300,20 +301,28 @@ describe('Bot profile page', () => {
     ).toBe('true');
   });
 
-  it('lists the Bot’s Assignments under the day of their last activity', async () => {
+  it('lists the Bot’s Assignments by Title and Description under the day of their last activity', async () => {
+    const onOpenAssignment = vi.fn();
     const view = await render(
       <BotProfileSheet
         bot={bot}
         channels={[]}
         load={async () => full}
-        actions={actions()}
+        actions={{ ...actions(), onOpenAssignment }}
         avatar={avatarNone}
       />,
     );
     const text = view.textContent ?? '';
     expect(text).toContain(t.usageToday);
     expect(text).toContain('Summarise the week of papers');
-    expect(text).toContain(`${t.profileAssignmentState.working} · Read 3 of 5`);
+    expect(text).toContain('Read this week’s papers and send a short digest.');
+    expect(text).not.toContain('Read 3 of 5');
+    const row = view.querySelector<HTMLButtonElement>(
+      '[data-testid="profile-assignment-assignment-1"]',
+    )!;
+    expect(row.getAttribute('aria-label')).toContain(t.profileAssignmentState.working);
+    await act(async () => row.click());
+    expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
   });
 
   it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {

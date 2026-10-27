@@ -333,6 +333,105 @@ describe('bridge methods', () => {
     expect((await methods.botToolTrace({ slug: 'nobody' })).ok).toBe(false);
     expect(read).toHaveBeenCalledTimes(1);
   });
+  it("reads an Assignment's MAIN and SUBAGENT timeline without raw tool input", async () => {
+    const ownership = createTestOwnership({ 'asg-1': { botSlug: 'ada' } });
+    ownership.claim({
+      sessionId: 'sub-1',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      provenance: 'subagent',
+      parentSessionId: 'asg-1',
+      at: '2026-09-19T00:00:01.000Z',
+    });
+    ownership.claim({
+      sessionId: 'fork-1',
+      botSlug: 'ada',
+      rootRole: 'assignment',
+      provenance: 'fork',
+      parentSessionId: 'asg-1',
+      at: '2026-09-19T00:00:02.000Z',
+    });
+    const read = vi.fn(async (sessionId: string) => ({
+      events: [
+        {
+          type: 'tool/call',
+          seq: 1,
+          time: 1,
+          data: {
+            turn: 1,
+            callId: `${sessionId}-c1`,
+            name: 'bash',
+            arguments: '{"command":"cat ~/.ssh/id_rsa"}',
+          },
+        },
+      ],
+      inheritedEventCount: 0,
+    }));
+    const assignment = {
+      sessionId: 'asg-1',
+      botSlug: 'ada',
+      sourceEventId: 'source-1',
+      title: 'Check the release',
+      description: 'Check that the release is live.',
+      activity: 'working' as const,
+      createdAt: '2026-09-19T00:00:00.000Z',
+      updatedAt: '2026-09-19T00:00:01.000Z',
+    };
+    const { registry, methods } = setup(
+      [],
+      ['ada'],
+      () =>
+        ({
+          getAssignment: (_slug: string, sessionId: string) =>
+            sessionId === 'asg-1' ? assignment : undefined,
+          whenIdle: async () => undefined,
+          close: async () => undefined,
+        }) as unknown as BotRuntime,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      read,
+    );
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const result = await methods.assignmentTimeline({ slug: 'ada', sessionId: 'asg-1' });
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        assignment,
+        omittedSubagents: 0,
+        lanes: [
+          {
+            role: 'main',
+            index: 0,
+            sessionId: 'asg-1',
+            omitted: 0,
+            entries: [
+              { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
+            ],
+          },
+          {
+            role: 'subagent',
+            index: 1,
+            sessionId: 'sub-1',
+            omitted: 0,
+            entries: [
+              { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
+            ],
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('id_rsa');
+    expect(read.mock.calls.map(([id]) => id)).toEqual(['asg-1', 'sub-1']);
+    expect((await methods.assignmentTimeline({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
+    expect((await methods.assignmentTimeline({ slug: 'ada' })).ok).toBe(false);
+    expect((await methods.assignmentTimeline({ slug: 'nobody', sessionId: 'asg-1' })).ok).toBe(
+      false,
+    );
+  });
   it("reads a Bot's recent turn input from its own Session log only", async () => {
     const ownership = createTestOwnership({
       'session-ada': { botSlug: 'ada', rootRole: 'orchestrator' },

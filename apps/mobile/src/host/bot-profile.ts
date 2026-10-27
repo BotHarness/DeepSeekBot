@@ -29,6 +29,7 @@ export interface ProfileBotRef {
 export interface ProfileAssignment {
   sessionId: string;
   title: string;
+  description?: string;
   activity: 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
   latestReport?: {
     state: 'progress' | 'completed' | 'blocked' | 'waiting-human' | 'failed';

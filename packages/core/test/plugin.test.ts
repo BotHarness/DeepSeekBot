@@ -689,6 +689,7 @@ describe('plugin entry', () => {
       'assignments',
       'channelAssignments',
       'assignment',
+      'assignmentTimeline',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',

@@ -115,6 +115,11 @@ export default function BotProfileScreen() {
             pathname: '/bot/[slug]/routine/[id]',
             params: { slug: bot.slug, id: routine.id },
           }),
+        onOpenAssignment: (assignment) =>
+          router.push({
+            pathname: '/bot/[slug]/assignment/[id]',
+            params: { slug: bot.slug, id: assignment.sessionId },
+          }),
         onNewRoutine: () =>
           router.push({
             pathname: '/bot/[slug]/routine-new',
