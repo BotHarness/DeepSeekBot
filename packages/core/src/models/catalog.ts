@@ -15,7 +15,11 @@ export interface ModelCatalogEntry {
 
 export interface ModelCatalog {
   list(): Promise<ModelCatalogEntry[]>;
-  validate(route: ModelRoute): Promise<void>;
+  /**
+   * `recheck` ignores credential failures observed on earlier Turns, so a Turn re-checks a
+   * credential the Human may have fixed outside DSH instead of being refused by the cache.
+   */
+  validate(route: ModelRoute, options?: { recheck?: boolean }): Promise<void>;
   defaultRoute?(): ModelRoute | undefined;
 }
 
@@ -60,14 +64,14 @@ export function createModelCatalog(
       );
       return groups.flat();
     },
-    async validate(route) {
+    async validate(route, validation = {}) {
       if (route.provider.trim() !== route.provider || route.model.trim() !== route.model) {
         throw new Error('Invalid model route');
       }
       const provider = llm.listProviders().find((candidate) => candidate.id === route.provider);
       if (provider === undefined) throw new Error(`Provider ${route.provider} is unavailable`);
       const credential =
-        options.credentials?.failure(route.provider) ??
+        (validation.recheck === true ? undefined : options.credentials?.failure(route.provider)) ??
         (await options.credentialFailure?.(route.provider));
       if (credential !== undefined) {
         throw new Error(

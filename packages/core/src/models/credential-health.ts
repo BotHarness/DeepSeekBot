@@ -11,14 +11,28 @@ const failureOf: Readonly<Record<string, ProviderCredentialFailure>> = {
   INVALID_CREDENTIAL: 'invalid',
 };
 
-export function createProviderCredentialHealth(): ProviderCredentialHealth {
-  const failures = new Map<string, ProviderCredentialFailure>();
+// A fix made outside DSH (environment, external secret store, provider console) raises no
+// DSH event, so an observed failure only stands for a short while before it is re-checked.
+export const CREDENTIAL_FAILURE_TTL_MS = 60_000;
+
+export function createProviderCredentialHealth(
+  options: { now?: () => number; ttlMs?: number } = {},
+): ProviderCredentialHealth {
+  const now = options.now ?? Date.now;
+  const ttlMs = options.ttlMs ?? CREDENTIAL_FAILURE_TTL_MS;
+  const failures = new Map<string, { failure: ProviderCredentialFailure; at: number }>();
   return {
     observe(provider, code) {
       const failure = failureOf[code];
-      if (failure !== undefined) failures.set(provider, failure);
+      if (failure !== undefined) failures.set(provider, { failure, at: now() });
     },
-    failure: (provider) => failures.get(provider),
+    failure(provider) {
+      const entry = failures.get(provider);
+      if (entry === undefined) return undefined;
+      if (now() - entry.at < ttlMs) return entry.failure;
+      failures.delete(provider);
+      return undefined;
+    },
     reset: () => failures.clear(),
   };
 }

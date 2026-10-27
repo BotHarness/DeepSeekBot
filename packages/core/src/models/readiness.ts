@@ -83,7 +83,7 @@ export function createModelRouteReadiness(
       const route = role === 'assignment' ? retainedRoute : state.plan?.orchestrator;
       if (route === undefined) return;
       try {
-        await catalog.validate(route);
+        await catalog.validate(route, { recheck: true });
       } catch (failure) {
         throw new Error(repairMessage(route, failure), { cause: failure });
       }
