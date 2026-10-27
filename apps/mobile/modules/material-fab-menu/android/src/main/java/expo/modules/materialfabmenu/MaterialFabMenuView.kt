@@ -117,7 +117,7 @@ class MaterialFabMenuView(context: Context, appContext: AppContext) : ExpoView(c
                     placeable.height,
                     inset,
                   )
-                  placeable.place(at.x, at.y)
+                  placeable.placeRelative(at.x, at.y)
                 }
               },
               button = {
