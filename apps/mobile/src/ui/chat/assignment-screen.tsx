@@ -309,14 +309,19 @@ export function AssignmentScreenBody({
 export function AssignmentScreen() {
   const t = useStrings();
   const theme = useDesignTheme();
-  const { slug, id } = useLocalSearchParams<{ slug: string; id: string }>();
+  const { slug, id, session } = useLocalSearchParams<{
+    slug: string;
+    id: string;
+    session?: string;
+  }>();
+  const sessionId = session ?? id;
   const { client } = useHostSession();
   return (
     <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
-      {client === undefined || slug === undefined || id === undefined ? (
+      {client === undefined || slug === undefined || sessionId === undefined ? (
         <SheetNote>{t.noBot}</SheetNote>
       ) : (
-        <AssignmentScreenBody client={client} slug={slug} sessionId={id} />
+        <AssignmentScreenBody client={client} slug={slug} sessionId={sessionId} />
       )}
     </View>
   );

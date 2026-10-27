@@ -1,19 +1,19 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
-import { groupActions, groupInfo } from '../../../src/host/group-channel';
+import { groupActions, groupInfo, loadGroupAssignments } from '../../../src/host/group-channel';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
-import { SettingsRow, SettingsSection } from '../../../src/ui/primitives/settings-row';
-import { ChannelFilesAction } from '../../../src/ui/chat/channel-files-action';
-import { GroupInfoSheet } from '../../../src/ui/chat/group-info';
+import { ChannelFilesTab } from '../../../src/ui/chat/channel-files-tab';
+import { GroupProfilePage } from '../../../src/ui/chat/group-info';
+import { profileTabMemory } from '../../../src/ui/chat/native-profile-tab-memory';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
 import { useStrings } from '../../../src/ui/strings';
 
-export default function GroupInfoScreen() {
+export default function GroupProfileScreen() {
   const t = useStrings();
   const { id, hostId } = useLocalSearchParams<{ id: string; hostId?: string }>();
   const router = useRouter();
@@ -24,6 +24,7 @@ export default function GroupInfoScreen() {
   const sourceChanged = (hostId ?? openedOn) !== saved?.hostId;
   const snapshot = useHostSnapshot(sourceChanged ? undefined : client);
   const roster = snapshot.roster;
+  const refused = snapshot.connection.status === 'refused';
   const info = useMemo(
     () => (sourceChanged ? undefined : groupInfo(roster, id ?? '')),
     [sourceChanged, roster, id],
@@ -35,10 +36,17 @@ export default function GroupInfoScreen() {
         : groupActions(client, id),
     [sourceChanged, client, id],
   );
+  const loadWork = useCallback(
+    () =>
+      client === undefined || id === undefined
+        ? Promise.resolve([])
+        : loadGroupAssignments(client, id),
+    [client, id],
+  );
 
-  if (sourceChanged || info === undefined || actions === undefined)
+  if (sourceChanged || info === undefined || actions === undefined || client === undefined)
     return (
-      <View style={{ flex: 1, padding: space.x6, backgroundColor: theme.color.surface }}>
+      <View style={{ flex: 1, padding: space.x6, backgroundColor: theme.overlay.fill }}>
         {sourceChanged ? (
           <Text tone="muted">{t.sourceChanged}</Text>
         ) : roster === undefined ? null : (
@@ -47,48 +55,48 @@ export default function GroupInfoScreen() {
       </View>
     );
 
+  const params = { id: info.channel.id, hostId: saved?.hostId };
   return (
-    <GroupInfoSheet
+    <GroupProfilePage
+      key={`${saved?.hostId}:${info.channel.id}`}
       info={info}
-      background={
-        saved && id ? (
-          <>
-            {snapshot.connection.status !== 'refused' ? (
-              <ChannelFilesAction hostId={saved.hostId} channelId={id} />
-            ) : null}
-            <SettingsSection>
-              <SettingsRow
-                title={t.chatBackground.title}
-                disclosure
-                onPress={() =>
-                  router.push({
-                    pathname: '/group/[id]/chat-background',
-                    params: { id, hostId: saved.hostId, channelId: id },
-                  })
-                }
-              />
-            </SettingsSection>
-            <SettingsSection>
-              <SettingsRow
-                title={t.notifications}
-                disclosure
-                onPress={() =>
-                  router.push({
-                    pathname: '/group/[id]/notifications',
-                    params: { id, hostId: saved.hostId },
-                  })
-                }
-              />
-            </SettingsSection>
-          </>
-        ) : null
-      }
       actions={actions}
+      tabMemory={profileTabMemory}
       pickAvatar={pickAvatarImage}
+      onClose={() => router.back()}
       onOpenBot={(slug) =>
         router.push({ pathname: '/bot/[slug]', params: { slug, hostId: saved?.hostId } })
       }
       onDisbanded={() => router.dismissAll()}
+      {...(refused ? {} : { loadWork })}
+      onOpenAssignment={(assignment) => {
+        if (assignment.botSlug === undefined) return;
+        router.push({
+          pathname: '/group/[id]/assignment/[session]',
+          params: { ...params, slug: assignment.botSlug, session: assignment.sessionId },
+        });
+      }}
+      onChatBackground={() =>
+        router.push({
+          pathname: '/group/[id]/chat-background',
+          params: { ...params, channelId: info.channel.id },
+        })
+      }
+      onNotifications={() => router.push({ pathname: '/group/[id]/notifications', params })}
+      files={
+        saved && !refused
+          ? (active, render) => (
+              <ChannelFilesTab
+                client={client}
+                hostId={saved.hostId}
+                channelId={info.channel.id}
+                active={active}
+              >
+                {render}
+              </ChannelFilesTab>
+            )
+          : undefined
+      }
     />
   );
 }

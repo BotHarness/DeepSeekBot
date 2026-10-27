@@ -107,7 +107,7 @@ function RootNavigator() {
                   name="group/[id]"
                   options={{
                     title: t.groupInfo,
-                    ...sheetScreenOptions(design, Platform.OS === 'android'),
+                    ...profileScreenOptions(design, reducedMotion),
                   }}
                 />
                 <Stack.Screen

@@ -28,6 +28,7 @@ export interface ProfileBotRef {
 
 export interface ProfileAssignment {
   sessionId: string;
+  botSlug?: string;
   title: string;
   description?: string;
   activity: 'working' | 'idle' | 'error' | 'stopping' | 'stopped';

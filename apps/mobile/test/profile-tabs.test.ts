@@ -10,8 +10,9 @@ import {
 } from '../src/ui/chat/profile-tabs';
 
 describe('profile tabs', () => {
-  it('gives a Bot five tabs and a Bot-to-Bot DM only its files', () => {
+  it('gives a Bot five tabs, a Group four and a Bot-to-Bot DM only its files', () => {
     expect(profileTabs('bot')).toEqual(['work', 'memory', 'files', 'routines', 'settings']);
+    expect(profileTabs('group')).toEqual(['members', 'files', 'work', 'settings']);
     expect(profileTabs('bot-pair')).toEqual(['files']);
   });
 
@@ -22,6 +23,8 @@ describe('profile tabs', () => {
     expect(openingTab(tabs, 'overview')).toBe('work');
     expect(openingTab(tabs, 3)).toBe('work');
     expect(openingTab(profileTabs('bot-pair'), 'memory')).toBe('files');
+    expect(openingTab(profileTabs('group'), 'routines')).toBe('members');
+    expect(openingTab(profileTabs('bot'), 'members')).toBe('work');
   });
 
   it('swipes to the neighbouring tab and stops at either end', () => {
@@ -52,6 +55,20 @@ describe('profile tab memory', () => {
     expect(write).toHaveBeenLastCalledWith({ bot: 'settings' });
     memory.remember('bot', 'settings');
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it('remembers Group profiles separately from Bot profiles', async () => {
+    const write = vi.fn();
+    const memory = createProfileTabMemory({
+      read: async () => ({ bot: 'memory', group: 'work' }),
+      write,
+    });
+    await Promise.resolve();
+    expect(memory.get('bot')).toBe('memory');
+    expect(memory.get('group')).toBe('work');
+    memory.remember('group', 'settings');
+    expect(memory.get('bot')).toBe('memory');
+    expect(write).toHaveBeenLastCalledWith({ bot: 'memory', group: 'settings' });
   });
 
   it('keeps a choice made before the stored tab was read', async () => {

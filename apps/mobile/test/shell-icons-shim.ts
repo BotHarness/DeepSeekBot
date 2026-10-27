@@ -7,6 +7,7 @@ export const ActivityIcon = () => null;
 export const PinIcon = () => null;
 export const MuteIcon = () => null;
 export const PersonIcon = () => null;
+export const MembersIcon = () => null;
 export const SettingsIcon = () => null;
 export const ChevronDownIcon = () => null;
 export const ChevronLeftIcon = () => null;

@@ -1080,6 +1080,13 @@ function ChatConversation({
       ...(saved?.hostId === undefined ? {} : { hostId: saved.hostId }),
     },
   };
+  const groupHref = {
+    pathname: '/group/[id]' as const,
+    params: {
+      id: channel?.id ?? channelId ?? '',
+      ...(saved?.hostId === undefined ? {} : { hostId: saved.hostId }),
+    },
+  };
   const pairChip = (press: (() => void) | undefined) => (
     <Pressable
       testID="channel-details-chip"
@@ -1130,12 +1137,8 @@ function ChatConversation({
       working={working}
       connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
-      onPress={() =>
-        router.push({
-          pathname: '/group/[id]',
-          params: { id: channel?.id ?? channelId, hostId: saved?.hostId },
-        })
-      }
+      profileHref={groupHref}
+      onPress={() => router.push(groupHref)}
     />
   );
   const ios = Platform.OS === 'ios';
