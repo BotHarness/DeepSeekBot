@@ -5,7 +5,9 @@ import {
 } from '@deepseek-ai/dsh-subagent';
 
 import {
+  alignOrchestratorPermission,
   alignOrchestratorSubagentPermission,
+  borrowedAgentDenial,
   deviceToolAuthorization,
   grantExecutionDenial,
   isDshGovernedTool,
@@ -755,6 +757,72 @@ describe('Workspace Grant execution boundary', () => {
     expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toMatch(
       /differs from this PersonaBot's access setting/,
     );
+  });
+  it('aligns a natively resumed Orchestrator whose access setting changed while it was idle', () => {
+    const state = fixture();
+    let mode: 'workspace-write' | 'danger-full-access' = 'workspace-write';
+    const core = {
+      ...(state.core as object),
+      assignmentAccess: { get: () => ({ botSlug, mode, scope: 'chat', revision: 1 }) },
+    } as never;
+    const appended: Array<[string, unknown]> = [];
+    const orchestrator = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+      append: (type: string, data: unknown) => appended.push([type, data]),
+    } as never;
+    expect(alignOrchestratorPermission(core, orchestrator, state.policy, state.approval)).toBe(
+      false,
+    );
+    mode = 'danger-full-access';
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toMatch(
+      /Orchestrator Session permission differs/,
+    );
+    expect(alignOrchestratorPermission(core, orchestrator, state.policy, state.approval)).toBe(
+      true,
+    );
+    expect(appended).toEqual([
+      ['sandbox/mode', { mode: 'danger-full-access' }],
+      ['approval/policy', { policy: 'ask' }],
+    ]);
+    state.resolvePolicy.mockReturnValue({ mode: 'danger-full-access' });
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toBeUndefined();
+    const assignment = { ...(state.assignment as object), append: vi.fn() } as never;
+    expect(
+      alignOrchestratorPermission(core, assignment, state.policy, state.approval),
+    ).toBeUndefined();
+    expect(
+      alignOrchestratorPermission(core, orchestrator, undefined, state.approval),
+    ).toBeUndefined();
+  });
+  it('lets the Host borrow a native Orchestrator after its access setting changed', () => {
+    const state = fixture();
+    const core = {
+      ...(state.core as object),
+      assignmentAccess: {
+        get: () => ({ botSlug, mode: 'danger-full-access', scope: 'chat', revision: 2 }),
+      },
+    } as never;
+    const orchestrator = {
+      id: 'botharness-orchestrator',
+      header: { cwd: '/tmp/memory' },
+      append: (type: string, data: { mode?: string }) => {
+        if (type === 'sandbox/mode') state.resolvePolicy.mockReturnValue({ mode: data.mode! });
+      },
+    } as never;
+    expect(grantExecutionDenial(core, orchestrator, state.policy, state.approval)).toMatch(
+      /Orchestrator Session permission differs/,
+    );
+    expect(
+      borrowedAgentDenial(core, orchestrator, 'orchestrator', state.policy, state.approval),
+    ).toBeUndefined();
+    expect(
+      borrowedAgentDenial(core, orchestrator, 'assignment', state.policy, state.approval),
+    ).toBe('BotHarness Agent role mismatch');
+    state.getAssignment.mockReturnValue(undefined as never);
+    expect(
+      borrowedAgentDenial(core, state.assignment, 'assignment', state.policy, state.approval),
+    ).toMatch(/snapshot is missing/);
   });
 });
 
