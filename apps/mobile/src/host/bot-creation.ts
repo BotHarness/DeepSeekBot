@@ -261,6 +261,19 @@ function avatarChoice(value: unknown): Pick<BotCreationDraft, 'avatar'> {
   throw new BotCreationFailure('storage-invalid');
 }
 
+export function repositoryName(gitUrl: string): string {
+  const path = gitUrl
+    .trim()
+    .replace(/[?#].*$/u, '')
+    .replace(/\/+$/u, '');
+  const last = path.split(/[/:]/u).at(-1) ?? '';
+  return last
+    .replace(/\.git$/iu, '')
+    .replace(/[-_]+/gu, ' ')
+    .trim()
+    .slice(0, 120);
+}
+
 function unpreviewed(source: GitImportDraft | ZipImportDraft): GitImportDraft | ZipImportDraft {
   const { preview: _preview, ...draft } = source;
   return draft;
@@ -756,6 +769,7 @@ export function createBotCreationController(options: {
           kind: 'draft',
           draft: {
             ...draft,
+            displayName: draft.displayName || repositoryName(preview.gitUrl),
             source: {
               ...source,
               gitUrl: preview.gitUrl,

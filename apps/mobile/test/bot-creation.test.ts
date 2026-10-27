@@ -385,3 +385,13 @@ it('persists an avatar choice in the draft and rejects a malformed one', async (
     }),
   ).toThrow('storage-invalid');
 });
+
+it.each([
+  ['https://github.com/acme/travel-helper.git', 'travel helper'],
+  ['git@github.com:acme/Code_Reviewer.git', 'Code Reviewer'],
+  ['https://gitlab.example/acme/bots/notes/', 'notes'],
+  ['https://github.com/acme/helper?tab=readme', 'helper'],
+])('names a Git import %s after its repository by default', async (url, name) => {
+  const { repositoryName } = await import('../src/host/bot-creation');
+  expect(repositoryName(url)).toBe(name);
+});

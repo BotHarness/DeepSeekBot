@@ -667,6 +667,11 @@ it('checks a Git link when leaving its step and keeps a failure there', async ()
   );
   previewWait = Promise.resolve();
   await next('git', 2);
+  expect(
+    container.querySelector<HTMLInputElement>(`input[aria-label="${t.botCreation.name}"]`)?.value,
+  ).toBe('b');
+  await type(t.botCreation.name, 'Repo helper');
+  expect(controller.getSnapshot().record).toMatchObject({ draft: { displayName: 'Repo helper' } });
   const record = controller.getSnapshot().record;
   expect(record).toMatchObject({ draft: { source: { preview: { commit: 'a'.repeat(40) } } } });
 });
