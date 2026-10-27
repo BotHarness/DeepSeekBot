@@ -256,13 +256,13 @@ describe('Host drawer', () => {
     expect(settleOpen(0.9, -900)).toBe(false);
   });
 
-  it('opens from anywhere and pushes Android Chats, and keeps the edge elsewhere', () => {
-    expect(drawerSwipe('android', true)).toEqual({ push: true });
-    expect(drawerSwipe('android', false)).toEqual({
-      push: false,
-      hitSlop: { left: 0, width: 24 },
-    });
-    expect(drawerSwipe('ios', true)).toEqual({ push: false, hitSlop: { left: 0, width: 24 } });
+  it('opens from anywhere on a mostly horizontal drag and pushes Android Chats, and keeps the edge elsewhere', () => {
+    const edge = { push: false, activeX: 10, failY: 15, hitSlop: { left: 0, width: 24 } };
+    expect(drawerSwipe('android', true)).toEqual({ push: true, activeX: 24, failY: 8 });
+    expect(drawerSwipe('android', false)).toEqual(edge);
+    expect(drawerSwipe('ios', true)).toEqual(edge);
+    const anywhere = drawerSwipe('android', true);
+    expect(anywhere.activeX / anywhere.failY).toBeGreaterThanOrEqual(3);
   });
 
   it('covers about 85% of the screen', () => {

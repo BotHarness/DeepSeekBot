@@ -149,8 +149,8 @@ export function HostDrawerEdge({
   const swipe = drawerSwipe(Platform.OS, anywhere);
   const pan = Gesture.Pan()
     .enabled(hosts.length > 0)
-    .activeOffsetX(DRAG_START)
-    .failOffsetY([-VERTICAL_FAIL, VERTICAL_FAIL])
+    .activeOffsetX(swipe.activeX)
+    .failOffsetY([-swipe.failY, swipe.failY])
     .onStart(() => {
       runOnJS(reveal)();
     })
