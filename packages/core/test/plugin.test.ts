@@ -798,6 +798,8 @@ describe('plugin entry', () => {
       'marketplaceUploadPlan',
       'marketplaceUpload',
       'marketplaceInstallReview',
+      'marketplaceMine',
+      'marketplaceDelete',
       'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',

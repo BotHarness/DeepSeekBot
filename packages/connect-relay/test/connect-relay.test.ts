@@ -7,7 +7,7 @@ import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
 import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
 import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
 import { createRelay, hmac, type RelayOptions } from '../src/relay.js';
-import { workosUserDeleter } from '../src/worker.js';
+import { marketplaceAuthorDeleter, workosUserDeleter } from '../src/worker.js';
 
 const CLIENT_ID = 'client_01TEST';
 const ISSUER = `https://api.workos.com/user_management/${CLIENT_ID}`;
@@ -269,11 +269,17 @@ describe('Connect relay accounts', () => {
 
   it('deletes an account with its Hosts, tunnels and WorkOS user', async () => {
     const deleted: string[] = [];
+    const marketplace: string[] = [];
     let failUser = true;
+    let failMarketplace = true;
     const { call, tunnels } = await setup(['user_alice', 'user_bob'], {
       deleteUser: async (account) => {
         if (failUser) throw new Error('workos down');
         deleted.push(account);
+      },
+      deleteMarketplaceAuthor: async (token) => {
+        if (failMarketplace) throw new Error('market down');
+        marketplace.push(token);
       },
     });
     for (const name of ['Studio', 'Laptop'])
@@ -290,12 +296,18 @@ describe('Connect relay accounts', () => {
       status: 502,
       body: { error: { code: 'upstream-unavailable' } },
     });
+    expect(deleted).toEqual([]);
+    failMarketplace = false;
+    expect(await call('DELETE', '/v1/account', { as: 'user_alice' })).toMatchObject({
+      status: 502,
+    });
     failUser = false;
     expect(await call('DELETE', '/v1/account', { as: 'user_alice' })).toEqual({
       status: 200,
       body: { deleted: true },
     });
     expect(deleted).toEqual(['user_alice']);
+    expect(marketplace).toHaveLength(2);
     expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toMatchObject({ status: 401 });
     expect(
       await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Again' } }),
@@ -317,6 +329,21 @@ describe('Connect relay accounts', () => {
       body: { error: { code: 'account-deletion-unavailable' } },
     });
     expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(1);
+  });
+
+  it("deletes the Marketplace author with the user's own token", async () => {
+    const calls: [string, RequestInit | undefined][] = [];
+    const statuses = [200, 503];
+    const remove = marketplaceAuthorDeleter((async (url: string, init?: RequestInit) => {
+      calls.push([url, init]);
+      return new Response(null, { status: statuses.shift()! });
+    }) as typeof fetch);
+    await remove('token-alice');
+    await expect(remove('token-alice')).rejects.toThrow('marketplace 503');
+    expect(calls[0]).toEqual([
+      'https://market.botharness.ai/v1/me',
+      { method: 'DELETE', headers: { authorization: 'Bearer token-alice' } },
+    ]);
   });
 
   it('deletes the WorkOS user with the API key and treats a missing user as deleted', async () => {

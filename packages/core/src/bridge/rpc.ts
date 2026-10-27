@@ -54,6 +54,7 @@ import type {
 } from '../messaging/conversation-ingest.js';
 import type { UsageOverviewPeriod } from '../usage/overview.js';
 import type {
+  MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
@@ -2185,8 +2186,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     displayName: string,
     bio?: string,
     tags?: string[],
+    replaces?: string,
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
-    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags }));
+    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags, replaces }));
+  }
+
+  async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
+    return unwrapAsync(this.methods.marketplaceMine(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDelete(id: string): Promise<{ deleted: true }> {
+    return unwrapAsync(this.methods.marketplaceDelete({ id }));
   }
 
   async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
@@ -2531,6 +2541,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceUploadPlan',
   'marketplaceUpload',
   'marketplaceInstallReview',
+  'marketplaceMine',
+  'marketplaceDelete',
   'marketplaceInstall',
   'releaseInfo',
   'releaseUpdate',

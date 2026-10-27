@@ -38,6 +38,7 @@ import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.j
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
+  MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
@@ -220,6 +221,7 @@ import {
   reportMarketplaceBot,
   installMarketplaceBot,
   reviewMarketplaceInstall,
+  loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type UsageFilter,
   type UsageQueryResult,
@@ -896,8 +898,10 @@ export interface BridgeActions {
   marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
   marketplaceUpload(
     slug: string,
-    presentation: { displayName: string; bio?: string; tags?: string[] },
+    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
+  marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
+  marketplaceDelete(id: string): Promise<void>;
   marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
   marketplaceInstall(id: string, reviewId: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
@@ -2746,6 +2750,10 @@ export function createActions(
       invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
+    marketplaceMine: (lang) => loadMyMarketplaceUploads(call, lang),
+    async marketplaceDelete(id) {
+      await invoke('marketplaceDelete', { id });
+    },
     marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
     async marketplaceInstall(id, reviewId, sectionId) {
       return openCreatedBot(await installMarketplaceBot(call, id, reviewId), sectionId);

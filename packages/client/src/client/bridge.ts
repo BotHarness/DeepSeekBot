@@ -37,9 +37,11 @@ import type {
 } from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
+  parseAuthoredBots,
   parseMarketplaceFileView,
   parseMarketplacePage,
   parseMarketplaceSubmission,
+  type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
   type MarketplaceDetail,
   type MarketplaceEntry,
@@ -2157,10 +2159,21 @@ export async function installMarketplaceBot(
   return bot;
 }
 
+export async function loadMyMarketplaceUploads(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceAuthoredBot[]> {
+  const bots = parseAuthoredBots(
+    await unwrap(call, 'marketplaceMine', lang === undefined ? {} : { lang }),
+  );
+  if (bots === undefined) throw new Error('invalid marketplaceMine response');
+  return bots;
+}
+
 export async function uploadMarketplaceBot(
   call: BridgeCall,
   slug: string,
-  presentation: { displayName: string; bio?: string; tags?: string[] },
+  presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
 ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
   const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
   const parsed = parseMarketplaceSubmission(value);

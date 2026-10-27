@@ -183,6 +183,8 @@ function stubActions(): BridgeActions {
     marketplaceInstallReview: vi.fn(async () => {
       throw new Error('unused');
     }),
+    marketplaceMine: vi.fn(async () => []),
+    marketplaceDelete: vi.fn(async () => {}),
     marketplaceInstall: vi.fn(async () => {
       throw new Error('unused');
     }),

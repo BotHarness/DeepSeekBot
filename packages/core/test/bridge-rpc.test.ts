@@ -850,6 +850,8 @@ describe('bridge typert service', () => {
       'marketplaceUploadPlan',
       'marketplaceUpload',
       'marketplaceInstallReview',
+      'marketplaceMine',
+      'marketplaceDelete',
       'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',

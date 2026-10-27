@@ -679,6 +679,87 @@ describe('Uploaded Bots in the Market panel', () => {
     }
   });
 
+  it('lists my uploads, updates one through the upload steps and deletes another after a confirm', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    const other = entry('notes', { ...uploaded, id: 'U_notes', displayName: 'Notes' });
+    const mine = vi.fn(async () => [
+      { bot: uploaded, files: 3, bytes: 2048, blocked: false },
+      { bot: other, files: 1, bytes: 10, blocked: true },
+    ]);
+    const plan = vi.fn(async () => ({
+      files: [{ path: 'SOUL.md', size: 10, kind: 'text' }],
+      skipped: [],
+      totalBytes: 10,
+    }));
+    const replaced = { ...uploaded, displayName: 'Helper', pushedAt: '2026-10-27T09:00:00Z' };
+    const upload = vi.fn(async () => ({ bot: replaced, skipped: [] }));
+    const remove = vi.fn(async () => undefined);
+    await withPanel(
+      async () => ({ bots: [uploaded, other] }),
+      async ({ host }) => {
+        await click(host, '我上传的');
+        const rows = [...host.querySelectorAll('[data-market-mine-bot]')];
+        expect(rows.map((row) => row.getAttribute('data-market-mine-bot'))).toEqual([
+          'U_helper',
+          'U_notes',
+        ]);
+        expect(rows[0]?.textContent).toContain('3 个文件 · 2.0 KB · 2026-10-01');
+        expect(rows[1]?.textContent).toContain('已下架');
+
+        await click(host, '更新 Helper');
+        expect(document.body.textContent).toContain('更新 Helper');
+        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('2选择 Bot');
+        await click(host, 'Writer');
+        expect(plan).toHaveBeenCalledWith('writer');
+        const values = [
+          ...host
+            .querySelector('[data-market-direct="details"]')!
+            .querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
+        ].map((field) => field.value);
+        expect(values).toEqual(['Helper', 'helper description', '']);
+        await click(host, '下一步');
+        const review = host.querySelector('[data-market-direct="review"]')!;
+        expect(review.textContent).toContain('1 个文件，10 B');
+        await act(async () => review.querySelector<HTMLElement>('input[type="checkbox"]')!.click());
+        await click(host, '替换全部文件');
+        expect(upload).toHaveBeenCalledWith('writer', {
+          displayName: 'Helper',
+          bio: 'helper description',
+          tags: [],
+          replaces: 'U_helper',
+        });
+        expect(host.querySelector('[data-market-upload]')).toBeNull();
+        expect(host.querySelector('[data-market-mine="list"]')).not.toBeNull();
+
+        await click(host, '删除 Notes');
+        expect(host.textContent).toContain('已安装的副本不受影响');
+        await act(async () => host.querySelector('form')!.requestSubmit());
+        expect(remove).toHaveBeenCalledWith('U_notes');
+        expect(host.querySelector('[data-market-mine-bot="U_notes"]')).toBeNull();
+        expect(host.querySelector('[data-market-bot="Alice/Notes"]')).toBeNull();
+      },
+      {
+        marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
+        marketplaceMine: mine,
+        marketplaceUploadPlan: plan,
+        marketplaceUpload: upload,
+        marketplaceDelete: remove,
+      },
+    );
+  });
+
+  it('marks an installed Uploaded Bot whose author updated it', async () => {
+    await withPanel(
+      async () => ({
+        bots: [{ ...uploaded, installed: { bots: ['helper-copy'], authorUpdated: true } }],
+      }),
+      async ({ host }) => {
+        const tile = host.querySelector('[data-market-bot="Alice/Helper"]')!;
+        expect(tile.querySelector('[data-market-author-updated]')?.textContent).toBe('作者已更新');
+      },
+    );
+  });
+
   it('asks a signed-out user to register before sharing a preselected Bot', async () => {
     store.setRoster([bot('writer', { displayName: 'Writer' })], []);
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
