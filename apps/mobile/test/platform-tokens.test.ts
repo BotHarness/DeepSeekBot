@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -15,7 +15,7 @@ vi.mock('../src/ui/design/theme', () => ({
 import { materialType, useMaterialRoles } from '../src/ui/design/material-tokens';
 import { systemColors, systemType } from '../src/ui/design/system-tokens';
 
-const root = fileURLToPath(new URL('../src', import.meta.url));
+const mobileRoot = fileURLToPath(new URL('..', import.meta.url));
 const colourLiteral =
   /['"`]#[0-9a-f]{3,8}['"`]|\brgba?\(|\b(?:fill|stroke|stopColor)=['"](?!none['"]|currentColor['"]|transparent['"])[a-z]+['"]/i;
 
@@ -57,9 +57,9 @@ describe('platform token layers', () => {
   });
 
   it('keep colour literals out of platform-specific UI', () => {
-    const offenders = platformFiles(root).filter((path) =>
-      colourLiteral.test(readFileSync(path, 'utf8')),
-    );
-    expect(offenders.map((path) => path.slice(root.length + 1))).toEqual([]);
+    const offenders = ['app', 'src']
+      .flatMap((dir) => platformFiles(join(mobileRoot, dir)))
+      .filter((path) => colourLiteral.test(readFileSync(path, 'utf8')));
+    expect(offenders.map((path) => relative(mobileRoot, path))).toEqual([]);
   });
 });
