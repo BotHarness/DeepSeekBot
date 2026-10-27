@@ -314,6 +314,23 @@ export function ClockIcon(props: IconProps) {
   return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 7v5l3 2" />;
 }
 
+export function PlayIcon(props: IconProps) {
+  return <Glyph {...props} d="M8 5.5v13l10-6.5-10-6.5Z" />;
+}
+
+export function PauseIcon(props: IconProps) {
+  return <Glyph {...props} d="M8.5 5.5v13M15.5 5.5v13" />;
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M4 7h16M10 3.5h4M6 7l1 12a1.5 1.5 0 0 0 1.5 1.4h7A1.5 1.5 0 0 0 17 19l1-12M10 11v6m4-6v6"
+    />
+  );
+}
+
 export function ArchiveIcon(props: IconProps) {
   return <Glyph {...props} d="M3 4h18v4H3zM5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" />;
 }

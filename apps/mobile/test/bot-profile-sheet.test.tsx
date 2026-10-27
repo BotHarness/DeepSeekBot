@@ -543,6 +543,16 @@ describe('Bot profile page', () => {
     )!;
     await act(async () => open.click());
     expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
+    expect(headers(view)).toEqual(
+      expect.arrayContaining([t.routineGroup.daily, t.routineGroup.other]),
+    );
+    expect(headers(view)).not.toContain(t.routineGroup.weekly);
+    expect(
+      view.querySelector('[data-testid="profile-routine-group-daily"]')?.textContent,
+    ).toContain('Morning digest');
+    expect(
+      view.querySelector('[data-testid="profile-routine-group-other"]')?.textContent,
+    ).toContain('Hourly check');
     await act(async () => button(view, t.routineNew)!.click());
     expect(onNewRoutine).toHaveBeenCalledTimes(1);
     expect(view.querySelector('[role="dialog"]')).toBeNull();
@@ -561,6 +571,37 @@ describe('Bot profile page', () => {
     );
     expect(button(view, t.routineNew)).toBeNull();
     expect(view.textContent).toContain('Morning digest');
+  });
+
+  it('runs a routine from its swipe action and reloads the list', async () => {
+    let loads = 0;
+    const routines = {
+      runNow: vi.fn(async () => ({}) as never),
+      setEnabled: vi.fn(async () => ({}) as never),
+      remove: vi.fn(async () => undefined),
+    };
+    const view = await render(
+      <BotProfileSheet
+        tab="routines"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        load={async () => {
+          loads += 1;
+          return full;
+        }}
+        actions={{ ...actions(), routines }}
+      />,
+    );
+    const before = loads;
+    const id = profileWire.rpc.scheduleList.schedules[0]!.id;
+    const run = view
+      .querySelector(`[data-testid="profile-routine-swipe-${id}"]`)!
+      .querySelector<HTMLButtonElement>('[data-testid="swipe-action-run"]')!;
+    await act(async () => run.click());
+    await act(async () => undefined);
+    expect(routines.runNow).toHaveBeenCalledWith(id);
+    expect(loads).toBe(before + 1);
   });
 
   it('shows the last 7 days first in Settings and opens the Activity screen', async () => {

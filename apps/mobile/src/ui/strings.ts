@@ -1561,6 +1561,12 @@ const en = {
   routineWeekly: (time: string, days: number[]) =>
     `${days.map((day) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day % 7]).join(', ')} at ${time}`,
   weekdayShort: (day: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day % 7]!,
+  routineGroup: {
+    daily: 'Daily',
+    weekly: 'Weekly',
+    once: 'One-off',
+    other: 'Other',
+  },
   routineNew: 'New routine',
   routineEditTitle: 'Edit routine',
   routineOpen: (title: string) => `${title}, opens the routine`,
@@ -3344,6 +3350,12 @@ const zh: typeof en = {
   routineWeekly: (time: string, days: number[]) =>
     `每${days.map((day) => ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][day % 7]).join('、')} ${time}`,
   weekdayShort: (day: number) => ['日', '一', '二', '三', '四', '五', '六'][day % 7]!,
+  routineGroup: {
+    daily: '每天',
+    weekly: '每周',
+    once: '一次性',
+    other: '其他',
+  },
   routineNew: '新建例行任务',
   routineEditTitle: '编辑例行任务',
   routineOpen: (title: string) => `${title}，打开例行任务`,

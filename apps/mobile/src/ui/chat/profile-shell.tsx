@@ -31,6 +31,7 @@ export type ProfileRow = { key: string; render(): ReactNode };
 
 export type ProfileTabBody = {
   rows: readonly ProfileRow[];
+  action?: ReactNode;
   empty?: ReactNode;
   footer?: ReactNode;
   overlay?: ReactNode;
@@ -173,8 +174,8 @@ export function ProfileShell({
             <IconTabs label={t.profileTabsLabel} options={options} value={tab} onChange={select} />
           </View>
         );
-      case 'heading':
-        return content(
+      case 'heading': {
+        const heading = (
           <Text
             testID="profile-tab-heading"
             accessibilityRole="header"
@@ -184,8 +185,26 @@ export function ProfileShell({
             style={{ paddingTop: space.x5, paddingBottom: space.x3 }}
           >
             {t.profileTabs[tab]}
-          </Text>,
+          </Text>
         );
+        return content(
+          body.action === undefined ? (
+            heading
+          ) : (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+                gap: space.x3,
+              }}
+            >
+              {heading}
+              <View style={{ paddingBottom: space.x2 }}>{body.action}</View>
+            </View>
+          ),
+        );
+      }
       case 'row':
         return content(item.row.render());
       case 'empty':

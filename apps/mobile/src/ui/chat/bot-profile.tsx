@@ -29,7 +29,6 @@ import {
   ComputerIcon,
   FolderIcon,
   MemoryIcon,
-  PlusIcon,
   SettingsIcon,
   WorkIcon,
 } from '../shell/icons';
@@ -37,7 +36,13 @@ import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
 import { botStateTone } from './bot-tone';
 import { MemoryEntryRow } from './memory-browser';
-import { routineDetail } from './routine-text';
+import {
+  NewRoutineButton,
+  RoutineGroupCard,
+  routineGroups,
+  type RoutineChanges,
+  type RoutineGroup,
+} from './profile-routines';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import {
   AvatarSettings,
@@ -68,8 +73,7 @@ type RowBody =
   | { kind: 'text'; label?: string; body: string }
   | { kind: 'item'; title: string; detail?: string }
   | { kind: 'entry'; entry: MemoryEntry }
-  | { kind: 'routine'; routine: BotScheduleSummary }
-  | { kind: 'new-routine' }
+  | { kind: 'routine-group'; group: RoutineGroup; routines: BotScheduleSummary[] }
   | { kind: 'assignment'; assignment: ProfileAssignment }
   | { kind: 'day'; label: string }
   | { kind: 'activity'; activity: ProfileActivity }
@@ -86,6 +90,7 @@ export interface BotProfileActions {
   onOpenMemory(entry: MemoryEntry): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
   onNewRoutine?(): void;
+  routines?: RoutineChanges;
   onOpenActivity(): void;
   onClose(): void;
 }
@@ -148,7 +153,6 @@ export function workRowBodies(assignments: readonly ProfileAssignment[], now = n
 export function profileRows(
   profile: BotProfile | undefined,
   channels: RosterChannel[],
-  addRoutine = false,
 ): Record<ProfileSection, Row[]> {
   return {
     work: frame(
@@ -177,9 +181,11 @@ export function profileRows(
     routines: frame(
       'routines',
       partRows(profile?.routines, 'routines', (routines) =>
-        routines.map((routine) => ({ kind: 'routine', routine })),
-      ).concat(
-        addRoutine && profile?.routines?.status === 'ready' ? [{ kind: 'new-routine' }] : [],
+        routineGroups(routines).map(({ group, routines }) => ({
+          kind: 'routine-group',
+          group,
+          routines,
+        })),
       ),
     ),
     channels: frame(
@@ -443,63 +449,16 @@ function ProfileRow({
       </View>
     );
   }
-  if (row.kind === 'routine') {
-    const { routine } = row;
-    const open = actions.onOpenRoutine;
-    const detail = routineDetail(routine);
+  if (row.kind === 'routine-group')
     return (
-      <Pressable
-        accessibilityRole={open === undefined ? undefined : 'button'}
-        accessibilityLabel={
-          open === undefined ? undefined : `${t.routineOpen(routine.title)}, ${detail}`
-        }
-        disabled={open === undefined}
-        onPress={() => open?.(routine)}
-        style={({ pressed }) => [
-          shape,
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            minHeight: theme.touch,
-            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-          },
-        ]}
-      >
-        <View style={{ flex: 1, gap: space.x1 }}>
-          <Text numberOfLines={1} tone={routine.enabled ? 'fg' : 'muted'}>
-            {routine.title}
-          </Text>
-          <Text variant="meta" tone="muted" numberOfLines={2}>
-            {detail}
-          </Text>
-        </View>
-        {open === undefined ? null : (
-          <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
-        )}
-      </Pressable>
-    );
-  }
-  if (row.kind === 'new-routine')
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.routineNew}
-        onPress={actions.onNewRoutine}
-        style={({ pressed }) => [
-          shape,
-          {
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x3,
-            minHeight: theme.touch,
-            backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-          },
-        ]}
-      >
-        <PlusIcon color={theme.color.fg} size={theme.type.title.line} />
-        <Text>{t.routineNew}</Text>
-      </Pressable>
+      <RoutineGroupCard
+        group={row.group}
+        routines={row.routines}
+        first={row.first}
+        changes={actions.routines}
+        onOpen={actions.onOpenRoutine}
+        onChanged={onRetry}
+      />
     );
   if (row.kind === 'loading')
     return (
@@ -659,11 +618,7 @@ export function BotProfilePage({
     };
   }, [load]);
   useFocusEffect(read);
-  const rows = profileRows(
-    content.ready ? profile : undefined,
-    channels,
-    actions.onNewRoutine !== undefined,
-  );
+  const rows = profileRows(content.ready ? profile : undefined, channels);
   const rowOf = (row: Row): ShellRow => ({
     key: row.key,
     render: () => (
@@ -699,7 +654,12 @@ export function BotProfilePage({
     memory: {
       rows: [...rows.identity.map(rowOf), heading('memory'), ...rows.memory.map(rowOf)],
     },
-    routines: { rows: rows.routines.map(rowOf) },
+    routines: {
+      ...(actions.onNewRoutine === undefined
+        ? {}
+        : { action: <NewRoutineButton onPress={actions.onNewRoutine} /> }),
+      rows: rows.routines.map(rowOf),
+    },
     settings: {
       rows: [
         ...rows.activity.map(rowOf),
