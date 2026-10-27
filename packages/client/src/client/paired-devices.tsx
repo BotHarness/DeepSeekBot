@@ -7,6 +7,7 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { Callout } from './ds/callout.js';
+import { ChoiceButton } from './ds/choice-button.js';
 import { Note } from './ds/note.js';
 import { Tooltip } from './ds/tooltip.js';
 import { AddRemoteHostDialog } from './host-tabs.js';
@@ -116,15 +117,6 @@ const styles = stylex.create({
     overflowWrap: 'anywhere',
   },
   actions: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: space.x3 },
-  choice: { width: '100%', justifyContent: 'space-between', paddingBlock: space.x4 },
-  method: { height: 'auto', whiteSpace: 'normal', textAlign: 'start', gap: space.x4 },
-  methodCopy: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0, flexGrow: 1 },
-  methodDescription: {
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontWeight: text.regular,
-  },
   email: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -150,19 +142,7 @@ function ConnectionMethod({
 }): ReactElement {
   return (
     <Tooltip label={detail} side="right" portal delayMs={0} focusDelayMs={0} maxWidth={360}>
-      <Button
-        variant="outline"
-        aria-label={title}
-        disabled={disabled}
-        onClick={onClick}
-        {...stylex.props(styles.choice, styles.method)}
-      >
-        <span {...stylex.props(styles.methodCopy)}>
-          <span>{title}</span>
-          <span {...stylex.props(styles.methodDescription)}>{description}</span>
-        </span>
-        <ChannelSidebarIcon name="chevron-right" />
-      </Button>
+      <ChoiceButton title={title} description={description} disabled={disabled} onClick={onClick} />
     </Tooltip>
   );
 }
@@ -745,22 +725,8 @@ export function PairedDevicesSettings({
             </Note>
             {setup === 'direction' ? (
               <>
-                <Button
-                  variant="outline"
-                  {...stylex.props(styles.choice)}
-                  onClick={() => setSetup('method')}
-                >
-                  {t('connections.invite')}
-                  <ChannelSidebarIcon name="chevron-right" />
-                </Button>
-                <Button
-                  variant="outline"
-                  {...stylex.props(styles.choice)}
-                  onClick={() => setSetup('remote')}
-                >
-                  {t('connections.join')}
-                  <ChannelSidebarIcon name="chevron-right" />
-                </Button>
+                <ChoiceButton title={t('connections.invite')} onClick={() => setSetup('method')} />
+                <ChoiceButton title={t('connections.join')} onClick={() => setSetup('remote')} />
               </>
             ) : setup === 'method' ? (
               <>

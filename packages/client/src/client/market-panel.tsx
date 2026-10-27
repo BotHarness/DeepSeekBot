@@ -13,7 +13,7 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
-import { MarketDirectUpload } from './market-upload.js';
+import { MarketUploadDialog } from './market-upload.js';
 import {
   MarketplaceAvatar,
   MarketplaceBanner,
@@ -78,120 +78,6 @@ function MarketplaceTile({
   );
 }
 
-function publishable(bots: readonly BotSummary[]): BotSummary[] {
-  return bots.filter((bot) => !bot.deleted && bot.tob === undefined);
-}
-
-function UploadDialog({
-  actions,
-  registry,
-  t,
-  onListed,
-  onClose,
-}: {
-  actions: BridgeActions;
-  registry: DockPanelRegistry;
-  t: BotHarnessTranslate;
-  onListed: (bot: MarketplaceEntry) => void;
-  onClose: () => void;
-}): ReactElement {
-  const bots = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
-  const submit = useMarketplaceSubmit(actions, onListed);
-  const [opening, setOpening] = useState<string | undefined>(undefined);
-  const [cause, setCause] = useState<unknown | undefined>(undefined);
-  const candidates = publishable(bots);
-
-  const publish = async (bot: BotSummary): Promise<void> => {
-    setOpening(bot.slug);
-    setCause(undefined);
-    try {
-      await actions.openBot(bot.slug);
-      const scope = conversationDraftKey(store.getSnapshot());
-      if (scope !== undefined) {
-        appendConversationDraft(scope, MARKET_SHARE_PROMPT[marketplaceLanguage(t)]);
-      }
-      registry.open(CHANNEL_BODY_PANEL);
-      onClose();
-    } catch (failure) {
-      setCause(failure);
-    } finally {
-      setOpening(undefined);
-    }
-  };
-
-  return (
-    <PanelDialog
-      size="medium"
-      onClose={onClose}
-      closeLabel={t('common.close')}
-      title={t('market.upload.title')}
-      description={t('market.upload.description')}
-      scroll
-      data={{ 'data-market-upload': '' }}
-      actions={
-        <Button variant="outline" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      }
-    >
-      <section className="bh-market-upload-section" data-market-direct-upload>
-        <strong>{t('market.direct.title')}</strong>
-        <MarketDirectUpload
-          actions={actions}
-          bots={candidates}
-          t={t}
-          onListed={(bot) => {
-            onListed(bot);
-            onClose();
-          }}
-        />
-      </section>
-      <section className="bh-market-upload-section">
-        <strong>{t('market.upload.byBot')}</strong>
-        <span className="bh-market-hint">{t('market.upload.byBotHint')}</span>
-        {candidates.length === 0 ? (
-          <span className="bh-market-state">{t('market.upload.noBots')}</span>
-        ) : (
-          <div className="bh-market-upload-bots" role="list">
-            {candidates.map((bot) => (
-              <div key={bot.slug} className="bh-market-upload-bot" role="listitem">
-                <PersonaBotAvatar
-                  personaBotId={bot.slug}
-                  name={bot.displayName}
-                  src={bot.avatar}
-                  appearance={bot.appearance}
-                  avatarSeed={bot.avatarSeed}
-                  size={28}
-                  indicator={false}
-                  still
-                  t={t}
-                />
-                <span className="bh-market-upload-name">{bot.displayName}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label={t('market.upload.publishLabel', { name: bot.displayName })}
-                  disabled={opening !== undefined}
-                  onClick={() => void publish(bot)}
-                >
-                  {t('market.upload.publish')}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-        {cause === undefined ? null : (
-          <Note tone="danger">{t('market.upload.failed', { error: errorMessage(cause) })}</Note>
-        )}
-      </section>
-      <section className="bh-market-upload-section">
-        <strong>{t('market.upload.byUrl')}</strong>
-        <MarketplaceSubmitField submit={submit} t={t} />
-      </section>
-    </PanelDialog>
-  );
-}
-
 export function MarketPanelView({
   actions,
   registry,
@@ -246,7 +132,7 @@ export function MarketPanelView({
         />
       )}
       {uploading ? (
-        <UploadDialog
+        <MarketUploadDialog
           actions={actions}
           registry={registry}
           t={t}

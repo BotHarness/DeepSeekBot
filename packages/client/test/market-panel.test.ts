@@ -113,6 +113,7 @@ import type { DockPanelRegistry } from '../src/client/dock-panels.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { MarketPanelView, createMarketPanel, MARKET_PANEL } from '../src/client/market-panel.js';
 import { MARKET_SHARE_PROMPT } from '../src/client/market-share-prompt.js';
+import { MarketUploadDialog } from '../src/client/market-upload.js';
 import { store, type BotSummary } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
 
@@ -470,10 +471,11 @@ describe('Market panel', () => {
       async () => ({ bots: [] }),
       async ({ host, actions, registry }) => {
         await click(host, '上传 Bot');
-        const rows = [...host.querySelectorAll('.bh-market-upload-bot')];
-        expect(rows.map((row) => row.textContent)).toEqual(['Writer交给它发布']);
+        await click(host, '让 Bot 发布到 GitHub');
+        const choices = [...host.querySelectorAll('[role="listitem"] button')];
+        expect(choices.map((choice) => choice.getAttribute('aria-label'))).toEqual(['Writer']);
 
-        await click(host, '让 Writer 发布到市场');
+        await click(host, 'Writer');
 
         expect(actions['openBot']).toHaveBeenCalledWith('writer');
         expect(drafts.appended).toEqual([['dm-scope', MARKET_SHARE_PROMPT.zh]]);
@@ -504,7 +506,7 @@ describe('Uploaded Bots in the Market panel', () => {
       [],
     );
     const account = vi.fn(async () => ({ signedIn: true, email: 'a@example.com', author: null }));
-    const save = vi.fn(async () => author);
+    const save = vi.fn(async () => ({ ...author, name: '爱丽丝' }));
     const plan = vi.fn(async () => ({
       files: [{ path: 'SOUL.md', size: 10, kind: 'text' }],
       skipped: [{ path: 'tool.exe', reason: 'file-type-refused' }],
@@ -515,9 +517,9 @@ describe('Uploaded Bots in the Market panel', () => {
       async () => ({ bots: [] }),
       async ({ host }) => {
         await click(host, '上传 Bot');
-        await click(host, '上传 Writer');
+        await click(host, '直接上传');
         const nameInput = host.querySelector<HTMLInputElement>(
-          '[data-market-direct="author"] input',
+          '[data-market-direct="account"] input',
         )!;
         await act(async () => {
           const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -527,21 +529,25 @@ describe('Uploaded Bots in the Market panel', () => {
         expect(button(host, '继续').disabled).toBe(true);
         await act(async () =>
           host
-            .querySelector<HTMLElement>(
-              '[data-market-direct="author"] [role="checkbox"], [data-market-direct="author"] input[type="checkbox"]',
-            )!
+            .querySelector<HTMLElement>('[data-market-direct="account"] input[type="checkbox"]')!
             .click(),
         );
         await click(host, '继续');
         expect(save).toHaveBeenCalledWith('爱丽丝', true);
-        const form = host.querySelector('[data-market-direct="form"]')!;
+        expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('2选择 Bot');
+        await click(host, 'Writer');
+        const form = host.querySelector('[data-market-direct="details"]')!;
         const values = [
           ...form.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('input, textarea'),
         ].map((field) => field.value);
         expect(values).toEqual(['Writer', 'Writes', 'writing']);
-        expect(form.textContent).toContain('不会上传：tool.exe');
-        expect(form.textContent).toContain('上传前检查有没有密钥');
-        await click(host, '上传到市场');
+        await click(host, '下一步');
+        const review = host.querySelector('[data-market-direct="review"]')!;
+        expect(review.textContent).toContain('爱丽丝 #k3x9q2 · 1 个文件，10 B');
+        expect(review.textContent).toContain('不会上传：tool.exe');
+        expect(button(host, '上传').disabled).toBe(true);
+        await act(async () => review.querySelector<HTMLElement>('input[type="checkbox"]')!.click());
+        await click(host, '上传');
         expect(upload).toHaveBeenCalledWith('writer', {
           displayName: 'Writer',
           bio: 'Writes',
@@ -559,6 +565,44 @@ describe('Uploaded Bots in the Market panel', () => {
         marketplaceUpload: upload,
       },
     );
+  });
+
+  it('opens on the details step for a preselected Bot once the author exists', async () => {
+    store.setRoster([bot('writer', { displayName: 'Writer' })], []);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    const plan = vi.fn(async () => ({ files: [], skipped: [], totalBytes: 0 }));
+    const actions = {
+      marketplaceAccount: vi.fn(async () => ({ signedIn: true, author })),
+      marketplaceUploadPlan: plan,
+    };
+    try {
+      await act(async () =>
+        root.render(
+          createElement(MarketUploadDialog, {
+            actions: actions as unknown as BridgeActions,
+            registry: { open: vi.fn() } as unknown as DockPanelRegistry,
+            t: zhTranslate,
+            onListed: vi.fn(),
+            onClose: vi.fn(),
+            initialSlug: 'writer',
+          }),
+        ),
+      );
+      expect(host.querySelector('[data-market-direct]')?.getAttribute('data-market-direct')).toBe(
+        'details',
+      );
+      expect(host.querySelector('[aria-current="step"]')?.textContent).toBe('3介绍');
+      expect(plan).toHaveBeenCalledWith('writer');
+      await click(host, '返回');
+      expect(host.querySelector('[data-market-direct]')).toBeNull();
+      expect(button(host, '直接上传')).toBeDefined();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
   });
 
   it('shows the author and folder tree, and installs an Uploaded Bot through the Host', async () => {
