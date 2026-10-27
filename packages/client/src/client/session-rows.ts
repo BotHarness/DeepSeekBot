@@ -103,9 +103,9 @@ export function personaBotSessionRows(
         ...(item.triageOpenCount === undefined || status !== 'running'
           ? {}
           : { triageOpenCount: item.triageOpenCount }),
-        ...(item.assignmentModelRoute === undefined
+        ...((item.modelRoute ?? item.assignmentModelRoute) === undefined
           ? {}
-          : { modelRoute: item.assignmentModelRoute }),
+          : { modelRoute: (item.modelRoute ?? item.assignmentModelRoute)! }),
         ...(item.subagentCount === undefined ? {} : { subagentCount: item.subagentCount }),
       },
     ];

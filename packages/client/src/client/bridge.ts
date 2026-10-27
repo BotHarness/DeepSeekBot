@@ -1840,6 +1840,9 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
           ? { assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])! }
           : {}),
+        ...(parseSessionModelRoute(record['modelRoute'])
+          ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
+          : {}),
         ...(typeof record['subagentCount'] === 'number' &&
         Number.isSafeInteger(record['subagentCount']) &&
         record['subagentCount'] > 0

@@ -50,6 +50,27 @@ function expectedDay(time: number): string {
 }
 
 describe('Usage projection', () => {
+  it('remembers the latest request route of each Session', () => {
+    const { usage } = usageProjection({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
+    expect(usage.latestRoute('root')).toBeUndefined();
+    usage.primeSession('root', [
+      {
+        type: 'request/context',
+        time: TURN_END,
+        seq: 1,
+        data: { provider: 'deepseek', model: 'a' },
+      },
+    ]);
+    usage.handleSessionEvent('root', {
+      type: 'request/header',
+      time: TURN_END + 1,
+      seq: 2,
+      data: { header: { config: { provider: 'opencode-go', model: 'b' } } },
+    });
+    expect(usage.latestRoute('root')).toEqual({ provider: 'opencode-go', model: 'b' });
+    expect(usage.latestRoute('other')).toBeUndefined();
+  });
+
   it('preserves reported usage when the same model also has unreported calls', () => {
     const { usage } = usageProjection({ root: { botSlug: 'ada', rootRole: 'orchestrator' } });
     usage.handleSessionEvent('root', event('assistant/message', TURN_END));

@@ -285,6 +285,7 @@ export interface OwnedSessionSummary {
   assignmentTitle?: string;
   assignmentDescription?: string;
   assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
   subagentCount?: number;

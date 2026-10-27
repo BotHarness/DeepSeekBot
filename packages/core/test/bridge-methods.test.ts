@@ -2642,6 +2642,53 @@ describe('bridge methods', () => {
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
+  it('reports the model each root Session last ran on, else the configured route', () => {
+    const ownership = createTestOwnership({
+      orc: { botSlug: 'ada', rootRole: 'orchestrator' },
+      work: { botSlug: 'ada', rootRole: 'assignment' },
+    });
+    const usage = {
+      latestRoute: (sessionId: string) =>
+        sessionId === 'work'
+          ? { provider: 'opencode-go', model: 'deepseek-v4.1-flash' }
+          : undefined,
+    } as unknown as UsageProjection;
+    const { methods, registry } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    const orchestrator = {
+      provider: 'deepseek',
+      model: 'deepseek-v4-pro',
+      reasoningEffort: 'high',
+    };
+    vi.spyOn(registry, 'get').mockImplementation(
+      (slug) =>
+        ({
+          slug,
+          modelPlan: { orchestrator, assignmentDefault: orchestrator },
+        }) as unknown as ReturnType<typeof registry.get>,
+    );
+
+    const result = methods.sessions({ slug: 'ada' });
+    if (!result.ok) throw new Error('Expected Sessions');
+    expect(
+      Object.fromEntries(
+        result.value.sessions.map((session) => [session.sessionId, session.modelRoute]),
+      ),
+    ).toEqual({
+      orc: orchestrator,
+      work: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    });
+  });
+
   it('marks which Orchestrator Session the runtime resumes', () => {
     const ownership = createTestOwnership({
       resumed: { botSlug: 'ada', rootRole: 'orchestrator' },

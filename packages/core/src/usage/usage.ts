@@ -62,6 +62,8 @@ export interface UsageProjection {
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
 
+  latestRoute(sessionId: string): { provider: string; model: string } | undefined;
+
   rebuild(
     sessionIds: readonly string[],
     readLog: DshUsageSessionLogReader,
@@ -472,6 +474,17 @@ export function createUsageProjection(options: {
     },
     primeSession(sessionId, events) {
       for (const event of events) observe(sessionId, event);
+    },
+    latestRoute(sessionId) {
+      let latest = -1;
+      let resolved: UsageRoute | undefined;
+      for (const [seq, route] of routes.get(sessionId) ?? []) {
+        if (seq > latest) {
+          latest = seq;
+          resolved = route;
+        }
+      }
+      return resolved === undefined ? undefined : { ...resolved };
     },
     handleSessionEvent(sessionId, event) {
       const route = observe(sessionId, event);
