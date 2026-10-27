@@ -41,8 +41,7 @@ export function fabMenuHeight(count: number, size: number): number {
     count * fab.menuItemHeight +
     Math.max(0, count - 1) * fab.menuItemGap +
     fab.menuCloseGap +
-    size +
-    fab.margin
+    size
   );
 }
 
