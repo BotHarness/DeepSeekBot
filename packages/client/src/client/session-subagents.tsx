@@ -155,7 +155,9 @@ export function SessionSubagentList({
                   meta={
                     <>
                       {model === undefined ? null : <span>{model}</span>}
-                      <span>{t('sessions.subagents.tools', { count: subagent.toolCount })}</span>
+                      {subagent.toolCount === 0 ? null : (
+                        <span>{t('sessions.subagents.tools', { count: subagent.toolCount })}</span>
+                      )}
                       {subagent.updatedAt === undefined ? null : (
                         <span>{formatRelativeTime(Date.parse(subagent.updatedAt), now, t)}</span>
                       )}
