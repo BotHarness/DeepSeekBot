@@ -125,6 +125,14 @@ describe('Android Chats header', () => {
         <ActivityToolbar
           search=""
           filtered={false}
+          options={{
+            bots: [],
+            channels: [],
+            filter: { section: 'all', bot: undefined },
+            sort: 'default',
+            onFilter: () => {},
+            onSort: () => {},
+          }}
           onSearch={() => {}}
           onSearchFocus={() => {}}
           onFilter={() => {}}

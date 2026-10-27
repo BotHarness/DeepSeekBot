@@ -10,23 +10,10 @@ import {
 
 import { controlCase } from '../platform-copy';
 import { useDesignTheme } from '../design/theme';
-import type { MenuAction, ActionMenuButtonProps } from './action-menu-button';
+import type { ActionMenuButtonProps } from './action-menu-button';
+import { MENU_SYMBOL as SYMBOL } from './menu-symbols';
 
 export type { MenuAction } from './action-menu-button';
-
-const SYMBOL = {
-  settings: 'paintbrush',
-  computer: 'desktopcomputer',
-  close: 'xmark.circle',
-  person: 'person.crop.circle',
-  remove: 'person.badge.minus',
-  pin: 'pin',
-  mute: 'bell.slash',
-  check: 'checkmark',
-  folder: 'folder',
-  chat: 'bubble.left',
-  share: 'square.and.arrow.up',
-} as const satisfies Record<MenuAction['icon'], string>;
 
 export function ActionMenuButton({
   label,

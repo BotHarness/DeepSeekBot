@@ -58,6 +58,8 @@ import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { useStrings, t } from '../strings';
 import { HostTile } from './host-tile';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
+import { ContextMenuArea, nativeContextMenu } from '../primitives/context-menu';
+import { MENU_SYMBOL } from '../primitives/menu-symbols';
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
 import { WorkspaceAddButton } from './workspace-add';
 import {
@@ -326,79 +328,90 @@ function HostRow({
         glass || android ? rowStyle(theme, glass, false, selected) : null,
       ]}
     >
-      <Pressable
-        testID={`drawer-host-${row.hostId}`}
-        onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
-        onLongPress={() => openHostMenu(row, name)}
-        accessibilityRole="button"
-        accessibilityLabel={[
-          name,
-          selected ? t.showing : undefined,
-          status,
-          pending > 0 ? t.hostPending(pending) : undefined,
-          unread > 0 ? t.hostUnread(unread) : undefined,
-        ]
-          .filter((part) => part !== undefined)
-          .join(', ')}
-        accessibilityState={{ selected }}
-        style={({ pressed }) => ({
-          flex: 1,
-          minHeight: theme.touch + space.x3,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-          paddingLeft: glass || android ? space.x3 : space.x4,
-          paddingVertical: space.x3,
-          borderRadius: glass ? radius.lg : android ? radius.round : 0,
-          backgroundColor: glass
-            ? pressed
-              ? pressTint(theme.color.fg)
-              : 'transparent'
-            : android
+      <ContextMenuArea
+        fill
+        actions={hostMenuActions(row, name).map((action) => ({
+          key: action.label,
+          label: action.label,
+          systemImage: MENU_SYMBOL[action.icon],
+          run: action.run,
+          ...(action.destructive === true ? { destructive: true } : {}),
+        }))}
+      >
+        <Pressable
+          testID={`drawer-host-${row.hostId}`}
+          onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
+          {...(nativeContextMenu ? {} : { onLongPress: () => openHostMenu(row, name) })}
+          accessibilityRole="button"
+          accessibilityLabel={[
+            name,
+            selected ? t.showing : undefined,
+            status,
+            pending > 0 ? t.hostPending(pending) : undefined,
+            unread > 0 ? t.hostUnread(unread) : undefined,
+          ]
+            .filter((part) => part !== undefined)
+            .join(', ')}
+          accessibilityState={{ selected }}
+          style={({ pressed }) => ({
+            flex: 1,
+            minHeight: theme.touch + space.x3,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space.x4,
+            paddingLeft: glass || android ? space.x3 : space.x4,
+            paddingVertical: space.x3,
+            borderRadius: glass ? radius.lg : android ? radius.round : 0,
+            backgroundColor: glass
               ? pressed
                 ? pressTint(theme.color.fg)
                 : 'transparent'
-              : pressed
-                ? theme.layer.sheet.pressed
-                : theme.layer.sheet.fill,
-        })}
-      >
-        <DrawerTile look={look} name={name} current={selected} />
-        <View style={{ flex: 1, gap: space.x1 }}>
-          <Text strong numberOfLines={theme.largeText ? undefined : 1}>
-            {name}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-            <View
-              style={{
-                width: space.x3,
-                height: space.x3,
-                borderRadius: radius.round,
-                backgroundColor: dot,
-              }}
-            />
-            <Text
-              variant="meta"
-              tone="muted"
-              {...(address
-                ? addressLines(theme.largeText, Platform.OS)
-                : { numberOfLines: theme.largeText ? undefined : 1 })}
-              style={{ flexShrink: 1 }}
-            >
-              {address || status}
+              : android
+                ? pressed
+                  ? pressTint(theme.color.fg)
+                  : 'transparent'
+                : pressed
+                  ? theme.layer.sheet.pressed
+                  : theme.layer.sheet.fill,
+          })}
+        >
+          <DrawerTile look={look} name={name} current={selected} />
+          <View style={{ flex: 1, gap: space.x1 }}>
+            <Text strong numberOfLines={theme.largeText ? undefined : 1}>
+              {name}
             </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+              <View
+                style={{
+                  width: space.x3,
+                  height: space.x3,
+                  borderRadius: radius.round,
+                  backgroundColor: dot,
+                }}
+              />
+              <Text
+                variant="meta"
+                tone="muted"
+                {...(address
+                  ? addressLines(theme.largeText, Platform.OS)
+                  : { numberOfLines: theme.largeText ? undefined : 1 })}
+                style={{ flexShrink: 1 }}
+              >
+                {address || status}
+              </Text>
+            </View>
           </View>
-        </View>
-        {badge === undefined ? null : (
-          <CountBadge
-            count={badge.count}
-            tone={badge.tone}
-            label={
-              badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
-            }
-          />
-        )}
-      </Pressable>
+          {badge === undefined ? null : (
+            <CountBadge
+              count={badge.count}
+              tone={badge.tone}
+              label={
+                badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
+              }
+            />
+          )}
+        </Pressable>
+      </ContextMenuArea>
       <ActionMenuButton
         label={t.hostMore(name)}
         actions={hostMenuActions(row, name)}

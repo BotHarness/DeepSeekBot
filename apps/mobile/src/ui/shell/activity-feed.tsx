@@ -80,6 +80,7 @@ import { showActionMenu } from '../primitives/app-dialog';
 import { SwipeRow, swipeActionProps, type SwipeAction } from '../primitives/swipe-row';
 import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
 import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
+import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
 import { useFloatingTabInset } from './floating-tab-inset';
@@ -513,6 +514,14 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
     filter.bot !== undefined && !botSlugs.includes(filter.bot)
       ? [...botSlugs, filter.bot]
       : botSlugs;
+  const filterOptions: ActivityOptions = {
+    sort,
+    onSort: setSort,
+    filter,
+    channels,
+    bots: slugsWithSelection.map((slug) => ({ slug, name: bot(slug)?.displayName ?? slug })),
+    onFilter: setFilter,
+  };
   const selectIndex = (next: number) => {
     const tab = ACTIVITY_TABS[next];
     if (!tab) return;
@@ -599,6 +608,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
             filter.channel !== undefined ||
             filter.unreadOnly === true
           }
+          options={filterOptions}
           onSearch={setSearch}
           onFilter={() => setFiltering(true)}
           onHeight={setHeaderHeight}
@@ -616,16 +626,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      <ActivityFilters
-        visible={filtering}
-        sort={sort}
-        onSort={setSort}
-        filter={filter}
-        channels={channels}
-        bots={slugsWithSelection.map((slug) => ({ slug, name: bot(slug)?.displayName ?? slug }))}
-        onFilter={setFilter}
-        onClose={() => setFiltering(false)}
-      />
+      <ActivityFilters visible={filtering} {...filterOptions} onClose={() => setFiltering(false)} />
     </KeyboardAvoidingView>
   );
 });
