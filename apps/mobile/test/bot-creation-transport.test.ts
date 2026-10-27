@@ -73,6 +73,31 @@ describe('target-bound creation transport', () => {
       displayName: 'Helper',
     });
   });
+  it('applies a chosen avatar to the created Bot through the existing appearance operations', async () => {
+    const network = carrier();
+    network.request.mockResolvedValue(answer({ bot: {} }));
+    const transport = botCreationTransport(() => [a, b], network);
+    const receipt = {
+      operationKey: operation.operationKey,
+      botSlug: 'new-bot',
+      status: 'created' as const,
+      channelId: 'dm-new-bot',
+    };
+    await transport.applyAvatar!(operation, receipt, { kind: 'generated', seed: 'seed-1' });
+    await transport.applyAvatar!(operation, receipt, {
+      kind: 'photo',
+      image: 'data:image/jpeg;base64,AAAA',
+    });
+    expect(network.request.mock.calls.map(([url]) => url)).toEqual([
+      'https://b.ts.net/botharness-device/api/botharness/botAppearanceSet',
+      'https://b.ts.net/botharness-device/api/botharness/botAvatarSet',
+    ]);
+    const args = network.request.mock.calls.map(
+      ([, request]) => JSON.parse(String(request.body)).payload.args,
+    );
+    expect(args[0]).toMatchObject({ channelId: 'dm-new-bot', recipe: { family: 'illustrated' } });
+    expect(args[1]).toEqual({ channelId: 'dm-new-bot', avatar: 'data:image/jpeg;base64,AAAA' });
+  });
   it('uses B’s credential and routes without opening a live connection or visiting A', async () => {
     const network = carrier();
     network.request

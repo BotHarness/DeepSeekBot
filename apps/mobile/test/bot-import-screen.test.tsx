@@ -142,6 +142,34 @@ vi.mock('../src/ui/primitives/step-bar', () => ({
     ),
 }));
 vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
+vi.mock('../src/ui/shell/creation-avatar', () => ({
+  CreationAvatar: ({
+    onChange,
+  }: {
+    onChange(avatar: { kind: 'generated'; seed: string } | { kind: 'photo'; image: string }): void;
+  }) =>
+    createElement(
+      'div',
+      null,
+      createElement(
+        'button',
+        {
+          'data-testid': 'create-bot-avatar-shuffle',
+          onClick: () => onChange({ kind: 'generated', seed: 'seed-1' }),
+        },
+        'shuffle',
+      ),
+      createElement(
+        'button',
+        {
+          'data-testid': 'create-bot-avatar-photo',
+          onClick: () => onChange({ kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }),
+        },
+        'photo',
+      ),
+    ),
+}));
+
 vi.mock('../src/ui/shell/open-created-bot', () => ({ openCreatedBot: fixture.open }));
 import { CreateBotScreen, CreateBotStepScreen } from '../src/ui/shell/create-bot-screen';
 import { t } from '../src/ui/strings';

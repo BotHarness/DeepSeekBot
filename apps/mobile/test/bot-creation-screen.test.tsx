@@ -37,6 +37,8 @@ let previewCommit: string;
 let previewWait: Promise<void>;
 let createError: string | undefined;
 let gate: Promise<void>;
+let applied: unknown[];
+let avatarFailure: boolean;
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -211,6 +213,34 @@ vi.mock('../src/ui/primitives/step-bar', () => ({
     ),
 }));
 vi.mock('../src/ui/shell/navigation-action', () => ({ NavigationAction: () => null }));
+vi.mock('../src/ui/shell/creation-avatar', () => ({
+  CreationAvatar: ({
+    onChange,
+  }: {
+    onChange(avatar: { kind: 'generated'; seed: string } | { kind: 'photo'; image: string }): void;
+  }) =>
+    createElement(
+      'div',
+      null,
+      createElement(
+        'button',
+        {
+          'data-testid': 'create-bot-avatar-shuffle',
+          onClick: () => onChange({ kind: 'generated', seed: 'seed-1' }),
+        },
+        'shuffle',
+      ),
+      createElement(
+        'button',
+        {
+          'data-testid': 'create-bot-avatar-photo',
+          onClick: () => onChange({ kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }),
+        },
+        'photo',
+      ),
+    ),
+}));
+
 vi.mock('../src/ui/primitives/keyboard-form', () => ({
   KeyboardFormScroll: ({ children }: { children: ReactNode }) =>
     createElement('div', null, children),
@@ -250,6 +280,8 @@ beforeEach(() => {
   previewCommit = 'a'.repeat(40);
   previewWait = Promise.resolve();
   createError = undefined;
+  applied = [];
+  avatarFailure = false;
   gate = new Promise<void>((resolve) => {
     finish = resolve;
   });
@@ -292,6 +324,10 @@ beforeEach(() => {
         };
         if (failure) throw new BotCreationFailure('unreachable');
         return canonical;
+      },
+      applyAvatar: async (_operation, receipt, avatar) => {
+        applied.push({ channelId: receipt.channelId, avatar });
+        if (avatarFailure) throw new BotCreationFailure('unreachable');
       },
     },
   });
@@ -671,4 +707,59 @@ it('restores a missing archive through the existing owner and retries the pinned
     pathname: '/dm/[slug]',
     params: { slug: 'new-bot', hostId: 'A' },
   });
+});
+
+it.each([
+  ['create-bot-avatar-shuffle', { kind: 'generated', seed: 'seed-1' }],
+  ['create-bot-avatar-photo', { kind: 'photo', image: 'data:image/jpeg;base64,AAAA' }],
+] as const)(
+  'keeps the %s avatar in the draft and applies it after creation',
+  async (id, avatar) => {
+    await mount();
+    await next('blank', 1);
+    await press(id);
+    await type(t.botCreation.name, 'Avatar Bot');
+    expect(controller.getSnapshot().record).toMatchObject({ draft: { avatar } });
+    expect(disk).toMatchObject({ draft: { avatar } });
+    await next('blank', 2);
+    await press('create-bot-submit');
+    expect(disk).toMatchObject({ kind: 'submitted', avatar });
+    expect(operation?.input).not.toHaveProperty('avatar');
+    await act(async () => finish?.());
+    expect(applied).toEqual([{ channelId: 'dm-new-bot', avatar }]);
+    expect(disk).not.toHaveProperty('avatar');
+    expect(controller.getSnapshot().notice).toBeUndefined();
+    expect(fixture.replaced).toEqual({
+      pathname: '/dm/[slug]',
+      params: { slug: 'new-bot', hostId: 'A' },
+    });
+  },
+);
+
+it('keeps the created Bot and raises a notice when its avatar cannot be applied', async () => {
+  avatarFailure = true;
+  await mount();
+  await next('blank', 1);
+  await press('create-bot-avatar-shuffle');
+  await type(t.botCreation.name, 'Avatar Bot');
+  await next('blank', 2);
+  await press('create-bot-submit');
+  await act(async () => finish?.());
+  expect(applied).toHaveLength(1);
+  expect(controller.getSnapshot().receipt?.status).toBe('created');
+  expect(controller.getSnapshot().error).toBeUndefined();
+  expect(controller.getSnapshot().notice).toBe('avatar-failed');
+  expect(fixture.replaced).toEqual({
+    pathname: '/dm/[slug]',
+    params: { slug: 'new-bot', hostId: 'A' },
+  });
+  controller.dismissNotice();
+  expect(controller.getSnapshot().notice).toBeUndefined();
+});
+
+it('does not apply anything when the default generated avatar is kept', async () => {
+  await named('Plain Bot');
+  await press('create-bot-submit');
+  await act(async () => finish?.());
+  expect(applied).toEqual([]);
 });

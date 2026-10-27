@@ -29,6 +29,7 @@ import { CreationField as TextField } from '../primitives/creation-field';
 import { EnvironmentList } from '../primitives/environment-list';
 import { StepBar, type StepBarProps } from '../primitives/step-bar';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
+import { CreationAvatar } from './creation-avatar';
 import { NavigationAction } from './navigation-action';
 import { openCreatedBot } from './open-created-bot';
 import { useMounted } from '../mounted';
@@ -455,6 +456,15 @@ function CreationStep({
                     </Text>
                   ) : null}
                 </>
+              ) : null}
+              {step === 'identity' ? (
+                <CreationAvatar
+                  avatar={draft.avatar}
+                  name={draft.displayName.trim()}
+                  imported={importing}
+                  disabled={state.busy}
+                  onChange={(avatar) => edit({ avatar })}
+                />
               ) : null}
               {step === 'identity' ? (
                 <TextField

@@ -5,6 +5,9 @@ import { botCreation } from '../../host/native-bot-creation';
 import { hostSession } from '../../host/host-session';
 import { createCreationVisibility } from '../../host/bot-creation-visibility';
 import { useMounted } from '../mounted';
+import { showAppDialog } from '../primitives/app-dialog';
+import { t } from '../strings';
+import { creationCopy as copy } from './bot-creation-copy';
 
 export function BotCreationNotice() {
   const path = usePathname();
@@ -26,6 +29,12 @@ export function BotCreationNotice() {
         return;
       void botCreation.resume();
     };
+    const notice = () => {
+      if (botCreation.getSnapshot().notice !== 'avatar-failed') return;
+      botCreation.dismissNotice();
+      showAppDialog(copy.avatarFailedTitle, copy.avatarFailed, [{ text: t.done }]);
+    };
+    const offNotice = botCreation.subscribe(notice);
     recover();
     let live = true;
     void botCreation.ready.then(() => {
@@ -39,6 +48,7 @@ export function BotCreationNotice() {
     const timer = setInterval(recover, 10_000);
     return () => {
       live = false;
+      offNotice();
       visibility.blur();
       offHost();
       off.remove();
