@@ -9,10 +9,7 @@ import {
   type AvatarFamily,
   type AvatarRecipe,
 } from '../../../../../packages/core/src/bots/avatar-appearance';
-import {
-  DEFAULT_LINE_RECIPE,
-  seededLineRecipe,
-} from '../../../../../packages/core/src/bots/avatar-line';
+import { DEFAULT_LINE_RECIPE } from '../../../../../packages/core/src/bots/avatar-line';
 import {
   avatarCategories,
   avatarColorCanFollowHair,
@@ -167,14 +164,6 @@ export function AvatarCustomizer({
     const next = changeAvatarFeature(recipe, field, value);
     if (next) setRecipe(next);
   };
-  const shuffle = () => {
-    const seed = randomAvatarSeed();
-    const next = family === 'line' ? seededLineRecipe(seed) : seededAvatarFor(seed, 2);
-    setRecipe(next);
-    setBase(next);
-    if (!avatarCategories(next).includes(category))
-      setCategory(next.family === 'line' ? 'eyes' : 'hair');
-  };
   const save = async () => {
     if (busy) return;
     setBusy(true);
@@ -229,15 +218,11 @@ export function AvatarCustomizer({
         </View>
         <View
           style={{
-            flexDirection: theme.largeText ? 'column' : 'row',
-            alignItems: theme.largeText ? 'stretch' : 'center',
-            gap: space.x2,
             paddingHorizontal: space.x4,
           }}
         >
           <FlatList
             testID="avatar-editor-categories"
-            style={{ flex: theme.largeText ? undefined : 1 }}
             horizontal
             data={avatarCategories(recipe)}
             keyExtractor={(value) => value}
@@ -251,13 +236,6 @@ export function AvatarCustomizer({
                 onPress={() => chooseCategory(item)}
               />
             )}
-          />
-          <Button
-            testID="avatar-editor-shuffle"
-            label={strings.botCreation.shuffleAvatar}
-            symbol="refresh"
-            variant="text"
-            onPress={shuffle}
           />
         </View>
         {failed ? (
