@@ -1,8 +1,10 @@
 import { Host, Text, TextField, useNativeState } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, testID } from '@expo/ui/jetpack-compose/modifiers';
-import { useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { useContext, useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { View, type ViewInstance } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import type { CreationField as SharedCreationField } from './creation-field';
+import { KeyboardFormNativeFocus } from './keyboard-form-context';
 
 export function CreationField({
   value = '',
@@ -19,6 +21,9 @@ export function CreationField({
   invalid,
 }: ComponentProps<typeof SharedCreationField>) {
   const theme = useDesignTheme();
+  const focus = useContext(KeyboardFormNativeFocus);
+  const wrapper = useRef<ViewInstance | null>(null);
+  const focused = useRef(false);
   const text = useNativeState(value);
   const pendingEchoes = useRef<string[]>([]);
   useLayoutEffect(() => {
@@ -27,56 +32,67 @@ export function CreationField({
     else if (text.get() !== value) text.set(value);
   }, [text, value]);
   return (
-    <Host
-      matchContents={{ vertical: true }}
-      colorScheme={theme.scheme}
-      seedColor={theme.color.accent}
-      ignoreSafeAreaKeyboardInsets
+    <View
+      ref={wrapper}
+      onLayout={() => {
+        if (wrapper.current && focused.current) focus?.(wrapper.current, true);
+      }}
     >
-      <TextField
-        value={text}
-        onValueChange={(next) => {
-          pendingEchoes.current.push(next);
-          onChangeText?.(next);
-        }}
-        enabled={editable !== false}
-        singleLine={!multiline}
-        minLines={multiline ? 3 : 1}
-        {...(maxLength === undefined ? {} : { maxLength })}
-        isError={invalid ?? false}
-        keyboardOptions={{
-          capitalization: autoCapitalize ?? 'sentences',
-          autoCorrectEnabled: autoCorrect ?? true,
-          keyboardType: keyboardType === 'url' ? 'uri' : 'text',
-        }}
-        colors={{
-          focusedContainerColor: theme.layer.field.fill,
-          unfocusedContainerColor: theme.layer.field.fill,
-          disabledContainerColor: theme.layer.field.fill,
-          focusedTextColor: theme.color.fg,
-          unfocusedTextColor: theme.color.fg,
-          focusedLabelColor: theme.color.accent,
-          unfocusedLabelColor: theme.color.muted,
-          focusedIndicatorColor: theme.color.accent,
-          unfocusedIndicatorColor: theme.color.borderField,
-        }}
-        modifiers={[
-          fillMaxWidth(),
-          ...(id ? [testID(id)] : []),
-          ...(accessibilityLabel ? [semantics({ contentDescription: accessibilityLabel })] : []),
-        ]}
+      <Host
+        matchContents={{ vertical: true }}
+        colorScheme={theme.scheme}
+        seedColor={theme.color.accent}
+        ignoreSafeAreaKeyboardInsets
       >
-        {accessibilityLabel ? (
-          <TextField.Label>
-            <Text>{accessibilityLabel}</Text>
-          </TextField.Label>
-        ) : null}
-        {placeholder ? (
-          <TextField.Placeholder>
-            <Text>{placeholder}</Text>
-          </TextField.Placeholder>
-        ) : null}
-      </TextField>
-    </Host>
+        <TextField
+          onFocusChanged={(next) => {
+            focused.current = next;
+            if (wrapper.current) focus?.(wrapper.current, next);
+          }}
+          value={text}
+          onValueChange={(next) => {
+            pendingEchoes.current.push(next);
+            onChangeText?.(next);
+          }}
+          enabled={editable !== false}
+          singleLine={!multiline}
+          minLines={multiline ? 3 : 1}
+          {...(maxLength === undefined ? {} : { maxLength })}
+          isError={invalid ?? false}
+          keyboardOptions={{
+            capitalization: autoCapitalize ?? 'sentences',
+            autoCorrectEnabled: autoCorrect ?? true,
+            keyboardType: keyboardType === 'url' ? 'uri' : 'text',
+          }}
+          colors={{
+            focusedContainerColor: theme.layer.field.fill,
+            unfocusedContainerColor: theme.layer.field.fill,
+            disabledContainerColor: theme.layer.field.fill,
+            focusedTextColor: theme.color.fg,
+            unfocusedTextColor: theme.color.fg,
+            focusedLabelColor: theme.color.accent,
+            unfocusedLabelColor: theme.color.muted,
+            focusedIndicatorColor: theme.color.accent,
+            unfocusedIndicatorColor: theme.color.borderField,
+          }}
+          modifiers={[
+            fillMaxWidth(),
+            ...(id ? [testID(id)] : []),
+            ...(accessibilityLabel ? [semantics({ contentDescription: accessibilityLabel })] : []),
+          ]}
+        >
+          {accessibilityLabel ? (
+            <TextField.Label>
+              <Text>{accessibilityLabel}</Text>
+            </TextField.Label>
+          ) : null}
+          {placeholder ? (
+            <TextField.Placeholder>
+              <Text>{placeholder}</Text>
+            </TextField.Placeholder>
+          ) : null}
+        </TextField>
+      </Host>
+    </View>
   );
 }
