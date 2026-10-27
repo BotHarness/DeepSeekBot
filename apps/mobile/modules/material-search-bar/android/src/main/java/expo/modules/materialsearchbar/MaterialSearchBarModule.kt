@@ -16,7 +16,7 @@ class MaterialSearchBarModule : Module() {
       Prop("busy") { view: MaterialSearchBarView, value: Boolean -> view.busy = value }
       Prop("results") { view: MaterialSearchBarView, value: List<SearchResult> -> view.results = value }
       Prop("dark") { view: MaterialSearchBarView, value: Boolean -> view.dark = value }
-      Prop("foreground") { view: MaterialSearchBarView, value: String -> view.foreground = value }
+      Prop("surfaceContent") { view: MaterialSearchBarView, value: String -> view.surfaceContent = value }
       Prop("muted") { view: MaterialSearchBarView, value: String -> view.muted = value }
       Prop("surface") { view: MaterialSearchBarView, value: String -> view.surface = value }
       Prop("base") { view: MaterialSearchBarView, value: String -> view.base = value }

@@ -88,7 +88,7 @@ class MaterialSearchBarView(context: Context, appContext: AppContext) : ExpoView
   var busy by mutableStateOf(false)
   var results by mutableStateOf<List<SearchResult>>(emptyList())
   var dark by mutableStateOf(false)
-  var foreground by mutableStateOf("")
+  var surfaceContent by mutableStateOf("")
   var muted by mutableStateOf("")
   var surface by mutableStateOf("")
   var base by mutableStateOf("")
@@ -103,7 +103,7 @@ class MaterialSearchBarView(context: Context, appContext: AppContext) : ExpoView
         val colors = scheme.copy(
           primary = color(accent, scheme.primary),
           onPrimary = color(accentContent, scheme.onPrimary),
-          onSurface = color(foreground, scheme.onSurface),
+          onSurface = color(surfaceContent, scheme.onSurface),
           onSurfaceVariant = color(muted, scheme.onSurfaceVariant),
           surface = color(base, scheme.surface),
           surfaceContainerHigh = color(surface, scheme.surfaceContainerHigh),

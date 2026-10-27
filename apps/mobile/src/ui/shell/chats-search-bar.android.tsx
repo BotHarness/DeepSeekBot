@@ -15,7 +15,7 @@ type NativeSearchBarProps = ViewProps & {
   busy: boolean;
   results: ChatsSearchResult[];
   dark: boolean;
-  foreground: string;
+  surfaceContent: string;
   muted: string;
   surface: string;
   base: string;
@@ -44,7 +44,7 @@ export function ChatsSearchBar(props: ChatsSearchBarProps) {
       busy={props.busy}
       results={props.results}
       dark={theme.scheme === 'dark'}
-      foreground={theme.color.fg}
+      surfaceContent={theme.color.fg}
       muted={theme.color.muted}
       surface={theme.layer.raised.fill}
       base={theme.color.base}
