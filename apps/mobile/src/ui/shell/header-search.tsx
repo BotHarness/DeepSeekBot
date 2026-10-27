@@ -6,7 +6,6 @@ import { SearchField } from '../primitives/search-field';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
 import { HeaderIconButton } from './header-icon-button';
-import { ChevronLeftIcon, CloseIcon } from './icons';
 import { NavigationAction } from './navigation-action';
 import { holdBack } from './back-owner';
 
@@ -46,9 +45,7 @@ export function HeaderSearch({
   return (
     <>
       {android ? (
-        <HeaderIconButton label={t.closeSearch} testID="search-close" onPress={close}>
-          <ChevronLeftIcon color={theme.color.fg} size={theme.type.title.line} />
-        </HeaderIconButton>
+        <HeaderIconButton icon="back" label={t.closeSearch} testID="search-close" onPress={close} />
       ) : null}
       <View ref={backHandler} style={{ flex: 1 }}>
         <SearchField
@@ -64,9 +61,11 @@ export function HeaderSearch({
             !android ? (
               <NavigationAction close size={theme.touch} label={t.closeSearch} onPress={close} />
             ) : value !== '' ? (
-              <HeaderIconButton label={t.activityClearSearch} onPress={() => onChangeText('')}>
-                <CloseIcon color={theme.color.muted} size={theme.type.title.size} />
-              </HeaderIconButton>
+              <HeaderIconButton
+                icon="clear"
+                label={t.activityClearSearch}
+                onPress={() => onChangeText('')}
+              />
             ) : null
           }
         />

@@ -30,7 +30,6 @@ import { radius, space } from '../../src/ui/design/tokens';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
-import { HandBackIcon } from '../../src/ui/shell/icons';
 import { viewerHeaderOptions } from '../../src/ui/shell/viewer-header';
 import { useMounted } from '../../src/ui/mounted';
 import { useStrings } from '../../src/ui/strings';
@@ -138,7 +137,7 @@ function LegacyComputerScreen() {
                 key: 'hand-back',
                 label: t.computerHandBack,
                 symbol: { type: 'sfSymbol', name: 'hand.raised.slash' },
-                icon: <HandBackIcon color={theme.color.fg} size={theme.touch / 2} />,
+                icon: 'hand-back',
                 onPress: () => void viewer?.setControl(false),
               }
             : undefined,
