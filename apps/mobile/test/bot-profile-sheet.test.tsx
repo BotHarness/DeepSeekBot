@@ -261,7 +261,7 @@ describe('Bot profile page', () => {
     expect(view.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('opens with five icon tabs named for VoiceOver and TalkBack, a heading per tab and no Share or Message', async () => {
+  it('opens with five icon tabs named for VoiceOver and TalkBack, no tab-name heading and no Share or Message', async () => {
     const view = await render(
       <BotProfileSheet
         bot={bot}
@@ -287,15 +287,12 @@ describe('Bot profile page', () => {
       'false',
     ]);
     expect(tabs.every((tab) => tab.textContent === '')).toBe(true);
-    expect(view.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-      t.profileTabs.work,
-    );
+    expect(view.querySelector('[data-testid="profile-tab-content-work"]')).not.toBeNull();
+    expect(headers(view)).not.toContain(t.profileTabs.work);
     expect(button(view, 'Message')).toBeNull();
     expect(button(view, t.share.title)).toBeNull();
     await openTab(view, 'routines');
-    expect(view.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-      t.profileTabs.routines,
-    );
+    expect(view.querySelector('[data-testid="profile-tab-content-routines"]')).not.toBeNull();
     expect(
       view.querySelector('[data-testid="profile-tab-routines"]')?.getAttribute('aria-selected'),
     ).toBe('true');
@@ -395,7 +392,7 @@ describe('Bot profile page', () => {
     expect(view.textContent).toContain('researcher');
     expect(view.textContent).toContain('Standing rules:');
     expect(view.textContent).not.toContain('Vain prefers summaries under 100 words.');
-    expect(headers(view)).toEqual([bot.displayName, t.profileTabs.memory, t.profileSection.memory]);
+    expect(headers(view)).toEqual([bot.displayName, t.profileSection.memory]);
     await openTab(view, 'routines');
     expect(view.textContent).toContain('Morning digest');
     expect(view.textContent).toContain(t.routineDaily('09:00'));
@@ -403,7 +400,6 @@ describe('Bot profile page', () => {
     await openTab(view, 'settings');
     expect(headers(view)).toEqual([
       bot.displayName,
-      t.profileTabs.settings,
       t.profileSettingsBot,
       t.avatarTitle,
       t.profileSection.channels,
