@@ -30,6 +30,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
       props.label,
     ),
   IconChevronDownOutlineRegular: () => null,
+  IconChevronLeftOutlineRegular: () => null,
   Menu: (props: {
     open: boolean;
     items: readonly { id: string; label: ReactNode }[];
@@ -638,6 +639,66 @@ describe('Uploaded Bots in the Market panel', () => {
             { path: 'tools/run.sh', size: 8, kind: 'script' },
             { path: '.botharness/avatar.png', size: 2048, kind: 'image' },
           ],
+        })),
+      },
+    );
+  });
+
+  it('shows the file breakdown and reads text files, scripts never as Markdown', async () => {
+    const file = vi.fn(async (_id: string, path: string) =>
+      path === 'SOUL.md'
+        ? { path, size: 20, type: 'markdown', text: '# Soul\n\nI help.' }
+        : { path, size: 8, type: 'script', text: '# echo\n**not bold**' },
+    );
+    await withPanel(
+      async () => ({ bots: [uploaded] }),
+      async ({ host }) => {
+        await click(host, '查看 Alice/Helper 详情');
+        const breakdown = host.querySelector('[data-market-breakdown]')!;
+        expect(
+          [...breakdown.querySelectorAll('[data-market-type]')].map((item) => item.textContent),
+        ).toEqual(['图片12.0 KB', 'Markdown120 B', '脚本18 B']);
+        expect(
+          host.querySelector('[data-market-scripts]')?.getAttribute('data-market-scripts'),
+        ).toBe('1');
+        expect(host.querySelector('[aria-label="查看 .botharness/avatar.png"]')).toBeNull();
+
+        await click(host, '查看 tools/run.sh');
+        await act(async () => {});
+        expect(file).toHaveBeenCalledWith('U_helper', 'tools/run.sh');
+        const script = host.querySelector('[data-market-reader-body="script"]')!;
+        expect(script.tagName).toBe('PRE');
+        expect(script.textContent).toBe('# echo\n**not bold**');
+        expect(host.querySelector('[data-market-files]')).toBeNull();
+
+        await click(host, '返回文件列表');
+        await click(host, '查看 SOUL.md');
+        await act(async () => {});
+        const markdown = host.querySelector('[data-market-reader-body="markdown"]')!;
+        expect(markdown.tagName).toBe('DIV');
+        expect(markdown.textContent).toBe('# Soul\n\nI help.');
+      },
+      {
+        marketplaceFile: file,
+        marketplaceDetail: vi.fn(async () => ({
+          bot: uploaded,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [
+            { path: 'SOUL.md', size: 20, kind: 'text' },
+            { path: 'tools/run.sh', size: 8, kind: 'script' },
+            { path: '.botharness/avatar.png', size: 2048, kind: 'image' },
+          ],
+          fileSummary: {
+            count: 3,
+            size: 2076,
+            types: [
+              { type: 'image', count: 1, size: 2048 },
+              { type: 'markdown', count: 1, size: 20 },
+              { type: 'script', count: 1, size: 8 },
+            ],
+          },
         })),
       },
     );

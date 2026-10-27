@@ -134,6 +134,7 @@ import type {
   MarketplaceClient,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceResult,
@@ -945,6 +946,7 @@ export interface BridgeMethods {
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
+  marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
   marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   marketplaceAccount(): Promise<BridgeResult<MarketplaceAccount>>;
@@ -3673,6 +3675,16 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       const lang = marketplaceLang(langValue);
       if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
       return marketplaceCall((client) => client.detail(id.trim(), lang));
+    },
+    marketplaceFileView(payload) {
+      const { id, path } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        return Promise.resolve(invalidInput('id is required'));
+      }
+      if (typeof path !== 'string' || path.length === 0) {
+        return Promise.resolve(invalidInput('path is required'));
+      }
+      return marketplaceCall((client) => client.fileView(id.trim(), path));
     },
     marketplaceSubmit(payload) {
       const { url, altcha } = asObject(payload);

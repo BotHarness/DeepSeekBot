@@ -21,10 +21,10 @@ import { PanelDialog } from './ds/panel-dialog.js';
 import { StepProgress } from './ds/step-progress.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import { fileSize } from './market-files.js';
 import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
 import {
   MarketplaceSubmitField,
-  fileSize,
   marketplaceError,
   marketplaceLanguage,
   useMarketplaceSubmit,

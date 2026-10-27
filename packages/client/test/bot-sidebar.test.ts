@@ -179,6 +179,9 @@ function stubActions(): BridgeActions {
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),
+    marketplaceFile: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceSubmit: vi.fn(async () => {
       throw new Error('unexpected Marketplace submission');
     }),
