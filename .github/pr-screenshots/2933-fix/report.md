@@ -41,7 +41,7 @@ List → same conversation retained the test draft and known content after a 10-
 
 ## Remaining observations and acceptance
 
-- `header.png`: one keyboard-closed case had isolated captures where the native header was not drawn, although its AX Back button remained 44×44 and hittable. The next case drew it normally. Cause and relation to the original flicker are unconfirmed; retained as a separate observation, not an all-pass header claim.
+- `header.png` shows the visible native header in the keyboard-closed control; it is not an image of a missing header. Separately, earlier isolated captures were recorded as missing the native header despite a 44×44 hittable AX Back button. Those raw captures remain private, and their cause and relation to the original flicker are unconfirmed. The public image alone does not prove that observation or an all-pass header result.
 - Sustained flicker was not reproduced. The generic render-failure reload affordance is not implemented by this narrow fix; keep #2933 open.
 - iPhone 17 / reported iOS 26.6.2, TestFlight chat behavior, Android, intermediate/maximum Dynamic Type, dark appearance, VoiceOver, active marked-text composition, long/streaming histories and Human QA remain UNTESTED. The physical driver does not expose direct font/appearance controls; phone settings were preserved and no Simulator window was taken.
 - UIKit background snapshot frames have no useful Expo Web counterpart; the before/after evidence is physical native, not a Web preview.
