@@ -928,7 +928,7 @@ deepseekbot folder-browse 'D:\code' --offset 500
 选定在线 Host 时，上述命令改为通过 Host 的 Memory 模块执行，而不是读写本地存储，此时 `memory-save` 必须带 `--expected-head`。在线 Host 还提供 Memory 面板的其余功能：
 
 ```bash
-deepseekbot memory-graph <bot-id> [--offset <n>]
+deepseekbot memory-graph <bot-id> [--offset <n>] [--path <file>]
 deepseekbot memory-commit-diff <bot-id> --sha <commit>
 deepseekbot memory-changes <bot-id>
 deepseekbot memory-working-diff <bot-id> --path <file> --kind staged|unstaged|untracked|current
@@ -941,6 +941,8 @@ deepseekbot memory-restore <bot-id> --checkpoint <id> --expected-current <id>
 deepseekbot memory-restore-commit <bot-id> --sha <commit> --expected-head <commit> [--name <version>]
 deepseekbot memory-repair <bot-id> --expected-head <commit>
 ```
+
+`memory-graph --path` 只列出改过这个文件的提交，和 App 里 Memory 文件页的「修改记录」一致。
 
 写入和恢复都必须指明预期的 head 或检查点，所以并发修改会以 `memory-conflict` 失败，而不会被覆盖；`--restore-id` 和 `--repair-id` 默认是新的 UUID，使重试保持幂等。恢复前会先记录一个检查点，可以用 `memory-checkpoints` 查看。
 

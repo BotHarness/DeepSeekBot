@@ -232,7 +232,7 @@ export interface MemoryAcceptance {
   imageFile(botSlug: string, path: string, source: string, revision: string): Buffer;
   history(botSlug: string, limit?: number): MemoryAcceptedCommit[];
   diff(botSlug: string, sha: string): { sha: string; diff: string };
-  gitGraph(botSlug: string, offset?: number): MemoryGitGraph;
+  gitGraph(botSlug: string, offset?: number, path?: string): MemoryGitGraph;
   gitCommitDiff(botSlug: string, sha: string): MemoryGitCommitDiff;
   workingChanges(botSlug: string): MemoryWorkingChange[];
   workingDiff(botSlug: string, path: string, kind: MemoryWorkingKind): MemoryWorkingDiff;
@@ -1599,11 +1599,13 @@ export function createMemoryAcceptance(options: {
       };
     },
 
-    gitGraph(botSlug, offset = 0) {
+    gitGraph(botSlug, offset = 0, path) {
       if (!Number.isInteger(offset) || offset < 0 || offset > 10_000) {
         throw new MemoryAcceptError('memory-invalid', 'Invalid Memory graph offset');
       }
       const root = graphRepository(botSlug);
+      const only = path === undefined ? undefined : toMemoryRelativePath(path);
+      if (only !== undefined) resolveMemoryPath(root, only);
       const branchMap = new Map<string, string[]>();
       for (const line of output(root, [
         'for-each-ref',
@@ -1633,6 +1635,7 @@ export function createMemoryAcceptance(options: {
         `--skip=${offset}`,
         '--max-count=61',
         '--format=%H%x1f%P%x1f%s%x1f%aI',
+        ...(only === undefined ? [] : ['--', only]),
       ])
         .split('\n')
         .filter(Boolean);

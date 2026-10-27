@@ -213,6 +213,30 @@ describe('current Git working tree is Memory', () => {
     }
   });
 
+  it('lists only the commits that touched one file when asked for its history', () => {
+    const { database, memory, root } = fixture();
+    try {
+      writeFileSync(join(root, 'alpha.md'), 'one\n');
+      git(root, 'add', 'alpha.md');
+      git(root, 'commit', '-m', 'alpha');
+      writeFileSync(join(root, 'beta.md'), 'two\n');
+      git(root, 'add', 'beta.md');
+      git(root, 'commit', '-m', 'beta');
+      expect(memory.gitGraph('atlas', 0, 'alpha.md').commits.map((c) => c.subject)).toEqual([
+        'alpha',
+      ]);
+      expect(
+        memory
+          .gitGraph('atlas')
+          .commits.map((c) => c.subject)
+          .slice(0, 2),
+      ).toEqual(['beta', 'alpha']);
+      expect(() => memory.gitGraph('atlas', 0, '../outside.md')).toThrow();
+    } finally {
+      database.close();
+    }
+  });
+
   it('follows a native fetch and reset to an unrelated merged history without admission', () => {
     const { home, database, registry, ownership, memory, root, addSource } = fixture();
     try {

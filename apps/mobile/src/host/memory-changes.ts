@@ -49,11 +49,13 @@ export async function loadMemoryChanges(
   client: HostClient,
   bot: ProfileBotRef,
   offset = 0,
+  path?: string,
 ): Promise<MemoryChangesPage> {
   const channelId = await dmChannel(client, bot);
   const graph = await client.call<{ commits: MemoryChange[]; hasMore: boolean }>('memoryGitGraph', {
     channelId,
     offset,
+    ...(path === undefined ? {} : { path }),
   });
   return {
     commits: graph.commits.map(({ sha, subject, authoredAt, status }) => ({

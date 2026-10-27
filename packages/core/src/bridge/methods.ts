@@ -7136,7 +7136,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         (!Number.isInteger(offset) || Number(offset) < 0 || Number(offset) > 10_000)
       )
         return invalidInput('valid offset is required');
-      return memoryCall(() => deps.memory!.gitGraph(scope.botSlug, Number(offset ?? 0)));
+      const path = asObject(payload)['path'];
+      if (path !== undefined && (typeof path !== 'string' || path.trim() === ''))
+        return invalidInput('valid path is required');
+      return memoryCall(() =>
+        deps.memory!.gitGraph(scope.botSlug, Number(offset ?? 0), path as string | undefined),
+      );
     },
     memoryGitCommitDiff(payload) {
       const scope = dmMemory(payload);

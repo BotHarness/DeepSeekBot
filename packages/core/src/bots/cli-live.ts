@@ -1862,7 +1862,14 @@ async function runMemoryCommand(
       const offset = values.offset === undefined ? 0 : Number(values.offset);
       if (!Number.isInteger(offset) || offset < 0 || offset > 10_000)
         usage('--offset must be an integer from 0 to 10000.');
-      [method, args] = ['memoryGitGraph', { channelId, offset }];
+      [method, args] = [
+        'memoryGitGraph',
+        {
+          channelId,
+          offset,
+          ...(values.path === undefined ? {} : { path: required('path', 'path <file>') }),
+        },
+      ];
       break;
     }
     case 'memory-commit-diff':

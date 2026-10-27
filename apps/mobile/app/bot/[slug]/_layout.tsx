@@ -19,6 +19,7 @@ export default function BotProfileLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="memory" />
         <Stack.Screen name="memory-commit" />
+        <Stack.Screen name="memory-history" />
         <Stack.Screen name="activity" />
         <Stack.Screen name="routine/[id]" />
         <Stack.Screen name="assignment/[id]" />
