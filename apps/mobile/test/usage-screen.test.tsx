@@ -9,6 +9,10 @@ vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ back() {} }) }));
 vi.mock('react-native-safe-area-context', () => ({

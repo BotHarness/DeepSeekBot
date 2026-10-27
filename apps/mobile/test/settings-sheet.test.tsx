@@ -23,6 +23,11 @@ import { HumanAvatarButton } from '../src/ui/shell/human-avatar';
 import { t } from '../src/ui/strings';
 import { StatisticsSettings } from '../src/ui/shell/statistics-settings';
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
+    callback(...args),
+}));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
 vi.mock('../src/telemetry/native', () => ({
