@@ -32,7 +32,11 @@ import { referenceRuns } from './channel-refs.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions } from './actions.js';
-import { FolderBrowser, type FolderBrowserActions } from './workspace-grants-entry.js';
+import {
+  FolderBrowser,
+  folderBrowseError,
+  type FolderBrowserActions,
+} from './workspace-grants-entry.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
@@ -221,21 +225,25 @@ export function GrantRequestCard({
     setError(undefined);
     void (async () => {
       if (!alreadyChecked && beforeOpen !== undefined && !(await beforeOpen())) return;
-      return actions.listHostFolders().then(setListing, async (cause: unknown) => {
-        if (
-          cause instanceof Error &&
-          'rpcError' in cause &&
-          typeof cause.rpcError === 'object' &&
-          cause.rpcError !== null &&
-          'code' in cause.rpcError &&
-          cause.rpcError.code === 'directory-picker/unavailable'
-        ) {
-          const path = await actions.pickWorkspaceFolder();
-          if (path !== null) approve(path);
-          return;
-        }
-        setError(errorMessage(cause));
-      });
+      const pickNatively = async (): Promise<void> => {
+        const path = await actions.pickWorkspaceFolder();
+        if (path !== null) approve(path);
+      };
+      return actions.listHostFolders().then(
+        (value) => (value.nativePicker === true ? pickNatively() : setListing(value)),
+        async (cause: unknown) => {
+          if (
+            cause instanceof Error &&
+            'rpcError' in cause &&
+            typeof cause.rpcError === 'object' &&
+            cause.rpcError !== null &&
+            'code' in cause.rpcError &&
+            cause.rpcError.code === 'directory-picker/unavailable'
+          )
+            return pickNatively();
+          setError(folderBrowseError(cause, t));
+        },
+      );
     })()
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setOpening(false));

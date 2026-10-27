@@ -1,9 +1,20 @@
-import { existsSync, readdirSync, statSync, type Dirent } from 'node:fs';
+import { fork, type ChildProcess } from 'node:child_process';
 import { homedir } from 'node:os';
 import nodePath from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { createDriveRoots, type DriveRoots } from './drive-roots.js';
+import type {
+  FolderReadReply,
+  FolderReadRequest,
+  FolderReadResult,
+} from './folder-browse-worker.js';
 
 export const FOLDER_BROWSE_LIMIT = 500;
+export const FOLDER_BROWSE_DEADLINE_MS = 5_000;
 const PATH_LIMIT = 1024;
+const ROOTS_WAIT_MS = 1_500;
+const WORKER_IDLE_MS = 120_000;
 
 export interface BrowsedFolder {
   name: string;
@@ -17,14 +28,29 @@ export interface FolderListing {
   crumbs: BrowsedFolder[];
   entries: BrowsedFolder[];
   truncated: boolean;
+  nextOffset?: number;
   roots: BrowsedFolder[];
+  nativePicker?: boolean;
 }
 
 export type FolderBrowseRefusal =
   | 'folder-browse/invalid-path'
   | 'folder-browse/not-found'
   | 'folder-browse/not-directory'
-  | 'folder-browse/denied';
+  | 'folder-browse/denied'
+  | 'folder-browse/unreadable'
+  | 'folder-browse/timeout'
+  | 'folder-browse/unavailable';
+
+const REFUSALS = new Set<string>([
+  'folder-browse/invalid-path',
+  'folder-browse/not-found',
+  'folder-browse/not-directory',
+  'folder-browse/denied',
+  'folder-browse/unreadable',
+  'folder-browse/timeout',
+  'folder-browse/unavailable',
+] satisfies FolderBrowseRefusal[]);
 
 export class FolderBrowseError extends Error {
   constructor(
@@ -36,39 +62,138 @@ export class FolderBrowseError extends Error {
   }
 }
 
+export type FolderRead = (request: Omit<FolderReadRequest, 'id'>) => Promise<FolderReadResult>;
+
 export interface FolderBrowserDeps {
   platform?: NodeJS.Platform;
   home?: string;
-  readdir?: (path: string) => Dirent[];
-  isDirectory?: (path: string) => boolean;
-  exists?: (path: string) => boolean;
+  read?: FolderRead;
+  drives?: DriveRoots;
+  nativePicker?: () => boolean;
 }
 
 export interface FolderBrowser {
-  list(path?: string): FolderListing;
+  list(path?: string, offset?: number): Promise<FolderListing>;
+  close(): void;
 }
 
-function errnoCode(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null && 'code' in error
-    ? String((error as { code: unknown }).code)
-    : undefined;
+export interface FolderWorkerOptions {
+  spawn?: () => ChildProcess;
+  deadlineMs?: number;
+  idleMs?: number;
+}
+
+export interface FolderWorker {
+  read: FolderRead;
+  close(): void;
+}
+
+export function spawnFolderWorker(): ChildProcess {
+  const source = import.meta.url.endsWith('.ts');
+  const entry = new URL(
+    source ? './folder-browse-worker.ts' : './folder-browse-worker.mjs',
+    import.meta.url,
+  );
+  return fork(fileURLToPath(entry), [], {
+    env: { ...process.env, BOTHARNESS_FOLDER_BROWSE_WORKER: '1' },
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    execArgv: source ? ['--experimental-strip-types', '--no-warnings'] : [],
+  });
+}
+
+export function createFolderWorker(options: FolderWorkerOptions = {}): FolderWorker {
+  const spawn = options.spawn ?? spawnFolderWorker;
+  const deadlineMs = options.deadlineMs ?? FOLDER_BROWSE_DEADLINE_MS;
+  const idleMs = options.idleMs ?? WORKER_IDLE_MS;
+  interface Waiter {
+    resolve: (reply: FolderReadResult) => void;
+    reject: (error: Error) => void;
+    timer: NodeJS.Timeout;
+  }
+  interface Live {
+    process: ChildProcess;
+    waiters: Map<number, Waiter>;
+    idle?: NodeJS.Timeout;
+    retired?: boolean;
+  }
+  let live: Live | undefined;
+  let nextId = 1;
+
+  const retire = (target: Live, error?: FolderBrowseError): void => {
+    if (target.retired === true) return;
+    target.retired = true;
+    if (live === target) live = undefined;
+    clearTimeout(target.idle);
+    for (const waiter of target.waiters.values()) {
+      clearTimeout(waiter.timer);
+      if (error !== undefined) waiter.reject(error);
+    }
+    target.waiters.clear();
+    target.process.kill();
+  };
+
+  const start = (): Live => {
+    const process = spawn();
+    const target: Live = { process, waiters: new Map() };
+    process.on('message', (reply: FolderReadReply) => {
+      const waiter = target.waiters.get(reply.id);
+      if (waiter === undefined) return;
+      target.waiters.delete(reply.id);
+      clearTimeout(waiter.timer);
+      const { id: _id, ...result } = reply;
+      waiter.resolve(result);
+      if (target.waiters.size === 0) {
+        target.idle = setTimeout(() => retire(target), idleMs);
+        target.idle.unref?.();
+      }
+    });
+    const lost = (): void =>
+      retire(
+        target,
+        new FolderBrowseError('folder-browse/unavailable', 'The folder reader stopped. Try again.'),
+      );
+    process.on('exit', lost);
+    process.on('error', lost);
+    process.unref();
+    process.channel?.unref();
+    return target;
+  };
+
+  return {
+    read(request) {
+      return new Promise((resolve, reject) => {
+        live ??= start();
+        const target = live;
+        clearTimeout(target.idle);
+        const id = nextId++;
+        const timer = setTimeout(
+          () =>
+            retire(
+              target,
+              new FolderBrowseError(
+                'folder-browse/timeout',
+                'That folder did not answer in time. A network drive may be disconnected.',
+              ),
+            ),
+          deadlineMs,
+        );
+        target.waiters.set(id, { resolve, reject, timer });
+        target.process.send({ ...request, id } satisfies FolderReadRequest);
+      });
+    },
+    close() {
+      if (live !== undefined) retire(live);
+    },
+  };
 }
 
 export function createFolderBrowser(deps: FolderBrowserDeps = {}): FolderBrowser {
   const platform = deps.platform ?? process.platform;
   const path = platform === 'win32' ? nodePath.win32 : nodePath.posix;
   const home = deps.home ?? homedir();
-  const readdir = deps.readdir ?? ((dir: string) => readdirSync(dir, { withFileTypes: true }));
-  const isDirectory =
-    deps.isDirectory ??
-    ((target: string) => {
-      try {
-        return statSync(target).isDirectory();
-      } catch {
-        return false;
-      }
-    });
-  const exists = deps.exists ?? existsSync;
+  const worker = deps.read === undefined ? createFolderWorker() : undefined;
+  const read = deps.read ?? worker!.read;
+  const drives = deps.drives ?? (platform === 'win32' ? createDriveRoots() : undefined);
 
   const folder = (target: string, name?: string): BrowsedFolder => {
     const label = name ?? (path.basename(target) || target);
@@ -99,55 +224,53 @@ export function createFolderBrowser(deps: FolderBrowserDeps = {}): FolderBrowser
     }
   };
 
-  const roots = (): BrowsedFolder[] => {
+  const roots = async (target: string): Promise<BrowsedFolder[]> => {
     const places = [folder(home)];
-    if (platform !== 'win32') return [...places, folder('/')];
-    for (let code = 'A'.charCodeAt(0); code <= 'Z'.charCodeAt(0); code += 1) {
-      const drive = `${String.fromCharCode(code)}:\\`;
-      if (exists(drive)) places.push(folder(drive));
-    }
-    return places;
+    if (drives === undefined) return [...places, folder('/')];
+    const known = (await drives.get(ROOTS_WAIT_MS))?.map((drive) => drive.path) ?? [];
+    const letters =
+      known.length > 0
+        ? known
+        : [
+            ...new Set(
+              [path.parse(home).root, path.parse(target).root].map((root) => root.toUpperCase()),
+            ),
+          ];
+    return [...places, ...letters.map((drive) => folder(drive))];
   };
 
   return {
-    list(input) {
+    async list(input, offset = 0) {
       const target = resolve(input);
-      let dirents: Dirent[];
-      try {
-        dirents = readdir(target);
-      } catch (error) {
-        const code = errnoCode(error);
-        if (code === 'ENOENT')
-          throw new FolderBrowseError('folder-browse/not-found', 'That folder does not exist.');
-        if (code === 'ENOTDIR')
-          throw new FolderBrowseError('folder-browse/not-directory', 'That path is not a folder.');
-        if (code === 'EACCES' || code === 'EPERM')
-          throw new FolderBrowseError(
-            'folder-browse/denied',
-            'The computer does not allow reading that folder.',
-          );
-        throw error;
-      }
-      const folders = dirents
-        .filter(
-          (entry) =>
-            entry.isDirectory() ||
-            (entry.isSymbolicLink() && isDirectory(path.join(target, entry.name))),
-        )
-        .map((entry) => folder(path.join(target, entry.name), entry.name))
-        .toSorted(
-          (left, right) =>
-            Number(left.hidden) - Number(right.hidden) ||
-            left.name.localeCompare(right.name, undefined, { sensitivity: 'base' }),
+      const [reply, places] = await Promise.all([
+        read({ path: target, platform, offset, limit: FOLDER_BROWSE_LIMIT }),
+        roots(target),
+      ]);
+      if (!reply.ok)
+        throw new FolderBrowseError(
+          REFUSALS.has(reply.code)
+            ? (reply.code as FolderBrowseRefusal)
+            : 'folder-browse/unreadable',
+          reply.message,
         );
+      const next = offset + reply.entries.length;
       return {
         path: target,
         home,
         crumbs: crumbsOf(target),
-        entries: folders.slice(0, FOLDER_BROWSE_LIMIT),
-        truncated: folders.length > FOLDER_BROWSE_LIMIT,
-        roots: roots(),
+        entries: reply.entries.map((entry) => ({
+          name: entry.name,
+          path: path.join(target, entry.name),
+          hidden: entry.hidden,
+        })),
+        truncated: next < reply.total,
+        ...(next < reply.total ? { nextOffset: next } : {}),
+        roots: places,
+        ...(deps.nativePicker?.() === true ? { nativePicker: true } : {}),
       };
+    },
+    close() {
+      worker?.close();
     },
   };
 }

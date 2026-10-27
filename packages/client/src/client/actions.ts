@@ -336,7 +336,9 @@ export interface HostDirectoryListing {
   crumbs: { name: string; path: string; hidden: boolean }[];
   entries: { name: string; path: string; hidden: boolean }[];
   truncated: boolean;
+  nextOffset?: number;
   roots?: { name: string; path: string; hidden: boolean }[];
+  nativePicker?: boolean;
 }
 
 export interface BridgeActions {
@@ -526,7 +528,11 @@ export interface BridgeActions {
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
   ): Promise<ModelPlanView>;
-  listHostFolders(path?: string, signal?: AbortSignal): Promise<HostDirectoryListing>;
+  listHostFolders(
+    path?: string,
+    signal?: AbortSignal,
+    offset?: number,
+  ): Promise<HostDirectoryListing>;
   pickWorkspaceFolder(): Promise<string | null>;
   addWorkspaceFolder(slug: string): Promise<WorkspaceGrantView | undefined>;
   authorizeWorkspacePath(slug: string, path: string): Promise<WorkspaceGrantView>;
@@ -1701,7 +1707,7 @@ export function createActions(
       setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
     setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
       setModelPlan(call, slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels),
-    listHostFolders: (path, signal) => loadHostFolders(call, path, signal),
+    listHostFolders: (path, signal, offset) => loadHostFolders(call, path, signal, offset),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
       const path = await folderAccess.pickDirectory();

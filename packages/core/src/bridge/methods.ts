@@ -758,7 +758,7 @@ export interface BridgeMethods {
   workspaceFileTarget(
     payload: unknown,
   ): BridgeResult<{ target: { path: string; relativePath: ''; kind: 'directory' } }>;
-  folderBrowse(payload: unknown): BridgeResult<FolderListing>;
+  folderBrowse(payload: unknown): Promise<BridgeResult<FolderListing>>;
   grants(payload: unknown): BridgeResult<{ grants: WorkspaceGrant[] }>;
   grantCreate(
     payload: unknown,
@@ -6188,9 +6188,12 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         throw error;
       }
     },
-    folderBrowse(payload) {
+    async folderBrowse(payload) {
       const input = z
-        .object({ path: z.string().max(1024).optional() })
+        .object({
+          path: z.string().max(1024).optional(),
+          offset: z.number().int().min(0).max(1_000_000).optional(),
+        })
         .strict()
         .safeParse(payload ?? {});
       if (!input.success) return invalidInput('path must be a folder path');
@@ -6200,7 +6203,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           error: { code: 'unavailable', message: 'Folder browsing is unavailable' },
         };
       try {
-        return { ok: true, value: deps.folders.list(input.data.path) };
+        return { ok: true, value: await deps.folders.list(input.data.path, input.data.offset) };
       } catch (error) {
         if (error instanceof FolderBrowseError)
           return { ok: false, error: { code: error.code, message: error.message } };

@@ -1720,8 +1720,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.messageAttachmentTarget({ channelId, messageId, fileId }));
   }
 
-  folderBrowse(path?: string): FolderListing {
-    return unwrap(this.methods.folderBrowse(path === undefined ? {} : { path }));
+  folderBrowse(path?: string, offset?: number): Promise<FolderListing> {
+    return unwrapAsync(
+      this.methods.folderBrowse({
+        ...(path === undefined ? {} : { path }),
+        ...(offset === undefined ? {} : { offset }),
+      }),
+    );
   }
 
   workspaceFileTarget(

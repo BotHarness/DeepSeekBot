@@ -162,7 +162,7 @@ deepseekbot user-question-status <channel-id> --message-id <卡片-id>
 deepseekbot user-question-answer <channel-id> --message-id <卡片-id> --answer-stdin
 deepseekbot release-info [--since <版本>]
 deepseekbot workspace-options
-deepseekbot folder-browse [<文件夹路径>]
+deepseekbot folder-browse [<文件夹路径>] [--offset <n>]
 deepseekbot grant-create <bot-id> --workspace <workspace-id>
 ```
 
@@ -912,9 +912,10 @@ deepseekbot grants <bot-id>
 ```bash
 deepseekbot folder-browse
 deepseekbot folder-browse 'D:\code'
+deepseekbot folder-browse 'D:\code' --offset 500
 ```
 
-`folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, roots}`：只有文件夹名称和路径，不含文件。`roots` 是主目录和各个磁盘（Windows）或 `/`。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹或无权读取分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`。浏览不授予任何权限：选好路径后按上文登记并授权。
+`folder-browse` 列出 Host 上某个文件夹的子文件夹，与桌面工作区授权浏览器相同，也用于电脑使用系统文件夹选择器时的手机文件夹选择。不传路径时从 Host 主目录开始。返回 `{path, home, crumbs, entries, truncated, nextOffset?, roots, nativePicker?}`：只有文件夹名称和路径，不含文件，每页最多 500 个。`truncated` 为 true 时，把 `nextOffset` 作为 `--offset` 传回即可取下一页。`roots` 是主目录和各个磁盘（Windows 上读系统盘符表，不打开任何磁盘）或 `/`。`nativePicker: true` 表示 Host 使用系统文件夹对话框，桌面 Client 会改为打开它。Host 在单独的进程里读取文件夹，截止时间 5 秒。相对路径返回 `folder-browse/invalid-path`；不存在、不是文件夹、无权读取或读取失败分别返回 `folder-browse/not-found`、`folder-browse/not-directory`、`folder-browse/denied`、`folder-browse/unreadable`；文件夹没有按时响应（例如网络盘断开）返回 `folder-browse/timeout`。浏览不授予任何权限：选好路径后按上文登记并授权。
 
 ## Memory
 

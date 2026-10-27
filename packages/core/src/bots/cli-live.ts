@@ -991,7 +991,13 @@ export async function runLiveCli(
     if (rest.length > 1) usage('folder-browse takes at most one folder path.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
     const path = rest[0]?.trim();
-    return (await connectLiveHost(values, io, signal)).rpc('folderBrowse', path ? { path } : {});
+    const offset = values.offset === undefined ? undefined : Number(values.offset);
+    if (offset !== undefined && (!Number.isInteger(offset) || offset < 0 || offset > 1_000_000))
+      usage('--offset must be an integer from 0 to 1000000.');
+    return (await connectLiveHost(values, io, signal)).rpc('folderBrowse', {
+      ...(path ? { path } : {}),
+      ...(offset === undefined ? {} : { offset }),
+    });
   }
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
