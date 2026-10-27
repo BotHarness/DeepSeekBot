@@ -56,6 +56,10 @@ export const HOST_ADMIN_COMMANDS = [
   { command: 'marketplace-topics', description: 'list Bot Marketplace topics with counts' },
   { command: 'marketplace-detail', description: 'read one Bot Marketplace listing and README' },
   {
+    command: 'marketplace-file',
+    description: 'read one text file of an Uploaded Bot, Markdown prepared like its README',
+  },
+  {
     command: 'marketplace-submit',
     description: 'list a public GitHub Bot repository on the Bot Marketplace',
   },
@@ -143,6 +147,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-list': 0,
   'marketplace-topics': 0,
   'marketplace-detail': 1,
+  'marketplace-file': 2,
   'marketplace-submit': 1,
   'marketplace-report': 1,
   'marketplace-account': 0,
@@ -183,7 +188,7 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage(
       expected === 0
         ? `${command} takes no positional arguments.`
-        : `${command} needs ${command === 'plugin-install' ? 'a package name and a version' : POSITIONAL_NAMES[expected]!}.`,
+        : `${command} needs ${command === 'plugin-install' ? 'a package name and a version' : command === 'marketplace-file' ? 'a Bot id and a file path' : POSITIONAL_NAMES[expected]!}.`,
     );
   if (
     values.sort !== undefined &&
@@ -378,6 +383,8 @@ export async function runHostAdminCommand(
         'marketplaceDetail',
         values.lang === undefined ? { id: target } : { id: target, lang: values.lang },
       );
+    case 'marketplace-file':
+      return { file: await rpc('marketplaceFileView', { id: target, path: rest[1]! }) };
     case 'marketplace-submit':
       return rpc('marketplaceSubmit', {
         url: target,

@@ -37,11 +37,13 @@ import type {
 } from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
+  parseMarketplaceFileView,
   parseMarketplacePage,
   parseMarketplaceSubmission,
   parseMarketplaceTopics,
   type MarketplaceDetail,
   type MarketplaceEntry,
+  type MarketplaceFileView,
   type MarketplacePage,
   type MarketplaceQuery,
   type MarketplaceTopic,
@@ -2045,6 +2047,18 @@ export async function loadMarketplaceDetail(
   );
   if (detail === undefined) throw new Error('invalid marketplaceDetail response');
   return detail;
+}
+
+export async function loadMarketplaceFile(
+  call: BridgeCall,
+  id: string,
+  path: string,
+): Promise<MarketplaceFileView> {
+  const file = parseMarketplaceFileView({
+    file: await unwrap(call, 'marketplaceFileView', { id, path }),
+  });
+  if (file === undefined) throw new Error('invalid marketplaceFileView response');
+  return file;
 }
 
 export async function loadMarketplaceTopics(call: BridgeCall): Promise<MarketplaceTopic[]> {

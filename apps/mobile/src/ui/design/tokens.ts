@@ -122,7 +122,6 @@ export const creationHeader = {
     overshootClamping: true,
   },
 } as const;
-export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {
   gutter: tabHeader.gutter,
@@ -271,6 +270,13 @@ export const pullToCompose = { threshold: 40, flick: 0.3 } as const;
 export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
+
+export const lastChatSwipe = {
+  start: 24,
+  verticalFail: 8,
+  commit: 64,
+  flick: 500,
+} as const;
 
 export const markdownTable = {
   minColumnWidth: 96,

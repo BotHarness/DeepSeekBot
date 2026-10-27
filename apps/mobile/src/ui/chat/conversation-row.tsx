@@ -28,7 +28,6 @@ import {
   CONVERSATION_RING as RING,
 } from './avatar-slot';
 import type { ConversationAction, ConversationActionKey } from './conversation-actions';
-import { ConversationSwipe } from './conversation-swipe';
 import { ConversationPeek, type ConversationPeekAction } from '../shell/conversation-peek';
 import { showActionMenu } from '../primitives/app-dialog';
 
@@ -137,19 +136,12 @@ export function ConversationRow({
       avatar={avatar}
     />
   );
-  const content = previewHref ? (
+  return previewHref ? (
     <ConversationPeek href={previewHref} actions={menuActions}>
       {frame}
     </ConversationPeek>
   ) : (
     frame
-  );
-  return Platform.OS === 'android' ? (
-    content
-  ) : (
-    <ConversationSwipe actions={availableActions} onAction={act}>
-      {content}
-    </ConversationSwipe>
   );
 }
 

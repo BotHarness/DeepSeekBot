@@ -140,6 +140,9 @@ import {
 } from './dm-actions.js';
 import { GitUnavailableNotice, gitReady } from './git-unavailable-notice.js';
 import { MarketplaceModal } from './marketplace.js';
+import { MarketUploadDialog } from './market-upload.js';
+import { MARKET_PANEL } from './market-panel.js';
+import type { DockPanelRegistry } from './dock-panels.js';
 import {
   defaultStorage,
   saveRosterConfig,
@@ -453,6 +456,7 @@ interface SidebarProps {
   channelSidebar?: ChannelSidebarRegistry | undefined;
   shortcutBindings?: ShortcutBindings | undefined;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
+  dockPanels?: DockPanelRegistry | undefined;
   t: BotHarnessTranslate;
 }
 
@@ -1003,6 +1007,7 @@ export function BotSidebar({
   channelSidebar,
   shortcutBindings = fallbackShortcutBindings,
   quickSwitcherSettings,
+  dockPanels,
   t,
 }: SidebarProps): ReactElement {
   const state = useClientStore(keepClientState, rosterInputs);
@@ -1025,6 +1030,7 @@ export function BotSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
+  const [publishing, setPublishing] = useState<BotSummary | undefined>(undefined);
   const [undoToast, setUndoToast] = useState<
     { seq: number; text: string; undo: () => Promise<unknown> } | undefined
   >(undefined);
@@ -3178,6 +3184,19 @@ export function BotSidebar({
               },
             };
           })()}
+          marketAction={(() => {
+            if (dockPanels === undefined) return undefined;
+            const botId = state.channels.find(
+              (channel) => channel.id === channelMenu.channelId && channel.type === 'dm',
+            )?.botSlug;
+            const bot = state.bots.find((item) => item.slug === botId);
+            if (bot === undefined || bot.deleted === true || bot.tob !== undefined)
+              return undefined;
+            return () => {
+              setPublishing(bot);
+              setChannelMenu(undefined);
+            };
+          })()}
           companionAction={(() => {
             const botId = state.channels.find(
               (channel) => channel.id === channelMenu.channelId,
@@ -3240,6 +3259,17 @@ export function BotSidebar({
           actions={actions}
           t={t}
           onClose={() => setNicknameTarget(undefined)}
+        />
+      )}
+      {publishing === undefined || dockPanels === undefined ? null : (
+        <MarketUploadDialog
+          key={publishing.slug}
+          actions={actions}
+          registry={dockPanels}
+          t={t}
+          initialSlug={publishing.slug}
+          onListed={() => dockPanels.open(MARKET_PANEL)}
+          onClose={() => setPublishing(undefined)}
         />
       )}
       {sharing === undefined ? null : (
@@ -3508,6 +3538,7 @@ export function ChannelMoveMenu({
   muteAction,
   companionAction,
   shareAction,
+  marketAction,
   deleteAction,
   settingsAction,
   profileAction,
@@ -3530,6 +3561,7 @@ export function ChannelMoveMenu({
   muteAction?: { label: string; muted: boolean; run(): void } | undefined;
   companionAction?: { label: string; run(): void } | undefined;
   shareAction?: { label: string; run(): void } | undefined;
+  marketAction?: (() => void) | undefined;
   deleteAction?: { label: string; run(): void } | undefined;
   settingsAction?: { attention: boolean; run(): void } | undefined;
   profileAction?: (() => void) | undefined;
@@ -3607,6 +3639,15 @@ export function ChannelMoveMenu({
             id: 'share',
             label: shareAction.label,
             icon: <IconShareOutlineRegular size={16} />,
+          },
+        ]),
+    ...(marketAction === undefined
+      ? []
+      : [
+          {
+            id: 'share-market',
+            label: t('market.share'),
+            icon: <ChannelSidebarIcon name="store" size={16} />,
           },
         ]),
     {
@@ -3729,6 +3770,10 @@ export function ChannelMoveMenu({
           }
           if (id === 'share') {
             shareAction?.run();
+            return;
+          }
+          if (id === 'share-market') {
+            marketAction?.();
             return;
           }
           if (id === 'delete') {
