@@ -144,6 +144,53 @@ it('groups the Group’s Assignments and keeps Done collapsed', async () => {
   expect(actions.openSession).toHaveBeenCalledWith('s-ask');
 });
 
+it('shows the Assignment model and reads its Subagents only when expanded', async () => {
+  assignments = [
+    {
+      ...assignment('s-run', 'ada', 'Run the build', 'working', 'progress'),
+      modelRoute: { provider: 'deepseek', model: 'deepseek-v4', reasoningEffort: 'high' },
+      subagentCount: 2,
+    },
+    assignment('s-idle', 'bob', 'Draft notes', 'idle'),
+  ];
+  const sessionSubagents = vi.fn(async () => ({
+    omitted: 0,
+    subagents: [
+      {
+        sessionId: 'sub-1',
+        index: 1,
+        title: 'Check the docs',
+        route: { provider: 'deepseek', model: 'deepseek-v4-flash' },
+        state: 'done' as const,
+        toolCount: 3,
+      },
+      { sessionId: 'sub-2', index: 2, state: 'running' as const, toolCount: 0 },
+    ],
+  }));
+  (actions as { sessionSubagents?: unknown }).sessionSubagents = sessionSubagents;
+  await render();
+  const row = host.querySelector('.bh-card-row')!;
+  expect(row.textContent).toContain('deepseek/deepseek-v4 · high');
+  expect(host.querySelectorAll('[data-session-subagents-toggle]')).toHaveLength(1);
+  expect(sessionSubagents).not.toHaveBeenCalled();
+
+  const toggle = host.querySelector<HTMLButtonElement>('[data-session-subagents-toggle]')!;
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  await act(async () => toggle.click());
+  expect(sessionSubagents).toHaveBeenCalledWith('ada', 's-run');
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  const list = host.querySelector('[data-session-subagents="s-run"]')!;
+  const rows = [...list.querySelectorAll('.bh-card-row')].map((item) => item.textContent ?? '');
+  expect(rows[0]).toContain(zhTranslate('sessions.subagents.untitled', { index: '02' }));
+  expect(rows[0]).toContain(zhTranslate('sessions.subagents.state.running'));
+  expect(rows[1]).toContain('Check the docs');
+  expect(rows[1]).toContain('deepseek/deepseek-v4-flash');
+  expect(rows[1]).toContain(zhTranslate('sessions.subagents.state.done'));
+
+  await act(async () => toggle.click());
+  expect(host.querySelector('[data-session-subagents]')).toBeNull();
+});
+
 it('says where Group work will appear before there is any', async () => {
   await render();
   expect(host.querySelector('[role="status"]')?.textContent).toBe(zhTranslate('groupWork.empty'));

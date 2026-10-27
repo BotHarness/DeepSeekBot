@@ -165,8 +165,10 @@ import {
 } from '../runtime/assignment-human-context.js';
 import {
   summarizeAssignmentTimeline,
+  summarizeSubagentLanes,
   TIMELINE_SUBAGENTS,
   type AssignmentTimelineLane,
+  type AssignmentTimelineSession,
   type PublicToolCall,
 } from '../runtime/assignment-timeline.js';
 import { createMessageAttachmentFiles } from '../attachments/message-files.js';
@@ -544,8 +546,10 @@ export interface OwnedSessionSummary {
   assignmentArchived?: true;
   assignmentTitle?: string;
   assignmentDescription?: string;
+  assignmentModelRoute?: ModelRoute;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
+  subagentCount?: number;
 }
 
 export interface OwnedSessionBot {
@@ -765,6 +769,14 @@ export interface BridgeMethods {
   assignmentTimeline(payload: unknown): Promise<
     BridgeResult<{
       assignment: AssignmentDetail;
+      lanes: AssignmentTimelineLane[];
+      omittedSubagents: number;
+    }>
+  >;
+  sessionSubagents(payload: unknown): Promise<
+    BridgeResult<{
+      sessionId: string;
+      role: SessionRootRole;
       lanes: AssignmentTimelineLane[];
       omittedSubagents: number;
     }>
@@ -1489,6 +1501,31 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
       message: error instanceof Error ? error.message : 'BotHarness data could not be cleared',
     },
   };
+}
+
+async function sessionLogOf(
+  read: DshUsageSessionLogReader,
+  sessionId: string,
+): Promise<AssignmentTimelineSession> {
+  return { sessionId, events: (await read(sessionId))?.events ?? [] };
+}
+
+async function subagentSessionsOf(
+  ownership: SessionOwnership,
+  read: DshUsageSessionLogReader,
+  slug: string,
+  sessionId: string,
+): Promise<AssignmentTimelineSession[]> {
+  const subagents = ownership
+    .descendantsOf(sessionId)
+    .filter((record) => record.botSlug === slug && record.provenance === 'subagent');
+  const skipped = Math.max(0, subagents.length - TIMELINE_SUBAGENTS);
+  return [
+    ...subagents.slice(0, skipped).map((record) => ({ sessionId: record.sessionId, events: [] })),
+    ...(await Promise.all(
+      subagents.slice(skipped).map((record) => sessionLogOf(read, record.sessionId)),
+    )),
+  ];
 }
 
 function unavailable(): BridgeResult<never> {
@@ -6135,9 +6172,18 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           .some((member) => member.humanId === 'local-human')
       )
         return invalidInput('Group channel unavailable');
+      const assignments = deps.runtime?.listChannelAssignments?.(channel.id) ?? [];
+      const subagentCounts = deps.ownership.subagentCounts(
+        assignments.map((assignment) => assignment.sessionId),
+      );
       return {
         ok: true,
-        value: { assignments: deps.runtime?.listChannelAssignments?.(channel.id) ?? [] },
+        value: {
+          assignments: assignments.map((assignment) => {
+            const subagentCount = subagentCounts.get(assignment.sessionId);
+            return subagentCount === undefined ? assignment : { ...assignment, subagentCount };
+          }),
+        },
       };
     },
     assignment(payload) {
@@ -6162,28 +6208,37 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (assignment === undefined) return unknownAssignment(sessionId);
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
-      const sessionOf = async (id: string) => ({
-        sessionId: id,
-        events: (await read(id))?.events ?? [],
-      });
-      const subagents = deps.ownership
-        .descendantsOf(sessionId)
-        .filter((record) => record.botSlug === slug && record.provenance === 'subagent');
-      const [main, ...children] = await Promise.all([
-        sessionOf(sessionId),
-        ...subagents.slice(-TIMELINE_SUBAGENTS).map((record) => sessionOf(record.sessionId)),
+      const [main, subagents] = await Promise.all([
+        sessionLogOf(read, sessionId),
+        subagentSessionsOf(deps.ownership, read, slug, sessionId),
       ]);
       const timeline = summarizeAssignmentTimeline({
-        main: main!,
-        subagents: [
-          ...subagents
-            .slice(0, Math.max(0, subagents.length - TIMELINE_SUBAGENTS))
-            .map((record) => ({ sessionId: record.sessionId, events: [] })),
-          ...children,
-        ],
+        main,
+        subagents,
         describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
       });
       return { ok: true, value: { assignment, ...timeline } };
+    },
+    async sessionSubagents(payload) {
+      const source = asObject(payload);
+      const slug = asNonBlank(source, 'slug');
+      const sessionId = asNonBlank(source, 'sessionId');
+      if (slug === undefined) return invalidInput('slug is required');
+      if (sessionId === undefined) return invalidInput('sessionId is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return {
+          ok: false,
+          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
+        };
+      const read = deps.readUsageSessionLog;
+      if (read === undefined) return unavailable();
+      const children = summarizeSubagentLanes({
+        subagents: await subagentSessionsOf(deps.ownership, read, slug, sessionId),
+        describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
+      });
+      return { ok: true, value: { sessionId, role: owner.rootRole, ...children } };
     },
     workspaceOptions() {
       try {
@@ -6854,8 +6909,11 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ? undefined
           : (deps.runtime.currentOrchestratorSessionId(slug) ?? null);
       const triage = deps.runtime?.triageOpenCount?.(slug);
-      const sessions = deps.ownership.rootsFor(slug).map((root) => {
+      const roots = deps.ownership.rootsFor(slug);
+      const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
+      const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
+        const subagentCount = subagentCounts.get(root.sessionId);
         return {
           sessionId: root.sessionId,
           role: root.rootRole,
@@ -6884,6 +6942,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
                 assignmentTitle: assignment.title,
                 assignmentDescription: assignment.description,
               }),
+          ...(assignment?.modelRoute === undefined
+            ? {}
+            : { assignmentModelRoute: assignment.modelRoute }),
+          ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });
       return { ok: true, value: { sessions } };

@@ -17,6 +17,7 @@ import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { color } from './ds/tokens.stylex.js';
+import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 
 const styles = stylex.create({
   summary: {
@@ -57,6 +58,13 @@ function GroupWorkPanel({
   const bots = useClientStore((state) => state.bots, sameBotsBesidesActivity);
   const [load, setLoad] = useState<Load>({ status: 'loading', assignments: [] });
   const [doneOpen, setDoneOpen] = useState(false);
+  const [subagentsOpen, setSubagentsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleSubagents = (sessionId: string): void =>
+    setSubagentsOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(sessionId)) next.add(sessionId);
+      return next;
+    });
   const signature = native.ids.map((id) => `${id}:${native.byId[id]?.running === true}`).join('|');
   const mount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
@@ -112,6 +120,8 @@ function GroupWorkPanel({
   const renderRow = (assignment: ChannelAssignmentSummary): ReactElement => {
     const bot = bots.find((candidate) => candidate.slug === assignment.botSlug);
     const name = bot?.displayName ?? assignment.botSlug;
+    const subagents = assignment.subagentCount;
+    const subagentsExpanded = subagents !== undefined && subagentsOpen.has(assignment.sessionId);
     return (
       <SidebarCardRow
         key={assignment.sessionId}
@@ -134,6 +144,33 @@ function GroupWorkPanel({
         state={groupFor(assignment)}
         disabled={nativeSessions !== undefined && native.byId[assignment.sessionId] === undefined}
         onClick={() => actions.openSession(assignment.sessionId)}
+        {...(subagents === undefined
+          ? {}
+          : {
+              trailing: (
+                <SessionSubagentToggle
+                  count={subagents}
+                  title={assignment.title}
+                  open={subagentsExpanded}
+                  onToggle={() => toggleSubagents(assignment.sessionId)}
+                  t={t}
+                />
+              ),
+            })}
+        {...(subagentsExpanded
+          ? {
+              detail: (
+                <SessionSubagentList
+                  actions={actions}
+                  botSlug={assignment.botSlug}
+                  sessionId={assignment.sessionId}
+                  revision={`${String(subagents)}:${signature}`}
+                  canOpen={(id) => nativeSessions === undefined || native.byId[id] !== undefined}
+                  t={t}
+                />
+              ),
+            }
+          : {})}
         meta={
           <>
             {assignment.latestReport === undefined ? null : (
@@ -143,6 +180,9 @@ function GroupWorkPanel({
               </span>
             )}
             <span>{name}</span>
+            {assignment.modelRoute === undefined ? null : (
+              <span>{modelRouteText(assignment.modelRoute)}</span>
+            )}
             {nativeSessions && !native.byId[assignment.sessionId] ? (
               <span>{t('sessions.status.unavailable')}</span>
             ) : null}

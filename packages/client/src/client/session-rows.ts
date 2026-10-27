@@ -20,6 +20,8 @@ export interface PersonaBotSessionRow {
   needs?: AssignmentNeed;
   archived?: true;
   triageOpenCount?: number;
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  subagentCount?: number;
 }
 
 export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
@@ -101,6 +103,10 @@ export function personaBotSessionRows(
         ...(item.triageOpenCount === undefined || status !== 'running'
           ? {}
           : { triageOpenCount: item.triageOpenCount }),
+        ...(item.assignmentModelRoute === undefined
+          ? {}
+          : { modelRoute: item.assignmentModelRoute }),
+        ...(item.subagentCount === undefined ? {} : { subagentCount: item.subagentCount }),
       },
     ];
   });

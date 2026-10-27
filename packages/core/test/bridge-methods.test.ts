@@ -407,6 +407,9 @@ describe('bridge methods', () => {
             role: 'main',
             index: 0,
             sessionId: 'asg-1',
+            state: 'idle',
+            startedAt: '1970-01-01T00:00:00.001Z',
+            updatedAt: '1970-01-01T00:00:00.001Z',
             omitted: 0,
             entries: [
               { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
@@ -416,6 +419,9 @@ describe('bridge methods', () => {
             role: 'subagent',
             index: 1,
             sessionId: 'sub-1',
+            state: 'idle',
+            startedAt: '1970-01-01T00:00:00.001Z',
+            updatedAt: '1970-01-01T00:00:00.001Z',
             omitted: 0,
             entries: [
               { status: 'running', kind: 'other', tool: 'bash', at: '1970-01-01T00:00:00.001Z' },
@@ -426,6 +432,20 @@ describe('bridge methods', () => {
     });
     expect(JSON.stringify(result)).not.toContain('id_rsa');
     expect(read.mock.calls.map(([id]) => id)).toEqual(['asg-1', 'sub-1']);
+    const subagents = await methods.sessionSubagents({ slug: 'ada', sessionId: 'asg-1' });
+    expect(subagents).toMatchObject({
+      ok: true,
+      value: {
+        sessionId: 'asg-1',
+        role: 'assignment',
+        omittedSubagents: 0,
+        lanes: [{ role: 'subagent', index: 1, sessionId: 'sub-1', state: 'idle' }],
+      },
+    });
+    expect(JSON.stringify(subagents)).not.toContain('id_rsa');
+    expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'sub-1' })).ok).toBe(false);
+    expect((await methods.sessionSubagents({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
+    expect((await methods.sessionSubagents({ slug: 'ada' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'ada', sessionId: 'nope' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'ada' })).ok).toBe(false);
     expect((await methods.assignmentTimeline({ slug: 'nobody', sessionId: 'asg-1' })).ok).toBe(

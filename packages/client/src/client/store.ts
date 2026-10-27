@@ -284,8 +284,10 @@ export interface OwnedSessionSummary {
   assignmentArchived?: true;
   assignmentTitle?: string;
   assignmentDescription?: string;
+  assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
+  subagentCount?: number;
 }
 
 export type HumanInboxCategory = 'action' | 'info' | 'unread' | 'replies' | 'handled';

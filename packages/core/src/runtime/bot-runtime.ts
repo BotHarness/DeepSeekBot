@@ -233,6 +233,8 @@ export interface ChannelAssignmentSummary {
   description: string;
   activity: AssignmentActivity;
   latestReport?: AssignmentReport;
+  modelRoute?: ModelRoute;
+  subagentCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -4163,6 +4165,7 @@ class BotRuntimeImplementation implements BotRuntime {
         description: assignment.description,
         activity: assignment.activity,
         ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
+        ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
         createdAt: assignment.createdAt,
         updatedAt: assignment.updatedAt,
       };

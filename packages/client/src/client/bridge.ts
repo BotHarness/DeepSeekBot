@@ -1837,6 +1837,14 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
         ...(role === 'assignment' && typeof record['assignmentDescription'] === 'string'
           ? { assignmentDescription: record['assignmentDescription'] }
           : {}),
+        ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
+          ? { assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])! }
+          : {}),
+        ...(typeof record['subagentCount'] === 'number' &&
+        Number.isSafeInteger(record['subagentCount']) &&
+        record['subagentCount'] > 0
+          ? { subagentCount: record['subagentCount'] }
+          : {}),
       },
     ];
   });
@@ -3042,6 +3050,76 @@ export async function loadChannelAssignments(
   )
     throw new Error('invalid channelAssignments response');
   return assignments;
+}
+
+const SUBAGENT_LANE_STATES = ['running', 'done', 'failed', 'cancelled', 'idle'];
+
+export interface SessionModelRoute {
+  provider: string;
+  model: string;
+  reasoningEffort?: string;
+}
+
+export interface SessionSubagent {
+  sessionId: string;
+  index: number;
+  title?: string;
+  route?: SessionModelRoute;
+  state: 'running' | 'done' | 'failed' | 'cancelled' | 'idle';
+  updatedAt?: string;
+  toolCount: number;
+}
+
+export function parseSessionModelRoute(value: unknown): SessionModelRoute | undefined {
+  const record = asRecord(value);
+  const provider = record?.['provider'];
+  const model = record?.['model'];
+  const effort = record?.['reasoningEffort'];
+  if (typeof provider !== 'string' || provider === '' || typeof model !== 'string' || model === '')
+    return undefined;
+  return { provider, model, ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}) };
+}
+
+export async function loadSessionSubagents(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+): Promise<{ subagents: SessionSubagent[]; omitted: number }> {
+  const value = asRecord(await unwrap(call, 'sessionSubagents', { slug, sessionId }));
+  const lanes = value?.['lanes'];
+  const omitted = value?.['omittedSubagents'];
+  if (!Array.isArray(lanes) || typeof omitted !== 'number')
+    throw new Error('invalid sessionSubagents response');
+  const subagents = lanes.flatMap((entry): SessionSubagent[] => {
+    const lane = asRecord(entry);
+    const id = lane?.['sessionId'];
+    const index = lane?.['index'];
+    const state = lane?.['state'];
+    if (
+      typeof id !== 'string' ||
+      typeof index !== 'number' ||
+      !SUBAGENT_LANE_STATES.includes(state as string)
+    )
+      return [];
+    const title = lane?.['title'];
+    const updatedAt = lane?.['updatedAt'];
+    const route = parseSessionModelRoute(lane?.['route']);
+    const entries = lane?.['entries'];
+    const extra = lane?.['omitted'];
+    return [
+      {
+        sessionId: id,
+        index,
+        ...(typeof title === 'string' && title !== '' ? { title } : {}),
+        ...(route === undefined ? {} : { route }),
+        state: state as SessionSubagent['state'],
+        ...(typeof updatedAt === 'string' ? { updatedAt } : {}),
+        toolCount:
+          (Array.isArray(entries) ? entries.length : 0) + (typeof extra === 'number' ? extra : 0),
+      },
+    ];
+  });
+  return { subagents, omitted };
 }
 
 export async function loadGroupWakePolicies(

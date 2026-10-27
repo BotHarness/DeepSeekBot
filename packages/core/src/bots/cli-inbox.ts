@@ -62,6 +62,11 @@ export const INBOX_COMMANDS = [
     command: 'assignment-timeline',
     description: "read an Assignment's MAIN and SUBAGENT timeline (public summaries only)",
   },
+  {
+    command: 'session-subagents',
+    description:
+      'read the DSH Subagents an Orchestrator or Assignment Session started, with model and state',
+  },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
@@ -395,6 +400,13 @@ function prepare(
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
       return {
         method: 'assignmentTimeline',
+        args: { slug, sessionId: required(values.session, 'session', command) },
+      };
+    }
+    case 'session-subagents': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      return {
+        method: 'sessionSubagents',
         args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }

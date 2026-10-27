@@ -13,11 +13,23 @@ export interface AssignmentTimelineEntry {
   at: string;
 }
 
+export interface TimelineModelRoute {
+  provider: string;
+  model: string;
+  reasoningEffort?: string;
+}
+
+export type AssignmentTimelineLaneState = 'running' | 'done' | 'failed' | 'cancelled' | 'idle';
+
 export interface AssignmentTimelineLane {
   role: 'main' | 'subagent';
   index: number;
   sessionId: string;
   title?: string;
+  route?: TimelineModelRoute;
+  state: AssignmentTimelineLaneState;
+  startedAt?: string;
+  updatedAt?: string;
   entries: AssignmentTimelineEntry[];
   omitted: number;
 }
@@ -60,6 +72,37 @@ function parsedArgs(raw: unknown): unknown {
   }
 }
 
+const ROUTE_PART = /^[A-Za-z0-9_.:/@+-]{1,120}$/;
+
+function routeOf(value: unknown): TimelineModelRoute | undefined {
+  const record = object(value);
+  const { provider, model, reasoningEffort } = record;
+  if (typeof provider !== 'string' || typeof model !== 'string') return undefined;
+  if (!ROUTE_PART.test(provider) || !ROUTE_PART.test(model)) return undefined;
+  return {
+    provider,
+    model,
+    ...(typeof reasoningEffort === 'string' && ROUTE_PART.test(reasoningEffort)
+      ? { reasoningEffort }
+      : {}),
+  };
+}
+
+function requestRoute(type: string, data: Record<string, unknown>): TimelineModelRoute | undefined {
+  if (type === 'request/header') return routeOf(object(data['header'])['config']);
+  if (type === 'request/context') return routeOf(data);
+  return undefined;
+}
+
+function endState(reason: unknown): AssignmentTimelineLaneState {
+  const kind = typeof reason === 'string' ? reason : object(reason)['kind'];
+  return kind === 'error' ? 'failed' : kind === 'aborted' ? 'cancelled' : 'done';
+}
+
+function isoTime(time: unknown): string {
+  return new Date(Number.isSafeInteger(time) ? (time as number) : 0).toISOString();
+}
+
 function lane(
   role: AssignmentTimelineLane['role'],
   index: number,
@@ -67,6 +110,10 @@ function lane(
   describe: (sessionId: string, name: string, args: unknown) => PublicToolCall | undefined,
 ): AssignmentTimelineLane {
   let title: string | undefined;
+  let route: TimelineModelRoute | undefined;
+  let state: AssignmentTimelineLaneState = 'idle';
+  let startedAt: string | undefined;
+  let updatedAt: string | undefined;
   const entries: AssignmentTimelineEntry[] = [];
   const open = new Map<string, AssignmentTimelineEntry>();
   const approvals = new Map<string, string>();
@@ -77,7 +124,24 @@ function lane(
   };
   for (const event of session.events) {
     const data = object(event.data);
-    if (event.type === 'session/title') {
+    if (Number.isSafeInteger(event.time)) {
+      updatedAt = isoTime(event.time);
+      startedAt ??= updatedAt;
+    }
+    const requested = requestRoute(event.type, data);
+    if (requested !== undefined) {
+      route =
+        route !== undefined &&
+        requested.reasoningEffort === undefined &&
+        route.provider === requested.provider &&
+        route.model === requested.model
+          ? route
+          : requested;
+      continue;
+    }
+    if (event.type === 'turn/start') {
+      state = 'running';
+    } else if (event.type === 'session/title') {
       title = isSessionActivityName(data['title']) ? data['title'] : undefined;
     } else if (event.type === 'tool/call') {
       const callId = typeof data['callId'] === 'string' ? data['callId'] : '';
@@ -94,7 +158,7 @@ function lane(
         kind: call !== undefined && KINDS.includes(call.kind) ? call.kind : 'other',
         tool: name,
         ...(isPublicToolDetail(call?.detail) ? { detail: call.detail } : {}),
-        at: new Date(Number.isSafeInteger(event.time) ? event.time : 0).toISOString(),
+        at: isoTime(event.time),
       };
       entries.push(entry);
       open.set(callId, entry);
@@ -122,6 +186,7 @@ function lane(
             : 'failed';
     } else if (event.type === 'turn/end') {
       settleOpen('cancelled');
+      state = endState(data['reason']);
     }
   }
   const kept = entries.slice(-TIMELINE_LANE_ENTRIES);
@@ -130,8 +195,27 @@ function lane(
     index,
     sessionId: session.sessionId,
     ...(title === undefined ? {} : { title }),
+    ...(route === undefined ? {} : { route }),
+    state,
+    ...(startedAt === undefined ? {} : { startedAt }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
     entries: kept,
     omitted: entries.length - kept.length,
+  };
+}
+
+export function summarizeSubagentLanes(input: {
+  subagents: readonly AssignmentTimelineSession[];
+  describe?: (sessionId: string, name: string, args: unknown) => PublicToolCall | undefined;
+}): { lanes: AssignmentTimelineLane[]; omittedSubagents: number } {
+  const describe = input.describe ?? (() => undefined);
+  const subagents = input.subagents.slice(-TIMELINE_SUBAGENTS);
+  const skipped = input.subagents.length - subagents.length;
+  return {
+    lanes: subagents.map((session, index) =>
+      lane('subagent', skipped + index + 1, session, describe),
+    ),
+    omittedSubagents: skipped,
   };
 }
 
@@ -141,15 +225,9 @@ export function summarizeAssignmentTimeline(input: {
   describe?: (sessionId: string, name: string, args: unknown) => PublicToolCall | undefined;
 }): { lanes: AssignmentTimelineLane[]; omittedSubagents: number } {
   const describe = input.describe ?? (() => undefined);
-  const subagents = input.subagents.slice(-TIMELINE_SUBAGENTS);
-  const skipped = input.subagents.length - subagents.length;
+  const children = summarizeSubagentLanes(input);
   return {
-    lanes: [
-      lane('main', 0, input.main, describe),
-      ...subagents.map((session, index) =>
-        lane('subagent', skipped + index + 1, session, describe),
-      ),
-    ],
-    omittedSubagents: skipped,
+    lanes: [lane('main', 0, input.main, describe), ...children.lanes],
+    omittedSubagents: children.omittedSubagents,
   };
 }

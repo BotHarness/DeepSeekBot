@@ -34,6 +34,7 @@ import { GroupHeading } from './ds/group-heading.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { color, radius } from './ds/tokens.stylex.js';
+import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 
 const styles = stylex.create({
   groups: { display: 'flex', flexDirection: 'column' },
@@ -97,6 +98,13 @@ function SessionsPanel({
   assignmentLimit?: number | undefined;
 }): ReactElement {
   const [archiving, setArchiving] = useState<string>();
+  const [subagentsOpen, setSubagentsOpen] = useState<ReadonlySet<string>>(() => new Set());
+  const toggleSubagents = (sessionId: string): void =>
+    setSubagentsOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(sessionId)) next.add(sessionId);
+      return next;
+    });
   const [archiveError, setArchiveError] = useState<string>();
   const groupBot = useClientStore((state) => state.conversation.channel?.type === 'group');
   const sessions = useClientStore((state) => state.sessions);
@@ -171,6 +179,15 @@ function SessionsPanel({
   ): ReactElement => {
     const role =
       row.role === 'orchestrator' ? t('sessions.role.orchestrator') : t('sessions.role.assignment');
+    const subagents =
+      row.subagentCount === undefined || botSlug === undefined ? undefined : row.subagentCount;
+    const subagentsExpanded = subagents !== undefined && subagentsOpen.has(row.sessionId);
+    const archivable = !(
+      row.role !== 'assignment' ||
+      row.section === 'working' ||
+      botSlug === undefined ||
+      (native.byId[row.sessionId] === undefined && row.archived !== true)
+    );
     return (
       <SidebarCardRow
         key={row.sessionId}
@@ -211,49 +228,77 @@ function SessionsPanel({
             <Tag tone={STATUS_TONE[row.status]}>{statusLabel[row.status]}</Tag>
           )
         }
-        {...(row.role !== 'assignment' ||
-        row.section === 'working' ||
-        botSlug === undefined ||
-        (native.byId[row.sessionId] === undefined && row.archived !== true)
+        {...(!archivable && subagents === undefined
           ? {}
           : {
               trailing: (
-                <Tooltip
-                  label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
-                  side="top"
-                  portal
-                  delayMs={400}
-                >
-                  <IconButton
-                    size="inline"
-                    data-session-archive=""
-                    disabled={archiving !== undefined}
-                    aria-label={t(
-                      row.archived === true ? 'sessions.unarchiveNamed' : 'sessions.archiveNamed',
-                      { title: row.title },
-                    )}
-                    onClick={() => {
-                      setArchiving(row.sessionId);
-                      setArchiveError(undefined);
-                      void actions
-                        .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
-                        .catch((error: unknown) =>
-                          setArchiveError(error instanceof Error ? error.message : String(error)),
-                        )
-                        .finally(() => {
-                          setArchiving(undefined);
-                          setReload((value) => value + 1);
-                        });
-                    }}
-                  >
-                    <ChannelSidebarIcon
-                      name={row.archived === true ? 'archive-restore' : 'archive'}
-                      size={14}
+                <>
+                  {subagents === undefined ? null : (
+                    <SessionSubagentToggle
+                      count={subagents}
+                      title={row.title}
+                      open={subagentsExpanded}
+                      onToggle={() => toggleSubagents(row.sessionId)}
+                      t={t}
                     />
-                  </IconButton>
-                </Tooltip>
+                  )}
+                  {archivable ? (
+                    <Tooltip
+                      label={t(row.archived === true ? 'sessions.unarchive' : 'sessions.archive')}
+                      side="top"
+                      portal
+                      delayMs={400}
+                    >
+                      <IconButton
+                        size="inline"
+                        data-session-archive=""
+                        disabled={archiving !== undefined}
+                        aria-label={t(
+                          row.archived === true
+                            ? 'sessions.unarchiveNamed'
+                            : 'sessions.archiveNamed',
+                          { title: row.title },
+                        )}
+                        onClick={() => {
+                          setArchiving(row.sessionId);
+                          setArchiveError(undefined);
+                          void actions
+                            .setSessionArchived(botSlug, row.sessionId, row.archived !== true)
+                            .catch((error: unknown) =>
+                              setArchiveError(
+                                error instanceof Error ? error.message : String(error),
+                              ),
+                            )
+                            .finally(() => {
+                              setArchiving(undefined);
+                              setReload((value) => value + 1);
+                            });
+                        }}
+                      >
+                        <ChannelSidebarIcon
+                          name={row.archived === true ? 'archive-restore' : 'archive'}
+                          size={14}
+                        />
+                      </IconButton>
+                    </Tooltip>
+                  ) : null}
+                </>
               ),
             })}
+        {...(subagentsExpanded && botSlug !== undefined
+          ? {
+              detail: (
+                <SessionSubagentList
+                  actions={actions}
+                  botSlug={botSlug}
+                  sessionId={row.sessionId}
+                  revision={`${String(row.subagentCount)}:${signature}`}
+                  canOpen={(id) => native.byId[id] !== undefined}
+                  t={t}
+                />
+              ),
+            }
+          : {})}
         {...(row.assignmentAccessMode === 'danger-full-access'
           ? {
               chips: (
@@ -268,6 +313,7 @@ function SessionsPanel({
             {showWorkspace ? (
               <span>{workspaceName(row.cwd) ?? t('sessions.workspace.unknown')}</span>
             ) : null}
+            {row.modelRoute === undefined ? null : <span>{modelRouteText(row.modelRoute)}</span>}
             <span>{formatRelativeTime(row.updatedAt, Date.now(), t)}</span>
           </>
         }
