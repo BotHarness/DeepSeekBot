@@ -65,7 +65,7 @@ class MaterialSplitButtonView(context: Context, appContext: AppContext) : ExpoVi
   var path by mutableStateOf("")
   var menuLabel by mutableStateOf("")
   var items by mutableStateOf<List<SplitMenuItem>>(emptyList())
-  var enabled by mutableStateOf(true)
+  var available by mutableStateOf(true)
   var dark by mutableStateOf(false)
   var container by mutableStateOf("")
   var content by mutableStateOf("")
@@ -100,7 +100,7 @@ class MaterialSplitButtonView(context: Context, appContext: AppContext) : ExpoVi
               leadingButton = {
                 SplitButtonDefaults.TonalLeadingButton(
                   onClick = { onPress(emptyMap<String, Any>()) },
-                  enabled = enabled,
+                  enabled = available,
                   colors = colors,
                   modifier = Modifier.testTag(testPrefix),
                 ) {
@@ -113,8 +113,8 @@ class MaterialSplitButtonView(context: Context, appContext: AppContext) : ExpoVi
                 Box {
                   SplitButtonDefaults.TonalTrailingButton(
                     checked = open,
-                    onCheckedChange = { open = nextMenuOpen(open, enabled, items.size) },
-                    enabled = enabled && items.isNotEmpty(),
+                    onCheckedChange = { open = nextMenuOpen(open, available, items.size) },
+                    enabled = available && items.isNotEmpty(),
                     colors = colors,
                     modifier = Modifier.testTag("$testPrefix-menu").semantics { contentDescription = menuLabel },
                   ) {

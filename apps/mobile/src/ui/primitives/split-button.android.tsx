@@ -11,7 +11,7 @@ type NativeSplitButtonProps = ViewProps & {
   path: string;
   menuLabel: string;
   items: SplitButtonItem[];
-  enabled: boolean;
+  available: boolean;
   dark: boolean;
   container: string;
   content: string;
@@ -34,7 +34,7 @@ export function SplitButton(props: SplitButtonProps) {
       path={props.path}
       menuLabel={props.menuLabel}
       items={props.items}
-      enabled={!props.disabled}
+      available={!props.disabled}
       dark={theme.scheme === 'dark'}
       container={theme.layer.canvas.chosen}
       content={theme.color.fg}
