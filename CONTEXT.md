@@ -1062,7 +1062,7 @@ A React Native view drawn to imitate a native component. It is migration debt, n
 _Avoid_: native component, custom component
 
 **Custom surface**:
-App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: the Chats last-chat swipe hint, message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
+App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
 _Avoid_: look-alike (for a recorded custom surface)
 
 **Navigation bar**:

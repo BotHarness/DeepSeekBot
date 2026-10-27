@@ -274,10 +274,8 @@ export const recentChats = { limit: 3 } as const;
 export const lastChatSwipe = {
   start: 24,
   verticalFail: 8,
-  commit: 96,
+  commit: 64,
   flick: 500,
-  follow: 0.5,
-  hintShare: 0.6,
 } as const;
 
 export const markdownTable = {

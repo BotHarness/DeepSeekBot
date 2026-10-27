@@ -10,28 +10,19 @@ type Pan = {
   failY: unknown;
   update(event: PanEvent): void;
   end(event: PanEvent): void;
-  finalize(): void;
+  start(): void;
 };
 
 const state = vi.hoisted(() => ({
   pans: [] as Pan[],
   navigate: vi.fn(),
-  haptic: vi.fn(),
   hosts: [{ hostId: 'h1' }, { hostId: 'h2' }],
   drawerOpen: false,
   stored: new Map<string, string>(),
 }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
-vi.mock('react-native-reanimated', async () => ({
-  ...(await import('./reanimated-shim')),
-  interpolate: (value: number, input: number[], output: number[]) => {
-    const [from, to] = input as [number, number];
-    const [start, end] = output as [number, number];
-    const share = Math.min(1, Math.max(0, (value - from) / (to - from)));
-    return start + (end - start) * share;
-  },
-}));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-gesture-handler', async () => {
   const { createElement, Fragment } = await import('react');
   return {
@@ -43,7 +34,7 @@ vi.mock('react-native-gesture-handler', async () => {
           failY: undefined,
           update: () => undefined,
           end: () => undefined,
-          finalize: () => undefined,
+          start: () => undefined,
         };
         state.pans.push(pan);
         const builder = {
@@ -52,7 +43,7 @@ vi.mock('react-native-gesture-handler', async () => {
           failOffsetY: (value: unknown) => ((pan.failY = value), builder),
           onUpdate: (run: Pan['update']) => ((pan.update = run), builder),
           onEnd: (run: Pan['end']) => ((pan.end = run), builder),
-          onFinalize: (run: Pan['finalize']) => ((pan.finalize = run), builder),
+          onStart: (run: Pan['start']) => ((pan.start = run), builder),
         };
         return builder;
       },
@@ -69,8 +60,6 @@ vi.mock('expo-secure-store', () => ({
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: state.hosts }) }));
 vi.mock('../src/ui/shell/host-drawer', () => ({ useHostDrawerOpen: () => state.drawerOpen }));
-vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
-vi.mock('../src/ui/haptics', () => ({ haptic: state.haptic }));
 
 const { LastChatSwipe } = await import('../src/ui/shell/last-chat-swipe');
 const { lastChatProgress, opensLastChat } = await import('../src/ui/shell/last-chat-swipe-model');
@@ -113,7 +102,6 @@ describe('the Chats left swipe', () => {
   beforeEach(() => {
     state.pans.length = 0;
     state.navigate.mockClear();
-    state.haptic.mockClear();
     state.drawerOpen = false;
     container = document.createElement('div');
     root = createRoot(container);
@@ -142,32 +130,44 @@ describe('the Chats left swipe', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('slides the last chat in and opens it once the drag passes the threshold', async () => {
+  it('opens the last chat once the drag passes the threshold, only once', async () => {
     await act(async () => {
       await recordRecentChat(chat('a', 'h1', 'Ada'));
       await recordRecentChat(chat('b', 'h2', 'Bea'));
     });
     await render();
     expect(pan().enabled).toBe(true);
-    expect(container.textContent).toBe('Bea');
-
-    await act(async () => pan().update({ translationX: -lastChatSwipe.commit / 2, velocityX: 0 }));
-    expect(state.haptic).not.toHaveBeenCalled();
-    await act(async () => pan().update({ translationX: -lastChatSwipe.commit, velocityX: 0 }));
-    expect(state.haptic).toHaveBeenCalledWith('pull');
+    expect(container.textContent).toBe('');
     await act(async () => {
-      pan().end({ translationX: -lastChatSwipe.commit, velocityX: 0 });
-      pan().finalize();
+      pan().start();
+      pan().update({ translationX: -lastChatSwipe.commit / 2, velocityX: 0 });
+    });
+    expect(state.navigate).not.toHaveBeenCalled();
+    await act(async () => {
+      pan().update({ translationX: -lastChatSwipe.commit, velocityX: 0 });
+      pan().update({ translationX: -lastChatSwipe.commit * 2, velocityX: 0 });
+      pan().end({ translationX: -lastChatSwipe.commit * 2, velocityX: -lastChatSwipe.flick * 2 });
+    });
+    expect(state.navigate).toHaveBeenCalledTimes(1);
+    expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2');
+  });
+
+  it('opens on a short leftward flick', async () => {
+    await render();
+    await act(async () => {
+      pan().start();
+      pan().update({ translationX: -30, velocityX: 0 });
+      pan().end({ translationX: -30, velocityX: -lastChatSwipe.flick - 1 });
     });
     expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2');
   });
 
-  it('springs back without opening when let go early', async () => {
+  it('does not open when let go early', async () => {
     await render();
     await act(async () => {
+      pan().start();
       pan().update({ translationX: -30, velocityX: 0 });
       pan().end({ translationX: -30, velocityX: 0 });
-      pan().finalize();
     });
     expect(state.navigate).not.toHaveBeenCalled();
   });
