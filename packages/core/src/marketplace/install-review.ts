@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { closeSync, mkdtempSync, openSync, readSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -71,7 +71,6 @@ const MAX_TOTAL_CHARS = 120_000;
 const MAX_FINDINGS = 20;
 const MAX_NOTE_CHARS = 240;
 const REVIEW_TTL_MS = 30 * 60_000;
-const MAX_STAGED = 4;
 export const INSTALL_REVIEW_TIMEOUT_MS = 180_000;
 
 const KINDS = new Set<InstallFindingKind>(['prompt-injection', 'exfiltration', 'script']);
@@ -170,11 +169,14 @@ export function parseInstallFindings(
   const findings = (parsed as { findings?: unknown } | null)?.findings;
   if (!Array.isArray(findings)) return undefined;
   const result: InstallFinding[] = [];
+  const seen = new Set<string>();
   for (const item of findings) {
     if (typeof item !== 'object' || item === null) continue;
     const { kind, path, note } = item as { kind?: unknown; path?: unknown; note?: unknown };
     if (typeof kind !== 'string' || !KINDS.has(kind as InstallFindingKind)) continue;
     if (typeof path !== 'string' || !paths.has(path)) continue;
+    if (seen.has(kind + '\0' + path)) continue;
+    seen.add(kind + '\0' + path);
     const trimmed = typeof note === 'string' ? note.trim().replace(/\s+/gu, ' ') : '';
     result.push({
       kind: kind as InstallFindingKind,
@@ -233,7 +235,8 @@ export async function stageGitRepository(input: {
   gitUrl: string;
   clone?: typeof cloneMemoryRepository;
 }): Promise<
-  { ok: true; gitUrl: string; commit: string; files: StagedFile[] } | { ok: false; code: string }
+  | { ok: true; gitUrl: string; commit: string; committedAt: string; files: StagedFile[] }
+  | { ok: false; code: string }
 > {
   const root = mkdtempSync(join(tmpdir(), 'tobs-install-review-'));
   const destination = join(root, 'repo');
@@ -243,31 +246,42 @@ export async function stageGitRepository(input: {
       destination,
     });
     if (!cloned.ok) return { ok: false, code: cloned.code };
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--verify', 'HEAD'], {
+    const { stdout } = await execFileAsync('git', ['log', '-1', '--format=%H%n%cI', 'HEAD'], {
       cwd: destination,
       timeout: 10_000,
       maxBuffer: 4096,
       windowsHide: true,
     });
     const files: StagedFile[] = [];
-    for (const path of listBotFiles(destination)) {
-      try {
-        files.push({
-          path,
-          data: readable(path) ? readFileSync(join(destination, path)) : Buffer.alloc(0),
-        });
-      } catch {}
-    }
+    for (const path of listBotFiles(destination))
+      files.push({
+        path,
+        data: readable(path)
+          ? readPrefix(join(destination, path), MAX_FILE_CHARS * 4 + 4)
+          : Buffer.alloc(0),
+      });
+    const [commit = '', committedAt = ''] = stdout.trim().split('\n');
     return {
       ok: true,
       gitUrl: cloned.httpsFallback?.to ?? input.gitUrl,
-      commit: stdout.trim(),
+      commit,
+      committedAt,
       files,
     };
   } catch {
     return { ok: false, code: 'git-clone-failed' };
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function readPrefix(path: string, bytes: number): Buffer {
+  const fd = openSync(path, 'r');
+  try {
+    const buffer = Buffer.alloc(bytes);
+    return buffer.subarray(0, readSync(fd, buffer, 0, bytes, 0));
+  } finally {
+    closeSync(fd);
   }
 }
 
@@ -293,7 +307,6 @@ export function createMarketplaceInstallReviews(deps: {
   const prune = () => {
     const time = now();
     for (const [id, entry] of staged) if (entry.expiresAt <= time) staged.delete(id);
-    while (staged.size >= MAX_STAGED) staged.delete(staged.keys().next().value!);
   };
   const report = (started: number, outcome: string, extra = {}) => {
     try {
@@ -330,7 +343,7 @@ export function createMarketplaceInstallReviews(deps: {
     return {
       ok: true,
       value: {
-        listing,
+        listing: { ...listing, headCommit: { sha: repo.commit, committedAt: repo.committedAt } },
         files: repo.files,
         input: {
           displayName: listing.displayName ?? listing.name,

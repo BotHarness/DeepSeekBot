@@ -2156,7 +2156,7 @@
       "behaviors": ["marketplace.install-review"],
       "reason": "Real model: a local Marketplace serves a Bot with a planted exfiltration/injection comment and a clean Bot to an isolated Host; asserts the planted file is flagged, the clean Bot is not, a review creates no Bot and --review --confirm installs.",
       "task": 3063,
-      "sha256": "878ee0522142d5fe19b983f38b16b55764df64aac0d1af2e467a391b93037f1e"
+      "sha256": "b90f665d540d7cfb6a916a9e7022eee8697ffec79407d377ea0168e37f1dc3de"
     },
     {
       "path": "scripts/e2e-llm-scenarios.mjs",

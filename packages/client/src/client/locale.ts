@@ -1623,7 +1623,7 @@ export const zh = {
   'market.review.found': 'Tob 发现 {count} 处需要留意',
   'market.review.unavailable': 'Tob 没能检查这个 Bot',
   'market.review.unavailableHint': '没有可用的模型，或检查出错。你仍然可以安装。',
-  'market.review.partial': '有些文件太长，只读了一部分。',
+  'market.review.partial': '有些文件太长或超出阅读上限，Tob 只读了一部分。',
   'market.review.failed': '没能准备安装：{error}',
   'market.review.kind.prompt-injection': '指令注入',
   'market.review.kind.exfiltration': '外发数据',
@@ -6368,7 +6368,8 @@ export const en = {
   'market.review.unavailable': 'Tob couldn’t review this Bot',
   'market.review.unavailableHint':
     'No model was available, or the check failed. You can still install.',
-  'market.review.partial': 'Some files were too long to read in full.',
+  'market.review.partial':
+    'Some files were too long or over the reading limit, so Tob read only part of them.',
   'market.review.failed': 'Couldn’t prepare the install: {error}',
   'market.review.kind.prompt-injection': 'Prompt injection',
   'market.review.kind.exfiltration': 'Sends data out',

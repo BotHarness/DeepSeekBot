@@ -1187,7 +1187,7 @@ export function MarketplaceBotFlow({
         }
       >
         <InstallConfirmation
-          bot={selected}
+          bot={review.status === 'ready' ? review.result.listing : selected}
           t={t}
           review={review}
           onRetry={() => startReview(selected)}

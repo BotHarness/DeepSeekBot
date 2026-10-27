@@ -143,6 +143,14 @@ async function withMarketplace(
       await act(async () => render(t));
     },
   };
+  const listed = async (id: string) => {
+    for (const result of harness.list.mock.results) {
+      const page = (await result.value) as MarketplacePage;
+      const found = page.bots.find((bot) => bot.id === id);
+      if (found !== undefined) return found;
+    }
+    return (await detail(id)).bot;
+  };
   const render = (t: BotHarnessTranslate) =>
     root.render(
       createElement(MarketplaceModal, {
@@ -155,7 +163,7 @@ async function withMarketplace(
           marketplaceDetail: detail,
           marketplaceInstallReview: async (id: string) => ({
             reviewId: `review-${id}`,
-            listing: {},
+            listing: await listed(id),
             review: { status: 'reviewed', findings: [], files: 1, read: 1, partial: false },
           }),
           marketplaceInstall: harness.createBot,

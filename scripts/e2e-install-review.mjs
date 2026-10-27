@@ -9,17 +9,19 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const cli = join(repoRoot, 'packages/deepseekbot/dist/deepseekbot.mjs');
 
-export const usage = `Usage: node scripts/e2e-install-review.mjs [--port <n>] [--keep] [--build]
+export const usage = `Usage: node scripts/e2e-install-review.mjs [--port <n>] [--keep] [--no-build]
 
 Real-model check for Tob's review before a Bot Marketplace install (#3063). It serves a local
 Marketplace with two Uploaded Bots, one with a planted prompt injection and exfiltration
 instruction and one clean, launches an isolated Host pointed at it through the botharness-core
 marketplaceUrl config (the first launch creates the Profile, the second reads the patch), and
-drives \`deepseekbot marketplace-install\` without blocking the in-process Marketplace:
+drives \`deepseekbot marketplace-install\` without blocking the in-process Marketplace. It builds the
+bundles first; pass --no-build to reuse an existing build. It checks that:
 
 - the planted Bot gets an exfiltration or prompt-injection finding on the planted file;
 - the clean Bot gets no injection or exfiltration finding;
-- a review creates no Bot; only --review <id> --confirm installs.
+- a review creates no Bot; only --review <id> --confirm installs (the registry is counted offline
+  before the Host starts and after it stops; --keep keeps the temporary home).
 
 The Host uses the AX model selection (docs/agents/ax-model.md); test on the newest DeepSeek model
 in the pinned catalog. Exit status is 1 when an assertion fails.`;
@@ -161,16 +163,17 @@ async function launchHost(home, port, marketUrl, build) {
   const first = startHost(home, port, build);
   stopHost(first);
   await waitForExit(first.pid);
+  const before = await botCount(home);
   writeFileSync(
     join(home, 'profiles', 'web-dev', 'cordis.patch.yml'),
     `- id: botharness-core\n  config:\n    marketplaceUrl: ${marketUrl}\n`,
   );
-  return startHost(home, port, false);
+  return { instance: startHost(home, port, false), before };
 }
 
-function command(env, args) {
+function command(env, args, extra = ['--compact', '--timeout', '300']) {
   return new Promise((resolveCommand, reject) => {
-    const child = spawn(process.execPath, [cli, ...args, '--compact', '--timeout', '300'], {
+    const child = spawn(process.execPath, [cli, ...args, ...extra], {
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -187,6 +190,16 @@ function command(env, args) {
       }
     });
   });
+}
+
+async function botCount(home) {
+  const env = { ...process.env, DSH_HOME: home };
+  delete env.DEEPSEEKBOT_HOST;
+  delete env.DEEPSEEKBOT_HOST_TOKEN;
+  const listed = await command(env, ['list'], []);
+  if (listed.status !== 0 || !Array.isArray(listed.json.bots))
+    throw new Error(`deepseekbot list failed: ${JSON.stringify(listed.json).slice(0, 500)}`);
+  return listed.json.bots.length;
 }
 
 function check(condition, message, failures) {
@@ -209,14 +222,14 @@ async function main(argv) {
   let instance;
   const failures = [];
   try {
-    instance = await launchHost(home, port, marketUrl, argv.includes('--build'));
+    const launched = await launchHost(home, port, marketUrl, !argv.includes('--no-build'));
+    instance = launched.instance;
     const login = new URL(instance.url);
     const env = {
       ...process.env,
       DEEPSEEKBOT_HOST: login.origin,
       DEEPSEEKBOT_HOST_TOKEN: login.searchParams.get('token') ?? '',
     };
-    const before = (await command(env, ['list'])).json;
     const planted = await command(env, ['marketplace-install', PLANTED.id]);
     console.log(JSON.stringify(planted.json.review ?? planted.json, null, 2));
     check(planted.status === 0 && planted.json.installed === false, 'review only', failures);
@@ -243,12 +256,6 @@ async function main(argv) {
       'the clean Bot has no injection or exfiltration finding',
       failures,
     );
-    const after = (await command(env, ['list'])).json;
-    check(
-      JSON.stringify(after.bots?.length) === JSON.stringify(before.bots?.length),
-      'reviews created no Bot',
-      failures,
-    );
     const installed = await command(env, [
       'marketplace-install',
       CLEAN.id,
@@ -261,9 +268,17 @@ async function main(argv) {
       'install after review',
       failures,
     );
+    stopHost(instance);
+    await waitForExit(instance.pid);
+    instance = undefined;
+    check(
+      (await botCount(home)) === launched.before + 1,
+      'the reviews created no Bot and the install created one',
+      failures,
+    );
   } finally {
     market.close();
-    if (instance !== undefined && !keep) {
+    if (instance !== undefined) {
       stopHost(instance);
       await waitForExit(instance.pid);
     }
