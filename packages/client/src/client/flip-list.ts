@@ -8,8 +8,7 @@ export function useFlipList<T extends HTMLElement>(): RefObject<T> {
     if (root === null) return;
     const next = new Map<string, number>();
     const origin = root.getBoundingClientRect().top - root.scrollTop;
-    const reduced =
-      typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const reduced = root.ownerDocument.documentElement.dataset['botharnessMotion'] === 'reduce';
     for (const element of root.querySelectorAll<HTMLElement>('[data-flip-key]')) {
       const key = element.dataset['flipKey']!;
       const top = element.getBoundingClientRect().top - origin;

@@ -36,7 +36,7 @@ export const ACTIVITY_INBOX_CSS = `
 .bh-activity-approval .bh-tool-approval-card { min-width: 0; }
 .bh-activity-approval-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: ${space.x3}; padding-top: ${space.x3}; }
 .bh-activity-approval .bh-human-inbox-reply { margin-top: ${space.x4}; background: ${color.well}; min-width: 0; }
-.bh-activity-approval[data-leaving] { animation: bh-activity-exit 220ms ease-out forwards; pointer-events: none; }
+.bh-activity-approval[data-leaving] { animation: bh-activity-exit 180ms var(--bh-ease-out) forwards; pointer-events: none; }
 .bh-activity-approval[data-leaving] > div { overflow: hidden; }
 @keyframes bh-activity-exit { to { opacity: 0; grid-template-rows: 0fr; margin-bottom: 0; } }
 html[data-botharness-motion='reduce'] .bh-activity-approval[data-leaving] { animation-duration: 1ms; }

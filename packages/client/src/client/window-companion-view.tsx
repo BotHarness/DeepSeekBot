@@ -602,10 +602,10 @@ export function WindowCompanionView({
       if (!popKey || reducedMotion() || typeof node.animate !== 'function') return;
       const animation = node.animate(
         [
-          { transform: 'scale(.5)', opacity: 0 },
+          { transform: 'scale(.92)', opacity: 0 },
           { transform: 'none', opacity: 1 },
         ],
-        { duration: 260, easing: 'cubic-bezier(.3, 1.5, .5, 1)' },
+        { duration: 220, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' },
       );
       return () => animation.cancel();
     },
