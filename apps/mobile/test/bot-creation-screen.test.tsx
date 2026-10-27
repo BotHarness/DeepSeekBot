@@ -106,7 +106,6 @@ const paired = [
 const hosts = [...paired];
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ hosts: [...hosts], saved: hosts[0] }),
-  useHostSessions: () => fixture.feeds,
   useHostAvailability: () =>
     hosts.map((host) => {
       const feed = fixture.feeds.find((candidate) => candidate.saved.hostId === host.hostId);
