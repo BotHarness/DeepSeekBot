@@ -73,6 +73,8 @@ export interface SessionOwnership {
 
   descendantsOf(sessionId: string): SessionOwnershipRecord[];
 
+  subagentCounts(sessionIds: readonly string[]): Map<string, number>;
+
   repair(input: SessionOwnershipRepair): SessionOwnershipRecord;
   repairRevision(sessionId: string): number;
 
@@ -263,6 +265,29 @@ export function createSessionOwnership(database: OperationalDatabaseModulePort):
           .all(sessionId),
       ) as unknown as OwnershipRow[];
       return rows.map(toRecord);
+    },
+    subagentCounts(sessionIds) {
+      const counts = new Map<string, number>();
+      if (sessionIds.length === 0) return counts;
+      const rows = database.read((connection) =>
+        connection
+          .prepare(
+            `WITH RECURSIVE tree(root_id, session_id) AS (
+               SELECT parent_session_id, session_id FROM session_ownership
+                WHERE parent_session_id IN (SELECT value FROM json_each(?))
+               UNION
+               SELECT tree.root_id, owned.session_id FROM session_ownership owned
+                 JOIN tree ON owned.parent_session_id = tree.session_id
+             )
+             SELECT tree.root_id AS root_id, COUNT(*) AS count FROM tree
+               JOIN session_ownership owned ON owned.session_id = tree.session_id
+              WHERE owned.provenance = 'subagent'
+              GROUP BY tree.root_id`,
+          )
+          .all(JSON.stringify(sessionIds)),
+      ) as unknown as Array<{ root_id: string; count: number }>;
+      for (const row of rows) counts.set(row.root_id, Number(row.count));
+      return counts;
     },
     repair(input) {
       const existing = resolve(input.sessionId);

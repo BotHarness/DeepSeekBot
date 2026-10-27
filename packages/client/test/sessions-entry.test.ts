@@ -254,3 +254,75 @@ it('switches a Group from channel assignments to an explicit Bot without changin
     store.setConversation(previous.conversation);
   }
 });
+
+it('lists the Subagents an Orchestrator started under its row, with their model', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().sessions;
+  store.setSessions({
+    status: 'ready',
+    items: [
+      {
+        sessionId: 'orc',
+        role: 'orchestrator',
+        createdAt: '2026-10-01T00:00:00Z',
+        subagentCount: 1,
+      },
+      { sessionId: 'a-1', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
+    ],
+  });
+  const sessionSubagents = vi.fn(async () => ({
+    omitted: 0,
+    subagents: [
+      {
+        sessionId: 'orc-sub',
+        index: 1,
+        title: 'Summarize the thread',
+        route: { provider: 'deepseek', model: 'deepseek-v4', reasoningEffort: 'medium' },
+        state: 'running' as const,
+        toolCount: 1,
+      },
+    ],
+  }));
+  const openSession = vi.fn();
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          scope: 'personabot',
+          channelId: 'dm-ada',
+          botSlug: 'subagent-qa',
+          actions: {
+            refreshSessions: vi.fn(async () => undefined),
+            sessionSubagents,
+            openSession,
+          } as unknown as BridgeActions,
+          t: zhTranslate,
+          nativeSessions: catalog({
+            orc: { displayTitle: 'Main', updatedAt: 1, running: true },
+            'a-1': { displayTitle: 'Build', updatedAt: 2, running: false },
+            'orc-sub': { displayTitle: 'Summarize the thread', updatedAt: 3, running: true },
+          }),
+        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
+      ),
+    );
+    const toggles = container.querySelectorAll<HTMLButtonElement>(
+      '[data-session-subagents-toggle]',
+    );
+    expect(toggles).toHaveLength(1);
+    expect(sessionSubagents).not.toHaveBeenCalled();
+    await act(async () => toggles[0]!.click());
+    expect(sessionSubagents).toHaveBeenCalledWith('subagent-qa', 'orc');
+    const list = container.querySelector('[data-session-subagents="orc"]')!;
+    expect(list.textContent).toContain('Summarize the thread');
+    expect(list.textContent).toContain('deepseek/deepseek-v4 · medium');
+    await act(async () => list.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    expect(openSession).toHaveBeenCalledWith('orc-sub');
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setSessions(previous);
+  }
+});

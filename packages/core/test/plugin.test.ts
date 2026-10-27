@@ -690,6 +690,7 @@ describe('plugin entry', () => {
       'channelAssignments',
       'assignment',
       'assignmentTimeline',
+      'sessionSubagents',
       'workspaceOptions',
       'messageAttachmentTarget',
       'channelMediaTarget',

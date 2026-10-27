@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   summarizeAssignmentTimeline,
+  summarizeSubagentLanes,
   TIMELINE_LANE_ENTRIES,
   TIMELINE_SUBAGENTS,
 } from '../src/runtime/assignment-timeline.js';
@@ -138,6 +139,71 @@ describe('Assignment timeline', () => {
       'cancelled',
       'cancelled',
     ]);
+  });
+
+  it('reads each Subagent model route and run state without the request headers', () => {
+    const { lanes } = summarizeSubagentLanes({
+      subagents: [
+        {
+          sessionId: 'sub-a',
+          events: [
+            { type: 'turn/start', time: Date.UTC(2026, 9, 27, 0, 0, 1), data: { turn: 1 } },
+            {
+              type: 'request/header',
+              time: Date.UTC(2026, 9, 27, 0, 0, 2),
+              data: {
+                header: {
+                  authorization: 'Bearer sk-123',
+                  config: { provider: 'deepseek', model: 'deepseek-v4', reasoningEffort: 'high' },
+                },
+              },
+            },
+            {
+              type: 'request/context',
+              time: Date.UTC(2026, 9, 27, 0, 0, 3),
+              data: { provider: 'deepseek', model: 'deepseek-v4' },
+            },
+          ],
+        },
+        {
+          sessionId: 'sub-b',
+          events: [
+            { type: 'turn/start', time: 1, data: { turn: 1 } },
+            { type: 'request/context', time: 2, data: { provider: 'openai', model: 'gpt-6' } },
+            { type: 'turn/end', time: 3, data: { turn: 1, reason: { kind: 'completed' } } },
+          ],
+        },
+        {
+          sessionId: 'sub-c',
+          events: [
+            { type: 'turn/start', time: 1, data: { turn: 1 } },
+            { type: 'turn/end', time: 2, data: { turn: 1, reason: { kind: 'error' } } },
+          ],
+        },
+        {
+          sessionId: 'sub-d',
+          events: [
+            { type: 'turn/start', time: 1, data: { turn: 1 } },
+            { type: 'turn/end', time: 2, data: { turn: 1, reason: { kind: 'aborted' } } },
+          ],
+        },
+        { sessionId: 'sub-e', events: [] },
+      ],
+    });
+    expect(lanes.map((lane) => [lane.sessionId, lane.state, lane.route])).toEqual([
+      ['sub-a', 'running', { provider: 'deepseek', model: 'deepseek-v4', reasoningEffort: 'high' }],
+      ['sub-b', 'done', { provider: 'openai', model: 'gpt-6' }],
+      ['sub-c', 'failed', undefined],
+      ['sub-d', 'cancelled', undefined],
+      ['sub-e', 'idle', undefined],
+    ]);
+    expect(lanes[0]).toMatchObject({
+      role: 'subagent',
+      index: 1,
+      startedAt: '2026-10-27T00:00:01.000Z',
+      updatedAt: '2026-10-27T00:00:03.000Z',
+    });
+    expect(JSON.stringify(lanes)).not.toContain('sk-123');
   });
 
   it('keeps the newest entries and Subagents within bounds', () => {
