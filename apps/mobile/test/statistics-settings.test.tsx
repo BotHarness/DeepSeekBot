@@ -2,6 +2,7 @@
 import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 import { createMobileTelemetry, type MobileTelemetry } from '../src/telemetry/mobile-telemetry';
 import type { Toggle } from '../src/ui/primitives/toggle';
 

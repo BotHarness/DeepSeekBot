@@ -1,25 +1,33 @@
 import { useState } from 'react';
 import { Animated, I18nManager, Pressable, View } from 'react-native';
 import type { SceneRendererProps } from 'react-native-tab-view';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS, useReducedMotion } from 'react-native-reanimated';
+import { GestureDetector } from 'react-native-gesture-handler';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
-import { edge, space, swipeRow, tabLabel, tabMotion } from '../design/tokens';
+import { edge, radius, space, tabLabel, tabMotion } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import type { ActivitySection } from './activity-filters';
-import { ActivityIcon, ChatsIcon, PersonIcon } from './icons';
+import {
+  ACTIVITY_TABS,
+  activityDotColor,
+  activityStripSwipe,
+  type ActivityTab,
+  type ActivityTabMarks,
+} from './activity-tab-strip';
+import { ActivityIcon, PersonIcon } from './icons';
 
-export const ACTIVITY_TABS = [{ key: 'action' }, { key: 'replies' }, { key: 'unread' }] as const;
-export type ActivityTab = (typeof ACTIVITY_TABS)[number];
-const ICONS = { action: ActivityIcon, replies: PersonIcon, unread: ChatsIcon };
+export { ACTIVITY_TABS, type ActivityTab } from './activity-tab-strip';
+const ICONS = { action: ActivityIcon, replies: PersonIcon };
 
 export function ActivityTabs({
   selected,
+  marks,
   position,
   onSelect,
 }: {
   selected: ActivitySection;
+  marks: ActivityTabMarks;
   position: SceneRendererProps['position'];
   onSelect(section: ActivityTab['key']): void;
 }) {
@@ -32,23 +40,7 @@ export function ActivityTabs({
   const showIcons = ACTIVITY_TABS.some((tab) => tab.key === selected);
   const direction = I18nManager.isRTL ? -1 : 1;
   const inactiveOffset = (-(iconSize + space.x2) / 2) * direction;
-  const step = (forward: boolean) => {
-    const current = Math.max(
-      0,
-      ACTIVITY_TABS.findIndex((tab) => tab.key === selected),
-    );
-    const next = ACTIVITY_TABS[current + (forward ? 1 : -1)];
-    if (next !== undefined) onSelect(next.key);
-  };
-  const swipe = Gesture.Pan()
-    .activeOffsetX([-swipeRow.start, swipeRow.start])
-    .failOffsetY([-swipeRow.verticalFail, swipeRow.verticalFail])
-    .onEnd((event) => {
-      const travel = event.translationX * direction;
-      const velocity = event.velocityX * direction;
-      if (Math.abs(travel) < tabWidth / 3 && Math.abs(velocity) < swipeRow.flick) return;
-      runOnJS(step)(travel < 0);
-    });
+  const swipe = activityStripSwipe(selected, tabWidth, onSelect);
   return (
     <GestureDetector gesture={swipe}>
       <View
@@ -66,6 +58,7 @@ export function ActivityTabs({
                 key={key}
                 accessibilityRole="tab"
                 accessibilityLabel={t.inboxSections[key]}
+                {...(marks[key] ? { accessibilityValue: { text: t.activityTabNewValue } } : {})}
                 accessibilityState={{ selected: selected === key }}
                 onPress={() => onSelect(key)}
                 android_ripple={{ color: theme.layer.canvas.pressed }}
@@ -155,6 +148,16 @@ export function ActivityTabs({
                   >
                     {t.inboxSections[key]}
                   </Text>
+                  {marks[key] ? (
+                    <View
+                      style={{
+                        width: space.x3,
+                        height: space.x3,
+                        borderRadius: radius.round,
+                        backgroundColor: activityDotColor(theme, key),
+                      }}
+                    />
+                  ) : null}
                 </Animated.View>
               </Pressable>
             );
@@ -173,8 +176,10 @@ export function ActivityTabs({
             transform: [
               {
                 translateX: position.interpolate({
-                  inputRange: [0, 1, 2],
-                  outputRange: [0, tabWidth, 2 * tabWidth].map((x) => (I18nManager.isRTL ? -x : x)),
+                  inputRange: ACTIVITY_TABS.map((_, index) => index),
+                  outputRange: ACTIVITY_TABS.map((_, index) =>
+                    I18nManager.isRTL ? -index * tabWidth : index * tabWidth,
+                  ),
                 }),
               },
             ],

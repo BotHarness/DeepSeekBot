@@ -38,6 +38,7 @@ import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.j
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
+  MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
   MarketplacePage,
@@ -45,6 +46,10 @@ import type {
   MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type {
+  MarketplaceAccount,
+  UploadPlan,
+} from '../../../core/src/marketplace/uploaded-bots.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
@@ -210,6 +215,8 @@ import {
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
+  installMarketplaceBot,
+  uploadMarketplaceBot,
   type UsageFilter,
   type UsageQueryResult,
   loadGroupProfileActivity,
@@ -876,6 +883,17 @@ export interface BridgeActions {
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
+  marketplaceAccount(): Promise<MarketplaceAccount>;
+  marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms: boolean,
+  ): Promise<MarketplaceAuthorAccount>;
+  marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
+  marketplaceUpload(
+    slug: string,
+    presentation: { displayName: string; bio?: string; tags?: string[] },
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
+  marketplaceInstall(id: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -2716,6 +2734,14 @@ export function createActions(
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
+    marketplaceAccount: () => invoke('marketplaceAccount', {}),
+    marketplaceAuthorSave: (displayName, acceptTerms) =>
+      invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
+    marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
+    marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
+    async marketplaceInstall(id, sectionId) {
+      return openCreatedBot(await installMarketplaceBot(call, id), sectionId);
+    },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),
     groupProfileActivity: (channelId) => loadGroupProfileActivity(call, channelId),

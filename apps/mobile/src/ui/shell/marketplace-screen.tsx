@@ -16,7 +16,7 @@ import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { Text } from '../primitives/text';
 import { HeaderIconButton } from './header-icon-button';
 import { HeaderGlyph } from './header-glyph';
-import { ChevronLeftIcon, CloseIcon, CheckIcon } from './icons';
+import { CloseIcon, CheckIcon } from './icons';
 import { useDesignTheme } from '../design/theme';
 import { haptic } from '../haptics';
 import { useStrings, locale } from '../strings';
@@ -101,20 +101,22 @@ export function MarketplaceScreen() {
             gap: space.x2,
           }}
         >
-          <HeaderIconButton label={t.back} testID="marketplace-back" onPress={() => router.back()}>
-            <ChevronLeftIcon color={theme.color.fg} size={theme.type.title.line} />
-          </HeaderIconButton>
+          <HeaderIconButton
+            icon="back"
+            label={t.back}
+            testID="marketplace-back"
+            onPress={() => router.back()}
+          />
           <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
             {t.marketplace.title}
           </Text>
           <HeaderIconButton
+            icon="filter"
             label={t.marketplace.topics}
             testID="marketplace-filter-button"
             selected={topic !== ''}
             onPress={openFilters}
-          >
-            <HeaderGlyph icon="filter" active={topic !== ''} />
-          </HeaderIconButton>
+          />
         </View>
       ) : null}
       <PullToRefresh

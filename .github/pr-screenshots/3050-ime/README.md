@@ -13,6 +13,8 @@ Both builds contain unchanged tag PR #3030 (0b648bc0faef2b3308c340dd2e1ad8cfb75b
 
 Baseline is frozen main dc64418e30e11686c2e923995992b8dc415e24a9 plus #3030. Final build contains runtime commits 83b9a1892 (subscriptions) and 9e9c01a6d (menu insets). Later PR changes contain tests, change fragments and evidence only.
 
+The branch later integrated main 81240443e. Its extracted WorkspacePanel now receives the visibility gate through its active prop; the drawer passes shown so subscriptions remain live through closing. Current integration typecheck and workspace lifecycle tests pass. The measurements and screenshots below remain tied to the frozen QA builds above. New native modules and UI from later main are not covered by that phone build; integrated-main native acceptance still needs a fresh queue build.
+
 ## Repeated Release measurements
 
 Five alternating runs per build, four surfaces, three real open/close pairs per surface: **240 valid transitions**, zero completed-case operation failures. Order: B1/A1, A2/B2, B3/A3, A4/B4, B5/A5. Every transition checks a full-width real keyboard panel; APK identity and non-debuggable status are checked. No Metro, recorder, profiler or build runs during scoring.

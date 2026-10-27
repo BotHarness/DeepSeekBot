@@ -79,6 +79,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     fullName: `alice/${name}`,
     displayName: null,
     banner: null,
+    avatar: null,
     roles: [],
     description: `${name} description`,
     descriptionGenerated: false,
@@ -92,6 +93,8 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
       sha: '0123456789abcdef0123456789abcdef01234567',
       committedAt: '2026-09-30T12:00:00Z',
     },
+    source: 'github',
+    author: null,
     ...overrides,
   };
 }

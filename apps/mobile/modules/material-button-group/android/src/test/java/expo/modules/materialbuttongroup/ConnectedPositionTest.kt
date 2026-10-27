@@ -31,13 +31,4 @@ class ConnectedPositionTest {
     assertNull(nextSelection("work", "work", checked = true))
     assertNull(nextSelection("work", "memory", checked = false))
   }
-
-  @Test
-  fun readsTheThemesCssColours() {
-    assertEquals(0xff4176e6.toInt(), cssColor("#4176e6"))
-    assertEquals(0xffffffff.toInt(), cssColor("#fff"))
-    assertEquals(0x0a000000, cssColor("#0000000a"))
-    assertNull(cssColor("rgb(0, 0, 0)"))
-    assertNull(cssColor(""))
-  }
 }

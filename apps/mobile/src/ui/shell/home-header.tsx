@@ -14,7 +14,7 @@ import { chatList, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
-import { ChatsIcon, ChevronDownIcon, CloudIcon } from './icons';
+import { ChatsIcon, ChevronDownIcon, ChevronLeftIcon, CloudIcon } from './icons';
 import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
 import { CollapsingToolbar, useChromeProgress } from './scroll-chrome';
@@ -25,6 +25,7 @@ export function HomeHeader({
   actions,
   search,
   bar,
+  onWorkspaces,
   children,
 }: {
   environment: ConversationEnvironment;
@@ -32,6 +33,7 @@ export function HomeHeader({
   actions?: ReactNode;
   search?: ReactNode;
   bar?: ReactNode;
+  onWorkspaces?: (() => void) | undefined;
   children: ReactNode | ((headerTravel: number) => ReactNode);
 }) {
   const t = useStrings();
@@ -81,16 +83,19 @@ export function HomeHeader({
             <Pressable
               ref={chip}
               testID="chats-view-button"
-              onPress={openHostDrawer}
+              onPress={onWorkspaces ?? openHostDrawer}
               accessibilityRole="button"
               accessibilityLabel={[
-                t.workspaces,
+                onWorkspaces ? t.backToWorkspaces : t.workspaces,
                 environment.accessibilityLabel ?? environment.title,
                 connectionLabel,
               ]
                 .filter(Boolean)
                 .join(', ')}
-              accessibilityState={{ expanded: drawerOpen, busy: connectionLabel !== undefined }}
+              accessibilityState={{
+                ...(onWorkspaces ? {} : { expanded: drawerOpen }),
+                busy: connectionLabel !== undefined,
+              }}
               style={({ pressed }) => ({
                 flex: 1,
                 minWidth: 0,
@@ -101,6 +106,9 @@ export function HomeHeader({
                 opacity: pressed ? 0.7 : 1,
               })}
             >
+              {onWorkspaces ? (
+                <ChevronLeftIcon color={theme.color.accent} size={theme.type.title.line} />
+              ) : null}
               {environment.kind === 'computer' && environment.hostIcon ? (
                 <HostGlyph
                   icon={environment.hostIcon}
@@ -128,7 +136,9 @@ export function HomeHeader({
                 {environment.title}
               </Text>
               <ConnectionProgress active={connectionLabel !== undefined} />
-              <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+              {onWorkspaces ? null : (
+                <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+              )}
             </Pressable>
             {actions}
           </>

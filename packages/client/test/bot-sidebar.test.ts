@@ -162,6 +162,19 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected Overview usage');
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
+    marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    marketplaceAuthorSave: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUploadPlan: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUpload: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstall: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceTopics: vi.fn(async () => []),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');

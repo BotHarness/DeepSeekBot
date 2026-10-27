@@ -24,6 +24,7 @@ import type { MarketplaceLanguage } from '../../../core/src/marketplace/language
 import type {
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFile,
   MarketplaceQuery,
   MarketplaceSort,
   MarketplaceTopic,
@@ -56,6 +57,16 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'rate-limited': 'market.error.rateLimited',
   'repository-rate-limited': 'market.error.repositoryRateLimited',
   'invalid-report': 'market.error.invalidReport',
+  'sign-in-required': 'market.error.signIn',
+  'author-required': 'market.error.authorRequired',
+  'terms-required': 'market.error.terms',
+  'invalid-author-name': 'market.error.authorName',
+  'uploads-unavailable': 'market.error.uploadsUnavailable',
+  'too-many-files': 'market.error.tooManyFiles',
+  'too-large': 'market.error.tooLarge',
+  'bot-limit': 'market.error.botLimit',
+  'nothing-to-upload': 'market.error.nothingToUpload',
+  'not-an-uploaded-bot': 'market.error.botNotFound',
 };
 
 export const MAX_REPORT_REASON_LENGTH = 500;
@@ -94,11 +105,16 @@ export function marketplaceName(bot: MarketplaceEntry): string {
   return bot.displayName ?? bot.name;
 }
 
+export function marketplaceOwner(bot: MarketplaceEntry): string {
+  if (bot.source === 'upload' && bot.author !== null) return `${bot.author.name} #${bot.author.id}`;
+  return bot.displayName === null ? bot.owner : bot.fullName;
+}
+
 function MarketplaceName({ bot }: { bot: MarketplaceEntry }): ReactElement {
   return (
     <span className="bh-market-name">
       <span>{marketplaceName(bot)}</span>
-      <span className="bh-market-owner">{bot.displayName === null ? bot.owner : bot.fullName}</span>
+      <span className="bh-market-owner">{marketplaceOwner(bot)}</span>
       {bot.roles.map((role) => (
         <Tag key={role} tone="outline">
           {role}
@@ -148,10 +164,16 @@ export interface Filters {
   topic?: string;
 }
 
-function queryFor(filters: Filters, lang: MarketplaceLanguage, cursor?: string): MarketplaceQuery {
+function queryFor(
+  filters: Filters,
+  lang: MarketplaceLanguage,
+  cursor?: string,
+  includeUploads = false,
+): MarketplaceQuery {
   return {
     sort: filters.sort,
     lang,
+    ...(includeUploads ? { includeUploads: true } : {}),
     ...(filters.query.length === 0 ? {} : { q: filters.query }),
     ...(filters.topic === undefined ? {} : { topic: filters.topic }),
     ...(cursor === undefined ? {} : { cursor }),
@@ -186,7 +208,9 @@ export function MarketplaceMeta({
 }): ReactElement {
   return (
     <span className="bh-market-meta">
-      <span>{t('market.stars', { count: String(bot.stars) })}</span>
+      {bot.source === 'upload' ? null : (
+        <span>{t('market.stars', { count: String(bot.stars) })}</span>
+      )}
       {created && bot.createdAt !== undefined ? (
         <span>{t('market.created', { date: day(bot.createdAt) })}</span>
       ) : (
@@ -210,11 +234,22 @@ export function MarketplaceAvatar({
   size: number;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const avatar = bot.avatar;
   return (
-    <span className="bh-market-avatar" aria-hidden="true">
+    <span
+      className="bh-market-avatar"
+      aria-hidden="true"
+      data-market-avatar={avatar === null ? 'seeded' : 'recipe' in avatar ? 'recipe' : 'image'}
+    >
       <PersonaBotAvatar
         personaBotId=""
         name={marketplaceName(bot)}
+        src={avatar !== null && 'image' in avatar ? avatar.image : undefined}
+        appearance={
+          avatar !== null && 'recipe' in avatar
+            ? { recipe: avatar.recipe, revision: '0'.repeat(64) }
+            : undefined
+        }
         size={size}
         indicator={false}
         still
@@ -374,9 +409,11 @@ function MarketplaceDetailView({
           <span className="bh-market-copy">
             <MarketplaceName bot={shown} />
           </span>
-          <a className="bh-market-github" href={shown.htmlUrl} target="_blank" rel="noreferrer">
-            {t('market.detail.github')}
-          </a>
+          {shown.source === 'upload' ? null : (
+            <a className="bh-market-github" href={shown.htmlUrl} target="_blank" rel="noreferrer">
+              {t('market.detail.github')}
+            </a>
+          )}
         </div>
         {shown.description === null ? null : <MarketplaceDescription bot={shown} t={t} />}
         <MarketplaceMeta bot={shown} t={t} />
@@ -392,7 +429,12 @@ function MarketplaceDetailView({
           {t('market.detail.error', { error: marketplaceError(state.cause, t) })}
         </ReadFailure>
       ) : null}
-      {state.status === 'ready' && state.detail.readme === null ? (
+      {state.status === 'ready' && state.detail.files !== undefined ? (
+        <MarketplaceFileTree files={state.detail.files} t={t} />
+      ) : null}
+      {state.status === 'ready' &&
+      state.detail.readme === null &&
+      state.detail.files === undefined ? (
         <div className="bh-market-state">{t('market.detail.noReadme')}</div>
       ) : null}
       {state.status === 'ready' && state.detail.readme !== null ? (
@@ -401,6 +443,85 @@ function MarketplaceDetailView({
         </div>
       ) : null}
     </div>
+  );
+}
+
+interface FileFolder {
+  folders: Map<string, FileFolder>;
+  files: MarketplaceFile[];
+}
+
+function fileTree(files: readonly MarketplaceFile[]): FileFolder {
+  const root: FileFolder = { folders: new Map(), files: [] };
+  for (const file of files) {
+    const parts = file.path.split('/');
+    let folder = root;
+    for (const part of parts.slice(0, -1)) {
+      let next = folder.folders.get(part);
+      if (next === undefined) {
+        next = { folders: new Map(), files: [] };
+        folder.folders.set(part, next);
+      }
+      folder = next;
+    }
+    folder.files.push(file);
+  }
+  return root;
+}
+
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function FileFolderList({
+  folder,
+  t,
+}: {
+  folder: FileFolder;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const folders = [...folder.folders.entries()].sort(([left], [right]) =>
+    left.localeCompare(right),
+  );
+  return (
+    <ul className="bh-market-file-list">
+      {folders.map(([name, child]) => (
+        <li key={`${name}/`} data-market-folder={name}>
+          <span className="bh-market-file-folder">{name}/</span>
+          <FileFolderList folder={child} t={t} />
+        </li>
+      ))}
+      {folder.files.map((file) => (
+        <li key={file.path} className="bh-market-file" data-market-file={file.path}>
+          <span className="bh-market-file-name">{file.path.split('/').at(-1)}</span>
+          {file.kind === 'script' ? <Tag tone="outline">{t('market.files.script')}</Tag> : null}
+          <span className="bh-market-file-size">{fileSize(file.size)}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function MarketplaceFileTree({
+  files,
+  t,
+}: {
+  files: readonly MarketplaceFile[];
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const scripts = files.filter((file) => file.kind === 'script').length;
+  return (
+    <section className="bh-market-files" data-market-files={files.length}>
+      <strong>{t('market.files.title', { count: String(files.length) })}</strong>
+      {scripts === 0 ? null : (
+        <span className="bh-market-hint">
+          {t('market.files.scripts', { count: String(scripts) })}
+        </span>
+      )}
+      <FileFolderList folder={fileTree(files)} t={t} />
+    </section>
   );
 }
 
@@ -428,31 +549,44 @@ function InstallConfirmation({
           {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
         </span>
       </div>
-      <dl className="bh-market-facts">
-        <div>
-          <dt>{t('market.confirm.source')}</dt>
-          <dd>
-            <a href={bot.htmlUrl} target="_blank" rel="noreferrer">
-              {bot.fullName}
-            </a>
-          </dd>
-        </div>
-        <div>
-          <dt>{t('market.confirm.commit')}</dt>
-          <dd data-market-commit>
-            {bot.headCommit === null
-              ? t('market.confirm.noCommit')
-              : t('market.confirm.commitValue', {
-                  sha: shortSha(bot.headCommit.sha),
-                  date: day(bot.headCommit.committedAt),
-                })}
-          </dd>
-        </div>
-      </dl>
+      {bot.source === 'upload' ? (
+        <dl className="bh-market-facts">
+          <div>
+            <dt>{t('market.confirm.author')}</dt>
+            <dd data-market-author>{marketplaceOwner(bot)}</dd>
+          </div>
+          <div>
+            <dt>{t('market.confirm.uploaded')}</dt>
+            <dd>{day(bot.pushedAt)}</dd>
+          </div>
+        </dl>
+      ) : (
+        <dl className="bh-market-facts">
+          <div>
+            <dt>{t('market.confirm.source')}</dt>
+            <dd>
+              <a href={bot.htmlUrl} target="_blank" rel="noreferrer">
+                {bot.fullName}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt>{t('market.confirm.commit')}</dt>
+            <dd data-market-commit>
+              {bot.headCommit === null
+                ? t('market.confirm.noCommit')
+                : t('market.confirm.commitValue', {
+                    sha: shortSha(bot.headCommit.sha),
+                    date: day(bot.headCommit.committedAt),
+                  })}
+            </dd>
+          </div>
+        </dl>
+      )}
       <div className="bh-market-risk" role="note">
         <strong>{t('market.confirm.riskTitle')}</strong>
         <span>{t('market.confirm.risk')}</span>
-        <span>{t('market.confirm.newer')}</span>
+        <span>{t(bot.source === 'upload' ? 'market.confirm.copy' : 'market.confirm.newer')}</span>
       </div>
       {cause === undefined ? null : (
         <div className="bh-modal-error" role="alert">
@@ -493,7 +627,9 @@ function preferredSort(): MarketplaceSort {
 export function useMarketplaceBrowse(
   actions: BridgeActions,
   lang: MarketplaceLanguage,
+  options: { includeUploads?: boolean } = {},
 ): MarketplaceBrowse {
+  const includeUploads = options.includeUploads === true;
   const [list, setList] = useState<ListState>({ status: 'loading' });
   const [filters, setFilters] = useState<Filters>(() => ({ sort: preferredSort(), query: '' }));
   const [searchText, setSearchText] = useState('');
@@ -506,7 +642,7 @@ export function useMarketplaceBrowse(
     latestFilters.current = next;
     setFilters(next);
     setList({ status: 'loading' });
-    void actions.marketplaceList(queryFor(next, lang)).then(
+    void actions.marketplaceList(queryFor(next, lang, undefined, includeUploads)).then(
       (page) => {
         if (ticket !== generation.current) return;
         setList({
@@ -557,20 +693,22 @@ export function useMarketplaceBrowse(
       const ticket = generation.current;
       const current = list;
       setList({ ...current, loadingMore: true });
-      void actions.marketplaceList(queryFor(filters, lang, current.nextCursor)).then(
-        (page) => {
-          if (ticket !== generation.current) return;
-          setList({
-            status: 'ready',
-            bots: mergeBots(current.bots, page.bots),
-            ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-            loadingMore: false,
-          });
-        },
-        (cause: unknown) => {
-          if (ticket === generation.current) setList({ status: 'error', cause });
-        },
-      );
+      void actions
+        .marketplaceList(queryFor(filters, lang, current.nextCursor, includeUploads))
+        .then(
+          (page) => {
+            if (ticket !== generation.current) return;
+            setList({
+              status: 'ready',
+              bots: mergeBots(current.bots, page.bots),
+              ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+              loadingMore: false,
+            });
+          },
+          (cause: unknown) => {
+            if (ticket === generation.current) setList({ status: 'error', cause });
+          },
+        );
     },
     prepend: (bot) =>
       setList((current) =>
@@ -897,24 +1035,26 @@ export function MarketplaceBotFlow({
     if (selected === undefined || installing) return;
     setInstalling(true);
     setInstallCause(undefined);
-    void actions
-      .createBot({
-        displayName: marketplaceName(selected),
-        gitUrl: selected.cloneUrl,
-        roles: selected.roles,
-        origin: 'marketplace',
-        ...(selected.description === null ? {} : { description: selected.description }),
-      })
-      .then(
-        () => {
-          setInstalling(false);
-          onInstalled();
-        },
-        (cause: unknown) => {
-          setInstalling(false);
-          setInstallCause(cause);
-        },
-      );
+    const installed: Promise<unknown> =
+      selected.source === 'upload'
+        ? actions.marketplaceInstall(selected.id)
+        : actions.createBot({
+            displayName: marketplaceName(selected),
+            gitUrl: selected.cloneUrl,
+            roles: selected.roles,
+            origin: 'marketplace',
+            ...(selected.description === null ? {} : { description: selected.description }),
+          });
+    void installed.then(
+      () => {
+        setInstalling(false);
+        onInstalled();
+      },
+      (cause: unknown) => {
+        setInstalling(false);
+        setInstallCause(cause);
+      },
+    );
   };
 
   if (selected !== undefined) {

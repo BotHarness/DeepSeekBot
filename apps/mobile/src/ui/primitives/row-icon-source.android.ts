@@ -1,0 +1,40 @@
+import type { ImageSourcePropType } from 'react-native';
+
+import type { RowIconName } from './row-icon';
+
+export const ROW_ICON_SOURCES: Record<
+  RowIconName | 'check' | 'chevron' | 'expand' | 'collapse',
+  ImageSourcePropType
+> = {
+  feedback: require('../../../assets/row-icons/feedback.xml'),
+  select: require('../../../assets/row-icons/select.xml'),
+  language: require('../../../assets/row-icons/language.xml'),
+  appearance: require('../../../assets/row-icons/appearance.xml'),
+  system: require('../../../assets/row-icons/system.xml'),
+  light: require('../../../assets/row-icons/light.xml'),
+  dark: require('../../../assets/row-icons/dark.xml'),
+  model: require('../../../assets/row-icons/model.xml'),
+  computer: require('../../../assets/row-icons/computer.xml'),
+  notifications: require('../../../assets/row-icons/notifications.xml'),
+  storage: require('../../../assets/row-icons/storage.xml'),
+  browser: require('../../../assets/row-icons/browser.xml'),
+  folder: require('../../../assets/row-icons/folder.xml'),
+  access: require('../../../assets/row-icons/access.xml'),
+  history: require('../../../assets/row-icons/history.xml'),
+  rules: require('../../../assets/row-icons/rules.xml'),
+  unpair: require('../../../assets/row-icons/unpair.xml'),
+  appIcon: require('../../../assets/row-icons/appIcon.xml'),
+  activityCount: require('../../../assets/row-icons/activityCount.xml'),
+  background: require('../../../assets/row-icons/background.xml'),
+  version: require('../../../assets/row-icons/version.xml'),
+  open: require('../../../assets/row-icons/open.xml'),
+  copy: require('../../../assets/row-icons/copy.xml'),
+  share: require('../../../assets/row-icons/share.xml'),
+  account: require('../../../assets/row-icons/account.xml'),
+  qr: require('../../../assets/row-icons/qr.xml'),
+  check: require('../../../assets/row-icons/check.xml'),
+  chevron: require('../../../assets/row-icons/chevron.xml'),
+  add: require('../../../assets/row-icons/add.xml'),
+  expand: require('../../../assets/row-icons/expand.xml'),
+  collapse: require('../../../assets/row-icons/collapse.xml'),
+};

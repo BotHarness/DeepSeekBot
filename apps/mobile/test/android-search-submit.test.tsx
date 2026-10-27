@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('@expo/ui/jetpack-compose', () => ({
+  Host: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ testID: (testID: string) => ({ testID }) }));
 vi.mock('expo', () => ({
   requireNativeView:
     () =>

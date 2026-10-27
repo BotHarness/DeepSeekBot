@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement, type CSSProperties, type ReactNode } from 'react';
+import { createElement, type CSSProperties, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -64,12 +64,18 @@ vi.mock('../src/ui/primitives/system-symbol', () => ({
       style: { width: size, height: size, color },
     }),
 }));
-vi.mock('expo', () => ({
-  requireNativeView:
-    () =>
-    ({ style, testID }: { style: CSSProperties; testID: string }) =>
-      createElement('input', { style, 'data-testid': testID }),
+vi.mock('@expo/ui/jetpack-compose', () => ({
+  Host: ({
+    style,
+    children,
+  }: {
+    style: CSSProperties;
+    children: ReactElement<{ modifiers?: { testID: string }[] }>;
+  }) =>
+    createElement('div', { style, 'data-testid': children.props.modifiers?.[0]?.testID }, children),
 }));
+vi.mock('@expo/ui/jetpack-compose/modifiers', () => ({ testID: (testID: string) => ({ testID }) }));
+vi.mock('expo', () => ({ requireNativeView: () => () => createElement('input') }));
 vi.mock(
   '../src/ui/primitives/search-field',
   () => import('../src/ui/primitives/search-field.android'),

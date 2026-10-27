@@ -28,8 +28,6 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools';
 import type { InboxOpenFilter } from './inbox-triage.js';
-import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy';
-import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval';
 
 import type { GroupInvitation, GroupJoinRequest } from '../channels/channel.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
@@ -274,6 +272,8 @@ export interface DshBotAgentAdapterOptions {
 
   authorizeBorrow?: (agent: Agent, role: 'orchestrator' | 'assignment') => void;
 
+  admitSession?: (agent: Agent) => void;
+
   onOrchestratorFileSetup?: (agentCtx: Context, agent: Agent) => Promise<() => Promise<void>>;
 
   onAgentSetup?: (agentCtx: Context, agent: Agent, info: BotAgentSetupInfo) => void;
@@ -426,6 +426,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #authorizeBorrow:
     | ((agent: Agent, role: 'orchestrator' | 'assignment') => void)
     | undefined;
+  readonly #admitSession: DshBotAgentAdapterOptions['admitSession'];
   readonly #resolveAgentPresets: (() => DshAgentPresetHost | undefined) | undefined;
   readonly #onOrchestratorFileSetup: DshBotAgentAdapterOptions['onOrchestratorFileSetup'];
   readonly #onAgentSetup:
@@ -466,6 +467,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#orchestratorCwd = options.orchestratorCwd;
     this.#defaultAgentPreset = options.defaultAgentPreset;
     this.#authorizeBorrow = options.authorizeBorrow;
+    this.#admitSession = options.admitSession;
     this.#onAgentSetup = options.onAgentSetup;
     this.#onOrchestratorFileSetup = options.onOrchestratorFileSetup;
     this.#resolveAgentPresets = options.resolveAgentPresets;
@@ -667,12 +669,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#assignmentSelections.delete(sessionId);
   }
 
-  async #liveHandle(sessionId: string): Promise<AgentHandle | undefined> {
+  #liveHandle(sessionId: string): AgentHandle | undefined {
     const handle = this.#handles.get(sessionId);
     if (handle === undefined || this.#agents.get === undefined) return handle;
     if (this.#agents.get(SessionId(sessionId)) === handle.agent) return handle;
     this.#forgetHandle(sessionId);
-    await handle.dispose().catch(() => undefined);
+    void handle.dispose().catch(() => undefined);
     return undefined;
   }
 
@@ -838,7 +840,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun): Promise<AgentHandle> {
-    const existing = await this.#liveHandle(run.sessionId);
+    const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const resolvedAgentOptions = agentOptions(
       run,
@@ -851,8 +853,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     };
     const borrowedDisposers: Array<() => void | Promise<void>> = [];
     const setup = async (agentCtx: Context, agent: Agent, borrowed = false): Promise<void> => {
-      setSandboxMode(agent.session, 'workspace-write');
-      setApprovalPolicy(agent.session, 'ask');
+      this.#admitSession?.(agent);
       this.#onAgentSetup?.(agentCtx, agent, {
         botSlug: run.bot.slug,
         rootRole: 'orchestrator',
@@ -3654,7 +3655,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
-    const existing = await this.#liveHandle(run.sessionId);
+    const existing = this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#defaultAgentPreset);
     const resolvedAgentOptions = agentOptions(
@@ -3672,11 +3673,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       ...(meta === undefined ? {} : { meta }),
       agentOptions: resolvedAgentOptions,
       setup: async (agentCtx, agent, borrowed = false) => {
-        if (agent.session.header.cwd !== run.permission.primaryCwd) {
-          throw new Error('Assignment Session cwd differs from its Workspace Grant snapshot');
-        }
-        setSandboxMode(agent.session, run.permission.mode);
-        setApprovalPolicy(agent.session, run.permission.approval);
+        this.#admitSession?.(agent);
         const disposePurgeFence = agentCtx.tools.guard(() => {
           try {
             this.#runs.get(run.sessionId)?.run.requireContent?.();
