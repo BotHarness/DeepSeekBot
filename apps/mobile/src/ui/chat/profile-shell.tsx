@@ -217,7 +217,7 @@ export function ProfileShell({
     >
       <View
         style={{
-          paddingTop: insets.top + space.x3,
+          paddingTop: (Platform.OS === 'android' ? 0 : insets.top) + space.x3,
           paddingBottom: space.x3,
           paddingHorizontal: space.x5,
           flexDirection: 'row',
@@ -226,13 +226,7 @@ export function ProfileShell({
           backgroundColor: theme.overlay.fill,
         }}
       >
-        <NavigationAction
-          close={Platform.OS !== 'android'}
-          back={Platform.OS === 'android'}
-          size={theme.touch}
-          label={Platform.OS === 'android' ? t.back : t.close}
-          onPress={onClose}
-        />
+        <NavigationAction close size={theme.touch} label={t.close} onPress={onClose} />
         <Animated.View style={[{ flex: 1 }, titleStyle]} pointerEvents="none">
           <Text
             strong
