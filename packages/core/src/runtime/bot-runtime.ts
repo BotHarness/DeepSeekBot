@@ -5178,7 +5178,10 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Assignment creation requires a Source Event');
         this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
         const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input);
-        if (outcome.outcome === 'created' || outcome.outcome === 'reused') markSideEffect();
+        if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
+          markSideEffect();
+          this.#linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
+        }
         return outcome;
       },
       grants: () => this.#grants?.list(bot.slug) ?? [],
@@ -5207,7 +5210,11 @@ class BotRuntimeImplementation implements BotRuntime {
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
         const outcome = this.#requestAssignment(bot, input);
-        if (outcome.delivery !== 'capacity') markSideEffect();
+        if (outcome.delivery !== 'capacity') {
+          markSideEffect();
+          if (sourceEventId !== undefined)
+            this.#linkRequestAssignment(sourceEventId, input.sessionId);
+        }
         return outcome;
       },
       wait: (sessionId, signal, timeoutMs = 30000) => {
@@ -8663,6 +8670,22 @@ class BotRuntimeImplementation implements BotRuntime {
             .run(sessionId, ...sourceEventIds);
       },
       ['bot-inbox', 'bot-schedules'],
+    );
+  }
+
+  #linkRequestAssignment(sourceEventId: string, sessionId: string): void {
+    this.#database.transaction(
+      (database) => {
+        database
+          .prepare(
+            `INSERT INTO request_assignments (request_source_event_id, session_id, linked_at)
+             SELECT source_event_id, ?, ? FROM source_events
+              WHERE source_event_id = ? AND source_kind = 'human-message'
+             ON CONFLICT (request_source_event_id, session_id) DO UPDATE SET linked_at = excluded.linked_at`,
+          )
+          .run(sessionId, this.#now().toISOString(), sourceEventId);
+      },
+      ['assignments'],
     );
   }
 

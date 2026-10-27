@@ -65,6 +65,9 @@ vi.mock('../src/ui/chat/request-activity-control', () => ({
 vi.mock('../src/ui/chat/bot-settings-panel', () => ({
   BotSettingsPanel: () => null,
 }));
+vi.mock('../src/ui/chat/bot-permissions', () => ({
+  BotPermissions: () => null,
+}));
 vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: vi.fn() }));
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ color: { surface: 'black' } }),
@@ -96,6 +99,7 @@ describe('Human Computer profile entry', () => {
     'hides remembered capability after device is %s',
     async (connection) => {
       state.connection = connection;
+      state.bot.computerAccess = true;
       await render();
       expect(state.actions?.onComputer).toBeUndefined();
     },
@@ -110,7 +114,8 @@ describe('Human Computer profile entry', () => {
       expect(state.actions?.onComputer).toBeUndefined();
     },
   );
-  it('opens the iOS Human viewer without changing the Bot tool opt-in', async () => {
+  it('opens the Human viewer when the Bot has Computer access', async () => {
+    state.bot.computerAccess = true;
     await render();
     expect(state.actions?.onComputer).toBeTypeOf('function');
     state.actions?.onComputer?.();
@@ -118,15 +123,14 @@ describe('Human Computer profile entry', () => {
       pathname: '/computer/[slug]',
       params: { slug: 'test', hostId: 'qa' },
     });
-    expect(state.bot.computerAccess).toBe(false);
   });
-  it.each([false, true])(
-    'opens the supported Host on Android regardless of Bot tool opt-in (%s)',
-    async (enabled) => {
-      state.platform = 'android';
-      state.bot.computerAccess = enabled;
+  it.each(['ios', 'android'])(
+    'hides the Computer button on %s when the Bot has no Computer access',
+    async (platform) => {
+      state.platform = platform;
+      state.bot.computerAccess = false;
       await render();
-      expect(state.actions?.onComputer !== undefined).toBe(true);
+      expect(state.actions?.onComputer).toBeUndefined();
     },
   );
 });

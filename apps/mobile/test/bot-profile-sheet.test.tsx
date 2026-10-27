@@ -261,7 +261,7 @@ describe('Bot profile page', () => {
     expect(view.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('opens with five icon tabs named for VoiceOver and TalkBack, a heading per tab and no Share or Message', async () => {
+  it('opens with five icon tabs named for VoiceOver and TalkBack, no tab-name heading and no Share or Message', async () => {
     const view = await render(
       <BotProfileSheet
         bot={bot}
@@ -287,15 +287,12 @@ describe('Bot profile page', () => {
       'false',
     ]);
     expect(tabs.every((tab) => tab.textContent === '')).toBe(true);
-    expect(view.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-      t.profileTabs.work,
-    );
+    expect(view.querySelector('[data-testid="profile-tab-content-work"]')).not.toBeNull();
+    expect(headers(view)).not.toContain(t.profileTabs.work);
     expect(button(view, 'Message')).toBeNull();
     expect(button(view, t.share.title)).toBeNull();
     await openTab(view, 'routines');
-    expect(view.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
-      t.profileTabs.routines,
-    );
+    expect(view.querySelector('[data-testid="profile-tab-content-routines"]')).not.toBeNull();
     expect(
       view.querySelector('[data-testid="profile-tab-routines"]')?.getAttribute('aria-selected'),
     ).toBe('true');
@@ -323,6 +320,26 @@ describe('Bot profile page', () => {
     expect(row.getAttribute('aria-label')).toContain(t.profileAssignmentState.working);
     await act(async () => row.click());
     expect(onOpenAssignment).toHaveBeenCalledWith(assignments[0]);
+  });
+
+  it('places Permissions between the overview and the Bot settings', async () => {
+    const view = await render(
+      <BotProfileSheet
+        tab="settings"
+        avatar={avatarNone}
+        bot={bot}
+        channels={[]}
+        initialProfile={empty}
+        load={async () => empty}
+        permissions={<span data-testid="permissions-rows">Workspace grants</span>}
+        actions={actions()}
+      />,
+    );
+    const order = headers(view);
+    const permissions = order.indexOf(t.approvals.permissions);
+    expect(permissions).toBeGreaterThan(-1);
+    expect(order.indexOf(t.profileSettingsBot)).toBeGreaterThan(permissions);
+    expect(view.querySelector('[data-testid="permissions-rows"]')).not.toBeNull();
   });
 
   it('opens a lightweight shell before data resolves and keeps cached content during refresh', async () => {
@@ -375,7 +392,7 @@ describe('Bot profile page', () => {
     expect(view.textContent).toContain('researcher');
     expect(view.textContent).toContain('Standing rules:');
     expect(view.textContent).not.toContain('Vain prefers summaries under 100 words.');
-    expect(headers(view)).toEqual([bot.displayName, t.profileTabs.memory, t.profileSection.memory]);
+    expect(headers(view)).toEqual([bot.displayName, t.profileSection.memory]);
     await openTab(view, 'routines');
     expect(view.textContent).toContain('Morning digest');
     expect(view.textContent).toContain(t.routineDaily('09:00'));
@@ -383,7 +400,6 @@ describe('Bot profile page', () => {
     await openTab(view, 'settings');
     expect(headers(view)).toEqual([
       bot.displayName,
-      t.profileTabs.settings,
       t.profileSettingsBot,
       t.avatarTitle,
       t.profileSection.channels,
@@ -553,7 +569,7 @@ describe('Bot profile page', () => {
     await act(async () => open.click());
     expect(onOpenRoutine).toHaveBeenCalledWith(profileWire.rpc.scheduleList.schedules[0]);
     expect(headers(view)).toEqual(
-      expect.arrayContaining([t.routineGroup.daily, t.routineGroup.other]),
+      expect.arrayContaining([t.profileTabs.routines, t.routineGroup.daily, t.routineGroup.other]),
     );
     expect(headers(view)).not.toContain(t.routineGroup.weekly);
     expect(
@@ -580,6 +596,7 @@ describe('Bot profile page', () => {
     );
     expect(button(view, t.routineNew)).toBeNull();
     expect(view.textContent).toContain('Morning digest');
+    expect(headers(view)).not.toContain(t.profileTabs.routines);
   });
 
   it('runs a routine from its swipe action and reloads the list', async () => {

@@ -62,6 +62,10 @@ Every feature must be operable and testable by an agent through the `deepseekbot
 
 `pnpm lint` runs `scripts/check-cli-parity.mjs`: a new bridge method, route or Bot tool without a CLI command fails unless `scripts/cli-parity-baseline.json` records an issue or an exemption reason for it. The baseline only shrinks — covering an entry means deleting it, and the check fails while a covered entry remains. Remaining gaps are tracked in [#1690](https://github.com/BotHarness/DeepSeekBot/issues/1690).
 
+### Performance observation and verification (AX)
+
+A change to the Client's timeline, rendering, composer, live subscriptions, observers, timers or animations is not done until its performance is measured. Follow [performance observation and verification](docs/agents/ax-performance.md): find the cause with a profile or trace before fixing, A/B on identical data with at least three runs per side, keep scroll correctness at zero jumps and gaps, and put the base-versus-change table in the PR. `scripts/perf-budgets/timeline.json` is the regression guard; the `perf-budget` CI job fails on its structure budgets. Budgets only tighten; raising one needs the Human's approval.
+
 ### IM browser QA (AX)
 
 For Discord and Lark message/reaction tests, prefer their signed-in web clients in the **Codex in-app browser**. Discover the current tabs and verify the account and designated test conversation each run; login state is session-local. Reuse the existing login in place, with the Human completing login when it expires.

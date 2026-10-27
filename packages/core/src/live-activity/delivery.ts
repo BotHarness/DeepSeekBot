@@ -42,7 +42,7 @@ export function createActivityDelivery(options: {
   request(
     channelId: string,
     messageId: string,
-  ): { sourceEventId: string; progress: ChannelRequestProgress } | undefined;
+  ): { sourceEventId: string; progress: ChannelRequestProgress; assignmentId?: string } | undefined;
   now?: () => number;
   record?: (
     phase: string,
@@ -234,6 +234,27 @@ export function createActivityDelivery(options: {
               if (!(await retire(row))) return refusal(503, 'activity-cleanup-pending');
           return { status: 200, body: { stopped: true } };
         }
+        if (path === '/botharness-device/activity/status') {
+          if (!text(body['clientActivityId'])) return refusal(400, 'activity-input-invalid');
+          const row = database.read((db) =>
+            db
+              .prepare('SELECT * FROM device_live_activities WHERE client_id = ? AND device_id = ?')
+              .get(String(body['clientActivityId']), deviceId),
+          ) as Registration | undefined;
+          if (!row) return refusal(404, 'activity-not-found');
+          const request = options.request(row.channel_id, row.message_id);
+          if (!request || request.sourceEventId !== row.source_event_id)
+            return refusal(404, 'activity-request-not-found');
+          return {
+            status: 200,
+            body: {
+              channelId: row.channel_id,
+              messageId: row.message_id,
+              progress: request.progress,
+              ...(request.assignmentId === undefined ? {} : { assignmentId: request.assignmentId }),
+            },
+          };
+        }
         if (path === '/botharness-device/activity/prepare') {
           const { channelId, messageId, bundleIdentifier } = body;
           if (!text(channelId) || !text(messageId)) return refusal(400, 'activity-input-invalid');
@@ -248,7 +269,12 @@ export function createActivityDelivery(options: {
           if (request.progress.terminal) return refusal(409, 'activity-ended');
           return {
             status: 200,
-            body: { ...capability, source: capability.source, progress: request.progress },
+            body: {
+              ...capability,
+              source: capability.source,
+              progress: request.progress,
+              ...(request.assignmentId === undefined ? {} : { assignmentId: request.assignmentId }),
+            },
           };
         }
         if (path !== '/botharness-device/activity/register') return refusal(404, 'not-found');
@@ -330,6 +356,7 @@ export function createActivityDelivery(options: {
             expiresAt,
             sourceEventId: request.sourceEventId,
             progress: request.progress,
+            ...(request.assignmentId === undefined ? {} : { assignmentId: request.assignmentId }),
           },
         };
       }).then((result) => {

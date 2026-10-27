@@ -41,7 +41,7 @@ export type ProfileTabBody = {
 type Item =
   | { kind: 'identity'; key: 'identity' }
   | { kind: 'tabs'; key: 'tabs' }
-  | { kind: 'heading'; key: string }
+  | { kind: 'top'; key: string }
   | { kind: 'row'; key: string; row: ProfileRow }
   | { kind: 'empty'; key: string }
   | { kind: 'footer'; key: string };
@@ -139,7 +139,7 @@ export function ProfileShell({
   const items: Item[] = [
     { kind: 'identity', key: 'identity' },
     ...(showTabs ? [{ kind: 'tabs' as const, key: 'tabs' as const }] : []),
-    { kind: 'heading', key: `${tab}:heading` },
+    { kind: 'top', key: `${tab}:top` },
     ...(body.rows.length === 0
       ? body.empty === undefined
         ? []
@@ -175,37 +175,29 @@ export function ProfileShell({
             <IconTabs label={t.profileTabsLabel} options={options} value={tab} onChange={select} />
           </View>
         );
-      case 'heading': {
-        const heading = (
-          <Text
-            testID="profile-tab-heading"
-            accessibilityRole="header"
-            variant="meta"
-            tone="muted"
-            strong
-            style={{ paddingTop: space.x5, paddingBottom: space.x3 }}
-          >
-            {t.profileTabs[tab]}
-          </Text>
-        );
+      case 'top':
         return content(
-          body.action === undefined ? (
-            heading
-          ) : (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-end',
-                justifyContent: 'space-between',
-                gap: space.x3,
-              }}
-            >
-              {heading}
-              <View style={{ paddingBottom: space.x2 }}>{body.action}</View>
-            </View>
-          ),
+          <View
+            testID={`profile-tab-content-${tab}`}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: space.x3,
+              paddingTop: space.x2,
+              paddingBottom: body.action === undefined ? 0 : space.x1,
+            }}
+          >
+            {body.action === undefined ? null : (
+              <>
+                <Text testID="profile-tab-heading" accessibilityRole="header" strong>
+                  {t.profileTabs[tab]}
+                </Text>
+                {body.action}
+              </>
+            )}
+          </View>,
         );
-      }
       case 'row':
         return content(item.row.render());
       case 'empty':

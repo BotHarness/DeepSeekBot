@@ -9,6 +9,7 @@ import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { RequestActivityControl } from '../../../src/ui/chat/request-activity-control';
 import { BotProfilePage } from '../../../src/ui/chat/bot-profile';
+import { BotPermissions } from '../../../src/ui/chat/bot-permissions';
 import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
 import { ChannelFilesTab } from '../../../src/ui/chat/channel-files-tab';
 import { profileTabMemory } from '../../../src/ui/chat/native-profile-tab-memory';
@@ -108,6 +109,28 @@ export default function BotProfileScreen() {
           : undefined
       }
       settings={<BotSettingsPanel client={client} bot={bot} />}
+      permissions={
+        <BotPermissions
+          client={client}
+          bot={bot}
+          actions={{
+            onHistory: () =>
+              router.push({ pathname: '/bot/[slug]/approval-history', params: { slug: bot.slug } }),
+            onRules: () =>
+              router.push({ pathname: '/bot/[slug]/approval-rules', params: { slug: bot.slug } }),
+            onWorkspace: () =>
+              router.push({
+                pathname: '/bot/[slug]/workspace',
+                params: { slug: bot.slug },
+              }),
+            onAccess: () =>
+              router.push({
+                pathname: '/bot/[slug]/access',
+                params: { slug: bot.slug },
+              }),
+          }}
+        />
+      }
       actions={{
         onClose: () => router.back(),
         onOpenRoutine: (routine) =>
@@ -135,7 +158,8 @@ export default function BotProfileScreen() {
                 }),
             }
           : {}),
-        ...(snapshot.computerAvailable === true &&
+        ...(bot.computerAccess &&
+        snapshot.computerAvailable === true &&
         snapshot.connection.status !== 'refused' &&
         snapshot.connection.status !== 'stopped'
           ? {

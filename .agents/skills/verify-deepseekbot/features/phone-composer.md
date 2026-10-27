@@ -25,6 +25,8 @@ Use `docs/agents/device-qa.md` and its designated runner, qualified native clien
 
 10. On iOS or iPadOS with a physical keyboard and a real CJK input method, begin a candidate and press Command+Return: keep the marked text, draft and selection, with no Channel message sent. Confirm the candidate, then use the next normal Command+Return and observe exactly one message. Move focus outside the composer while a shortcut is pending and ensure its old action cannot send. Repeat in compact and expanded editing. `apps/mobile/modules/hardware-send/ios/Tests/HardwareSendViewTests.swift` covers the real UIKit View→onSend boundary with `setMarkedText`, a cached action and an actual focus transfer; it does not prove a real CJK input method, physical keyboard or selection/latency while streaming.
 
+11. For iOS keyboard/background recovery (#2933), use the assigned physical-device window and `scripts/e2e-mobile-chat-resume.mjs`. Follow [the native resume regression](../references/ios-chat-resume.md) for its private lease, static reading region, empty/multiline drafts, 5/30-second cases, image review and caller-owned cleanup. Completion requires visible known content and composer, unchanged draft, the same Dev PID, and an unchanged nonempty static message pixel region. jsdom layout shims cannot establish this UIKit behavior.
+
 ## Observable proof
 
 Matched native images show the integrated island and reachable controls. Actual typing, attachment, expansion and send actions preserve the draft and produce the expected canonical Channel message. Record source, batch and installed binary identities with pass/fail/untested per step.
