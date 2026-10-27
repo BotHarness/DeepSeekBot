@@ -93,18 +93,31 @@ function processId(label) {
 }
 function anchor(data, baseline) {
   const nodes = snapshot(data).nodes;
-  return baseline?.identifier
-    ? nodes.find((node) => node.identifier === baseline.identifier)
-    : (nodes.find((node) => node.label === message && node.type === baseline?.type) ??
-        nodes.find((node) => node.label === message && node.identifier) ??
-        nodes.find((node) => node.label === message));
+  if (!baseline)
+    return (
+      nodes.find((node) => node.label === message && node.identifier) ??
+      nodes.find((node) => node.label === message)
+    );
+  return (
+    nodes.find((node) => baseline.identifier && node.identifier === baseline.identifier) ??
+    nodes.find(
+      (node) =>
+        node.label === message &&
+        ['width', 'height'].every(
+          (key) =>
+            Number.isFinite(node.rect?.[key]) && Math.abs(node.rect[key] - baseline.rect[key]) <= 2,
+        ),
+    )
+  );
 }
+
 let backgrounded = false;
 try {
   const initial = drive('initial', 'snapshot');
   assert(snapshot(initial).appBundleId === app, 'OPEN_DESIGNATED_DEV_QA_CHAT_FIRST');
   assert(facts(initial).messageVisible && facts(initial).composerVisible, 'INVALID_CHAT_BASELINE');
   if (!closed) drive('focus', 'press', `@${field(initial).ref}`);
+  await setTimeout(500);
   const before = drive('before', 'snapshot');
   assert(facts(before).messageVisible && facts(before).composerVisible, 'INVALID_FOCUSED_BASELINE');
   drive('before-image', 'screenshot', join(out, 'before.private.png'));
