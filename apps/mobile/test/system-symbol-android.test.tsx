@@ -7,6 +7,10 @@ const screen = vi.hoisted(() => ({ width: 411, height: 914, scale: 3, fontScale:
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   useWindowDimensions: () => screen,
+  Dimensions: {
+    get: () => screen,
+    addEventListener: (_event: string, _changed: () => void) => ({ remove() {} }),
+  },
 }));
 vi.mock('expo-symbols', () => ({
   SymbolView: ({ size, style }: { size: number; style: { width: number; height: number } }) =>

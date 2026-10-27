@@ -56,6 +56,7 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
         matchContents={{ vertical: true }}
         colorScheme={theme.scheme}
         seedColor={theme.color.accent}
+        ignoreSafeAreaKeyboardInsets
       >
         <Row
           horizontalArrangement={{ spacedBy: stepBar.gap }}

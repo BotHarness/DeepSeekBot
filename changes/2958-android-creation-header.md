@@ -4,8 +4,8 @@ section: Changed
 
 ## en
 
-- Give Android Bot creation a continuous page surface, native Material top bar and text fields, with the draft avatar, name and setup progress in its header ([#2958](https://github.com/BotHarness/DeepSeekBot/issues/2958)).
+- Keep Android Bot creation's Material header, live avatar/name and animated progress in one persistent shell while steps slide, with native text fields and keyboard-following actions that preserve the form layout ([#2958](https://github.com/BotHarness/DeepSeekBot/issues/2958)).
 
 ## zh
 
-- Android Bot 创建页采用统一页面底色、原生 Material 顶部栏和输入框，并在顶部随设置展示头像、名称和进度（[#2958](https://github.com/BotHarness/DeepSeekBot/issues/2958)）。
+- Android Bot 创建流程保留常驻 Material 顶栏、实时头像/名称及进度动画，仅横向切换步骤内容；采用原生输入框，底部操作随键盘移动并保持表单布局稳定（[#2958](https://github.com/BotHarness/DeepSeekBot/issues/2958)）。

@@ -9,13 +9,22 @@ import {
   TopAppBar,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, semantics, size, testID, weight } from '@expo/ui/jetpack-compose/modifiers';
-import { View } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
+import Animated, {
+  ReduceMotion,
+  useAnimatedProps,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
 import { creationHeader, materialIconButton, space } from '../design/tokens';
 import { useStrings } from '../strings';
+import { useMounted } from '../mounted';
 import { CreationAvatarPreview } from './creation-avatar';
 import type { CreationHeaderProps } from './creation-header-contract';
+
+const AnimatedProgress = Animated.createAnimatedComponent(LinearProgressIndicator);
 
 export function CreationHeader({
   title,
@@ -30,8 +39,24 @@ export function CreationHeader({
   const insets = useSafeAreaInsets();
   const t = useStrings();
   const hasIdentity = Boolean(name.trim() || avatar);
+  const completion = useSharedValue(progress ?? 0);
+  const determinate = useSharedValue(progress !== undefined);
+  const animate = useMounted<ViewInstance>(() => {
+    determinate.set(progress !== undefined);
+    if (progress !== undefined)
+      completion.set(
+        withSpring(progress, {
+          ...creationHeader.progressSpring,
+          reduceMotion: ReduceMotion.System,
+        }),
+      );
+  }, [completion, determinate, progress]);
+  const progressProps = useAnimatedProps(() => ({
+    progress: determinate.get() ? completion.get() : null,
+  }));
   return (
     <View
+      ref={animate}
       testID="create-bot-header"
       style={{
         backgroundColor: theme.color.base,
@@ -113,8 +138,8 @@ export function CreationHeader({
           seedColor={theme.color.accent}
           ignoreSafeAreaKeyboardInsets
         >
-          <LinearProgressIndicator
-            progress={progress ?? null}
+          <AnimatedProgress
+            animatedProps={progressProps}
             color={theme.color.accent}
             trackColor={theme.layer.raised.fill}
             modifiers={[fillMaxWidth(), testID('create-bot-progress')]}

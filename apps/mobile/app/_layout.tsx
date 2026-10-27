@@ -83,6 +83,10 @@ function RootNavigator() {
               >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                 <Stack.Screen
+                  name="(bot-creation)"
+                  options={{ headerShown: false, freezeOnBlur: true }}
+                />
+                <Stack.Screen
                   name="dm/[slug]"
                   dangerouslySingular={channelRouteId}
                   options={{ title: '' }}
