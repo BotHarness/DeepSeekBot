@@ -9,6 +9,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 import type { PersonaBotModelPlan } from '../src/models/presets.js';
 import {
   installBotSubagentModelTools,
+  installOrchestratorSubagentGuard,
   type BotSubagentPresetConfig,
 } from '../src/runtime/subagent-model-tools.js';
 
@@ -193,6 +194,23 @@ function presetParameter(definition: ToolDefinition) {
 }
 
 describe('Bot-owned DSH Subagent tools', () => {
+  it('gives an Orchestrator no Subagent tools and points it to create_assignment', () => {
+    const harness = createHarness();
+    installOrchestratorSubagentGuard(harness.ctx);
+    expect(harness.definitions.size).toBe(0);
+    expect(harness.sections[0]?.text).toContain('create_assignment');
+    for (const name of [
+      'subagent',
+      'subagent_fork',
+      'list_subagent_models',
+      'bot_subagent',
+      'bot_subagent_fork',
+      'list_bot_subagent_models',
+    ])
+      expect(harness.guards[0]?.({ name })).toContain('create_assignment');
+    expect(harness.guards[0]?.({ name: 'create_assignment' })).toBeUndefined();
+  });
+
   it('registers its tool surface only after the asynchronous installation settles', async () => {
     const harness = createHarness();
 

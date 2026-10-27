@@ -275,6 +275,7 @@ import { createMessagePerfTracker, type MessagePerfTracker } from './usage/messa
 import {
   createBotSubagentModelTools,
   installBotSubagentModelTools,
+  installOrchestratorSubagentGuard,
   type BotSubagentPresetConfig,
 } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
@@ -3072,7 +3073,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       activity.handleAgentCreated(agent.session);
       core.usage?.primeSession(agent.session.id, agent.session.snapshotEvents());
       const owner = core.ownership.resolve(agent.session.id);
-      if (owner !== undefined) {
+      if (owner?.rootRole === 'orchestrator') installOrchestratorSubagentGuard(agent.ctx);
+      else if (owner !== undefined) {
         await installBotSubagentModelTools(
           agent.ctx,
           () => core.registry.get(owner.botSlug)?.modelPlan,

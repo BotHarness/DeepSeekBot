@@ -1,16 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { Agent } from '@deepseek-ai/dsh-agent';
 import type { Context } from '@deepseek-ai/cordis';
 import { createBotSubagentModelTools } from '../src/runtime/subagent-model-tools.js';
 import { PRIVATE_INPUT_TOOLS } from '../src/credentials/tool-contract.js';
 
 import { createChannelStore } from '../src/channels/store.js';
-import { mountOperationalDatabase } from '../src/database/owner.js';
+import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { directToolTrace } from '../src/bots/tool-trace.js';
 import { createBotRuntime } from '../src/runtime/bot-runtime.js';
+import { createSessionOwnership } from '../src/sessions/ownership.js';
 import {
   createDshBotAgentAdapter,
   TURN_ONLY_BOT_TOOLS,
@@ -44,15 +46,17 @@ function setup() {
     ensureWorkspace: () => undefined,
     subagentTools: () => createBotSubagentModelTools({} as Context, () => undefined),
   });
+  const ownership = createSessionOwnership(attachOperationalModule(owner, 'session-ownership'));
   const runtime = createBotRuntime({
     database: owner,
+    ownership,
     grants: createTestWorkspaceGrants(owner, home),
     registry,
     channels,
     agents,
     now: FIXED_NOW,
   });
-  return { runtime, channels, dm, host, registry };
+  return { runtime, channels, dm, host, registry, ownership };
 }
 
 describe('direct Bot tool runner', () => {
@@ -227,5 +231,32 @@ describe('direct Bot tool runner', () => {
     await expect(
       runtime.runDirectBotTool!('ada', 'channel_list', {}, signal),
     ).rejects.toMatchObject({ code: 'bot-paused' });
+  });
+
+  it("runs Subagent tools only on one of the Bot's Assignment Sessions", async () => {
+    const { runtime, host, ownership } = setup();
+    const signal = new AbortController().signal;
+    const at = '2026-10-27T00:00:00.000Z';
+    ownership.claim({ sessionId: 'orch-1', botSlug: 'ada', rootRole: 'orchestrator', at });
+    ownership.claim({ sessionId: 'assign-1', botSlug: 'ada', rootRole: 'assignment', at });
+    const execute = vi.fn(async () => ({ isError: false, value: 'child done' }));
+    const parent = { id: 'assign-1', ctx: { tools: { execute } } } as unknown as Agent;
+    vi.spyOn(host, 'get').mockImplementation((id) =>
+      String(id) === 'assign-1' ? parent : undefined,
+    );
+    const args = { description: 'Review', prompt: 'Review', run_in_background: false };
+    for (const session of [undefined, 'orch-1', 'unknown-1'])
+      await expect(
+        runtime.runDirectBotTool!('ada', 'bot_subagent', args, signal, session),
+      ).rejects.toMatchObject({ code: 'parent-unavailable' });
+    await expect(
+      runtime.runDirectBotTool!('ada', 'channel_list', {}, signal, 'assign-1'),
+    ).rejects.toMatchObject({ code: 'invalid-args' });
+    await expect(
+      runtime.runDirectBotTool!('ada', 'bot_subagent', args, signal, 'assign-1'),
+    ).resolves.toMatchObject({ tool: 'bot_subagent', result: 'child done' });
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({ agent: parent, name: 'bot_subagent', arguments: args }),
+    );
   });
 });

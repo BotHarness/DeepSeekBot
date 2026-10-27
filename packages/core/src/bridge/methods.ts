@@ -6872,6 +6872,9 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (typeof args !== 'object' || args === null || Array.isArray(args))
         return invalidInput('args must be an object of tool arguments');
       if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      const session = source['sessionId'];
+      if (session !== undefined && (typeof session !== 'string' || session.trim() === ''))
+        return invalidInput('sessionId must be a Session id');
       if (deps.runtime?.runDirectBotTool === undefined) return directToolsUnavailable();
       try {
         const run = await deps.runtime.runDirectBotTool(
@@ -6879,6 +6882,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           tool.trim(),
           args as Record<string, unknown>,
           AbortSignal.timeout(DIRECT_TOOL_TIMEOUT_MS),
+          session?.trim(),
         );
         return { ok: true, value: { slug, ...run } };
       } catch (error) {

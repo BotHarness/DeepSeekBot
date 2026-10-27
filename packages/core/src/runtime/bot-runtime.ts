@@ -142,6 +142,7 @@ import type {
 } from '../workspaces/grants.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 import { DEFAULT_PROMPT_LIMITS, type PromptLimits } from '../prompts/prompt-limits.js';
+import { isBotSubagentModelTool } from './subagent-model-tools.js';
 
 export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
 export type AssignmentReportState =
@@ -788,6 +789,7 @@ export interface BotRuntime {
     tool: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
+    parentSessionId?: string,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }>;
   triageOpenCount?(botSlug: string): number | undefined;
   listChannelAssignments?(channelId: string): ChannelAssignmentSummary[];
@@ -4000,6 +4002,7 @@ class BotRuntimeImplementation implements BotRuntime {
     tool: string,
     args: Record<string, unknown>,
     signal: AbortSignal,
+    parentSessionId?: string,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }> {
     if (this.#closed) throw new DirectBotToolError('runtime-closed', 'BotRuntime is closed');
     const bot = this.#registry.get(botSlug);
@@ -4014,6 +4017,21 @@ class BotRuntimeImplementation implements BotRuntime {
         'tool-not-direct',
         `${tool} is not a Bot tool the direct runner can call; list them with bot-tools`,
       );
+    const delegation = isBotSubagentModelTool(tool);
+    if (!delegation && parentSessionId !== undefined)
+      throw new DirectBotToolError(
+        'invalid-args',
+        `${tool} runs as the Bot's Orchestrator; --session applies only to Subagent tools`,
+      );
+    if (delegation) {
+      const owner =
+        parentSessionId === undefined ? undefined : this.#ownership.resolve(parentSessionId);
+      if (owner?.botSlug !== bot.slug || owner.rootRole !== 'assignment')
+        throw new DirectBotToolError(
+          'parent-unavailable',
+          `${tool} runs inside an Assignment; pass --session with one of ${bot.slug}'s Assignment Sessions`,
+        );
+    }
     this.#requireExecution?.(bot.slug);
     const sessionId = `direct-${randomUUID()}`;
     const directChannel =
@@ -4071,7 +4089,7 @@ class BotRuntimeImplementation implements BotRuntime {
         tool,
         args,
         signal,
-        this.currentOrchestratorSessionId(botSlug),
+        delegation ? parentSessionId : this.currentOrchestratorSessionId(botSlug),
       );
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       return { tool, sessionId: 'direct', result };

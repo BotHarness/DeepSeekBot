@@ -537,7 +537,29 @@ describe('bridge methods', () => {
       ok: true,
       value: { slug: 'ada', tool: 'channel_list', sessionId: 'direct', result: { channels: [] } },
     });
-    expect(run).toHaveBeenCalledWith('ada', 'channel_list', { limit: 1 }, expect.any(AbortSignal));
+    expect(run).toHaveBeenCalledWith(
+      'ada',
+      'channel_list',
+      { limit: 1 },
+      expect.any(AbortSignal),
+      undefined,
+    );
+    await methods.botToolRun({
+      slug: 'ada',
+      tool: 'bot_subagent',
+      args: {},
+      sessionId: ' assign-1 ',
+    });
+    expect(run).toHaveBeenLastCalledWith(
+      'ada',
+      'bot_subagent',
+      {},
+      expect.any(AbortSignal),
+      'assign-1',
+    );
+    expect(
+      await methods.botToolRun({ slug: 'ada', tool: 'bot_subagent', sessionId: 7 }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
     expect(await methods.botToolRun({ slug: 'ada', tool: 'create_assignment' })).toEqual({
       ok: false,
       error: { code: 'tool-not-direct', message: 'create_assignment cannot run' },
