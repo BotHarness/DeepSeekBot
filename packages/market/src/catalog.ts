@@ -20,6 +20,7 @@ export interface MarketplaceEntry {
   bio: string | null;
   bioGenerated: boolean;
   banner: MarketplaceBanner | null;
+  avatar: MarketplaceAvatar | null;
   description: string | null;
   topics: string[];
   stars: number;
@@ -44,6 +45,22 @@ function parseBanner(value: string | null): MarketplaceBanner | null {
       typeof recipe['seed'] === 'number'
     ) {
       return { recipe: { scene: recipe['scene'], seed: recipe['seed'] } };
+    }
+    return typeof parsed['image'] === 'string' ? { image: parsed['image'] } : null;
+  } catch {
+    return null;
+  }
+}
+
+export type MarketplaceAvatar = { recipe: Record<string, unknown> } | { image: string };
+
+function parseAvatar(value: string | null): MarketplaceAvatar | null {
+  if (value === null) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const recipe = parsed['recipe'];
+    if (typeof recipe === 'object' && recipe !== null && !Array.isArray(recipe)) {
+      return { recipe: recipe as Record<string, unknown> };
     }
     return typeof parsed['image'] === 'string' ? { image: parsed['image'] } : null;
   } catch {
@@ -98,6 +115,7 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
     bio: presentation.bio,
     bioGenerated: presentation.bioGenerated,
     banner: parseBanner(row.banner),
+    avatar: parseAvatar(row.avatar),
     description: row.description,
     topics,
     stars: row.stars,

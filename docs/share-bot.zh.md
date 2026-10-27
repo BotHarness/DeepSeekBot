@@ -28,7 +28,7 @@
 
 1. 列出 Memory 里的所有文件，并检查文件内容和 Git 历史里有没有密码、token、私人信息或我不想公开的内容。把发现的问题列给我，等我确认后再继续，确认前不要推送任何东西。
 2. 如果还没有 README.md，写一份简短的介绍：你是谁、擅长什么、适合怎么用。然后用另一种语言再写一份：README.md 是中文就写英文的 README.en.md，是英文就写中文的 README.zh-CN.md。
-3. 确认 .botharness/bot.json 存在（Tobs 通常已经自动生成）。没有就创建，写上你的名称、1 到 3 个标签和一句话简介，格式是 {"name": "名称", "tags": ["标签"], "bio": "一句话简介"}；已经有了就保留原有内容。然后在 "i18n" 里加上另一种语言的简介，格式是 {"i18n": {"en": {"bio": "One sentence"}}} 或 {"i18n": {"zh": {"bio": "一句话简介"}}}。
+3. 确认 .botharness/bot.json 存在（Tobs 通常已经自动生成）。没有就创建，写上你的名称、1 到 3 个标签和一句话简介（简介不超过 160 个字符，各语言都一样），格式是 {"name": "名称", "tags": ["标签"], "bio": "一句话简介"}；已经有了就保留原有内容。然后在 "i18n" 里加上另一种语言的简介，格式是 {"i18n": {"en": {"bio": "One sentence"}}} 或 {"i18n": {"zh": {"bio": "一句话简介"}}}。.botharness/ 里的头像和横幅文件（avatar.png、avatar.recipe.json、banner.png 等）保持原样，推送时连同整个 .botharness/ 文件夹一起提交，别人导入时才能看到同一个头像。
 4. 用 gh 在我的 GitHub 账号下创建一个公开仓库并推送当前分支。仓库名用你的名称的英文或拼音，先告诉我你打算用的名字。如果第 1 步发现历史里有不该公开的内容，就只推送一个不带历史的新提交。
 5. 给仓库加上 botharness-bot 话题：gh repo edit --add-topic botharness-bot
 6. 把仓库地址发给我。
@@ -93,7 +93,7 @@ Tobs 会自动在每个 Bot 的 Memory 里生成 `.botharness/bot.json`，并保
 | `avatar` | 头像：`{ "image": "仓库里的图片路径" }`，PNG、JPEG 或 WebP，最大 128 KiB；或者 `{ "recipe": … }` 像素头像配方。                                                                                                                            |
 | `banner` | 横幅：生成的像素场景 `{ "recipe": { "scene", "seed" } }`，或 `{ "image": ".botharness/banner.png" }`（3:1 的 PNG，最大 2 MB）。场景：`spring`、`summer`、`autumn`、`winter`、`sea`、`mountain`、`desert`、`forest`、`night-sky`、`space`。 |
 
-所有字段都可以省略。文件格式不对时整个文件会被忽略，市场改用仓库名和自动生成的像素头像。
+所有字段都可以省略。某个字段超出限制（例如简介超过 160 个字符）时只跳过这个字段，其他字段照常生效。文件不是合法 JSON 或超过 16 KB 时整个文件会被忽略，市场改用仓库名和自动生成的像素头像。
 
 ## 中英文：`README.zh-CN.md` 和 `i18n`
 

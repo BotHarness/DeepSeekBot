@@ -21,6 +21,12 @@ function cached(key: string, make: () => string) {
 }
 const svgUri = (svg: string) => `data:image/svg+xml;base64,${btoa(svg)}`;
 export function marketplaceAvatar(bot: MarketplaceEntry) {
+  const avatar = bot.avatar;
+  if (avatar && 'image' in avatar) return avatar.image;
+  if (avatar) {
+    const key = JSON.stringify(avatar.recipe);
+    return cached(`avatar:${key}`, () => svgUri(avatarSvg(avatar.recipe)));
+  }
   const name = bot.displayName ?? bot.name;
   return cached(`avatar:${name}`, () => svgUri(avatarSvg(seededAvatarFor(name, undefined))));
 }

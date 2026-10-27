@@ -9,6 +9,7 @@ import {
   type BotDescriptor,
 } from '../marketplace/descriptor.js';
 import { BOT_BANNER_FILE } from './bot-banner.js';
+import { AVATAR_RECIPE_FILE } from './shared-presentation.js';
 import {
   readZip,
   writeZip,
@@ -63,6 +64,7 @@ export function alwaysIncludedFiles(memoryDir: string, files: readonly string[])
     )?.avatar;
     if (avatar !== undefined && 'image' in avatar && files.includes(avatar.image)) {
       always.push(avatar.image);
+      if (files.includes(AVATAR_RECIPE_FILE)) always.push(AVATAR_RECIPE_FILE);
     }
   } catch {}
   if (files.includes(BOT_BANNER_FILE)) always.push(BOT_BANNER_FILE);

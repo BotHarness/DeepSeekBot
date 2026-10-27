@@ -79,8 +79,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
-  PersonaBotAvatar: (props: { name: string }) =>
-    createElement('span', { 'data-avatar': props.name }),
+  PersonaBotAvatar: (props: { name: string; src?: string; appearance?: { recipe: unknown } }) =>
+    createElement('span', {
+      'data-avatar': props.name,
+      'data-src': props.src,
+      'data-recipe':
+        props.appearance === undefined ? undefined : JSON.stringify(props.appearance.recipe),
+    }),
 }));
 
 const drafts = vi.hoisted(() => ({ appended: [] as [string, string][] }));
@@ -89,6 +94,7 @@ vi.mock('../src/client/conversation-draft.js', () => ({
   appendConversationDraft: (scope: string, text: string) => drafts.appended.push([scope, text]),
 }));
 
+import { DEFAULT_ILLUSTRATED_RECIPE } from '../../core/src/bots/avatar-appearance.js';
 import type { MarketplaceEntry, MarketplacePage } from '../../core/src/marketplace/client.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
@@ -107,6 +113,7 @@ function entry(name: string, overrides: Partial<MarketplaceEntry> = {}): Marketp
     fullName: `alice/${name}`,
     displayName: null,
     banner: null,
+    avatar: null,
     roles: [],
     description: `${name} description`,
     descriptionGenerated: false,
@@ -294,6 +301,32 @@ describe('Market panel', () => {
         expect(banners[0]?.querySelector('canvas')).not.toBeNull();
         expect(banners[1]?.querySelector('img')?.src).toContain('/.botharness/banner.png');
         expect(banners[2]?.getAttribute('data-market-banner')).toBe('none');
+      },
+    );
+  });
+
+  it('shows the avatar each Bot shares instead of one seeded from its name', async () => {
+    const image = 'https://raw.githubusercontent.com/alice/photo/main/.botharness/avatar.png';
+    await withPanel(
+      async () => ({
+        bots: [
+          entry('photo', { avatar: { image } }),
+          entry('drawn', { avatar: { recipe: DEFAULT_ILLUSTRATED_RECIPE } }),
+          entry('none'),
+        ],
+      }),
+      async ({ host }) => {
+        const avatars = [...host.querySelectorAll('.bh-market-tile [data-market-avatar]')];
+        expect(avatars.map((avatar) => avatar.getAttribute('data-market-avatar'))).toEqual([
+          'image',
+          'recipe',
+          'seeded',
+        ]);
+        expect(avatars[0]?.querySelector('[data-src]')?.getAttribute('data-src')).toBe(image);
+        expect(avatars[1]?.querySelector('[data-recipe]')?.getAttribute('data-recipe')).toBe(
+          JSON.stringify(DEFAULT_ILLUSTRATED_RECIPE),
+        );
+        expect(avatars[2]?.querySelector('[data-src]')).toBeNull();
       },
     );
   });
