@@ -563,6 +563,32 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#drafts.accept(sessionId, frame);
   }
 
+  /** Drop the handle of an Agent DSH disposed on its own, such as on a plugin reload. */
+  forgetAgent(agent: Agent): void {
+    const sessionId = String(agent.session.id);
+    if (this.#handles.get(sessionId)?.agent === agent) this.#forgetHandle(sessionId);
+  }
+
+  #forgetHandle(sessionId: string): void {
+    this.#handles.delete(sessionId);
+    this.#orchestratorSelections.delete(sessionId);
+    this.#orchestratorBridgeTools.delete(sessionId);
+    this.#assignmentSelections.delete(sessionId);
+  }
+
+  /**
+   * The cached handle only while DSH still holds its Agent. A disposed Agent
+   * cannot run another Turn, so its handle is released and the caller resumes.
+   */
+  async #liveHandle(sessionId: string): Promise<AgentHandle | undefined> {
+    const handle = this.#handles.get(sessionId);
+    if (handle === undefined || this.#agents.get === undefined) return handle;
+    if (this.#agents.get(SessionId(sessionId)) === handle.agent) return handle;
+    this.#forgetHandle(sessionId);
+    await handle.dispose().catch(() => undefined);
+    return undefined;
+  }
+
   async runAssignment(run: AssignmentAgentRun): Promise<void> {
     this.#assertOpen();
     await this.#driveAssignment(run);
@@ -616,10 +642,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       const handle = this.#handles.get(id);
       if (handle === undefined) continue;
       await handle.dispose();
-      this.#handles.delete(id);
-      this.#orchestratorSelections.delete(id);
-      this.#orchestratorBridgeTools.delete(id);
-      this.#assignmentSelections.delete(id);
+      this.#forgetHandle(id);
     }
   }
 
@@ -627,10 +650,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     if (this.#runs.has(sessionId)) return;
     const handle = this.#handles.get(sessionId);
     if (handle === undefined) return;
-    this.#handles.delete(sessionId);
-    this.#orchestratorSelections.delete(sessionId);
-    this.#orchestratorBridgeTools.delete(sessionId);
-    this.#assignmentSelections.delete(sessionId);
+    this.#forgetHandle(sessionId);
     await handle.dispose();
   }
 
@@ -709,7 +729,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #orchestratorHandle(run: OrchestratorAgentRun): Promise<AgentHandle> {
-    const existing = this.#handles.get(run.sessionId);
+    const existing = await this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const resolvedAgentOptions = agentOptions(
       run,
@@ -3504,7 +3524,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   }
 
   async #assignmentHandle(run: AssignmentAgentRun): Promise<AgentHandle> {
-    const existing = this.#handles.get(run.sessionId);
+    const existing = await this.#liveHandle(run.sessionId);
     if (existing !== undefined) return existing;
     const meta = createMeta(run, run.permission.primaryCwd, undefined, this.#defaultAgentPreset);
     const resolvedAgentOptions = agentOptions(
@@ -3672,6 +3692,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
   acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void;
+  forgetAgent(agent: Agent): void;
 } {
   return new DshBotAgentAdapter(options);
 }
