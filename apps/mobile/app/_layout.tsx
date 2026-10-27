@@ -21,6 +21,7 @@ import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
+import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -64,7 +65,7 @@ function RootNavigator() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardRoot>
         <SafeAreaProvider>
-          <View ref={routing} style={{ flex: 1 }}>
+          <View ref={routing} style={{ flex: 1 }} onTouchStart={noteTouch}>
             <StatusBar style={design.scheme === 'dark' ? 'light' : 'dark'} />
             {routingPending ? (
               <SafeAreaView edges={['top']}>

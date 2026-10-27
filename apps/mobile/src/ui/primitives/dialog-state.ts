@@ -1,5 +1,6 @@
 import type { ReactElement } from 'react';
 import type { MenuGlyph } from './menu-icon';
+import type { TouchAnchor } from './touch-anchor';
 
 export type DialogAction = {
   text: string;
@@ -17,6 +18,7 @@ export type DialogState = {
   error: string | undefined;
   presentation: 'dialog' | 'menu';
   avatar?: ReactElement | undefined;
+  anchor?: TouchAnchor | undefined;
 };
 
 export function createDialogState() {
@@ -41,6 +43,7 @@ export function createDialogState() {
       actions: readonly DialogAction[],
       presentation: DialogState['presentation'] = 'dialog',
       avatar?: ReactElement,
+      anchor?: TouchAnchor,
     ) {
       publish({
         id: ++nextId,
@@ -51,6 +54,7 @@ export function createDialogState() {
         error: undefined,
         presentation,
         avatar,
+        anchor,
       });
     },
     dismiss() {
