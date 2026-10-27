@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage } from 'node:http';
 import { TOB_AGENT_COMMAND_USAGE } from '../bots/cli-agent-management.js';
 import { TobError, type TobSetting } from './service.js';
+import { SHARE_DRAFT_ERROR_CODES } from './cli-share-draft-operations.js';
 import type {
   PrepareTobOperation,
   TobCliCapability,
@@ -20,7 +21,10 @@ const IMAGE_COMMANDS = new Set([
   'bot-appearance-set',
   'group-avatar-set',
 ]);
+// A rewritten Share Draft file may be larger than a settings patch.
+const LARGE_TEXT_COMMANDS = new Set(['share-draft-decide']);
 const CODES = new Set([
+  ...SHARE_DRAFT_ERROR_CODES,
   'tob-authority-required',
   'human-dm-required',
   'stale-setting',
@@ -224,7 +228,8 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
       const commandBodyLimit =
         input.command === 'group-avatar-set'
           ? GROUP_AVATAR_BODY_BYTES
-          : IMAGE_COMMANDS.has(String(input.command))
+          : IMAGE_COMMANDS.has(String(input.command)) ||
+              LARGE_TEXT_COMMANDS.has(String(input.command))
             ? MAX_BODY_BYTES
             : SMALL_BODY_BYTES;
       if (received.bytes > commandBodyLimit) refuse('request-too-large');
