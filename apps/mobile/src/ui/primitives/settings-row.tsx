@@ -15,6 +15,8 @@ import { SystemSymbol } from './system-symbol';
 import { Text } from './text';
 import { Toggle } from './toggle';
 import { segmentCorners } from '../design/segment-corners';
+import { useSettingsFormPlace } from './settings-form-context';
+import { FormRow, FormSection } from './settings-form-row';
 
 function ControlView({
   control,
@@ -68,6 +70,11 @@ function ControlView({
 
 export function SettingsRow(props: SettingsRowProps) {
   if (Platform.OS === 'android') return <SettingsListItem {...props} />;
+  return <SettingsRowByPlace {...props} />;
+}
+
+function SettingsRowByPlace(props: SettingsRowProps) {
+  if (useSettingsFormPlace() !== false) return <FormRow {...props} />;
   return <ReactNativeSettingsRow {...props} />;
 }
 
@@ -156,17 +163,19 @@ function ReactNativeSettingsRow({
   );
 }
 
-export function SettingsSection({
-  title,
-  footer,
-  on = 'sheet',
-  children,
-}: {
+type SettingsSectionProps = {
   title?: string;
   footer?: string | undefined;
   on?: LayerName;
   children: ReactNode;
-}) {
+};
+
+export function SettingsSection(props: SettingsSectionProps) {
+  if (useSettingsFormPlace() !== false) return <FormSection {...props} />;
+  return <SettingsSectionView {...props} />;
+}
+
+function SettingsSectionView({ title, footer, on = 'sheet', children }: SettingsSectionProps) {
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';
   const rows = android ? Children.toArray(children) : [];

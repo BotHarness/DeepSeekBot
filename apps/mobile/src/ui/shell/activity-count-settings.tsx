@@ -1,14 +1,11 @@
 import { useRouter } from 'expo-router';
-import { ScrollView } from 'react-native';
-
 import { ACTIVITY_COUNT_KINDS } from '../../host/activity-count';
 import {
   activityCountPreferences,
   useActivityCountPreferences,
 } from '../../host/native-activity-count';
 import { SHEET_GROUP } from '../chat/sheet';
-import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { SettingsForm } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { useStrings } from '../strings';
 
@@ -34,14 +31,9 @@ export function ActivityCountLink() {
 
 export function ActivityCountSettings() {
   const t = useStrings();
-  const theme = useDesignTheme();
   const state = useActivityCountPreferences();
   return (
-    <ScrollView
-      nestedScrollEnabled
-      style={{ flex: 1, backgroundColor: theme.overlay.fill }}
-      contentContainerStyle={{ padding: space.x5 }}
-    >
+    <SettingsForm>
       <SettingsSection
         on={SHEET_GROUP}
         footer={state.storageError ? t.activityCountSettings.error : t.activityCountSettings.hint}
@@ -63,6 +55,6 @@ export function ActivityCountSettings() {
           />
         ))}
       </SettingsSection>
-    </ScrollView>
+    </SettingsForm>
   );
 }
