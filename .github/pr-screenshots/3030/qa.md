@@ -13,17 +13,17 @@ Issue #3027 / PR #3030. Physical Android 16, arm64 Debug, Chinese locale, portra
 
 ## Results
 
-| Journey | Result |
-| --- | --- |
-| Soft-key action adds tags consecutively and clears the input | Pass |
-| Empty or duplicate submission adds no duplicate chip | Pass |
-| Remove first/last chips while retaining unfinished input and keyboard | Pass |
-| Gboard Chinese: soft-key pinyin, candidate selection, submit to chip | Pass |
-| Back/Next and Close/Reopen retain chips plus unfinished input | Pass |
-| Direct creation includes remaining typed text | Pass; canonical Host `roles` = `Alpha`, `Beta`, `Pending`; created Bot chat opened |
-| Real Host-exported Zip prefills `Imported` as a chip | Pass |
-| Add `ZipTag`, remove `Imported`, finish Zip import | Pass; canonical Host `roles` = `ZipTag`; imported Bot chat opened |
-| System font 1.0 / 1.3 / 2.0 × light/dark, real keyboard open | All six pass; input and submit stay above the keyboard |
+| Journey                                                               | Result                                                                             |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Soft-key action adds tags consecutively and clears the input          | Pass                                                                               |
+| Empty or duplicate submission adds no duplicate chip                  | Pass                                                                               |
+| Remove first/last chips while retaining unfinished input and keyboard | Pass                                                                               |
+| Gboard Chinese: soft-key pinyin, candidate selection, submit to chip  | Pass                                                                               |
+| Back/Next and Close/Reopen retain chips plus unfinished input         | Pass                                                                               |
+| Direct creation includes remaining typed text                         | Pass; canonical Host `roles` = `Alpha`, `Beta`, `Pending`; created Bot chat opened |
+| Real Host-exported Zip prefills `Imported` as a chip                  | Pass                                                                               |
+| Add `ZipTag`, remove `Imported`, finish Zip import                    | Pass; canonical Host `roles` = `ZipTag`; imported Bot chat opened                  |
+| System font 1.0 / 1.3 / 2.0 × light/dark, real keyboard open          | All six pass; input and submit stay above the keyboard                             |
 
 All six matched screenshot pairs have the same viewport, theme, locale, synthetic draft data and keyboard top (1402 px). The before field contains `Alpha, Beta`; the after field has those two committed chips and an empty pending field.
 
