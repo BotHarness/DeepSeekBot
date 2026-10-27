@@ -25,6 +25,7 @@ import {
 import { createTempRoot, FIXED_NOW } from './helpers.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 import { createWorkspaceGrantStore } from '../src/workspaces/grants.js';
+import { OrchestratorWorkingDirectoryError } from '../src/runtime/orchestrator-working-directory.js';
 import { createAssignmentAccessStore } from '../src/workspaces/assignment-access.js';
 
 class DeterministicAgentAdapter implements BotAgentAdapter {
@@ -1661,6 +1662,98 @@ it('does not replay a DM whose archived turn already acted', async () => {
   expect(runs).toHaveLength(1);
   expect(bodies).toContain('partial');
   expect(bodies).not.toContain('answered');
+});
+
+async function misplacedOrchestrator(archiveRefused: boolean) {
+  const home = createTempRoot('botharness-misplaced-orchestrator-');
+  const registry = createTestRegistry({ rootDir: join(home, 'bots'), now: FIXED_NOW });
+  expect(registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+  const channels = createChannelStore({ rootDir: join(home, 'channels'), now: FIXED_NOW });
+  const dm = channels.getOrCreateDm('ada', 'Ada')!;
+  const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  const archived = new Set<string>();
+  const runs: Array<{ sessionId: string; resume: boolean }> = [];
+  const warnings: string[] = [];
+  let nextSession = 0;
+  let nextId = 0;
+  const runtime = createBotRuntime({
+    database: owner,
+    registry,
+    channels,
+    sessionArchived: (sessionId) => archived.has(sessionId),
+    sessionArchive: () => ({
+      archiveSession: async (sessionId) => {
+        if (archiveRefused)
+          throw Object.assign(new Error('active'), { name: 'WorkspaceActiveSessionError' });
+        archived.add(sessionId);
+      },
+      unarchiveSession: async (sessionId) => {
+        archived.delete(sessionId);
+      },
+    }),
+    agents: {
+      runOrchestrator: async (run) => {
+        runs.push({ sessionId: run.sessionId, resume: run.resume });
+        if (run.sessionId === 'session-1' && run.resume)
+          throw new OrchestratorWorkingDirectoryError(
+            run.sessionId,
+            '/old-home/bots/ada/memory',
+            '/new-home/bots/ada/memory',
+          );
+        await run.channels.send({ body: 'answered ' + runs.length });
+      },
+      runAssignment: async () => undefined,
+      requestAssignment: () => ({
+        delivery: 'followup' as const,
+        accepted: Promise.resolve(),
+        done: Promise.resolve(),
+      }),
+      close: async () => undefined,
+    },
+    warn: (message) => warnings.push(message),
+    now: FIXED_NOW,
+    createSessionId: () => `session-${++nextSession}`,
+    createEventId: () => `event-${++nextId}`,
+    createMessageId: () => `message-${++nextId}`,
+  });
+  for (const [id, body] of [
+    ['human-1', 'hello'],
+    ['human-2', 'still there?'],
+  ] as const) {
+    await channels.appendMessage(dm.id, {
+      id,
+      at: FIXED_NOW().toISOString(),
+      author: { kind: 'human' },
+      body,
+    });
+    await admit(runtime, { channelId: dm.id, messageId: id, body }).catch(() => undefined);
+    await runtime.whenIdle();
+  }
+  const bodies = channels.readMessages(dm.id).map((message) => message.body);
+  const current = runtime.currentOrchestratorSessionId?.('ada');
+  await runtime.close();
+  owner.close();
+  return { runs, bodies, archived, current, warnings };
+}
+
+it('moves the Bot to a new Orchestrator Session when its Session runs outside the Memory directory', async () => {
+  const { runs, bodies, archived, current, warnings } = await misplacedOrchestrator(false);
+  expect(runs.map((run) => run.sessionId)).toEqual(['session-1', 'session-1', current]);
+  expect(current).not.toBe('session-1');
+  expect(runs[2]!.resume).toBe(false);
+  expect([...archived]).toEqual(['session-1']);
+  expect(bodies).toContain('answered 3');
+  expect(warnings.some((line) => line.includes('orchestrator-working-directory-replaced'))).toBe(
+    true,
+  );
+});
+
+it('keeps a misplaced Orchestrator Session when DSH refuses to archive it', async () => {
+  const { runs, bodies, archived, current } = await misplacedOrchestrator(true);
+  expect(runs.map((run) => run.sessionId)).toEqual(['session-1', 'session-1']);
+  expect(current).toBe('session-1');
+  expect(archived.size).toBe(0);
+  expect(bodies).not.toContain('answered 3');
 });
 
 it('starts a new Orchestrator Session when DSH archived the current one', async () => {

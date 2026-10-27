@@ -1,6 +1,7 @@
 import { createChannelActionTool } from './channel-action-tool.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import { createBotMessageTool } from './bot-message-tool.js';
+import { assertOrchestratorWorkingDirectory } from './orchestrator-working-directory.js';
 import { TOB_CLI_PROMPT } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import type { Context } from '@deepseek-ai/cordis';
@@ -836,6 +837,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     };
     const live = this.#agents.get?.(SessionId(run.sessionId));
     if (live !== undefined) {
+      assertOrchestratorWorkingDirectory(
+        run.sessionId,
+        live.session.header.cwd,
+        this.#resolveOrchestratorCwd(run.bot),
+      );
       this.#authorizeBorrow?.(live, 'orchestrator');
       try {
         await setup(live.ctx, live, true);
@@ -872,6 +878,16 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           ...(meta === undefined ? {} : { meta }),
           ...options,
         });
+    try {
+      assertOrchestratorWorkingDirectory(
+        run.sessionId,
+        handle.agent.session.header.cwd,
+        this.#resolveOrchestratorCwd(run.bot),
+      );
+    } catch (error) {
+      await handle.dispose();
+      throw error;
+    }
     this.#handles.set(run.sessionId, handle);
     this.#orchestratorSelections.set(run.sessionId, selection);
     return handle;
