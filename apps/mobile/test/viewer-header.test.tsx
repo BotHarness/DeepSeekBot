@@ -54,7 +54,7 @@ it('puts the viewer in the native iOS navigation bar with system bar buttons', (
     closeLabel: 'Close the Browser',
     onClose: close,
     action,
-  }) as {
+  }) as unknown as {
     headerShown: boolean;
     headerBackVisible: boolean;
     headerTitle(): ReactElement;
@@ -88,7 +88,7 @@ it('uses the Material top app bar on Android and leaves the trailing slot empty 
     driving: false,
     closeLabel: 'Close the Computer',
     onClose: close,
-  }) as {
+  }) as unknown as {
     headerShown: boolean;
     headerLeft(): ReactElement;
     headerRight(): ReactElement | null;
