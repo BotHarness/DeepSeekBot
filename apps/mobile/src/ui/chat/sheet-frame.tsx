@@ -12,6 +12,7 @@ export interface SheetFrameProps {
   visible: boolean;
   label: string;
   onClose(): void;
+  onDismissed?: (() => void) | undefined;
   children: ReactNode;
   avoidKeyboard: boolean;
   animationType: 'none' | 'slide' | 'fade';
