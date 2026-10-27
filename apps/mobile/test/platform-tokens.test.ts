@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => ({ PlatformColor: (name: string) => ({ semantic: [name] }) }));
@@ -14,7 +15,9 @@ vi.mock('../src/ui/design/theme', () => ({
 import { materialType, useMaterialRoles } from '../src/ui/design/material-tokens';
 import { systemColors, systemType } from '../src/ui/design/system-tokens';
 
-const root = new URL('../src', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../src', import.meta.url));
+const colourLiteral =
+  /['"`]#[0-9a-f]{3,8}['"`]|\brgba?\(|\b(?:fill|stroke|stopColor)=['"](?!none['"]|currentColor['"]|transparent['"])[a-z]+['"]/i;
 
 function platformFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -46,9 +49,16 @@ describe('platform token layers', () => {
     });
   });
 
+  it('recognise hex, rgb and named SVG colour literals', () => {
+    expect(colourLiteral.test("color: '#fff'")).toBe(true);
+    expect(colourLiteral.test('rgba(0, 0, 0, 0.5)')).toBe(true);
+    expect(colourLiteral.test('<Path fill="red" />')).toBe(true);
+    expect(colourLiteral.test('<Path fill="none" stroke={roles.primary} />')).toBe(false);
+  });
+
   it('keep colour literals out of platform-specific UI', () => {
     const offenders = platformFiles(root).filter((path) =>
-      /['"`]#[0-9a-f]{3,8}['"`]|\brgba?\(/i.test(readFileSync(path, 'utf8')),
+      colourLiteral.test(readFileSync(path, 'utf8')),
     );
     expect(offenders.map((path) => path.slice(root.length + 1))).toEqual([]);
   });
