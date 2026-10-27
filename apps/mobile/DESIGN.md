@@ -112,6 +112,10 @@ The video canvas and letterboxing are pure black in both app appearances, with a
 
 Normal video waiting shows only a native loading indicator over the canvas, without explanatory copy; actual failures retain a short recovery message and action. Preview and pointer gestures share the video surface, with pointer input enabled only while controlling. Accepted clicks share the cursor-position ripple (blue left, orange right), scoped to the current viewer/grant; refused or stale clicks show none. Reduce Motion uses a brief static ring. The Bot profile's **Computer** button follows the Bot's Computer access switch (#2912) and the Host's viewer support; the chat header's computer button does not depend on the switch. Server-owned route admission and explicit takeover still guard viewing and input. Back releases the viewer without resuming paused Bots. Picture in Picture remains deferred to #2664.
 
+## Browser and fallback Computer viewers
+
+The remote Browser viewer, and the Computer viewer shown when a Host cannot stream native video, use the native navigation header (`viewerHeaderOptions`, `src/ui/shell/viewer-header`) instead of drawing their own row. The title holds the viewer name and, below it, who is driving. Close is the leading item: an SF Symbol `xmark` bar button on iOS, the round `NavigationAction` in the Material top app bar on Android. While the Human controls the fallback Computer, **Hand back** is the trailing item. System Back still closes the viewer on Android.
+
 ## Step bar and Environment selection
 
 Accepted 2026-10-26 (#2922). Adding Environments and creating a Bot share one pinned bottom bar and one selection idiom.

@@ -206,7 +206,6 @@ function RootNavigator() {
                   options={{
                     title: t.profileBrowser,
                     presentation: 'fullScreenModal',
-                    headerShown: false,
                     gestureEnabled: false,
                   }}
                 />
