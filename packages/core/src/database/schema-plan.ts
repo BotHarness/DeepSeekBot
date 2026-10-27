@@ -2527,6 +2527,17 @@ const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
   },
 };
 
+const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
+  generation: 110,
+  module: 'tool-approval-rules',
+  description: 'Count the approval requests each always-allow rule answers',
+  migrate(database) {
+    database.exec(
+      'ALTER TABLE tool_approval_rules ADD COLUMN auto_approved_count INTEGER NOT NULL DEFAULT 0;',
+    );
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2636,4 +2647,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   DEVICE_LIVE_ACTIVITY_MIGRATION,
   ASSIGNMENT_TITLE_MIGRATION,
   SESSION_PROMPT_SNAPSHOT_MIGRATION,
+  TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
 ]);

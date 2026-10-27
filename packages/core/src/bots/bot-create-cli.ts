@@ -307,6 +307,7 @@ Usage:
   tobs session-owner <session-id>
   tobs session-archive-set <id> --session <session-id> (--archived | --unarchived)
   tobs tool-approval-rules <id>
+  tobs tool-approval-history <id> [--limit <1-100>] [--cursor <cursor>]
   tobs tool-approval-rule-revoke <id> --rule <rule-id> --confirm
   tobs private-mcp-set <id> --server <name> (--enabled | --disabled)
   tobs private-mcp-remove <id> --server <name> --confirm

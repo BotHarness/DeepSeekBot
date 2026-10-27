@@ -703,6 +703,7 @@ describe('plugin entry', () => {
       'assignmentAccessSet',
       'toolApprovalRules',
       'toolApprovalRuleRevoke',
+      'toolApprovalHistory',
       'toolApprovalStatus',
       'toolApprovalDecide',
       'toolAutoRejectionOverride',

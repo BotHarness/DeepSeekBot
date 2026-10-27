@@ -388,6 +388,20 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('pages approval history with a bounded limit and the returned cursor', async () => {
+    const live = await host(echo);
+    await invoke(['tool-approval-history', 'ada'], live.url);
+    await invoke(['tool-approval-history', 'ada', '--limit', '5', '--cursor', 'next'], live.url);
+    expect(
+      (await invoke(['tool-approval-history', 'ada', '--limit', '101'], live.url)).json.error.code,
+    ).toBe('usage');
+    expect((await invoke(['tool-approval-history'], live.url)).json.error.code).toBe('usage');
+    expect(live.calls).toEqual([
+      { method: 'toolApprovalHistory', args: { slug: 'ada' } },
+      { method: 'toolApprovalHistory', args: { slug: 'ada', limit: 5, cursor: 'next' } },
+    ]);
+  });
+
   it('lists and revokes always-allow rules, and revokes grants online, only with --confirm', async () => {
     const live = await host(echo);
     await invoke(['tool-approval-rules', 'ada'], live.url);

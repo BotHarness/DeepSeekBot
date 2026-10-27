@@ -130,7 +130,7 @@ export function RowIcon({ kind }: { kind: 'folder' | 'add' }) {
   );
 }
 
-function RemoveButton({
+export function RemoveButton({
   label,
   disabled,
   onPress,

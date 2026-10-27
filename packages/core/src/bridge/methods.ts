@@ -318,6 +318,10 @@ import type { ChannelUserQuestions } from '../channels/user-questions.js';
 import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
 import type { ToolApprovalRuleStore, ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
 import type {
+  ToolApprovalHistoryEntry,
+  ToolApprovalHistoryPosition,
+} from '../channels/approval-history.js';
+import type {
   AssignmentAccessMode,
   AssignmentAccessStore,
   AssignmentAccessPreset,
@@ -770,6 +774,9 @@ export interface BridgeMethods {
   assignmentAccessSet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
   toolApprovalRules(payload: unknown): BridgeResult<{ rules: ToolApprovalRule[] }>;
   toolApprovalRuleRevoke(payload: unknown): BridgeResult<{ rule: ToolApprovalRule }>;
+  toolApprovalHistory(
+    payload: unknown,
+  ): BridgeResult<{ entries: ToolApprovalHistoryEntry[]; nextCursor?: string }>;
   toolApprovalStatus(payload: unknown): BridgeResult<{
     status: 'pending' | 'expired';
     expiresAt?: string;
@@ -1657,6 +1664,19 @@ function detail(
   };
 }
 
+function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefined {
+  if (cursor.length === 0 || cursor.length > 512) return undefined;
+  try {
+    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    if (typeof decoded !== 'object' || decoded === null) return undefined;
+    const { at, id } = decoded as { at?: unknown; id?: unknown };
+    return typeof at === 'string' && typeof id === 'string'
+      ? { decidedAt: at, decisionMessageId: id }
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
   const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
   const templateUsers = (name: string): string[] =>
@@ -6451,6 +6471,50 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       return rule === undefined
         ? invalidInput('Unknown tool approval rule')
         : { ok: true, value: { rule } };
+    },
+    toolApprovalHistory(payload) {
+      const source = asObject(payload);
+      const slug = asSlug(payload);
+      const cursor = source['cursor'];
+      const limit = source['limit'];
+      if (slug === undefined) return invalidInput('slug is required');
+      if (
+        limit !== undefined &&
+        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+      )
+        return invalidInput('limit must be an integer from 1 to 100');
+      let after: ToolApprovalHistoryPosition | undefined;
+      if (cursor !== undefined) {
+        after = typeof cursor === 'string' ? historyPosition(cursor) : undefined;
+        if (after === undefined)
+          return invalidInput('cursor must be the nextCursor of the previous page');
+      }
+      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
+      if (deps.channels.toolApprovalHistory === undefined)
+        return {
+          ok: false,
+          error: { code: 'storage-unavailable', message: 'approval history is unavailable' },
+        };
+      const size = limit ?? 30;
+      const read = deps.channels.toolApprovalHistory(slug, {
+        ...(after === undefined ? {} : { after }),
+        limit: size + 1,
+      });
+      const entries = read.slice(0, size);
+      const last = entries.at(-1);
+      return {
+        ok: true,
+        value: {
+          entries,
+          ...(read.length > size && last !== undefined
+            ? {
+                nextCursor: Buffer.from(
+                  JSON.stringify({ at: last.decidedAt, id: last.decisionMessageId }),
+                ).toString('base64url'),
+              }
+            : {}),
+        },
+      };
     },
     toolApprovalStatus(payload) {
       const source = asObject(payload);
