@@ -246,6 +246,7 @@ describe('DM turn end to end', () => {
     expect(core.registry.create({ slug: 'bob', displayName: 'Bob' }).ok).toBe(true);
     expect(bridge.sessions('bob').sessions).toEqual([]);
 
+    await host.get(assignment?.sessionId ?? '')?.whenIdle();
     expect(core.states.snapshot('ada').sessions).toEqual({
       [orchestrator?.sessionId ?? '']: 'done',
       [assignment?.sessionId ?? '']: 'done',
