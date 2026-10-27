@@ -26,6 +26,7 @@ export interface MarketplaceEntry {
   description: string | null;
   topics: string[];
   stars: number;
+  installs: number;
   pushedAt: string;
   createdAt: string;
   htmlUrl: string;
@@ -130,6 +131,7 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
     description: row.description,
     topics,
     stars: row.stars,
+    installs: row.installs,
     pushedAt: row.pushed_at,
     createdAt: row.created_at,
     htmlUrl: row.html_url,

@@ -65,9 +65,16 @@ function fixture() {
       );
     },
   };
+  const receipts: string[] = [];
   const bridge = createBridgeMethods({
     ...core,
     marketplace: client,
+    marketplaceReceipts: {
+      send: (listingId) => {
+        receipts.push(listingId);
+        return Promise.resolve();
+      },
+    },
     marketplaceUploads: createMarketplaceUploads({
       client,
       account: () => account,
@@ -75,7 +82,7 @@ function fixture() {
         core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     }),
   });
-  return { core, bridge, market, session };
+  return { core, bridge, market, session, receipts };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
@@ -178,6 +185,7 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
     operationKey: 'install-helper-01',
   });
   if (!installed.ok) throw new Error(installed.error.message);
+  expect(f.receipts).toEqual([uploaded.value.bot.id]);
   expect(installed.value.bot).toMatchObject({
     displayName: 'Helper',
     description: 'Writes things down',
@@ -204,12 +212,13 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
   expect(again.ok && again.value.bot.slug).toBe(installed.value.bot.slug);
 });
 
-it('refuses to install a GitHub listing through the upload path', async () => {
+it('refuses a listing that is gone and sends no Install Receipt', async () => {
   const f = fixture();
   expect(await f.bridge.marketplaceInstall({ id: 'R_missing' })).toMatchObject({
     ok: false,
     error: { code: 'bot-not-found' },
   });
+  expect(f.receipts).toEqual([]);
 });
 
 it('reads an Uploaded Bot file summary and its text files through the Host', async () => {

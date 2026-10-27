@@ -10,6 +10,7 @@ import {
   uploadFileKind,
 } from '../../../market/src/upload-files.js';
 import { listBotFiles } from '../bots/bot-zip.js';
+import { parseMemoryGitUrl } from '../memory/clone.js';
 import type { BotImportInput } from '../bots/creation.js';
 import type { ZipEntry } from '../bots/zip-archive.js';
 import type { MarketplaceLanguage } from './language.js';
@@ -244,8 +245,24 @@ export function createMarketplaceUploads(deps: {
       const detail = await client.detail(id);
       if (!detail.ok) return detail;
       const { bot } = detail.value;
-      if (bot.source !== 'upload' || detail.value.files === undefined)
-        return { ok: false, code: 'not-an-uploaded-bot' };
+      const presentation = {
+        displayName: bot.displayName ?? bot.name,
+        ...(bot.description === null ? {} : { description: bot.description }),
+        ...(bot.roles.length === 0 ? {} : { roles: bot.roles }),
+      };
+      if (bot.source === 'github') {
+        const gitUrl = parseMemoryGitUrl(bot.cloneUrl);
+        if (gitUrl === undefined || bot.headCommit === null)
+          return { ok: false, code: 'listing-not-installable' };
+        return {
+          ok: true,
+          value: {
+            entry: bot,
+            input: { ...presentation, source: { kind: 'git', gitUrl, commit: bot.headCommit.sha } },
+          },
+        };
+      }
+      if (detail.value.files === undefined) return { ok: false, code: 'listing-not-installable' };
       const listed = detail.value.files;
       if (listed.length === 0) return { ok: false, code: 'nothing-to-install' };
       const files: ZipEntry[] = [];
@@ -281,9 +298,7 @@ export function createMarketplaceUploads(deps: {
         value: {
           entry: bot,
           input: {
-            displayName: bot.displayName ?? bot.name,
-            ...(bot.description === null ? {} : { description: bot.description }),
-            ...(bot.roles.length === 0 ? {} : { roles: bot.roles }),
+            ...presentation,
             source: { kind: 'archive', sha256: uploadedFilesDigest(files), files },
           },
         },

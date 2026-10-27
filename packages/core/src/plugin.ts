@@ -122,6 +122,7 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
+import { createInstallReceipts } from './marketplace/install-receipts.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import {
@@ -2612,6 +2613,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       account: () => connectAccount,
       memoryDir: (slug) =>
         core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+      log: (event) => ctx.logger.info(JSON.stringify(event)),
+    }),
+    marketplaceReceipts: createInstallReceipts({
+      client: marketplaceClient,
+      dataDir: telemetryDir,
       log: (event) => ctx.logger.info(JSON.stringify(event)),
     }),
     release: releaseService,
