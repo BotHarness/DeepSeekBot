@@ -345,3 +345,21 @@ export function TerminalIcon(props: IconProps) {
 export function InfoIcon(props: IconProps) {
   return <Glyph {...props} d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM12 11v6m0-10v1" />;
 }
+
+export function WorkIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M9 6V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V6M4 6h16a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1ZM3 12h18"
+    />
+  );
+}
+
+export function MemoryIcon(props: IconProps) {
+  return (
+    <Glyph
+      {...props}
+      d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v18H6.5A1.5 1.5 0 0 1 5 19.5v-15ZM5 18h14M9 3v8l2-1.5 2 1.5V3"
+    />
+  );
+}

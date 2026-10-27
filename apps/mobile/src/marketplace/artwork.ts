@@ -1,4 +1,8 @@
-import { pixelBannerPixels, seededBannerRecipe } from '@botharness/pixel-banner';
+import {
+  isPixelBannerRecipe,
+  pixelBannerPixels,
+  seededBannerRecipe,
+} from '@botharness/pixel-banner';
 import type { MarketplaceEntry } from '../../../../packages/core/src/marketplace/client';
 import { avatarSvg, seededAvatarFor } from '../../../../packages/core/src/bots/avatar-appearance';
 
@@ -20,12 +24,27 @@ export function marketplaceAvatar(bot: MarketplaceEntry) {
   const name = bot.displayName ?? bot.name;
   return cached(`avatar:${name}`, () => svgUri(avatarSvg(seededAvatarFor(name, undefined))));
 }
+export function botBanner(bot: {
+  displayName: string;
+  bannerUrl?: string;
+  bannerRecipe?: { scene: string; seed: number };
+}): string {
+  if (bot.bannerUrl !== undefined) return bot.bannerUrl;
+  return recipeBanner(
+    isPixelBannerRecipe(bot.bannerRecipe) ? bot.bannerRecipe : seededBannerRecipe(bot.displayName),
+  );
+}
+
 export function marketplaceBanner(bot: MarketplaceEntry, fallback = false) {
   if (!fallback && bot.banner && 'image' in bot.banner) return bot.banner.image;
   const recipe =
     bot.banner && 'recipe' in bot.banner
       ? bot.banner.recipe
       : seededBannerRecipe(bot.displayName ?? bot.name);
+  return recipeBanner(recipe);
+}
+
+function recipeBanner(recipe: Parameters<typeof pixelBannerPixels>[0]): string {
   return cached(`banner:${recipe.scene}:${recipe.seed}`, () => {
     const { width, height, data } = pixelBannerPixels(recipe);
     const rectangles: string[] = [];

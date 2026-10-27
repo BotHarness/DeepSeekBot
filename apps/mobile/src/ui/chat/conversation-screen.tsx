@@ -78,6 +78,7 @@ import { ActivityRow } from './activity-row';
 import type { BubbleGroup } from './bubble-shape';
 import { botBusy } from './bot-tone';
 import { ChannelTitle } from './channel-title';
+import { ProfileZoomSource } from './profile-zoom-source';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
@@ -405,7 +406,10 @@ function ChatConversation({
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
-  const [picked, setPicked] = useState<{ scope: string; ids: readonly string[] }>();
+  const [picked, setPicked] = useState<{
+    scope: string;
+    ids: readonly string[];
+  }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
   const [imageSelection, setImageSelection] = useState<{
     scope: string;
@@ -441,7 +445,10 @@ function ChatConversation({
     focusNeedsLayout.current = false;
     retryFocus.current();
   }, []);
-  const focusIntent = useRef<{ request: string | undefined; message: string | undefined }>({
+  const focusIntent = useRef<{
+    request: string | undefined;
+    message: string | undefined;
+  }>({
     request: undefined,
     message: undefined,
   });
@@ -535,7 +542,13 @@ function ChatConversation({
     onCompose: compose,
   });
   const markdownViewport = useMemo(
-    () => ({ scroll, viewport, content, layout: viewportLayout, active: focused }),
+    () => ({
+      scroll,
+      viewport,
+      content,
+      layout: viewportLayout,
+      active: focused,
+    }),
     [scroll, viewport, content, viewportLayout, focused],
   );
   const readMount = useMarkRead(client, inbox, conversation, activeChannel, !latest.away);
@@ -761,7 +774,11 @@ function ChatConversation({
             feedback: () =>
               router.push({
                 pathname: '/message-feedback',
-                params: { hostId: saved.hostId, channelId: activeChannel, messageId: message.id },
+                params: {
+                  hostId: saved.hostId,
+                  channelId: activeChannel,
+                  messageId: message.id,
+                },
               }),
             select: () => setPicked({ scope: selectionScope, ids: [message.id] }),
           }
@@ -775,7 +792,12 @@ function ChatConversation({
         return;
       }
       const actions = reportingActions(message);
-      setActionsFor({ message, anchor, group, ...(actions ? { actions } : {}) });
+      setActionsFor({
+        message,
+        anchor,
+        group,
+        ...(actions ? { actions } : {}),
+      });
     },
     [selected, togglePicked, reportingActions],
   );
@@ -833,7 +855,11 @@ function ChatConversation({
             speaker={
               dm
                 ? undefined
-                : speakerOf(item.draft.botSlug, { key: item.key, first: true, last: true })
+                : speakerOf(item.draft.botSlug, {
+                    key: item.key,
+                    first: true,
+                    last: true,
+                  })
             }
           />
         );
@@ -881,18 +907,27 @@ function ChatConversation({
                             if (saved)
                               navigateChannel(navigation, {
                                 ...target,
-                                params: { ...target.params, hostId: saved.hostId },
+                                params: {
+                                  ...target.params,
+                                  hostId: saved.hostId,
+                                },
                               });
                           } else if (target.pathname === '/channel/[id]') {
                             if (saved)
                               navigateChannel(navigation, {
                                 ...target,
-                                params: { ...target.params, hostId: saved.hostId },
+                                params: {
+                                  ...target.params,
+                                  hostId: saved.hostId,
+                                },
                               });
                           } else
                             router.push({
                               ...target,
-                              params: { ...target.params, hostId: saved?.hostId },
+                              params: {
+                                ...target.params,
+                                hostId: saved?.hostId,
+                              },
                             });
                         },
                       },
@@ -1019,26 +1054,27 @@ function ChatConversation({
           t.activityRow.unavailableBot,
       )
       .join('、') ?? '';
-  const title = dm ? (
-    <ChatTitle
-      bot={bot}
-      connectionLabel={connectionLabel}
-      fallback={slug ?? ''}
-      onPress={() =>
-        router.push({
-          pathname: '/bot/[slug]',
-          params: {
-            slug: bot?.slug ?? slug,
-            hostId: saved?.hostId,
-            ...(activeChannel ? { channelId: activeChannel } : {}),
-            ...(initiatedRequest?.hostId === saved?.hostId && initiatedRequest?.botSlug === slug
-              ? { activityMessageId: initiatedRequest?.messageId }
-              : {}),
-          },
-        })
-      }
-    />
-  ) : botDm ? (
+  const profileHref = {
+    pathname: '/bot/[slug]' as const,
+    params: {
+      slug: bot?.slug ?? slug ?? '',
+      ...(saved?.hostId === undefined ? {} : { hostId: saved.hostId }),
+      ...(activeChannel ? { channelId: activeChannel } : {}),
+      ...(initiatedRequest?.hostId === saved?.hostId &&
+      initiatedRequest?.botSlug === slug &&
+      initiatedRequest?.messageId !== undefined
+        ? { activityMessageId: initiatedRequest.messageId }
+        : {}),
+    },
+  };
+  const pairHref = {
+    pathname: '/channel-details' as const,
+    params: {
+      channelId: channelDetails?.id ?? '',
+      ...(saved?.hostId === undefined ? {} : { hostId: saved.hostId }),
+    },
+  };
+  const pairChip = (press: (() => void) | undefined) => (
     <Pressable
       testID="channel-details-chip"
       accessibilityRole="button"
@@ -1046,13 +1082,7 @@ function ChatConversation({
       android_ripple={{ color: pressTint(theme.color.fg), borderless: false }}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       disabled={!saved || hostRefused}
-      onPress={() =>
-        saved &&
-        router.push({
-          pathname: '/channel-details',
-          params: { channelId: channelDetails.id, hostId: saved.hostId },
-        })
-      }
+      onPress={press}
       style={({ pressed }) => ({
         minHeight: theme.touch,
         flexShrink: 1,
@@ -1071,6 +1101,23 @@ function ChatConversation({
       <ConnectionProgress active={connectionLabel !== undefined} />
       <WorkingStatus bots={working} />
     </Pressable>
+  );
+  const title = dm ? (
+    <ChatTitle
+      bot={bot}
+      connectionLabel={connectionLabel}
+      fallback={slug ?? ''}
+      profileHref={profileHref}
+      onPress={() => router.push(profileHref)}
+    />
+  ) : botDm ? (
+    saved && !hostRefused ? (
+      <ProfileZoomSource href={pairHref} onPress={() => router.push(pairHref)}>
+        {pairChip}
+      </ProfileZoomSource>
+    ) : (
+      pairChip(undefined)
+    )
   ) : (
     <ChannelTitle
       channel={channel}
@@ -1149,7 +1196,12 @@ function ChatConversation({
           headerShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
           ...(glassHeader
-            ? { scrollEdgeEffects: { top: 'automatic' as const, bottom: 'hidden' as const } }
+            ? {
+                scrollEdgeEffects: {
+                  top: 'automatic' as const,
+                  bottom: 'hidden' as const,
+                },
+              }
             : {}),
           ...(ios
             ? {
@@ -1166,7 +1218,10 @@ function ChatConversation({
                           {
                             type: 'button' as const,
                             label: t.back,
-                            icon: { type: 'sfSymbol' as const, name: 'chevron.left' as const },
+                            icon: {
+                              type: 'sfSymbol' as const,
+                              name: 'chevron.left' as const,
+                            },
                             onPress: leave,
                           },
                         ]),
@@ -1346,7 +1401,10 @@ function ChatConversation({
                 renderScrollComponent={latest.renderScrollComponent}
                 removeClippedSubviews={false}
                 CellRendererComponentStyle={cellLayer}
-                style={{ flex: 1, opacity: latest.ready || rows.length === 0 ? 1 : 0 }}
+                style={{
+                  flex: 1,
+                  opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                }}
                 pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
                 accessibilityElementsHidden={!latest.ready && rows.length > 0}
                 importantForAccessibility={

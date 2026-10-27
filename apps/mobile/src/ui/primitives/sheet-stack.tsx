@@ -32,15 +32,37 @@ function SheetStackHeader({ back, navigation, options, route }: NativeStackHeade
 export function SheetStack({
   children,
   modalGrabber = false,
+  fullScreen = false,
 }: {
   children: ReactNode;
   modalGrabber?: boolean;
+  fullScreen?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const navigation = useNavigation('/');
   const insets = useSafeAreaInsets();
   const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
+  if (fullScreen)
+    return (
+      <View
+        onAccessibilityEscape={() => navigation.goBack()}
+        style={{ flex: 1, backgroundColor: theme.overlay.fill }}
+      >
+        <Stack
+          screenOptions={{
+            headerStyle: { backgroundColor: theme.overlay.fill },
+            headerTintColor: theme.color.fg,
+            headerShadowVisible: false,
+            headerBackButtonDisplayMode: 'minimal',
+            headerBackTitle: t.back,
+            contentStyle: { backgroundColor: theme.overlay.fill },
+          }}
+        >
+          {children}
+        </Stack>
+      </View>
+    );
   return (
     <SheetScreen modalGrabber={modalGrabber} onClose={() => navigation.goBack()}>
       <SafeAreaInsetsContext value={contentInsets}>

@@ -37,7 +37,11 @@ function host(): FakeHost {
 }
 
 function client(fake: FakeHost) {
-  return createHostClient({ routes: [ROUTE], credential: fake.credential, carrier: fake.carrier });
+  return createHostClient({
+    routes: [ROUTE],
+    credential: fake.credential,
+    carrier: fake.carrier,
+  });
 }
 
 describe('Bot profile', () => {
@@ -66,13 +70,19 @@ describe('Bot profile', () => {
     expect((await refresh).routines).toEqual({ status: 'ready', value: [] });
     expect(botProfileResource(client(host()), bot).peek()).toBeUndefined();
     expect(
-      botProfileResource(connection, { slug: 'another', dmChannelId: 'other' }).peek(),
+      botProfileResource(connection, {
+        slug: 'another',
+        dmChannelId: 'other',
+      }).peek(),
     ).toBeUndefined();
   });
 
   it('keeps last successful sections with an explicit stale error when refresh fails', async () => {
     const fake = host();
-    const resource = botProfileResource(client(fake), { slug, dmChannelId: dm });
+    const resource = botProfileResource(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
     const first = await resource.refresh();
     fake.methods.set('memorySnapshot', () => {
       throw new Error('offline');
@@ -85,7 +95,10 @@ describe('Bot profile', () => {
 
   it('reads the Soul, Core Memory, Memory files, routines and shared folders through the DM', async () => {
     const fake = host();
-    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    const profile = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
 
     expect(profile.identity).toEqual({
       status: 'ready',
@@ -124,15 +137,23 @@ describe('Bot profile', () => {
     }));
     fake.methods.set('scheduleList', () => ({ schedules: [] }));
     fake.methods.set('grants', () => ({ grants: [] }));
+    fake.methods.set('assignments', () => ({ assignments: [] }));
 
-    const profile = await loadBotProfile(client(fake), { slug: 'quiet', displayName: 'Quiet' });
+    const profile = await loadBotProfile(client(fake), {
+      slug: 'quiet',
+      displayName: 'Quiet',
+    });
 
     expect(profile).toEqual({
       identity: { status: 'ready', value: undefined },
       memory: { status: 'ready', value: { files: [] } },
       routines: { status: 'ready', value: [] },
       files: { status: 'ready', value: [] },
-      activity: { status: 'ready', value: parseProfileActivity(recordedActivity) },
+      work: { status: 'ready', value: [] },
+      activity: {
+        status: 'ready',
+        value: parseProfileActivity(recordedActivity),
+      },
     });
     expect(fake.calls[0]).toEqual({
       method: 'channelDm',
@@ -147,9 +168,15 @@ describe('Bot profile', () => {
       throw new Error('Unknown PersonaBot');
     });
 
-    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    const profile = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
 
-    expect(profile.routines).toEqual({ status: 'failed', error: 'Unknown PersonaBot' });
+    expect(profile.routines).toEqual({
+      status: 'failed',
+      error: 'Unknown PersonaBot',
+    });
     expect(profile.identity.status).toBe('ready');
     expect(profile.memory.status).toBe('ready');
     expect(profile.files.status).toBe('ready');
@@ -164,7 +191,10 @@ describe('Bot profile', () => {
     });
     expect(
       botChannels(
-        { bots: [], channels: [channel('team', [slug, 'other']), channel('ops', ['other'])] },
+        {
+          bots: [],
+          channels: [channel('team', [slug, 'other']), channel('ops', ['other'])],
+        },
         slug,
       ).map((entry) => entry.id),
     ).toEqual(['team']);
@@ -209,7 +239,10 @@ describe('Bot profile', () => {
 
   it('reads the last week of activity through the DM, and keeps the profile when it fails', async () => {
     const fake = host();
-    const profile = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
+    const profile = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
     expect(fake.calls).toContainEqual({
       method: 'profileActivity',
       args: { channelId: dm, weeks: 1 },
@@ -225,8 +258,14 @@ describe('Bot profile', () => {
     fake.methods.set('profileActivity', () => {
       throw new Error('Unknown PersonaBot');
     });
-    const failed = await loadBotProfile(client(fake), { slug, dmChannelId: dm });
-    expect(failed.activity).toEqual({ status: 'failed', error: 'Unknown PersonaBot' });
+    const failed = await loadBotProfile(client(fake), {
+      slug,
+      dmChannelId: dm,
+    });
+    expect(failed.activity).toEqual({
+      status: 'failed',
+      error: 'Unknown PersonaBot',
+    });
     expect(failed.identity.status).toBe('ready');
     expect(failed.routines.status).toBe('ready');
   });

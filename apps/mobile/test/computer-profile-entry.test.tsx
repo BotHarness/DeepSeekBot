@@ -8,7 +8,12 @@ const state = vi.hoisted(() => ({
   platform: 'ios',
   computerAvailable: true,
   connection: 'connected',
-  bot: { slug: 'test', displayName: 'Test', computerAccess: false, browserAccess: false },
+  bot: {
+    slug: 'test',
+    displayName: 'Test',
+    computerAccess: false,
+    browserAccess: false,
+  },
   actions: undefined as { onComputer?: () => void } | undefined,
   push: vi.fn(),
 }));
@@ -43,12 +48,23 @@ vi.mock('../src/host/bot-profile', () => ({
   botProfileResource: () => ({ peek: () => undefined, refresh: vi.fn() }),
 }));
 vi.mock('../src/ui/chat/bot-profile', () => ({
-  BotProfileSheet: ({ actions }: { actions: { onComputer?: () => void } }) => {
+  BotProfilePage: ({ actions }: { actions: { onComputer?: () => void } }) => {
     state.actions = actions;
     return null;
   },
 }));
-vi.mock('../src/ui/chat/bot-settings-panel', () => ({ BotSettingsPanel: () => null }));
+vi.mock('../src/ui/chat/native-profile-tab-memory', () => ({
+  profileTabMemory: {},
+}));
+vi.mock('../src/ui/chat/channel-files-tab', () => ({
+  ChannelFilesTab: () => null,
+}));
+vi.mock('../src/ui/chat/request-activity-control', () => ({
+  RequestActivityControl: () => null,
+}));
+vi.mock('../src/ui/chat/bot-settings-panel', () => ({
+  BotSettingsPanel: () => null,
+}));
 vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: vi.fn() }));
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ color: { surface: 'black' } }),

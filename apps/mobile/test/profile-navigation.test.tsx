@@ -53,15 +53,28 @@ const fixture = vi.hoisted(() => {
     stopActivity: vi.fn(async () => {}),
     hostId: 'host-a',
     pairedSourceAvailable: false,
-    client: { call: async () => ({}), subscribe: () => () => {}, retryNow: vi.fn() },
+    client: {
+      call: async () => ({}),
+      subscribe: () => () => {},
+      follow: () => () => {},
+      getSnapshot: () => snapshot,
+      retryNow: vi.fn(),
+    },
     otherClient: { call: async () => ({}), subscribe: () => () => {} },
+    resetTabs: () => {},
   };
 });
 vi.mock('../src/host/native-live-activity', () => ({
   useRequestActivity: () => fixture.activity,
-  requestActivitySession: { start: fixture.startActivity, stop: fixture.stopActivity },
+  requestActivitySession: {
+    start: fixture.startActivity,
+    stop: fixture.stopActivity,
+  },
 }));
-vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
+vi.mock('expo-sharing', () => ({
+  isAvailableAsync: vi.fn(),
+  shareAsync: vi.fn(),
+}));
 vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-file-system', () => ({
   File: class {
@@ -71,7 +84,9 @@ vi.mock('expo-file-system', () => ({
 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
-vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
+vi.mock('react-native-worklets', () => ({
+  scheduleOnRN: (callback: () => void) => callback(),
+}));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Alert: { alert: vi.fn() },
@@ -88,7 +103,32 @@ vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: async () => undefined }));
+vi.mock('../src/ui/chat/native-profile-tab-memory', async () => {
+  const { createProfileTabMemory } = await import('../src/ui/chat/profile-tabs');
+  const memory = {
+    current: createProfileTabMemory({
+      read: async () => ({}),
+      write: () => {},
+    }),
+  };
+  fixture.resetTabs = () => {
+    memory.current = createProfileTabMemory({
+      read: async () => ({}),
+      write: () => {},
+    });
+  };
+  return {
+    profileTabMemory: {
+      get: (kind: 'bot') => memory.current.get(kind),
+      remember: (kind: 'bot', tab: Parameters<typeof memory.current.remember>[1]) =>
+        memory.current.remember(kind, tab),
+      subscribe: (listener: () => void) => memory.current.subscribe(listener),
+    },
+  };
+});
+vi.mock('../src/host/pick-avatar-image', () => ({
+  pickAvatarImage: async () => undefined,
+}));
 vi.mock('../src/host/host-session', () => ({
   useConversation: () => ({
     subscribe: (listener: () => void) => {
@@ -118,7 +158,14 @@ vi.mock('../src/host/host-session', () => ({
             ...fixture.snapshot,
             roster: {
               bots: [],
-              channels: [{ id: 'group-a', name: 'Wrong B group', memberCount: 0, members: [] }],
+              channels: [
+                {
+                  id: 'group-a',
+                  name: 'Wrong B group',
+                  memberCount: 0,
+                  members: [],
+                },
+              ],
             },
           }
         : fixture.snapshot,
@@ -133,7 +180,12 @@ vi.mock('../src/ui/shell/channel-notification-screen', () => ({
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useIsFocused: () => true,
-  useLocalSearchParams: () => ({ slug: 'ada', id: 'group-a', hostId: 'host-a', ...fixture.params }),
+  useLocalSearchParams: () => ({
+    slug: 'ada',
+    id: 'group-a',
+    hostId: 'host-a',
+    ...fixture.params,
+  }),
   useNavigationContainerRef: () => navigation,
   useNavigation: () => ({ addListener: () => () => {} }),
   useFocusEffect: (work: () => (() => void) | undefined) => useLayoutEffect(work, [work]),
@@ -199,106 +251,21 @@ afterEach(() => {
   fixture.conversation = { ...fixture.conversation, messages: [] };
   fixture.activity.busy = false;
   fixture.activity.ready = true;
-  fixture.snapshot.connection = { status: 'connected', route: 'https://qa.test' };
+  fixture.snapshot.connection = {
+    status: 'connected',
+    route: 'https://qa.test',
+  };
   vi.restoreAllMocks();
   fixture.pairedSourceAvailable = false;
   fixture.snapshot.roster!.channels = [];
+  fixture.resetTabs();
 });
 
-it('Profile Message from Usage opens its DM and Back returns to Usage', async () => {
-  state = {
-    stale: false,
-    type: 'stack',
-    key: 'root',
-    routeKeySeq: 3,
-    index: 2,
-    routeNames: options.routeNames,
-    routes: [
-      { key: 'tabs', name: '(tabs)' },
-      { key: 'usage', name: 'settings', state: { stale: true, routes: [{ name: 'usage' }] } },
-      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
-    ],
-  };
-  node = document.createElement('div');
-  document.body.append(node);
-  root = createRoot(node);
-  await act(async () => root!.render(<BotProfileScreen />));
-  const message = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
-    (button) => button.textContent === t.profileMessage,
-  );
-  expect(message).toBeDefined();
-  await act(async () => message!.click());
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'dm/[slug]',
-    params: { hostId: 'host-a', slug: 'ada' },
-  });
-  navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('usage');
-});
-
-it('Profile Message from Group Profile opens the member DM and retains the Group parent', async () => {
-  state = {
-    stale: false,
-    type: 'stack',
-    key: 'root',
-    routeKeySeq: 3,
-    index: 2,
-    routeNames: options.routeNames,
-    routes: [
-      { key: 'tabs', name: '(tabs)' },
-      { key: 'group', name: 'group/[id]', params: { id: 'group-a' } },
-      {
-        key: 'profile',
-        name: 'bot/[slug]',
-        params: { slug: 'ada', hostId: 'host-a' },
-        state: { stale: true, routes: [{ name: 'index' }, { name: 'model' }, { name: 'index' }] },
-      },
-    ],
-  };
-  node = document.createElement('div');
-  document.body.append(node);
-  root = createRoot(node);
-  await act(async () => root!.render(<BotProfileScreen />));
-  const message = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
-    (button) => button.textContent === t.profileMessage,
-  )!;
-  await act(async () => message.click());
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'dm/[slug]',
-    params: { hostId: 'host-a', slug: 'ada' },
-  });
-  expect(state.routes.map((route) => route.name)).toEqual(['(tabs)', 'group/[id]', 'dm/[slug]']);
-  navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('group');
-});
-
-it('Profile Message returns to the existing DM instead of duplicating it', async () => {
-  state = {
-    stale: false,
-    type: 'stack',
-    key: 'root',
-    routeKeySeq: 3,
-    index: 2,
-    routeNames: options.routeNames,
-    routes: [
-      { key: 'tabs', name: '(tabs)' },
-      { key: 'original-dm', name: 'dm/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
-      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
-    ],
-  };
-  node = document.createElement('div');
-  document.body.append(node);
-  root = createRoot(node);
-  await act(async () => root!.render(<BotProfileScreen />));
-  const message = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
-    (button) => button.textContent === t.profileMessage,
-  )!;
-  await act(async () => message.click());
-  expect(state.routes[state.index]?.key).toBe('original-dm');
-  expect(state.routes).toHaveLength(2);
-  navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('tabs');
-});
+async function openFilesTab() {
+  const tab = node!.querySelector<HTMLElement>('[data-testid="profile-tab-files"]');
+  expect(tab).not.toBeNull();
+  await act(async () => tab!.click());
+}
 
 it('an old Host Profile cannot open a same-named Bot after the source changes', async () => {
   fixture.hostId = 'host-b';
@@ -311,7 +278,11 @@ it('an old Host Profile cannot open a same-named Bot after the source changes', 
     routeNames: options.routeNames,
     routes: [
       { key: 'tabs', name: '(tabs)' },
-      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+      {
+        key: 'profile',
+        name: 'bot/[slug]',
+        params: { slug: 'ada', hostId: 'host-a' },
+      },
     ],
   };
   node = document.createElement('div');
@@ -319,9 +290,7 @@ it('an old Host Profile cannot open a same-named Bot after the source changes', 
   root = createRoot(node);
   await act(async () => root!.render(<BotProfileScreen />));
   expect(node.textContent).toContain(t.sourceChanged);
-  expect(
-    [...node.querySelectorAll('button')].some((button) => button.textContent === t.profileMessage),
-  ).toBe(false);
+  expect(node.querySelector('[data-testid="profile-tab-heading"]')).toBeNull();
   expect(state.routes[state.index]?.key).toBe('profile');
 });
 
@@ -335,7 +304,11 @@ it('a notification opened over Profile preserves that Profile as its Back destin
     routeNames: options.routeNames,
     routes: [
       { key: 'tabs', name: '(tabs)' },
-      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+      {
+        key: 'profile',
+        name: 'bot/[slug]',
+        params: { slug: 'ada', hostId: 'host-a' },
+      },
     ],
   };
   navigateChannel(navigation, {
@@ -349,7 +322,12 @@ it('a notification opened over Profile preserves that Profile as its Back destin
 
 it('a retained Group Profile refuses a colliding group on a different Host', async () => {
   fixture.snapshot.roster!.channels = [
-    { id: 'group-a', name: 'Other Host group', memberCount: 1, members: ['ada'] },
+    {
+      id: 'group-a',
+      name: 'Other Host group',
+      memberCount: 1,
+      members: ['ada'],
+    },
   ];
   node = document.createElement('div');
   document.body.append(node);
@@ -392,7 +370,11 @@ it('All opens the routed Group Profile even when the enclosing sheet still has a
     routeNames: options.routeNames,
     routes: [
       { key: 'tabs', name: '(tabs)' },
-      { key: 'group', name: 'group/[id]', params: { id: 'group-a', hostId: 'host-a' } },
+      {
+        key: 'group',
+        name: 'group/[id]',
+        params: { id: 'group-a', hostId: 'host-a' },
+      },
     ],
   };
   const notifications = [...node.querySelectorAll<HTMLButtonElement>('button')].find((button) =>
@@ -414,46 +396,6 @@ it('All opens the routed Group Profile even when the enclosing sheet still has a
   expect(node.textContent).toBe('host-a:group-a');
 });
 
-it('a routed member Profile can open its own DM from another enclosing Host scope', async () => {
-  fixture.hostId = 'host-b';
-  fixture.pairedSourceAvailable = true;
-  state = {
-    stale: false,
-    type: 'stack',
-    key: 'root',
-    routeKeySeq: 3,
-    index: 2,
-    routeNames: options.routeNames,
-    routes: [
-      { key: 'tabs', name: '(tabs)' },
-      { key: 'group', name: 'group/[id]', params: { id: 'group-a', hostId: 'host-a' } },
-      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
-    ],
-  };
-  node = document.createElement('div');
-  document.body.append(node);
-  root = createRoot(node);
-  await act(async () =>
-    root!.render(
-      <HostScope value="host-b">
-        <BotProfileScreen />
-      </HostScope>,
-    ),
-  );
-  expect(node.textContent).not.toContain(t.sourceChanged);
-  const message = [...node.querySelectorAll<HTMLButtonElement>('button')].find(
-    (button) => button.textContent === t.profileMessage,
-  );
-  expect(message).toBeDefined();
-  await act(async () => message!.click());
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'dm/[slug]',
-    params: { slug: 'ada', hostId: 'host-a' },
-  });
-  navigation.dispatch({ type: 'GO_BACK' });
-  expect(state.routes[state.index]?.key).toBe('group');
-});
-
 it('a native preview commit over Profile preserves the Profile origin', () => {
   state = {
     stale: false,
@@ -464,14 +406,22 @@ it('a native preview commit over Profile preserves the Profile origin', () => {
     routeNames: options.routeNames,
     routes: [
       { key: 'tabs', name: '(tabs)' },
-      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+      {
+        key: 'profile',
+        name: 'bot/[slug]',
+        params: { slug: 'ada', hostId: 'host-a' },
+      },
     ],
   };
   navigation.dispatch({
     type: 'NAVIGATE',
     payload: {
       name: 'channel/[id]',
-      params: { id: 'team', hostId: 'host-a', __internal__PreviewKey: 'preview' },
+      params: {
+        id: 'team',
+        hostId: 'host-a',
+        __internal__PreviewKey: 'preview',
+      },
     },
   });
   expect(state.routes.map((route) => route.name)).toEqual(['(tabs)', 'bot/[slug]', 'channel/[id]']);
@@ -479,7 +429,7 @@ it('a native preview commit over Profile preserves the Profile origin', () => {
   expect(state.routes[state.index]?.key).toBe('profile');
 });
 
-it('opens DM files from Profile and returns to the retained profile and conversation', async () => {
+it('shows the DM files in the Files tab and keeps the profile and conversation', async () => {
   state = {
     stale: false,
     type: 'stack',
@@ -489,22 +439,27 @@ it('opens DM files from Profile and returns to the retained profile and conversa
     routeNames: options.routeNames,
     routes: [
       { key: 'tabs', name: '(tabs)' },
-      { key: 'original-dm', name: 'dm/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
-      { key: 'original-profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+      {
+        key: 'original-dm',
+        name: 'dm/[slug]',
+        params: { slug: 'ada', hostId: 'host-a' },
+      },
+      {
+        key: 'original-profile',
+        name: 'bot/[slug]',
+        params: { slug: 'ada', hostId: 'host-a' },
+      },
     ],
   };
   node = document.createElement('div');
   document.body.append(node);
   root = createRoot(node);
   await act(async () => root!.render(<BotProfileScreen />));
-  const files = node.querySelector<HTMLButtonElement>('[data-testid="channel-files-open"]');
-  expect(files).not.toBeNull();
-  await act(async () => files!.click());
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'channel-files',
-    params: { hostId: 'host-a', channelId: 'dm-ada', botSlug: 'ada' },
-  });
-  navigation.dispatch({ type: 'GO_BACK' });
+  await openFilesTab();
+  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
+    t.profileTabs.files,
+  );
+  expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   expect(state.routes[state.index]?.key).toBe('original-profile');
   navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes[state.index]?.key).toBe('original-dm');
@@ -528,7 +483,11 @@ it('opens the exact group files from details without changing the parent Channel
         name: 'channel/[id]',
         params: { id: 'group-a', hostId: 'host-a' },
       },
-      { key: 'group-details', name: 'group/[id]', params: { id: 'group-a', hostId: 'host-a' } },
+      {
+        key: 'group-details',
+        name: 'group/[id]',
+        params: { id: 'group-a', hostId: 'host-a' },
+      },
     ],
   };
   node = document.createElement('div');
@@ -588,7 +547,12 @@ it('keeps iOS tracking explicit and scoped to the request passed from the chat C
             source: {
               channelId: 'dm-ada',
               revision: 1,
-              message: { id: 'request-a', at: '', body: 'Hello', author: { kind: 'human' } },
+              message: {
+                id: 'request-a',
+                at: '',
+                body: 'Hello',
+                author: { kind: 'human' },
+              },
             },
           },
         ],
@@ -638,7 +602,12 @@ it.each(['refused', 'other-channel', 'other-host'])(
     document.body.append(node);
     root = createRoot(node);
     await act(async () => root!.render(<BotProfileScreen />));
-    expect(node.querySelector('[data-testid="channel-files-open"]')).toBeNull();
+    if (reason === 'other-host') {
+      expect(node.querySelector('[data-testid="profile-tab-heading"]')).toBeNull();
+      return;
+    }
+    await openFilesTab();
+    expect(node.querySelector('[data-testid="profile-files-none"]')).not.toBeNull();
   },
 );
 
@@ -652,7 +621,8 @@ it('does not add lock-screen actions on Android', async () => {
     root = createRoot(node);
     await act(async () => root!.render(<BotProfileScreen />));
     expect(node.querySelector('[data-testid="request-activity"]')).toBeNull();
-    expect(node.querySelector('[data-testid="channel-files-open"]')).not.toBeNull();
+    await openFilesTab();
+    expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   } finally {
     Object.assign(Platform, { OS: previousOS });
   }
@@ -686,7 +656,11 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
     index: 1,
     routeNames: options.routeNames,
     routes: [
-      { key: 'chat', name: 'channel/[id]', params: { id: 'bot-dm', hostId: 'host-a' } },
+      {
+        key: 'chat',
+        name: 'channel/[id]',
+        params: { id: 'bot-dm', hostId: 'host-a' },
+      },
       {
         key: 'details',
         name: 'channel-details',
@@ -700,13 +674,11 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
   await act(async () => root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />));
   expect(node.textContent).not.toContain(t.groupDisband);
   expect(node.textContent).not.toContain(t.groupRename);
-  await act(async () =>
-    node!.querySelector<HTMLButtonElement>('[data-testid="channel-files-open"]')!.click(),
+  expect(node.querySelector('[role="tablist"]')).toBeNull();
+  expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
+    t.profileTabs.files,
   );
-  expect(state.routes[state.index]).toMatchObject({
-    name: 'channel-files',
-    params: { channelId: 'bot-dm', hostId: 'host-a' },
-  });
+  expect(node.querySelector('[data-testid="profile-files-none"]')).toBeNull();
   fixture.snapshot.connection = {
     status: 'refused',
     reason: 'denied',
@@ -714,7 +686,7 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
     code: 'device-revoked',
   };
   await act(async () => root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />));
-  expect(node.querySelector('[data-testid="channel-files-open"]')).toBeNull();
+  expect(node.querySelector('[data-testid="channel-files-list"]')).toBeNull();
   expect(node.textContent).toContain(t.refused);
 });
 
