@@ -6,7 +6,7 @@ Issues: [#1643](https://github.com/BotHarness/DeepSeekBot/issues/1643), [#1589](
 
 # The mobile design system maps the Web roles onto native components
 
-> The three-tab interaction baseline below is superseded by [ADR-0211](0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md). The rest stands.
+> The three-tab interaction baseline below is superseded by [ADR-0211](0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md). The "one token source" bullet is superseded by [ADR-0266](0266-mobile-design-tokens-have-a-shared-layer-and-a-layer-per-platform.md). The rest stands.
 
 The mobile app (`apps/mobile`, Expo SDK 57) grew screen by screen with a hand-written slate palette, a JavaScript tab bar, painted header backgrounds and drawn tab icons. None of it matched the Web design system of ADR-0194, and nothing kept the next screen from inventing another value.
 
