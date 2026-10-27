@@ -16,7 +16,6 @@ import { ProfileHero } from './profile-hero';
 import { ChannelFilesTab } from './channel-files-tab';
 import { ProfileShell, type ProfileTabBody } from './profile-shell';
 import { profileTabs } from './profile-tabs';
-import { ProfileZoomTarget } from './profile-zoom-target';
 
 const PAIR_TABS = profileTabs('bot-pair');
 
@@ -99,26 +98,24 @@ function PairIdentity({
       }
       name={title}
       avatar={
-        <ProfileZoomTarget>
-          <View style={{ flexDirection: 'row' }}>
-            {members.map((bot, index) =>
-              bot === undefined ? null : (
-                <View
-                  key={bot.slug}
-                  style={{
-                    padding: index === 0 ? 0 : profileShell.avatarEdge,
-                    marginVertical: index === 0 ? 0 : -profileShell.avatarEdge,
-                    borderRadius: radius.round,
-                    backgroundColor: theme.overlay.fill,
-                    marginLeft: index === 0 ? 0 : -profileShell.overlap,
-                  }}
-                >
-                  <BotAvatar bot={bot} size={profileShell.avatar} />
-                </View>
-              ),
-            )}
-          </View>
-        </ProfileZoomTarget>
+        <View style={{ flexDirection: 'row' }}>
+          {members.map((bot, index) =>
+            bot === undefined ? null : (
+              <View
+                key={bot.slug}
+                style={{
+                  padding: index === 0 ? 0 : profileShell.avatarEdge,
+                  marginVertical: index === 0 ? 0 : -profileShell.avatarEdge,
+                  borderRadius: radius.round,
+                  backgroundColor: theme.overlay.fill,
+                  marginLeft: index === 0 ? 0 : -profileShell.overlap,
+                }}
+              >
+                <BotAvatar bot={bot} size={profileShell.avatar} />
+              </View>
+            ),
+          )}
+        </View>
       }
     />
   );
