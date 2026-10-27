@@ -35,6 +35,8 @@ Platform files never hard-code a colour.
 
 Native controls draw platform icons: SF Symbols on iOS, Material symbols or vector drawables on Android. A React Native view inside a native control is only for avatars and images. Never nest React Native inside Compose inside React Native.
 
+On Android the shared `Button` (`src/ui/primitives/button.android.tsx`) is the Material 3 Compose common button in the Host's default look: `primary` is a filled button, `secondary` and `tonal` are filled tonal buttons, `variant="text"` is a text button, and `danger` is a filled button (or text button) in the `error` / `onError` roles. Its leading `symbol` is an outlined Material symbol exported as a vector drawable under `assets/button/`, 18dp like `ButtonDefaults.IconSize`; it takes no React Native icon. Busy replaces the symbol with the native circular progress indicator at the same size, inside the button, and disables it. The button keeps the 48dp touch target, fills the caller's width and grows with the label at any font scale. Creation screens import the same button through `creation-button`; there is no second Android button (#3005).
+
 The custom surfaces that stay custom, because no native component does the job:
 
 - conversation-row swipe actions
