@@ -2,7 +2,6 @@
 
 package expo.modules.materialbuttongroup
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,11 +13,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.ToggleButton
-import androidx.compose.material3.ToggleButtonDefaults
 import androidx.compose.material3.ToggleButtonShapes
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,8 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.addPathNodes
-import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -41,11 +36,14 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
-import expo.modules.kotlin.AppContext
 import expo.modules.kotlin.records.Field
 import expo.modules.kotlin.records.Record
-import expo.modules.kotlin.viewevent.EventDispatcher
-import expo.modules.kotlin.views.ExpoView
+import expo.modules.kotlin.types.OptimizedRecord
+import expo.modules.kotlin.views.ComposeProps
+import expo.modules.kotlin.views.FunctionalComposableScope
+import expo.modules.kotlin.views.OptimizedComposeProps
+import expo.modules.ui.ModifierList
+import expo.modules.ui.ModifierRegistry
 
 class ButtonGroupItem : Record {
   @Field val value: String = ""
@@ -54,84 +52,70 @@ class ButtonGroupItem : Record {
   @Field val path: String = ""
 }
 
+@OptimizedComposeProps
+data class ButtonGroupProps(
+  val items: List<ButtonGroupItem> = emptyList(),
+  val selected: String = "",
+  val reduceMotion: Boolean = false,
+  val modifiers: ModifierList = emptyList(),
+) : ComposeProps
+
+@OptimizedRecord
+data class ButtonGroupSelectEvent(@Field val value: String = "") : Record
+
 /**
- * An M3 Expressive connected button group of icon-only toggle buttons. Each button keeps its
- * connected leading, middle or trailing shape; the selected one morphs to a full round shape on
- * the Expressive spatial spring. TalkBack hears each button as a tab with its name and state.
+ * An M3 Expressive connected button group of icon-only toggle buttons, placed inside `Host` so it
+ * paints with the Host's seeded Material theme. Each button keeps its connected leading, middle or
+ * trailing shape; the selected one morphs to a full round shape on the Expressive spatial spring.
+ * TalkBack hears each button as a tab with its name and state.
  */
-class MaterialButtonGroupView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
-  override val shouldUseAndroidLayout = true
-  val onSelect by EventDispatcher()
-  var items by mutableStateOf<List<ButtonGroupItem>>(emptyList())
-  var selected by mutableStateOf("")
-  var dark by mutableStateOf(false)
-  var foregroundColor by mutableStateOf("")
-  var container by mutableStateOf("")
-  var checkedContainer by mutableStateOf("")
-  var checkedForeground by mutableStateOf("")
-  var reduceMotion by mutableStateOf(false)
-
-  private fun select(value: String, checked: Boolean) {
-    val next = nextSelection(selected, value, checked) ?: return
-    // Show the press at once; JS confirms it with the next `selected` prop.
-    selected = next
-    onSelect(mapOf("value" to next))
+@Composable
+fun FunctionalComposableScope.ButtonGroupContent(props: ButtonGroupProps, onSelect: (String) -> Unit) {
+  // Show the press at once; JS confirms it with the next `selected` prop.
+  var selected by remember { mutableStateOf(props.selected) }
+  LaunchedEffect(props.selected) { selected = props.selected }
+  val select = { value: String, checked: Boolean ->
+    nextSelection(selected, value, checked)?.let {
+      selected = it
+      onSelect(it)
+    }
   }
-
-  init {
-    addView(ComposeView(context).apply {
-      setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool)
-      setContent {
-        val scheme = if (dark) darkColorScheme() else lightColorScheme()
-        // Reduce Motion keeps the shape change but drops the overshooting Expressive spring.
-        MaterialExpressiveTheme(
-          colorScheme = scheme,
-          motionScheme = if (reduceMotion) MotionScheme.standard() else MotionScheme.expressive(),
-        ) {
-          val colors = ToggleButtonDefaults.colors(
-            containerColor = color(container, scheme.surfaceContainer),
-            contentColor = color(foregroundColor, scheme.onSurface),
-            checkedContainerColor = color(checkedContainer, scheme.secondaryContainer),
-            checkedContentColor = color(checkedForeground, scheme.onSecondaryContainer),
-          )
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .semantics {
-                testTagsAsResourceId = true
-                isTraversalGroup = true
-              },
-            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
-          ) {
-            items.forEachIndexed { index, item ->
-              val checked = item.value == selected
-              val icon = remember(item.path) { vector(item.path) }
-              ToggleButton(
-                checked = checked,
-                onCheckedChange = { select(item.value, it) },
-                modifier = Modifier
-                  .weight(1f)
-                  .heightIn(min = 48.dp)
-                  .testTag("profile-tab-${item.value}")
-                  .clearAndSetSemantics {
-                    role = Role.Tab
-                    this.selected = checked
-                    contentDescription = item.label
-                    onClick(label = item.label) {
-                      select(item.value, true)
-                      true
-                    }
-                  },
-                shapes = shapes(connectedPosition(index, items.size)),
-                colors = colors,
-              ) {
-                Icon(icon, contentDescription = null)
+  // Reduce Motion keeps the shape change but drops the overshooting Expressive spring.
+  MaterialExpressiveTheme(motionScheme = if (props.reduceMotion) MotionScheme.standard() else MotionScheme.expressive()) {
+    Row(
+      modifier = ModifierRegistry.applyModifiers(props.modifiers, appContext, composableScope, globalEventDispatcher)
+        .fillMaxWidth()
+        .semantics {
+          testTagsAsResourceId = true
+          isTraversalGroup = true
+        },
+      horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+    ) {
+      props.items.forEachIndexed { index, item ->
+        val checked = item.value == selected
+        val icon = remember(item.path) { vector(item.path) }
+        ToggleButton(
+          checked = checked,
+          onCheckedChange = { select(item.value, it) },
+          modifier = Modifier
+            .weight(1f)
+            .heightIn(min = 48.dp)
+            .testTag("profile-tab-${item.value}")
+            .clearAndSetSemantics {
+              role = Role.Tab
+              this.selected = checked
+              contentDescription = item.label
+              onClick(label = item.label) {
+                select(item.value, true)
+                true
               }
-            }
-          }
+            },
+          shapes = shapes(connectedPosition(index, props.items.size)),
+        ) {
+          Icon(icon, contentDescription = null)
         }
       }
-    }, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+    }
   }
 }
 
@@ -148,6 +132,3 @@ private fun vector(path: String): ImageVector =
   ImageVector.Builder("Tab", 24.dp, 24.dp, 24f, 24f)
     .addPath(pathData = addPathNodes(path), fill = SolidColor(Color.Black))
     .build()
-
-private fun color(value: String, fallback: Color): Color =
-  cssColor(value)?.let { Color(it) } ?: fallback

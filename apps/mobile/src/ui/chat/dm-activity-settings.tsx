@@ -38,7 +38,19 @@ export function DmActivitySettings({
             onChange={(shown) => dmActivityPreferences.setHidden(hostId, botSlug, kind, !shown)}
           />
         );
-        if (android) return <SettingsRow key={kind} title={label} trailing={toggle} on={on} />;
+        if (android)
+          return (
+            <SettingsRow
+              key={kind}
+              title={label}
+              control={{
+                kind: 'switch',
+                value: !hidden.includes(kind),
+                onChange: (shown) => dmActivityPreferences.setHidden(hostId, botSlug, kind, !shown),
+              }}
+              on={on}
+            />
+          );
         return (
           <View
             key={kind}

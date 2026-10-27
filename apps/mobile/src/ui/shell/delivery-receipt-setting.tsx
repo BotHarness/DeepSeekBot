@@ -4,7 +4,6 @@ import {
 } from '../../host/native-delivery-receipts';
 import { SHEET_GROUP } from '../chat/sheet';
 import { SettingsRow } from '../primitives/settings-row';
-import { Toggle } from '../primitives/toggle';
 import { useStrings } from '../strings';
 
 export function DeliveryReceiptSetting() {
@@ -15,16 +14,13 @@ export function DeliveryReceiptSetting() {
       on={SHEET_GROUP}
       title={t.delivery.setting}
       detail={state.storageError ? t.delivery.settingStorageError : t.delivery.settingHint}
-      trailing={
-        <Toggle
-          testID="delivery-receipt-toggle"
-          on={SHEET_GROUP}
-          label={t.delivery.setting}
-          value={state.enabled}
-          disabled={!state.loaded}
-          onChange={(enabled) => deliveryReceiptPreferences.setEnabled(enabled)}
-        />
-      }
+      control={{
+        kind: 'switch',
+        value: state.enabled,
+        onChange: (enabled) => deliveryReceiptPreferences.setEnabled(enabled),
+        disabled: !state.loaded,
+        testID: 'delivery-receipt-toggle',
+      }}
     />
   );
 }

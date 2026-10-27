@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useMemo, useCallback, useRef, useState, type ReactNode } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { botSettings, errorText } from '../../host/bot-settings';
 import { dmChannel } from '../../host/bot-profile';
@@ -11,9 +11,6 @@ import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
-import { LoadingIndicator } from '../primitives/loading-indicator';
-import { RowIcon } from '../primitives/row-icon';
-import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { modelLabel } from './composer-labels';
@@ -54,12 +51,11 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
     }, [settings]),
   );
   const model = modelLabel(context.model);
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />;
   const divided = (key: string, row: ReactNode, first = false) => (
     <View
       key={key}
       style={
-        first
+        first || Platform.OS === 'android'
           ? undefined
           : { borderTopWidth: edge.hairline, borderTopColor: theme.layer.raised.divider }
       }
@@ -74,7 +70,7 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
           'name',
           <BotNameSetting
             on="raised"
-            leading={<RowIcon name="account" />}
+            icon="account"
             name={bot.displayName}
             onSave={(name) => renameBot(client, bot.slug, name)}
           />,
@@ -87,8 +83,8 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
             title={t.contextModel}
             detail={model}
             accessibilityLabel={`${t.contextModel} · ${bot.displayName} · ${model}`}
-            leading={<RowIcon name="model" />}
-            trailing={chevron}
+            icon="model"
+            control={{ kind: 'chevron' }}
             onPress={() => {
               router.push({ pathname: '/bot/[slug]/model', params: { slug: bot.slug } });
             }}
@@ -102,8 +98,8 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
                 on="raised"
                 testID="bot-chat-background"
                 title={t.chatBackground.title}
-                leading={<RowIcon name="background" />}
-                trailing={openingBackground ? <LoadingIndicator /> : chevron}
+                icon="background"
+                control={{ kind: openingBackground ? 'busy' : 'chevron' }}
                 onPress={openingBackground ? undefined : () => void openBackground()}
               />,
             )}
@@ -115,8 +111,8 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
                 on="raised"
                 testID="profile-notifications"
                 title={t.profileNotifications}
-                leading={<RowIcon name="notifications" />}
-                trailing={chevron}
+                icon="notifications"
+                control={{ kind: 'chevron' }}
                 onPress={() =>
                   router.push({
                     pathname: '/bot/[slug]/notifications',

@@ -1,16 +1,15 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { errorText } from '../../host/bot-settings';
-import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import type { LayerName } from '../design/layers';
+import type { RowIconName } from '../primitives/row-icon';
 import { SettingsRow } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
-import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { Sheet, SheetActions } from './sheet';
 
@@ -98,15 +97,14 @@ export function BotNameSetting({
   name,
   onSave,
   on = 'sheet',
-  leading,
+  icon,
 }: {
   name: string;
   onSave(name: string): Promise<void>;
   on?: LayerName;
-  leading?: ReactNode;
+  icon?: RowIconName;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [editing, setEditing] = useState(false);
   return (
     <>
@@ -115,9 +113,9 @@ export function BotNameSetting({
         testID="bot-name-change"
         title={t.botName}
         detail={name}
-        leading={leading}
+        icon={icon}
         accessibilityLabel={`${t.botRename}, ${name}`}
-        trailing={<ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />}
+        control={{ kind: 'chevron' }}
         onPress={() => setEditing(true)}
       />
       {editing ? (

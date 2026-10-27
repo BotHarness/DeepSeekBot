@@ -7,9 +7,8 @@ import { botSettings } from '../../host/bot-settings';
 import type { HostClient, RosterBot } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
 import { edge } from '../design/tokens';
-import { RowIcon, type RowIconName } from '../primitives/row-icon';
+import { type RowIconName } from '../primitives/row-icon';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { ChevronRightIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { useComposerContext } from './composer-context';
 import { workspaceLabel } from './composer-labels';
@@ -43,7 +42,6 @@ export function BotPermissions({
   const access = botAccess(bot);
   const workspace = workspaceLabel(context.grants);
   const accessDetail = copy.accessSummary(access.browser, access.computer);
-  const chevron = <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />;
   const rows: {
     testID: string;
     title: string;
@@ -95,8 +93,8 @@ export function BotPermissions({
               testID={row.testID}
               title={row.title}
               {...(row.detail === undefined ? {} : { detail: row.detail })}
-              leading={<RowIcon name={row.icon} />}
-              trailing={chevron}
+              icon={row.icon}
+              control={{ kind: 'chevron' }}
               onPress={row.onPress}
             />
           </View>

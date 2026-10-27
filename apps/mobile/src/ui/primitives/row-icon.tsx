@@ -30,6 +30,7 @@ const ROW_ICONS = {
   share: { ios: 'square.and.arrow.up', android: 'share' },
   account: { ios: 'person.crop.circle', android: 'account_circle' },
   qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
+  add: { ios: 'plus', android: 'add' },
 } as const;
 
 export type RowIconName = keyof typeof ROW_ICONS;

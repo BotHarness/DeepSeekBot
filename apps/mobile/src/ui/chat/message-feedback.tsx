@@ -18,7 +18,6 @@ import {
 } from '../../../../../packages/core/src/diagnostics/feedback-contract';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { Toggle } from '../primitives/toggle';
 import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
@@ -276,15 +275,13 @@ export function MessageFeedbackForm({
                   <SettingsRow
                     key={category}
                     title={f[category]}
-                    trailing={
-                      <Toggle
-                        testID={'feedback-' + category}
-                        label={f[category]}
-                        disabled={locked || busy}
-                        value={scope[category]}
-                        onChange={(value) => setScope((s) => ({ ...s, [category]: value }))}
-                      />
-                    }
+                    control={{
+                      kind: 'switch',
+                      value: scope[category],
+                      onChange: (value) => setScope((s) => ({ ...s, [category]: value })),
+                      disabled: locked || busy,
+                      testID: 'feedback-' + category,
+                    }}
                   />
                 ))}
               </View>

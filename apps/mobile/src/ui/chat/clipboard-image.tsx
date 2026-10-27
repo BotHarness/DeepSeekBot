@@ -7,7 +7,6 @@ import { edge, radius, space } from '../design/tokens';
 import { useLiquidGlass } from '../primitives/drawer-material';
 import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
-import { PhotoIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { ComposerFieldMaterial } from './composer-chrome';
 
@@ -143,7 +142,7 @@ export function ClipboardImageOffer({
             label={t.pasteImage}
             variant="text"
             on="sheet"
-            icon={<PhotoIcon color={theme.color.fg} size={theme.type.body.line} />}
+            symbol="photo"
             onPress={() => void readClipboardImage(onPaste, onUnreadable)}
           />
         </View>

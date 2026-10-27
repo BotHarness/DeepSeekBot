@@ -11,7 +11,7 @@ import {
 import { View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
-import { RowIcon, rowSymbol } from './row-icon';
+import { rowSymbol } from './row-icon';
 import { useSettingsFormPlace } from './settings-form-context';
 import { SettingsRow } from './settings-row';
 import { SystemSymbol } from './system-symbol';
@@ -66,7 +66,7 @@ export function PreferenceRow<T extends string>({
               <SettingsRow
                 on={on}
                 title={title}
-                leading={<RowIcon name={icon} />}
+                icon={icon}
                 trailing={
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
                     <RowText tone="muted" numberOfLines={1}>
