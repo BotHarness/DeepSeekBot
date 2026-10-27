@@ -3650,6 +3650,8 @@ export const zh = {
   'prompts.limit.review-tool-calls': '带给审查员的工具调用条数',
   'prompts.createTitle': '新建 Prompt Preset',
   'prompts.editTitle': '编辑“{name}”',
+  'prompts.applyCompact': '立即压缩生效',
+  'prompts.applyNewSession': '开启新会话生效',
   'prompts.deleteTitle': '删除“{name}”？',
   'prompts.deleteBody':
     '删除后无法恢复。选了这个预设的 Bot 改用全局预设；如果它是全局预设，从它继承的部分回到内置文字，Bot 自己选的预设和改写不受影响。',
@@ -8371,6 +8373,8 @@ My relationship with you, established lore and topics to avoid: [fill in].
   'prompts.limit.review-tool-calls': 'Tool calls given to the reviewer',
   'prompts.createTitle': 'New Prompt Preset',
   'prompts.editTitle': 'Edit "{name}"',
+  'prompts.applyCompact': 'Compact now to apply',
+  'prompts.applyNewSession': 'Start a new session to apply',
   'prompts.deleteTitle': 'Delete "{name}"?',
   'prompts.deleteBody':
     'This cannot be undone. Bots that chose this preset use the global one instead; if it is the global preset, the parts inherited from it fall back to the built-in text, and a Bot’s own preset and edits stay.',

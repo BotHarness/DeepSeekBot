@@ -328,6 +328,10 @@ export function handleCompactionEvent(
   eventType: string,
 ): void {
   if (eventType !== COMPACTION_END_EVENT) return;
+  refreshSessionTexts(sink, sessionId);
+}
+
+export function refreshSessionTexts(sink: CompactionRefreshSink, sessionId: string): void {
   const owner = sink.ownership.resolve(sessionId);
   if (owner === undefined) return;
   try {
@@ -1704,7 +1708,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     log: (event) => ctx.logger.info(`idle-compaction ${JSON.stringify(event)}`),
   });
   ctx.effect(() => () => idleCompaction.close(), 'botharness: idle compaction');
-  const compactReservedSession = (sessionId: string) => idleCompaction.compactNow(sessionId, true);
+  const compactReservedSession = async (sessionId: string) => {
+    const result = await idleCompaction.compactNow(sessionId, true);
+    if (result.outcome === 'nothing')
+      refreshSessionTexts(
+        {
+          ownership: core.ownership,
+          memory: core.memory,
+          prompts: core.prompts,
+          warn: (message) => ctx.logger.warn(message),
+        },
+        sessionId,
+      );
+    return result;
+  };
   const compactBot = (slug: string) =>
     core.runtime.compactOrchestrator
       ? core.runtime.compactOrchestrator(slug, compactReservedSession)
@@ -2416,8 +2433,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           contexts: renderContextSections(assembly).map(({ name, text }) => ({ name, text })),
         },
         pending:
-          (effectiveText !== null && effectiveText !== text) ||
-          core.prompts.pending(slug, sessionId ?? undefined),
+          core.prompts.pending(slug, sessionId ?? undefined) ||
+          (sessionId !== null && core.memory.personaPending?.(sessionId) === true),
       };
     },
     cloudConnections,

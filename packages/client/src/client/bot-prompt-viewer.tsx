@@ -6,6 +6,7 @@ import { errorMessage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { useMountedResource } from './mounted-resource.js';
+import { PendingApply } from './pending-apply.js';
 import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 
@@ -90,9 +91,11 @@ function Explained({
 function SystemPromptBody({
   value,
   t,
+  apply,
 }: {
   value: SystemPromptValue;
   t: BotHarnessTranslate;
+  apply: ReactElement;
 }): ReactElement {
   return (
     <>
@@ -103,7 +106,10 @@ function SystemPromptBody({
         tag={value.pending ? t('promptInspect.pending') : undefined}
       />
       {value.pending ? (
-        <p {...stylex.props(styles.meta)}>{t('promptInspect.pendingHint')}</p>
+        <>
+          <p {...stylex.props(styles.meta)}>{t('promptInspect.pendingHint')}</p>
+          {apply}
+        </>
       ) : null}
       {value.loaded ? null : <p {...stylex.props(styles.meta)}>{t('promptInspect.notLoaded')}</p>}
       {value.effectiveText === null ? (
@@ -208,6 +214,7 @@ export function BotPromptViewer({
     | { kind: 'system'; value: SystemPromptValue }
     | { kind: 'turn'; value: TurnInputValue }
   >({ kind: 'loading' });
+  const [revision, setRevision] = useState(0);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let active = true;
     setState({ kind: 'loading' });
@@ -226,7 +233,7 @@ export function BotPromptViewer({
     return () => {
       active = false;
     };
-  }, [actions, slug, view]);
+  }, [actions, slug, view, revision]);
   return (
     <PanelDialog
       size="wide"
@@ -241,7 +248,18 @@ export function BotPromptViewer({
       ) : state.kind === 'failed' ? (
         <p role="alert">{t('promptInspect.failed', { error: state.message })}</p>
       ) : state.kind === 'system' ? (
-        <SystemPromptBody value={state.value} t={t} />
+        <SystemPromptBody
+          value={state.value}
+          t={t}
+          apply={
+            <PendingApply
+              botSlug={slug}
+              actions={actions}
+              t={t}
+              onApplied={() => setRevision((value) => value + 1)}
+            />
+          }
+        />
       ) : (
         <TurnInputBody value={state.value} t={t} />
       )}

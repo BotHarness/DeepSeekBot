@@ -22,6 +22,7 @@ import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
+import { PendingApply } from './pending-apply.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 
 type PromptActions = Pick<
@@ -784,7 +785,17 @@ export function BotPromptSettingsEntry({
         {view.pending ? <Tag tone="warning">{t('promptInspect.pending')}</Tag> : null}
         <PromptInfo info={t('prompts.info')} t={t} />
       </div>
-      {view.pending ? <Note>{t('prompts.pendingHint')}</Note> : null}
+      {view.pending ? (
+        <>
+          <Note>{t('prompts.pendingHint')}</Note>
+          <PendingApply
+            botSlug={botSlug}
+            actions={actions}
+            t={t}
+            onApplied={() => void load(botSlug).then(setState, () => undefined)}
+          />
+        </>
+      ) : null}
       <section aria-label={t('prompts.bot.presets')}>
         <GroupHeading
           quiet

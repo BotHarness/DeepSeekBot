@@ -1,4 +1,3 @@
-import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { useSessionMaintenance, sessionMaintenanceText } from './session-maintenance.js';
 import { useId, useState, type CSSProperties, type ReactElement, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
@@ -15,6 +14,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { compactTokenCount, profileTokenSummaryText } from './profile-token-summary.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { BotPromptView } from './bot-prompt-viewer.js';
+import type { ActionSymbol } from '../shared/action-presentation.js';
 
 export function DmComposerUsagePopover({
   bot,
@@ -182,36 +182,40 @@ export function DmComposerUsagePopover({
           </>
         )}
       </section>
-      {maintenance.available ? (
-        <ActionGroup>
-          <ActionButton
-            icon="archive"
-            busy={maintenance.pending === 'compact'}
-            disabled={maintenance.pending !== undefined}
-            onClick={() => void maintenance.run('compact')}
-          >
-            {t('composerContext.compactNow')}
-          </ActionButton>
-          <ActionButton
-            icon="plus"
-            busy={maintenance.pending === 'new-session'}
-            disabled={maintenance.pending !== undefined}
-            onClick={() => void maintenance.run('new-session')}
-          >
-            {t('composerCommand.newSession')}
-          </ActionButton>
-        </ActionGroup>
+      {maintenance.available || onInspect !== undefined ? (
+        <div className="bh-composer-usage-actions">
+          {maintenance.available ? (
+            <>
+              <UsageAction
+                icon="archive"
+                busy={maintenance.pending === 'compact'}
+                disabled={maintenance.pending !== undefined}
+                onClick={() => void maintenance.run('compact')}
+              >
+                {t('composerContext.compactNow')}
+              </UsageAction>
+              <UsageAction
+                icon="plus"
+                busy={maintenance.pending === 'new-session'}
+                disabled={maintenance.pending !== undefined}
+                onClick={() => void maintenance.run('new-session')}
+              >
+                {t('composerCommand.newSession')}
+              </UsageAction>
+            </>
+          ) : null}
+          {onInspect === undefined ? null : (
+            <>
+              <UsageAction icon="terminal" onClick={() => onInspect('system-prompt')}>
+                {t('composerContext.viewSystemPrompt')}
+              </UsageAction>
+              <UsageAction icon="message-square" onClick={() => onInspect('turn-input')}>
+                {t('composerContext.viewTurnInput')}
+              </UsageAction>
+            </>
+          )}
+        </div>
       ) : null}
-      {onInspect === undefined ? null : (
-        <ActionGroup>
-          <ActionButton icon="terminal" onClick={() => onInspect('system-prompt')}>
-            {t('composerContext.viewSystemPrompt')}
-          </ActionButton>
-          <ActionButton icon="message-square" onClick={() => onInspect('turn-input')}>
-            {t('composerContext.viewTurnInput')}
-          </ActionButton>
-        </ActionGroup>
-      )}
       {maintenance.notice ? (
         <p role="status" className="bh-composer-usage-caption">
           {sessionMaintenanceText(maintenance.notice, t)}
@@ -287,5 +291,26 @@ export function DmComposerUsagePopover({
       </div>
     </div>,
     document.body,
+  );
+}
+
+function UsageAction({
+  icon,
+  busy = false,
+  disabled = false,
+  onClick,
+  children,
+}: {
+  icon: ActionSymbol;
+  busy?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+  children: string;
+}): ReactElement {
+  return (
+    <button type="button" disabled={disabled} aria-busy={busy} title={children} onClick={onClick}>
+      <ChannelSidebarIcon name={icon} />
+      <span>{children}</span>
+    </button>
   );
 }
