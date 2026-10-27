@@ -64,13 +64,16 @@ import {
 } from '../../host/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
+import { GroupMark } from '../chat/group-mark';
+import { AvatarSlot, CONVERSATION_AVATAR, CONVERSATION_RING } from '../chat/avatar-slot';
+import { shortTime } from '../chat/conversations';
+import { SourceName } from '../chat/source-name';
 import { ApprovalCard } from '../chat/approval-card';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
 import { spring, springy } from '../design/motion';
-import { space, undoBar } from '../design/tokens';
+import { chatList, conversationType, radius, space, undoBar } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { CountBadge } from '../primitives/count-badge';
 import { Notice } from '../request-parts';
 import { useChatHeaderHeight } from '../chat/header-chrome';
 import { Button } from '../primitives/button';
@@ -83,6 +86,7 @@ import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
 import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
+import { activityAvatar } from './activity-avatar';
 import { activityTabMarks } from './activity-tab-strip';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
@@ -226,6 +230,31 @@ function ActivityEnvironment({ item }: { item: HumanAttentionItem }) {
   );
 }
 
+function ActivityAvatar({
+  item,
+  bot,
+  size,
+}: {
+  item: HumanAttentionItem;
+  bot: RosterBot | undefined;
+  size: number;
+}) {
+  const corner = size >= CONVERSATION_AVATAR ? radius.md : radius.sm;
+  const avatar = activityAvatar(item, bot);
+  if (avatar.kind === 'bot')
+    return <BotAvatar bot={avatar.bot} size={size} corner={corner} ring={false} />;
+  return (
+    <GroupMark
+      avatar={avatar.kind === 'group' ? avatar.avatar : undefined}
+      initial={avatar.kind === 'initial' ? avatar.initial : '#'}
+      size={size}
+      corner={corner}
+      variant={size >= CONVERSATION_AVATAR ? 'title' : 'body'}
+      strong={false}
+    />
+  );
+}
+
 const Row = memo(function Row({
   item,
   settled,
@@ -250,23 +279,8 @@ const Row = memo(function Row({
       : (bot?.displayName ?? item.botSlug);
   const name = item.activitySource ? `${localName} · ${item.activitySource.label}` : localName;
   const summary = summaryPreview(itemSummary(item));
-  const size = settled ? theme.type.body.line : AVATAR;
-  const metadata = (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: space.x3,
-        marginLeft: theme.largeText ? 0 : 'auto',
-      }}
-    >
-      <Text variant="meta" tone="muted">
-        {t.ago(minutesSince(item.createdAt, now))}
-      </Text>
-      {(item.unreadCount ?? 0) > 0 ? <CountBadge count={item.unreadCount!} tone="unread" /> : null}
-    </View>
-  );
+  const preview = summary.length > 0 ? `${kind} · ${summary}` : kind;
+  const time = shortTime(item.createdAt, new Date(now));
   return (
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <Pressable
@@ -282,56 +296,48 @@ const Row = memo(function Row({
         onPress={() => onOpen(item)}
         {...swipeActionProps(t.rowTitle(kind, name), actions)}
         style={({ pressed }) => ({
-          minHeight: theme.touch,
           flexDirection: 'row',
-          alignItems: settled ? 'center' : 'flex-start',
-          gap: space.x3,
-          paddingHorizontal: space.x5,
+          alignItems: 'center',
+          gap: space.x4,
+          minHeight: theme.touch,
+          paddingLeft: chatList.gutter - CONVERSATION_RING / 2,
+          paddingRight: chatList.gutter,
           paddingVertical: space.x3,
           backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
         })}
       >
-        {bot === undefined ? (
-          <View
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              backgroundColor: theme.layer.canvas.inset,
-            }}
-          />
-        ) : (
-          <BotAvatar bot={bot} size={size} />
-        )}
+        <AvatarSlot>
+          <ActivityAvatar item={item} bot={bot} size={CONVERSATION_AVATAR} />
+        </AvatarSlot>
         <View
           key={`${theme.scheme}:${theme.fontScale}:${name}`}
           style={{ flex: 1, minWidth: 0, gap: space.x1 }}
         >
-          <View
-            style={{
-              flexDirection: theme.largeText ? 'column' : 'row',
-              alignItems: theme.largeText ? 'flex-start' : 'center',
-              gap: space.x3,
-            }}
-          >
-            <Text
-              variant={theme.largeText ? 'meta' : 'body'}
-              numberOfLines={theme.largeText ? 2 : 1}
-              strong={!settled}
-              style={{ flexShrink: 1 }}
-            >
-              {theme.largeText ? localName : t.rowTitle(kind, localName)}
-              {settled && summary.length > 0 ? <Text tone="muted">{` · ${summary}`}</Text> : null}
-            </Text>
-            <ActivityEnvironment item={item} />
-            {theme.largeText ? null : metadata}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+            <SourceName
+              name={localName}
+              source="computer"
+              look={
+                item.activitySource ? (item.activitySource.look ?? DEFAULT_HOST_LOOK) : undefined
+              }
+              sourceLabel={item.activitySource?.label}
+            />
+            {time === '' ? null : (
+              <Text variant="meta" tone="subtle" style={{ flexShrink: 0 }}>
+                {time}
+              </Text>
+            )}
           </View>
-          {!settled && summary.length > 0 ? (
-            <Text tone={theme.largeText ? 'fg' : 'muted'} numberOfLines={2}>
-              {summary}
-            </Text>
-          ) : null}
-          {theme.largeText ? metadata : null}
+          <Text
+            variant="meta"
+            dynamicTypeRamp="subheadline"
+            tone={settled ? 'muted' : 'fg'}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={conversationType.preview}
+          >
+            {preview}
+          </Text>
         </View>
       </Pressable>
     </SwipeRow>
@@ -415,18 +421,7 @@ function Post({
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          {bot === undefined ? (
-            <View
-              style={{
-                width: AVATAR,
-                height: AVATAR,
-                borderRadius: AVATAR / 2,
-                backgroundColor: theme.layer.canvas.inset,
-              }}
-            />
-          ) : (
-            <BotAvatar bot={bot} size={AVATAR} />
-          )}
+          <ActivityAvatar item={item} bot={bot} size={AVATAR} />
           <View
             key={`${theme.scheme}:${theme.fontScale}:${name}`}
             style={{

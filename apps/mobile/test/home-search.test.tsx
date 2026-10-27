@@ -349,6 +349,7 @@ vi.mock('../src/ui/shell/host-drawer', async () => {
 });
 vi.mock('../src/ui/shell/human-avatar', () => ({ HumanAvatarButton: () => null }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null }));
+vi.mock('../src/host/native-notification-avatars', () => ({ avatarImageUri: () => undefined }));
 
 vi.mock('expo-status-bar', () => ({ StatusBar: () => null }));
 

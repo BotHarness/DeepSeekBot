@@ -494,7 +494,6 @@ describe('Activity feed', () => {
     await press(button(view, question.botSlug));
     await press(button(view, t.cancel));
     await showAll(view);
-    expect(view.textContent).toContain('2');
     expect(view.querySelector('[data-testid="inbox-row-unread:team"]')).not.toBeNull();
     await press(button(view, t.activityOptions));
     await press(button(view, t.filterAllBots));
@@ -590,15 +589,15 @@ describe('Activity feed', () => {
     });
     await press(button(view, t.inboxSections.replies));
     const replied = view.querySelector('[data-testid="inbox-row-reply-1"]')!;
-    expect(replied.textContent).toContain(`${t.kind.reply ?? t.otherKind} · ${reply.botSlug}`);
+    expect(replied.textContent).toContain(reply.botSlug);
+    expect(replied.textContent).toContain(`${t.kind.reply ?? t.otherKind} · `);
     expect(replied.textContent?.split(reply.summary).length).toBe(2);
     await press(button(view, t.activityOptions));
     await press(button(view, t.inboxSections.handled));
     await press(button(view, t.cancel));
     const handled = view.querySelector('[data-testid="inbox-row-done-1"]')!;
-    expect(handled.textContent).toContain(
-      `${t.kind['user-question']} · ${done.botSlug} · ${done.summary}`,
-    );
+    expect(handled.textContent).toContain(done.botSlug);
+    expect(handled.textContent).toContain(`${t.kind['user-question']} · ${done.summary}`);
   });
 
   it.each(['search', 'channel', 'tab', 'swipe'] as const)(
