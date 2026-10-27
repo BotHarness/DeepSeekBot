@@ -14,6 +14,7 @@ import {
 import { t } from '../src/ui/strings';
 import { FakeHost } from './fake-host';
 import { ChannelFilesScreen } from '../src/ui/chat/channel-files-screen';
+import { ChannelFilesTab } from '../src/ui/chat/channel-files-tab';
 import { HostScope } from '../src/host/host-scope';
 
 const fixture = vi.hoisted(() => {
@@ -674,7 +675,7 @@ it('keeps Bot-to-Bot details limited to its own files and refuses removed access
   await act(async () => root!.render(<ChannelDetailsScreen hostId="host-a" channelId="bot-dm" />));
   expect(node.textContent).not.toContain(t.groupDisband);
   expect(node.textContent).not.toContain(t.groupRename);
-  expect(node.querySelector('[role="tablist"]')).toBeNull();
+  expect(node.querySelector(`[role="tablist"][aria-label="${t.profileTabsLabel}"]`)).toBeNull();
   expect(node.querySelector('[data-testid="profile-tab-heading"]')?.textContent).toBe(
     t.profileTabs.files,
   );
@@ -755,4 +756,90 @@ it('offers recovery instead of indefinite loading when Bot-to-Bot details open o
   } finally {
     fixture.snapshot.roster = roster;
   }
+});
+
+it('splits the profile Files tab into Media and Files segments with their own empty states', async () => {
+  const fake = new FakeHost();
+  fake.channel('dm-ada').append(
+    {
+      id: 'shared',
+      author: { kind: 'human' },
+      attachments: [
+        {
+          fileId: 'file:00000000-0000-4000-8000-000000000002',
+          name: 'sunset.png',
+          mime: 'image/png',
+          size: 8,
+        },
+        {
+          fileId: 'file:00000000-0000-4000-8000-000000000003',
+          name: 'report.pdf',
+          mime: 'application/pdf',
+          size: 8,
+        },
+      ],
+    },
+    false,
+  );
+  fake.channel('dm-empty');
+  const client = createHostClient({
+    routes: ['https://studio.tailnet-example.ts.net'],
+    credential: fake.credential,
+    carrier: fake.carrier,
+  });
+  fixture.fileClient = client;
+  client.start();
+  const tab = (channelId: string) => (
+    <ChannelFilesTab client={client} hostId="host-a" channelId={channelId} botSlug="ada" active>
+      {(body) => (
+        <div>
+          {body.rows.map((row) => (
+            <div key={row.key}>{row.render()}</div>
+          ))}
+          {body.overlay}
+        </div>
+      )}
+    </ChannelFilesTab>
+  );
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => {
+    await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
+    root!.render(tab('dm-ada'));
+  });
+  await act(async () => {
+    await vi.waitFor(() =>
+      expect(node!.querySelector(`[aria-label^="${t.openImage('sunset.png')}"]`)).not.toBeNull(),
+    );
+  });
+  expect(node.textContent).not.toContain('report.pdf');
+  const segment = (label: string) =>
+    node!.querySelector<HTMLButtonElement>(
+      `[data-testid="channel-files-segments"] [role="tab"][aria-label="${label}"]`,
+    )!;
+  expect(segment(t.channelFiles.media).getAttribute('aria-selected')).toBe('true');
+
+  await act(async () =>
+    node!.querySelector<HTMLButtonElement>(`[aria-label^="${t.openImage('sunset.png')}"]`)!.click(),
+  );
+  expect(node.querySelector('[role="dialog"]')).not.toBeNull();
+
+  await act(async () => segment(t.channelFiles.files).click());
+  expect(node.textContent).toContain('report.pdf');
+  expect(node.textContent).toContain('PDF');
+  expect(node.querySelector(`[aria-label^="${t.openImage('sunset.png')}"]`)).toBeNull();
+
+  await act(async () => root!.render(tab('dm-empty')));
+  await act(async () => {
+    await vi.waitFor(() =>
+      expect(node!.querySelector('[data-testid="channel-files-empty"]')?.textContent).toBe(
+        t.channelFiles.empty,
+      ),
+    );
+  });
+  await act(async () => segment(t.channelFiles.media).click());
+  expect(node.querySelector('[data-testid="channel-media-empty"]')?.textContent).toBe(
+    t.channelFiles.mediaEmpty,
+  );
 });
