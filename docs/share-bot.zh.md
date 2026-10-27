@@ -93,7 +93,7 @@ Tobs 会自动在每个 Bot 的 Memory 里生成 `.botharness/bot.json`，并保
 | `avatar` | 头像：`{ "image": "仓库里的图片路径" }`，PNG、JPEG 或 WebP，最大 128 KiB；或者 `{ "recipe": … }` 像素头像配方。                                                                                                                            |
 | `banner` | 横幅：生成的像素场景 `{ "recipe": { "scene", "seed" } }`，或 `{ "image": ".botharness/banner.png" }`（3:1 的 PNG，最大 2 MB）。场景：`spring`、`summer`、`autumn`、`winter`、`sea`、`mountain`、`desert`、`forest`、`night-sky`、`space`。 |
 
-所有字段都可以省略。文件格式不对时整个文件会被忽略，市场改用仓库名和自动生成的像素头像。
+所有字段都可以省略。某个字段超出限制（例如简介超过 160 个字符）时只跳过这个字段，其他字段照常生效。文件不是合法 JSON 或超过 16 KB 时整个文件会被忽略，市场改用仓库名和自动生成的像素头像。
 
 ## 中英文：`README.zh-CN.md` 和 `i18n`
 

@@ -93,7 +93,7 @@ You can also edit the file by hand. Tobs keeps any other keys you add, and keeps
 | `avatar` | `{ "image": "path in the repository" }` (PNG, JPEG or WebP, at most 128 KiB), or a pixel avatar `{ "recipe": … }`.                                                                                                                              |
 | `banner` | A generated pixel scene `{ "recipe": { "scene", "seed" } }`, or `{ "image": ".botharness/banner.png" }` (a 3:1 PNG, at most 2 MB). Scenes: `spring`, `summer`, `autumn`, `winter`, `sea`, `mountain`, `desert`, `forest`, `night-sky`, `space`. |
 
-Every field is optional. An invalid file is ignored as a whole, and the Marketplace falls back to the repository name and a generated pixel avatar.
+Every field is optional. A field that breaks its limits (such as a bio over 160 characters) is skipped and the other fields still apply. A file that is not valid JSON or is larger than 16 KB is ignored as a whole, and the Marketplace falls back to the repository name and a generated pixel avatar.
 
 ## Chinese and English: `README.zh-CN.md` and `i18n`
 
