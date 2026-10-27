@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   appendDelegatedPolicyOverrides,
@@ -823,6 +826,40 @@ describe('Workspace Grant execution boundary', () => {
     expect(
       borrowedAgentDenial(core, state.assignment, 'assignment', state.policy, state.approval),
     ).toMatch(/snapshot is missing/);
+  });
+
+  it('admits an Orchestrator whose working directory is a symlink to its Memory directory', () => {
+    const root = mkdtempSync(join(tmpdir(), 'botharness-memory-cwd-'));
+    try {
+      const memory = join(root, 'home', 'bots', botSlug, 'memory');
+      mkdirSync(memory, { recursive: true });
+      symlinkSync(join(root, 'home'), join(root, 'linked-home'), 'dir');
+      const state = fixture();
+      state.memoryDirFor.mockReturnValue(memory);
+      const spelled = (cwd: string) =>
+        ({ id: 'botharness-orchestrator', header: { cwd } }) as never;
+      for (const cwd of [join(root, 'linked-home', 'bots', botSlug, 'memory'), memory + '/']) {
+        expect(
+          grantExecutionDenial(state.core, spelled(cwd), state.policy, state.approval),
+        ).toBeUndefined();
+        expect(
+          borrowedAgentDenial(
+            state.core,
+            spelled(cwd),
+            'orchestrator',
+            state.policy,
+            state.approval,
+          ),
+        ).toBeUndefined();
+      }
+      const other = join(root, 'other-memory');
+      mkdirSync(other);
+      expect(
+        grantExecutionDenial(state.core, spelled(other), state.policy, state.approval),
+      ).toMatch(/requires its Memory working directory/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 

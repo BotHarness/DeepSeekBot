@@ -3,6 +3,7 @@ import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
+import { sameDirectory } from '../fs/same-directory.js';
 import type { BotHarnessCore } from '../plugin.js';
 import { NATIVE_FILE_TOOL_NAMES, nativeFileToolDenial } from './grant-native-tools.js';
 
@@ -153,7 +154,8 @@ export function grantExecutionDenial(
         return "Orchestrator Session permission differs from this PersonaBot's access setting";
     }
     const memoryCwd = core.registry.memoryDirFor(owner.botSlug);
-    return memoryCwd !== undefined && session.header.cwd === memoryCwd
+    const cwd = session.header.cwd;
+    return memoryCwd !== undefined && cwd !== undefined && sameDirectory(cwd, memoryCwd)
       ? undefined
       : 'Orchestrator Session requires its Memory working directory';
   }
