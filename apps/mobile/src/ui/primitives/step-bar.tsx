@@ -9,31 +9,10 @@ import { useStrings } from '../strings';
 import { LoadingIndicator } from './loading-indicator';
 import { Text } from './text';
 
-export interface StepBarAction {
-  label: string;
-  testID: string;
-  onPress(): void;
-}
+import { stepBarAccessibilityLabel, stepBarLabel, type StepBarProps } from './step-bar-contract';
 
-export interface StepBarProps {
-  primary: StepBarAction & { disabled?: boolean; busy?: boolean };
-  back?: StepBarAction | undefined;
-  step?: { index: number; total: number } | undefined;
-  note?: string | undefined;
-  error?: string | undefined;
-}
-
-export function stepBarLabel(label: string, step: StepBarProps['step']) {
-  return step ? `${label} · ${step.index}/${step.total}` : label;
-}
-
-export function stepBarAccessibilityLabel(
-  t: ReturnType<typeof useStrings>,
-  label: string,
-  step: StepBarProps['step'],
-) {
-  return step ? `${label}, ${t.stepBar.step(step.index, step.total)}` : label;
-}
+export { stepBarAccessibilityLabel, stepBarLabel } from './step-bar-contract';
+export type { StepBarAction, StepBarProps } from './step-bar-contract';
 
 export function StepBar({ primary, back, step, note, error }: StepBarProps) {
   const t = useStrings();
