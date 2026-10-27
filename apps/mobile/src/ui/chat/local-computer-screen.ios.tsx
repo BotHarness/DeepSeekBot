@@ -41,8 +41,6 @@ import { NativeLocalComputerVideo } from './local-computer-video.ios';
 import { ComputerVideoStage } from './computer-video-stage';
 import { localVideoNotice } from './local-video-notice';
 
-const legacyNavigation = { headerShown: false };
-
 const idle: LocalVideoClientState = {
   status: 'idle',
   host: undefined,
@@ -246,13 +244,7 @@ export function LocalComputerScreen({ Legacy }: { Legacy: ComponentType }) {
     }),
     [t, name, status, theme, close],
   );
-  if (state.status === 'unsupported')
-    return (
-      <>
-        <Stack.Screen options={legacyNavigation} />
-        <Legacy />
-      </>
-    );
+  if (state.status === 'unsupported') return <Legacy />;
   return (
     <DesignThemeProvider appearance={{ scheme: 'dark' }}>
       <KeyboardAvoidingView

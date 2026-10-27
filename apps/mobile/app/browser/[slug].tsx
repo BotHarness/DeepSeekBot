@@ -1,6 +1,6 @@
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { TextInput } from '../../src/ui/primitives/system-text';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Keyboard, Pressable, View, type ViewInstance, type TextInputInstance } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,7 +13,8 @@ import { edge, radius, space } from '../../src/ui/design/tokens';
 import { useDesignTheme } from '../../src/ui/design/theme';
 import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
-import { CloseIcon, KeyboardIcon } from '../../src/ui/shell/icons';
+import { KeyboardIcon } from '../../src/ui/shell/icons';
+import { viewerHeaderOptions } from '../../src/ui/shell/viewer-header';
 import { useMounted } from '../../src/ui/mounted';
 import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
@@ -73,44 +74,16 @@ export default function BrowserScreen() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: theme.color.base }}>
-      <View
-        style={{
-          paddingTop: insets.top + space.x3,
-          paddingHorizontal: space.x5,
-          paddingBottom: space.x3,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-          borderBottomWidth: edge.hairline,
-          borderBottomColor: theme.color.divider,
-        }}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t.browserClose}
-          onPress={close}
-          hitSlop={space.x3}
-          style={{
-            width: theme.touch,
-            height: theme.touch,
-            borderRadius: radius.round,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: theme.color.surface,
-          }}
-        >
-          <CloseIcon color={theme.color.fg} size={theme.touch / 2} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text variant="title" numberOfLines={1}>
-            {t.browserTitle(bot?.displayName ?? slug ?? '')}
-          </Text>
-          <Text variant="meta" tone={driving ? 'accent' : 'muted'} numberOfLines={2}>
-            {live ? (driving ? t.browserYouDriving : t.browserBotDriving) : ' '}
-          </Text>
-        </View>
-      </View>
-
+      <Stack.Screen
+        options={viewerHeaderOptions({
+          theme,
+          title: t.browserTitle(bot?.displayName ?? slug ?? ''),
+          status: live ? (driving ? t.browserYouDriving : t.browserBotDriving) : '',
+          driving,
+          closeLabel: t.browserClose,
+          onClose: close,
+        })}
+      />
       <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View ref={mount} style={{ flex: 1 }}>
           {live ? (
