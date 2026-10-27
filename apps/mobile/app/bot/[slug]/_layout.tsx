@@ -4,9 +4,12 @@ import { useHostSession } from '../../../src/host/host-session';
 import { HostScope } from '../../../src/host/host-scope';
 import { useStrings } from '../../../src/ui/strings';
 import { SheetStack } from '../../../src/ui/primitives/sheet-stack';
+import { sheetScreenOptions } from '../../../src/ui/primitives/sheet-screen';
+import { useDesignTheme } from '../../../src/ui/design/theme';
 
 export default function BotProfileLayout() {
   const t = useStrings();
+  const theme = useDesignTheme();
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
   const { saved } = useHostSession(hostId);
   const [origin, setOrigin] = useState(hostId ?? saved?.hostId);
@@ -21,7 +24,7 @@ export default function BotProfileLayout() {
         <Stack.Screen name="memory-commit" />
         <Stack.Screen name="activity" />
         <Stack.Screen name="routine/[id]" />
-        <Stack.Screen name="assignment/[id]" />
+        <Stack.Screen name="assignment/[id]" options={sheetScreenOptions(theme)} />
         <Stack.Screen name="routine-new" />
         <Stack.Screen name="routine-edit/[id]" />
         <Stack.Screen name="model" />

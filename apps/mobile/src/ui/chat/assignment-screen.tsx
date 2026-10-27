@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,8 @@ import { MethodRefused } from '../../host/client';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, rowGlyph, space } from '../design/tokens';
+import { DrawerHeader } from '../primitives/drawer-header';
+import { SheetScreen } from '../primitives/sheet-screen';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { AssignmentActivityIcon, assignmentTone, StepMark, STEP_MARK } from './assignment-marks';
@@ -130,7 +132,7 @@ function Lane({ lane }: { lane: AssignmentTimelineLane }) {
         <Text accessibilityRole="header" variant="meta" strong>
           {laneLabel(lane)}
         </Text>
-        {lane.title === undefined ? null : (
+        {lane.role === 'main' || lane.title === undefined ? null : (
           <Text variant="meta" tone="muted" numberOfLines={1} style={{ flex: 1 }}>
             {lane.title}
           </Text>
@@ -333,6 +335,7 @@ export function AssignmentScreenBody({
   const [timeline, setTimeline] = useState<AssignmentTimeline>();
   const [error, setError] = useState<string>();
   const [attempt, setAttempt] = useState(0);
+  const router = useRouter();
   useFocusEffect(
     useCallback(() => {
       let live = true;
@@ -358,7 +361,12 @@ export function AssignmentScreenBody({
   );
   return (
     <>
-      <Stack.Screen options={{ title: timeline?.assignment.title ?? t.assignmentDetail.title }} />
+      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x3, paddingBottom: space.x3 }}>
+        <DrawerHeader
+          title={timeline?.assignment.title ?? t.assignmentDetail.title}
+          onClose={() => router.back()}
+        />
+      </View>
       {timeline === undefined ? (
         error === undefined ? (
           <SheetLoading />
@@ -379,7 +387,6 @@ export function AssignmentScreenBody({
 
 export function AssignmentScreen() {
   const t = useStrings();
-  const theme = useDesignTheme();
   const { slug, id, session } = useLocalSearchParams<{
     slug: string;
     id: string;
@@ -388,12 +395,12 @@ export function AssignmentScreen() {
   const sessionId = session ?? id;
   const { client } = useHostSession();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+    <SheetScreen>
       {client === undefined || slug === undefined || sessionId === undefined ? (
         <SheetNote>{t.noBot}</SheetNote>
       ) : (
         <AssignmentScreenBody client={client} slug={slug} sessionId={sessionId} />
       )}
-    </View>
+    </SheetScreen>
   );
 }

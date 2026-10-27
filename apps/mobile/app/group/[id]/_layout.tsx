@@ -3,9 +3,12 @@ import { useState } from 'react';
 import { useHostSession } from '../../../src/host/host-session';
 import { HostScope } from '../../../src/host/host-scope';
 import { SheetStack } from '../../../src/ui/primitives/sheet-stack';
+import { sheetScreenOptions } from '../../../src/ui/primitives/sheet-screen';
+import { useDesignTheme } from '../../../src/ui/design/theme';
 import { useStrings } from '../../../src/ui/strings';
 export default function GroupLayout() {
   const t = useStrings();
+  const theme = useDesignTheme();
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
   const { saved } = useHostSession(hostId);
   const [origin, setOrigin] = useState(hostId ?? saved?.hostId);
@@ -17,7 +20,7 @@ export default function GroupLayout() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="chat-background" options={{ title: t.chatBackground.title }} />
         <Stack.Screen name="notifications" options={{ title: t.notifications }} />
-        <Stack.Screen name="assignment/[session]" />
+        <Stack.Screen name="assignment/[session]" options={sheetScreenOptions(theme)} />
       </SheetStack>
     </HostScope>
   );

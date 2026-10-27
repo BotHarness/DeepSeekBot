@@ -7,6 +7,7 @@ vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },
   useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
   useLocalSearchParams: () => ({}),
+  useRouter: () => ({ back: () => undefined }),
 }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-safe-area-context', () => ({
