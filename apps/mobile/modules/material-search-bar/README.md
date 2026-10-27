@@ -1,0 +1,20 @@
+# Android Material search app bar
+
+Local Expo view wrapping Compose Material 3 `AppBarWithSearch` and `ExpandedFullScreenSearchBar`
+with one shared `SearchBarState` and `TextFieldState`, as in Compose's
+`FullScreenSearchBarScaffoldSample`. Android Chats uses it as its header.
+
+Collapsed, it is a search pill with a navigation button at its start (the workspace drawer) and an
+optional progress ring. Tapping the pill expands Compose's full-screen search dialog, which owns its
+motion, keyboard focus and predictive Back. Collapsing clears the query.
+
+The query streams to React as `onQueryChange`; React filters with the app's existing ranking and
+sends the results back as plain records (`key`, `title`, `subtitle`, `initial`). Results render as
+Material `ListItem`s inside the expanded surface, because that surface is a separate window that
+React Native views cannot draw into. A pick sends `onPick` with the key and collapses the bar.
+
+The older `material-search` module keeps the inline docked field for Activity and Marketplace; its
+README explains why the state-based bar is not used for inline search.
+
+A new Android development build is required. CI compiles and tests
+`:material-search-bar:testDebugUnitTest`. iOS keeps its existing search.

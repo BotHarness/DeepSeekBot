@@ -79,6 +79,7 @@ import { HomeHeader } from '../src/ui/shell/home-header';
 import { HeaderGlyph } from '../src/ui/shell/header-glyph.android';
 import { HeaderSearch } from '../src/ui/shell/header-search.android';
 import { ActivityToolbar } from '../src/ui/shell/activity-toolbar-base';
+import { ChatsSearchBar } from '../src/ui/shell/chats-search-bar.android';
 
 function header(searching: boolean) {
   const view = document.createElement('div');
@@ -110,6 +111,37 @@ function header(searching: boolean) {
 }
 
 describe('Android Chats header', () => {
+  it.each([1, 2])('hosts the native search app bar at its own height at font scale %s', (scale) => {
+    device.fontScale = scale;
+    const view = document.createElement('div');
+    view.innerHTML = renderToStaticMarkup(
+      <HomeHeader
+        environment={{ kind: 'all', key: 'all', title: 'All environments' }}
+        actions={<HeaderGlyph icon="search" active={false} />}
+        bar={
+          <ChatsSearchBar
+            placeholder="Search All environments"
+            busy={false}
+            results={[]}
+            onQuery={() => {}}
+            onExpanded={() => {}}
+            onPick={() => {}}
+            onNavigation={() => {}}
+          />
+        }
+      >
+        <div>Conversations</div>
+      </HomeHeader>,
+    );
+    const resting = view.querySelector<HTMLElement>('[data-testid="home-header"]')!;
+    const bar = resting.querySelector<HTMLElement>('[data-testid="chats-search-bar"]')!;
+    expect(resting.querySelector('[data-symbol]')).toBeNull();
+    expect(Number.parseFloat(resting.style.minHeight)).toBe(
+      24 + Number.parseFloat(bar.style.height),
+    );
+    expect(Number.parseFloat(bar.style.height)).toBe(56 + 24 * (scale - 1) + 8);
+  });
+
   it.each([1, 1.5, 2])(
     'reserves the native search height before opening at font scale %s',
     (fontScale) => {

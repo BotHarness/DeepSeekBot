@@ -8,7 +8,7 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
 import { hostColorInk } from '../design/host-look';
-import { materialSearchHeight } from '../design/material-search';
+import { materialSearchHeight, searchAppBarHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
 import { chatList, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -24,12 +24,14 @@ export function HomeHeader({
   connection,
   actions,
   search,
+  bar,
   children,
 }: {
   environment: ConversationEnvironment;
   connection?: ConnectionState | undefined;
   actions?: ReactNode;
   search?: ReactNode;
+  bar?: ReactNode;
   children: ReactNode | ((headerTravel: number) => ReactNode);
 }) {
   const t = useStrings();
@@ -39,7 +41,10 @@ export function HomeHeader({
   const drawerOpen = useHostDrawerOpen();
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
-  const minimumHeight = insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale);
+  const searchBar = android && bar !== undefined;
+  const minimumHeight = searchBar
+    ? insets.top + searchAppBarHeight(theme.fontScale)
+    : insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale);
   const [measuredHeight, setMeasuredHeight] = useState(0);
   const height = Math.max(minimumHeight, measuredHeight);
   const travel = android ? Math.max(0, height - insets.top) : 0;
@@ -61,67 +66,73 @@ export function HomeHeader({
         flexDirection: 'row',
         alignItems: 'center',
         gap: space.x2,
-        paddingHorizontal: chatList.gutter,
-        paddingTop: insets.top + space.x2,
-        paddingBottom: space.x2,
+        paddingHorizontal: searchBar ? 0 : chatList.gutter,
+        paddingTop: insets.top + (searchBar ? 0 : space.x2),
+        paddingBottom: searchBar ? 0 : space.x2,
       }}
     >
-      {search ?? (
-        <>
-          <Pressable
-            ref={chip}
-            testID="chats-view-button"
-            onPress={openHostDrawer}
-            accessibilityRole="button"
-            accessibilityLabel={[
-              t.workspaces,
-              environment.accessibilityLabel ?? environment.title,
-              connectionLabel,
-            ]
-              .filter(Boolean)
-              .join(', ')}
-            accessibilityState={{ expanded: drawerOpen, busy: connectionLabel !== undefined }}
-            style={({ pressed }) => ({
-              flex: 1,
-              minWidth: 0,
-              minHeight: theme.touch,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: space.x2,
-              opacity: pressed ? 0.7 : 1,
-            })}
-          >
-            {environment.kind === 'computer' && environment.hostIcon ? (
-              <HostGlyph
-                icon={environment.hostIcon}
-                size={theme.type.title.line * theme.fontScale}
-                color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
-              />
-            ) : environment.kind === 'cloud' ? (
-              <CloudIcon
-                color={theme.color.accent}
-                size={theme.type.title.line * theme.fontScale}
-              />
-            ) : (
-              <ChatsIcon
-                color={theme.color.accent}
-                size={theme.type.title.line * theme.fontScale}
-              />
-            )}
-            <Text
-              variant="title"
-              strong
-              accessibilityRole="header"
-              numberOfLines={Platform.OS === 'android' ? 1 : undefined}
-              style={{ flexShrink: 1 }}
+      {searchBar ? (
+        <View ref={chip} style={{ flex: 1 }}>
+          {bar}
+        </View>
+      ) : (
+        (search ?? (
+          <>
+            <Pressable
+              ref={chip}
+              testID="chats-view-button"
+              onPress={openHostDrawer}
+              accessibilityRole="button"
+              accessibilityLabel={[
+                t.workspaces,
+                environment.accessibilityLabel ?? environment.title,
+                connectionLabel,
+              ]
+                .filter(Boolean)
+                .join(', ')}
+              accessibilityState={{ expanded: drawerOpen, busy: connectionLabel !== undefined }}
+              style={({ pressed }) => ({
+                flex: 1,
+                minWidth: 0,
+                minHeight: theme.touch,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x2,
+                opacity: pressed ? 0.7 : 1,
+              })}
             >
-              {environment.title}
-            </Text>
-            <ConnectionProgress active={connectionLabel !== undefined} />
-            <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
-          </Pressable>
-          {actions}
-        </>
+              {environment.kind === 'computer' && environment.hostIcon ? (
+                <HostGlyph
+                  icon={environment.hostIcon}
+                  size={theme.type.title.line * theme.fontScale}
+                  color={hostColorInk(theme.scheme, theme.color, environment.hostColor)}
+                />
+              ) : environment.kind === 'cloud' ? (
+                <CloudIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              ) : (
+                <ChatsIcon
+                  color={theme.color.accent}
+                  size={theme.type.title.line * theme.fontScale}
+                />
+              )}
+              <Text
+                variant="title"
+                strong
+                accessibilityRole="header"
+                numberOfLines={Platform.OS === 'android' ? 1 : undefined}
+                style={{ flexShrink: 1 }}
+              >
+                {environment.title}
+              </Text>
+              <ConnectionProgress active={connectionLabel !== undefined} />
+              <ChevronDownIcon color={theme.color.muted} size={theme.type.body.line} />
+            </Pressable>
+            {actions}
+          </>
+        ))
       )}
     </View>
   );
