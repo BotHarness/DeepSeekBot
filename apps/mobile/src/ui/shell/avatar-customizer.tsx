@@ -179,7 +179,11 @@ export function AvatarCustomizer({
     if (saved) onClose();
   };
   return (
-    <View testID="avatar-customizer" style={{ flex: 1, backgroundColor: theme.color.base }}>
+    <View
+      collapsable={false}
+      testID="avatar-customizer"
+      style={{ flex: 1, backgroundColor: theme.color.base }}
+    >
       <Stack.Screen
         options={{
           title: strings.avatarEditor.title,
@@ -194,7 +198,7 @@ export function AvatarCustomizer({
           ),
         }}
       />
-      <View pointerEvents={busy ? 'none' : 'auto'} style={{ flex: 1 }}>
+      <View collapsable={false} pointerEvents={busy ? 'none' : 'auto'} style={{ flex: 1 }}>
         <View style={{ alignItems: 'center', gap: space.x3, padding: space.x4 }}>
           <View
             accessibilityRole="image"
