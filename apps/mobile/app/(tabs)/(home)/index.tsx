@@ -50,6 +50,7 @@ import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
 import { chatsSearchResults } from '../../../src/ui/chat/chats-search-results';
+import { avatarImageUri } from '../../../src/host/native-notification-avatars';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
 import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
@@ -281,7 +282,9 @@ const HomeContent = memo(function HomeContent({
   );
   const searchResults = useMemo(
     () =>
-      Platform.OS === 'android' ? chatsSearchResults(displayed, query, searchAppBar.recent) : [],
+      Platform.OS === 'android'
+        ? chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri)
+        : [],
     [displayed, query],
   );
   const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;

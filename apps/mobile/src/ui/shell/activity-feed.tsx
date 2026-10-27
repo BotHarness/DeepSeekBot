@@ -64,11 +64,12 @@ import {
 } from '../../host/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
+import { GroupMark } from '../chat/group-mark';
 import { ApprovalCard } from '../chat/approval-card';
 import { QuestionCard } from '../chat/question-card';
 import { useDesignTheme } from '../design/theme';
 import { spring, springy } from '../design/motion';
-import { space, undoBar } from '../design/tokens';
+import { radius, space, undoBar } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { CountBadge } from '../primitives/count-badge';
 import { Notice } from '../request-parts';
@@ -83,6 +84,7 @@ import { ArchiveIcon, ClockIcon, UndoIcon } from './icons';
 import type { ActivityOptions } from './activity-header-actions';
 import { ActivityToolbar, type ActivityToolbarHandle } from './activity-toolbar';
 import { ActivityTabs, ACTIVITY_TABS, type ActivityTab } from './activity-tabs';
+import { activityAvatar } from './activity-avatar';
 import { useFloatingTabInset } from './floating-tab-inset';
 import { CollapsingToolbar, useChromeProgress, useChromeScroll } from './scroll-chrome';
 import { useStrings } from '../strings';
@@ -225,6 +227,29 @@ function ActivityEnvironment({ item }: { item: HumanAttentionItem }) {
   );
 }
 
+function ActivityAvatar({
+  item,
+  bot,
+  size,
+}: {
+  item: HumanAttentionItem;
+  bot: RosterBot | undefined;
+  size: number;
+}) {
+  const corner = size < AVATAR ? radius.xs : radius.sm;
+  const avatar = activityAvatar(item, bot);
+  if (avatar.kind === 'bot') return <BotAvatar bot={avatar.bot} size={size} corner={corner} />;
+  return (
+    <GroupMark
+      avatar={avatar.kind === 'group' ? avatar.avatar : undefined}
+      initial={avatar.kind === 'initial' ? avatar.initial : '#'}
+      size={size}
+      corner={corner}
+      variant={size < AVATAR ? 'meta' : 'body'}
+    />
+  );
+}
+
 const Row = memo(function Row({
   item,
   settled,
@@ -284,18 +309,7 @@ const Row = memo(function Row({
           backgroundColor: pressed ? theme.layer.canvas.pressed : theme.layer.canvas.fill,
         })}
       >
-        {bot === undefined ? (
-          <View
-            style={{
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              backgroundColor: theme.layer.canvas.inset,
-            }}
-          />
-        ) : (
-          <BotAvatar bot={bot} size={size} />
-        )}
+        <ActivityAvatar item={item} bot={bot} size={size} />
         <View
           key={`${theme.scheme}:${theme.fontScale}:${name}`}
           style={{ flex: 1, minWidth: 0, gap: space.x1 }}
@@ -408,18 +422,7 @@ function Post({
             opacity: pressed ? 0.6 : 1,
           })}
         >
-          {bot === undefined ? (
-            <View
-              style={{
-                width: AVATAR,
-                height: AVATAR,
-                borderRadius: AVATAR / 2,
-                backgroundColor: theme.layer.canvas.inset,
-              }}
-            />
-          ) : (
-            <BotAvatar bot={bot} size={AVATAR} />
-          )}
+          <ActivityAvatar item={item} bot={bot} size={AVATAR} />
           <View
             key={`${theme.scheme}:${theme.fontScale}:${name}`}
             style={{
