@@ -42,6 +42,32 @@ export function alignOrchestratorSubagentPermission(
   if (approval.overrideOf(session) !== 'never') setApprovalPolicy(session, 'never');
 }
 
+export function alignOrchestratorPermission(
+  core: Pick<BotHarnessCore, 'ownership'> & AccessCore,
+  session: Session,
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): boolean | undefined {
+  const owner = core.ownership.resolve(session.id);
+  if (
+    owner?.rootRole !== 'orchestrator' ||
+    owner.provenance === 'subagent' ||
+    owner.parentSessionId !== undefined ||
+    policy === undefined ||
+    approval === undefined
+  )
+    return undefined;
+  const expected = orchestratorPermission(core, owner.botSlug);
+  if (
+    policy.resolve({ session }).mode === expected.mode &&
+    approval.overrideOf(session) === expected.approval
+  )
+    return false;
+  setSandboxMode(session, expected.mode);
+  setApprovalPolicy(session, expected.approval);
+  return true;
+}
+
 export function orchestratorPermission(
   core: AccessCore,
   botSlug: string,
@@ -155,6 +181,19 @@ export function grantExecutionDenial(
     return 'Assignment Workspace Grant is missing, revoked, or unavailable';
   }
   return undefined;
+}
+
+export function borrowedAgentDenial(
+  core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'> & AccessCore,
+  session: Session,
+  role: 'orchestrator' | 'assignment',
+  policy: SandboxPolicyService | undefined,
+  approval: ApprovalService | undefined,
+): string | undefined {
+  if (core.ownership.resolve(session.id)?.rootRole !== role)
+    return 'BotHarness Agent role mismatch';
+  alignOrchestratorPermission(core, session, policy, approval);
+  return grantExecutionDenial(core, session, policy, approval);
 }
 
 const BOT_TOOL_NAMES = new Set([

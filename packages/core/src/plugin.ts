@@ -198,7 +198,9 @@ import {
   type HumanAttentionDecisions,
 } from './runtime/human-attention.js';
 import {
+  alignOrchestratorPermission as alignOrchestratorRootPermission,
   alignOrchestratorSubagentPermission,
+  borrowedAgentDenial,
   deviceToolAuthorization,
   grantExecutionDenial,
   grantToolExecutionDenial,
@@ -1359,11 +1361,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           }),
       ),
     authorizeBorrow: (agent, role) => {
-      const owner = core.ownership.resolve(agent.session.id);
-      if (owner?.rootRole !== role) throw new Error('BotHarness Agent role mismatch');
-      const denial = grantExecutionDenial(
+      const denial = borrowedAgentDenial(
         core,
         agent.session,
+        role,
         ctx.get('sandboxPolicy'),
         ctx.get('approval'),
       );
@@ -1592,31 +1593,17 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.effect(() => () => appliedPermission.clear(), 'botharness: Orchestrator permission record');
   const alignOrchestratorPermission = (agent: import('@deepseek-ai/dsh-agent').Agent): void => {
     const session = agent.session;
+    const changed = alignOrchestratorRootPermission(
+      core,
+      session,
+      ctx.get('sandboxPolicy'),
+      ctx.get('approval'),
+    );
     const owner = core.ownership.resolve(session.id);
-    const policy = ctx.get('sandboxPolicy') as
-      | import('@deepseek-ai/dsh-sandbox-policy').SandboxPolicyService
-      | undefined;
-    const approval = ctx.get('approval') as ApprovalService | undefined;
-    if (
-      owner?.rootRole !== 'orchestrator' ||
-      owner.provenance === 'subagent' ||
-      owner.parentSessionId !== undefined ||
-      policy === undefined ||
-      approval === undefined
-    )
-      return;
+    if (changed === undefined || owner === undefined) return;
     const expected = orchestratorPermission(core, owner.botSlug);
     const key = expected.mode + '+' + expected.approval;
-    if (
-      policy.resolve({ session }).mode === expected.mode &&
-      approval.overrideOf(session) === expected.approval
-    ) {
-      appliedPermission.set(session.id, key);
-      return;
-    }
-    const changedOutside = appliedPermission.get(session.id) === key;
-    setSandboxMode(session, expected.mode);
-    setApprovalPolicy(session, expected.approval);
+    const changedOutside = changed && appliedPermission.get(session.id) === key;
     appliedPermission.set(session.id, key);
     if (!changedOutside) return;
     ctx.logger.warn(
