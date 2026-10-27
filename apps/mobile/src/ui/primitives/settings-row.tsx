@@ -69,7 +69,7 @@ export function SettingsRow({
       testID={testID}
       onPress={onPress}
       disabled={onPress === undefined}
-      accessible={android && onPress === undefined ? false : undefined}
+      accessible={onPress === undefined ? false : undefined}
       android_ripple={android && onPress ? { color: pressTint(theme.color.fg) } : undefined}
       accessibilityRole={onPress === undefined ? undefined : 'button'}
       accessibilityLabel={

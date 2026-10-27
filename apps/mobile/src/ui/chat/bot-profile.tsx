@@ -646,6 +646,7 @@ export function BotProfilePage({
   load,
   actions,
   settings,
+  permissions,
   workActions,
   files,
   initialProfile,
@@ -657,6 +658,7 @@ export function BotProfilePage({
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
   settings?: ReactNode;
+  permissions?: ReactNode;
   workActions?: ReactNode;
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
   initialProfile?: BotProfile | undefined;
@@ -725,6 +727,14 @@ export function BotProfilePage({
     settings: {
       rows: [
         ...rows.activity.map(rowOf),
+        ...(permissions === undefined
+          ? []
+          : [
+              node('settings:permissions', () => (
+                <SubHeading>{t.approvals.permissions}</SubHeading>
+              )),
+              node('settings:permissions:rows', () => permissions),
+            ]),
         node('settings:bot', () => <SubHeading>{t.profileSettingsBot}</SubHeading>),
         ...(content.ready && settings !== undefined
           ? [node('settings:panel', () => settings)]

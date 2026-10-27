@@ -52,6 +52,7 @@ export interface RosterBot {
   description?: string;
   computerAccess: boolean;
   browserAccess: boolean;
+  hostAccess?: { computer: boolean; browser: boolean };
   state: AggregatedState;
   activity?: WireToolActivity;
   sessions?: readonly WireSessionActivity[];
@@ -406,6 +407,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
               (!isEncryptedRoute(route, options.encryption) || isLanRoute(route)),
             browserAccess:
               bot.browserAccess === true && !isEncryptedRoute(route, options.encryption),
+            hostAccess: {
+              computer: bot.computerAccess === true,
+              browser: bot.browserAccess === true,
+            },
             state: live?.state ?? bot.aggregateState,
             ...(live?.activity === undefined ? {} : { activity: live.activity }),
             ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),

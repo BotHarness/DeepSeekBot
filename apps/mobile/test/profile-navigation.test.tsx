@@ -77,6 +77,7 @@ vi.mock('expo-sharing', () => ({
   shareAsync: vi.fn(),
 }));
 vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('expo-file-system', () => ({
   File: class {
     exists = false;
