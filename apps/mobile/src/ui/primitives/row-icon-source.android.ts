@@ -2,7 +2,10 @@ import type { ImageSourcePropType } from 'react-native';
 
 import type { RowIconName } from './row-icon';
 
-export const ROW_ICON_SOURCES: Record<RowIconName | 'check' | 'chevron', ImageSourcePropType> = {
+export const ROW_ICON_SOURCES: Record<
+  RowIconName | 'check' | 'chevron' | 'expand' | 'collapse',
+  ImageSourcePropType
+> = {
   feedback: require('../../../assets/row-icons/feedback.xml'),
   select: require('../../../assets/row-icons/select.xml'),
   language: require('../../../assets/row-icons/language.xml'),
@@ -32,4 +35,6 @@ export const ROW_ICON_SOURCES: Record<RowIconName | 'check' | 'chevron', ImageSo
   check: require('../../../assets/row-icons/check.xml'),
   chevron: require('../../../assets/row-icons/chevron.xml'),
   add: require('../../../assets/row-icons/add.xml'),
+  expand: require('../../../assets/row-icons/expand.xml'),
+  collapse: require('../../../assets/row-icons/collapse.xml'),
 };
