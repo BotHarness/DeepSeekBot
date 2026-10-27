@@ -1,4 +1,4 @@
-import { useLocalSearchParams, useNavigationContainerRef, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { View } from 'react-native';
 
@@ -7,14 +7,14 @@ import { setBotAvatar } from '../../../src/host/bot-avatar';
 import { pickAvatarImage } from '../../../src/host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../../src/host/host-session';
 import { RequestActivityControl } from '../../../src/ui/chat/request-activity-control';
-import { ChannelFilesAction } from '../../../src/ui/chat/channel-files-action';
-import { BotProfileSheet } from '../../../src/ui/chat/bot-profile';
+import { BotProfilePage } from '../../../src/ui/chat/bot-profile';
 import { BotSettingsPanel } from '../../../src/ui/chat/bot-settings-panel';
+import { ChannelFilesTab } from '../../../src/ui/chat/channel-files-tab';
+import { profileTabMemory } from '../../../src/ui/chat/native-profile-tab-memory';
 import { useDesignTheme } from '../../../src/ui/design/theme';
 import { space } from '../../../src/ui/design/tokens';
 import { Text } from '../../../src/ui/primitives/text';
 import { useStrings } from '../../../src/ui/strings';
-import { navigateChannel } from '../../../src/ui/shell/channel-navigation';
 
 export default function BotProfileScreen() {
   const t = useStrings();
@@ -25,7 +25,6 @@ export default function BotProfileScreen() {
     activityMessageId?: string;
   }>();
   const router = useRouter();
-  const navigation = useNavigationContainerRef();
   const theme = useDesignTheme();
   const { client, saved } = useHostSession(hostId);
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
@@ -46,7 +45,7 @@ export default function BotProfileScreen() {
         style={{
           flex: 1,
           padding: space.x6,
-          backgroundColor: theme.color.surface,
+          backgroundColor: theme.overlay.fill,
         }}
       >
         {sourceChanged ? (
@@ -57,40 +56,55 @@ export default function BotProfileScreen() {
       </View>
     );
 
+  const filesChannel =
+    saved &&
+    bot.dmChannelId &&
+    snapshot.connection.status !== 'refused' &&
+    (channelId === undefined || channelId === bot.dmChannelId)
+      ? bot.dmChannelId
+      : undefined;
   return (
-    <BotProfileSheet
+    <BotProfilePage
       key={`${saved?.hostId}:${bot.slug}`}
       bot={bot}
       channels={channels}
       initialProfile={profile.peek()}
       load={profile.refresh}
-      avatar={{ pick: pickAvatarImage, save: (avatar) => setBotAvatar(client, bot, avatar) }}
-      conversationActions={
-        <View style={{ gap: space.x3 }}>
-          {saved &&
-          bot.dmChannelId &&
-          snapshot.connection.status !== 'refused' &&
-          (channelId === undefined || channelId === bot.dmChannelId) ? (
-            <ChannelFilesAction
-              hostId={saved.hostId}
-              channelId={bot.dmChannelId}
-              botSlug={bot.slug}
-            />
-          ) : null}
-          {saved ? (
-            <RequestActivityControl
-              client={client}
-              bot={bot}
-              hostId={saved.hostId}
-              messageId={activityMessageId}
-              channelId={channelId}
-              refused={snapshot.connection.status === 'refused'}
-            />
-          ) : null}
-        </View>
+      tabMemory={profileTabMemory}
+      avatar={{
+        pick: pickAvatarImage,
+        save: (avatar) => setBotAvatar(client, bot, avatar),
+      }}
+      workActions={
+        saved ? (
+          <RequestActivityControl
+            client={client}
+            bot={bot}
+            hostId={saved.hostId}
+            messageId={activityMessageId}
+            channelId={channelId}
+            refused={snapshot.connection.status === 'refused'}
+          />
+        ) : undefined
+      }
+      files={
+        saved && filesChannel
+          ? (active, render) => (
+              <ChannelFilesTab
+                client={client}
+                hostId={saved.hostId}
+                channelId={filesChannel}
+                botSlug={bot.slug}
+                active={active}
+              >
+                {render}
+              </ChannelFilesTab>
+            )
+          : undefined
       }
       settings={<BotSettingsPanel client={client} bot={bot} />}
       actions={{
+        onClose: () => router.back(),
         onOpenRoutine: (routine) =>
           router.push({
             pathname: '/bot/[slug]/routine/[id]',
@@ -101,17 +115,6 @@ export default function BotProfileScreen() {
             pathname: '/bot/[slug]/routine-new',
             params: { slug: bot.slug, hostId: saved?.hostId },
           }),
-        onMessage: () => {
-          if (saved)
-            navigateChannel(
-              navigation,
-              {
-                pathname: '/dm/[slug]',
-                params: { slug: bot.slug, hostId: saved.hostId },
-              },
-              'dismiss-profile',
-            );
-        },
         ...(bot.browserAccess
           ? {
               onBrowser: () =>

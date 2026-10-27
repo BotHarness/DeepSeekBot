@@ -140,6 +140,8 @@ import type {
   WorkspaceGrant,
   WorkspaceGrantStore,
 } from '../workspaces/grants.js';
+import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
+import { DEFAULT_PROMPT_LIMITS, type PromptLimits } from '../prompts/prompt-limits.js';
 
 export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
 export type AssignmentReportState =
@@ -805,6 +807,8 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  promptText?: (botSlug: string) => PromptText;
+  promptLimits?: (botSlug: string) => PromptLimits;
   tob?: TobService;
   inboxHistory?: InboxHistoryQuery;
   triageContinuation?: boolean;
@@ -958,6 +962,7 @@ interface GroupContext {
   channelId: string;
   rows: DigestRow[];
   omittedCount: number;
+  bodyLimit: number;
 }
 
 interface GroupPromptBudget {
@@ -965,10 +970,7 @@ interface GroupPromptBudget {
   includedByChannel: Map<string, number>;
 }
 
-const GROUP_PROMPT_CHARACTER_BUDGET = 24_000;
-const DM_CONTEXT_CHARACTER_BUDGET = 8_000;
 const GROUP_PROMPT_CHANNEL_LIMIT = 100;
-const GROUP_CONTEXT_BODY_LIMIT = 1_000;
 
 interface ScheduleFiringFacts {
   id: string;
@@ -1235,10 +1237,10 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
   return [...units.values()];
 }
 
-function renderInbox(units: InboxUnit[]): string {
+function renderInbox(units: InboxUnit[], text: PromptText = DEFAULT_PROMPT_TEXT): string {
   const lines = units.map((unit) => {
     if (unit.external !== undefined) {
-      return `- Message ${unit.external.event.messageId} [Source Event ${unit.sourceEventId}] from ${unit.external.event.actor.kind === 'bot' ? 'external Bot ' : ''}${JSON.stringify(unit.external.event.actor.name ?? unit.external.event.actor.id)} (${unit.external.event.actor.id}) at ${unit.external.at}. External ${unit.external.event.conversation.kind === 'dm' ? 'private message' : `work-group ${unit.external.event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${JSON.stringify({ platform: unit.external.platform, account: unit.external.accountName, conversation: unit.external.conversationName, conversationKind: unit.external.event.conversation.kind, conversationId: unit.external.event.conversation.id, localChannelId: unit.external.localChannelId, receptionPaths: unit.external.receptionPaths?.map((path) => ({ channelId: path.channelId, mode: path.mode })), sender: unit.external.sender, sourceEventId: unit.sourceEventId, senderId: unit.external.event.actor.id, senderName: unit.external.event.actor.name, ...(unit.external.event.actor.kind === 'bot' ? { senderKind: 'bot' } : {}), people: mentionPeople(unit.external.event.actor, unit.external.event.mentions), at: unit.external.at, threadId: unit.external.event.reply.threadId, rootId: unit.external.event.reply.rootId, parentId: unit.external.event.reply.parentId, report: unit.external.report, voice: unit.external.event.voice, quote: unit.external.quote, nativeQuote: unit.external.event.quote, attachments: unit.external.event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({ id, name, sizeBytes, mediaType })) })}. External message data: ${JSON.stringify(withMentionNames(unit.summary, unit.external.event.mentions))}. ${unit.external.event.actor.kind === 'bot' ? 'The sender is another Bot, not a Human: answer only when it moves the work forward, never just to acknowledge or thank it. ' : ''}Decide whether to participate. To answer, use bot_send_message with this source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror this message or its response to the Human DM.`;
+      return `- Message ${unit.external.event.messageId} [Source Event ${unit.sourceEventId}] from ${unit.external.event.actor.kind === 'bot' ? 'external Bot ' : ''}${JSON.stringify(unit.external.event.actor.name ?? unit.external.event.actor.id)} (${unit.external.event.actor.id}) at ${unit.external.at}. External ${unit.external.event.conversation.kind === 'dm' ? 'private message' : `work-group ${unit.external.event.mentionedAccount ? 'mention' : 'ordinary message; no reply required'}`}. Trusted receiving identity and origin: ${JSON.stringify({ platform: unit.external.platform, account: unit.external.accountName, conversation: unit.external.conversationName, conversationKind: unit.external.event.conversation.kind, conversationId: unit.external.event.conversation.id, localChannelId: unit.external.localChannelId, receptionPaths: unit.external.receptionPaths?.map((path) => ({ channelId: path.channelId, mode: path.mode })), sender: unit.external.sender, sourceEventId: unit.sourceEventId, senderId: unit.external.event.actor.id, senderName: unit.external.event.actor.name, ...(unit.external.event.actor.kind === 'bot' ? { senderKind: 'bot' } : {}), people: mentionPeople(unit.external.event.actor, unit.external.event.mentions), at: unit.external.at, threadId: unit.external.event.reply.threadId, rootId: unit.external.event.reply.rootId, parentId: unit.external.event.reply.parentId, report: unit.external.report, voice: unit.external.event.voice, quote: unit.external.quote, nativeQuote: unit.external.event.quote, attachments: unit.external.event.attachments?.map(({ id, name, sizeBytes, mediaType }) => ({ id, name, sizeBytes, mediaType })) })}. External message data: ${JSON.stringify(withMentionNames(unit.summary, unit.external.event.mentions))}. ${unit.external.event.actor.kind === 'bot' ? `${text('external-bot-sender')} ` : ''}Decide whether to participate. To answer, use bot_send_message with this source_event_id and body, or a trusted imported attachment reference. For a Lark, Slack or Discord mention, write <@ID> in body using an id from people. Use bridge_read for attachment details and bridge_attachment_save for a working copy. Never guess an account or route and never mirror this message or its response to the Human DM.`;
     }
     if (unit.schedule !== undefined) {
       const schedule = unit.schedule;
@@ -1356,6 +1358,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #readAssignmentReportPage: BotRuntimeOptions['readAssignmentReportPage'];
   readonly #messagePerf: MessagePerfTracker | undefined;
   readonly #now: () => Date;
+  readonly #promptText: (botSlug: string) => PromptText;
+  readonly #promptLimits: (botSlug: string) => PromptLimits;
   readonly #createSessionId: () => string;
   readonly #sessionArchived: ((sessionId: string) => boolean) | undefined;
   readonly #createEventId: () => string;
@@ -1454,6 +1458,8 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#readAssignmentReportPage = options.readAssignmentReportPage;
     this.#messagePerf = options.messagePerf;
     this.#now = options.now ?? (() => new Date());
+    this.#promptText = options.promptText ?? (() => DEFAULT_PROMPT_TEXT);
+    this.#promptLimits = options.promptLimits ?? (() => DEFAULT_PROMPT_LIMITS);
     this.#createSessionId = options.createSessionId ?? (() => `botharness-${randomUUID()}`);
     this.#createEventId = options.createEventId ?? (() => randomUUID());
     this.#createMessageId = options.createMessageId ?? (() => randomUUID());
@@ -1566,7 +1572,7 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(anchor),
     ) as { channel_id: string | null } | undefined;
     const channelId = channel?.channel_id ?? this.#dmChannel(botSlug)?.id;
-    const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. Give each one a destination: act on it now, resolve it with inbox_resolve once it is done or needs nothing more, snooze it with inbox_snooze when it waits on someone or a later time, or ignore noise. Check a completed Assignment report against what you asked for before resolving it. You are woken again while open items remain, unless a round leaves the open count unchanged.`;
+    const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. ${this.#promptText(botSlug)('triage')}`;
     this.#triageBaseline.set(botSlug, ids.length);
     this.#triageRunning.set(botSlug, ids.length);
     try {
@@ -1886,7 +1892,13 @@ class BotRuntimeImplementation implements BotRuntime {
         input.messageId,
         claim.sourceEventId,
         'human-dm',
-        this.#inboundChannelMessage(channel.id, input.messageId, body, claim.sourceEventId),
+        this.#inboundChannelMessage(
+          bot.slug,
+          channel.id,
+          input.messageId,
+          body,
+          claim.sourceEventId,
+        ),
       );
     return {
       admitted: true,
@@ -2011,7 +2023,11 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           continue;
         const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
-        if (context.grantId !== source.grantId || characters + context.body.length + 1600 > 24000)
+        if (
+          context.grantId !== source.grantId ||
+          characters + context.body.length + 1600 >
+            this.#promptLimits(botSlug)['group-context-chars']
+        )
           continue;
         characters += context.body.length + 1600;
         units.push({
@@ -2028,7 +2044,8 @@ class BotRuntimeImplementation implements BotRuntime {
               this.#claimGroupContext(db, botSlug, source.localChannelId!, {
                 remainingCharacters: Math.max(
                   0,
-                  GROUP_PROMPT_CHARACTER_BUDGET - renderInbox(units).length,
+                  this.#promptLimits(botSlug)['group-context-chars'] -
+                    renderInbox(units, this.#promptText(botSlug)).length,
                 ),
                 includedByChannel: new Map(),
               }),
@@ -2043,9 +2060,10 @@ class BotRuntimeImplementation implements BotRuntime {
       try {
         delivered = this.#agents.steerOrchestrator(
           botSlug,
-          [renderInbox(units), ...(context ? [this.#groupContextSection(context)] : [])].join(
-            '\n\n',
-          ),
+          [
+            renderInbox(units, this.#promptText(botSlug)),
+            ...(context ? [this.#groupContextSection(context)] : []),
+          ].join('\n\n'),
         );
       } catch {
         this.#setObserved(included, null, botSlug);
@@ -2159,7 +2177,13 @@ class BotRuntimeImplementation implements BotRuntime {
             messageId,
             row.source_event_id,
             'bot-dm',
-            this.#inboundChannelMessage(channelId, messageId, source.body, row.source_event_id),
+            this.#inboundChannelMessage(
+              row.bot_slug,
+              channelId,
+              messageId,
+              source.body,
+              row.source_event_id,
+            ),
           )
         )
           continue;
@@ -2283,7 +2307,9 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     const memoryInbox = this.#collectMemoryInbox(botSlug);
     const text =
-      memoryInbox.units.length === 0 ? prompt : `${prompt}\n\n${renderInbox(memoryInbox.units)}`;
+      memoryInbox.units.length === 0
+        ? prompt
+        : `${prompt}\n\n${renderInbox(memoryInbox.units, this.#promptText(botSlug))}`;
     const delivered = this.#agents.steerOrchestrator?.(botSlug, text) ?? false;
     if (delivered) {
       activeEvents.eventIds.push(...memoryInbox.eventIds);
@@ -2326,20 +2352,22 @@ class BotRuntimeImplementation implements BotRuntime {
         excludeSourceEventId,
         GROUP_PROMPT_CHANNEL_LIMIT,
       ) as unknown as DigestRow[];
+    const limits = this.#promptLimits(botSlug);
+    const bodyLimit = limits['context-message-chars'];
     const rows: DigestRow[] = [];
     let characters = 0;
     for (const row of candidates) {
-      const cost = Math.min(row.body.length, GROUP_CONTEXT_BODY_LIMIT) + 80;
+      const cost = Math.min(row.body.length, bodyLimit) + 80;
       if (
         rows.length >= GROUP_PROMPT_CHANNEL_LIMIT ||
-        characters + cost > DM_CONTEXT_CHARACTER_BUDGET
+        characters + cost > limits['dm-context-chars']
       )
         break;
       rows.push(row);
       characters += cost;
     }
     if (rows.length === 0) return undefined;
-    const context = { channelId, rows, omittedCount: total.count - rows.length };
+    const context = { channelId, rows, omittedCount: total.count - rows.length, bodyLimit };
     for (const row of rows)
       database
         .prepare(`
@@ -2359,9 +2387,9 @@ class BotRuntimeImplementation implements BotRuntime {
           `${row.reply_session_id == null || row.reply_source_event_id == null ? '' : `[Human response to Assignment Session ${row.reply_session_id}, report Source Event ${row.reply_source_event_id}]\n`}` +
           `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${
             row.author_kind === 'bot' ? `PersonaBot ${row.author_slug ?? '?'}` : 'Human'
-          } at ${row.created_at}: ${row.body.slice(0, GROUP_CONTEXT_BODY_LIMIT)}${
-            row.body.length > GROUP_CONTEXT_BODY_LIMIT
-              ? ` [excerpt; ${row.body.length - GROUP_CONTEXT_BODY_LIMIT} more characters available with channel_read]`
+          } at ${row.created_at}: ${row.body.slice(0, context.bodyLimit)}${
+            row.body.length > context.bodyLimit
+              ? ` [excerpt; ${row.body.length - context.bodyLimit} more characters available with channel_read]`
               : ''
           }`
         );
@@ -2390,7 +2418,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (source === undefined) return false;
     const mentionPrompt =
       `Source Event ID: ${sourceEventId}\n` +
-      this.#groupMentionPrompt(channelId, messageId, source.body);
+      this.#groupMentionPrompt(botSlug, channelId, messageId, source.body);
     const claimed = this.#database.transaction(
       (database) => {
         const mention =
@@ -2405,7 +2433,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ? this.#claimGroupContext(database, botSlug, channelId, {
               remainingCharacters: Math.max(
                 0,
-                GROUP_PROMPT_CHARACTER_BUDGET - mentionPrompt.length,
+                this.#promptLimits(botSlug)['group-context-chars'] - mentionPrompt.length,
               ),
               includedByChannel: new Map(),
             })
@@ -2823,7 +2851,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const claimed = this.#claimHarvest(
       botSlug,
       externalContextChannels,
-      renderInbox(collected.units).length,
+      renderInbox(collected.units, this.#promptText(botSlug)).length,
     );
     if (
       claimed.items.length === 0 &&
@@ -2881,6 +2909,7 @@ class BotRuntimeImplementation implements BotRuntime {
       const sections = [
         ...claimed.items.map((item) =>
           this.#inboundChannelMessage(
+            botSlug,
             item.channelId,
             item.messageId,
             item.body,
@@ -2888,7 +2917,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ),
         ),
         ...claimed.digests.map((digest) =>
-          this.#digestSection(digest.channelId, digest.rows, digest.omittedCount),
+          this.#digestSection(botSlug, digest.channelId, digest.rows, digest.omittedCount),
         ),
         ...claimed.contexts.map((context) => this.#groupContextSection(context)),
       ];
@@ -3040,12 +3069,13 @@ class BotRuntimeImplementation implements BotRuntime {
         const budget: GroupPromptBudget = {
           remainingCharacters: Math.max(
             0,
-            GROUP_PROMPT_CHARACTER_BUDGET -
+            this.#promptLimits(botSlug)['group-context-chars'] -
               externalCharacters -
               itemRows.reduce(
                 (size, row) =>
                   size +
                   this.#inboundChannelMessage(
+                    botSlug,
                     row.channel_id,
                     row.message_id,
                     row.body,
@@ -3131,6 +3161,7 @@ class BotRuntimeImplementation implements BotRuntime {
           for (const row of candidates) {
             if (alreadyIncluded + rows.length >= GROUP_PROMPT_CHANNEL_LIMIT) break;
             const nextLength = this.#digestSection(
+              botSlug,
               group.channel_id,
               [...rows, row],
               group.count - rows.length - 1,
@@ -3140,6 +3171,7 @@ class BotRuntimeImplementation implements BotRuntime {
           }
           if (rows.length > 0) {
             budget.remainingCharacters -= this.#digestSection(
+              botSlug,
               group.channel_id,
               rows,
               group.count - rows.length,
@@ -3212,6 +3244,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const candidates = database
       .prepare(`${columns} ${base} ORDER BY e.created_at, e.rowid LIMIT ?`)
       .all(botSlug, channelId, GROUP_PROMPT_CHANNEL_LIMIT) as unknown as DigestRow[];
+    const bodyLimit = this.#promptLimits(botSlug)['context-message-chars'];
     const rows: DigestRow[] = [];
     for (const row of candidates) {
       if (!sourceSenderAllowed(database, botSlug, row.source_event_id, true)) continue;
@@ -3220,12 +3253,13 @@ class BotRuntimeImplementation implements BotRuntime {
         channelId,
         rows: [...rows, row],
         omittedCount: total.count - rows.length - 1,
+        bodyLimit,
       };
       if (this.#groupContextSection(candidateContext).length > budget.remainingCharacters) break;
       rows.push(row);
     }
     if (rows.length === 0) return undefined;
-    const context = { channelId, rows, omittedCount: total.count - rows.length };
+    const context = { channelId, rows, omittedCount: total.count - rows.length, bodyLimit };
     budget.remainingCharacters -= this.#groupContextSection(context).length;
     budget.includedByChannel.set(channelId, alreadyIncluded + rows.length);
     for (const row of rows)
@@ -3264,7 +3298,7 @@ class BotRuntimeImplementation implements BotRuntime {
       `Channel: ${channel?.name ?? context.channelId} (${context.channelId})`,
       ...context.rows.map(
         (row) =>
-          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, GROUP_CONTEXT_BODY_LIMIT)}${groupMessageBody(row).length > GROUP_CONTEXT_BODY_LIMIT ? ` [excerpt; ${groupMessageBody(row).length - GROUP_CONTEXT_BODY_LIMIT} more characters available with channel_read]` : ''}`,
+          `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, context.bodyLimit)}${groupMessageBody(row).length > context.bodyLimit ? ` [excerpt; ${groupMessageBody(row).length - context.bodyLimit} more characters available with channel_read]` : ''}`,
       ),
       context.omittedCount > 0
         ? `${context.omittedCount} earlier or intervening messages remain pending for later turns. Use channel_read if more history is needed.`
@@ -3274,7 +3308,7 @@ class BotRuntimeImplementation implements BotRuntime {
       .join('\n');
   }
 
-  #digestSection(channelId: string, rows: DigestRow[], omittedCount = 0): string {
+  #digestSection(botSlug: string, channelId: string, rows: DigestRow[], omittedCount = 0): string {
     const channel = this.#channels.get(channelId);
     const humanName = this.#channels.listHumanMembers(channelId)[0]?.displayName;
     return [
@@ -3285,7 +3319,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ]
         : []),
       `Channel: ${channel?.name ?? channelId} (${channelId})`,
-      `${rows.length} ordinary messages are due. Review them and respond only if useful; no acknowledgment is required.`,
+      `${rows.length} ordinary messages are due. ${this.#promptText(botSlug)('digest-hint')}`,
       ...rows.map(
         (row) =>
           `- Message ${row.message_id} [Source Event ${row.source_event_id}] from ${groupMessageAuthor(row, humanName)} at ${row.created_at}${this.#trustedExternalSender(row)}: ${groupMessageBody(row).slice(0, 1000)}`,
@@ -3393,13 +3427,14 @@ class BotRuntimeImplementation implements BotRuntime {
       .join('');
   }
 
-  #groupMentionPrompt(channelId: string, messageId: string, body: string): string {
+  #groupMentionPrompt(botSlug: string, channelId: string, messageId: string, body: string): string {
     const message = this.#channels.message(channelId, messageId);
     const sender = message?.author.kind === 'bot' ? `PersonaBot ${message.author.slug}` : 'Human';
-    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${sessionMentionText(body, message?.mentions ?? [])}\nDecide whether a reply would be useful. You may finish without replying; if you speak in this Group Channel, use bot_send_message with the trusted source_event_id.`;
+    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${sessionMentionText(body, message?.mentions ?? [])}\n${this.#promptText(botSlug)('group-mention-hint')}`;
   }
 
   #inboundChannelMessage(
+    botSlug: string,
     channelId: string,
     messageId: string,
     body: string,
@@ -3414,7 +3449,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (messageId.startsWith('group-join-') && message === undefined)
       return '[Bot Inbox: Group join request]\n' + body;
     if (channel !== undefined && isBotDmChannel(channel) && message?.author.kind === 'bot')
-      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\nDecide whether a reply would be useful. You may finish without replying; if you speak in this Bot DM, use bot_send_message with this source_event_id.`;
+      return `[Bot Inbox: direct message from PersonaBot ${message.author.slug}]\nSource Event ID: ${sourceEventId}\nChannel: ${channelId}\nMessage ID: ${messageId}\n${body}\n${this.#promptText(botSlug)('bot-dm-hint')}`;
     if (message?.author.kind === 'human' && message.toolAutoApprovalOverride !== undefined) {
       const target = message.toolAutoApprovalOverride;
       const input =
@@ -3423,7 +3458,8 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     if (channel?.type === 'group' && message?.mentions?.length)
       return (
-        `Source Event ID: ${sourceEventId}\n` + this.#groupMentionPrompt(channelId, messageId, body)
+        `Source Event ID: ${sourceEventId}\n` +
+        this.#groupMentionPrompt(botSlug, channelId, messageId, body)
       );
     if (channel?.type === 'group' && message?.grantRequestResolution !== undefined)
       return `[Bot Inbox: Human answered your Workspace Grant request]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${body}\nContinue the task you requested access for; if you speak in this Group Channel, use bot_send_message with the trusted source_event_id.`;
@@ -4454,7 +4490,7 @@ class BotRuntimeImplementation implements BotRuntime {
           session,
           claim.sourceEventId,
           channelId,
-          this.#inboundChannelMessage(channelId, messageId, body, claim.sourceEventId),
+          this.#inboundChannelMessage(bot.slug, channelId, messageId, body, claim.sourceEventId),
           collected.units,
           this.#channels.message(channelId, messageId)?.memorySwitchTarget !== undefined,
           undefined,
@@ -4617,7 +4653,7 @@ class BotRuntimeImplementation implements BotRuntime {
       memoryEventIds = memoryInbox.eventIds;
       const units = [...inboxUnits, ...memoryInbox.units];
       const inbox = [
-        units.length === 0 ? '' : renderInbox(units),
+        units.length === 0 ? '' : renderInbox(units, this.#promptText(bot.slug)),
         this.#inboxTriage.openSummary(bot.slug),
       ]
         .filter((part) => part.length > 0)
@@ -8301,7 +8337,7 @@ class BotRuntimeImplementation implements BotRuntime {
     for (const row of this.#pendingExternalRows(botSlug, true)) {
       if (!this.#externalMessaging?.inbound.available(botSlug, row.source_event_id, true)) continue;
       const cost = row.body.length + 1600;
-      if (externalCharacters + cost > 24000) break;
+      if (externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']) break;
       externalCharacters += cost;
       rows.push({
         ...row,

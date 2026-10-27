@@ -19,6 +19,7 @@ import type { AssignmentApprovalWaitLease } from '../runtime/assignment-approval
 import {
   approvalSessionExcerpt,
   reviewerCallInput,
+  type ApprovalExcerptLimits,
   type ApprovalReview,
   type ApprovalReviewRequest,
   type ApprovalReviewResult,
@@ -67,6 +68,7 @@ export interface ToolAutoApproval {
   template(botSlug: string): { name: string; text: string } | undefined;
   templateInUse?(template: string): boolean;
   review(request: ApprovalReviewRequest): Promise<ApprovalReviewResult>;
+  excerptLimits?(botSlug: string): ApprovalExcerptLimits;
   log(entry: {
     botSlug: string;
     template: string;
@@ -934,7 +936,11 @@ export class ChannelToolApproval {
             ? {}
             : { authorization: { device: tracked.device, sessionId: tracked.sessionId } }),
         },
-        excerpt: approvalSessionExcerpt(tracked.agent.session.snapshotEvents(), tracked.callId),
+        excerpt: approvalSessionExcerpt(
+          tracked.agent.session.snapshotEvents(),
+          tracked.callId,
+          auto.excerptLimits?.(tracked.botSlug),
+        ),
         signal: signal ?? new AbortController().signal,
       });
     } catch (error) {

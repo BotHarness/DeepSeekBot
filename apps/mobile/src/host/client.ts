@@ -44,6 +44,9 @@ export interface RosterBot {
   avatarHeaders?: Record<string, string>;
   appearance?: unknown;
   avatarSeed?: 2;
+  bannerRecipe?: { scene: string; seed: number };
+  bannerUrl?: string;
+  bannerHeaders?: Record<string, string>;
   primaryColor?: BotPrimaryColor;
   roles: string[];
   description?: string;
@@ -104,7 +107,10 @@ export interface RosterView {
 }
 
 export interface HostSnapshot {
-  routes?: readonly { url: string; status: 'unchecked' | 'verified' | 'unreachable' }[];
+  routes?: readonly {
+    url: string;
+    status: 'unchecked' | 'verified' | 'unreachable';
+  }[];
   computerAvailable?: boolean;
   connection: ConnectionState;
   roster?: RosterView;
@@ -255,7 +261,13 @@ export function arrangementOf(value: unknown): RosterArrangement | undefined {
   const sections = snapshot['sections'].flatMap((entry): RosterSection[] => {
     const section = record(entry);
     return typeof section['id'] === 'string' && typeof section['name'] === 'string'
-      ? [{ id: section['id'], name: section['name'], channelIds: strings(section['channelIds']) }]
+      ? [
+          {
+            id: section['id'],
+            name: section['name'],
+            channelIds: strings(section['channelIds']),
+          },
+        ]
       : [];
   });
   const topOrder = Array.isArray(snapshot['topOrder'])
@@ -324,7 +336,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const publish = (connection?: ConnectionState): void => {
     snapshot = {
-      routes: routes.map((url) => ({ url, status: routeChecks.get(url) ?? 'unchecked' })),
+      routes: routes.map((url) => ({
+        url,
+        status: routeChecks.get(url) ?? 'unchecked',
+      })),
       connection: connection ?? snapshot.connection,
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(bots === undefined ? {} : { roster: view(bots) }),
@@ -354,10 +369,16 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
           pendingInvites: (channel.invitations ?? [])
             .filter((invite) => invite.status === 'pending')
-            .map((invite) => ({ id: invite.id, botSlug: invite.targetBotSlug })),
+            .map((invite) => ({
+              id: invite.id,
+              botSlug: invite.targetBotSlug,
+            })),
           pendingJoins: (channel.joinRequests ?? [])
             .filter((request) => request.status === 'pending')
-            .map((request) => ({ id: request.id, botSlug: request.requesterBotSlug })),
+            .map((request) => ({
+              id: request.id,
+              botSlug: request.requesterBotSlug,
+            })),
           ...previewOf(channel),
         });
     }
@@ -376,6 +397,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
             ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
             ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
+            ...bannerOf(bot.banner),
             ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
             roles: bot.roles ?? [],
             ...(bot.description === undefined ? {} : { description: bot.description }),
@@ -455,6 +477,20 @@ export function createHostClient(options: HostClientOptions): HostClient {
         });
     }
     return {};
+  };
+
+  const bannerOf = (
+    banner: PersonaBotSummary['banner'],
+  ): Pick<RosterBot, 'bannerRecipe' | 'bannerUrl' | 'bannerHeaders'> => {
+    if (banner === undefined) return {};
+    if ('recipe' in banner) return { bannerRecipe: banner.recipe };
+    const image = avatar(banner.image);
+    return image.avatarUrl === undefined
+      ? {}
+      : {
+          bannerUrl: image.avatarUrl,
+          bannerHeaders: image.avatarHeaders ?? {},
+        };
   };
 
   const reloadInBackground = (): void => {
@@ -629,7 +665,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
       generation += 1;
       disconnectCurrent?.(error.message);
       socket?.close();
-      publish({ status: 'refused', route, code: error.code, reason: error.message });
+      publish({
+        status: 'refused',
+        route,
+        code: error.code,
+        reason: error.message,
+      });
     }
   };
 
@@ -722,7 +763,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
         reloadInBackground();
         return;
       }
-      channels.set(frame.channelId, { ...channel, latestMessage: frame.message });
+      channels.set(frame.channelId, {
+        ...channel,
+        latestMessage: frame.message,
+      });
       publish();
     } else if (frame.type === 'changed' || frame.type === 'purged') {
       reloadInBackground();
@@ -792,7 +836,10 @@ export function createHostClient(options: HostClientOptions): HostClient {
         if (!followers.has(follower)) return;
         if (frame.type === 'error') {
           followers.delete(follower);
-          follower.handlers.refused({ code: frame.error.code, message: frame.error.message });
+          follower.handlers.refused({
+            code: frame.error.code,
+            message: frame.error.message,
+          });
           return;
         }
         follower.handlers.interrupted('stream ended');
@@ -853,7 +900,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
     const follow = (endpoint: string, onItem: (value: unknown) => void): void => {
       const streamId = id();
       streams.set(streamId, { item: onItem, end: endCore });
-      const frame: MuxClientFrame = { type: 'open', streamId, endpoint, payload: { args: {} } };
+      const frame: MuxClientFrame = {
+        type: 'open',
+        streamId,
+        endpoint,
+        payload: { args: {} },
+      };
       socket?.send(JSON.stringify(frame));
     };
     socket = carrier.openSocket(
@@ -955,7 +1007,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
         refusedBy(error);
         if (running && error instanceof Unreachable) {
           const reason = error instanceof Error ? error.message : 'The Host could not be reached.';
-          publish({ status: 'unreachable', route, attempt: Math.max(1, attempt), reason });
+          publish({
+            status: 'unreachable',
+            route,
+            attempt: Math.max(1, attempt),
+            reason,
+          });
           disconnect(reason);
         }
       }
@@ -1007,7 +1064,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
         socket?.close();
         if (error instanceof CredentialRefused) {
           running = false;
-          publish({ status: 'refused', route, code: error.code, reason: error.message });
+          publish({
+            status: 'refused',
+            route,
+            code: error.code,
+            reason: error.message,
+          });
           return;
         }
         attempt += 1;

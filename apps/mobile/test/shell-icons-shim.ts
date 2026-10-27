@@ -46,3 +46,5 @@ export const ShieldCheckIcon = () => null;
 export const ExternalLinkIcon = () => null;
 export const TerminalIcon = () => null;
 export const InfoIcon = () => null;
+export const WorkIcon = () => null;
+export const MemoryIcon = () => null;

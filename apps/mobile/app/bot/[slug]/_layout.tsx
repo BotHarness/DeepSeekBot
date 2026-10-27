@@ -14,7 +14,7 @@ export default function BotProfileLayout() {
 
   return (
     <HostScope value={hostId ?? origin}>
-      <SheetStack>
+      <SheetStack fullScreen>
         <Stack.Screen name="chat-background" options={{ title: t.chatBackground.title }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="memory" />

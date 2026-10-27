@@ -988,6 +988,14 @@ _避免使用_：Settings UI、settings page、preferences、admin panel、dashb
 Bot Settings 的一个 sidebar 目的地：稳定的 id、label、order，以及渲染一组内聚的 profile 级设置的 renderer。
 _避免使用_：tab、page、settings item、Panel
 
+**Prompt Part**：
+Bot 的 System Prompt 或每轮模板里一段有名字的行为文字，例如怎样汇报进度，Human 可以改写。它周围的工具、投递和 Inbox 契约不是 Prompt Part，保持固定（ADR-0263）。
+_避免使用_：prompt section（DSH 的一个 System Prompt 分段包含多个 part 和固定的契约文字）、template
+
+**Prompt Preset**：
+Profile 里一组具名的 Prompt Part 文字。每个 part 按 Bot 依次取自 Bot 自己的改写、它选的预设、全局预设，最后是内置文字。运行中的 Session 一直使用开始时的文字，直到压缩或新的 Session。
+_避免使用_：system prompt preset、Model Preset（选择模型的预设）、persona
+
 **Access policy**：
 每个 PersonaBot 各自维护、允许访问它的 user 与 Chat 列表。
 _避免使用_：whitelist、permissions、ACL

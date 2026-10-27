@@ -21,6 +21,8 @@ import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
+import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { useReducedMotion } from 'react-native-reanimated';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
@@ -43,6 +45,7 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
+  const reducedMotion = useReducedMotion();
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
@@ -93,12 +96,12 @@ function RootNavigator() {
                   name="bot/[slug]"
                   options={{
                     title: t.profile,
-                    ...sheetScreenOptions(design, Platform.OS === 'android'),
+                    ...profileScreenOptions(design, reducedMotion),
                   }}
                 />
                 <Stack.Screen
                   name="channel-details"
-                  options={{ ...sheetScreenOptions(design, Platform.OS === 'android') }}
+                  options={profileScreenOptions(design, reducedMotion)}
                 />
                 <Stack.Screen
                   name="group/[id]"
@@ -125,7 +128,10 @@ function RootNavigator() {
                 />
                 <Stack.Screen
                   name="share"
-                  options={{ title: t.share.title, ...sheetScreenOptions(design, true) }}
+                  options={{
+                    title: t.share.title,
+                    ...sheetScreenOptions(design, true),
+                  }}
                 />
                 <Stack.Screen
                   name="private-input"
@@ -146,11 +152,17 @@ function RootNavigator() {
                 />
                 <Stack.Screen
                   name="cloud-join"
-                  options={{ title: t.cloudJoin.title, headerRight: () => <WorkspaceButton /> }}
+                  options={{
+                    title: t.cloudJoin.title,
+                    headerRight: () => <WorkspaceButton />,
+                  }}
                 />
                 <Stack.Screen
                   name="cloud-services"
-                  options={{ title: t.cloud.title, headerRight: () => <WorkspaceButton /> }}
+                  options={{
+                    title: t.cloud.title,
+                    headerRight: () => <WorkspaceButton />,
+                  }}
                 />
                 <Stack.Screen
                   name="cloud-organizations"
@@ -168,12 +180,18 @@ function RootNavigator() {
                 />
                 <Stack.Screen
                   name="cloud-agents"
-                  options={{ title: t.cloudAgents.title, headerRight: () => <WorkspaceButton /> }}
+                  options={{
+                    title: t.cloudAgents.title,
+                    headerRight: () => <WorkspaceButton />,
+                  }}
                 />
                 <Stack.Screen
                   name="cloud-channels"
                   dangerouslySingular={cloudChannelRouteId}
-                  options={{ title: t.cloudChannels.title, headerRight: () => <WorkspaceButton /> }}
+                  options={{
+                    title: t.cloudChannels.title,
+                    headerRight: () => <WorkspaceButton />,
+                  }}
                 />
                 <Stack.Screen
                   name="message-feedback"
@@ -208,7 +226,10 @@ function RootNavigator() {
                 />
                 <Stack.Screen
                   name="host-connection"
-                  options={{ title: t.connectionRoutes.title, ...sheetScreenOptions(design, true) }}
+                  options={{
+                    title: t.connectionRoutes.title,
+                    ...sheetScreenOptions(design, true),
+                  }}
                 />
               </Stack>
             </View>

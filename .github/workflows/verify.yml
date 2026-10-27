@@ -144,7 +144,7 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
-      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :conversation-notifications:compileDebugKotlin :local-computer-video:compileDebugKotlin :lan-channel:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
+      - run: bash apps/mobile/android/gradlew -p apps/mobile/android :stream-reveal:testDebugUnitTest :hardware-send:testDebugUnitTest :remote-keyboard:testDebugUnitTest :material-search:testDebugUnitTest :material-button-group:testDebugUnitTest :conversation-notifications:compileDebugKotlin :local-computer-video:compileDebugKotlin :lan-channel:testDebugUnitTest -PreactNativeArchitectures=x86_64 --max-workers=2 --console=plain
 
   mobile-native-ios:
     name: iOS HardwareSend UIKit tests (manual)

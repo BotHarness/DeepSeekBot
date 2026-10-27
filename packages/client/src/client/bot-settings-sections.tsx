@@ -18,6 +18,7 @@ import {
   DeliveryReceiptsSetting,
 } from './bot-mode-setting-rows.js';
 import { ApprovalTemplateLibrarySettings } from './approval-template-library.js';
+import { PromptPresetSettings } from './prompt-preset-settings.js';
 import { buildLabel, clientBuild } from './build-id.js';
 import { DataResetSettings } from './data-reset-settings.js';
 import { StorageSettings } from './storage-settings.js';
@@ -26,6 +27,7 @@ import type { BridgeCall } from './bridge.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
+import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
 import { MessagingDefaultsSettings } from './messaging-defaults-settings.js';
 import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
@@ -76,6 +78,7 @@ export function ModelsSection(
     <Rows>
       <DefaultModelSettings actions={props.actions} t={props.t} />
       <IdleCompactionSetting call={props.call} t={props.t} />
+      <CompactionThresholdSetting call={props.call} t={props.t} />
       <AssignmentConcurrencyRow {...props} />
       <BotSessionsVisibilitySetting {...props} />
       <ApprovalReviewSessionsVisibilitySetting {...props} />
@@ -92,6 +95,14 @@ export function AutoApprovalSection(
         <ApprovalReviewerModelSetting actions={props.actions} t={props.t} />
       </SettingsSection>
       <ApprovalTemplateLibrarySettings call={props.call} store={props.store} t={props.t} />
+    </Rows>
+  );
+}
+
+export function PromptsSection(props: SectionProps<{ actions: BridgeActions }>): ReactElement {
+  return (
+    <Rows>
+      <PromptPresetSettings actions={props.actions} t={props.t} />
     </Rows>
   );
 }

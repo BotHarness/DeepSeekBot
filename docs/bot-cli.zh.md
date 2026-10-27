@@ -111,6 +111,17 @@ deepseekbot bot-activity <bot-id> --limit 20
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
+deepseekbot bot-system-prompt <bot-id>
+deepseekbot bot-turn-input <bot-id> --turns 1
+deepseekbot prompt-parts
+deepseekbot prompt-presets
+echo '{"triage":"Close what is done."}' | deepseekbot prompt-preset-create --name Quiet --parts-stdin
+deepseekbot prompt-preset-update <preset-id> --name Calm --expected-revision 1
+deepseekbot prompt-preset-delete <preset-id> --confirm
+deepseekbot prompt-global-set <preset-id>|built-in
+deepseekbot bot-prompt <bot-id>
+echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-id>|global --parts-stdin
+deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --prompt-limit review-tool-calls=default
 ```
 
 创建返回 `bot`、`dm`、Host 的 Memory `dataDir`、完成／延后阶段 `steps` 和 `next`。模型预设经其 owner 应用，不会被误传为原生 Agent preset。已确定不存在的预设在创建前拒绝；创建后的模型失败保留 Bot，返回已知身份、完成阶段与 `outcome: created`。不带稳定 operation key 的创建／导入响应丢失时可能返回 `outcome: unknown`，先检查 Host 再决定是否重建，CLI 不自动重试修改。空白在线创建可用下文的持久创建回执核对同一个身份。创建成功不证明模型可用：使用 `send` 和准确关联的持久回复验证。
@@ -119,9 +130,17 @@ deepseekbot bot-context <bot-id>
 
 `bot-new-session <bot-id>` 通过与 IM `/new` 相同的 Host 运行时退役空闲 Bot 的编排会话，下一条消息开启新会话。成功返回 `{"started":true}`；Bot 正在工作时以 `bot-busy` 拒绝，需先停止当前轮次。
 
-`bot-compact <bot-id>` 通过 DSH `/compact` 压缩空闲 Bot 的编排会话；Host 重启后会加载原会话，无需先发消息。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；没有可用的更小摘要时返回 `nothing`。有运行中或排队轮次时返回 `bot-busy`；原会话不可用时返回明确错误。
+`bot-compact <bot-id>` 通过 DSH `/compact` 压缩空闲 Bot 的编排会话；Host 重启后会加载原会话，无需先发消息。成功返回 `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}`；没有可用的更小摘要时返回 `nothing`。两种结果都会让待生效的 Prompt Preset 改动生效。有运行中或排队轮次时返回 `bot-busy`；原会话不可用时返回明确错误。
 
 `bot-context <bot-id>` 返回当前 `sessionId`、估算占用 `usedTokens`（会话未加载时为 null）、`contextWindow`、容量来源 `capacitySource`（`model` 或 `estimate`）及压缩阈值 `thresholdTokens`。模型容量缺失时按 200,000 tokens 估算，再扣除输出预留和安全余量；该估算不是已验证的服务商上限。Web 输入框显示当前上下文数据，点击后仍可查看累计用量。
+
+`bot-system-prompt <bot-id>` 返回 Bot 编排会话当前使用的 System Prompt（`effectiveText`：会话 surface 上最新的一条 system 消息，因为 DSH 会把变化后的提示词追加到历史里，而不是改写第一条；会话已加载时读自会话 surface，未加载时读自会话日志并返回 `loaded: false`）、最新组装出的 `next`（含具名分段 `sections` 和每步附加的运行时上下文 `contexts`），以及 `pending`：Prompt Preset 或人设改动在等新会话或下一次压缩时为 true。生效后，会话的下一次请求会追加新文字。会话未加载时 `next` 为 null。
+
+`bot-turn-input <bot-id> [--turns <1-20>] [--session <session-id>]` 返回最近几轮（默认 1 轮）模型收到的全部输入消息，按顺序给出 `step`、`source`（Inbox 和 steer 进来的输入为 `user`，每步的环境说明为 `runtime-context`）、时间和原文 `text`，包括 Host 附加的回复提醒。steer 进来的消息出现在同一轮的后续 step。Web 输入框的用量弹层可以打开这两个视图。
+
+Prompt Preset 用于编辑 System Prompt 和每轮模板里的行为文字；围绕它们的工具与投递约定保持固定。`prompt-parts` 列出每个可编辑部件的 `id`、`kind`（`system` 或 `turn`）、所属 `section` 和内置 `defaultText`。预设只保存它改动的部件。每个部件按 Bot 解析：先取 Bot 自己的覆盖，再取它选的预设，再取全局预设（`prompt-global-set`），最后取内置文字；`bot-prompt` 返回结果和每个部件的 `source`（`bot`、`preset`、`global` 或 `built-in`）。部件改动是 `{"<part-id>": "text"}` 形式的 JSON 对象；`null` 或内置原文会删掉改动，让部件重新继承。`bot-prompt-set --preset global` 取消 Bot 的预设。删除预设会返回 `clearedBots`，这些 Bot 回到全局预设。运行中的会话保持它开始时的文字：`pending: true` 表示改动要等 Bot 的新会话或下一次压缩才生效。要立即生效，可运行 `bot-compact <bot-id>` 或 `bot-new-session <bot-id>`，与界面上“待生效”旁的两个按钮相同。改过的部件在内置原文之后又更新时返回 `defaultChanged: true`；没改过的部件跟随内置更新。
+
+预设和 Bot 还可以用可重复的 `--prompt-limit <id>=<整数>` 设置数值上限（`<id>=default` 删除设置、重新继承），适用于 `prompt-preset-create`、`prompt-preset-update` 和 `bot-prompt-set`。`prompt-parts` 列出每个上限的 `defaultValue`、`min` 和 `max`：`group-context-chars`、`dm-context-chars`、`context-message-chars` 限制 Bot Inbox 每轮带入的 Group 和私聊上下文；`review-timeout-seconds`、`review-human-messages`、`review-human-message-chars`、`review-tool-calls` 限制审批审查员。上限和部件走同样的分层，`bot-prompt` 在 `limits` 里返回，从下一次 Inbox 投递或审查起生效，不等新会话。
 
 显式清理先用 `bot-delete-preview <bot-id>` 查看 owner 的当前范围与 `preview.token`，审核后将 `{"token":"<preview.token>"}` 从 stdin 交给 `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`。默认保留 Memory，仅显式 `--erase-memory` 才选择擦除 owner 审核的目录，并在停止阶段删除这个 Bot 通过私密输入保存的密钥。检查 `deletion.phase`；未完成的清理可用 `bot-delete-retry <bot-id> --confirm` 继续。范围变化由 owner 拒绝；删除身份不是内容清除或全部数据擦除。
 
@@ -655,9 +674,12 @@ deepseekbot idle-compaction
 deepseekbot idle-compaction-set on|off
 deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
 deepseekbot idle-compaction-cache-set deepseek/<model> auto
+deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|default|keep>
 ```
 
 三个命令都返回 `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`。每条线路列出 `cacheLifetimeSeconds`、来源 `source` 和 `compactAfterSeconds`（跳过时为 `null`）。缓存寿命依次取自这里为该线路设置的值（`setting`）、模型目录（`catalog`，Anthropic 的短档）、观测到的请求前空闲间隔中仍大部分命中缓存的最长值（`observed`；命中的间隔不会缩短默认值，更长的未命中间隔会把它封顶），或 DeepSeek 线路的 2 小时（`default`）；其它没有任何信息的线路为 `unknown` 并跳过，寿命不足 15 分钟的也跳过。`idle-compaction-cache-set ... auto` 删除该线路的设置值。每次执行都记录在 `deepseekbot bot-activity-history <bot-id>` 的 `idleCompactions` 中，包含线路、空闲时长、压缩前后 token 数，以及压缩请求的输入、缓存读取和输出 token。拒绝时带错误码：`usage`（缺少 `on`/`off`、`<provider>/<model>` 或整数秒）和 `invalid-input`。
+
+DSH 在 Session 上下文达到“上下文窗口 × `ratio`”与“窗口 − 线路输出上限 − `headroom-tokens`”中较小者时自动压缩。`compaction-threshold-set` 修改这两个值，对本机所有 Bot 从下一步开始生效：比例 0.5–0.95（默认 0.8），余量 8192–262144 token（默认 65536）。`default` 恢复某一项默认值，`keep` 保持不变，例如 `compaction-threshold-set 0.7 keep` 只改比例。空闲压缩使用同一阈值。如果余量加上输出上限超过某个模型的上下文窗口，这个余量对该模型过大：DSH 会记录警告并跳过它的压力压缩，没有声明窗口的模型则继续使用默认余量。`idle-compaction` 在 `threshold` 下返回两者，以及 `ratioSet`/`headroomSet` 和取值范围。
 
 ### 加密局域网手机连接
 

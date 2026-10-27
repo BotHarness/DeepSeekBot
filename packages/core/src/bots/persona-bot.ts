@@ -10,6 +10,8 @@ import {
 } from './avatar-appearance.js';
 import { isBotBanner, type BotBanner } from './bot-banner.js';
 import { isBotPrimaryColor, type BotPrimaryColor } from './primary-color.js';
+import type { PromptLimitValues } from '../prompts/prompt-limits.js';
+import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface PersonaBotRecord {
   slug: string;
@@ -41,6 +43,10 @@ export interface PersonaBotRecord {
   approvalTemplate?: string;
 
   standingLimits?: StandingLimits;
+
+  promptPreset?: string;
+  promptOverrides?: PromptPartOverrides;
+  promptLimits?: PromptLimitValues;
 }
 
 export interface CreatePersonaBotInput {
@@ -158,6 +164,22 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (record['browserProfile'] !== undefined && typeof record['browserProfile'] !== 'string')
     return false;
   if (record['approvalTemplate'] !== undefined && typeof record['approvalTemplate'] !== 'string')
+    return false;
+  if (record['promptPreset'] !== undefined && typeof record['promptPreset'] !== 'string')
+    return false;
+  if (
+    record['promptOverrides'] !== undefined &&
+    (typeof record['promptOverrides'] !== 'object' ||
+      record['promptOverrides'] === null ||
+      Array.isArray(record['promptOverrides']))
+  )
+    return false;
+  if (
+    record['promptLimits'] !== undefined &&
+    (typeof record['promptLimits'] !== 'object' ||
+      record['promptLimits'] === null ||
+      Array.isArray(record['promptLimits']))
+  )
     return false;
   if (
     record['appearance'] !== undefined &&

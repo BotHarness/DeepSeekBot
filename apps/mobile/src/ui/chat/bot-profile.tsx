@@ -1,28 +1,37 @@
 import { ReadFailure } from '../primitives/read-failure';
-import { useCallback, useState, type ReactNode } from 'react';
-import { Pressable, SectionList, View } from 'react-native';
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Pressable, View } from 'react-native';
+import { Image } from 'expo-image';
 
 import {
   memoryEntries,
   type BotProfile,
   type MemoryEntry,
+  type ProfileAssignment,
   type ProfilePart,
 } from '../../host/bot-profile';
 import type { RosterBot, RosterChannel } from '../../host/client';
 import type { BotScheduleSummary, ProfileActivity } from '../../host/wire';
+import { botBanner } from '../../marketplace/artwork';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { edge, profileShell, radius, space } from '../design/tokens';
+import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
 import { useFocusEffect } from 'expo-router';
 import { Text } from '../primitives/text';
+import type { IconTabOption } from '../primitives/icon-tabs';
 import { useSheetContent } from '../primitives/sheet-content';
+import { HeaderIconButton } from '../shell/header-icon-button';
 import {
-  ActivityIcon,
   BrowserIcon,
   ChevronRightIcon,
+  ClockIcon,
   ComputerIcon,
-  MessageIcon,
+  FolderIcon,
+  MemoryIcon,
   PlusIcon,
+  SettingsIcon,
+  WorkIcon,
 } from '../shell/icons';
 import { useStrings, t } from '../strings';
 import { ActivityGlance } from './activity-glance';
@@ -36,13 +45,16 @@ import {
   useAvatarEditor,
   type AvatarActions,
 } from './avatar-editor';
+import { ProfileShell, type ProfileRow as ShellRow, type ProfileTabBody } from './profile-shell';
+import { openingTab, profileTabs, type ProfileTab, type ProfileTabMemory } from './profile-tabs';
+import { ProfileZoomTarget } from './profile-zoom-target';
 
-const AVATAR = 72;
 const ICON = 22;
 const COLLAPSED_LINES = 6;
 const LONG_TEXT = 280;
 
 export const PROFILE_SECTIONS = [
+  'work',
   'activity',
   'identity',
   'memory',
@@ -58,6 +70,8 @@ type RowBody =
   | { kind: 'entry'; entry: MemoryEntry }
   | { kind: 'routine'; routine: BotScheduleSummary }
   | { kind: 'new-routine' }
+  | { kind: 'assignment'; assignment: ProfileAssignment }
+  | { kind: 'day'; label: string }
   | { kind: 'activity'; activity: ProfileActivity }
   | { kind: 'note'; text: string }
   | { kind: 'failed'; error: string }
@@ -66,7 +80,6 @@ type RowBody =
 type Row = RowBody & { key: string; first: boolean; last: boolean };
 
 export interface BotProfileActions {
-  onMessage(): void;
   onComputer?(): void;
   onBrowser?(): void;
   onNotifications(): void;
@@ -74,14 +87,15 @@ export interface BotProfileActions {
   onOpenRoutine?(routine: BotScheduleSummary): void;
   onNewRoutine?(): void;
   onOpenActivity(): void;
+  onClose(): void;
 }
 
 function frame(section: ProfileSection, bodies: RowBody[]): Row[] {
   return bodies.map((body, index) => ({
     ...body,
     key: `${section}:${index}`,
-    first: index === 0,
-    last: index === bodies.length - 1,
+    first: index === 0 || bodies[index - 1]?.kind === 'day',
+    last: index === bodies.length - 1 || bodies[index + 1]?.kind === 'day',
   }));
 }
 
@@ -99,12 +113,48 @@ function partRows<T>(
   ];
 }
 
+function localDay(iso: string): string {
+  const at = new Date(iso);
+  return Number.isNaN(at.getTime()) ? '' : at.toDateString();
+}
+
+export function workRowBodies(assignments: readonly ProfileAssignment[], now = new Date()) {
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const label = (iso: string) => {
+    const day = localDay(iso);
+    if (day === now.toDateString()) return t.usageToday;
+    if (day === yesterday.toDateString()) return t.yesterday;
+    const at = new Date(iso);
+    return Number.isNaN(at.getTime())
+      ? ''
+      : at.toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          ...(at.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+        });
+  };
+  const rows: RowBody[] = [];
+  let previous: string | undefined;
+  for (const assignment of assignments) {
+    const day = localDay(assignment.updatedAt);
+    if (day !== previous) rows.push({ kind: 'day', label: label(assignment.updatedAt) });
+    previous = day;
+    rows.push({ kind: 'assignment', assignment });
+  }
+  return rows;
+}
+
 export function profileRows(
   profile: BotProfile | undefined,
   channels: RosterChannel[],
   addRoutine = false,
 ): Record<ProfileSection, Row[]> {
   return {
+    work: frame(
+      'work',
+      partRows(profile?.work, 'work', (work) => workRowBodies(work)),
+    ),
     activity: frame(
       'activity',
       partRows(profile?.activity, 'activity', (activity) => [{ kind: 'activity', activity }]),
@@ -155,117 +205,152 @@ export function profileRows(
   };
 }
 
-function ProfileAction({
+const TAB_GLYPHS: Record<ProfileTab, typeof WorkIcon> = {
+  work: WorkIcon,
+  memory: MemoryIcon,
+  files: FolderIcon,
+  routines: ClockIcon,
+  settings: SettingsIcon,
+};
+
+export function profileTabOptions(tabs: readonly ProfileTab[]): IconTabOption<ProfileTab>[] {
+  return tabs.map((tab) => {
+    const Glyph = TAB_GLYPHS[tab];
+    return {
+      value: tab,
+      label: t.profileTabs[tab],
+      symbol: profileTabSymbols[tab],
+      path: profileTabPaths[tab],
+      glyph: (color, size) => <Glyph color={color} size={size} />,
+    };
+  });
+}
+
+function RoundAction({
   label,
+  testID,
   icon,
   onPress,
 }: {
   label: string;
+  testID: string;
   icon: (color: string) => ReactNode;
   onPress(): void;
 }) {
   const theme = useDesignTheme();
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: 1,
-        minHeight: theme.touch,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: space.x2,
-        paddingVertical: space.x4,
-        borderRadius: radius.md,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-      })}
-    >
+    <HeaderIconButton label={label} testID={testID} onPress={onPress}>
       {icon(theme.color.fg)}
-      <Text variant="meta" strong numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
+    </HeaderIconButton>
   );
 }
 
-function ProfileHeader({
+export function ProfileBanner({
+  source,
+  headers,
+}: {
+  source: string;
+  headers?: Record<string, string> | undefined;
+}) {
+  const theme = useDesignTheme();
+  return (
+    <View
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+      style={{ paddingHorizontal: space.x5 }}
+    >
+      <Image
+        testID="profile-banner"
+        source={{ uri: source, ...(headers === undefined ? {} : { headers }) }}
+        recyclingKey={source}
+        contentFit="cover"
+        cachePolicy="memory-disk"
+        style={{
+          width: '100%',
+          aspectRatio: profileShell.bannerAspect,
+          borderRadius: radius.lg,
+          backgroundColor: theme.layer.raised.fill,
+        }}
+      />
+    </View>
+  );
+}
+
+function BotIdentity({
   bot,
   actions,
-  settings,
-  conversationActions,
   avatar,
 }: {
   bot: RosterBot;
   actions: BotProfileActions;
-  settings: ReactNode;
-  conversationActions?: ReactNode;
   avatar: ReturnType<typeof useAvatarEditor>;
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   return (
-    <View style={{ alignItems: 'center', gap: space.x3, paddingBottom: space.x5 }}>
-      <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
-        <BotAvatar bot={bot} size={AVATAR} />
-      </EditableAvatar>
-      <View style={{ alignItems: 'center', gap: space.x1 }}>
-        <Text accessibilityRole="header" variant="display" numberOfLines={2}>
-          {bot.displayName}
-        </Text>
-        <Text variant="meta" tone={botStateTone(bot)}>
-          {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
-        </Text>
-      </View>
-      {bot.description === undefined || bot.description.trim() === '' ? null : (
-        <Text tone="muted" style={{ textAlign: 'center' }}>
-          {bot.description}
-        </Text>
-      )}
+    <View style={{ gap: space.x3, paddingBottom: space.x5 }}>
+      <ProfileBanner source={botBanner(bot)} headers={bot.bannerHeaders} />
       <View
         style={{
-          flexDirection: 'row',
-          alignSelf: 'stretch',
+          alignItems: 'center',
           gap: space.x3,
-          paddingTop: space.x3,
+          paddingHorizontal: space.x5,
+          marginTop: -profileShell.overlap - space.x3,
         }}
       >
-        <ProfileAction
-          label={t.profileMessage}
-          icon={(color) => <MessageIcon color={color} size={ICON} />}
-          onPress={actions.onMessage}
-        />
-        {actions.onBrowser === undefined ? null : (
-          <ProfileAction
-            label={t.profileBrowser}
-            icon={(color) => <BrowserIcon color={color} size={ICON} />}
-            onPress={actions.onBrowser}
-          />
+        <View
+          style={{
+            padding: profileShell.avatarEdge,
+            borderRadius: radius.round,
+            backgroundColor: theme.overlay.fill,
+          }}
+        >
+          <ProfileZoomTarget>
+            <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
+              <BotAvatar bot={bot} size={profileShell.avatar} />
+            </EditableAvatar>
+          </ProfileZoomTarget>
+        </View>
+        <View style={{ alignItems: 'center', gap: space.x1 }}>
+          <Text accessibilityRole="header" variant="display" numberOfLines={2}>
+            {bot.displayName}
+          </Text>
+          <Text variant="meta" tone={botStateTone(bot)}>
+            {[bot.paused ? t.paused : t.state[bot.state], ...bot.roles].join(' · ')}
+          </Text>
+        </View>
+        {bot.description === undefined || bot.description.trim() === '' ? null : (
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {bot.description}
+          </Text>
         )}
-        {actions.onComputer === undefined ? null : (
-          <ProfileAction
-            label={t.profileComputer}
-            icon={(color) => <ComputerIcon color={color} size={ICON} />}
-            onPress={actions.onComputer}
-          />
+        {actions.onBrowser === undefined && actions.onComputer === undefined ? null : (
+          <View
+            style={{
+              flexDirection: 'row',
+              gap: space.x4,
+              paddingTop: space.x2,
+            }}
+          >
+            {actions.onBrowser === undefined ? null : (
+              <RoundAction
+                label={t.profileBrowser}
+                testID="profile-browser"
+                icon={(color) => <BrowserIcon color={color} size={ICON} />}
+                onPress={actions.onBrowser}
+              />
+            )}
+            {actions.onComputer === undefined ? null : (
+              <RoundAction
+                label={t.profileComputer}
+                testID="profile-computer"
+                icon={(color) => <ComputerIcon color={color} size={ICON} />}
+                onPress={actions.onComputer}
+              />
+            )}
+          </View>
         )}
-        <ProfileAction
-          label={t.profileNotifications}
-          icon={(color) => <ActivityIcon color={color} size={ICON} />}
-          onPress={actions.onNotifications}
-        />
       </View>
-      <AvatarSettings
-        editor={avatar}
-        hasAvatar={bot.avatarUrl !== undefined}
-        portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
-        testID="bot-avatar-settings"
-      />
-      {conversationActions === undefined ? null : (
-        <View style={{ alignSelf: 'stretch' }}>{conversationActions}</View>
-      )}
-      {settings === undefined ? null : (
-        <View style={{ alignSelf: 'stretch', paddingTop: space.x3 }}>{settings}</View>
-      )}
     </View>
   );
 }
@@ -298,6 +383,20 @@ function ProfileRow({
         onOpen={actions.onOpenMemory}
       />
     );
+  if (row.kind === 'day')
+    return (
+      <Text
+        variant="meta"
+        tone="muted"
+        strong
+        style={{
+          paddingTop: row.key.endsWith(':0') ? 0 : space.x4,
+          paddingBottom: space.x2,
+        }}
+      >
+        {row.label}
+      </Text>
+    );
   const shape = {
     backgroundColor: theme.layer.raised.fill,
     paddingHorizontal: space.x5,
@@ -310,6 +409,40 @@ function ProfileRow({
     borderBottomColor: theme.color.divider,
     gap: space.x2,
   };
+  if (row.kind === 'assignment') {
+    const { assignment } = row;
+    const time = new Date(assignment.updatedAt).toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    const state = t.profileAssignmentState[assignment.activity];
+    return (
+      <View
+        testID={`profile-assignment-${assignment.sessionId}`}
+        accessible
+        accessibilityLabel={[assignment.title, state, time].join(', ')}
+        style={[shape, { gap: space.x1 }]}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+          <Text numberOfLines={2} style={{ flex: 1 }}>
+            {assignment.title}
+          </Text>
+          <Text variant="meta" tone="muted">
+            {time}
+          </Text>
+        </View>
+        <Text
+          variant="meta"
+          tone={assignment.activity === 'error' ? 'danger' : 'muted'}
+          numberOfLines={2}
+        >
+          {assignment.latestReport === undefined
+            ? state
+            : `${state} · ${assignment.latestReport.summary}`}
+        </Text>
+      </View>
+    );
+  }
   if (row.kind === 'routine') {
     const { routine } = row;
     const open = actions.onOpenRoutine;
@@ -431,30 +564,91 @@ function ProfileRow({
   );
 }
 
-export function BotProfileSheet({
+function SubHeading({ children }: { children: string }) {
+  return (
+    <Text
+      accessibilityRole="header"
+      variant="meta"
+      tone="muted"
+      strong
+      style={{ paddingTop: space.x5, paddingBottom: space.x3 }}
+    >
+      {children}
+    </Text>
+  );
+}
+
+function SettingsRowLink({
+  title,
+  testID,
+  onPress,
+}: {
+  title: string;
+  testID: string;
+  onPress(): void;
+}) {
+  const theme = useDesignTheme();
+  return (
+    <Pressable
+      testID={testID}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: theme.touch,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x3,
+        paddingHorizontal: space.x5,
+        paddingVertical: space.x4,
+        borderRadius: radius.md,
+        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
+      })}
+    >
+      <Text style={{ flex: 1 }}>{title}</Text>
+      <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
+    </Pressable>
+  );
+}
+
+export function useRememberedProfileTab(memory: ProfileTabMemory, tabs: readonly ProfileTab[]) {
+  const remembered = useSyncExternalStore(memory.subscribe, () => memory.get('bot'));
+  return [
+    openingTab(tabs, remembered),
+    (next: ProfileTab) => memory.remember('bot', next),
+  ] as const;
+}
+
+export function BotProfilePage({
   bot,
   channels,
   load,
-  actions: given,
+  actions,
   settings,
-  conversationActions,
+  workActions,
+  files,
   initialProfile,
   avatar,
+  tabMemory,
 }: {
   bot: RosterBot;
   channels: RosterChannel[];
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
   settings?: ReactNode;
-  conversationActions?: ReactNode;
+  workActions?: ReactNode;
+  files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
   initialProfile?: BotProfile | undefined;
   avatar: AvatarActions;
+  tabMemory: ProfileTabMemory;
 }) {
   const t = useStrings();
   const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const tabs = profileTabs('bot');
+  const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs);
   const read = useCallback(() => {
     let live = true;
     void load().then((value) => {
@@ -465,69 +659,105 @@ export function BotProfileSheet({
     };
   }, [load]);
   useFocusEffect(read);
-  const actions = given;
   const rows = profileRows(
     content.ready ? profile : undefined,
     channels,
-    given.onNewRoutine !== undefined,
+    actions.onNewRoutine !== undefined,
   );
-  const sections = PROFILE_SECTIONS.map((section) => ({
-    section,
-    data: rows[section],
-  }));
-
+  const rowOf = (row: Row): ShellRow => ({
+    key: row.key,
+    render: () => (
+      <ProfileRow
+        bot={bot}
+        row={row}
+        expanded={expanded.has(row.key)}
+        onRetry={read}
+        actions={actions}
+        onToggle={() =>
+          setExpanded((current) => {
+            const next = new Set(current);
+            if (!next.delete(row.key)) next.add(row.key);
+            return next;
+          })
+        }
+      />
+    ),
+  });
+  const node = (key: string, render: () => ReactNode): ShellRow => ({
+    key,
+    render,
+  });
+  const heading = (section: ProfileSection) =>
+    node(`${section}:heading`, () => <SubHeading>{t.profileSection[section]}</SubHeading>);
+  const bodies: Record<Exclude<ProfileTab, 'files'>, ProfileTabBody> = {
+    work: {
+      rows: [
+        ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
+        ...rows.work.map(rowOf),
+      ],
+    },
+    memory: {
+      rows: [...rows.identity.map(rowOf), heading('memory'), ...rows.memory.map(rowOf)],
+    },
+    routines: { rows: rows.routines.map(rowOf) },
+    settings: {
+      rows: [
+        ...rows.activity.map(rowOf),
+        node('settings:bot', () => <SubHeading>{t.profileSettingsBot}</SubHeading>),
+        ...(content.ready && settings !== undefined
+          ? [node('settings:panel', () => settings)]
+          : []),
+        node('settings:notifications', () => (
+          <View style={{ paddingTop: space.x4 }}>
+            <SettingsRowLink
+              testID="profile-notifications"
+              title={t.profileNotifications}
+              onPress={actions.onNotifications}
+            />
+          </View>
+        )),
+        node('settings:avatar', () => (
+          <View style={{ paddingTop: space.x4 }}>
+            <AvatarSettings
+              editor={avatarEditor}
+              hasAvatar={bot.avatarUrl !== undefined}
+              portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
+              testID="bot-avatar-settings"
+            />
+          </View>
+        )),
+        heading('channels'),
+        ...rows.channels.map(rowOf),
+        heading('files'),
+        ...rows.files.map(rowOf),
+      ],
+    },
+  };
+  const shell = (filesBody: ProfileTabBody) => (
+    <ProfileShell
+      title={bot.displayName}
+      identity={<BotIdentity bot={bot} actions={actions} avatar={avatarEditor} />}
+      tabs={tabs}
+      options={profileTabOptions(tabs)}
+      tab={tab}
+      onTab={setTab}
+      body={tab === 'files' ? filesBody : bodies[tab]}
+      onClose={actions.onClose}
+    />
+  );
   return (
     <View ref={content.mount} style={{ flex: 1 }}>
-      <SectionList
-        sections={sections}
-        keyExtractor={(row) => row.key}
-        stickySectionHeadersEnabled={false}
-        nestedScrollEnabled
-        initialNumToRender={3}
-        maxToRenderPerBatch={3}
-        style={{ flex: 1 }}
-        contentContainerStyle={{ padding: space.x5, paddingTop: space.x6 }}
-        ListHeaderComponent={
-          <ProfileHeader
-            bot={bot}
-            actions={actions}
-            avatar={avatarEditor}
-            conversationActions={conversationActions}
-            settings={content.ready ? settings : undefined}
-          />
-        }
-        renderSectionHeader={({ section }) => (
-          <Text
-            accessibilityRole="header"
-            variant="meta"
-            tone="muted"
-            strong
-            style={{
-              paddingHorizontal: space.x5,
-              paddingTop: space.x5,
-              paddingBottom: space.x3,
-            }}
-          >
-            {t.profileSection[section.section]}
-          </Text>
-        )}
-        renderItem={({ item }) => (
-          <ProfileRow
-            bot={bot}
-            row={item}
-            expanded={expanded.has(item.key)}
-            onRetry={read}
-            actions={actions}
-            onToggle={() =>
-              setExpanded((current) => {
-                const next = new Set(current);
-                if (!next.delete(item.key)) next.add(item.key);
-                return next;
-              })
-            }
-          />
-        )}
-      />
+      {files === undefined
+        ? shell({
+            rows: [
+              node('files:none', () => (
+                <Text testID="profile-files-none" tone="muted">
+                  {t.channelFiles.empty}
+                </Text>
+              )),
+            ],
+          })
+        : files(tab === 'files', shell)}
     </View>
   );
 }

@@ -42,6 +42,7 @@ import type { AveragePerfView } from './message-perf.js';
 import { PROFILE_ACTIVITY_WEEKS } from './profile-cards-builtins.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { DmComposerUsagePopover } from './dm-composer-usage.js';
+import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
 import { ModelPicker } from './model-picker.js';
@@ -322,6 +323,7 @@ function DmComposerContextView({
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
+  const [inspect, setInspect] = useState<{ slug: string; view: BotPromptView }>();
   const [context, setContext] = useState<Awaited<ReturnType<BridgeActions['botContext']>>>();
   const usageTrigger = useRef<HTMLButtonElement | null>(null);
   const usageMount = useMountedResource<HTMLButtonElement>(
@@ -481,6 +483,20 @@ function DmComposerContextView({
             setUsageOpen(false);
             onUsage();
           }}
+          onInspect={(view) => {
+            setUsageOpen(false);
+            setInspect({ slug: bot.slug, view });
+          }}
+        />
+      ) : null}
+      {inspect?.slug === bot.slug ? (
+        <BotPromptViewer
+          slug={bot.slug}
+          displayName={bot.displayName}
+          view={inspect.view}
+          actions={actions}
+          t={t}
+          onClose={() => setInspect(undefined)}
         />
       ) : null}
       {panel === undefined ? null : (

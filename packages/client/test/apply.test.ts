@@ -334,6 +334,7 @@ describe('client apply', () => {
       { id: 'shortcuts', order: 22 },
       { id: 'models', order: 10 },
       { id: 'auto-approval', order: 15 },
+      { id: 'prompts', order: 16 },
       { id: 'messaging', order: 20 },
       { id: 'im-apps', order: 25 },
       { id: 'companions', order: 40 },

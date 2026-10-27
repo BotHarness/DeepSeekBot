@@ -69,7 +69,15 @@ import type {
 import type { PluginInstall, PluginRestart, PluginUpdates } from '../release/plugins.js';
 import type { TelemetryStatus } from '../telemetry/service.js';
 import type { OverviewMemory } from '../memory/overview.js';
-import type { ApprovalReviewerModelView, IdleCompactionView, OverviewUsage } from './methods.js';
+import type {
+  ApprovalReviewerModelView,
+  BotPromptView,
+  IdleCompactionView,
+  OverviewUsage,
+  PromptLimitView,
+  PromptPartView,
+} from './methods.js';
+import type { PromptPreset } from '../prompts/prompt-presets.js';
 import type { ManualCompactionResult } from '../runtime/idle-compaction.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type { HumanAssignmentContext } from '../runtime/assignment-human-context.js';
@@ -671,6 +679,28 @@ export class BotharnessBridgeService extends TypertRemoteService {
   botContext(slug: string): Promise<import('../runtime/context-window.js').BotContextWindow> {
     return unwrapAsync(this.methods.botContext({ slug }));
   }
+  botSystemPrompt(
+    slug: string,
+  ): Promise<import('../runtime/prompt-inspection.js').BotSystemPromptView> {
+    return unwrapAsync(this.methods.botSystemPrompt({ slug }));
+  }
+  botTurnInput(
+    slug: string,
+    sessionId?: string,
+    turns?: number,
+  ): Promise<{
+    slug: string;
+    sessionId: string;
+    turns: import('../runtime/prompt-inspection.js').TurnInputView[];
+  }> {
+    return unwrapAsync(
+      this.methods.botTurnInput({
+        slug,
+        ...(sessionId === undefined ? {} : { sessionId }),
+        ...(turns === undefined ? {} : { turns }),
+      }),
+    );
+  }
   channelBotStop(
     channelId: string,
     botSlug: string,
@@ -1035,6 +1065,74 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
   }
 
+  promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
+    return unwrap(this.methods.promptParts({}));
+  }
+
+  promptPresets(): { presets: PromptPreset[]; globalPresetId: string | null } {
+    return unwrap(this.methods.promptPresets({}));
+  }
+
+  promptPresetCreate(
+    name: string,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
+    return unwrap(
+      this.methods.promptPresetCreate({
+        name,
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+      }),
+    );
+  }
+
+  promptPresetUpdate(
+    id: string,
+    name?: string,
+    parts?: Record<string, unknown>,
+    expectedRevision?: number,
+    limits?: Record<string, unknown>,
+  ): { preset: PromptPreset } {
+    return unwrap(
+      this.methods.promptPresetUpdate({
+        id,
+        ...(name === undefined ? {} : { name }),
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      }),
+    );
+  }
+
+  promptPresetDelete(id: string): { id: string; clearedBots: string[] } {
+    return unwrap(this.methods.promptPresetDelete({ id }));
+  }
+
+  promptGlobalSet(presetId: string | null): { presetId: string | null } {
+    return unwrap(this.methods.promptGlobalSet({ presetId }));
+  }
+
+  botPrompt(slug: string): BotPromptView {
+    return unwrap(this.methods.botPrompt({ slug }));
+  }
+
+  botPromptSet(
+    slug: string,
+    presetId?: string | null,
+    parts?: Record<string, unknown>,
+    limits?: Record<string, unknown>,
+  ): BotPromptView {
+    return unwrap(
+      this.methods.botPromptSet({
+        slug,
+        ...(presetId === undefined ? {} : { presetId }),
+        ...(parts === undefined ? {} : { parts }),
+        ...(limits === undefined ? {} : { limits }),
+      }),
+    );
+  }
+
   approvalTemplateDelete(name: string): { template: { name: string }; clearedBots: string[] } {
     return unwrap(this.methods.approvalTemplateDelete({ name }));
   }
@@ -1057,6 +1155,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   idleCompactionSet(enabled: boolean): IdleCompactionView {
     return unwrap(this.methods.idleCompactionSet({ enabled }));
+  }
+
+  compactionThresholdSet(
+    thresholdRatio?: number | null,
+    headroomTokens?: number | null,
+  ): IdleCompactionView {
+    return unwrap(
+      this.methods.compactionThresholdSet({
+        ...(thresholdRatio === undefined ? {} : { thresholdRatio }),
+        ...(headroomTokens === undefined ? {} : { headroomTokens }),
+      }),
+    );
   }
 
   idleCompactionCacheLifetimeSet(
@@ -2128,6 +2238,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'botNewSession',
   'botCompact',
   'botContext',
+  'botSystemPrompt',
+  'botTurnInput',
   'channelBotStop',
   'modelCatalog',
   'modelPresets',
@@ -2281,6 +2393,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'browserAccessSet',
   'browserProfileSet',
   'approvalTemplates',
+  'promptParts',
+  'promptPresets',
+  'promptPresetCreate',
+  'promptPresetUpdate',
+  'promptPresetDelete',
+  'promptGlobalSet',
+  'botPrompt',
+  'botPromptSet',
   'approvalTemplateCreate',
   'approvalTemplateUpdate',
   'approvalTemplateDelete',
@@ -2290,6 +2410,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'idleCompaction',
   'idleCompactionSet',
   'idleCompactionCacheLifetimeSet',
+  'compactionThresholdSet',
   'standingLimitsSet',
   'botAvatarSet',
   'botAppearanceSet',

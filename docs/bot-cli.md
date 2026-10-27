@@ -111,6 +111,17 @@ deepseekbot bot-activity <bot-id> --limit 20
 deepseekbot bot-new-session <bot-id>
 deepseekbot bot-compact <bot-id>
 deepseekbot bot-context <bot-id>
+deepseekbot bot-system-prompt <bot-id>
+deepseekbot bot-turn-input <bot-id> --turns 1
+deepseekbot prompt-parts
+deepseekbot prompt-presets
+echo '{"triage":"Close what is done."}' | deepseekbot prompt-preset-create --name Quiet --parts-stdin
+deepseekbot prompt-preset-update <preset-id> --name Calm --expected-revision 1
+deepseekbot prompt-preset-delete <preset-id> --confirm
+deepseekbot prompt-global-set <preset-id>|built-in
+deepseekbot bot-prompt <bot-id>
+echo '{"silence":null}' | deepseekbot bot-prompt-set <bot-id> --preset <preset-id>|global --parts-stdin
+deepseekbot bot-prompt-set <bot-id> --prompt-limit dm-context-chars=4000 --prompt-limit review-tool-calls=default
 ```
 
 Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `steps` and `next`. The model preset is applied through its owner, never forwarded as a native Agent preset. A missing specified preset is rejected before creation; other model failures after creation preserve the Bot and return its known identity and steps with `outcome: created`. A lost creation/import response without a stable operation key can return `outcome: unknown`: inspect the Host before creating again; no automatic mutation retry is provided. For blank online creation, use the [receipt-backed operation key](#tob-bot-creation-profiles-and-lifecycle) to reconcile the same identity. A created Bot alone does not prove model usability: use `send` and its exact correlated committed reply.
@@ -119,9 +130,17 @@ Creation returns `bot`, `dm`, the Host's Memory `dataDir`, completed/deferred `s
 
 `bot-new-session <bot-id>` retires an idle Bot’s Orchestrator Session through the same Host runtime as IM `/new`; the next message starts a fresh Session. It returns `{"started":true}` and refuses with `bot-busy` while the Bot is working; stop the current turn first.
 
-`bot-compact <bot-id>` compacts an idle Bot’s Orchestrator Session through DSH `/compact`, loading the original Session after Host restart without sending a message. It returns `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}` or `nothing` when no useful smaller summary can be made. A running or queued turn returns `bot-busy`; an unavailable original Session is a coded refusal.
+`bot-compact <bot-id>` compacts an idle Bot’s Orchestrator Session through DSH `/compact`, loading the original Session after Host restart without sending a message. It returns `{"outcome":"compacted","tokensBefore":…,"tokensAfter":…}` or `nothing` when no useful smaller summary can be made; either outcome applies a pending Prompt Preset change. A running or queued turn returns `bot-busy`; an unavailable original Session is a coded refusal.
 
 `bot-context <bot-id>` returns the current `sessionId`, estimated `usedTokens` (null if unloaded), `contextWindow`, `capacitySource` (`model` or `estimate`) and `thresholdTokens`. Missing model capacity uses a 200,000-token estimate with output reservation and safety headroom; it is not a verified provider limit. The Web composer shows these current context values; its usage popover still shows cumulative usage.
+
+`bot-system-prompt <bot-id>` returns the system prompt the Bot's Orchestrator Session uses now (`effectiveText`: the latest system message on the live Session surface, since DSH appends a changed prompt to the history instead of rewriting the first one; or from the Session log with `loaded: false` when it is not loaded), the freshly assembled `next` prompt with its named `sections` and per-step runtime `contexts`, and `pending`: true when a Prompt Preset or persona change waits for a new Session or the next compaction. Once applied, the Session's next request appends the new text. `next` is null while the Session is not loaded.
+
+`bot-turn-input <bot-id> [--turns <1-20>] [--session <session-id>]` returns, for the newest turns (default 1), every input message the model received, in order, with its `step`, `source` (`user` for Inbox and steered input, `runtime-context` for the per-step environment note), time and exact `text`, including the reply reminder the Host appends. Steered messages appear at a later step of the same turn. The Web composer's usage popover opens both views.
+
+Prompt Presets let you edit the behavior text of the system prompt and the per-turn templates; the tool and delivery contracts around them stay fixed. `prompt-parts` lists each editable part with its `id`, `kind` (`system` or `turn`), owning `section` and built-in `defaultText`. A preset stores only the parts it changes. Each part resolves per Bot from the Bot's own overrides, then its chosen preset, then the global preset (`prompt-global-set`), then the built-in text; `bot-prompt` shows the result with each part's `source` (`bot`, `preset`, `global` or `built-in`). Part edits are a JSON object of `{"<part-id>": "text"}`; `null` or the built-in text removes the edit so the part inherits again. `bot-prompt-set --preset global` drops the Bot's preset. Deleting a preset returns `clearedBots`, whose Bots fall back to the global one. A running Session keeps the texts it started with: `pending: true` means a change waits for the Bot's next Session or compaction. To apply it now, run `bot-compact <bot-id>` or `bot-new-session <bot-id>`, the same actions as the apply buttons next to Pending in the UI. An edited part reports `defaultChanged: true` when the built-in text changed after the edit; parts you did not edit follow built-in updates.
+
+A preset and a Bot can also set numeric limits with repeatable `--prompt-limit <id>=<integer>` (`<id>=default` removes the setting so it inherits again) on `prompt-preset-create`, `prompt-preset-update` and `bot-prompt-set`. `prompt-parts` lists each limit's `defaultValue`, `min` and `max`: `group-context-chars`, `dm-context-chars` and `context-message-chars` bound how much pending Group and DM context the Bot Inbox adds to a turn; `review-timeout-seconds`, `review-human-messages`, `review-human-message-chars` and `review-tool-calls` bound the Approval Reviewer. Limits resolve through the same layers as parts, are reported under `limits` by `bot-prompt`, and apply from the next Inbox delivery or review without waiting for a new Session.
 
 For explicit cleanup, `bot-delete-preview <bot-id>` returns the owner's current scope and `preview.token`. Review it, then pipe `{"token":"<preview.token>"}` to `bot-delete-confirm <bot-id> --confirmation-stdin --confirm`. Memory is retained unless `--erase-memory` explicitly selects the owner-reviewed directory, and it erases the Bot's private-input secrets during the stop phase. Inspect `deletion.phase`; an incomplete cleanup can be continued with `bot-delete-retry <bot-id> --confirm`. Scope changes remain owner refusals; deletion is not content purge or complete data erasure.
 
@@ -684,9 +703,12 @@ deepseekbot idle-compaction
 deepseekbot idle-compaction-set on|off
 deepseekbot idle-compaction-cache-set deepseek/<model> <seconds>
 deepseekbot idle-compaction-cache-set deepseek/<model> auto
+deepseekbot compaction-threshold-set <ratio|default|keep> <headroom-tokens|default|keep>
 ```
 
 All three return `{enabled, settingReadable, minimumIdleSeconds, scheduled, routes}`. Each route lists `cacheLifetimeSeconds`, its `source` and `compactAfterSeconds` (`null` when the route is skipped). The lifetime comes from the per-route value set here (`setting`), the model catalog (`catalog`, Anthropic's short tier), the observed gaps before requests that still read most of their input from the cache (`observed`; a warm gap never shortens the default, and a longer cold gap caps it), or 2 hours for DeepSeek routes (`default`); other routes with nothing known are `unknown` and skipped, as are lifetimes under 15 minutes. `idle-compaction-cache-set ... auto` removes the per-route value. Each run is recorded under `idleCompactions` in `deepseekbot bot-activity-history <bot-id>` with the route, idle gap, tokens before and after, and the compaction request's input, cache-read and output tokens. Refusals carry a code: `usage` (a missing `on`/`off`, `<provider>/<model>` or whole seconds) and `invalid-input`.
+
+DSH compacts any Session automatically once its context reaches the smaller of the context window × `ratio` and the window minus the route's output limit minus `headroom-tokens`. `compaction-threshold-set` changes both for every Bot on the Host from the next step: the ratio from 0.5 to 0.95 (default 0.8) and the headroom from 8192 to 262144 tokens (default 65536). `default` restores one value and `keep` leaves it, so `compaction-threshold-set 0.7 keep` changes only the ratio. Idle compaction uses the same threshold. A headroom that leaves no room under a model's context window after its output limit is too large for that model: DSH logs a warning and skips pressure compaction for it, and a model without a declared window keeps the default headroom. `idle-compaction` reports both under `threshold` with `ratioSet`/`headroomSet` and their ranges.
 
 ### Encrypted LAN phone access
 
