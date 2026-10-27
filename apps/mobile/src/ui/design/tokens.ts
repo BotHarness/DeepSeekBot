@@ -328,8 +328,10 @@ export const profileShell = {
   bannerAspect: 3,
   overlap: 28,
   chipOverlap: 12,
-  openScale: 0.94,
-  dismissDistance: 96,
+  stuckTabsShadow: {
+    light: '0 2px 8px rgba(15, 17, 21, 0.12)',
+    dark: '0 2px 8px rgba(0, 0, 0, 0.45)',
+  },
 } as const;
 
 export const channelMedia = {

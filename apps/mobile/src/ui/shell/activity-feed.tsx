@@ -270,7 +270,13 @@ const Row = memo(function Row({
     <SwipeRow actions={actions} testID={`inbox-swipe-${activityKey(item)}`}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={t.openPost(kind, name, summary)}
+        accessibilityLabel={t.openPost(
+          kind,
+          name,
+          [(item.unreadCount ?? 0) > 0 ? t.unreadCount(item.unreadCount!) : '', summary]
+            .filter((part) => part !== '')
+            .join(', '),
+        )}
         testID={`inbox-row-${activityKey(item)}`}
         onPress={() => onOpen(item)}
         {...swipeActionProps(t.rowTitle(kind, name), actions)}

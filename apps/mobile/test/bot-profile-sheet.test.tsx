@@ -489,7 +489,7 @@ describe('Bot profile page', () => {
     expect(view.textContent).toContain('Morning digest');
   });
 
-  it('closes, opens notifications and retries a failed section', async () => {
+  it('opens notifications and retries a failed section', async () => {
     const handlers = actions();
     let attempt = 0;
     const view = await render(
@@ -524,10 +524,8 @@ describe('Bot profile page', () => {
     await act(async () => undefined);
     expect(view.textContent).toContain('Morning digest');
 
-    await act(async () => button(view, t.close)!.click());
     await openTab(view, 'settings');
     await act(async () => button(view, t.profileNotifications)!.click());
-    expect(handlers.onClose).toHaveBeenCalledTimes(1);
     expect(handlers.onNotifications).toHaveBeenCalledTimes(1);
   });
 

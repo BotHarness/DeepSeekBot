@@ -19,6 +19,7 @@ import { useDesignTheme } from '../design/theme';
 import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
 import { useFocusEffect } from 'expo-router';
+import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import type { IconTabOption } from '../primitives/icon-tabs';
@@ -69,7 +70,6 @@ import {
   type RememberedProfileKind,
 } from './profile-tabs';
 import { ProfileHero } from './profile-hero';
-import { ProfileZoomTarget } from './profile-zoom-target';
 
 export const PROFILE_SECTIONS = [
   'work',
@@ -330,11 +330,9 @@ function BotIdentity({
       banner={{ source: botBanner(bot), headers: bot.bannerHeaders }}
       name={bot.displayName}
       avatar={
-        <ProfileZoomTarget>
-          <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
-            <BotAvatar bot={bot} size={profileShell.avatar} />
-          </EditableAvatar>
-        </ProfileZoomTarget>
+        <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
+          <BotAvatar bot={bot} size={profileShell.avatar} />
+        </EditableAvatar>
       }
     >
       <Text variant="meta" tone={botStateTone(bot)}>
@@ -595,53 +593,6 @@ function ProfileRow({
   return null;
 }
 
-function SubHeading({ children }: { children: string }) {
-  return (
-    <Text
-      accessibilityRole="header"
-      variant="meta"
-      tone="muted"
-      strong
-      style={{ paddingTop: space.x5, paddingBottom: space.x3 }}
-    >
-      {children}
-    </Text>
-  );
-}
-
-function SettingsRowLink({
-  title,
-  testID,
-  onPress,
-}: {
-  title: string;
-  testID: string;
-  onPress(): void;
-}) {
-  const theme = useDesignTheme();
-  return (
-    <Pressable
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: theme.touch,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x3,
-        paddingHorizontal: space.x5,
-        paddingVertical: space.x4,
-        borderRadius: radius.md,
-        backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
-      })}
-    >
-      <Text style={{ flex: 1 }}>{title}</Text>
-      <ChevronRightIcon color={theme.color.muted} size={theme.type.title.line} />
-    </Pressable>
-  );
-}
-
 export function useRememberedProfileTab(
   memory: ProfileTabMemory,
   tabs: readonly ProfileTab[],
@@ -679,6 +630,7 @@ export function BotProfilePage({
   tabMemory: ProfileTabMemory;
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
@@ -723,8 +675,14 @@ export function BotProfilePage({
     key,
     render,
   });
-  const heading = (section: ProfileSection) =>
-    node(`${section}:heading`, () => <SubHeading>{t.profileSection[section]}</SubHeading>);
+  const section = (key: string, child: ReactNode) =>
+    node(key, () => <View style={{ paddingTop: space.x5 }}>{child}</View>);
+  const settingsHeading = (key: string, title: string) =>
+    node(`${key}:heading`, () => (
+      <View style={{ paddingTop: space.x5, paddingBottom: space.x2 }}>
+        <SettingsHeading>{title}</SettingsHeading>
+      </View>
+    ));
   const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
@@ -771,37 +729,49 @@ export function BotProfilePage({
         ...(permissions === undefined
           ? []
           : [
-              node('settings:permissions', () => (
-                <SubHeading>{t.approvals.permissions}</SubHeading>
-              )),
+              settingsHeading('settings:permissions', t.approvals.permissions),
               node('settings:permissions:rows', () => permissions),
             ]),
-        node('settings:bot', () => <SubHeading>{t.profileSettingsBot}</SubHeading>),
         ...(content.ready && settings !== undefined
-          ? [node('settings:panel', () => settings)]
-          : []),
-        node('settings:notifications', () => (
-          <View style={{ paddingTop: space.x4 }}>
-            <SettingsRowLink
-              testID="profile-notifications"
-              title={t.profileNotifications}
-              onPress={actions.onNotifications}
-            />
-          </View>
-        )),
-        node('settings:avatar', () => (
-          <View style={{ paddingTop: space.x4 }}>
-            <AvatarSettings
-              editor={avatarEditor}
-              hasAvatar={bot.avatarUrl !== undefined}
-              portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
-              testID="bot-avatar-settings"
-            />
-          </View>
-        )),
-        heading('channels'),
+          ? [section('settings:panel', settings)]
+          : [
+              node('settings:bot', () => (
+                <View style={{ paddingTop: space.x5 }}>
+                  <SettingsHeading>{t.profileSettingsBot}</SettingsHeading>
+                </View>
+              )),
+            ]),
+        ...(content.ready && settings !== undefined
+          ? []
+          : [
+              section(
+                'settings:notifications',
+                <SettingsSection on="raised">
+                  <SettingsRow
+                    on="raised"
+                    testID="profile-notifications"
+                    title={t.profileNotifications}
+                    trailing={
+                      <ChevronRightIcon color={theme.color.muted} size={theme.type.body.line} />
+                    }
+                    onPress={actions.onNotifications}
+                  />
+                </SettingsSection>,
+              ),
+            ]),
+        section(
+          'settings:avatar',
+          <AvatarSettings
+            on="raised"
+            editor={avatarEditor}
+            hasAvatar={bot.avatarUrl !== undefined}
+            portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
+            testID="bot-avatar-settings"
+          />,
+        ),
+        settingsHeading('channels', t.profileSection.channels),
         ...rows.channels.map(rowOf),
-        heading('files'),
+        settingsHeading('files', t.profileSection.files),
         ...rows.files.map(rowOf),
       ],
     },
