@@ -81,6 +81,7 @@ export function CreationAvatar({
   onChange(avatar: BotAvatarChoice): void;
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const choosePhoto = async () => {
     const image = await pickAvatarImage().catch(() => undefined);
     if (image) onChange({ kind: 'photo', image });
