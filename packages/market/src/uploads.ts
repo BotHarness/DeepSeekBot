@@ -255,6 +255,7 @@ export function createUploads(deps: {
     await discardPending('replaces', botId);
     await discardBotFiles(row.files);
     await db.prepare('DELETE FROM reports WHERE node_id = ?').bind(botId).run();
+    await db.prepare('DELETE FROM install_receipts WHERE bot_id = ?').bind(botId).run();
     await db.prepare('DELETE FROM indexed_repositories WHERE node_id = ?').bind(botId).run();
     return true;
   };

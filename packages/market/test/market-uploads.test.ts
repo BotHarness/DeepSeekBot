@@ -6,7 +6,7 @@ import {
   MAX_REPLACEMENTS_PER_HOUR,
   MAX_UPLOAD_FILE_BYTES,
 } from '../src/upload-files.js';
-import { createMarket, fakeRepository, submit } from './market-harness.js';
+import { createMarket, fakeRepository, post, submit } from './market-harness.js';
 
 type Market = ReturnType<typeof createMarket>;
 
@@ -520,16 +520,23 @@ describe('My uploads', () => {
     expect((await upload(market, { 'SOUL.md': 'again' }, { replaces: last })).status).toBe(201);
   });
 
-  it('deletes a Bot with its files, row and reports', async () => {
+  it('deletes a Bot with its files, row, reports and Install Receipts', async () => {
     const market = createMarket();
     await becomeAuthor(market);
     const { bot } = (await (await upload(market, BOT_FILES)).json()) as { bot: { id: string } };
+    await post(market, `/v1/bots/${bot.id}/installs`, { hostId: 'hostA_aaaaaaaaaaaaaaaaaaaaaaaa' });
+    expect(market.sqlite.prepare('SELECT count(*) AS n FROM install_receipts').get()).toEqual({
+      n: 1,
+    });
     expect((await call(market, 'DELETE', `/v1/me/bots/${bot.id}`, 'token-bob')).status).toBe(404);
     const deleted = await call(market, 'DELETE', `/v1/me/bots/${bot.id}`, 'token-alice');
     expect(await deleted.json()).toEqual({ deleted: true });
     expect((await market.request(`/v1/bots/${bot.id}`)).status).toBe(404);
     expect(market.bucket.objects.size).toBe(0);
     expect(market.sqlite.prepare('SELECT count(*) AS n FROM uploaded_files').get()).toEqual({
+      n: 0,
+    });
+    expect(market.sqlite.prepare('SELECT count(*) AS n FROM install_receipts').get()).toEqual({
       n: 0,
     });
     expect(await mine(market)).toEqual([]);
