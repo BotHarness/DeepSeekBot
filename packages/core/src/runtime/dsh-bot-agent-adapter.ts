@@ -563,6 +563,13 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     this.#drafts.accept(sessionId, frame);
   }
 
+  modelSelection(sessionId: string): ModelSelection | undefined {
+    return (
+      this.#orchestratorSelections.get(sessionId)?.current ??
+      this.#assignmentSelections.get(sessionId)?.current
+    );
+  }
+
   async runAssignment(run: AssignmentAgentRun): Promise<void> {
     this.#assertOpen();
     await this.#driveAssignment(run);
@@ -3675,6 +3682,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
   acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void;
+  modelSelection(sessionId: string): ModelSelection | undefined;
 } {
   return new DshBotAgentAdapter(options);
 }
