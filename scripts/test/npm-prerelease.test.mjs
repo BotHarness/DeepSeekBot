@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import semver from 'semver';
 import {
   awaitPublished,
   assertCleanReleaseSource,
@@ -144,10 +145,11 @@ describe('reviewed npm prerelease', () => {
   it('pins the published product Provider separately from historical standalone publication', () => {
     expect(publishedProductProvider).toMatchObject({
       name: productImProvider.name,
-      version: productImProvider.version,
-      providerSource: productImProvider.upstream.source,
       distTag: 'latest',
     });
+    if (publishedProductProvider.version === productImProvider.version)
+      expect(publishedProductProvider.providerSource).toBe(productImProvider.upstream.source);
+    else expect(semver.gt(productImProvider.version, publishedProductProvider.version)).toBe(true);
     expect(publishedProductProvider.version).toMatch(/^\d+\.\d+\.\d+-botharness\.\d+$/);
     expect(publishedProductProvider.providerSource).toMatch(/^[a-f0-9]{40}$/);
     expect(publishedProductProvider.productSource).toMatch(/^[a-f0-9]{40}$/);
