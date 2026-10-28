@@ -725,6 +725,8 @@ On iOS, Workspaces, the complete Chats tab shell, the last visited chat and its 
 - Only an explicit All, Computer or Cloud choice changes the environment. That choice still uses the owning selection adapter and retained tab route keys; opening and closing the page does not mutate the selected Host, conversation filter, drafts, search or list position. Background refreshes continue through the existing Host caches without replacing the mounted list with a loading skeleton.
 - Offscreen page contents are hidden from accessibility. VoiceOver escape on Chats opens Workspaces, and on Workspaces returns to Chats; buttons and row selection remain available without swiping. Verify VoiceOver on native devices separately.
 
+Profile child routes keep their explicit Host at each native-stack scene. Deeper children inherit the same navigator’s entry source. A direct child with no inner predecessor has a native leading Back bar button to the retained Profile; it never inserts a duplicate Profile page.
+
 ### Workspace history transitions (#2800)
 
 Explicit workspace selection resets the root history only after source selection succeeds. `workspace-navigation.ts` retains the existing two-tab route and its page keys, selects the Chats root, and removes scoped details and sheets. A Cloud workspace occupies one list route above those retained tabs; selecting the same scoped workspace reuses that route key. Failed selection leaves the previous state untouched.

@@ -179,7 +179,7 @@ index 82cf6f1e7055aa4b641acf09fd1e8b474ee4b772..6e65b32d10f9bc9993e4c2731d07c286
        syncParentViewController()
        return
 diff --git a/ios/RNCPagerViewComponentView.mm b/ios/RNCPagerViewComponentView.mm
-index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..f1dac264ee627360927e1cf789d08e5067ce2108 100644
+index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..9eb7cc1cfad59e7596e9c0543c49cb87840f108e 100644
 --- a/ios/RNCPagerViewComponentView.mm
 +++ b/ios/RNCPagerViewComponentView.mm
 @@ -7,6 +7,7 @@
@@ -216,7 +216,7 @@ index eeeecde6365bf4d6bf2aa54b3b93efad74eaa7a6..f1dac264ee627360927e1cf789d08e50
        break;
  
      case PageScrollStateDragging:
-+      [self cancelAncestorReactTouches];
++      if (_pagerViewProvider.stableNativePages) [self cancelAncestorReactTouches];
        scrollState = RNCViewPagerEventEmitter::OnPageScrollStateChangedPageScrollState::Dragging;
        break;
  

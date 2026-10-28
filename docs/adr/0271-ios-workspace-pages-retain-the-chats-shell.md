@@ -30,3 +30,5 @@ The navigation-bar title uses a native SwiftUI `Button` around the existing avat
 - Native correctness, physical Release measurements and Human feel remain separate acceptance gates; source tests and Simulator recordings cannot qualify device FPS.
 
 The UIKit backend retains its internal scroll view’s default bounce behavior: `UIPageViewController` uses that movement to discover neighboring pages. Turning it off freezes native horizontal navigation even when a valid next page is available. The original SwiftUI content-tab and Android overdrag paths remain unchanged.
+
+Profile child screens bind `HostScope` at the navigator scene boundary, using the scene’s explicit Host, then that same navigator’s entry Host, then its established Profile source. Direct entry must not read a different globally selected Computer. A first nested child gets a native leading Back bar button that bubbles through the existing navigator; no synthetic Profile index or second Profile instance is inserted.

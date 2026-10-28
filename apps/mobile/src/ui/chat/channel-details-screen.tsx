@@ -16,6 +16,7 @@ import { ProfileHero } from './profile-hero';
 import { ChannelFilesTab } from './channel-files-tab';
 import { ProfileShell, type ProfileTabBody } from './profile-shell';
 import { profileTabs } from './profile-tabs';
+import { useProfileIsFocused } from './profile-paging';
 
 const PAIR_TABS = profileTabs('bot-pair');
 
@@ -29,6 +30,7 @@ export function ChannelDetailsScreen({
   onClose?: () => void;
 }) {
   const { client, saved } = useHostSession(hostId);
+  const focused = useProfileIsFocused();
   const host = useHostSnapshot(client);
   const t = useStrings();
   const router = useRouter();
@@ -85,7 +87,7 @@ export function ChannelDetailsScreen({
     );
   if (!channel || !client || !saved) return note(<LoadingIndicator />);
   return (
-    <ChannelFilesTab client={client} hostId={hostId} channelId={channelId} active>
+    <ChannelFilesTab client={client} hostId={hostId} channelId={channelId} active={focused}>
       {shell}
     </ChannelFilesTab>
   );
