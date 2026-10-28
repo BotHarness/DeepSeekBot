@@ -56,6 +56,7 @@ import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { SettingsForm } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { CountBadge } from '../primitives/count-badge';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { useStrings, t } from '../strings';
@@ -584,16 +585,25 @@ function HostFormRow({
           }
         />
       }
-      {...(selected ? { control: { kind: 'check' as const } } : {})}
+      {...(selected && badge === undefined ? { control: { kind: 'check' as const } } : {})}
       trailing={
         badge === undefined ? undefined : (
-          <CountBadge
-            count={badge.count}
-            tone={badge.tone}
-            label={
-              badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
-            }
-          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+            <CountBadge
+              count={badge.count}
+              tone={badge.tone}
+              label={
+                badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
+              }
+            />
+            {selected ? (
+              <SystemSymbol
+                name={{ ios: 'checkmark', android: 'check' }}
+                size={theme.type.title.line}
+                color={theme.color.accent}
+              />
+            ) : null}
+          </View>
         )
       }
       accessory={
@@ -1039,7 +1049,7 @@ export function WorkspacePanel({
         gap: space.x4,
       }}
     >
-      <Text variant="display" accessibilityRole="header" numberOfLines={1}>
+      <Text variant="display" accessibilityRole="header">
         {t.workspaces}
       </Text>
       {cloudAvailable && <WorkspaceTabs value={tab} onChange={setTab} selectedRef={tabFocus} />}
