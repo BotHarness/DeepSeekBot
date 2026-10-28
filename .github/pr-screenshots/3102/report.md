@@ -24,23 +24,23 @@ PASS: final light/dark programmatic open; Back button return; live preference ev
 
 ## #3055 / #3105 handoff: bounded native regression
 
-| Check | iOS27 | XS Max18.1.1 | Android |
-|---|---|---|---|
-| Chip opens pushed profile, round Back | PASS, light/dark | PASS | UNTESTED (Windows lane) |
-| Back button returns to DM | PASS | PASS | UNTESTED |
-| Native edge-back from profile | FAIL, #3109 | UNTESTED | UNTESTED |
-| Chat left swipe opens one profile | PASS, dark | UNTESTED | UNTESTED |
-| Central profile tab swipe | PASS, Memory→Files, dark | UNTESTED | UNTESTED |
-| Short chat left/right swipe does not open profile/reply | PASS, dark | UNTESTED | UNTESTED |
-| Group/pair profile transitions | UNTESTED (same options covered in source) | UNTESTED | UNTESTED |
-| Chats row/last-chat/drawer/search/preview cases | UNTESTED; invalid setup attempts excluded | UNTESTED | UNTESTED |
-| Long reply, persistence, offline/multi-select/card exclusions | UNTESTED | UNTESTED | UNTESTED |
-| Default/middle/max font matrix and VoiceOver speech | UNTESTED in this pass | UNTESTED | UNTESTED |
+| Check                                                         | iOS27                                     | XS Max18.1.1 | Android                 |
+| ------------------------------------------------------------- | ----------------------------------------- | ------------ | ----------------------- |
+| Chip opens pushed profile, round Back                         | PASS, light/dark                          | PASS         | UNTESTED (Windows lane) |
+| Back button returns to DM                                     | PASS                                      | PASS         | UNTESTED                |
+| Native edge-back from profile                                 | FAIL, #3109                               | UNTESTED     | UNTESTED                |
+| Chat left swipe opens one profile                             | PASS, dark                                | UNTESTED     | UNTESTED                |
+| Central profile tab swipe                                     | PASS, Memory→Files, dark                  | UNTESTED     | UNTESTED                |
+| Short chat left/right swipe does not open profile/reply       | PASS, dark                                | UNTESTED     | UNTESTED                |
+| Group/pair profile transitions                                | UNTESTED (same options covered in source) | UNTESTED     | UNTESTED                |
+| Chats row/last-chat/drawer/search/preview cases               | UNTESTED; invalid setup attempts excluded | UNTESTED     | UNTESTED                |
+| Long reply, persistence, offline/multi-select/card exclusions | UNTESTED                                  | UNTESTED     | UNTESTED                |
+| Default/middle/max font matrix and VoiceOver speech           | UNTESTED in this pass                     | UNTESTED     | UNTESTED                |
 
 `edge.mp4` records a verified profile start and leading-edge drag: Memory changes to Work instead of returning to the DM. Ordinary-motion and reduced-motion attempts failed. A 24pt hit-region exclusion and animationMatchesGesture prototype did not establish native navigation and were withdrawn; neither is in the PR. The original-main-only cause attribution remains unqualified. The follow-up is #3109 under #2904 / v1.6.0; this report does not call the full gesture handoff passed.
 
 ## Verification limits and preserved evidence
 
-138 focused tests, lint, format, typecheck, build and bilingual changelog checks passed for candidate source; CI is reported separately on the PR. Initial setup/readiness mistakes and one React Native Simulator crash during app switching were preserved privately and excluded from successful runs. No crash-fix or performance claim. Selected public images contain synthetic QA app content only; personal Settings, addresses, pairing keys, raw Session reasoning and credentials are excluded.
+138 focused tests and the full mobile suite (2392 passed / 11 skipped), lint, format, typecheck, build and bilingual changelog checks passed for candidate source; CI is reported separately on the PR. Initial setup/readiness mistakes and one React Native Simulator crash during app switching were preserved privately and excluded from successful runs. No crash-fix or performance claim. Selected public images contain synthetic QA app content only; personal Settings, addresses, pairing keys, raw Session reasoning and credentials are excluded.
 
 Private raw action receipts, native snapshots, recordings, CLI results, original Session files and resource manifests remain in the task archive on the Mac. Cleanup and release are recorded separately after the run.
