@@ -135,13 +135,17 @@ import type {
   MarketplaceAuthorAccount,
   MarketplaceClient,
   MarketplaceDetail,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
   MarketplaceEntry,
   MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceResult,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
+import { MARKETPLACE_DIGEST_DAY, MARKETPLACE_SECTIONS } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type {
   MarketplaceAccount,
@@ -252,7 +256,12 @@ import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ComposerRecoveryIdentity } from './composer-recovery.js';
-import type { ChannelReadPosition, ChannelStore, ChannelSendStatus } from '../channels/store.js';
+import type {
+  ChannelReadPosition,
+  ChannelStore,
+  ChannelSendStatus,
+  HumanMessageSearchPage,
+} from '../channels/store.js';
 import { groupProfileActivity, type GroupProfileActivity } from '../channels/profile-activity.js';
 import { channelActivityToday, type ChannelActivityToday } from '../channels/activity-today.js';
 import type { ChannelTimelinePage } from '../channels/timeline.js';
@@ -765,6 +774,7 @@ export interface BridgeMethods {
   channelSearch(
     payload: unknown,
   ): BridgeResult<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
@@ -959,6 +969,11 @@ export interface BridgeMethods {
   marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
+  marketplaceSections(payload: unknown): Promise<BridgeResult<{ sections: MarketplaceSection[] }>>;
+  marketplaceDigests(
+    payload: unknown,
+  ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
+  marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
@@ -3677,6 +3692,59 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     marketplaceTopics() {
       return marketplaceCall((client) => client.topics());
     },
+    marketplaceDigests(payload) {
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall(async (client) => {
+        const digests = await client.digests(lang);
+        return digests.ok ? { ok: true, value: { digests: digests.value } } : digests;
+      });
+    },
+    marketplaceDigest(payload) {
+      const source = asObject(payload);
+      const lang = marketplaceLang(source['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      const day = source['day'] ?? 'latest';
+      if (typeof day !== 'string' || (day !== 'latest' && !MARKETPLACE_DIGEST_DAY.test(day)))
+        return Promise.resolve(invalidInput('invalid day'));
+      return marketplaceCall(async (client) => {
+        const digest = await client.digest(day, lang);
+        if (!digest.ok) return digest;
+        return {
+          ok: true,
+          value: {
+            digest: {
+              ...digest.value,
+              sections: digest.value.sections.map((section) => ({
+                ...section,
+                bot: section.bot === null ? null : withInstalls(section.bot),
+              })),
+            },
+          },
+        };
+      });
+    },
+    marketplaceSections(payload) {
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall(async (client) => {
+        const results = await Promise.all(
+          MARKETPLACE_SECTIONS.map((name) => client.section(name, lang)),
+        );
+        const sections: MarketplaceSection[] = [];
+        for (const result of results) {
+          if (!result.ok) return result;
+          sections.push({
+            ...result.value,
+            entries: result.value.entries.map((entry) => ({
+              ...entry,
+              bot: withInstalls(entry.bot),
+            })),
+          });
+        }
+        return { ok: true, value: { sections } };
+      });
+    },
     releaseInfo(payload) {
       if (deps.release === undefined) return releaseUnavailable();
       const since = asObject(payload)['since'];
@@ -5524,6 +5592,46 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: page };
       } catch (error) {
         return invalidInput((error as Error).message.replace(/^channel_read: /u, ''));
+      }
+    },
+    messageSearch(payload) {
+      const source = asObject(payload);
+      const text = source['text'];
+      const cursor = source['cursor'];
+      const limit = source['limit'];
+      if (typeof text !== 'string' || text.trim().length === 0 || text.length > 200)
+        return invalidInput('text must be 1 to 200 characters');
+      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 1024))
+        return invalidInput('cursor must be the nextCursor of the previous page');
+      if (
+        limit !== undefined &&
+        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 50)
+      )
+        return invalidInput('limit must be an integer from 1 to 50');
+      if (deps.channels.searchAllHumanMessages === undefined)
+        return {
+          ok: false,
+          error: { code: 'storage-unavailable', message: 'search is unavailable' },
+        };
+      let hidden: string[];
+      try {
+        hidden = deps.roster.snapshot().hidden;
+      } catch (error) {
+        if (error instanceof RosterUnavailableError) return unavailable();
+        throw error;
+      }
+      try {
+        return {
+          ok: true,
+          value: deps.channels.searchAllHumanMessages({
+            text,
+            limit: limit ?? 20,
+            excludeChannelIds: hidden,
+            ...(cursor === undefined ? {} : { cursor }),
+          }),
+        };
+      } catch (error) {
+        return invalidInput((error as Error).message.replace(/^message_search: /u, ''));
       }
     },
     async channelMarkAllRead() {

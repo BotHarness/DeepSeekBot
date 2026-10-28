@@ -124,7 +124,7 @@ it('asks for a Layout mode in step 4, applies it through the layout owner, and m
     detach();
     detach = controller.attachLayout('simple', { setMode });
   });
-  expect(host.textContent).toContain(t('onboarding.short.chatHintSimple'));
+  expect(host.textContent).toContain(t('onboarding.short.chatHint'));
   act(() => detach());
   expect(controller.getSnapshot().layoutMode).toBeUndefined();
   act(() => root.unmount());

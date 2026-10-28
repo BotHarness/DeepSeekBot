@@ -28,6 +28,16 @@ import { prepareReadme } from './readme.js';
 import { createSummarizer, refreshSummaries, type Summarizer } from './summary.js';
 import { bearer, createAccessTokenVerifier, workosKeys, type AccessTokenVerifier } from './auth.js';
 import type { R2Bucket } from './r2.js';
+import {
+  createDigests,
+  createDigestWriter,
+  DIGEST_DAY,
+  refreshDigest,
+  type DigestFiles,
+  type Digests,
+  type DigestWriter,
+} from './digest.js';
+import { createRankings, isRankingSection, type Rankings } from './rankings.js';
 import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
 import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
 import {
@@ -57,6 +67,8 @@ export interface MarketHandlerDeps {
   adminToken: string | undefined;
   reportThreshold: number;
   receipts?: Receipts | undefined;
+  rankings?: Rankings | undefined;
+  digests?: Digests | undefined;
   uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
 }
 
@@ -388,6 +400,39 @@ export function createMarketHandler(
       );
       return detail === undefined ? failure(404, 'bot-not-found') : json(200, detail);
     }
+    const sectionName = /^\/v1\/sections\/([^/]+)$/u.exec(url.pathname)?.[1];
+    if (sectionName !== undefined) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (!isRankingSection(sectionName) || deps.rankings === undefined) {
+        return failure(404, 'section-not-found');
+      }
+      return json(
+        200,
+        await deps.rankings.section(
+          sectionName,
+          parseMarketplaceLanguage(url.searchParams.get('lang')),
+        ),
+      );
+    }
+    if (url.pathname === '/v1/digests') {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (deps.digests === undefined) return json(200, { digests: [] });
+      return json(200, {
+        digests: await deps.digests.list(parseMarketplaceLanguage(url.searchParams.get('lang'))),
+      });
+    }
+    const digestDay = /^\/v1\/digests\/([^/]+)$/u.exec(url.pathname)?.[1];
+    if (digestDay !== undefined) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (digestDay !== 'latest' && !DIGEST_DAY.test(digestDay)) {
+        return failure(400, 'invalid-day');
+      }
+      const digest = await deps.digests?.get(
+        digestDay,
+        parseMarketplaceLanguage(url.searchParams.get('lang')),
+      );
+      return digest === undefined ? failure(404, 'digest-not-found') : json(200, { digest });
+    }
     if (url.pathname === '/v1/topics') {
       if (request.method !== 'GET') return failure(405, 'method-not-allowed');
       return json(200, { topics: await catalog.topics() });
@@ -469,6 +514,8 @@ export function handlerForEnv(
       env.ADMIN_TOKEN === undefined || env.ADMIN_TOKEN.length === 0 ? undefined : env.ADMIN_TOKEN,
     reportThreshold: reportThreshold(env.REPORT_THRESHOLD),
     receipts: createReceipts({ db, now }),
+    rankings: createRankings({ db, now }),
+    digests: createDigests({ db }),
     uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }
@@ -490,12 +537,80 @@ export function summarizerForEnv(env: MarketEnv, fetchImpl?: typeof fetch): Summ
   });
 }
 
+export function digestWriterForEnv(
+  env: MarketEnv,
+  fetchImpl?: typeof fetch,
+): DigestWriter | undefined {
+  const apiKey = env.SUMMARY_API_KEY;
+  if (apiKey === undefined || apiKey.length === 0) return undefined;
+  return createDigestWriter({
+    apiKey,
+    apiBase: env.SUMMARY_API_BASE || DEFAULT_SUMMARY_API_BASE,
+    model: env.SUMMARY_MODEL || DEFAULT_SUMMARY_MODEL,
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+  });
+}
+
+function digestFiles(env: MarketEnv, now: () => Date): DigestFiles | undefined {
+  const bucket = env.MARKET_FILES;
+  return bucket === undefined ? undefined : createUploads({ db: env.MARKET_DB, bucket, now });
+}
+
+async function writeDigest(
+  env: MarketEnv,
+  writer: DigestWriter | undefined,
+  log: (line: string) => void,
+  now: () => Date,
+): Promise<void> {
+  if (writer === undefined) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'digest',
+        skipped: 'missing-summary-api-key',
+      }),
+    );
+    return;
+  }
+  const started = Date.now();
+  try {
+    const report = await refreshDigest({
+      db: env.MARKET_DB,
+      writer,
+      now,
+      files: digestFiles(env, now),
+    });
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'digest',
+        durationMs: Date.now() - started,
+        ...report,
+      }),
+    );
+  } catch (error) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'digest',
+        durationMs: Date.now() - started,
+        failed: error instanceof Error ? error.message : 'unknown',
+      }),
+    );
+  }
+}
+
 export async function runScheduled(
   cron: string,
   env: MarketEnv,
   github: GitHubClient = createGitHubClient({ token: env.GITHUB_TOKEN }),
   log: (line: string) => void = (line) => console.log(line),
   summarizer: Summarizer | undefined = summarizerForEnv(env),
+  digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
+  now: () => Date = () => new Date(),
 ): Promise<void> {
   const crawler = createCrawler({ db: env.MARKET_DB, github, now: () => new Date() });
   const started = Date.now();
@@ -520,8 +635,17 @@ export async function runScheduled(
         skipped: 'missing-summary-api-key',
       }),
     );
-    return;
+  } else {
+    await refreshSummariesLogged(env, summarizer, log);
   }
+  if (digestWriter !== undefined) await writeDigest(env, digestWriter, log, now);
+}
+
+async function refreshSummariesLogged(
+  env: MarketEnv,
+  summarizer: Summarizer,
+  log: (line: string) => void,
+): Promise<void> {
   const summaryStarted = Date.now();
   const summaries = await refreshSummaries({ db: env.MARKET_DB, summarizer });
   log(
@@ -536,6 +660,46 @@ export async function runScheduled(
   );
 }
 
+export async function runDaily(
+  env: MarketEnv,
+  log: (line: string) => void = (line) => console.log(line),
+  now: () => Date = () => new Date(),
+  digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
+): Promise<void> {
+  await snapshotRankings(env, log, now);
+  await writeDigest(env, digestWriter, log, now);
+}
+
+async function snapshotRankings(
+  env: MarketEnv,
+  log: (line: string) => void,
+  now: () => Date,
+): Promise<void> {
+  const started = Date.now();
+  try {
+    const snapshot = await createRankings({ db: env.MARKET_DB, now }).snapshot();
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'rankings',
+        durationMs: Date.now() - started,
+        ...snapshot,
+      }),
+    );
+  } catch (error) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'rankings',
+        durationMs: Date.now() - started,
+        failed: error instanceof Error ? error.message : 'unknown',
+      }),
+    );
+  }
+}
+
 export default {
   fetch(request: Request, env: MarketEnv): Promise<Response> {
     return handlerForEnv(env)(request);
@@ -545,6 +709,11 @@ export default {
     env: MarketEnv,
     context: { waitUntil(promise: Promise<unknown>): void },
   ): void {
-    context.waitUntil(runScheduled(controller.cron, env));
+    const crawl = runScheduled(controller.cron, env);
+    context.waitUntil(
+      controller.cron === DISCOVERY_CRON
+        ? crawl.then(undefined, (error: unknown) => console.error(error)).then(() => runDaily(env))
+        : crawl,
+    );
   },
 };

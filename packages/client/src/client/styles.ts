@@ -1894,6 +1894,26 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   gap: ${space.x3};
 }
 .bh-market-panel > button:last-of-type { align-self: center; }
+.bh-market-sections { display: flex; flex-direction: column; gap: ${space.x4}; flex-shrink: 0; }
+.bh-market-sections[hidden] { display: none; }
+.bh-market-section { display: flex; flex-direction: column; gap: ${space.x2}; min-width: 0; }
+.bh-market-section-title {
+  margin: 0;
+  font-size: ${text.titleSize};
+  font-weight: ${text.strong};
+  line-height: ${text.bodyLine};
+}
+.bh-market-carousel {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(240px, 80%);
+  gap: ${space.x3};
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.bh-market-carousel > .bh-market-tile { scroll-snap-align: start; }
 .bh-market-tile {
   display: flex;
   flex-direction: column;
@@ -6682,11 +6702,6 @@ button:has(.bh-panel-glyph):is(:hover, :focus-within) .bh-panel-activity[data-wi
 .bh-overview-usage {margin-top:${space.x4};min-width:0;container-type:inline-size;}
 .bh-overview-usage h3 {margin:0;font-weight:${text.regular};}
 /* Home uses the same flat surface, inset and rounding as conversation approval cards. */
-.bh-overview-usage[data-home-history] {margin-top:0;border:0;border-radius:${radius.lg};background:${color.surface};box-shadow:none;}
-.bh-overview-usage[data-home-history] h3 {font-size:${text.titleSize};line-height:${text.titleLine};font-weight:${text.strong};color:${color.fg};}
-.bh-overview-usage[data-home-history] .bh-usage-grouping {border:0;background:${color.well};}
-.bh-overview-usage[data-home-history] .bh-usage-grouping button {border:0;box-shadow:none;}
-.bh-overview-usage[data-home-history] .bh-usage-grouping button[aria-pressed='true'] {background:var(--bh-surface-selected);}
 
 .bh-overview-usage .bh-profile-card-head {flex-wrap:wrap;}
 .bh-overview-usage-controls {display:flex;flex-wrap:wrap;align-items:center;gap:${space.x3};min-width:0;}

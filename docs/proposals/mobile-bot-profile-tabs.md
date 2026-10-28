@@ -1,12 +1,12 @@
 # Mobile Bot profile tabs
 
-Status: implemented design, with native acceptance tracked in #2921 under #2904. The later iOS sheet and pinned-tab changes in #3036 supersede the original zoom/full-screen presentation. Reference: Meta Muse's agent profile.
+Status: implemented design, with native acceptance tracked in #2921 under #2904. The pushed-page navigation in #3105 supersedes the #3036 sheet and original zoom transition; the opaque pinned-tab plate from #3036 remains. Reference: Meta Muse's agent profile.
 
 Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applies. Use native controls wherever they exist: SwiftUI controls with Liquid Glass on iOS 26 (opaque fallback on earlier iOS and with Reduce Transparency), and Material 3 Expressive Compose controls on Android.
 
 ## Presentation
 
-- Tapping the title chip in a Bot DM or Group opens a full-height native sheet on both platforms (`sheetScreenOptions(theme, true)`), following the later accepted #3036 design. The system grabber, downward drag and accessibility escape close it. The original iOS shared-element zoom and leading ✕ were removed; Share remains hidden.
+- Tapping the title chip or swiping left on the chat opens a profile page pushed from the right on both platforms (`profileScreenOptions`, #3105). The round Back button and left-edge back gesture return to the chat; Android also supports system Back. The middle of the profile remains available for tab swipes. The original zoom transition, form sheet and leading ✕ were removed; Share remains hidden.
 - Header: Profile Banner behind the avatar (fades in during the transition), avatar, name, status, then a row of small round buttons for **Browser** and **Computer**, each shown only when the Bot has that access. The old Message button is removed.
 - One navigation stack inside the page, as OVERLAYS.md requires.
 

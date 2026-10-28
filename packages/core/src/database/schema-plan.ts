@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
 
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
-import { INBOX_HISTORY_INDEX_SQL } from './inbox-history-index.js';
+import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
 import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
@@ -2554,6 +2554,15 @@ const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
   },
 };
 
+const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
+  generation: 112,
+  module: 'messaging',
+  description: 'Index attachment file names in the message full-text index for global search',
+  migrate(database) {
+    database.exec(MESSAGE_SEARCH_INDEX_SQL);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -2665,4 +2674,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_PROMPT_SNAPSHOT_MIGRATION,
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
   REQUEST_ASSIGNMENT_LINK_MIGRATION,
+  MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
 ]);

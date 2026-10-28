@@ -28,9 +28,7 @@ export interface DockPanelPosition {
   readonly relativeTo?: string | undefined;
 }
 
-export interface DockPanel extends PublicDockPanel {
-  readonly onTitleHide?: (() => void) | undefined;
-}
+export type DockPanel = PublicDockPanel;
 
 export interface DockPanelRegistration extends DockPanel {
   readonly entry?: ChannelSidebarEntry | undefined;
@@ -146,7 +144,6 @@ export function createDockPanelRegistry(
           botId: instance.botId,
           instanceId: instance.id,
         })),
-    onTitleHide: undefined,
   });
   const registry: DockPanelHost = {
     instances: () => instances,

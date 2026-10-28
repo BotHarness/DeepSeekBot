@@ -112,7 +112,7 @@ function stringList(value: string): string[] {
   }
 }
 
-function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): MarketplaceEntry {
+export function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): MarketplaceEntry {
   const topics = stringList(row.topics).filter((topic) => topic !== BOT_TOPIC);
   const tags = stringList(row.roles);
   const presentation = localizedPresentation(row, language);

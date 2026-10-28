@@ -116,6 +116,7 @@ vi.mock('@expo/ui/swift-ui', () => {
       <button
         data-testid={props.testID}
         data-role={props.role}
+        data-tint={JSON.stringify(find(props, 'tint') ?? null)}
         onClick={props.onPress}
         {...a11y(props)}
       >
@@ -218,6 +219,7 @@ it('pushes through the caller with an SF Symbol label and the system chevron', a
   expect(button.querySelector('[data-rn-symbol]')).toBeNull();
   expect(button.getAttribute('aria-label')).toBe('Notifications');
   expect(button.getAttribute('data-value')).toBe('On');
+  expect(JSON.parse(button.getAttribute('data-tint')!)).toMatch(/^#/);
   await act(async () => button.click());
   expect(open).toHaveBeenCalledOnce();
 });
@@ -301,6 +303,7 @@ it('marks a destructive row with the destructive role', async () => {
     </SettingsForm>,
   );
   expect(host.querySelector('button')!.dataset.role).toBe('destructive');
+  expect(host.querySelector('button')!.dataset.tint).toBe('null');
 });
 
 it('hosts React Native items and images without nesting native rows inside them', async () => {

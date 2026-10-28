@@ -19,6 +19,17 @@ vi.mock('react-native', async () => ({
   Alert: { alert: (...args: unknown[]) => alert(...args) },
 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderCircleButton: ({
+    label,
+    testID,
+    onPress,
+  }: {
+    label: string;
+    testID?: string;
+    onPress(): void;
+  }) => <button type="button" data-testid={testID} aria-label={label} onClick={onPress} />,
+}));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),

@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   IconSearchOutlineRegular: () => null,
   IconSettingsOutlineRegular: () => null,
+  IconCloseOutlineRegular: () => null,
+  relativeTime: () => ({ unit: 'days', n: 1 }),
   Input: (props: Record<string, unknown>) => {
     const { icon: _icon, ...rest } = props;
     return createElement('input', rest);
@@ -219,5 +221,86 @@ describe('quick switcher keyboard', () => {
     expect(options[0]?.getAttribute('data-channel-id')).toBe('a');
     expect(options.slice(1).every((node) => node.hasAttribute('data-settings-section'))).toBe(true);
     await act(async () => root.unmount());
+  });
+
+  it('searches messages after a pause, lists them after conversations and opens one', async () => {
+    vi.useFakeTimers();
+    try {
+      const entries = quickSwitcherEntries(
+        [group('a', '发布讨论', '2026-10-03T00:00:00.000Z')],
+        [],
+        [],
+      );
+      const message = (id: string, body: string) => ({
+        id,
+        at: '2026-10-02T00:00:00.000Z',
+        author: { kind: 'human' as const },
+        body,
+      });
+      const search = vi.fn(async (text: string, cursor?: string) =>
+        cursor === undefined
+          ? {
+              hits: [{ channelId: 'a', message: message('m1', '发布清单'), snippet: '发布清单' }],
+              nextCursor: 'next',
+            }
+          : { hits: [{ channelId: 'a', message: message('m2', '明天发布'), snippet: '明天发布' }] },
+      );
+      const openedHits: string[] = [];
+      const host = document.createElement('div');
+      document.body.append(host);
+      const root = createRoot(host);
+      await act(async () => {
+        root.render(
+          createElement(QuickSwitcher, {
+            entries,
+            messages: {
+              search,
+              open: (hit: { message: { id: string } }) => openedHits.push(hit.message.id),
+            },
+            bots: new Map(),
+            activityOf: () => 'idle' as const,
+            shortcutBindings: new ShortcutBindings(undefined, () => false),
+            t: zhTranslate,
+            onOpen: () => {},
+            onClose: () => {},
+          }),
+        );
+      });
+      const input = host.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+      const key = async (value: string): Promise<void> => {
+        await act(async () => {
+          input.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true }));
+        });
+      };
+      await act(async () => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
+        setter.call(input, '发布');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+      expect(search).not.toHaveBeenCalled();
+      expect(host.querySelector('[role="status"][aria-label="正在搜索消息…"]')).not.toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      expect(search).toHaveBeenCalledWith('发布', undefined);
+      const options = [...host.querySelectorAll('[role="option"]')];
+      expect(options[0]?.hasAttribute('data-message-id')).toBe(false);
+      expect(options[1]?.getAttribute('data-message-id')).toBe('m1');
+      expect(options[1]?.querySelector('mark')?.textContent).toBe('发布');
+      expect(host.textContent).toContain('消息');
+
+      await key('ArrowDown');
+      await key('ArrowDown');
+      await key('Enter');
+      expect(search).toHaveBeenLastCalledWith('发布', 'next');
+      expect(host.querySelector('[data-message-id="m2"]')).not.toBeNull();
+      expect(host.querySelector('[data-message-search-more]')).toBeNull();
+
+      await act(async () => (host.querySelector('[data-message-id="m2"]') as HTMLElement).click());
+      expect(openedHits).toEqual(['m2']);
+      await act(async () => root.unmount());
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

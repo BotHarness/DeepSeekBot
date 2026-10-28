@@ -94,7 +94,7 @@ describe('Settings sheet', () => {
 
     const rows: [string, keyof SettingsActions][] = [
       [`${t.computers}, ${t.computersHint}`, 'onComputers'],
-      [`${t.appIcon}, ${t.appIconHint}`, 'onAppIcon'],
+      [t.appIcon, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
       [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],

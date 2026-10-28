@@ -26,6 +26,7 @@ const native = vi.hoisted(() => ({
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
 
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const { useWindowDimensions, StyleSheet } = await import('./react-native-shim');
   const host = (name: string) => {
@@ -160,7 +161,7 @@ vi.mock('react-native-svg', () => ({
   Rect: () => null,
 }));
 
-const { MessageBubble, DraftBubble, deliveryLabel, secondTap } =
+const { MessageBubble, DraftBubble, deliveryLabel, secondTap, replyable } =
   await import('../src/ui/chat/message-bubble');
 const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
@@ -928,5 +929,38 @@ describe('outgoing delivery presentation through Conversation', () => {
     });
     expect(view.surface().style.opacity).not.toBe('0.7');
     expect(view.container.textContent).not.toContain('…');
+  });
+});
+
+describe('replies', () => {
+  it('quotes the replied message above the body, or says it is gone', () => {
+    const quoted = renderToStaticMarkup(
+      <MessageBubble
+        message={human({
+          body: 'this one',
+          replyTo: 'bot-1',
+          replyPreview: { author: { kind: 'bot', slug: 'ada' }, body: 'Pick a file' },
+        })}
+        botName={(id) => (id === 'ada' ? 'Ada' : id)}
+      />,
+    );
+    expect(quoted.indexOf('Ada')).toBeGreaterThan(-1);
+    expect(quoted.indexOf('Pick a file')).toBeLessThan(quoted.indexOf('this one'));
+    const gone = renderToStaticMarkup(
+      <MessageBubble message={human({ replyTo: 'bot-1', replyPreview: null })} />,
+    );
+    expect(gone).toContain(t.reply.unavailable);
+    expect(renderToStaticMarkup(<MessageBubble message={human({})} />)).not.toContain(
+      t.reply.unavailable,
+    );
+  });
+
+  it('offers a swipe reply only on committed Human and Bot messages', () => {
+    expect(replyable(human({}))).toBe(true);
+    expect(replyable({ ...human({}), author: 'bot', bot: 'ada' })).toBe(true);
+    expect(replyable(human({ delivery: 'pending' }))).toBe(false);
+    expect(replyable(human({ delivery: 'failed' }))).toBe(false);
+    expect(replyable({ ...human({}), author: 'system' })).toBe(false);
+    expect(replyable(human({ welcome: true }))).toBe(false);
   });
 });

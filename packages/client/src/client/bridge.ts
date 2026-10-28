@@ -40,6 +40,9 @@ import {
   parseAuthoredBots,
   parseMarketplaceFileView,
   parseMarketplacePage,
+  parseMarketplaceSection,
+  parseMarketplaceDigest,
+  parseMarketplaceDigests,
   parseMarketplaceSubmission,
   type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
@@ -48,6 +51,9 @@ import {
   type MarketplaceFileView,
   type MarketplacePage,
   type MarketplaceQuery,
+  type MarketplaceSection,
+  type MarketplaceDigest,
+  type MarketplaceDigestSummary,
   type MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
@@ -1689,6 +1695,48 @@ export async function searchChannelMessages(
   };
 }
 
+export interface MessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface MessageSearchPage {
+  hits: MessageSearchHit[];
+  nextCursor?: string;
+}
+
+export async function searchAllMessages(
+  call: BridgeCall,
+  text: string,
+  cursor?: string,
+  limit = 8,
+): Promise<MessageSearchPage> {
+  const value = asRecord(
+    await unwrap(call, 'messageSearch', {
+      text,
+      limit,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
+  const hits = value?.['hits'];
+  const nextCursor = value?.['nextCursor'];
+  if (!Array.isArray(hits) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+    throw new Error('invalid messageSearch response');
+  return {
+    hits: hits.flatMap((entry) => {
+      const hit = asRecord(entry);
+      const message = parseChannelMessage(hit?.['message']);
+      const channelId = hit?.['channelId'];
+      const snippet = hit?.['snippet'];
+      return message === undefined || typeof channelId !== 'string' || typeof snippet !== 'string'
+        ? []
+        : [{ channelId, message, snippet }];
+    }),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  };
+}
+
 export function parseChannelMessages(value: unknown): ChannelMessage[] {
   const messages = asRecord(value)?.['messages'];
   if (!Array.isArray(messages)) return [];
@@ -2068,6 +2116,44 @@ export async function loadMarketplaceTopics(call: BridgeCall): Promise<Marketpla
   const topics = parseMarketplaceTopics({ topics: await unwrap(call, 'marketplaceTopics', {}) });
   if (topics === undefined) throw new Error('invalid marketplaceTopics response');
   return topics;
+}
+
+export async function loadMarketplaceSections(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceSection[]> {
+  const body = await unwrap(call, 'marketplaceSections', lang === undefined ? {} : { lang });
+  const raw = (body as { sections?: unknown } | null)?.sections;
+  const sections = Array.isArray(raw) ? raw.map(parseMarketplaceSection) : undefined;
+  if (sections === undefined || sections.some((section) => section === undefined))
+    throw new Error('invalid marketplaceSections response');
+  return sections as MarketplaceSection[];
+}
+
+export async function loadMarketplaceDigests(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigestSummary[]> {
+  const digests = parseMarketplaceDigests(
+    await unwrap(call, 'marketplaceDigests', lang === undefined ? {} : { lang }),
+  );
+  if (digests === undefined) throw new Error('invalid marketplaceDigests response');
+  return digests;
+}
+
+export async function loadMarketplaceDigest(
+  call: BridgeCall,
+  day?: string,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigest> {
+  const digest = parseMarketplaceDigest(
+    await unwrap(call, 'marketplaceDigest', {
+      ...(day === undefined ? {} : { day }),
+      ...(lang === undefined ? {} : { lang }),
+    }),
+  );
+  if (digest === undefined) throw new Error('invalid marketplaceDigest response');
+  return digest;
 }
 
 export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {

@@ -31,7 +31,7 @@ vi.mock('expo', () => ({
       tabs: NativeTab[];
       selected: string;
       containerColor?: string;
-      onSelect(event: { nativeEvent: { value: string } }): void;
+      onTabSelect(event: { nativeEvent: { value: string } }): void;
     }) =>
       createElement(
         'nav',
@@ -45,7 +45,7 @@ vi.mock('expo', () => ({
               'aria-selected': String(tab.value === props.selected),
               'aria-label': tab.accessibilityLabel ?? tab.label,
               'data-dot': tab.dotColor,
-              onClick: () => props.onSelect({ nativeEvent: { value: tab.value } }),
+              onClick: () => props.onTabSelect({ nativeEvent: { value: tab.value } }),
             },
             tab.label,
           ),
