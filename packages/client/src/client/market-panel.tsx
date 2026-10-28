@@ -146,12 +146,17 @@ function MarketplaceSections({
   );
 }
 
-type MarketPageEntry = {
-  readonly kind: 'bot';
-  readonly key: number;
-  readonly bot: MarketplaceEntry;
-  readonly source: MarketplaceInstallSource;
-};
+type MarketPageTarget =
+  | {
+      readonly kind: 'bot';
+      readonly bot: MarketplaceEntry;
+      readonly source: MarketplaceInstallSource;
+    }
+  | { readonly kind: 'digest'; readonly day: string }
+  | { readonly kind: 'archive' }
+  | { readonly kind: 'ranking'; readonly section: MarketplaceSection };
+
+type MarketPageEntry = MarketPageTarget & { readonly key: number };
 
 export function MarketPanelView({
   actions,
@@ -172,6 +177,10 @@ export function MarketPanelView({
   const [mine, setMine] = useState(false);
   const pageKey = useRef(0);
   const { list, filters } = browse;
+  const push = (target: MarketPageTarget): void => {
+    const key = ++pageKey.current;
+    setPages((current) => [...current, { ...target, key }]);
+  };
   const start = (
     bot: MarketplaceEntry,
     step: MarketplaceFlowStart['step'],
@@ -182,8 +191,7 @@ export function MarketPanelView({
       setFlow({ bot, step, source });
       return;
     }
-    const key = ++pageKey.current;
-    setPages((current) => [...current, { kind: 'bot', key, bot, source }]);
+    push({ kind: 'bot', bot, source });
   };
   const back = (): void => setPages((current) => current.slice(0, -1));
   const installed = (): void => {
@@ -258,18 +266,28 @@ export function MarketPanelView({
           <MarketplaceLoadMore browse={browse} t={t} />
         </div>
       </div>
-      {pages.map((page, index) => (
-        <MarketplaceBotFlow
-          key={page.key}
-          actions={actions}
-          t={t}
-          start={{ bot: page.bot, step: 'detail', source: page.source }}
-          page={{ hidden: index !== pages.length - 1 }}
-          onExit={back}
-          onClose={back}
-          onInstalled={installed}
-        />
-      ))}
+      {pages.map((page, index) => {
+        const hidden = index !== pages.length - 1;
+        switch (page.kind) {
+          case 'bot':
+            return (
+              <MarketplaceBotFlow
+                key={page.key}
+                actions={actions}
+                t={t}
+                start={{ bot: page.bot, step: 'detail', source: page.source }}
+                page={{ hidden }}
+                onExit={back}
+                onClose={back}
+                onInstalled={installed}
+              />
+            );
+          case 'digest':
+          case 'archive':
+          case 'ranking':
+            return null;
+        }
+      })}
       {flow === undefined ? null : (
         <MarketplaceBotFlow
           actions={actions}
