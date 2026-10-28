@@ -1485,10 +1485,10 @@ describe('Remote Host section and Pinned presentation', () => {
       Platform.OS = platform;
       const view = await home();
       await rowMenuAction(view, 'unpin');
-      expect(call).toHaveBeenLastCalledWith('rosterBatch', {
-        action: 'unpin',
-        channelIds: ['dm-ada'],
-      });
+      expect(rowCalls().at(-1)).toEqual([
+        'rosterBatch',
+        { action: 'unpin', channelIds: ['dm-ada'] },
+      ]);
       await rowMenuAction(view, 'section');
       expect(push).toHaveBeenLastCalledWith({
         pathname: '/conversation-section',

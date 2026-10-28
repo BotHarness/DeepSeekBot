@@ -1,3 +1,4 @@
+import { closeWorkspacePage } from './workspace-paging';
 import { router, useIsFocused, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -1129,7 +1130,10 @@ export function WorkspacePanel({
       <HumanAvatarButton
         testID="workspace-account"
         loadName={loadAccountName}
-        onPress={() => router.push('/settings')}
+        onPress={() => {
+          if (page) closeWorkspacePage();
+          router.push('/settings');
+        }}
       />
       <HeaderCircleButton
         testID="workspace-notifications"

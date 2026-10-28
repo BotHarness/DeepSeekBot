@@ -1,3 +1,4 @@
+import { WorkspacePager } from './workspace-pager';
 import { ActivitySheetRoot } from './activity-sheet-root';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
@@ -37,7 +38,6 @@ import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
-import { showsWorkspacePanel } from './workspace-panel-root';
 import type { NavigationDestination } from './navigation-destination';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
@@ -79,25 +79,30 @@ function NavigationLayout() {
   const quickActions = useQuickActionRouting();
   return (
     <FloatingTabInset.Provider value={reserved}>
-      <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
-        <Tabs
-          safeAreaInsets={{ bottom: 0 }}
-          tabBar={(props) => (
-            <NavigationBar
-              {...props}
-              size={size}
-              bottom={bottom}
-              reserved={reserved}
-              onNativeHeight={setNativeHeight}
-            />
-          )}
-          screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: theme.color.base } }}
-        >
-          <Tabs.Screen name="(home)" options={{ title: t.chats }} />
-          <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
-          <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
-        </Tabs>
-      </View>
+      <WorkspacePager>
+        <View ref={quickActions} collapsable={false} style={{ flex: 1 }}>
+          <Tabs
+            safeAreaInsets={{ bottom: 0 }}
+            tabBar={(props) => (
+              <NavigationBar
+                {...props}
+                size={size}
+                bottom={bottom}
+                reserved={reserved}
+                onNativeHeight={setNativeHeight}
+              />
+            )}
+            screenOptions={{
+              headerShown: false,
+              sceneStyle: { backgroundColor: theme.color.base },
+            }}
+          >
+            <Tabs.Screen name="(home)" options={{ title: t.chats }} />
+            <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
+            <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
+          </Tabs>
+        </View>
+      </WorkspacePager>
     </FloatingTabInset.Provider>
   );
 }
@@ -111,7 +116,6 @@ type NavigationBarLayout = TabBarProps & {
 
 function NavigationBar(props: NavigationBarLayout) {
   const [scope] = useConversationFilter();
-  if (showsWorkspacePanel(Platform.OS, props.state)) return null;
   return <ScopedNavigationBar key={scope} {...props} scope={scope} />;
 }
 
