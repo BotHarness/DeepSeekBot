@@ -1,4 +1,4 @@
-# ADR-0271: Settings is a mobile tab
+# ADR-0272: Settings is a mobile tab
 
 - Status: Accepted
 - Date: 2026-10-28

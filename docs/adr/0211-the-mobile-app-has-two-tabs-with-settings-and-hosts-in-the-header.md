@@ -6,7 +6,7 @@ Issues: [#1848](https://github.com/BotHarness/DeepSeekBot/issues/1848), [#1849](
 
 # The mobile app has two tabs, with Settings and Hosts in the header
 
-> Superseded in part by [ADR-0271](0271-settings-is-a-mobile-tab.md): on iOS and Android, Settings is a tab page, not a sheet.
+> Superseded in part by [ADR-0272](0272-settings-is-a-mobile-tab.md): on iOS and Android, Settings is a tab page, not a sheet.
 
 > Amends [ADR-0201](0201-the-mobile-design-system-maps-web-roles-onto-native-components.md)'s interaction baseline: the mobile app no longer copies the Web Client's three-tab mobile shell.
 
