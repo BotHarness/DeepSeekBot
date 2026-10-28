@@ -12,7 +12,6 @@ export function SheetHeader(props: DrawerHeaderProps) {
       testID="sheet-header"
       collapsable={false}
       style={{
-        zIndex: 1,
         paddingHorizontal: space.x5,
         paddingTop: Platform.OS === 'ios' ? space.x4 : space.x3,
         paddingBottom: space.x3,
