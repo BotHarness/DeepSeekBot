@@ -5495,6 +5495,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     channelGroupDelete(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
+      const purge = deps.contentPurge;
+      if (!purge) return unavailable();
       try {
         deps.channels.deleteGroup(channelId);
         deps.externalMessaging?.inbound.endChannel(channelId);
@@ -5513,9 +5515,8 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       } catch (error) {
         return invalidInput(String(error));
       }
-      if (!deps.contentPurge) return { ok: true, value: { deleted: true, messages: 0 } };
       try {
-        return { ok: true, value: { deleted: true, ...deps.contentPurge.disband(channelId) } };
+        return { ok: true, value: { deleted: true, ...purge.disband(channelId) } };
       } catch (error) {
         return purgeFailure(error, 'The group was disbanded, but its messages were not deleted');
       }

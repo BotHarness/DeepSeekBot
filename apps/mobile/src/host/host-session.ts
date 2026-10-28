@@ -138,9 +138,12 @@ function connect(saved: SavedHost, trigger: ConnectionTrigger) {
     const snapshot = client.getSnapshot();
     if (snapshot.roster !== undefined) {
       const change = disbanded(snapshot.roster);
-      for (const id of change.gone) {
-        conversations.get(client)?.get(`channel:${id}`)?.stop();
-        conversations.get(client)?.delete(`channel:${id}`);
+      const live = conversations.get(client);
+      const ended = new Set(change.gone.map((id) => `channel:${id}`));
+      for (const key of live?.keys() ?? []) if (change.stale?.(key)) ended.add(key);
+      for (const key of ended) {
+        live?.get(key)?.stop();
+        live?.delete(key);
       }
       if (saved !== null && change.stale !== undefined)
         pruneHostConversationCache(saved.hostId, change.stale);
