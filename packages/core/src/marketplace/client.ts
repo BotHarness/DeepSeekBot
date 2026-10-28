@@ -96,6 +96,8 @@ export interface MarketplacePage {
 export type MarketplaceSort = 'updated' | 'created' | 'stars';
 
 export const MARKETPLACE_SECTIONS = ['hot', 'new', 'rising'] as const;
+export const MARKETPLACE_INSTALL_SOURCES = ['list', 'hot', 'new', 'rising', 'digest'] as const;
+export type MarketplaceInstallSource = (typeof MARKETPLACE_INSTALL_SOURCES)[number];
 export type MarketplaceSectionName = (typeof MARKETPLACE_SECTIONS)[number];
 
 export interface MarketplaceDigestSummary {

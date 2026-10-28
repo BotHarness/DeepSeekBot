@@ -145,7 +145,11 @@ import type {
   MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
-import { MARKETPLACE_DIGEST_DAY, MARKETPLACE_SECTIONS } from '../marketplace/client.js';
+import {
+  MARKETPLACE_DIGEST_DAY,
+  MARKETPLACE_INSTALL_SOURCES,
+  MARKETPLACE_SECTIONS,
+} from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type {
   MarketplaceAccount,
@@ -1365,6 +1369,11 @@ const INTRO_EVENTS: Record<string, Record<string, readonly string[] | 'boolean'>
   intro_theme_changed: { setting: ['scheme', 'preset', 'layout', 'wallpaper'] },
   intro_model_saved: { advanced: 'boolean' },
   intro_community_clicked: { target: ['github', 'discord', 'qq'] },
+  marketplace_sections_shown: {},
+  marketplace_bot_opened: { source: MARKETPLACE_INSTALL_SOURCES, step: ['detail', 'install'] },
+  marketplace_digest_shown: {},
+  marketplace_digest_opened: { from: ['hero', 'archive'] },
+  marketplace_digest_archive_opened: {},
 };
 
 function telemetryUnavailable(): BridgeResult<never> {
@@ -4010,8 +4019,13 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     async marketplaceInstall(payload) {
       if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
-      const { id, reviewId, operationKey } = asObject(payload);
+      const { id, reviewId, operationKey, source: installSource } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (
+        installSource !== undefined &&
+        !(MARKETPLACE_INSTALL_SOURCES as readonly unknown[]).includes(installSource)
+      )
+        return invalidInput('invalid source');
       if (typeof reviewId !== 'string' || reviewId.length === 0)
         return {
           ok: false,
@@ -4034,7 +4048,10 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         );
         sendReceipt(prepared.value.listing.id);
         try {
-          deps.telemetry?.capture?.('marketplace_bot_installed');
+          deps.telemetry?.capture?.(
+            'marketplace_bot_installed',
+            typeof installSource === 'string' ? { source: installSource } : undefined,
+          );
         } catch {}
         const listing = prepared.value.listing;
         const marked = deps.registry.setMarketplaceListing(created.record.slug, {

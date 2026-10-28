@@ -85,8 +85,15 @@ function fixture() {
     prompts: [],
     run: async () => ({ text: '{"findings": []}', model: 'deepseek/test' }),
   };
+  const captures: [string, Record<string, unknown> | undefined][] = [];
   const bridge = createBridgeMethods({
     ...core,
+    telemetry: {
+      status: () => ({ enabled: true, preference: true }),
+      setPreference: () => ({ enabled: true, preference: true }),
+      capture: (event: string, properties?: Record<string, unknown>) =>
+        captures.push([event, properties]),
+    },
     marketplace: client,
     shareDrafts,
     marketplaceReceipts: {
@@ -104,7 +111,7 @@ function fixture() {
       },
     }),
   });
-  return { core, bridge, market, session, reviewer, receipts };
+  return { core, bridge, market, session, reviewer, receipts, captures };
 }
 
 function write(root: string, path: string, data: string | Buffer) {
@@ -260,13 +267,24 @@ it('uploads a Bot, retries an expired token once, and installs it as a fresh Bot
     partial: false,
     model: 'deepseek/test',
   });
+  expect(
+    await f.bridge.marketplaceInstall({
+      id: uploaded.value.bot.id,
+      reviewId: reviewed.value.reviewId,
+      source: 'homepage',
+    }),
+  ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
   const installed = await f.bridge.marketplaceInstall({
     id: uploaded.value.bot.id,
     reviewId: reviewed.value.reviewId,
     operationKey: 'install-helper-01',
+    source: 'digest',
   });
   if (!installed.ok) throw new Error(installed.error.message);
   expect(f.receipts).toEqual([uploaded.value.bot.id]);
+  expect(f.captures.filter(([event]) => event === 'marketplace_bot_installed')).toEqual([
+    ['marketplace_bot_installed', { source: 'digest' }],
+  ]);
   expect(installed.value.bot).toMatchObject({
     displayName: 'Helper',
     description: 'Writes things down',
