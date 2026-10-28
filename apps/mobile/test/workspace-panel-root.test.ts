@@ -4,6 +4,7 @@ import { StackRouter } from '../node_modules/expo-router/build/react-navigation/
 import { createHostDrawer } from '../src/ui/shell/host-drawer-model';
 import { resetWorkspaceRoot } from '../src/ui/shell/workspace-navigation';
 import {
+  showsWorkspacePanel,
   usesWorkspacePanel,
   withWorkspacePanel,
   workspaceStackRoot,
@@ -130,5 +131,17 @@ describe('iOS workspace panel under Chats (#3017)', () => {
     expect(navigation.getRootState().routes[0]?.state?.index).toBe(0);
     expect(home(navigation)?.index).toBe(1);
     expect(home(navigation)?.routes.map((route) => route.name)).toEqual(['workspaces', 'index']);
+  });
+
+  it('hides the tab bar only while the iOS panel itself is showing', () => {
+    const tabs = (routes: { key: string; name: string }[], index?: number) => ({
+      index: 0,
+      routes: [{ name: '(home)', state: { routes, ...(index === undefined ? {} : { index }) } }],
+    });
+    expect(showsWorkspacePanel('ios', tabs([panel], 0))).toBe(true);
+    expect(showsWorkspacePanel('ios', tabs([panel]))).toBe(true);
+    expect(showsWorkspacePanel('ios', tabs([panel, chats], 1))).toBe(false);
+    expect(showsWorkspacePanel('ios', { index: 0, routes: [{ name: '(home)' }] })).toBe(false);
+    expect(showsWorkspacePanel('android', tabs([panel], 0))).toBe(false);
   });
 });

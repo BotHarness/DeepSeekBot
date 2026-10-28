@@ -60,6 +60,7 @@ vi.mock('expo-secure-store', () => ({
 }));
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: state.hosts }) }));
+vi.mock('../src/ui/chat/native-header', () => ({ useHeaderOverlap: () => 0 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({ useHostDrawerOpen: () => state.drawerOpen }));
 
 const { LastChatSwipe } = await import('../src/ui/shell/last-chat-swipe');

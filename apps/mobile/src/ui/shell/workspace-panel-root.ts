@@ -40,3 +40,15 @@ export function workspaceStackRoot<R extends StackRoute, S extends ChatsStack<R>
     return { ...state, index: 0, routes: state.routes.slice(0, 1) };
   return { ...state, index: 1, routes: [root, next?.name === CHATS_ROUTE ? next : chatsRoute()] };
 }
+
+type TabRoute = { name: string; state?: { index?: number; routes: readonly StackRoute[] } };
+
+export function showsWorkspacePanel(
+  os: string,
+  tabs: { index: number; routes: readonly TabRoute[] },
+): boolean {
+  if (!usesWorkspacePanel(os)) return false;
+  const stack = tabs.routes[tabs.index]?.state;
+  if (!stack) return false;
+  return stack.routes[stack.index ?? stack.routes.length - 1]?.name === WORKSPACE_PANEL_ROUTE;
+}
