@@ -20,7 +20,7 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
-import { profileShell, radius, space, swipeRow } from '../design/tokens';
+import { radius, space, swipeRow } from '../design/tokens';
 import { systemSegmented } from '../design/system-shape';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
 import { Text } from '../primitives/text';
@@ -76,7 +76,6 @@ export function ProfileShell({
   const list = useRef<FlatList<Item>>(null);
   const offset = useSharedValue(0);
   const [identityHeight, setIdentityHeight] = useState(0);
-  const [stuck, setStuck] = useState(false);
   const showTabs = tabs.length > 1;
 
   const fade = useSharedValue(1);
@@ -91,10 +90,7 @@ export function ProfileShell({
   const fadeStyle = useAnimatedStyle(() => ({ opacity: fade.value }));
 
   const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = event.nativeEvent.contentOffset.y;
-    offset.value = y;
-    const next = showTabs && identityHeight > 0 && y >= identityHeight;
-    if (next !== stuck) setStuck(next);
+    offset.value = event.nativeEvent.contentOffset.y;
   };
 
   const step = (forward: boolean) => {
@@ -153,7 +149,6 @@ export function ProfileShell({
               style={{
                 borderRadius: tabsRadius,
                 backgroundColor: theme.overlay.fill,
-                boxShadow: stuck ? profileShell.stuckTabsShadow[theme.scheme] : undefined,
               }}
             >
               <IconTabs

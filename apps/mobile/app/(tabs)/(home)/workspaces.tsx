@@ -15,7 +15,7 @@ export default function WorkspacesScreen() {
   const travel = useSharedValue(0);
   return (
     <>
-      <Stack.Screen options={{ title: t.workspaces }} />
+      <Stack.Screen options={{ title: t.workspaces, headerShown: false }} />
       <SwipeOpen
         testID="workspace-panel-swipe"
         enabled={focused}

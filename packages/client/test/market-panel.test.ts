@@ -205,6 +205,7 @@ async function withPanel(
     createBot: vi.fn(async () => undefined),
     openBot: vi.fn(async () => undefined),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    introEvent: vi.fn(),
     ...extra,
   };
   const registry = { open: vi.fn() };
@@ -261,7 +262,7 @@ describe('Market panel', () => {
     ]);
     await withPanel(
       async () => ({ bots: [] }),
-      async ({ host }) => {
+      async ({ host, actions }) => {
         expect(digest).toHaveBeenCalledWith(undefined, 'zh');
         await click(host, '阅读每日精选：今天值得一试的 Bot');
         const dialog = document.querySelector('[data-market-digest="2026-10-28"]');
@@ -281,6 +282,12 @@ describe('Market panel', () => {
         await act(async () => (days[1] as HTMLButtonElement).click());
         expect(digest).toHaveBeenLastCalledWith('2026-10-27', 'zh');
         expect(document.querySelector('[data-market-digest="2026-10-27"]')).not.toBeNull();
+        expect(actions['introEvent']!.mock.calls).toEqual([
+          ['marketplace_digest_shown'],
+          ['marketplace_digest_opened', { from: 'hero' }],
+          ['marketplace_digest_archive_opened'],
+          ['marketplace_digest_opened', { from: 'archive' }],
+        ]);
       },
       { marketplaceDigest: digest, marketplaceDigests: digests },
     );
@@ -294,7 +301,7 @@ describe('Market panel', () => {
     ]);
     await withPanel(
       async () => ({ bots: [entry('helper')] }),
-      async ({ host }) => {
+      async ({ host, actions }) => {
         expect(sections).toHaveBeenCalledWith('zh');
         const rows = [...host.querySelectorAll('[data-market-section]')];
         expect(rows.map((row) => row.getAttribute('data-market-section'))).toEqual([
@@ -309,6 +316,7 @@ describe('Market panel', () => {
           'alice/popular',
         );
         expect([...rows[0]!.querySelectorAll('button')].at(-1)?.textContent).toBe('导入');
+        expect(actions['introEvent']!.mock.calls).toEqual([['marketplace_sections_shown']]);
       },
       { marketplaceSections: sections },
     );
@@ -572,7 +580,11 @@ describe('Market panel', () => {
 
         await click(host, '仍然安装');
 
-        expect(install).toHaveBeenCalledWith('R_helper', 'review-1');
+        expect(install).toHaveBeenCalledWith('R_helper', 'review-1', undefined, 'list');
+        expect(actions['introEvent']).toHaveBeenCalledWith('marketplace_bot_opened', {
+          from: 'list',
+          step: 'install',
+        });
         expect(actions['createBot']).not.toHaveBeenCalled();
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
         expect(host.querySelector('h1')).toBeNull();
@@ -620,7 +632,7 @@ describe('Market panel', () => {
         );
         expect(host.textContent).toContain('Tob 没能检查这个 Bot');
         await click(host, '不检查直接安装');
-        expect(install).toHaveBeenCalledWith('R_helper', 'review-3');
+        expect(install).toHaveBeenCalledWith('R_helper', 'review-3', undefined, 'list');
       },
       {
         marketplaceInstallReview: vi.fn(async () => ({
@@ -970,7 +982,7 @@ describe('Uploaded Bots in the Market panel', () => {
         expect(host.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
         expect(host.textContent).toContain('Tob 没发现风险');
         await click(host, '确认安装');
-        expect(install).toHaveBeenCalledWith('U_helper', 'review-2');
+        expect(install).toHaveBeenCalledWith('U_helper', 'review-2', undefined, 'list');
         expect(actions['createBot']).not.toHaveBeenCalled();
         expect(registry.open).toHaveBeenCalledWith(CHANNEL_BODY_PANEL);
       },

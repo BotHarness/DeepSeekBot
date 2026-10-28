@@ -150,7 +150,7 @@ vi.mock('../src/host/host-session', () => ({
   },
 }));
 import { useWorkspaceNavigation } from '../src/ui/shell/native-workspace-navigation';
-import { HostDrawer, hostDrawer } from '../src/ui/shell/host-drawer';
+import { HostDrawer, WorkspacePanel, hostDrawer } from '../src/ui/shell/host-drawer';
 
 const stack = StackRouter({ initialRouteName: '(tabs)' });
 const routeNames = ['(tabs)', 'dm/[slug]', 'cloud-channels', 'cloud-services'];
@@ -298,4 +298,20 @@ it('unpairing removes only routes whose explicit Host source was removed', async
   });
   expect(state.routes).toHaveLength(2);
   expect(state.routes[1]?.params).toMatchObject({ hostId: 'b' });
+});
+
+it('the iOS workspace page draws its own title and lists environments as native rows', async () => {
+  const page = document.createElement('div');
+  document.body.append(page);
+  const panel = createRoot(page);
+  await act(async () => panel.render(<WorkspacePanel page active />));
+  expect(page.querySelector('[role="header"]')?.textContent).toBe('Workspaces');
+  expect(page.querySelector('[data-testid="workspace-pair"]')).not.toBeNull();
+  expect(page.querySelector('[data-testid="drawer-all"]')).not.toBeNull();
+  await act(async () =>
+    page.querySelector<HTMLButtonElement>('[data-testid="drawer-host-b"]')!.click(),
+  );
+  expect(fixture.selected).toBe('b');
+  act(() => panel.unmount());
+  page.remove();
 });

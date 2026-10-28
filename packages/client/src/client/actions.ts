@@ -54,6 +54,7 @@ import type {
   MarketplaceDigestSummary,
   MarketplaceSection,
   MarketplaceTopic,
+  MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type {
@@ -923,7 +924,12 @@ export interface BridgeActions {
   shareDraftDiscard(slug: string): Promise<void>;
   shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
   marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
-  marketplaceInstall(id: string, reviewId: string, sectionId?: string): Promise<BotSummary>;
+  marketplaceInstall(
+    id: string,
+    reviewId: string,
+    sectionId?: string,
+    source?: MarketplaceInstallSource,
+  ): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -2792,8 +2798,8 @@ export function createActions(
     },
     shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
     marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
-    async marketplaceInstall(id, reviewId, sectionId) {
-      return openCreatedBot(await installMarketplaceBot(call, id, reviewId), sectionId);
+    async marketplaceInstall(id, reviewId, sectionId, source) {
+      return openCreatedBot(await installMarketplaceBot(call, id, reviewId, source), sectionId);
     },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),
