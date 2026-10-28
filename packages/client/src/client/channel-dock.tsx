@@ -135,9 +135,10 @@ const styles = stylex.create({
   breadcrumbIcon: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
   identity: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
   identityButton: {
+    gap: space.x3,
     height: size.row,
     paddingBlock: 0,
-    paddingInline: space.x1,
+    paddingInline: space.x3,
     borderWidth: 0,
     borderStyle: 'none',
     borderRadius: radius.sm,
