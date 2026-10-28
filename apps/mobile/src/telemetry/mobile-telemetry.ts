@@ -13,6 +13,7 @@ import {
   type BotOperationOutcome,
   type BotOperationReason,
   type EventProperties,
+  type FeatureEventName,
   type PairingMethod,
   type PairingOutcome,
   type PairingReason,
@@ -301,6 +302,9 @@ export function createMobileTelemetry(options: TelemetryOptions) {
       };
     },
     isActive: () => active,
+    feature<E extends FeatureEventName>(event: E, properties: EventProperties[E]): void {
+      if (active) capture(event, properties);
+    },
     botOperation(kind: BotOperationKind, phase: BotOperationPhase) {
       const current = generation;
       const fromSession = session;

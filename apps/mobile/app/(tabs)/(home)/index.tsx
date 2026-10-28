@@ -59,6 +59,7 @@ import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-
 import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
 import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
+import { recordFeature } from '../../../src/telemetry/features';
 import {
   chatsSearchResults,
   messageSearchResults,
@@ -227,7 +228,9 @@ const HomeContent = memo(function HomeContent({
         testID="tob-mode-button"
         onPress={() => {
           const href = tobModeHref(tobHostId, tobComputers);
-          if (href !== undefined) router.push(href);
+          if (href === undefined) return;
+          recordFeature('tob:mode_open', {});
+          router.push(href);
         }}
       />
     );
@@ -377,6 +380,7 @@ const HomeContent = memo(function HomeContent({
       ? [...displayed, { type: 'message-heading', key: 'message-heading' }, ...messageItems]
       : displayed;
   const openMessage = ({ hit, host, conversation }: MessageItem) => {
+    recordFeature('search:result_open', { kind: 'message' });
     if (
       !navigateChannel(
         navigation,

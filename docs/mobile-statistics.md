@@ -4,11 +4,11 @@
 
 Phone statistics are **on by default for new installations**. The first enabled launch shows the same informational notice pattern as the Web client: a short explanation, expandable details, Privacy / View source / Open Settings / Got it. Dismissal is remembered on the phone. This is an informational acknowledgment, not a pre-collection consent gate. The switch is at the bottom of Settings, with details collapsed until opened. Turning it off does not affect pairing, chat or notifications. A saved opt-out remains off across upgrades. This setting is separate from the computer's telemetry setting.
 
-With statistics enabled, DeepSeekBot sends PostHog a random phone statistics identifier, public app version/build, iOS/Android, supported language and coarse results for opening the app, pairing, connecting, the first accepted chat/observed Bot message, and Bot creation/import previews, submissions and recovery. No names, messages, Memory, files, pairing links, credentials, push tokens, Host identity or other product identifiers are included. We do not connect this ID to website visits, accounts or computers, and do not create person profiles.
+With statistics enabled, DeepSeekBot sends PostHog a random phone statistics identifier, public app version/build, iOS/Android, supported language and coarse results for opening the app, pairing, connecting, the first accepted chat/observed Bot message, Bot creation/import previews, submissions and recovery, and which kind of feature was used: answering a tool approval (and whether from a notification), a Bot question or a folder request, changing a model plan, opening a notification or a message search result, sharing into a conversation, opening Tob Mode, and opening a Browser or Computer viewer. No names, messages, Memory, files, pairing links, credentials, push tokens, Host identity or other product identifiers are included. We do not connect this ID to website visits, accounts or computers, and do not create person profiles.
 
 Turning statistics off clears the phone identifier and unsent events. Turning it on again creates a new identifier. Events already received cannot be recalled by this switch. Queued events expire after 24 hours. OS backup restoration may restore the phone's saved consent and identifier; a clean install without restored app data uses the enabled default. Unreadable preferences fail closed rather than replacing a possible opt-out. A failed save shows a notice and pauses statistics for the current launch; retry to save your choice durably.
 
-Events go through our first-party proxy to PostHog Cloud US. Network services receive an IP address while handling the connection; PostHog's project is configured to discard it, and these events disable GeoIP. We use these statistics to improve pairing, connection reliability, first-chat usability and Bot creation/import reliability. They describe **anonymous installations with statistics enabled**, not all Humans or task success.
+Events go through our first-party proxy to PostHog Cloud US. Network services receive an IP address while handling the connection; PostHog's project is configured to discard it, and these events disable GeoIP. We use these statistics to improve pairing, connection reliability, first-chat usability and Bot creation/import reliability, and to see which features are used. They describe **anonymous installations with statistics enabled**, not all Humans or task success.
 
 Source: [Mobile Telemetry](../apps/mobile/src/telemetry/) · [decision and qualification limits](adr/0214-mobile-statistics-use-explicit-consent-and-an-independent-install-id.md).
 
@@ -18,11 +18,11 @@ Every new event also includes OS major.minor, phone/tablet/unknown class, a publ
 
 手机统计**新安装默认开启**。首次启用时沿用 Web 客户端的说明方式：简短提示、可展开的详细说明，以及隐私说明、查看源码、打开设置和知道了。手机会记住已读状态。这是信息告知，不是采集前的同意门禁。开关位于设置页最底部，详细说明默认折叠。关闭不影响配对、聊天和通知；已有关闭选择在升级后保留。这个开关独立于电脑端统计。
 
-开启后，DeepSeekBot 向 PostHog 发送随机手机统计标识、公开应用版本和构建号、iOS/Android、支持的语言，以及打开应用、配对、连接、首次发送被接受和观察到 Bot 消息、Bot 创建与导入的预览、提交和恢复的粗略结果。不发送名称、聊天、Memory、文件、配对链接、凭证、推送令牌、电脑身份或其他产品标识。不将手机标识与网站访问、账号或电脑关联，也不建立个人档案。
+开启后，DeepSeekBot 向 PostHog 发送随机手机统计标识、公开应用版本和构建号、iOS/Android、支持的语言，以及打开应用、配对、连接、首次发送被接受和观察到 Bot 消息、Bot 创建与导入的预览、提交和恢复的粗略结果，以及用了哪类功能：处理工具审批（以及是否在通知里处理）、回答 Bot 提问或文件夹请求、更换模型方案、打开通知或消息搜索结果、分享到对话、打开 Tob 模式、打开浏览器或电脑查看器。不发送名称、聊天、Memory、文件、配对链接、凭证、推送令牌、电脑身份或其他产品标识。不将手机标识与网站访问、账号或电脑关联，也不建立个人档案。
 
 关闭后清除手机标识和未发送事件；再次开启生成新标识。开关不能撤回服务端已收到的事件。待发事件最多保存 24 小时。系统备份恢复可能恢复已保存的同意状态和标识；不恢复数据的全新安装默认开启。读取已保存设置失败时暂停统计，不覆盖可能存在的关闭选择。保存失败会显示提示，本次运行暂停统计；请重试以永久保存选择。
 
-事件经自有代理发往 PostHog 美国云。网络服务处理连接时会接触 IP 地址；PostHog 项目配置为丢弃 IP，手机事件也禁用 GeoIP。数据用于改善配对、连接、首次聊天以及 Bot 创建和导入，只代表**已启用统计的匿名安装**，不能代表全部用户或任务成功率。
+事件经自有代理发往 PostHog 美国云。网络服务处理连接时会接触 IP 地址；PostHog 项目配置为丢弃 IP，手机事件也禁用 GeoIP。数据用于改善配对、连接、首次聊天以及 Bot 创建和导入，并了解哪些功能被使用，只代表**已启用统计的匿名安装**，不能代表全部用户或任务成功率。
 
 每条新事件还包含系统主次版本、手机/平板/未知类别、公开的 iOS 机型 ID（Android 为 `unknown`）、总内存区间和设备年份等级。内存区间依次以 4、8、16、32 GiB 为上限；`64plus` 表示超过 32 GiB。缺失或无效的原生信息记为 `unknown`；不发送精确内存字节数、设备名称、序列号、广告 ID 或 Android ID。白名单逐一校验新字段。旧版已排队的 schema-v1 事件没有这些字段时仍然有效，不会被改写成当前设备或应用版本。SDK 58 已包含 `expo-device`，本次没有新增原生依赖。
 
@@ -44,6 +44,8 @@ Project **648269**, timezone **Asia/Shanghai**. Base cohort: `properties.source 
 - Connection: `ready / all completed observation episodes`, segmented by trigger, bounded credential-refusal reason and retry bucket. Timeout ends only the observation, not Host reconnection. `recovery` is a new episode. Use duration buckets, not invented exact latency.
 - Activation: ordered `host_ready → message_accepted → bot_message_observed` by distinct installation. The final step requires a successful mobile send in the foreground conversation. It is not proof of a causal reply, model success or completed task. Use a separately labelled returning-install view; enabling statistics on an existing install does not make it a new product installation.
 - Deduplication: compare unique event UUID and attempt ID counts. The owner emits once per activation and preserves retry UUID; server acceptance/readback must still be measured.
+
+Feature events (`activity:*`, `model:plan_update`, `notification:push_open`, `search:result_open`, `share:bot_share_send`, `tob:mode_open`, `viewer:subpanel_open`) are sent only while the app is in the foreground; approvals, answers and model changes are sent only after the Host accepts them. Count distinct installations per app version for penetration; the full list is in the [tracking plan](telemetry-events.md).
 
 Do not add Host and mobile message totals together or estimate non-consenting usage.
 

@@ -156,11 +156,22 @@ interface HostEntry {
   activity: ReadonlyMap<string, RemoteBotActivity>;
 }
 
+const PAIR_FAILURES: ReadonlySet<string> = new Set([
+  'unreachable',
+  'no-route',
+  'host-key-required',
+]);
 const idleInbox: InboxSnapshot = { status: 'idle' };
 type NotificationTranslate = (key: 'remoteHosts.notifications.privateBody') => string;
 
+export type RemoteHostTelemetry = (
+  event: 'remote_host:host_pair_complete' | 'remote_host:conversation_open',
+  properties?: { outcome: 'success' | 'refused' | 'failed' },
+) => void;
+
 export function createRemoteHosts(options: {
   storage?: HostStorage | undefined;
+  record?: RemoteHostTelemetry;
   carrier: HostCarrier;
   loadImage?: (url: string, headers: Record<string, string>) => Promise<string | undefined>;
   releaseImage?: (image: string) => void;
@@ -168,6 +179,7 @@ export function createRemoteHosts(options: {
   hostName?: (hostId: string, fallback: string) => string;
 }): RemoteHosts {
   const { storage, carrier, loadImage, releaseImage } = options;
+  const record = options.record ?? (() => {});
   const listeners = new Set<() => void>();
   const clients = new Map<string, HostEntry>();
   const pairing = new Set<string>();
@@ -202,6 +214,7 @@ export function createRemoteHosts(options: {
     open(target) {
       globalThis.window?.focus();
       open = target;
+      record('remote_host:conversation_open');
       publish();
     },
   });
@@ -368,9 +381,18 @@ export function createRemoteHosts(options: {
     async pair(link, deviceName, localHostId, trust) {
       if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
       const parsed = parsePairingLink(link);
-      if (!parsed.ok) return parsed;
-      if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-host' };
-      if (clients.has(parsed.payload.host.id)) return { ok: false, code: 'already-paired' };
+      const refused = (code: 'this-host' | 'already-paired') => {
+        record('remote_host:host_pair_complete', { outcome: 'refused' });
+        return { ok: false, code } as const;
+      };
+      if (!parsed.ok) {
+        record('remote_host:host_pair_complete', {
+          outcome: PAIR_FAILURES.has(parsed.code) ? 'failed' : 'refused',
+        });
+        return parsed;
+      }
+      if (parsed.payload.host.id === localHostId) return refused('this-host');
+      if (clients.has(parsed.payload.host.id)) return refused('already-paired');
       if (pairing.has(parsed.payload.host.id)) return { ok: false, code: 'pairing-in-progress' };
       pairing.add(parsed.payload.host.id);
       try {
@@ -380,7 +402,13 @@ export function createRemoteHosts(options: {
           carrier,
           ...trust,
         });
-        if (!redeemed.ok) return redeemed;
+        if (!redeemed.ok) {
+          if (trust?.signal?.aborted) return redeemed;
+          record('remote_host:host_pair_complete', {
+            outcome: PAIR_FAILURES.has(redeemed.code) ? 'failed' : 'refused',
+          });
+          return redeemed;
+        }
         if (trust?.signal?.aborted) {
           void revokePairing({ host: redeemed.host, carrier });
           return { ok: false, code: 'cancelled' };
@@ -396,6 +424,7 @@ export function createRemoteHosts(options: {
             ),
           );
         } catch {
+          record('remote_host:host_pair_complete', { outcome: 'failed' });
           return { ok: false, code: 'storage-failure' };
         }
         attach(redeemed.host);
@@ -404,6 +433,7 @@ export function createRemoteHosts(options: {
           storage?.setItem(HOST_TAB_STORAGE_KEY, tab);
         } catch {}
         publish();
+        record('remote_host:host_pair_complete', { outcome: 'success' });
         return redeemed;
       } finally {
         pairing.delete(parsed.payload.host.id);
@@ -427,6 +457,7 @@ export function createRemoteHosts(options: {
     },
     open(target) {
       open = target;
+      record('remote_host:conversation_open');
       publish();
     },
     close() {
@@ -554,6 +585,11 @@ async function browserImage(
 
 let shared: RemoteHosts | undefined;
 let translate: NotificationTranslate = (key) => en[key];
+let recordShared: RemoteHostTelemetry = () => {};
+
+export function recordRemoteHosts(record: RemoteHostTelemetry): void {
+  recordShared = record;
+}
 
 export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
   if (translator !== undefined) translate = translator;
@@ -571,6 +607,7 @@ export function remoteHosts(translator?: NotificationTranslate): RemoteHosts {
     releaseImage: (image) => URL.revokeObjectURL(image),
     translate: (key) => translate(key),
     hostName: (hostId, fallback) => shownHostName(hostLooks().look(hostId), fallback),
+    record: (event, properties) => recordShared(event, properties),
   });
   const sources = shared;
   let selection = store.getSnapshot().selection;
