@@ -11,6 +11,12 @@ const SHORTCUT_INDEX: readonly BotHarnessKey[] = SHORTCUT_HELP_GROUPS.flatMap((g
 ]);
 
 export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> = {
+  account: [
+    'accountProfile.title',
+    'accountProfile.photo',
+    'accountProfile.name',
+    'accountProfile.email',
+  ],
   general: ['onboarding.settings.title'],
   appearance: [
     'recovery.title',

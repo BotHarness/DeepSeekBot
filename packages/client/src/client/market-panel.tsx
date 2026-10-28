@@ -28,7 +28,7 @@ import {
   MarketplaceSubmitField,
   marketplaceLanguage,
   marketplaceName,
-  marketplaceOwner,
+  MarketplaceOwner,
   useMarketplaceBrowse,
   useMarketplaceSubmit,
   type MarketplaceFlowStart,
@@ -64,7 +64,7 @@ function MarketplaceTile({
           <span className="bh-market-copy">
             <span className="bh-market-card-name">{marketplaceName(bot)}</span>
             <span className="bh-market-owner">
-              {bot.source === 'upload' ? marketplaceOwner(bot) : bot.fullName}
+              {bot.source === 'upload' ? <MarketplaceOwner bot={bot} /> : bot.fullName}
             </span>
           </span>
         </span>

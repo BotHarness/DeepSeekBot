@@ -2200,6 +2200,14 @@ button.bh-market-file:focus-visible { outline: ${border.focus} solid ${color.acc
   font-size: ${text.metaSize};
   font-weight: ${text.regular};
 }
+.bh-market-author-avatar {
+  width: 1.25em;
+  height: 1.25em;
+  margin-inline-end: ${space.x1};
+  border-radius: 50%;
+  object-fit: cover;
+  vertical-align: -0.3em;
+}
 .bh-market-owner,
 [data-market-author] {
   font-feature-settings: 'calt' 0;
