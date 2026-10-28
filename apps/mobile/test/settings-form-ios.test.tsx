@@ -141,6 +141,7 @@ vi.mock('@expo/ui/swift-ui', () => {
         data-native="picker"
         data-testid={props.testID}
         data-style={JSON.stringify(find(props, 'pickerStyle'))}
+        data-tint={JSON.stringify(find(props, 'tint') ?? null)}
       >
         {props.label}
         <select
@@ -214,7 +215,7 @@ it('pushes through the caller with an SF Symbol label and the system chevron', a
     </SettingsForm>,
   );
   const button = host.querySelector<HTMLButtonElement>('[data-testid="settings-notifications"]')!;
-  expect(button.querySelector('[data-symbol="bell"]')).not.toBeNull();
+  expect(button.querySelector('[data-system-image="bell"]')).not.toBeNull();
   expect(button.querySelector('[data-symbol="chevron.right"]')).not.toBeNull();
   expect(button.querySelector('[data-rn-symbol]')).toBeNull();
   expect(button.getAttribute('aria-label')).toBe('Notifications');
@@ -348,6 +349,7 @@ it('renders a preference as a native menu picker inside a form', async () => {
   );
   const picker = host.querySelector('[data-testid="settings-appearance"]')!;
   expect(JSON.parse(picker.getAttribute('data-style')!)).toBe('menu');
+  expect(JSON.parse(picker.getAttribute('data-tint')!)).toMatch(/^#/);
   expect(picker.querySelector('[data-system-image="circle.lefthalf.filled"]')).not.toBeNull();
   const select = picker.querySelector('select')!;
   await act(async () => {
