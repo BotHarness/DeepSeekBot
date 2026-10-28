@@ -9,25 +9,25 @@ Runtime source: `7623b09b6b2dfc8e6b68d96358048161f3ddde75`; baseline `fc65dea1cd
 
 PASS qualifies only the substeps named here; untouched substeps remain UNTESTED. Android emulator/device and native-drawer variants are UNTESTED (Windows lane).
 
-| Handoff row | iOS 27 Simulator | XS Max |
-| --- | --- | --- |
-| 1 threshold release | PASS, enters Tob; `light.mp4`, `dark.mp4` | PASS, `phone.mp4`; tactile feel untested |
-| 2 short pull | PASS | PASS, final source |
-| 3 cross then retreat in one touch | UNTESTED native: driver has only straight-path pans; component/model tests pass | UNTESTED |
-| 4 fast flick | UNTESTED native; velocity-only exclusion covered in component/model behavior | UNTESTED |
-| 5 computer / All / cloud | PASS selected + All; cloud-only UNTESTED (no test cloud login) | PASS selected; All/cloud UNTESTED |
-| 6 no computer fallback | UNTESTED native: existing pairings preserved; component tests pass | UNTESTED |
-| 7 search | PASS focus; nonempty-query covered by component tests only | UNTESTED |
-| 8 coexistence | PASS last-chat left swipe, workspace right swipe, mid-list pull | UNTESTED |
-| 9 Reduce Motion | FAIL before fix, PASS after: change system setting 0→1 in running app, no Metro reload; `rm-before.mp4` vs `rm-after.mp4` | UNTESTED system toggle |
-| 10 accessibility | PASS header button; actual VoiceOver announcement/escape UNTESTED | PASS header button; actual VoiceOver UNTESTED |
-| 11 haptics off | Automated preference tests PASS; native tactile verification UNTESTED | Human tactile verification UNTESTED |
-| 12 max font | PASS entry/return at maximum accessibility category; `max.png`; no clipping in recorded indicator | UNTESTED |
-| 13 down entrance | PASS visual recording, header and same chat/composer | PASS visual recording |
-| 14 exit | PASS Back, leading-edge short cancellation and committed edge return (asserted after settling) | PASS Back; other paths UNTESTED |
-| 15 keyboard-open Back | UNTESTED separately on final Simulator source | PASS final source; test draft persisted over reinstall then cleared without sending |
-| 16 normal Tob row | PASS normal DM, no `top-entrance` root; last-chat swipe returns to same normal DM | UNTESTED |
-| 17 dark flash | No white flash observed in sampled dark recording; not a frame-time/performance measurement | No white flash observed in physical dark recording; not FPS proof |
+| Handoff row                       | iOS 27 Simulator                                                                                                          | XS Max                                                                              |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1 threshold release               | PASS, enters Tob; `light.mp4`, `dark.mp4`                                                                                 | PASS, `phone.mp4`; tactile feel untested                                            |
+| 2 short pull                      | PASS                                                                                                                      | PASS, final source                                                                  |
+| 3 cross then retreat in one touch | UNTESTED native: driver has only straight-path pans; component/model tests pass                                           | UNTESTED                                                                            |
+| 4 fast flick                      | UNTESTED native; velocity-only exclusion covered in component/model behavior                                              | UNTESTED                                                                            |
+| 5 computer / All / cloud          | PASS selected + All; cloud-only UNTESTED (no test cloud login)                                                            | PASS selected; All/cloud UNTESTED                                                   |
+| 6 no computer fallback            | UNTESTED native: existing pairings preserved; component tests pass                                                        | UNTESTED                                                                            |
+| 7 search                          | PASS focus; nonempty-query covered by component tests only                                                                | UNTESTED                                                                            |
+| 8 coexistence                     | PASS last-chat left swipe, workspace right swipe, mid-list pull                                                           | UNTESTED                                                                            |
+| 9 Reduce Motion                   | FAIL before fix, PASS after: change system setting 0→1 in running app, no Metro reload; `rm-before.mp4` vs `rm-after.mp4` | UNTESTED system toggle                                                              |
+| 10 accessibility                  | PASS header button; actual VoiceOver announcement/escape UNTESTED                                                         | PASS header button; actual VoiceOver UNTESTED                                       |
+| 11 haptics off                    | Automated preference tests PASS; native tactile verification UNTESTED                                                     | Human tactile verification UNTESTED                                                 |
+| 12 max font                       | PASS entry/return at maximum accessibility category; `max.png`; no clipping in recorded indicator                         | UNTESTED                                                                            |
+| 13 down entrance                  | PASS visual recording, header and same chat/composer                                                                      | PASS visual recording                                                               |
+| 14 exit                           | PASS Back, leading-edge short cancellation and committed edge return (asserted after settling)                            | PASS Back; other paths UNTESTED                                                     |
+| 15 keyboard-open Back             | UNTESTED separately on final Simulator source                                                                             | PASS final source; test draft persisted over reinstall then cleared without sending |
+| 16 normal Tob row                 | PASS normal DM, no `top-entrance` root; last-chat swipe returns to same normal DM                                         | UNTESTED                                                                            |
+| 17 dark flash                     | No white flash observed in sampled dark recording; not a frame-time/performance measurement                               | No white flash observed in physical dark recording; not FPS proof                   |
 
 ## Failure and fix
 
