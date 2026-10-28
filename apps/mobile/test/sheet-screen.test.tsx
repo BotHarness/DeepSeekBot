@@ -39,26 +39,28 @@ vi.mock('../src/ui/primitives/drawer-header', () => ({
     title,
     titleLines,
     onClose,
+    onBack,
   }: {
     title: string;
     titleLines?: number;
     onClose?: () => void;
+    onBack?: () => void;
   }) =>
     createElement(
       'header',
       { 'data-lines': titleLines },
       title,
-      onClose === undefined
+      (onClose ?? onBack) === undefined
         ? null
         : createElement('button', {
             role: 'button',
-            'aria-label': 'Close',
-            onClick: onClose,
+            'aria-label': onClose === undefined ? 'Back' : 'Close',
+            onClick: onClose ?? onBack,
           }),
     ),
 }));
 
-import { SheetHeader } from '../src/ui/primitives/sheet-header';
+import { SheetHeader, sheetStackHeader } from '../src/ui/primitives/sheet-header';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { t } from '../src/ui/strings';
 
@@ -121,5 +123,35 @@ describe('iOS sheet frame and header', () => {
     expect(style['zIndex']).toBe(1);
     expect(style['backgroundColor']).toBeTypeOf('string');
     expect(header!.querySelector('header')!.getAttribute('data-lines')).toBe('1');
+  });
+});
+
+describe('sheet stack header', () => {
+  const page = (key: string, keys: string[]) => {
+    const goBack = vi.fn();
+    const Header = sheetStackHeader(callbacks.back);
+    const props = {
+      back: { title: 'Back', href: undefined },
+      navigation: { goBack, getState: () => ({ routes: keys.map((each) => ({ key: each })) }) },
+      options: { title: key },
+      route: { key, name: key },
+    } as unknown as Parameters<typeof Header>[0];
+    return { goBack, element: <Header {...props} /> };
+  };
+
+  it('closes the sheet from the stack root even when the parent stack offers Back', async () => {
+    const { goBack, element } = page('index', ['index']);
+    const view = await render(element);
+    await act(async () => view.querySelector<HTMLButtonElement>('button')!.click());
+    expect(callbacks.back).toHaveBeenCalledTimes(1);
+    expect(goBack).not.toHaveBeenCalled();
+  });
+
+  it('goes back one page from a child page', async () => {
+    const { goBack, element } = page('notifications', ['index', 'notifications']);
+    const view = await render(element);
+    await act(async () => view.querySelector<HTMLButtonElement>('button')!.click());
+    expect(goBack).toHaveBeenCalledTimes(1);
+    expect(callbacks.back).not.toHaveBeenCalled();
   });
 });

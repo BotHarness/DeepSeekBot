@@ -1,3 +1,4 @@
+import type { NativeStackHeaderProps } from 'expo-router/native-stack';
 import { Platform, View } from 'react-native';
 
 import { useDesignTheme } from '../design/theme';
@@ -9,6 +10,7 @@ export function SheetHeader(props: DrawerHeaderProps) {
   return (
     <View
       testID="sheet-header"
+      collapsable={false}
       style={{
         zIndex: 1,
         paddingHorizontal: space.x5,
@@ -20,4 +22,20 @@ export function SheetHeader(props: DrawerHeaderProps) {
       <DrawerHeader titleLines={1} {...props} />
     </View>
   );
+}
+
+export function sheetStackHeader(close: () => void) {
+  return function SheetStackHeader({ navigation, options, route }: NativeStackHeaderProps) {
+    const root = navigation.getState().routes[0]?.key === route.key;
+    return (
+      <SheetHeader
+        title={typeof options.title === 'string' ? options.title : route.name}
+        {...(!root
+          ? { onBack: () => navigation.goBack() }
+          : Platform.OS === 'ios'
+            ? { onClose: close }
+            : {})}
+      />
+    );
+  };
 }
