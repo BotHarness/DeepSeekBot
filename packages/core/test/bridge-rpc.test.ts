@@ -121,6 +121,7 @@ describe('bridge typert service', () => {
             throw new Error('unused');
           },
           isTob: (slug) => slug === 'ada',
+          slug: () => 'ada',
           readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
           writeSetting: async () => {
             throw new Error('unused');
@@ -841,12 +842,23 @@ describe('bridge typert service', () => {
       'marketplaceSubmit',
       'marketplaceTopics',
       'marketplaceDetail',
+      'marketplaceFileView',
       'marketplaceChallenge',
       'marketplaceReport',
       'marketplaceAccount',
       'marketplaceAuthorSave',
       'marketplaceUploadPlan',
       'marketplaceUpload',
+      'marketplaceInstallReview',
+      'marketplaceMine',
+      'marketplaceDelete',
+      'shareDraftStart',
+      'shareDraftGet',
+      'shareDraftFile',
+      'shareDraftDecide',
+      'shareDraftFinish',
+      'shareDraftDiscard',
+      'shareDraftExport',
       'marketplaceInstall',
       'releaseInfo',
       'releaseUpdate',
@@ -950,6 +962,7 @@ describe('bridge typert service', () => {
       'origin',
       'operationKey',
       'expectedCommit',
+      'listingId',
     ]);
     expect(parameterNames(service.botImportPreview)).toEqual(['gitUrl']);
     expect(parameterNames(service.botImportLookup)).toEqual([
@@ -962,6 +975,7 @@ describe('bridge typert service', () => {
     ]);
     expect(parameterNames(service.marketplaceList)).toEqual(['query']);
     expect(parameterNames(service.marketplaceTopics)).toEqual([]);
+    expect(parameterNames(service.marketplaceFileView)).toEqual(['id', 'path']);
     expect(parameterNames(service.marketplaceDetail)).toEqual(['id', 'lang']);
     expect(parameterNames(service.marketplaceSubmit)).toEqual(['url', 'altcha']);
     expect(parameterNames(service.marketplaceChallenge)).toEqual([]);

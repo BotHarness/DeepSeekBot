@@ -19,6 +19,7 @@ export interface RepositoryRow {
   description: string | null;
   topics: string;
   stars: number;
+  installs: number;
   pushed_at: string;
   created_at: string;
   default_branch: string;
@@ -42,6 +43,7 @@ export interface RepositoryRow {
   source: 'github' | 'upload';
   author_account: string | null;
   author_id: string | null;
+  files_id: string | null;
 }
 
 export const MAX_README_LENGTH = 200_000;

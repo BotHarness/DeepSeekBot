@@ -22,6 +22,7 @@ export interface MarketplaceEntry {
   avatar: MarketplaceAvatar | null;
   topics: string[];
   stars: number;
+  installs: number;
   pushedAt: string;
   createdAt?: string;
   htmlUrl: string;
@@ -30,6 +31,12 @@ export interface MarketplaceEntry {
   headCommit: { sha: string; committedAt: string } | null;
   source: MarketplaceSource;
   author: MarketplaceAuthor | null;
+  installed?: MarketplaceInstalled;
+}
+
+export interface MarketplaceInstalled {
+  bots: string[];
+  authorUpdated: boolean;
 }
 
 export type MarketplaceSource = 'github' | 'upload';
@@ -51,11 +58,34 @@ export interface MarketplaceFile {
   kind: MarketplaceFileKind;
 }
 
+export type MarketplaceFileType = 'markdown' | 'text' | 'data' | 'script' | 'image';
+
+export interface MarketplaceFileSummary {
+  count: number;
+  size: number;
+  types: Array<{ type: MarketplaceFileType; count: number; size: number }>;
+}
+
+export interface MarketplaceFileView {
+  path: string;
+  size: number;
+  type: Exclude<MarketplaceFileType, 'image'>;
+  text: string;
+}
+
 export interface MarketplaceUploadInput {
   displayName: string;
   bio?: string;
   tags?: string[];
+  replaces?: string;
   files: Array<{ path: string; size: number; sha256: string }>;
+}
+
+export interface MarketplaceAuthoredBot {
+  bot: MarketplaceEntry;
+  files: number;
+  bytes: number;
+  blocked: boolean;
 }
 
 export interface MarketplacePage {
@@ -85,6 +115,7 @@ export interface MarketplaceDetail {
   readmeLanguage: MarketplaceLanguage | null;
   commitSha: string | null;
   files?: MarketplaceFile[];
+  fileSummary?: MarketplaceFileSummary;
 }
 
 export type MarketplaceResult<T> =
@@ -117,7 +148,17 @@ export interface MarketplaceClient {
     bytes: Uint8Array,
   ): Promise<MarketplaceResult<true>>;
   publishUpload(token: string, uploadId: string): Promise<MarketplaceResult<MarketplaceEntry>>;
+  authored(
+    token: string,
+    lang?: MarketplaceLanguage,
+  ): Promise<MarketplaceResult<MarketplaceAuthoredBot[]>>;
+  deleteUpload(token: string, id: string): Promise<MarketplaceResult<{ deleted: true }>>;
   file(id: string, path: string): Promise<MarketplaceResult<Uint8Array>>;
+  installReceipt(
+    id: string,
+    hostId: string,
+  ): Promise<MarketplaceResult<{ counted: boolean; installs: number }>>;
+  fileView(id: string, path: string): Promise<MarketplaceResult<MarketplaceFileView>>;
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -176,6 +217,7 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
   const roles = Array.isArray(source['tags']) ? source['tags'] : source['roles'];
   const bio = source['bio'];
   const htmlUrl = source['htmlUrl'] as string;
+  const installed = parseInstalled(source['installed']);
   const filesBase =
     source['source'] === 'upload' && htmlUrl.startsWith('https://')
       ? `${htmlUrl}/files/`
@@ -196,6 +238,10 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
     avatar: parseAvatar(source['avatar'], filesBase),
     topics: topics.filter((topic): topic is string => typeof topic === 'string'),
     stars,
+    installs:
+      typeof source['installs'] === 'number' && Number.isSafeInteger(source['installs'])
+        ? Math.max(source['installs'], 0)
+        : 0,
     pushedAt: source['pushedAt'] as string,
     ...(typeof source['createdAt'] === 'string' ? { createdAt: source['createdAt'] } : {}),
     htmlUrl: source['htmlUrl'] as string,
@@ -209,7 +255,18 @@ function parseEntry(value: unknown): MarketplaceEntry | undefined {
         : null,
     source: source['source'] === 'upload' ? 'upload' : 'github',
     author: parseAuthor(source['author']) ?? null,
+    ...(installed === undefined ? {} : { installed }),
   };
+}
+
+function parseInstalled(value: unknown): MarketplaceInstalled | undefined {
+  const source = record(value);
+  const bots = source?.['bots'];
+  return Array.isArray(bots) &&
+    bots.every((bot) => typeof bot === 'string') &&
+    typeof source?.['authorUpdated'] === 'boolean'
+    ? { bots: bots as string[], authorUpdated: source['authorUpdated'] }
+    : undefined;
 }
 
 function parseAuthor(value: unknown): MarketplaceAuthor | undefined {
@@ -243,6 +300,49 @@ function parseFiles(value: unknown): MarketplaceFile[] | undefined {
   return files.every((file): file is MarketplaceFile => file !== undefined) ? files : undefined;
 }
 
+const FILE_TYPES: readonly string[] = ['markdown', 'text', 'data', 'script', 'image'];
+
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+}
+
+function parseFileSummary(value: unknown): MarketplaceFileSummary | undefined {
+  const source = record(value);
+  if (source === undefined || !isCount(source['count']) || !isCount(source['size']))
+    return undefined;
+  if (!Array.isArray(source['types'])) return undefined;
+  const types = source['types'].map((item) => {
+    const entry = record(item);
+    return typeof entry?.['type'] === 'string' &&
+      FILE_TYPES.includes(entry['type']) &&
+      isCount(entry['count']) &&
+      isCount(entry['size'])
+      ? { type: entry['type'] as MarketplaceFileType, count: entry['count'], size: entry['size'] }
+      : undefined;
+  });
+  return types.every((type) => type !== undefined)
+    ? { count: source['count'], size: source['size'], types }
+    : undefined;
+}
+
+export function parseMarketplaceFileView(value: unknown): MarketplaceFileView | undefined {
+  const file = record(record(value)?.['file']);
+  const type = file?.['type'];
+  return typeof file?.['path'] === 'string' &&
+    isCount(file['size']) &&
+    typeof file['text'] === 'string' &&
+    typeof type === 'string' &&
+    type !== 'image' &&
+    FILE_TYPES.includes(type)
+    ? {
+        path: file['path'],
+        size: file['size'],
+        type: type as MarketplaceFileView['type'],
+        text: file['text'],
+      }
+    : undefined;
+}
+
 export function filePath(path: string): string {
   return path.split('/').map(encodeURIComponent).join('/');
 }
@@ -265,6 +365,7 @@ export function parseMarketplaceDetail(value: unknown): MarketplaceDetail | unde
   if (commitSha !== null && typeof commitSha !== 'string') return undefined;
   const readmeLanguage = source?.['readmeLanguage'];
   const files = parseFiles(source?.['files']);
+  const fileSummary = parseFileSummary(source?.['fileSummary']);
   return {
     bot,
     readme,
@@ -274,6 +375,7 @@ export function parseMarketplaceDetail(value: unknown): MarketplaceDetail | unde
         : null,
     commitSha,
     ...(files === undefined ? {} : { files }),
+    ...(fileSummary === undefined ? {} : { fileSummary }),
   };
 }
 
@@ -304,6 +406,24 @@ function listPath(query: MarketplaceQuery): string {
 export function parseMarketplaceSubmission(value: unknown): { bot: MarketplaceEntry } | undefined {
   const bot = parseEntry(record(value)?.['bot']);
   return bot === undefined ? undefined : { bot };
+}
+
+export function parseAuthoredBots(value: unknown): MarketplaceAuthoredBot[] | undefined {
+  const bots = record(value)?.['bots'];
+  if (!Array.isArray(bots)) return undefined;
+  const parsed = bots.map((item) => {
+    const source = record(item);
+    const bot = parseEntry(source?.['bot']);
+    return bot !== undefined &&
+      typeof source?.['files'] === 'number' &&
+      typeof source['bytes'] === 'number' &&
+      typeof source['blocked'] === 'boolean'
+      ? { bot, files: source['files'], bytes: source['bytes'], blocked: source['blocked'] }
+      : undefined;
+  });
+  return parsed.every((item): item is MarketplaceAuthoredBot => item !== undefined)
+    ? parsed
+    : undefined;
 }
 
 function parseReceipt(value: unknown): { received: true } | undefined {
@@ -453,6 +573,39 @@ export function createMarketplaceClient(options: {
         `/v1/uploads/${encodeURIComponent(uploadId)}/publish`,
         { method: 'POST', headers: authorized(token, false) },
         (value) => parseEntry(record(value)?.['bot']),
+      ),
+    installReceipt: (id, hostId) =>
+      request(
+        `/v1/bots/${encodeURIComponent(id)}/installs`,
+        {
+          method: 'POST',
+          headers: { accept: 'application/json', 'content-type': 'application/json' },
+          body: JSON.stringify({ hostId }),
+        },
+        (value) => {
+          const body = record(value);
+          return typeof body?.['counted'] === 'boolean' && typeof body['installs'] === 'number'
+            ? { counted: body['counted'], installs: body['installs'] }
+            : undefined;
+        },
+      ),
+    authored: (token, lang) =>
+      request(
+        `/v1/me/bots${lang === undefined ? '' : `?lang=${lang}`}`,
+        { method: 'GET', headers: authorized(token, false) },
+        parseAuthoredBots,
+      ),
+    deleteUpload: (token, id) =>
+      request(
+        `/v1/me/bots/${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: authorized(token, false) },
+        (value) => (record(value)?.['deleted'] === true ? { deleted: true as const } : undefined),
+      ),
+    fileView: (id, path) =>
+      request(
+        `/v1/bots/${encodeURIComponent(id)}/view/${filePath(path)}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseMarketplaceFileView,
       ),
     async file(id, path) {
       const response = await send(`/v1/bots/${encodeURIComponent(id)}/files/${filePath(path)}`, {

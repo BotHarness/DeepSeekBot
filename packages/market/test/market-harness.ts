@@ -265,6 +265,7 @@ export function createFakeGitHub(): {
 export const LENIENT_LIMITS: ProtectionLimits = {
   submitPerHour: 1000,
   reportPerHour: 1000,
+  installPerHour: 1000,
   repositoryCooldownMs: 0,
   elevatedAfter: 1000,
   highAfter: 2000,

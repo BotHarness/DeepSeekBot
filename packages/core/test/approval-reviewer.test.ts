@@ -194,6 +194,17 @@ describe('Approval Templates', () => {
       requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-install U_abc' }),
     ).toBe(false);
   });
+
+  it('makes deleting an Uploaded Bot from the Shell need Human approval', () => {
+    expect(
+      requiresHumanToolApproval('bash', {
+        command: 'deepseekbot marketplace-delete U_abc --confirm',
+      }),
+    ).toBe(true);
+    expect(requiresHumanToolApproval('bash', { command: 'deepseekbot marketplace-mine' })).toBe(
+      false,
+    );
+  });
 });
 
 describe('Approval Reviewer input', () => {

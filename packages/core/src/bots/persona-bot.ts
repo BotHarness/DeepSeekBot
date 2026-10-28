@@ -44,9 +44,22 @@ export interface PersonaBotRecord {
 
   standingLimits?: StandingLimits;
 
+  marketplaceListing?: MarketplaceListingRef;
+
   promptPreset?: string;
   promptOverrides?: PromptPartOverrides;
   promptLimits?: PromptLimitValues;
+}
+
+export interface MarketplaceListingRef {
+  id: string;
+  pushedAt: string;
+}
+
+export function isMarketplaceListingRef(value: unknown): value is MarketplaceListingRef {
+  if (typeof value !== 'object' || value === null) return false;
+  const source = value as Record<string, unknown>;
+  return typeof source['id'] === 'string' && typeof source['pushedAt'] === 'string';
 }
 
 export interface CreatePersonaBotInput {
@@ -209,6 +222,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (record['modelPlan'] !== undefined && !isPersonaBotModelPlan(record['modelPlan']))
     return false;
   if (record['standingLimits'] !== undefined && !isStandingLimits(record['standingLimits']))
+    return false;
+  if (
+    record['marketplaceListing'] !== undefined &&
+    !isMarketplaceListingRef(record['marketplaceListing'])
+  )
     return false;
   return true;
 }

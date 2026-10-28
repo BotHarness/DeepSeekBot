@@ -20,6 +20,8 @@
   "ratelimits": [
     { "name": "CONNECT_LIMIT", "namespace_id": "2387", "simple": { "limit": 20, "period": 60 } },
   ],
+  // Deleting a Connect account also deletes its Uploaded Bots in the Bot Marketplace (ADR-0267)
+  "services": [{ "binding": "MARKET", "service": "botharness-market" }],
   "d1_databases": [
     {
       "binding": "CONNECT_DB",

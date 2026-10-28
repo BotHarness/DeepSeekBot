@@ -8,6 +8,7 @@ import {
 } from './localization.js';
 import { prepareReadme } from './readme.js';
 import { createRepositoryStore, isEligible, type RepositoryRow } from './repositories.js';
+import { summarizeFiles, type FileSummary } from './upload-files.js';
 import type { UploadedFile } from './uploads.js';
 
 export interface MarketplaceEntry {
@@ -25,6 +26,7 @@ export interface MarketplaceEntry {
   description: string | null;
   topics: string[];
   stars: number;
+  installs: number;
   pushedAt: string;
   createdAt: string;
   htmlUrl: string;
@@ -129,6 +131,7 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
     description: row.description,
     topics,
     stars: row.stars,
+    installs: row.installs,
     pushedAt: row.pushed_at,
     createdAt: row.created_at,
     htmlUrl: row.html_url,
@@ -234,10 +237,19 @@ export interface MarketplaceDetail {
   readmeLanguages: MarketplaceLanguage[];
   commitSha: string | null;
   files?: UploadedFile[];
+  fileSummary?: FileSummary;
+}
+
+export interface AuthoredBot {
+  bot: MarketplaceEntry;
+  files: number;
+  bytes: number;
+  blocked: boolean;
 }
 
 export interface Catalog {
   submit(url: string): Promise<SubmissionResult>;
+  authored(account: string, language?: MarketplaceLanguage): Promise<AuthoredBot[]>;
   detail(id: string, language?: MarketplaceLanguage): Promise<MarketplaceDetail | undefined>;
   list(options: ListOptions): Promise<MarketplacePage | undefined>;
   topics(): Promise<TopicCount[]>;
@@ -252,6 +264,11 @@ export function createCatalog(deps: {
   const { db, github } = deps;
 
   const store = createRepositoryStore(deps);
+
+  const uploadedFiles = async (id: string) => {
+    const files = (await deps.uploadedFiles?.(id)) ?? [];
+    return { files, fileSummary: summarizeFiles(files) };
+  };
 
   return {
     async submit(url) {
@@ -389,6 +406,28 @@ export function createCatalog(deps: {
       };
     },
 
+    async authored(account, language) {
+      const { results } = await db
+        .prepare(
+          `SELECT r.*,
+             (SELECT count(*) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_count,
+             (SELECT COALESCE(sum(f.size), 0) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_bytes
+           FROM indexed_repositories r
+           WHERE r.author_account = ? AND r.source = 'upload'
+           ORDER BY r.pushed_at DESC, r.node_id DESC`,
+        )
+        .bind(account)
+        .all<RepositoryRow & { file_count: number; file_bytes: number }>();
+      return results.map((row) => ({
+        bot: entryFromRow(row, language),
+        files: row.file_count,
+        bytes: row.file_bytes,
+        blocked: row.visibility !== 'listed',
+      }));
+    },
+
     async detail(id, language) {
       const row = await store.find(id);
       if (row === null || row.visibility !== 'listed') return undefined;
@@ -409,7 +448,7 @@ export function createCatalog(deps: {
         readmeLanguage: readme.language,
         readmeLanguages: readmeLanguages(row),
         commitSha: row.head_sha,
-        ...(uploaded ? { files: (await deps.uploadedFiles?.(row.node_id)) ?? [] } : {}),
+        ...(uploaded ? await uploadedFiles(row.node_id) : {}),
       };
     },
 

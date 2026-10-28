@@ -27,6 +27,10 @@ import {
   createTobBotProfileOperations,
   TOB_BOT_PROFILE_CAPABILITIES,
 } from './tob/cli-bot-profile-operations.js';
+import {
+  createTobShareDraftOperations,
+  TOB_SHARE_DRAFT_CAPABILITIES,
+} from './tob/cli-share-draft-operations.js';
 import { followCompanion } from './companions/live.js';
 import {
   createTobService,
@@ -122,7 +126,14 @@ import { mountClientDiagnostics } from './diagnostics/client-diagnostics.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
+import { createInstallReceipts } from './marketplace/install-receipts.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
+import {
+  createMarketplaceInstallReviews,
+  INSTALL_REVIEW_SYSTEM_PROMPT,
+  INSTALL_REVIEW_TIMEOUT_MS,
+} from './marketplace/install-review.js';
+import { createShareDrafts } from './marketplace/share-draft.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import {
   createLoadingReleaseService,
@@ -220,14 +231,19 @@ import {
 } from './workspaces/tool-approval.js';
 import {
   changesApprovalPolicy,
+  deletesMarketplaceBot,
   publishesBotMemory,
   requiresHumanDecision,
   createApprovalTemplateLibrary,
 } from './workspaces/approval-templates.js';
 import {
   APPROVAL_REVIEW_SESSION_PREFIX,
+  ApprovalReviewError,
+  type ApprovalReviewerRoute,
   createApprovalReviewRunner,
   isApprovalReviewSession,
+  routeLabel,
+  runReviewerTurn,
 } from './workspaces/approval-reviewer.js';
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import {
@@ -1323,6 +1339,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     (await tobMaintenanceOperations(command, args)) ??
                     (await tobBotCreationOperations(command, args)) ??
                     (await tobBotProfileOperations(command, args)) ??
+                    (await tobShareDraftOperations(command, args)) ??
                     (await tobChannelOperations(command, args));
                   if (!prepared || !['create', 'group-create'].includes(command)) return prepared;
                   return {
@@ -1344,6 +1361,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   ...TOB_MAINTENANCE_CAPABILITIES,
                   ...TOB_BOT_CREATE_CAPABILITIES,
                   ...TOB_BOT_PROFILE_CAPABILITIES,
+                  ...TOB_SHARE_DRAFT_CAPABILITIES,
                   ...TOB_CHANNEL_CAPABILITIES,
                 ],
                 beforeWrite: () => source.markSideEffect?.(),
@@ -2174,12 +2192,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                     ? 'This PersonaBot wants to create a new PersonaBot with a new Memory folder. The new Bot gets no grants, accesses or secrets from it.'
                     : publishesBotMemory(JSON.stringify(execution.arguments) ?? '')
                       ? 'This PersonaBot wants to upload a Bot to the Bot Marketplace. Its Memory files become public. Check them for secrets and private details first.'
-                      : changesApprovalPolicy(
-                            JSON.stringify(execution.arguments) ?? '',
-                            templateInUse,
-                          )
-                        ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
-                        : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
+                      : deletesMarketplaceBot(JSON.stringify(execution.arguments) ?? '')
+                        ? 'This PersonaBot wants to delete one of your Uploaded Bots from the Bot Marketplace. Its files and counts are erased and cannot be restored.'
+                        : changesApprovalPolicy(
+                              JSON.stringify(execution.arguments) ?? '',
+                              templateInUse,
+                            )
+                          ? 'This PersonaBot wants to change persistent permissions or its approval policy. A Human can approve once or save Always allow for this tool in the current scope.'
+                          : 'This PersonaBot wants to run a command-line tool with a secret you entered. The program receives the secret and could reveal it. Check the program and every argument.',
               signal: execution.signal,
             });
         if (outcome !== 'allowed-once') {
@@ -2425,6 +2445,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const marketplaceClient = createMarketplaceClient({
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
   });
+  const shareDrafts = createShareDrafts({
+    root: join(dshHome, 'botharness', 'share-drafts'),
+    memoryDir: (slug) =>
+      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+    log: (event) => ctx.logger.info(JSON.stringify(event)),
+  });
+  const marketplaceUploads = createMarketplaceUploads({
+    client: marketplaceClient,
+    account: () => connectAccount,
+    drafts: shareDrafts,
+    log: (event) => ctx.logger.info(JSON.stringify(event)),
+  });
   const bridgeMethods = createBridgeMethods({
     prompts: core.prompts,
     botContext: async (slug) => {
@@ -2604,11 +2636,67 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     toolRules: core.toolRules,
     assignmentAccess: core.assignmentAccess,
     marketplace: marketplaceClient,
-    marketplaceUploads: createMarketplaceUploads({
+    marketplaceUploads,
+    marketplaceInstallReviews: createMarketplaceInstallReviews({
+      uploads: marketplaceUploads,
+      reviewer: async (prompt, botName) => {
+        const tob = core.tob.slug();
+        let route: ApprovalReviewerRoute | undefined =
+          tob === undefined ? undefined : core.registry.get(tob)?.modelPlan?.orchestrator;
+        if (route === undefined) {
+          try {
+            route = defaultModel.currentSelection();
+          } catch {
+            route = undefined;
+          }
+        }
+        if (route === undefined) throw new ApprovalReviewError('no-model');
+        try {
+          await modelCatalog.validate(route);
+        } catch (error) {
+          throw new ApprovalReviewError(
+            'model-unavailable',
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        const sessionId = APPROVAL_REVIEW_SESSION_PREFIX + 'install-' + randomUUID();
+        const cwd = join(dshHome, 'botharness', 'approval-reviews');
+        mkdirSync(cwd, { recursive: true });
+        const titles = ctx.get('sessionTitle') as
+          | { rename?: (session: unknown, title: string) => void }
+          | undefined;
+        reviewing.add(sessionId);
+        try {
+          const text = await runReviewerTurn(
+            ctx.agents,
+            route,
+            {
+              systemPrompt: INSTALL_REVIEW_SYSTEM_PROMPT,
+              sectionName: 'botharness:install-review',
+              prompt,
+              title: `Install review · ${botName}`,
+              signal: new AbortController().signal,
+              maxTokens: 4_000,
+            },
+            {
+              sessionId,
+              cwd,
+              timeoutMs: INSTALL_REVIEW_TIMEOUT_MS,
+              ...(typeof titles?.rename === 'function'
+                ? { rename: (session, title) => titles.rename!(session, title) }
+                : {}),
+            },
+          );
+          return { text, model: routeLabel(route) };
+        } finally {
+          reviewing.delete(sessionId);
+        }
+      },
+    }),
+    shareDrafts,
+    marketplaceReceipts: createInstallReceipts({
       client: marketplaceClient,
-      account: () => connectAccount,
-      memoryDir: (slug) =>
-        core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
+      dataDir: telemetryDir,
       log: (event) => ctx.logger.info(JSON.stringify(event)),
     }),
     release: releaseService,
@@ -2703,6 +2791,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     bridge: () => bridgeMethods,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
+  const tobShareDraftOperations = createTobShareDraftOperations({ bridge: () => bridgeMethods });
   const tobChannelOperations = createTobChannelOperations({
     management: core.channelManagement,
     channels: core.channels,
