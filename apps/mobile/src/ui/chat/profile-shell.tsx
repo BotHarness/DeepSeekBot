@@ -3,7 +3,6 @@ import {
   FlatList,
   I18nManager,
   Platform,
-  Pressable,
   View,
   useWindowDimensions,
   type NativeScrollEvent,
@@ -23,9 +22,10 @@ import { spring } from '../design/motion';
 import { profileShell, radius, space, swipeRow } from '../design/tokens';
 import { systemSegmented } from '../design/system-shape';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
-import { SheetGrabber } from '../primitives/sheet-grabber';
 import { Text } from '../primitives/text';
+import { BackIcon } from '../shell/back-icon';
 import { useStrings } from '../strings';
+import { HeaderCircleButton } from './header-chrome';
 import { swipedTab, type ProfileTab } from './profile-tabs';
 
 export type ProfileRow = { key: string; render(): ReactNode };
@@ -201,24 +201,19 @@ export function ProfileShell({
       onAccessibilityEscape={onClose}
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
     >
-      {Platform.OS === 'android' ? (
-        <Pressable
-          testID="profile-handle"
-          accessibilityRole="button"
-          accessibilityLabel={t.close}
-          onPress={onClose}
-          style={{
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: theme.touch,
-            backgroundColor: theme.overlay.fill,
-          }}
-        >
-          <SheetGrabber />
-        </Pressable>
-      ) : (
-        <View style={{ height: space.x5, backgroundColor: theme.overlay.fill }} />
-      )}
+      <View
+        style={{
+          paddingTop: insets.top + space.x1,
+          paddingHorizontal: space.x4,
+          paddingBottom: space.x1,
+          alignItems: 'flex-start',
+          backgroundColor: theme.overlay.fill,
+        }}
+      >
+        <HeaderCircleButton testID="profile-back" label={t.back} onPress={onClose}>
+          <BackIcon color={theme.color.fg} size={theme.type.title.line} />
+        </HeaderCircleButton>
+      </View>
       <GestureDetector gesture={swipe}>
         <View style={{ flex: 1 }}>
           <AnimatedList

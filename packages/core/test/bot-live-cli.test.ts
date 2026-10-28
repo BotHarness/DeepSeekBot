@@ -135,6 +135,40 @@ describe('live CLI over the authenticated DSH carrier', () => {
     ]);
   });
 
+  it('sends a reply to an earlier message with --reply-to', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { displayName: 'Ada' } }
+          : method === 'channelSend'
+            ? { message: { id: 'human-33333333-3333-4333-8333-333333333333' } }
+            : { state: 'handled', replies: [{ id: 'reply', body: 'ok' }] },
+    }));
+    const sent = await invoke(
+      [
+        'send',
+        'ada',
+        '--body',
+        'this one',
+        '--message-id',
+        'human-33333333-3333-4333-8333-333333333333',
+        '--reply-to',
+        'bot-earlier',
+      ],
+      live.url,
+    );
+    expect(sent.code).toBe(0);
+    expect(live.calls.find((call) => call.method === 'channelSend')?.args).toEqual({
+      channelId: 'dm-ada',
+      body: 'this one',
+      messageId: 'human-33333333-3333-4333-8333-333333333333',
+      replyTo: 'bot-earlier',
+    });
+    const blank = await invoke(['send', 'ada', '--body', 'x', '--reply-to', ' '], live.url);
+    expect(blank.code).not.toBe(0);
+  });
+
   it('retains the receipt on timeout and never retries the mutating RPC', async () => {
     const started = Date.now();
     const clock = vi.spyOn(Date, 'now').mockReturnValue(started);

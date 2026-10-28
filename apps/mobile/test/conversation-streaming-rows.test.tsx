@@ -195,6 +195,7 @@ vi.mock('expo-router', () => ({
     },
   }),
 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {

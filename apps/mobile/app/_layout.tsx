@@ -91,12 +91,12 @@ function RootNavigator() {
                 <Stack.Screen
                   name="dm/[slug]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '' }}
+                  options={{ title: '', fullScreenGestureEnabled: false }}
                 />
                 <Stack.Screen
                   name="channel/[id]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '' }}
+                  options={{ title: '', fullScreenGestureEnabled: false }}
                 />
                 <Stack.Screen
                   name="bot/[slug]"

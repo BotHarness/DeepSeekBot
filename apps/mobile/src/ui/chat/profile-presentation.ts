@@ -1,6 +1,13 @@
+import { Platform } from 'react-native';
 import type { DesignTheme } from '../design/theme';
-import { sheetScreenOptions } from '../primitives/sheet-screen';
 
 export function profileScreenOptions(theme: DesignTheme) {
-  return { ...sheetScreenOptions(theme, true), gestureEnabled: true };
+  return {
+    headerShown: false,
+    presentation: 'card' as const,
+    animation: Platform.OS === 'android' ? ('slide_from_right' as const) : ('default' as const),
+    gestureEnabled: true,
+    fullScreenGestureEnabled: false,
+    contentStyle: { backgroundColor: theme.overlay.fill },
+  };
 }
