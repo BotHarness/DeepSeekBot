@@ -131,6 +131,14 @@
       "gap": "Web Panel light/dark and reload verified; production Worker deployment and native Desktop qualification remain separate."
     },
     {
+      "id": "marketplace.install-review",
+      "label": "Tob reviews a Marketplace listing's staged files before install; the Human continues or goes back",
+      "source": "packages/core/src/marketplace/install-review.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/marketplace.md",
+      "task": 3063,
+      "gap": "Real-model CLI journey against a local Marketplace; the production Worker and GitHub clone path are covered by unit tests only."
+    },
+    {
       "id": "phone.drawer-views",
       "label": "Choose All or one Host from the phone drawer with Android Host accent",
       "source": "apps/mobile/src/ui/shell/host-drawer.tsx",
@@ -2141,6 +2149,14 @@
       "reason": "Natural Tob creation, profile and optional model changes through rendered approval, completed native Shell turns, canonical identity/Memory/DM replay, deny/protected refusals and separate restart readback on Web and Desktop.",
       "task": 2089,
       "sha256": "a0ba72ab479894cab9050ed440c72d32b20330b9694c3d9edcab2dd49183e5f8"
+    },
+    {
+      "path": "scripts/e2e-install-review.mjs",
+      "category": "mapped",
+      "behaviors": ["marketplace.install-review"],
+      "reason": "Real model: a local Marketplace serves a Bot with a planted exfiltration/injection comment and a clean Bot to an isolated Host; asserts the planted file is flagged, the clean Bot is not, a review creates no Bot and --review --confirm installs.",
+      "task": 3063,
+      "sha256": "b90f665d540d7cfb6a916a9e7022eee8697ffec79407d377ea0168e37f1dc3de"
     },
     {
       "path": "scripts/e2e-llm-scenarios.mjs",

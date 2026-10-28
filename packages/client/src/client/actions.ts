@@ -54,6 +54,7 @@ import type {
 } from '../../../core/src/marketplace/uploaded-bots.js';
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
@@ -220,6 +221,7 @@ import {
   loadMarketplaceChallenge,
   reportMarketplaceBot,
   installMarketplaceBot,
+  reviewMarketplaceInstall,
   loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type UsageFilter,
@@ -905,7 +907,8 @@ export interface BridgeActions {
   shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
   shareDraftDiscard(slug: string): Promise<void>;
   shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
-  marketplaceInstall(id: string, sectionId?: string): Promise<BotSummary>;
+  marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
+  marketplaceInstall(id: string, reviewId: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -2767,8 +2770,9 @@ export function createActions(
       await invoke('shareDraftDiscard', { slug });
     },
     shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
-    async marketplaceInstall(id, sectionId) {
-      return openCreatedBot(await installMarketplaceBot(call, id), sectionId);
+    marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
+    async marketplaceInstall(id, reviewId, sectionId) {
+      return openCreatedBot(await installMarketplaceBot(call, id, reviewId), sectionId);
     },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),

@@ -148,6 +148,10 @@ import type {
   MarketplaceUploads,
   UploadPlan,
 } from '../marketplace/uploaded-bots.js';
+import type {
+  InstallReviewResult,
+  MarketplaceInstallReviews,
+} from '../marketplace/install-review.js';
 import {
   summarizeShareDraft,
   type ShareDraft,
@@ -965,6 +969,7 @@ export interface BridgeMethods {
   marketplaceUpload(
     payload: unknown,
   ): Promise<BridgeResult<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>>;
+  marketplaceInstallReview(payload: unknown): Promise<BridgeResult<InstallReviewResult>>;
   marketplaceMine(payload: unknown): Promise<BridgeResult<{ bots: MarketplaceAuthoredBot[] }>>;
   marketplaceDelete(payload: unknown): Promise<BridgeResult<{ deleted: true }>>;
   shareDraftStart(payload: unknown): BridgeResult<ShareDraftView>;
@@ -1150,6 +1155,7 @@ export interface BridgeMethodsDeps {
   createBotId?: () => string;
   marketplace?: MarketplaceClient;
   marketplaceUploads?: MarketplaceUploads;
+  marketplaceInstallReviews?: MarketplaceInstallReviews;
   shareDrafts?: ShareDrafts;
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
@@ -3927,10 +3933,22 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         deps.shareDrafts.exportTo(slug, join(home.workspacePath, 'share-exports', slug)),
       );
     },
-    async marketplaceInstall(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const { id, operationKey } = asObject(payload);
+    async marketplaceInstallReview(payload) {
+      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
+      const { id, lang } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (lang !== undefined && lang !== 'en' && lang !== 'zh') return invalidInput('invalid lang');
+      return uploadResult(await deps.marketplaceInstallReviews.review(id.trim(), lang));
+    },
+    async marketplaceInstall(payload) {
+      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
+      const { id, reviewId, operationKey } = asObject(payload);
+      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
+      if (typeof reviewId !== 'string' || reviewId.length === 0)
+        return {
+          ok: false,
+          error: { code: 'review-required', message: 'Run marketplaceInstallReview first' },
+        };
       if (operationKey !== undefined && typeof operationKey !== 'string')
         return invalidInput('invalid operationKey');
       const imports =
@@ -3939,18 +3957,18 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
           ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
           : undefined);
       if (imports === undefined) return invalidInput('Bot import is unavailable');
-      const prepared = await deps.marketplaceUploads.installInput(id.trim());
+      const prepared = deps.marketplaceInstallReviews.staged(id.trim(), reviewId);
       if (!prepared.ok) return uploadResult(prepared);
       try {
         const created = await imports.create(
-          operationKey ?? `marketplace:${randomUUID()}`,
+          operationKey ?? `marketplace:${reviewId}`,
           prepared.value.input,
         );
-        sendReceipt(prepared.value.entry.id);
+        sendReceipt(prepared.value.listing.id);
         try {
           deps.telemetry?.capture?.('marketplace_bot_installed');
         } catch {}
-        const listing = prepared.value.entry;
+        const listing = prepared.value.listing;
         const marked = deps.registry.setMarketplaceListing(created.record.slug, {
           id: listing.id,
           pushedAt: listing.pushedAt,
@@ -3961,7 +3979,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
             ...detailOf(marked.ok ? marked.record : created.record),
             channelId: created.channelId,
             ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
-            listing: prepared.value.entry,
+            listing: prepared.value.listing,
           },
         };
       } catch (error) {

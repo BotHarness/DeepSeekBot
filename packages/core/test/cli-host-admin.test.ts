@@ -154,7 +154,19 @@ describe('Bot Marketplace commands', () => {
       ],
       live.url,
     );
-    await invoke(['marketplace-install', 'U_abc', '--operation-key', 'install-0001'], live.url);
+    await invoke(['marketplace-install', 'U_abc', '--lang', 'zh'], live.url);
+    await invoke(
+      [
+        'marketplace-install',
+        'U_abc',
+        '--review',
+        'review-1',
+        '--confirm',
+        '--operation-key',
+        'install-0001',
+      ],
+      live.url,
+    );
     expect(live.calls).toEqual([
       { method: 'marketplaceList', args: { query: { includeUploads: true } } },
       { method: 'marketplaceAccount', args: {} },
@@ -169,7 +181,52 @@ describe('Bot Marketplace commands', () => {
           tags: ['writing'],
         },
       },
-      { method: 'marketplaceInstall', args: { id: 'U_abc', operationKey: 'install-0001' } },
+      { method: 'marketplaceInstallReview', args: { id: 'U_abc', lang: 'zh' } },
+      {
+        method: 'marketplaceInstall',
+        args: { id: 'U_abc', reviewId: 'review-1', operationKey: 'install-0001' },
+      },
+    ]);
+  });
+
+  it('prints what Tob found and asks for --review and --confirm before installing', async () => {
+    const live = await host((method) =>
+      method === 'marketplaceInstallReview'
+        ? ok({
+            reviewId: 'review-1',
+            listing: { id: 'U_abc' },
+            review: {
+              status: 'reviewed',
+              findings: [{ kind: 'exfiltration', path: 'persona.md', note: 'Sends notes out' }],
+              files: 2,
+              read: 2,
+              partial: false,
+            },
+          })
+        : ok({ bot: { slug: 'bot-2' }, channelId: 'dm-2' }),
+    );
+    const reviewed = await invoke(['marketplace-install', 'U_abc'], live.url);
+    expect(reviewed.code).toBe(0);
+    expect(reviewed.json).toMatchObject({
+      installed: false,
+      reviewId: 'review-1',
+      review: { findings: [{ kind: 'exfiltration', path: 'persona.md' }] },
+      next: ['deepseekbot marketplace-install U_abc --review review-1 --confirm'],
+    });
+    for (const argv of [
+      ['marketplace-install', 'U_abc', '--confirm'],
+      ['marketplace-install', 'U_abc', '--review', 'review-1'],
+      ['marketplace-detail', 'U_abc', '--review', 'review-1'],
+    ])
+      expect((await invoke(argv, live.url)).json.error.code).toBe('usage');
+    const installed = await invoke(
+      ['marketplace-install', 'U_abc', '--review', 'review-1', '--confirm'],
+      live.url,
+    );
+    expect(installed.json).toMatchObject({ installed: true, bot: { slug: 'bot-2' } });
+    expect(live.calls.map((call) => call.method)).toEqual([
+      'marketplaceInstallReview',
+      'marketplaceInstall',
     ]);
   });
 
