@@ -478,13 +478,24 @@ export function MarketUploadDialog({
       );
     } else if (step === 'account') {
       if (account.status === 'loading') content = <Note>{t('market.direct.loading')}</Note>;
-      else if (account.status === 'error')
+      else if (account.status === 'error') {
         content = (
           <Note tone="danger">
             {t('market.direct.accountFailed', { error: marketplaceError(account.cause, t) })}
           </Note>
         );
-      else if (!account.account.signedIn) {
+        primary = (
+          <Button
+            variant="primary"
+            onClick={() => {
+              setAccount({ status: 'loading' });
+              void loadAccount();
+            }}
+          >
+            {t('market.retry')}
+          </Button>
+        );
+      } else if (!account.account.signedIn) {
         content =
           signIn === undefined ? (
             <Note>{t('market.direct.signInHint')}</Note>

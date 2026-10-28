@@ -27,6 +27,7 @@ import {
   defaultAccountName,
   validAccountName,
 } from '../src/client/account-profile-settings.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { buttonNamed, typeInto } from './primitive-mocks.js';
 
@@ -127,6 +128,19 @@ it('explains when sign-in cannot start', async () => {
   await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
   expect(host.textContent).toContain(t('accountProfile.signInFailed'));
   expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
+});
+
+it('says the Market refused a signed-in account instead of offering sign-in again', async () => {
+  const actions = actionsFor({ signedIn: false, author: null });
+  actions.marketplaceAccount.mockRejectedValue(
+    new BridgeCallError('sign-in-rejected', 'market refused the token'),
+  );
+  await render(actions);
+
+  expect(host.querySelector('[data-account-profile="error"]')).not.toBeNull();
+  expect(host.textContent).toContain(t('market.error.signInRejected'));
+  expect(() => buttonNamed(t('accountProfile.signIn'), host)).toThrow();
+  expect(buttonNamed(t('accountProfile.retry'), host)).toBeDefined();
 });
 
 it('shows the profile and renames it once on Enter then blur', async () => {

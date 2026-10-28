@@ -1628,6 +1628,7 @@ export const zh = {
   'market.confirm.author': '作者',
   'market.confirm.uploaded': '上传于',
   'market.error.signIn': '请先登录 Tobs 账号。',
+  'market.error.signInRejected': '你已经登录，但市场服务没有接受这次登录。请稍后再试。',
   'market.error.authorRequired': '请先起一个作者名。',
   'market.error.terms': '请先同意上传条款。',
   'market.error.authorName': '作者名需要 1–40 个字。',
@@ -6010,6 +6011,8 @@ export const en = {
   'market.confirm.author': 'Author',
   'market.confirm.uploaded': 'Uploaded',
   'market.error.signIn': 'Sign in to your Tobs account first.',
+  'market.error.signInRejected':
+    'You are signed in, but the Market did not accept this sign-in. Try again later.',
   'market.error.authorRequired': 'Choose an author name first.',
   'market.error.terms': 'Accept the upload terms first.',
   'market.error.authorName': 'An author name needs 1–40 characters.',
