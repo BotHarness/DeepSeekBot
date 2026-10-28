@@ -11,6 +11,8 @@ const native = vi.hoisted(() => ({
   styles: new Map<string, { style: ViewStyle & TextStyle; text: boolean }>(),
 }));
 
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   const isStyleList = (

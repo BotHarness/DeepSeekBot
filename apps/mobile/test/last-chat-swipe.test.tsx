@@ -62,9 +62,9 @@ vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: sta
 vi.mock('../src/ui/shell/host-drawer', () => ({ useHostDrawerOpen: () => state.drawerOpen }));
 
 const { LastChatSwipe } = await import('../src/ui/shell/last-chat-swipe');
-const { lastChatProgress, opensLastChat } = await import('../src/ui/shell/last-chat-swipe-model');
+const { swipeOpenProgress, swipeOpens } = await import('../src/ui/shell/swipe-open-model');
 const { lastChat, recordRecentChat } = await import('../src/ui/shell/recent-chats');
-const { lastChatSwipe } = await import('../src/ui/design/tokens');
+const { swipeOpen } = await import('../src/ui/design/tokens');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -83,15 +83,15 @@ describe('the last chat', () => {
   });
 
   it('opens after a long enough left drag or a leftward flick, never on a right drag', () => {
-    expect(lastChatProgress(0)).toBe(0);
-    expect(lastChatProgress(40)).toBe(0);
-    expect(lastChatProgress(-lastChatSwipe.commit / 2)).toBe(0.5);
-    expect(lastChatProgress(-lastChatSwipe.commit * 2)).toBe(1);
-    expect(opensLastChat(-lastChatSwipe.commit, 0)).toBe(true);
-    expect(opensLastChat(-lastChatSwipe.commit / 2, 0)).toBe(false);
-    expect(opensLastChat(-30, -lastChatSwipe.flick - 1)).toBe(true);
-    expect(opensLastChat(-lastChatSwipe.commit, lastChatSwipe.flick + 1)).toBe(false);
-    expect(opensLastChat(lastChatSwipe.commit, -lastChatSwipe.flick - 1)).toBe(false);
+    expect(swipeOpenProgress(0)).toBe(0);
+    expect(swipeOpenProgress(40)).toBe(0);
+    expect(swipeOpenProgress(-swipeOpen.commit / 2)).toBe(0.5);
+    expect(swipeOpenProgress(-swipeOpen.commit * 2)).toBe(1);
+    expect(swipeOpens(-swipeOpen.commit, 0)).toBe(true);
+    expect(swipeOpens(-swipeOpen.commit / 2, 0)).toBe(false);
+    expect(swipeOpens(-30, -swipeOpen.flick - 1)).toBe(true);
+    expect(swipeOpens(-swipeOpen.commit, swipeOpen.flick + 1)).toBe(false);
+    expect(swipeOpens(swipeOpen.commit, -swipeOpen.flick - 1)).toBe(false);
   });
 });
 
@@ -123,8 +123,8 @@ describe('the Chats left swipe', () => {
 
   it('starts only leftward, gives way to vertical scrolling, and has nothing to open at first', async () => {
     await render();
-    expect(pan().activeX).toBe(-lastChatSwipe.start);
-    expect(pan().failY).toEqual([-lastChatSwipe.verticalFail, lastChatSwipe.verticalFail]);
+    expect(pan().activeX).toBe(-swipeOpen.start);
+    expect(pan().failY).toEqual([-swipeOpen.verticalFail, swipeOpen.verticalFail]);
     expect(container.querySelector('[data-testid="chats"]')).not.toBeNull();
     expect(pan().enabled).toBe(false);
     expect(container.textContent).toBe('');
@@ -140,13 +140,13 @@ describe('the Chats left swipe', () => {
     expect(container.textContent).toBe('');
     await act(async () => {
       pan().start();
-      pan().update({ translationX: -lastChatSwipe.commit / 2, velocityX: 0 });
+      pan().update({ translationX: -swipeOpen.commit / 2, velocityX: 0 });
     });
     expect(state.navigate).not.toHaveBeenCalled();
     await act(async () => {
-      pan().update({ translationX: -lastChatSwipe.commit, velocityX: 0 });
-      pan().update({ translationX: -lastChatSwipe.commit * 2, velocityX: 0 });
-      pan().end({ translationX: -lastChatSwipe.commit * 2, velocityX: -lastChatSwipe.flick * 2 });
+      pan().update({ translationX: -swipeOpen.commit, velocityX: 0 });
+      pan().update({ translationX: -swipeOpen.commit * 2, velocityX: 0 });
+      pan().end({ translationX: -swipeOpen.commit * 2, velocityX: -swipeOpen.flick * 2 });
     });
     expect(state.navigate).toHaveBeenCalledTimes(1);
     expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2');
@@ -157,7 +157,7 @@ describe('the Chats left swipe', () => {
     await act(async () => {
       pan().start();
       pan().update({ translationX: -30, velocityX: 0 });
-      pan().end({ translationX: -30, velocityX: -lastChatSwipe.flick - 1 });
+      pan().end({ translationX: -30, velocityX: -swipeOpen.flick - 1 });
     });
     expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2');
   });

@@ -16,6 +16,7 @@ import type {
   WireDelivery,
   WireDraftAppend,
   WireReaction,
+  WireReplyPreview,
 } from './wire';
 
 export type DeliveryState = 'pending' | 'committed' | 'failed';
@@ -135,6 +136,8 @@ export interface ConversationMessage {
   bot?: string;
   body: string;
   mentions?: WireMention[];
+  replyTo?: string;
+  replyPreview?: WireReplyPreview | null;
   attachments: MessageAttachment[];
   card?: MessageCard;
   resolves?: { requestId: string; resolution: CardResolution };
@@ -262,6 +265,7 @@ export const ATTACHMENT_PATH = '/api/botharness/attachment';
 export interface MessageTags {
   mentions?: WireMention[];
   allBotMention?: WireAllBotMention;
+  replyTo?: string;
 }
 
 interface Outgoing {
@@ -441,6 +445,9 @@ function present(
     ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
     body: message.body,
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
+    ...(message.replyTo === undefined
+      ? {}
+      : { replyTo: message.replyTo, replyPreview: message.replyToPreview ?? null }),
     attachments: attachmentsOf(entry, resolve, picked),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),
@@ -513,6 +520,13 @@ export function createConversation(options: ConversationOptions): Conversation {
     return message;
   }
 
+  function replyPreview(id: string): WireReplyPreview | null {
+    const target = window.find((entry) => entry.message.id === id)?.message;
+    if (target !== undefined) return { author: target.author, body: target.body };
+    const pending = outgoing.get(id);
+    return pending === undefined ? null : { author: { kind: 'human' }, body: pending.body };
+  }
+
   function buildMessages(): ConversationMessage[] {
     const committed = new Set(window.map((entry) => entry.message.id));
     const pending: ConversationMessage[] = [];
@@ -524,6 +538,9 @@ export function createConversation(options: ConversationOptions): Conversation {
         author: 'human',
         body: item.body,
         ...(item.tags.mentions === undefined ? {} : { mentions: item.tags.mentions }),
+        ...(item.tags.replyTo === undefined
+          ? {}
+          : { replyTo: item.tags.replyTo, replyPreview: replyPreview(item.tags.replyTo) }),
         attachments: item.files.map((file, index) => ({
           key: `${item.id}:${index}`,
           kind: file.kind ?? 'file',
@@ -831,6 +848,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         ...(item.tags.allBotMention === undefined
           ? {}
           : { allBotMention: item.tags.allBotMention }),
+        ...(item.tags.replyTo === undefined ? {} : { replyTo: item.tags.replyTo }),
       });
       accepted(item);
       if (outgoing.get(item.id) !== item) return;
