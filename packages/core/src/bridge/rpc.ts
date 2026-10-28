@@ -57,10 +57,13 @@ import type {
   MarketplaceAuthoredBot,
   MarketplaceAuthorAccount,
   MarketplaceDetail,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
   MarketplaceEntry,
   MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
@@ -2165,6 +2168,30 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceTopics());
   }
 
+  async marketplaceSections(
+    lang?: MarketplaceLanguage,
+  ): Promise<{ sections: MarketplaceSection[] }> {
+    return unwrapAsync(this.methods.marketplaceSections(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDigests(
+    lang?: MarketplaceLanguage,
+  ): Promise<{ digests: MarketplaceDigestSummary[] }> {
+    return unwrapAsync(this.methods.marketplaceDigests(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDigest(
+    day?: string,
+    lang?: MarketplaceLanguage,
+  ): Promise<{ digest: MarketplaceDigest }> {
+    return unwrapAsync(
+      this.methods.marketplaceDigest({
+        ...(day === undefined ? {} : { day }),
+        ...(lang === undefined ? {} : { lang }),
+      }),
+    );
+  }
+
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
     return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
   }
@@ -2573,6 +2600,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceList',
   'marketplaceSubmit',
   'marketplaceTopics',
+  'marketplaceSections',
+  'marketplaceDigests',
+  'marketplaceDigest',
   'marketplaceDetail',
   'marketplaceFileView',
   'marketplaceChallenge',
