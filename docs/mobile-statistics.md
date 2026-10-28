@@ -28,7 +28,7 @@ Every new event also includes OS major.minor, phone/tablet/unknown class, a publ
 
 ## Maintainer configuration
 
-The checked-in build remains unconfigured. Environment variables are public bundle configuration, never personal API keys:
+The `store-test` profile in `apps/mobile/eas.json` sends production statistics; other checked-in profiles remain unconfigured. Environment variables are public bundle configuration, never personal API keys. For a QA build:
 
 - `EXPO_PUBLIC_MOBILE_TELEMETRY=qa`
 - `EXPO_PUBLIC_MOBILE_POSTHOG_TOKEN=<public project ingestion token>`
@@ -85,4 +85,4 @@ The English and Chinese sections above are the proposed mobile addition to `/en/
 
 ## Human-directed UX revision (2026-10-16)
 
-The Human replaced the earlier explicit-opt-in design in #1929 with default-on statistics, collapsed explanatory text, and one switch at the bottom of Settings, then directed us to reference the Web client. Verified Web behavior is a one-time informational notice, not terms acceptance or a collection gate. Mobile now follows that pattern with phone-specific copy and the same localized privacy URLs. No statistics control appears on pairing. Checked-in builds remain unconfigured; physical device, PostHog readback, public mobile privacy copy and Human QA remain release gates.
+The Human replaced the earlier explicit-opt-in design in #1929 with default-on statistics, collapsed explanatory text, and one switch at the bottom of Settings, then directed us to reference the Web client. Verified Web behavior is a one-time informational notice, not terms acceptance or a collection gate. Mobile now follows that pattern with phone-specific copy and the same localized privacy URLs. No statistics control appears on pairing. The `store-test` profile now carries the production configuration; the public mobile privacy copy shipped in BotHarness/deepseekbot-site#146, and physical-device PostHog readback and Human QA happen on the first store build.
