@@ -425,35 +425,45 @@ const HomeContent = memo(function HomeContent({
         ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
+  // Every branch sets the header options, otherwise iOS shows the route name "index" as a large title.
+  const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
-    return <ListSkeleton />;
+    return (
+      <>
+        {screen}
+        <ListSkeleton />
+      </>
+    );
   if (saved === null && cloud.rows.length === 0)
     return cloudAvailable ? (
       <Redirect href="/cloud-join" />
     ) : (
-      <View
-        testID="home-unpaired"
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: space.x6,
-          gap: space.x4,
-        }}
-      >
-        <Text variant="title" strong style={{ textAlign: 'center' }}>
-          {t.pairChoice.emptyTitle}
-        </Text>
-        <Text tone="muted" style={{ textAlign: 'center' }}>
-          {t.pairChoice.emptyBody}
-        </Text>
-        <Button
-          label={t.pairChoice.emptyAction}
-          tone="primary"
-          on="canvas"
-          onPress={() => router.push('/pair')}
-        />
-      </View>
+      <>
+        {screen}
+        <View
+          testID="home-unpaired"
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: space.x6,
+            gap: space.x4,
+          }}
+        >
+          <Text variant="title" strong style={{ textAlign: 'center' }}>
+            {t.pairChoice.emptyTitle}
+          </Text>
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {t.pairChoice.emptyBody}
+          </Text>
+          <Button
+            label={t.pairChoice.emptyAction}
+            tone="primary"
+            on="canvas"
+            onPress={() => router.push('/pair')}
+          />
+        </View>
+      </>
     );
   const refresh = async (target?: ConnectedHost) => {
     setRefreshing(true);
@@ -530,7 +540,7 @@ const HomeContent = memo(function HomeContent({
   };
   return (
     <>
-      <Stack.Screen options={{ title: environment.title, headerShown: false }} />
+      {screen}
       <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
