@@ -573,9 +573,11 @@ const closed: ConversationSnapshot = {
 function useConversationForeground(
   conversation: Conversation | undefined,
   playback?: ConversationPlayback,
+  active = true,
 ) {
   useFocusEffect(
     useCallback(() => {
+      if (!active) return;
       const foreground = (active: boolean) => {
         conversation?.setForeground?.(active);
         playback?.setActive(active);
@@ -588,7 +590,7 @@ function useConversationForeground(
         subscription.remove();
         foreground(false);
       };
-    }, [conversation, playback]),
+    }, [conversation, playback, active]),
   );
 }
 
@@ -614,8 +616,9 @@ export function useStreamPlayback(conversation: Conversation | undefined, enable
 export function useConversationTimelineSnapshot(
   conversation: Conversation | undefined,
   playback?: ConversationPlayback,
+  active = true,
 ) {
-  useConversationForeground(conversation, playback);
+  useConversationForeground(conversation, playback, active);
   return useSyncExternalStore(
     useCallback(
       (listener: () => void) => (playback ?? conversation)?.subscribe(listener) ?? (() => {}),

@@ -1,3 +1,4 @@
+import { ChatsSheetRoot } from './chats-sheet-root';
 import { ActivitySheetRoot } from './activity-sheet-root';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
@@ -47,7 +48,9 @@ export function BottomNavigation() {
   return (
     <ScrollChromeProvider>
       <ActivitySheetRoot>
-        <NavigationLayout />
+        <ChatsSheetRoot>
+          <NavigationLayout />
+        </ChatsSheetRoot>
       </ActivitySheetRoot>
     </ScrollChromeProvider>
   );

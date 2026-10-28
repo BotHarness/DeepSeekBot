@@ -155,18 +155,25 @@ export type ChatPlace =
   | { kind: 'dm'; slug: string | undefined }
   | { kind: 'channel'; channelId: string | undefined };
 
+type ConversationPresentation = {
+  active: boolean;
+  onClose(): void;
+  onNestedChange(open: boolean): void;
+};
 export function ConversationScreen({
   expectedHostId,
   place,
   focus,
   focusRequest,
   latestWindowOnly = false,
+  presentation,
 }: {
   place: ChatPlace;
   expectedHostId?: string | undefined;
   focus: string | undefined;
   focusRequest?: string | undefined;
   latestWindowOnly?: boolean;
+  presentation?: ConversationPresentation;
 }) {
   const t = useStrings();
   const initial = useHostSession();
@@ -175,7 +182,8 @@ export function ConversationScreen({
     setOpenedOn(initial.saved.hostId);
   const { client, saved } = useHostSession(expectedHostId ?? openedOn);
 
-  const focused = useIsFocused();
+  const routeFocused = useIsFocused();
+  const focused = routeFocused && (presentation?.active ?? true);
   const roster = useHostSnapshot(client, focused).roster;
   const navigation = useNavigationContainerRef();
   const identities = useMemo(
@@ -205,6 +213,7 @@ export function ConversationScreen({
             focusRequest={focusRequest}
             latestWindowOnly={latestWindowOnly}
             focused={focused}
+            presentation={presentation}
           />
         </MessageIdentities.Provider>
       </AccentProvider>
@@ -324,12 +333,14 @@ function ChatConversation({
   focusRequest,
   latestWindowOnly,
   focused,
+  presentation,
 }: {
   focused: boolean;
   place: ChatPlace;
   focus: string | undefined;
   focusRequest: string | undefined;
   latestWindowOnly: boolean;
+  presentation: ConversationPresentation | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -342,6 +353,11 @@ function ChatConversation({
   const android = Platform.OS === 'android';
   const headerPadding = android ? inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
+  const nestedChange = presentation?.onNestedChange;
+  useLayoutEffect(() => {
+    nestedChange?.(profileOpen);
+    return () => nestedChange?.(false);
+  }, [nestedChange, profileOpen]);
   const [profileVisited, setProfileVisited] = useState(false);
   const [profileOpening, setProfileOpening] = useState(false);
   const prepareProfile = () => {
@@ -393,8 +409,11 @@ function ChatConversation({
   const display = useMessageDisplay();
   const receiptPreference = useDeliveryReceiptPreferences();
   const receipts = receiptPreference.loaded && receiptPreference.enabled;
-  const playback = useStreamPlayback(conversation, display.loaded && display.mode === 'streaming');
-  const snapshot = useConversationTimelineSnapshot(conversation, playback);
+  const playback = useStreamPlayback(
+    conversation,
+    focused && display.loaded && display.mode === 'streaming',
+  );
+  const snapshot = useConversationTimelineSnapshot(conversation, playback, focused);
   const shownDrafts = display.loaded && display.mode === 'streaming' ? snapshot.drafts : NO_DRAFTS;
   const draftKey = hostDraftKey(
     saved?.hostId ?? '',
@@ -569,7 +588,11 @@ function ChatConversation({
     [selectionScope],
   );
   const stackRoot = useStackRoot();
-  const leave = useCallback(() => leaveScreen(router), [router]);
+  const closePresentation = presentation?.onClose;
+  const leave = useCallback(
+    () => (closePresentation ? closePresentation() : leaveScreen(router)),
+    [router, closePresentation],
+  );
   const pull = usePullToCompose({
     enabled: composable || stackRoot,
     threshold: pullToCompose.threshold,
@@ -615,12 +638,13 @@ function ChatConversation({
   const mountRef = dictation.mountRef;
   const screenRef = useCallback(
     (node: unknown) => {
-      mountRef(node);
-      readMount(node);
-      recentMount(node);
-      sharedMount(node);
+      const visibleNode = focused ? node : null;
+      mountRef(visibleNode);
+      readMount(visibleNode);
+      recentMount(visibleNode);
+      sharedMount(visibleNode);
     },
-    [mountRef, readMount, recentMount, sharedMount],
+    [mountRef, readMount, recentMount, sharedMount, focused],
   );
 
   const asking = snapshot.messages.findLast(
@@ -1247,66 +1271,68 @@ function ChatConversation({
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          headerShown: !android,
-          headerTransparent: ios || floatingHeader,
-          headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
-          headerShadowVisible: false,
-          headerBackButtonDisplayMode: 'minimal',
-          ...(glassHeader
-            ? {
-                scrollEdgeEffects: {
-                  top: 'automatic' as const,
-                  bottom: 'hidden' as const,
-                },
-              }
-            : {}),
-          ...(ios
-            ? {
-                title: '',
-                headerTitle: '',
-                headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () => [],
-                unstable_headerLeftItems: () => [
-                  ...(headerIslands
-                    ? [{ type: 'custom' as const, element: back }]
-                    : canGoBack
-                      ? []
-                      : [
-                          {
-                            type: 'button' as const,
-                            label: t.back,
-                            icon: {
-                              type: 'sfSymbol' as const,
-                              name: 'chevron.left' as const,
+      {presentation === undefined ? (
+        <Stack.Screen
+          options={{
+            headerShown: !android,
+            headerTransparent: ios || floatingHeader,
+            headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
+            headerShadowVisible: false,
+            headerBackButtonDisplayMode: 'minimal',
+            ...(glassHeader
+              ? {
+                  scrollEdgeEffects: {
+                    top: 'automatic' as const,
+                    bottom: 'hidden' as const,
+                  },
+                }
+              : {}),
+            ...(ios
+              ? {
+                  title: '',
+                  headerTitle: '',
+                  headerBackVisible: canGoBack && !headerIslands,
+                  unstable_headerRightItems: () => [],
+                  unstable_headerLeftItems: () => [
+                    ...(headerIslands
+                      ? [{ type: 'custom' as const, element: back }]
+                      : canGoBack
+                        ? []
+                        : [
+                            {
+                              type: 'button' as const,
+                              label: t.back,
+                              icon: {
+                                type: 'sfSymbol' as const,
+                                name: 'chevron.left' as const,
+                              },
+                              onPress: leave,
                             },
-                            onPress: leave,
-                          },
-                        ]),
-                  { type: 'spacing' as const, spacing: glassPress.gap },
-                  { type: 'custom' as const, element: titleItem },
-                ],
-              }
-            : {
-                headerTitleAlign: 'left' as const,
-                headerRight: () => null,
-                headerTitle: () => (
-                  <View
-                    key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
-                    style={{
-                      width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
-                      maxWidth: windowWidth - (theme.touch + space.x5) * 2,
-                      marginHorizontal: space.x3,
-                    }}
-                  >
-                    {title}
-                  </View>
-                ),
-                ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
-              }),
-        }}
-      />
+                          ]),
+                    { type: 'spacing' as const, spacing: glassPress.gap },
+                    { type: 'custom' as const, element: titleItem },
+                  ],
+                }
+              : {
+                  headerTitleAlign: 'left' as const,
+                  headerRight: () => null,
+                  headerTitle: () => (
+                    <View
+                      key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}
+                      style={{
+                        width: dm || botDm ? undefined : windowWidth - (theme.touch + space.x5) * 2,
+                        maxWidth: windowWidth - (theme.touch + space.x5) * 2,
+                        marginHorizontal: space.x3,
+                      }}
+                    >
+                      {title}
+                    </View>
+                  ),
+                  ...(canGoBack && !floatingHeader ? {} : { headerLeft: () => back }),
+                }),
+          }}
+        />
+      ) : null}
       <EndSheet
         open={profileOpen}
         active={focused}
@@ -1319,7 +1345,7 @@ function ChatConversation({
         }}
         panel={
           android && profileVisited && saved != null ? (
-            <ProfileVisibility value={profileOpen || profileOpening}>
+            <ProfileVisibility value={focused && (profileOpen || profileOpening)}>
               <RevealProfileConversation value={() => setProfileOpen(false)}>
                 {dm ? (
                   <BotProfileScreen {...profileHref.params} onClose={() => setProfileOpen(false)} />
