@@ -69,6 +69,7 @@ export const TELEMETRY_VERBS = [
   'wear',
   'use',
   'report',
+  'snooze',
 ] as const;
 
 export const TELEMETRY_SURFACES = [
@@ -91,6 +92,7 @@ export interface TelemetryEventSpec {
 
 const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
 const SURFACE = { surface: TELEMETRY_SURFACES } as const;
+const LAYOUT_MODES = ['simple', 'advanced'] as const;
 
 export const TELEMETRY_EVENTS = {
   'app:host_start': {
@@ -120,8 +122,93 @@ export const TELEMETRY_EVENTS = {
   },
   'app:bot_mode_enter': {
     origin: 'client',
-    description: 'The Web Client entered Bot mode.',
+    description: 'The Web Client entered Bot mode, with the layout mode it opened in.',
+    properties: { layout: LAYOUT_MODES, ...SURFACE },
+  },
+  'search:switcher_open': {
+    origin: 'client',
+    description: 'The quick switcher (search Channels, messages and settings) opened.',
     properties: SURFACE,
+  },
+  'search:result_open': {
+    origin: 'client',
+    description: 'A quick switcher result was opened.',
+    properties: { kind: ['channel', 'message', 'setting'], ...SURFACE },
+  },
+  'layout:mode_select': {
+    origin: 'client',
+    description: 'The Human chose Simple or Advanced layout mode in settings.',
+    properties: { mode: LAYOUT_MODES, ...SURFACE },
+  },
+  'viewer:subpanel_open': {
+    origin: 'client',
+    description: "A PersonaBot's Browser or Computer viewer opened.",
+    properties: { panel: ['browser', 'computer'], ...SURFACE },
+  },
+  'activity:inbox_open': {
+    origin: 'client',
+    description: 'Activity Center (the Human Inbox) opened.',
+    properties: SURFACE,
+  },
+  'activity:approval_submit': {
+    origin: 'client',
+    description: 'The Human answered a tool approval.',
+    properties: { decision: ['allow_once', 'allow_always', 'reject'], ...SURFACE },
+  },
+  'activity:question_submit': {
+    origin: 'client',
+    description: "The Human answered a Bot's question card.",
+    properties: SURFACE,
+  },
+  'activity:grant_request_submit': {
+    origin: 'client',
+    description: 'The Human granted a requested Workspace folder.',
+    properties: SURFACE,
+  },
+  'activity:inbox_reply_send': {
+    origin: 'client',
+    description: 'The Human replied to a message from Activity Center.',
+    properties: { target: ['message', 'assignment'], ...SURFACE },
+  },
+  'activity:inbox_item_dismiss': {
+    origin: 'client',
+    description: 'The Human dismissed an Activity Center item.',
+    properties: SURFACE,
+  },
+  'activity:inbox_item_snooze': {
+    origin: 'client',
+    description: 'The Human snoozed an Activity Center item.',
+    properties: SURFACE,
+  },
+  'model:plan_update': {
+    origin: 'client',
+    description: "A PersonaBot's model plan changed.",
+    properties: { via: ['preset', 'custom', 'assignments', 'plan', 'inherit'], ...SURFACE },
+  },
+  'remote_host:host_pair_complete': {
+    origin: 'client',
+    description: 'The Web Client finished pairing with a Remote Host.',
+    properties: { outcome: ['success', 'refused', 'failed'], ...SURFACE },
+  },
+  'remote_host:conversation_open': {
+    origin: 'client',
+    description: 'A conversation on a Remote Host opened in the Web Client.',
+    properties: SURFACE,
+  },
+  'connect:sign_in_start': {
+    origin: 'host',
+    description: 'Connect account sign-in started.',
+    properties: {},
+  },
+  'connect:sign_in_complete': {
+    origin: 'host',
+    description: 'Connect account sign-in finished.',
+    properties: { outcome: ['success', 'denied', 'expired'] },
+  },
+  'tob:delegation_send': {
+    origin: 'host',
+    description: 'Tob sent a message to a colleague PersonaBot (Tob Delegation).',
+    properties: { surface: TELEMETRY_SURFACES },
   },
   'bot_library:bot_create': {
     origin: 'host',

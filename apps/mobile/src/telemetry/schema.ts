@@ -94,7 +94,30 @@ export interface EventProperties {
     reason: PairingReason;
     duration_bucket: DurationBucket;
   };
+  'activity:approval_submit': {
+    decision: 'allow_once' | 'allow_always' | 'reject';
+    entry: FeatureEntry;
+  };
+  'activity:question_submit': { entry: 'app' | 'chat' };
+  'activity:grant_request_submit': Record<string, never>;
+  'model:plan_update': { via: 'default' | 'custom' | 'plan' | 'assignments' | 'inherit' };
+  'notification:push_open': Record<string, never>;
+  'search:result_open': { kind: 'message' };
+  'share:bot_share_send': { content: 'text' | 'files' | 'both' };
+  'tob:mode_open': Record<string, never>;
+  'viewer:subpanel_open': { panel: 'browser' | 'computer' };
 }
+export type FeatureEntry = 'notification' | 'app';
+export type FeatureEventName =
+  | 'activity:approval_submit'
+  | 'activity:question_submit'
+  | 'activity:grant_request_submit'
+  | 'model:plan_update'
+  | 'notification:push_open'
+  | 'search:result_open'
+  | 'share:bot_share_send'
+  | 'tob:mode_open'
+  | 'viewer:subpanel_open';
 export interface TelemetryContext extends Partial<DeviceTelemetryContext> {
   platform: 'ios' | 'android';
   app_version: string;
@@ -183,6 +206,18 @@ export const MOBILE_EVENT_FIELDS: Record<
     paired_host_count_bucket: member('0', '1', '2plus'),
   },
   'pairing:attempt_start': { method, attempt_id: isUuid },
+  'activity:approval_submit': {
+    decision: member('allow_once', 'allow_always', 'reject'),
+    entry: member('notification', 'app'),
+  },
+  'activity:question_submit': { entry: member('app', 'chat') },
+  'activity:grant_request_submit': {},
+  'model:plan_update': { via: member('default', 'custom', 'plan', 'assignments', 'inherit') },
+  'notification:push_open': {},
+  'search:result_open': { kind: member('message') },
+  'share:bot_share_send': { content: member('text', 'files', 'both') },
+  'tob:mode_open': {},
+  'viewer:subpanel_open': { panel: member('browser', 'computer') },
   'pairing:attempt_complete': {
     method,
     attempt_id: isUuid,

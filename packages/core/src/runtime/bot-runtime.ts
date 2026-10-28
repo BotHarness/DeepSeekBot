@@ -812,6 +812,7 @@ export interface BotRuntime {
 }
 
 export interface BotRuntimeOptions {
+  onTobDelegation?: () => void;
   promptText?: (botSlug: string) => PromptText;
   promptLimits?: (botSlug: string) => PromptLimits;
   tob?: TobService;
@@ -1416,11 +1417,13 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
   #closed = false;
   readonly #tob: TobService | undefined;
+  readonly #onTobDelegation: () => void;
   readonly #directToolCalls = new Map<string, DirectBotToolCall[]>();
 
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
+    this.#onTobDelegation = options.onTobDelegation ?? (() => {});
     this.#externalMessaging = options.externalMessaging;
     this.#database = attachOperationalModule(options.database, 'bot-runtime');
     this.#grants = options.grants;
@@ -6192,7 +6195,7 @@ class BotRuntimeImplementation implements BotRuntime {
           `${sender.displayName} · ${target.displayName}`,
         );
         if (dm === undefined) throw new Error('Bot DM is unavailable');
-        return this.#sendBotDm({
+        const sent = await this.#sendBotDm({
           botSlug,
           recipientBotSlug: target.slug,
           channel: dm,
@@ -6205,6 +6208,8 @@ class BotRuntimeImplementation implements BotRuntime {
           replyTo: input.replyTo,
           deliveryKey: input.deliveryKey,
         });
+        if (this.#tob?.isTob(botSlug)) this.#onTobDelegation();
+        return sent;
       },
       ignore: ({ channelId, messageId }) => {
         const channel = resolve(channelId);

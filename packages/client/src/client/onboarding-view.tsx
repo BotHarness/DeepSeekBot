@@ -21,7 +21,7 @@ import { store } from './store.js';
 import type { WindowCompanions } from './window-companions.js';
 import { startInternalTour, type InternalTourSpec } from './internal-tour.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import type { LayoutMode } from './layout-mode.js';
+import { readLayoutMode, type LayoutMode } from './layout-mode.js';
 import { OnboardingChecklist, markBotModeEntered } from './onboarding-checklist-view.js';
 import { checklistSettled } from './onboarding-checklist.js';
 import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessions-tour.js';
@@ -513,7 +513,7 @@ export function OnboardingOverlay({
     let active = true;
     let key = '';
     markBotModeEntered();
-    actions.telemetryEvent('app:bot_mode_enter');
+    actions.telemetryEvent('app:bot_mode_enter', { layout: readLayoutMode().mode });
     const returned = takeSessionsTourReturn();
     void enter().then(() => {
       if (active && returned && !controller.getSnapshot().receipt?.journey)

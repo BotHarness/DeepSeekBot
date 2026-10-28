@@ -19,6 +19,7 @@ import {
 import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { ChannelSidebarIcon } from '../../../client/src/client/channel-sidebar-icon.js';
 import { useMountedResource } from '../../../client/src/client/mounted-resource.js';
+import { recordViewerOpen } from '../../../client/src/client/telemetry-surface.js';
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type {} from '@deepseek-ai/dsh-client-ui-slots';
 
@@ -530,6 +531,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
   const toggleRef = useRef(toggleTakeover);
   toggleRef.current = toggleTakeover;
   const messageResource = useMountedResource<HTMLDivElement>(() => {
+    recordViewerOpen(connectionRpc, 'browser');
     const onMessage = (event: MessageEvent): void => {
       const data = event.data as { type?: unknown } | null;
       if (typeof window === 'undefined' || event.origin !== window.location.origin) return;

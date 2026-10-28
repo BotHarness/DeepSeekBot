@@ -869,7 +869,7 @@ const en = {
   } satisfies Record<AggregatedState, string>,
   statisticsTitle: 'Anonymous phone statistics',
   statisticsNoticeTitle: 'About anonymous statistics',
-  statisticsNoticeSummary: `${productName.en} sends anonymous statistics to improve connections, first chats and Bot creation and imports. Turn them off anytime at the bottom of Settings.`,
+  statisticsNoticeSummary: `${productName.en} sends anonymous statistics to improve connections, first chats and Bot creation and imports, and to see which features are used. Turn them off anytime at the bottom of Settings.`,
   statisticsPrivacy: 'Privacy',
   statisticsPrivacyUrl: 'https://tobs.app/en/privacy/',
   statisticsSource: 'View source',
@@ -879,7 +879,7 @@ const en = {
   statisticsDetails: 'About anonymous statistics',
   statisticsHideDetails: 'Hide statistics details',
   statisticsNotice:
-    'Helps improve pairing, connections, first chats and Bot creation and imports. PostHog gets a random ID, app version, coarse device details and step results. Never your chats, files, links, keys or computer identity. Turning it off clears the ID and unsent events. Computer statistics have their own switch.',
+    'Helps improve pairing, connections, first chats and Bot creation and imports, and shows which features are used. PostHog gets a random ID, app version, coarse device details, step results and which kind of feature was used. Never your chats, files, links, keys or computer identity. Turning it off clears the ID and unsent events. Computer statistics have their own switch.',
   statisticsStorageError:
     'Could not save this choice. Statistics are paused on this launch. Try again.',
   pairTitle: 'Pair with your computer',
@@ -2863,7 +2863,7 @@ const zh: typeof en = {
   },
   statisticsTitle: '手机匿名使用统计',
   statisticsNoticeTitle: '关于匿名使用统计',
-  statisticsNoticeSummary: `${productName.zh} 默认发送匿名统计，用于改善连接、首次聊天及 Bot 创建和导入。可随时在设置页底部关闭。`,
+  statisticsNoticeSummary: `${productName.zh} 默认发送匿名统计，用于改善连接、首次聊天及 Bot 创建和导入，并了解哪些功能被使用。可随时在设置页底部关闭。`,
   statisticsPrivacy: '隐私说明',
   statisticsPrivacyUrl: 'https://tobs.app/privacy/',
   statisticsSource: '查看源码',
@@ -2873,7 +2873,7 @@ const zh: typeof en = {
   statisticsDetails: '了解匿名统计',
   statisticsHideDetails: '收起统计说明',
   statisticsNotice:
-    '用于改善配对、连接、首次聊天及 Bot 创建和导入。PostHog 只收到随机标识、应用版本、粗粒度设备信息和操作结果，不含聊天、文件、链接、密钥或电脑身份。关闭后会清除标识和未发送的事件。电脑端统计另有开关。',
+    '用于改善配对、连接、首次聊天及 Bot 创建和导入，并了解哪些功能被使用。PostHog 只收到随机标识、应用版本、粗粒度设备信息、操作结果和用了哪类功能，不含聊天、文件、链接、密钥或电脑身份。关闭后会清除标识和未发送的事件。电脑端统计另有开关。',
   statisticsStorageError: '保存此选择失败，本次运行已暂停统计，再试一次。',
   pairTitle: '与电脑配对',
   pairHint: `在电脑上打开 ${productName.zh} 设置 → 连接 → 添加连接，然后扫描二维码。`,

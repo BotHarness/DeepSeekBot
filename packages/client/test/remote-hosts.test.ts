@@ -73,10 +73,12 @@ describe('remote hosts', () => {
   it('pairs another remote with this browser and remembers it in browser storage', async () => {
     const storage = memoryStorage();
     const { carrier, calls } = fakeCarrier();
-    const sources = createRemoteHosts({ storage, carrier });
+    const record = vi.fn();
+    const sources = createRemoteHosts({ storage, carrier, record });
     expect(sources.getSnapshot()).toEqual({ hosts: [], avatars: new Map(), tab: ALL_HOSTS });
 
     const result = await sources.pair(link(), 'Browser on Laptop', 'host-a');
+    expect(record).toHaveBeenCalledWith('remote_host:host_pair_complete', { outcome: 'success' });
 
     expect(result).toMatchObject({ ok: true, host: { hostId: 'host-b', hostName: 'Studio' } });
     expect(calls[0]).toEqual({

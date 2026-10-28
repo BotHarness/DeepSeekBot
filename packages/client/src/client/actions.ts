@@ -1,5 +1,6 @@
 import { approveWorkspaceGrantRequest } from './bridge.js';
 import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
+import { telemetrySurface } from './telemetry-surface.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
@@ -1083,8 +1084,18 @@ function mergeLatestWindow(
   return { messages, keptPrefix: overlap >= 0 || continues };
 }
 
-function telemetrySurface(): 'desktop_app' | 'browser' {
-  return typeof globalThis === 'object' && 'dshDesktop' in globalThis ? 'desktop_app' : 'browser';
+const APPROVAL_DECISIONS = {
+  'allowed-once': 'allow_once',
+  'allowed-always-tool': 'allow_always',
+  'allowed-always-exact': 'allow_always',
+  'allowed-always-all': 'allow_always',
+  rejected: 'reject',
+} as const;
+
+async function recorded<T>(work: Promise<T>, record: () => void): Promise<T> {
+  const value = await work;
+  record();
+  return value;
 }
 
 export function createActions(
@@ -1709,7 +1720,9 @@ export function createActions(
       return result;
     },
     inheritModel: (slug, expectedRevision) =>
-      invoke('modelPlanInherit', { slug, expectedRevision }),
+      recorded(invoke('modelPlanInherit', { slug, expectedRevision }), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'inherit' }),
+      ),
     telemetryEvent: (event, properties = {}) => {
       void invoke('telemetryEvent', {
         event,
@@ -1774,14 +1787,32 @@ export function createActions(
       createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
-    applyModelPreset: (slug, presetId) => applyModelPreset(call, slug, presetId),
+    applyModelPreset: (slug, presetId) =>
+      recorded(applyModelPreset(call, slug, presetId), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'preset' }),
+      ),
     customizeModelPlan: (slug, orchestrator, expectedRevision) =>
-      customizeModelPlan(call, slug, orchestrator, expectedRevision),
+      recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'custom' }),
+      ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>
-      setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
+      recorded(
+        setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
+        () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
+      ),
     setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
-      setModelPlan(call, slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels),
+      recorded(
+        setModelPlan(
+          call,
+          slug,
+          expectedRevision,
+          orchestrator,
+          assignmentDefault,
+          assignmentModels,
+        ),
+        () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
+      ),
     listHostFolders: (path, signal, offset) => loadHostFolders(call, path, signal, offset),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
@@ -1900,22 +1931,31 @@ export function createActions(
     toolApprovalExecutionState: (channelId, messageId) =>
       loadToolApprovalExecutionState(call, channelId, messageId),
     decideToolApproval: (channelId, messageId, outcome) =>
-      settleNativeInboxAction(
-        'tool-approval',
-        channelId,
-        messageId,
-        () => decideToolApproval(call, channelId, messageId, outcome),
-        () => loadToolApprovalStatus(call, channelId, messageId),
+      recorded(
+        settleNativeInboxAction(
+          'tool-approval',
+          channelId,
+          messageId,
+          () => decideToolApproval(call, channelId, messageId, outcome),
+          () => loadToolApprovalStatus(call, channelId, messageId),
+        ),
+        () =>
+          actions.telemetryEvent('activity:approval_submit', {
+            decision: APPROVAL_DECISIONS[outcome],
+          }),
       ),
     userQuestionStatus: (channelId, messageId) =>
       loadUserQuestionStatus(call, channelId, messageId),
     answerUserQuestion: (channelId, messageId, answers) =>
-      settleNativeInboxAction(
-        'user-question',
-        channelId,
-        messageId,
-        () => answerUserQuestion(call, channelId, messageId, answers),
-        () => loadUserQuestionStatus(call, channelId, messageId),
+      recorded(
+        settleNativeInboxAction(
+          'user-question',
+          channelId,
+          messageId,
+          () => answerUserQuestion(call, channelId, messageId, answers),
+          () => loadUserQuestionStatus(call, channelId, messageId),
+        ),
+        () => actions.telemetryEvent('activity:question_submit'),
       ),
     async load(signal) {
       clientStore.setRosterStatus('loading', undefined);
@@ -2108,6 +2148,7 @@ export function createActions(
       loadHumanAttention(call, category, 50, cursor, filters),
     openHumanInbox() {
       clientStore.select({ kind: 'inbox' });
+      actions.telemetryEvent('activity:inbox_open');
       void refreshHumanInboxStatus();
       const scope = humanInboxScope();
       if (scope === undefined) return Promise.resolve();
@@ -2185,6 +2226,7 @@ export function createActions(
     },
     async dismissHumanInbox(item) {
       await dismissHumanInboxItem(call, item.id, item.sourceEventId ?? '');
+      actions.telemetryEvent('activity:inbox_item_dismiss');
       humanInboxScopeVersion += 1;
       humanInboxHeadSeq += 1;
       humanInboxPageSeq += 1;
@@ -2218,6 +2260,7 @@ export function createActions(
     },
     async snoozeHumanInbox(item, until) {
       await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);
+      actions.telemetryEvent('activity:inbox_item_snooze');
       humanInboxScopeVersion += 1;
       humanInboxHeadSeq += 1;
       humanInboxPageSeq += 1;
@@ -2284,6 +2327,7 @@ export function createActions(
         message.author.kind !== 'human'
       )
         throw new Error('Channel reply could not be confirmed');
+      actions.telemetryEvent('activity:inbox_reply_send', { target: 'message' });
       return message;
     },
     pickWorkspaceFolder() {
@@ -2323,6 +2367,7 @@ export function createActions(
         },
         async () => ((await readRequest())?.grantRequestResolved === true ? 'expired' : 'pending'),
       );
+      actions.telemetryEvent('activity:grant_request_submit');
     },
     async markAllRead() {
       try {
@@ -2419,6 +2464,7 @@ export function createActions(
           message.assignmentReply.sourceEventId !== sourceEventId
         )
           throw new Error('Assignment response could not be confirmed');
+        actions.telemetryEvent('activity:inbox_reply_send', { target: 'assignment' });
         return message;
       } finally {
         await Promise.allSettled([

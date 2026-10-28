@@ -999,6 +999,7 @@ export function createCore(
     ownership,
   });
   runtime = createBotRuntime({
+    onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
     promptText: (slug) => {
       const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
       return sessionId === undefined
@@ -1503,6 +1504,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let connectAccount: ConnectAccount | undefined;
   mountDevicePairing(ctx, {
+    telemetry,
     onAccount: (account) => {
       connectAccount = account;
     },

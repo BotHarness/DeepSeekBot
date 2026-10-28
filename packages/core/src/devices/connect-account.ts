@@ -404,6 +404,7 @@ export function createConnectAccount(options: {
       if (run !== attempt) return;
       if (Date.now() > expires) {
         status = { state: 'error', issue: 'sign-in-expired' };
+        record('sign-in-expired');
         return;
       }
       let reply: Awaited<ReturnType<typeof post>>;
