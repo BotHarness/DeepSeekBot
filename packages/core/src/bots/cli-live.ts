@@ -188,6 +188,7 @@ export const LIVE_OPTIONS = {
   'image-reference': { type: 'string' },
   timeout: { type: 'string' },
   'message-id': { type: 'string' },
+  'reply-to': { type: 'string' },
   'failure-message-id': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },
@@ -498,6 +499,7 @@ interface LiveValues
   'image-reference'?: string;
   timeout?: string;
   'message-id'?: string;
+  'reply-to'?: string;
   'failure-message-id'?: string;
   recovery?: string;
   body?: string;
@@ -1087,6 +1089,8 @@ export async function runLiveCli(
       !/^human-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(messageId)
     )
       usage('--message-id must be human- followed by a UUID.');
+    if (values['reply-to'] !== undefined && !values['reply-to'].trim())
+      usage('--reply-to needs a message id.');
   }
   if (
     command === 'tool-approval-decide' &&
@@ -1250,7 +1254,12 @@ export async function runLiveCli(
     try {
       const bot = await rpc<{ bot: { displayName?: string } }>('get', { slug: target });
       await rpc('channelDm', { slug: target, displayName: bot.bot.displayName });
-      sent = await rpc('channelSend', { channelId, body, messageId: receipt.messageId });
+      sent = await rpc('channelSend', {
+        channelId,
+        body,
+        messageId: receipt.messageId,
+        ...(values['reply-to'] === undefined ? {} : { replyTo: values['reply-to'].trim() }),
+      });
       while (Date.now() < deadline) {
         const status = await rpc<{ state: string; replies: unknown[] }>(
           'channelSendStatus',

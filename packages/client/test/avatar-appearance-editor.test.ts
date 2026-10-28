@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
   Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
+  Button: ({ children, ...props }: PropsWithChildren<Record<string, unknown>>) =>
+    createElement('button', props, children),
+  IconRefreshOutlineRegular: () => null,
 }));
 import { AvatarAppearanceEditor } from '../src/client/avatar-appearance-editor.js';
 import { PersonaBotAvatar } from '../src/client/avatar.js';
@@ -63,19 +66,29 @@ describe('Profile Avatar Appearance editing', () => {
     };
     try {
       await render(base);
-      const rows = () => [...container.querySelectorAll('.bh-avatar-methods > .bh-card-row')];
+      const rows = () => [
+        ...container.querySelectorAll('.bh-avatar-methods > button.bh-avatar-method'),
+      ];
       expect(container.querySelector('section')?.getAttribute('aria-label')).toBe('头像');
-      expect(rows().map((row) => row.querySelector('.bh-card-title')?.textContent)).toEqual([
-        '设计像素头像',
-        '上传图片',
-      ]);
+      expect(
+        rows().map((row) => row.querySelector('.bh-avatar-method-title > span')?.textContent),
+      ).toEqual(['设计像素头像', '上传图片']);
       expect(rows().map((row) => row.getAttribute('data-state'))).toEqual(['current', null]);
       expect(container.querySelector('[data-avatar-remove]')).toBeNull();
+      expect(rows().map((row) => row.getAttribute('type'))).toEqual(['button', 'button']);
+      expect(rows()[0]!.hasAttribute('data-avatar-edit')).toBe(true);
+      expect(rows()[1]!.hasAttribute('data-avatar-upload')).toBe(true);
+      expect(container.querySelectorAll('.bh-avatar-method button').length).toBe(0);
       await act(() => container.querySelector<HTMLButtonElement>('[data-avatar-upload]')!.click());
       expect(upload).toHaveBeenCalledTimes(1);
 
       await render({ ...base, avatar: '/saved.png' });
       expect(rows().map((row) => row.getAttribute('data-state'))).toEqual([null, 'current']);
+      const removeButton = container.querySelector<HTMLButtonElement>('[data-avatar-remove]')!;
+      expect(removeButton.closest('.bh-avatar-methods')).toBeNull();
+      expect(removeButton.closest('.bh-avatar-remove')?.previousElementSibling).toBe(
+        container.querySelector('.bh-avatar-methods'),
+      );
       await act(() => container.querySelector<HTMLButtonElement>('[data-avatar-remove]')!.click());
       expect(remove).toHaveBeenCalledTimes(1);
 

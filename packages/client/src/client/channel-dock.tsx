@@ -22,12 +22,7 @@ import { mountPanelScrollbars } from './ds/panel-scrollbars.js';
 import { usePanelMenu } from './panel-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import { workspaceColumns, moveWorkspaceRail, isFullHeightRail } from './workspace-layout.js';
-import {
-  WorkspaceContext,
-  WORKSPACE_RAIL,
-  WORKSPACE_CHANNELS,
-  WORKSPACE_HOME,
-} from './workspace-context.js';
+import { WorkspaceContext, WORKSPACE_RAIL, WORKSPACE_CHANNELS } from './workspace-context.js';
 import {
   createContext,
   useContext,
@@ -80,6 +75,7 @@ import {
   DEFAULT_SIMPLE_CHANNELS_WIDTH,
   DEFAULT_SUBPANEL_COLUMN,
   DEFAULT_SUBPANEL_HEIGHT,
+  MAX_SIDE_COLUMN_WIDTH,
   MIN_SUBPANEL_HEIGHT,
   readLayoutMode,
   writeLayoutMode,
@@ -98,7 +94,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelHeader } from './ds/panel-header.js';
-import { space, color, radius, text } from './ds/tokens.stylex.js';
+import { border, space, color, radius, size, text } from './ds/tokens.stylex.js';
 import { EntryPart, useStableProps } from './entry-part.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
@@ -137,6 +133,23 @@ const styles = stylex.create({
     lineHeight: text.titleLine,
   },
   breadcrumbIcon: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
+  identity: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
+  identityButton: {
+    gap: space.x3,
+    height: size.row,
+    paddingBlock: 0,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.sm,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: 'inherit',
+    fontFamily: 'inherit',
+    textAlign: 'start',
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outlineOffset: '-2px',
+  },
   actions: { display: 'inline-flex', alignItems: 'center', minWidth: 0, gap: space.x1 },
 });
 
@@ -199,6 +212,7 @@ export interface ChannelHeaderView {
   label?: ReactNode;
   status?: ReactNode;
   icon?: ReactNode;
+  profile?: { label: string; open(): void } | undefined;
   actions: ReactNode;
 }
 
@@ -297,11 +311,8 @@ function ChannelHeaderActions(): ReactElement {
 function ChannelBreadcrumb(): ReactElement | null {
   const header = useDockSlots().header;
   if (header === undefined) return null;
-  return (
-    <span {...stylex.props(styles.breadcrumb)}>
-      <span aria-hidden="true" {...stylex.props(styles.breadcrumbIcon)}>
-        <ChannelSidebarIcon name="chevron-right" />
-      </span>
+  const identity = (
+    <>
       {header.icon !== undefined && (
         <span
           aria-hidden="true"
@@ -314,6 +325,28 @@ function ChannelBreadcrumb(): ReactElement | null {
       <span title={header.title} {...stylex.props(styles.channelName)}>
         {header.label ?? header.title}
       </span>
+    </>
+  );
+  return (
+    <span {...stylex.props(styles.breadcrumb)}>
+      <span aria-hidden="true" {...stylex.props(styles.breadcrumbIcon)}>
+        <ChannelSidebarIcon name="chevron-right" />
+      </span>
+      {header.profile === undefined ? (
+        <span {...stylex.props(styles.identity)}>{identity}</span>
+      ) : (
+        <button
+          type="button"
+          data-channel-header-profile=""
+          aria-label={header.profile.label}
+          onClick={header.profile.open}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          {...stylex.props(styles.identity, styles.identityButton)}
+        >
+          {identity}
+        </button>
+      )}
       {header.status}
     </span>
   );
@@ -933,14 +966,7 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
       >
         {contextMenu.menu}
         <PanelHeader
-          {...(dock.simple && !panel.onTitleHide
-            ? {}
-            : {
-                onHide: () => {
-                  dock.close(panelId);
-                  panel.onTitleHide?.();
-                },
-              })}
+          {...(dock.simple ? {} : { onHide: () => dock.close(panelId) })}
           hideLabel={closeLabel}
           hideHint={dock.t('dock.headHint')}
           icon={<ChannelSidebarIcon name={panel.icon} />}
@@ -965,23 +991,18 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
               onPointerDown={(event) => event.stopPropagation()}
               onMouseDown={(event) => event.stopPropagation()}
             >
-              {entryId === CHANNEL_BODY_PANEL && dock.column && (
-                <Tooltip
-                  label={dock.t('workspace.subpanelColumn')}
-                  side="bottom"
-                  portal
-                  delayMs={500}
-                >
-                  <IconButton
-                    aria-label={dock.t('workspace.subpanelColumn')}
-                    aria-pressed={dock.column.state.open}
-                    data-subpanel-column-toggle=""
-                    disabled={!dock.channel}
-                    onClick={() => dock.column?.setOpen(!dock.column.state.open)}
-                  >
-                    <ChannelSidebarIcon name="panel-right" />
-                  </IconButton>
-                </Tooltip>
+              {entryId === CHANNEL_BODY_PANEL && dock.hasHeader && <ChannelHeaderActions />}
+              {HeaderAction === undefined || props === undefined ? null : (
+                <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
+              )}
+              {PanelAction && (
+                <PanelAction
+                  key={panel.scope === 'channel' ? dock.channel?.id : undefined}
+                  channel={panel.scope === 'channel' ? dock.channel : undefined}
+                />
+              )}
+              {entryId === WORKSPACE_CHANNELS && (
+                <span className="bh-workspace-channel-actions" ref={dock.setChannelsHeader} />
               )}
               {entryId === CHANNEL_BODY_PANEL &&
                 !dock.column &&
@@ -1040,18 +1061,23 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                     </IconButton>
                   </Tooltip>
                 )}
-              {entryId === CHANNEL_BODY_PANEL && dock.hasHeader && <ChannelHeaderActions />}
-              {HeaderAction === undefined || props === undefined ? null : (
-                <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
-              )}
-              {PanelAction && (
-                <PanelAction
-                  key={panel.scope === 'channel' ? dock.channel?.id : undefined}
-                  channel={panel.scope === 'channel' ? dock.channel : undefined}
-                />
-              )}
-              {entryId === WORKSPACE_CHANNELS && (
-                <span className="bh-workspace-channel-actions" ref={dock.setChannelsHeader} />
+              {entryId === CHANNEL_BODY_PANEL && dock.column && (
+                <Tooltip
+                  label={dock.t('workspace.subpanelColumn')}
+                  side="bottom"
+                  portal
+                  delayMs={500}
+                >
+                  <IconButton
+                    aria-label={dock.t('workspace.subpanelColumn')}
+                    aria-pressed={dock.column.state.open}
+                    data-subpanel-column-toggle=""
+                    disabled={!dock.channel}
+                    onClick={() => dock.column?.setOpen(!dock.column.state.open)}
+                  >
+                    <ChannelSidebarIcon name="panel-right" />
+                  </IconButton>
+                </Tooltip>
               )}
               {!dock.railed && (
                 <Tooltip label={closeLabel} side="bottom" portal delayMs={500}>
@@ -1236,6 +1262,7 @@ export function ChannelDock({
   });
   const simpleRef = useRef(layoutMode);
   const isSimple = (): boolean => workspace !== undefined && simpleRef.current.mode === 'simple';
+  const sideSizedAt = useRef(0);
   const setSimpleLayout = (next: SimpleLayout): void => {
     simpleRef.current = next;
     updateLayoutMode(next);
@@ -1290,7 +1317,7 @@ export function ChannelDock({
     [workspaceMode, gap],
   );
   const gapRef = useRef(gap);
-  const [order, updateOrder] = useState(() => readChannelDock(storage)?.order ?? [WORKSPACE_HOME]);
+  const [order, updateOrder] = useState(() => readChannelDock(storage)?.order ?? []);
   const orderRef = useRef(order);
   const [hiddenControls, updateHiddenControls] = useState(
     () => readChannelDock(storage)?.hiddenControls ?? [],
@@ -1336,7 +1363,7 @@ export function ChannelDock({
 
   const reportOpen = (target: DockviewApi): void => {
     const ids = isSimple()
-      ? simpleViewIds(simpleRef.current.view).filter((id) => target.getPanel(id))
+      ? simpleViewIds(simpleRef.current.sideColumn).filter((id) => target.getPanel(id))
       : target.panels.map((panel) => panel.id);
     if (isSimple()) {
       registry?.reportOpen([...ids.filter((id) => id !== WORKSPACE_RAIL), ...columnOpenIds(ids)]);
@@ -1379,33 +1406,21 @@ export function ChannelDock({
     setOpenIds(ids);
     reportOpen(target);
     const simple = isSimple();
-    const channelsGroup = target.getPanel(WORKSPACE_CHANNELS)?.group;
-    if (
-      simple &&
-      simpleRef.current.view === CHANNEL_BODY_PANEL &&
-      channelsGroup &&
-      target.width > 0 &&
-      channelsGroup.api.width > 0
-    ) {
-      simpleRef.current = {
-        ...simpleRef.current,
-        channelsWidth: Math.min(0.6, channelsGroup.api.width / target.width),
-      };
-      writeLayoutMode(simpleRef.current, storage);
-    }
+    fitSideColumn(target);
     const advanced = simple ? readChannelDock(storage) : undefined;
+    const frozen = simple;
     if (workspace || !readChannelDock(storage)?.layout.panels[WORKSPACE_RAIL]) {
       const persisted = writeChannelDock(
         {
-          layout: simple
+          layout: frozen
             ? (advanced?.layout ?? EMPTY_LAYOUT)
             : {
                 ...target.toJSON(),
                 panels: { ...unregistered.current, ...target.toJSON().panels },
               },
           instances: registry?.instances(),
-          parked: simple ? (advanced?.parked ?? {}) : parked.current,
-          visibilityLayout: simple ? advanced?.visibilityLayout : visibilityLayout.current,
+          parked: frozen ? (advanced?.parked ?? {}) : parked.current,
+          visibilityLayout: frozen ? advanced?.visibilityLayout : visibilityLayout.current,
           gap: gapRef.current,
           order: orderRef.current,
           hiddenControls: hiddenControlsRef.current,
@@ -1420,6 +1435,27 @@ export function ChannelDock({
       );
       setStorageFailed(!persisted);
     }
+  };
+
+  const fitSideColumn = (target: DockviewApi): void => {
+    const side = simpleRef.current.sideColumn;
+    const group = side === null ? undefined : target.getPanel(side)?.group;
+    if (!isSimple() || !group?.api.isVisible || target.width <= 0) return;
+    if (target.width === sideSizedAt.current) return;
+    sideSizedAt.current = target.width;
+    group.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
+  };
+
+  const captureSideWidth = (target: DockviewApi): void => {
+    const side = simpleRef.current.sideColumn;
+    const group = side === null ? undefined : target.getPanel(side)?.group;
+    if (!isSimple() || sideSizedAt.current === 0 || !group?.api.isVisible) return;
+    if (target.width <= 0 || group.api.width <= 0) return;
+    simpleRef.current = {
+      ...simpleRef.current,
+      channelsWidth: Math.min(MAX_SIDE_COLUMN_WIDTH, group.api.width / target.width),
+    };
+    writeLayoutMode(simpleRef.current, storage);
   };
 
   const positionOf = (target: DockviewApi, panelId: string): DockPosition | undefined => {
@@ -1481,14 +1517,24 @@ export function ChannelDock({
     restoreEntryPanel(target, panel, remembered, workspace ? gapRef.current : 0);
   };
 
-  const showSimpleView = (target: DockviewApi, view: string): void => {
-    let id = view === WORKSPACE_CHANNELS ? CHANNEL_BODY_PANEL : view;
-    if (id !== CHANNEL_BODY_PANEL) {
+  const sideColumnItem = (panelId: string): boolean =>
+    panelId !== CHANNEL_BODY_PANEL && panelId !== WORKSPACE_RAIL && !inColumn(panelId);
+
+  const showSimpleView = (target: DockviewApi, requested: string | null): void => {
+    let id = requested;
+    if (id !== null && id !== WORKSPACE_CHANNELS) {
       const panel = known.current.get(id) ?? registry?.panels().find((item) => item.id === id);
-      if (panel === undefined || !layout.current.canOpen(id)) id = CHANNEL_BODY_PANEL;
+      if (panel === undefined || !sideColumnItem(id) || !layout.current.canOpen(id))
+        id = WORKSPACE_CHANNELS;
       else if (target.getPanel(id) === undefined)
-        restoreEntryPanel(target, panel, undefined, gapRef.current);
+        restoreEntryPanel(
+          target,
+          panel,
+          { neighbor: CHANNEL_BODY_PANEL, direction: 'left' },
+          gapRef.current,
+        );
     }
+    if (id === WORKSPACE_CHANNELS && target.getPanel(WORKSPACE_CHANNELS) === undefined) id = null;
     const shown = simpleViewIds(id);
     for (const group of target.groups) {
       const visible = group.panels.some(
@@ -1496,11 +1542,12 @@ export function ChannelDock({
       );
       if (group.api.isVisible !== visible) group.api.setVisible(visible);
     }
-    const channels = target.getPanel(WORKSPACE_CHANNELS)?.group;
-    if (id === CHANNEL_BODY_PANEL && channels && target.width > 0)
-      channels.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
-    target.getPanel(id)?.api.setActive();
-    if (id !== simpleRef.current.view) setSimpleLayout({ ...simpleRef.current, view: id });
+    const side = id === null ? undefined : target.getPanel(id)?.group;
+    sideSizedAt.current = side === undefined ? 0 : target.width;
+    if (side && target.width > 0)
+      side.api.setSize({ width: Math.round(simpleRef.current.channelsWidth * target.width) });
+    if (id !== simpleRef.current.sideColumn)
+      setSimpleLayout({ ...simpleRef.current, sideColumn: id });
   };
 
   const buildSimpleLayout = (target: DockviewApi): void => {
@@ -1526,7 +1573,8 @@ export function ChannelDock({
       );
     target.getPanel(CHANNEL_BODY_PANEL)?.api.updateParameters({ entryId: CHANNEL_BODY_PANEL });
     hideBodyHeader(target);
-    showSimpleView(target, revealBody ? CHANNEL_BODY_PANEL : simpleRef.current.view);
+    showSimpleView(target, simpleRef.current.sideColumn);
+    target.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
   };
 
   const setColumn = (next: SubpanelColumn, focus?: string): void => {
@@ -1546,7 +1594,7 @@ export function ChannelDock({
     const stored = readChannelDock(storage, workspace !== undefined);
     seed.current = stored?.sessionSeed ?? DEFAULT_CHANNEL_WORKSPACE;
     botSeeds.current = stored?.botPanelSeeds ?? {};
-    orderRef.current = stored?.order ?? [WORKSPACE_HOME];
+    orderRef.current = stored?.order ?? [];
     updateOrder(orderRef.current);
     hiddenControlsRef.current = stored?.hiddenControls ?? [];
     updateHiddenControls(hiddenControlsRef.current);
@@ -1629,14 +1677,6 @@ export function ChannelDock({
         }
         ready.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
       }
-      if (workspace && fresh) {
-        const home = known.current.get(WORKSPACE_HOME);
-        if (home && !ready.getPanel(WORKSPACE_HOME)) {
-          const messages = ready.getPanel(CHANNEL_BODY_PANEL);
-          if (messages) ready.removePanel(messages);
-          addEntryPanel(ready, home, { neighbor: WORKSPACE_CHANNELS, direction: 'right' });
-        }
-      }
       if (newWorkspace && fresh) {
         ready.getPanel('sessions')?.api.setSize({ width: 320 });
         ready.getPanel(WORKSPACE_CHANNELS)?.api.setSize({ width: 260 });
@@ -1693,6 +1733,7 @@ export function ChannelDock({
       const finish = () => {
         if (!resizing) return;
         resizing = false;
+        captureSideWidth(api);
         visibilityLayout.current = undefined;
         for (const panel of api.panels) delete parked.current[panel.id];
         save(api);
@@ -1700,7 +1741,18 @@ export function ChannelDock({
       root.addEventListener('pointerdown', start, true);
       window.addEventListener('pointerup', finish);
       window.addEventListener('pointercancel', finish);
+      let frame = 0;
+      const resized =
+        typeof ResizeObserver === 'undefined'
+          ? undefined
+          : new ResizeObserver(() => {
+              cancelAnimationFrame(frame);
+              frame = requestAnimationFrame(() => fitSideColumn(api));
+            });
+      resized?.observe(root);
       return () => {
+        resized?.disconnect();
+        cancelAnimationFrame(frame);
         releaseChrome?.();
         root.removeEventListener('pointerdown', start, true);
         window.removeEventListener('pointerup', finish);
@@ -1743,6 +1795,7 @@ export function ChannelDock({
       delete unregistered.current[id];
       addEntryPanel(api, panel, position);
     }
+    if (isSimple()) showSimpleView(api, simpleRef.current.sideColumn);
     save(api);
   }, [api, byId]);
 
@@ -1777,6 +1830,14 @@ export function ChannelDock({
   const subpanelState = (id: string) =>
     id === 'sessions' ? sessionStateRef.current : botStatesRef.current[id]!;
   const close = (panelId: string): void => {
+    if (isSimple() && !inColumn(panelId)) {
+      if (api && panelId === simpleRef.current.sideColumn) {
+        showSimpleView(api, null);
+        api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
+        save(api);
+      }
+      return;
+    }
     if (isSimple() && inColumn(panelId)) {
       const column = simpleRef.current.column;
       setColumn({ ...column, expanded: column.expanded.filter((id) => id !== panelId) });
@@ -1829,15 +1890,9 @@ export function ChannelDock({
   const open = (panelId: string): void => {
     if (!canOpen(panelId)) return;
     const definition = byId.get(panelId) ?? registry?.panels().find((item) => item.id === panelId);
-    if (
-      isSimple() &&
-      api &&
-      !channelPanelIds.includes(panelId) &&
-      definition?.binding !== 'current-bot' &&
-      panelId !== 'bot-inbox' &&
-      panelId !== 'members'
-    ) {
-      showSimpleView(api, panelId);
+    if (isSimple() && api && !inColumn(panelId)) {
+      if (panelId !== CHANNEL_BODY_PANEL) showSimpleView(api, panelId);
+      api.getPanel(panelId)?.api.setActive();
       save(api);
       return;
     }
@@ -1845,7 +1900,6 @@ export function ChannelDock({
       if (!channel) return;
       if (panelId === 'bot-inbox' && (channel.type !== 'dm' || !inbox)) return;
       if (panelId === 'members' && channel.type !== 'group') return;
-      showSimpleView(api, CHANNEL_BODY_PANEL);
       const column = simpleRef.current.column;
       setColumn(
         {
@@ -1868,7 +1922,6 @@ export function ChannelDock({
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
-      if (isSimple()) showSimpleView(api, CHANNEL_BODY_PANEL);
       api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
       save(api);
       return;
@@ -1880,7 +1933,6 @@ export function ChannelDock({
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
-      if (isSimple()) showSimpleView(api, CHANNEL_BODY_PANEL);
       api.getPanel(CHANNEL_BODY_PANEL)?.api.setActive();
       return;
     }
@@ -1893,7 +1945,6 @@ export function ChannelDock({
       const message = byId.get(CHANNEL_BODY_PANEL);
       if (message && !api.getPanel(CHANNEL_BODY_PANEL))
         addEntryPanel(api, message, parked.current[CHANNEL_BODY_PANEL]);
-      if (isSimple()) showSimpleView(api, CHANNEL_BODY_PANEL);
       save(api);
       return;
     }
@@ -1944,7 +1995,7 @@ export function ChannelDock({
     if (isSimple()) {
       setSimpleLayout({
         ...simpleRef.current,
-        view: CHANNEL_BODY_PANEL,
+        sideColumn: WORKSPACE_CHANNELS,
         channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
         column: DEFAULT_SUBPANEL_COLUMN,
       });
@@ -2308,10 +2359,8 @@ const EMPTY_LAYOUT: import('dockview-react').SerializedDockview = {
   panels: {},
 };
 
-function simpleViewIds(view: string): readonly string[] {
-  return view === CHANNEL_BODY_PANEL || view === WORKSPACE_CHANNELS
-    ? [WORKSPACE_CHANNELS, CHANNEL_BODY_PANEL]
-    : [view];
+function simpleViewIds(sideColumn: string | null): readonly string[] {
+  return sideColumn === null ? [CHANNEL_BODY_PANEL] : [sideColumn, CHANNEL_BODY_PANEL];
 }
 
 const groupRank = (panel: DockPanelRegistration): number =>

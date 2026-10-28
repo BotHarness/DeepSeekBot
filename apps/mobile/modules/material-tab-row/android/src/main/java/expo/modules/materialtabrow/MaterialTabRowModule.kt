@@ -49,8 +49,8 @@ class MaterialTabRowModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MaterialTabRow")
     ExpoUIView<PrimaryTabRowProps>("PrimaryTabRowView") {
-      val onSelect by Event<TabSelectEvent>()
-      Content { props -> PrimaryTabRowContent(props) { onSelect(TabSelectEvent(it)) } }
+      val onTabSelect by Event<TabSelectEvent>()
+      Content { props -> PrimaryTabRowContent(props) { onTabSelect(TabSelectEvent(it)) } }
     }
   }
 }

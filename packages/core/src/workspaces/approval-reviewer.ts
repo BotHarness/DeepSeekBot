@@ -327,21 +327,23 @@ export interface ApprovalReviewSession {
   timeoutMs?: number;
 }
 
-function composeReviewer(agentCtx: Context): void {
-  agentCtx.systemPrompt.section({
-    name: 'botharness:approval-reviewer',
-    order: 0,
-    text: REVIEWER_SYSTEM_PROMPT,
-    interpolate: false,
-    complete: true,
-  });
-  agentCtx.systemPrompt.suppressRuntimeContext();
-  agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
-    const assembly = await next();
-    assembly.tools = [];
-    return assembly;
-  });
-  agentCtx.tools.guard(({ name }) => `${name} is not available to the Approval Reviewer`);
+function composeReviewer(systemPrompt: string, name: string): (agentCtx: Context) => void {
+  return (agentCtx) => {
+    agentCtx.systemPrompt.section({
+      name,
+      order: 0,
+      text: systemPrompt,
+      interpolate: false,
+      complete: true,
+    });
+    agentCtx.systemPrompt.suppressRuntimeContext();
+    agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
+      const assembly = await next();
+      assembly.tools = [];
+      return assembly;
+    });
+    agentCtx.tools.guard(({ name: tool }) => `${tool} is not available to this reviewer`);
+  };
 }
 
 function finalText(events: readonly { type: string; data?: unknown }[]): string {
@@ -354,15 +356,24 @@ function finalText(events: readonly { type: string; data?: unknown }[]): string 
   return '';
 }
 
-export async function runApprovalReview(
+export interface ReviewerTurn {
+  systemPrompt: string;
+  sectionName: string;
+  prompt: string;
+  title: string;
+  signal: AbortSignal;
+  maxTokens?: number;
+}
+
+export async function runReviewerTurn(
   agents: ApprovalReviewAgents,
   route: ApprovalReviewerRoute | undefined,
-  request: ApprovalReviewRequest,
+  turn: ReviewerTurn,
   session: ApprovalReviewSession,
-): Promise<ApprovalReview> {
+): Promise<string> {
   if (route === undefined) throw new ApprovalReviewError('no-model');
   const timeout = AbortSignal.timeout(session.timeoutMs ?? REVIEW_TIMEOUT_MS);
-  const signal = AbortSignal.any([request.signal, timeout]);
+  const signal = AbortSignal.any([turn.signal, timeout]);
   let handle: AgentHandle;
   try {
     handle = await agents.create({
@@ -374,10 +385,10 @@ export async function runApprovalReview(
         ...(route.reasoningEffort === undefined
           ? {}
           : { reasoningEffort: ReasoningEffortId(route.reasoningEffort) }),
-        maxTokens: 2_000,
+        maxTokens: turn.maxTokens ?? 2_000,
       },
       signal,
-      setup: composeReviewer,
+      setup: composeReviewer(turn.systemPrompt, turn.sectionName),
     });
   } catch (error) {
     if (timeout.aborted) throw new ApprovalReviewError('timeout');
@@ -389,16 +400,13 @@ export async function runApprovalReview(
   const cancel = () => handle.agent.cancel({ kind: 'user' });
   try {
     try {
-      session.rename?.(
-        handle.agent.session,
-        approvalReviewSessionTitle(session.botName ?? request.botSlug, request.call.toolName),
-      );
+      session.rename?.(handle.agent.session, turn.title);
     } catch {}
     const fromSeq = handle.agent.session.seq;
     signal.addEventListener('abort', cancel, { once: true });
     handle.agent.followup(
       createUserMessage({
-        content: [{ type: 'text', text: reviewerUserPrompt(request) }],
+        content: [{ type: 'text', text: turn.prompt }],
         source: { kind: 'user' },
       }),
     );
@@ -409,9 +417,7 @@ export async function runApprovalReview(
     if (reason === undefined || reason.kind === 'aborted')
       throw new ApprovalReviewError(timeout.aborted ? 'timeout' : 'model-error', 'aborted');
     if (reason.kind === 'error') throw new ApprovalReviewError('model-error', reason.error.code);
-    const review = parseApprovalReview(finalText(events));
-    if (review === undefined) throw new ApprovalReviewError('unparseable');
-    return review;
+    return finalText(events);
   } catch (error) {
     if (error instanceof ApprovalReviewError) throw error;
     throw new ApprovalReviewError(timeout.aborted ? 'timeout' : 'model-error');
@@ -419,6 +425,29 @@ export async function runApprovalReview(
     signal.removeEventListener('abort', cancel);
     await handle.dispose().catch(() => undefined);
   }
+}
+
+export async function runApprovalReview(
+  agents: ApprovalReviewAgents,
+  route: ApprovalReviewerRoute | undefined,
+  request: ApprovalReviewRequest,
+  session: ApprovalReviewSession,
+): Promise<ApprovalReview> {
+  const text = await runReviewerTurn(
+    agents,
+    route,
+    {
+      systemPrompt: REVIEWER_SYSTEM_PROMPT,
+      sectionName: 'botharness:approval-reviewer',
+      prompt: reviewerUserPrompt(request),
+      title: approvalReviewSessionTitle(session.botName ?? request.botSlug, request.call.toolName),
+      signal: request.signal,
+    },
+    session,
+  );
+  const review = parseApprovalReview(text);
+  if (review === undefined) throw new ApprovalReviewError('unparseable');
+  return review;
 }
 
 export function createApprovalReviewRunner(options: {

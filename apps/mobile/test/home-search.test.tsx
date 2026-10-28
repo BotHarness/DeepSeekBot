@@ -328,6 +328,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 let root: Root | undefined;
 let host: HTMLElement | undefined;
+const rowCalls = () => call.mock.calls.filter(([method]) => method !== 'messageSearch');
 beforeEach(() => {
   channelHistory = channelNavigationHarness();
   whoami.mockReset();
@@ -1008,6 +1009,43 @@ describe('Search in the Chats header', () => {
     });
   });
 
+  it('lists matching messages under the Chats and opens the conversation at that message', async () => {
+    vi.useFakeTimers();
+    try {
+      call.mockImplementation(async (method: unknown) =>
+        method === 'messageSearch'
+          ? {
+              hits: [
+                {
+                  channelId: 'dm-ada',
+                  snippet: 'the launch checklist',
+                  message: {
+                    id: 'm-launch',
+                    at: '2026-10-01T00:00:00.000Z',
+                    author: { kind: 'bot', slug: 'ada' },
+                    body: 'the launch checklist',
+                  },
+                },
+              ],
+            }
+          : {},
+      );
+      const view = await home();
+      await type(view, 'checklist');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(150);
+      });
+      expect(call).toHaveBeenCalledWith('messageSearch', { text: 'checklist', limit: 20 });
+      const row = view.querySelector('[data-testid="message-search-row-m-launch"]')!;
+      expect(row).not.toBeNull();
+      expect(view.textContent).toContain(t.searchMessages);
+      expect(row.textContent).toContain('Ada: the launch checklist');
+    } finally {
+      call.mockImplementation(async () => ({}));
+      vi.useRealTimers();
+    }
+  });
+
   it('says plainly when nothing matches', async () => {
     const view = await home();
     await type(view, ' zed ');
@@ -1211,17 +1249,17 @@ describe('Chats row actions share the Host path', () => {
           continue;
         }
         await rowMenuAction(view, key);
-        const fromMenu = [...call.mock.calls];
+        const fromMenu = rowCalls();
         const navigation = [...push.mock.calls];
         call.mockClear();
         push.mockClear();
         await act(async () => invoke({ nativeEvent: { actionName: key } }));
-        expect(call.mock.calls).toEqual(fromMenu);
+        expect(rowCalls()).toEqual(fromMenu);
         expect(push.mock.calls).toEqual(navigation);
       }
       call.mockClear();
       await act(async () => invoke({ nativeEvent: { actionName: 'unknown' } }));
-      expect(call).not.toHaveBeenCalled();
+      expect(rowCalls()).toEqual([]);
       expect(typeof rowProps.get('conversation-row-bot:xiaoming')!.onLongPress).toBe(
         platform === 'android' ? 'function' : 'undefined',
       );
@@ -1373,7 +1411,7 @@ describe('Remote Host section and Pinned presentation', () => {
     await type(view, '');
     expect(ordered(view)[0]).toBe('chat-section-pinned');
     expect(roster.arrangement?.sections[0]?.channelIds).toEqual(['dm-ada', 'launch-team']);
-    expect(call).not.toHaveBeenCalled();
+    expect(rowCalls()).toEqual([]);
   });
 
   it('isolates section and Pinned collapse per Host and does not lose collapsed search matches', async () => {
@@ -1396,7 +1434,7 @@ describe('Remote Host section and Pinned presentation', () => {
     conversationFilter.set(computerEnvironmentKey('h1'));
     await act(async () => root!.render(<HomeScreen />));
     expect(ordered(view)).not.toContain('conversation-row-bot:ada');
-    expect(call).not.toHaveBeenCalled();
+    expect(call.mock.calls.filter(([method]) => method !== 'messageSearch')).toEqual([]);
   });
 
   it.each(['ios', 'android'] as const)(

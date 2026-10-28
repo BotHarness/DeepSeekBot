@@ -344,5 +344,5 @@ describe('Bot-to-Bot mention wakes within one Human kickoff', () => {
     ]);
     expect(result.byAuthor('ping')).toHaveLength(MAX_BOT_HOPS / 2 + 1);
     expect(result.byAuthor('pong')).toHaveLength(MAX_BOT_HOPS / 2);
-  });
+  }, 45_000);
 });

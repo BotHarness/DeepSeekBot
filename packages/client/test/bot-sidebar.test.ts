@@ -13,6 +13,18 @@ const captured = vi.hoisted(() => ({
     point?: { x: number; y: number };
   }>,
   uploads: [] as Array<{ initialSlug?: string | undefined; onListed: () => void }>,
+  avatarEditors: [] as Array<{
+    bot: { slug: string };
+    channelId: string;
+    onSave(channelId: string, recipe: unknown): Promise<boolean>;
+  }>,
+}));
+
+vi.mock('../src/client/avatar-appearance-editor.js', () => ({
+  AvatarAppearanceEditor: (props: (typeof captured.avatarEditors)[number]) => {
+    captured.avatarEditors.push(props);
+    return null;
+  },
 }));
 
 vi.mock('../src/client/market-upload.js', () => ({
@@ -71,7 +83,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       captured.menus.push(props);
       return props.anchor as never;
     },
-    Modal: stub,
+    Modal: (props: { open: boolean; title: string; children?: ReactNode }) =>
+      props.open
+        ? createElement('div', { role: 'dialog', 'aria-label': props.title }, props.children)
+        : null,
     StateDot: stub,
     Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
     Tooltip: (props: { children?: unknown }) => (props.children ?? null) as never,
@@ -180,6 +195,9 @@ function stubActions(): BridgeActions {
     marketplaceUpload: vi.fn(async () => {
       throw new Error('unused');
     }),
+    marketplaceInstallReview: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceMine: vi.fn(async () => []),
     marketplaceDelete: vi.fn(async () => {}),
     shareDraftStart: vi.fn(async () => {
@@ -194,6 +212,11 @@ function stubActions(): BridgeActions {
       throw new Error('unused');
     }),
     marketplaceTopics: vi.fn(async () => []),
+    marketplaceSections: vi.fn(async () => []),
+    marketplaceDigests: vi.fn(async () => []),
+    marketplaceDigest: vi.fn(async () => {
+      throw new Error('digest-not-found');
+    }),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),
@@ -828,6 +851,57 @@ describe('bot sidebar rows', () => {
       expect(captured.uploads.at(-1)?.initialSlug).toBe('atlas');
       captured.uploads.at(-1)?.onListed();
       expect(open).toHaveBeenCalledWith('bot-market');
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+
+  it('changes a Bot avatar from its DM context menu through the Profile avatar editor', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    captured.avatarEditors.length = 0;
+    const actions = stubActions();
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() =>
+        node
+          .querySelector('[data-channel-id="dm-atlas"]')!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      const menu = menuWithItem('change-avatar');
+      const ids = menu.items.filter((item) => item['type'] === undefined).map((item) => item['id']);
+      expect(ids.slice(0, 2)).toEqual(['profile', 'change-avatar']);
+      expect(menu.items.find((item) => item['id'] === 'change-avatar')).toMatchObject({
+        label: '修改头像…',
+      });
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      await act(() => menu.onSelect!('change-avatar'));
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.getAttribute('aria-label')).toBe(zhTranslate('profile.avatar.section'));
+      const editor = captured.avatarEditors.at(-1)!;
+      expect(editor.bot.slug).toBe('atlas');
+      expect(editor.channelId).toBe('dm-atlas');
+      const recipe = { version: 1 };
+      await act(async () => {
+        await editor.onSave('dm-atlas', recipe);
+      });
+      expect(actions.setBotAppearance).toHaveBeenCalledWith('dm-atlas', recipe);
     } finally {
       await act(() => root.unmount());
       node.remove();

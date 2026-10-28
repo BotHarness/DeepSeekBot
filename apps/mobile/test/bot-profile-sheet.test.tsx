@@ -23,6 +23,17 @@ vi.mock('expo-router', () => ({
 
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderCircleButton: ({
+    label,
+    testID,
+    onPress,
+  }: {
+    label: string;
+    testID?: string;
+    onPress(): void;
+  }) => <button type="button" data-testid={testID} aria-label={label} onClick={onPress} />,
+}));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -53,6 +64,8 @@ import type { RosterBot } from '../src/host/client';
 import { BotProfilePage } from '../src/ui/chat/bot-profile';
 import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
 import { t } from '../src/ui/strings';
+import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import profileWire from './fixtures/profile-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -307,6 +320,32 @@ describe('Bot profile page', () => {
     expect(
       view.querySelector('[data-testid="profile-tab-routines"]')?.getAttribute('aria-selected'),
     ).toBe('true');
+  });
+
+  it('pushes in like a page from the right with a Back button instead of a sheet handle', async () => {
+    const options = profileScreenOptions(resolveTheme('light', {}, 'ios'));
+    expect(options).toMatchObject({
+      headerShown: false,
+      presentation: 'card',
+      gestureEnabled: true,
+      fullScreenGestureEnabled: false,
+    });
+    expect(options).not.toHaveProperty('sheetAllowedDetents');
+    const onClose = vi.fn();
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={{ ...actions(), onClose }}
+        avatar={avatarNone}
+      />,
+    );
+    expect(view.querySelector('[data-testid="profile-handle"]')).toBeNull();
+    const back = view.querySelector('[data-testid="profile-back"]') as HTMLElement;
+    expect(back.getAttribute('aria-label')).toBe(t.back);
+    await act(async () => back.click());
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('lists the Bot’s Assignments by Title and Description under the day of their last activity', async () => {

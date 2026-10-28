@@ -10,7 +10,7 @@
 
 ## How to get to it (user POV)
 
-Bot mode → Channels → the dedicated QA PersonaBot DM → **Messages** in the control rail if Home is still open → its workspace request card → **Allow folder read/write** → navigate the Host directory browser to the synthetic folder → **Authorize workspace**. The card resolves and the original task continues without another Human message. Inspect the two generated files and the Bot's committed completion reply.
+Bot mode → Channels → the dedicated QA PersonaBot DM → **Messages** in the control rail if it is hidden → its workspace request card → **Allow folder read/write** → navigate the Host directory browser to the synthetic folder → **Authorize workspace**. The card resolves and the original task continues without another Human message. Inspect the two generated files and the Bot's committed completion reply.
 
 For CLI, read the request id from `inbox --category action --bot <id>`, the registered target from `workspace-options`, then run `grant-request-approve <id> --channel <channel> --request <message> --workspace <workspace> --confirm`. The result must include a writable Grant and the canonical request resolution. `bot-tool <id> request_workspace_grant --args-stdin` with a reason and explicit `channel_id` exercises the same request code without the model.
 

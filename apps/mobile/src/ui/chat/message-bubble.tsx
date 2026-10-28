@@ -60,6 +60,8 @@ import { DeliveryReceiptButton, ReadingBadge } from './delivery-stack';
 import { MessageAttachments } from './message-attachments';
 import { openMessageMenu } from './message-menu';
 import { ReactionChips } from './message-reactions';
+import { ReplyQuote } from './reply-quote';
+import { ReplySwipe } from './reply-swipe';
 import { PopIn, usePopIn } from './pop-in';
 import type { Rect } from './menu-placement';
 import { SpeakerRow, type Speaker } from './speaker-row';
@@ -122,7 +124,9 @@ export function BubbleBody({
   deliveryAccessibility = true,
   onImageReady,
   onLayout,
+  quote,
 }: {
+  quote?: ReactNode;
   onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
   message: ConversationMessage;
@@ -157,6 +161,7 @@ export function BubbleBody({
           style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}
         />
       ) : null}
+      {quote}
       <MessageBody message={message} streaming={streaming} />
       {message.attachments.length > 0 ? (
         <MessageAttachments
@@ -303,6 +308,16 @@ function PressableBubble({
 
 const entered = new Set<string>();
 
+export function replyable(message: ConversationMessage): boolean {
+  return (
+    message.author !== 'system' &&
+    message.delivery === 'committed' &&
+    message.welcome === undefined &&
+    message.card === undefined &&
+    message.activity === undefined
+  );
+}
+
 export function secondTap(last: number | undefined, now: number): boolean {
   return last !== undefined && now - last <= doubleTap.window;
 }
@@ -316,6 +331,7 @@ export const MessageBubble = memo(function MessageBubble({
   onShare = async () => {},
   onLongPress = (pressed) => openMessageMenu(pressed.body),
   onReact,
+  onReply,
   onOpenDelivery,
   readers = NO_READERS,
   bots = NO_BOTS,
@@ -335,6 +351,7 @@ export const MessageBubble = memo(function MessageBubble({
   onShare?: (attachment: MessageAttachment) => Promise<void>;
   onLongPress?: (message: ConversationMessage, anchor: Rect, group: BubbleGroup) => void;
   onReact?: (messageId: string, emoji: string, active: boolean) => void;
+  onReply?: ((message: ConversationMessage) => void) | undefined;
   onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
   readers?: readonly string[] | undefined;
   bots?: readonly RosterBot[] | undefined;
@@ -400,6 +417,11 @@ export const MessageBubble = memo(function MessageBubble({
       }
       fill={{ maxWidth: '100%' }}
       streaming={streaming}
+      quote={
+        message.replyTo === undefined ? undefined : (
+          <ReplyQuote preview={message.replyPreview} botName={botName} onAccent={human} />
+        )
+      }
     />
   );
   const content =
@@ -538,8 +560,8 @@ export const MessageBubble = memo(function MessageBubble({
     framed
   );
   const row = { ...bubbleRow(first), ...(last ? { paddingBottom: space.x2 } : {}) };
-  if (speaker !== undefined)
-    return (
+  const placed =
+    speaker !== undefined ? (
       <SpeakerRow
         speaker={speaker}
         rowKey={rowKey}
@@ -548,8 +570,15 @@ export const MessageBubble = memo(function MessageBubble({
         bubble={surface}
         entering={enter}
       />
+    ) : (
+      <View style={row}>{surface}</View>
     );
-  return <View style={row}>{surface}</View>;
+  if (onReply === undefined) return placed;
+  return (
+    <ReplySwipe enabled={!streaming && replyable(message)} onReply={() => onReply(message)}>
+      {placed}
+    </ReplySwipe>
+  );
 });
 
 export const DraftBubble = memo(function DraftBubble({

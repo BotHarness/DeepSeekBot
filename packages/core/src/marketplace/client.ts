@@ -95,6 +95,28 @@ export interface MarketplacePage {
 
 export type MarketplaceSort = 'updated' | 'created' | 'stars';
 
+export const MARKETPLACE_SECTIONS = ['hot', 'new', 'rising'] as const;
+export type MarketplaceSectionName = (typeof MARKETPLACE_SECTIONS)[number];
+
+export interface MarketplaceDigestSummary {
+  day: string;
+  lang: MarketplaceLanguage;
+  title: string;
+  lede: string;
+}
+
+export interface MarketplaceDigest extends MarketplaceDigestSummary {
+  sections: Array<{ heading: string; body: string; bot: MarketplaceEntry | null }>;
+}
+
+export const MARKETPLACE_DIGEST_DAY = /^\d{4}-\d{2}-\d{2}$/u;
+
+export interface MarketplaceSection {
+  section: MarketplaceSectionName;
+  day: string | null;
+  entries: Array<{ bot: MarketplaceEntry; score: number }>;
+}
+
 export interface MarketplaceQuery {
   cursor?: string;
   sort?: MarketplaceSort;
@@ -125,6 +147,12 @@ export type MarketplaceResult<T> =
 export interface MarketplaceClient {
   list(query: MarketplaceQuery): Promise<MarketplaceResult<MarketplacePage>>;
   topics(): Promise<MarketplaceResult<MarketplaceTopic[]>>;
+  section(
+    name: MarketplaceSectionName,
+    lang?: MarketplaceLanguage,
+  ): Promise<MarketplaceResult<MarketplaceSection>>;
+  digests(lang?: MarketplaceLanguage): Promise<MarketplaceResult<MarketplaceDigestSummary[]>>;
+  digest(day: string, lang?: MarketplaceLanguage): Promise<MarketplaceResult<MarketplaceDigest>>;
   detail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceResult<MarketplaceDetail>>;
   challenge(): Promise<MarketplaceResult<AltchaChallenge>>;
   submit(url: string, altcha: string): Promise<MarketplaceResult<{ bot: MarketplaceEntry }>>;
@@ -391,6 +419,66 @@ export function parseMarketplaceTopics(value: unknown): MarketplaceTopic[] | und
   return parsed.every((item): item is MarketplaceTopic => item !== undefined) ? parsed : undefined;
 }
 
+export function parseMarketplaceSection(value: unknown): MarketplaceSection | undefined {
+  const source = record(value);
+  const section = source?.['section'];
+  const day = source?.['day'];
+  const entries = source?.['entries'];
+  if (
+    typeof section !== 'string' ||
+    !(MARKETPLACE_SECTIONS as readonly string[]).includes(section) ||
+    (day !== null && typeof day !== 'string') ||
+    !Array.isArray(entries)
+  )
+    return undefined;
+  const parsed = entries.map((item) => {
+    const entry = record(item);
+    const bot = parseEntry(entry?.['bot']);
+    const score = entry?.['score'];
+    return bot === undefined || typeof score !== 'number' ? undefined : { bot, score };
+  });
+  return parsed.every((item) => item !== undefined)
+    ? { section: section as MarketplaceSectionName, day, entries: parsed }
+    : undefined;
+}
+
+function parseDigestSummary(value: unknown): MarketplaceDigestSummary | undefined {
+  const source = record(value);
+  const lang =
+    typeof source?.['lang'] === 'string' ? parseMarketplaceLanguage(source['lang']) : undefined;
+  return typeof source?.['day'] === 'string' &&
+    MARKETPLACE_DIGEST_DAY.test(source['day']) &&
+    lang !== undefined &&
+    typeof source['title'] === 'string' &&
+    typeof source['lede'] === 'string'
+    ? { day: source['day'], lang, title: source['title'], lede: source['lede'] }
+    : undefined;
+}
+
+export function parseMarketplaceDigests(value: unknown): MarketplaceDigestSummary[] | undefined {
+  const digests = record(value)?.['digests'];
+  if (!Array.isArray(digests)) return undefined;
+  const parsed = digests.map(parseDigestSummary);
+  return parsed.every((item) => item !== undefined) ? parsed : undefined;
+}
+
+export function parseMarketplaceDigest(value: unknown): MarketplaceDigest | undefined {
+  const source = record(record(value)?.['digest']);
+  const summary = parseDigestSummary(source);
+  const sections = source?.['sections'];
+  if (summary === undefined || !Array.isArray(sections)) return undefined;
+  const parsed = sections.map((item) => {
+    const section = record(item);
+    const bot = section?.['bot'] === null ? null : parseEntry(section?.['bot']);
+    return typeof section?.['heading'] === 'string' &&
+      typeof section['body'] === 'string' &&
+      bot !== undefined
+      ? { heading: section['heading'], body: section['body'], bot }
+      : undefined;
+  });
+  return parsed.every((item) => item !== undefined) ? { ...summary, sections: parsed } : undefined;
+}
+
 function listPath(query: MarketplaceQuery): string {
   const params = new URLSearchParams();
   if (query.sort !== undefined) params.set('sort', query.sort);
@@ -507,6 +595,24 @@ export function createMarketplaceClient(options: {
         '/v1/topics',
         { method: 'GET', headers: { accept: 'application/json' } },
         parseMarketplaceTopics,
+      ),
+    digests: (lang) =>
+      request(
+        `/v1/digests${lang === undefined ? '' : `?lang=${lang}`}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseMarketplaceDigests,
+      ),
+    digest: (day, lang) =>
+      request(
+        `/v1/digests/${encodeURIComponent(day)}${lang === undefined ? '' : `?lang=${lang}`}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseMarketplaceDigest,
+      ),
+    section: (name, lang) =>
+      request(
+        `/v1/sections/${name}${lang === undefined ? '' : `?lang=${lang}`}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseMarketplaceSection,
       ),
     challenge: () =>
       request(

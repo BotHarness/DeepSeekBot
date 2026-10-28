@@ -10,6 +10,7 @@ import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
 import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
+import { TobJourneyCard } from './tob-onboarding.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
 import {
@@ -3269,6 +3270,20 @@ function ConversationView({
                     ))}
                   </section>
                 ) : null}
+                {dmBotSlug !== undefined &&
+                state.bots.some((bot) => bot.slug === dmBotSlug && bot.tob !== undefined) ? (
+                  <TobJourneyCard
+                    actions={actions}
+                    t={t}
+                    botSlug={dmBotSlug}
+                    hasDraft={draft.trim().length > 0 || uploadItems.length > 0}
+                    suggest={(body) => {
+                      recovery.update({ text: body, mentions: [], channelRefs: [] });
+                      setRestoreFocusSignal((value) => value + 1);
+                    }}
+                    openChannel={(id) => void actions.openChannel(id)}
+                  />
+                ) : null}
                 <ChannelComposer
                   key={channelId}
                   context={composerContext}
@@ -3498,28 +3513,21 @@ function ConversationView({
                         ) : (
                           <ChannelSidebarIcon name="user" size={20} />
                         ),
+                      ...(profileBot !== undefined || channel.type === 'group'
+                        ? {
+                            profile: {
+                              label: t(
+                                channel.type === 'group'
+                                  ? 'groupProfile.openAvatar'
+                                  : 'profile.openAvatar',
+                                { name: title },
+                              ),
+                              open: openProfileView,
+                            },
+                          }
+                        : {}),
                       actions: (
                         <>
-                          {(profileBot !== undefined || channel.type === 'group') && (
-                            <Tooltip
-                              label={t(
-                                channel.type === 'group' ? 'groupProfile.label' : 'profile.view',
-                              )}
-                              side="bottom"
-                              portal
-                              delayMs={500}
-                            >
-                              <IconButton
-                                aria-label={t(
-                                  channel.type === 'group' ? 'groupProfile.label' : 'profile.view',
-                                )}
-                                aria-pressed={profileViewOpen}
-                                onClick={openProfileView}
-                              >
-                                <ChannelSidebarIcon name="id-card" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
                           {hasChannelSettings && (
                             <Tooltip
                               label={t('channelSettings.open')}

@@ -11,6 +11,10 @@ or touch the phone. The tools themselves (`e2e-mobile-sim.mjs`, agent-device, Ma
 `rn-profile.mjs`) are documented in [`apps/mobile/README.md`](../../apps/mobile/README.md) and
 [`apps/mobile/AGENTS.md`](../../apps/mobile/AGENTS.md). This page covers how agents share them.
 
+For iOS performance diagnosis or tuning, follow [iOS performance verification](ios-performance.md)
+within the authorized device window. Simulator diagnostics do not qualify physical Release FPS;
+retain valid workload, profiling and matched A/B evidence separately from visual captures.
+
 ## Shared resources
 
 | Resource                | Current value                                                                                     | Who may change it          |

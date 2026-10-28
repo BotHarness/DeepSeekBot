@@ -2,13 +2,15 @@ import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
+import type { MarketplaceEntry, MarketplaceSection } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { MarketDigestHero } from './market-digest.js';
 import { MyUploadsDialog } from './market-mine.js';
+import { useMountedResource } from './mounted-resource.js';
 import { MarketUploadDialog } from './market-upload.js';
 import {
   MarketplaceAvatar,
@@ -74,6 +76,68 @@ function MarketplaceTile({
   );
 }
 
+const SECTION_TITLES = {
+  hot: 'market.section.hot',
+  new: 'market.section.new',
+  rising: 'market.section.rising',
+} as const;
+
+function MarketplaceSections({
+  actions,
+  lang,
+  t,
+  onOpen,
+  onImport,
+}: {
+  actions: BridgeActions;
+  lang: ReturnType<typeof marketplaceLanguage>;
+  t: BotHarnessTranslate;
+  onOpen: (bot: MarketplaceEntry) => void;
+  onImport: (bot: MarketplaceEntry) => void;
+}): ReactElement {
+  const [sections, setSections] = useState<MarketplaceSection[]>([]);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    let live = true;
+    setSections([]);
+    void actions.marketplaceSections(lang).then(
+      (loaded) => {
+        if (live) setSections(loaded);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [lang]);
+  const shown = sections.filter((section) => section.entries.length > 0);
+  return (
+    <div className="bh-market-sections" ref={mount} hidden={shown.length === 0}>
+      {shown.map((section) => (
+        <section
+          key={section.section}
+          className="bh-market-section"
+          data-market-section={section.section}
+          aria-label={t(SECTION_TITLES[section.section])}
+        >
+          <h3 className="bh-market-section-title">{t(SECTION_TITLES[section.section])}</h3>
+          <div className="bh-market-carousel" role="list">
+            {section.entries.map(({ bot }) => (
+              <MarketplaceTile
+                key={bot.id}
+                bot={bot}
+                created={false}
+                t={t}
+                onOpen={() => onOpen(bot)}
+                onImport={() => onImport(bot)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export function MarketPanelView({
   actions,
   registry,
@@ -104,6 +168,37 @@ export function MarketPanelView({
           </>
         }
       />
+      {filters.query.length === 0 && filters.topic === undefined ? (
+        <MarketDigestHero
+          actions={actions}
+          lang={marketplaceLanguage(t)}
+          t={t}
+          renderBot={(bot, close) => (
+            <MarketplaceTile
+              bot={bot}
+              created={false}
+              t={t}
+              onOpen={() => {
+                close();
+                setFlow({ bot, step: 'detail' });
+              }}
+              onImport={() => {
+                close();
+                setFlow({ bot, step: 'install' });
+              }}
+            />
+          )}
+        />
+      ) : null}
+      {filters.query.length === 0 && filters.topic === undefined ? (
+        <MarketplaceSections
+          actions={actions}
+          lang={marketplaceLanguage(t)}
+          t={t}
+          onOpen={(bot) => setFlow({ bot, step: 'detail' })}
+          onImport={(bot) => setFlow({ bot, step: 'install' })}
+        />
+      ) : null}
       <MarketplaceListStatus browse={browse} t={t} />
       {list.status === 'ready' && list.bots.length > 0 ? (
         <div className="bh-market-grid" role="list" aria-label={t('market.title')}>

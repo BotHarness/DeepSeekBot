@@ -204,6 +204,9 @@ Usage:
   tobs plugin-restart --confirm
   tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
+  tobs marketplace-sections [--lang zh|en]
+  tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
+  tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
   tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>
@@ -214,7 +217,8 @@ Usage:
   tobs marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] [--replaces <listing-id>] --confirm
   tobs marketplace-mine [--lang zh|en]
   tobs marketplace-delete <listing-id> --confirm
-  tobs marketplace-install <listing-id> [--operation-key <key>]
+  tobs marketplace-install <listing-id> [--lang zh|en]
+  tobs marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
   tobs share-draft-start <bot-id>
   tobs share-draft-show <bot-id>
   tobs share-draft-file <bot-id> --path <file>

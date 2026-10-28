@@ -128,6 +128,11 @@ import { humanInboxPushSource } from './push/source.js';
 import { createMarketplaceClient } from './marketplace/client.js';
 import { createInstallReceipts } from './marketplace/install-receipts.js';
 import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
+import {
+  createMarketplaceInstallReviews,
+  INSTALL_REVIEW_SYSTEM_PROMPT,
+  INSTALL_REVIEW_TIMEOUT_MS,
+} from './marketplace/install-review.js';
 import { createShareDrafts } from './marketplace/share-draft.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import {
@@ -233,8 +238,12 @@ import {
 } from './workspaces/approval-templates.js';
 import {
   APPROVAL_REVIEW_SESSION_PREFIX,
+  ApprovalReviewError,
+  type ApprovalReviewerRoute,
   createApprovalReviewRunner,
   isApprovalReviewSession,
+  routeLabel,
+  runReviewerTurn,
 } from './workspaces/approval-reviewer.js';
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import {
@@ -2442,6 +2451,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
     log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
+  const marketplaceUploads = createMarketplaceUploads({
+    client: marketplaceClient,
+    account: () => connectAccount,
+    drafts: shareDrafts,
+    log: (event) => ctx.logger.info(JSON.stringify(event)),
+  });
   const bridgeMethods = createBridgeMethods({
     prompts: core.prompts,
     botContext: async (slug) => {
@@ -2621,11 +2636,62 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     toolRules: core.toolRules,
     assignmentAccess: core.assignmentAccess,
     marketplace: marketplaceClient,
-    marketplaceUploads: createMarketplaceUploads({
-      client: marketplaceClient,
-      account: () => connectAccount,
-      drafts: shareDrafts,
-      log: (event) => ctx.logger.info(JSON.stringify(event)),
+    marketplaceUploads,
+    marketplaceInstallReviews: createMarketplaceInstallReviews({
+      uploads: marketplaceUploads,
+      reviewer: async (prompt, botName) => {
+        const tob = core.tob.slug();
+        let route: ApprovalReviewerRoute | undefined =
+          tob === undefined ? undefined : core.registry.get(tob)?.modelPlan?.orchestrator;
+        if (route === undefined) {
+          try {
+            route = defaultModel.currentSelection();
+          } catch {
+            route = undefined;
+          }
+        }
+        if (route === undefined) throw new ApprovalReviewError('no-model');
+        try {
+          await modelCatalog.validate(route);
+        } catch (error) {
+          throw new ApprovalReviewError(
+            'model-unavailable',
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        const sessionId = APPROVAL_REVIEW_SESSION_PREFIX + 'install-' + randomUUID();
+        const cwd = join(dshHome, 'botharness', 'approval-reviews');
+        mkdirSync(cwd, { recursive: true });
+        const titles = ctx.get('sessionTitle') as
+          | { rename?: (session: unknown, title: string) => void }
+          | undefined;
+        reviewing.add(sessionId);
+        try {
+          const text = await runReviewerTurn(
+            ctx.agents,
+            route,
+            {
+              systemPrompt: INSTALL_REVIEW_SYSTEM_PROMPT,
+              sectionName: 'botharness:install-review',
+              prompt,
+              title: `Install review · ${botName}`,
+              signal: new AbortController().signal,
+              maxTokens: 4_000,
+            },
+            {
+              sessionId,
+              cwd,
+              timeoutMs: INSTALL_REVIEW_TIMEOUT_MS,
+              ...(typeof titles?.rename === 'function'
+                ? { rename: (session, title) => titles.rename!(session, title) }
+                : {}),
+            },
+          );
+          return { text, model: routeLabel(route) };
+        } finally {
+          reviewing.delete(sessionId);
+        }
+      },
     }),
     shareDrafts,
     marketplaceReceipts: createInstallReceipts({

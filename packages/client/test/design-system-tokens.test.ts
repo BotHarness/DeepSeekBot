@@ -190,13 +190,6 @@ const ALLOWANCES: readonly Allowance[] = [
     values: ['28px', '64px'],
     selectors: ['.bh-human-inbox', '.bh-hidden-empty'],
   },
-  {
-    name: 'avatar knock-out ring',
-    reason: 'The profile avatar cuts a ring out of the banner in the card colour, not a border.',
-    property: /^border$/,
-    values: ['4px'],
-    selectors: ['.bh-profile-header-top .bh-profile-avatar-button'],
-  },
 ];
 
 function maskSheet(source: string, sheet: string): string {

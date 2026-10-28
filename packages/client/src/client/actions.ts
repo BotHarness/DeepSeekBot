@@ -18,7 +18,12 @@ import type {
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { unreadAfterAnchor } from './timeline-position.js';
-import { reactToChannelMessage, searchChannelMessages } from './bridge.js';
+import {
+  reactToChannelMessage,
+  searchAllMessages,
+  searchChannelMessages,
+  type MessageSearchPage,
+} from './bridge.js';
 import { toggledReactions } from './message-reactions-model.js';
 import {
   gitInstalling,
@@ -45,6 +50,9 @@ import type {
   MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
@@ -54,6 +62,7 @@ import type {
 } from '../../../core/src/marketplace/uploaded-bots.js';
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
@@ -216,10 +225,14 @@ import {
   loadMarketplaceFile,
   loadMarketplacePage,
   loadMarketplaceTopics,
+  loadMarketplaceSections,
+  loadMarketplaceDigests,
+  loadMarketplaceDigest,
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
   installMarketplaceBot,
+  reviewMarketplaceInstall,
   loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type UsageFilter,
@@ -650,6 +663,7 @@ export interface BridgeActions {
     text: string,
     cursor?: string,
   ): Promise<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  searchMessages?(text: string, cursor?: string): Promise<MessageSearchPage>;
   markChannelRead(channelId: string): Promise<void>;
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
@@ -887,6 +901,9 @@ export interface BridgeActions {
   marketplaceSubmit(url: string, altcha: string): Promise<MarketplaceEntry>;
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
+  marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
+  marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
+  marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -905,7 +922,8 @@ export interface BridgeActions {
   shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
   shareDraftDiscard(slug: string): Promise<void>;
   shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
-  marketplaceInstall(id: string, sectionId?: string): Promise<BotSummary>;
+  marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
+  marketplaceInstall(id: string, reviewId: string, sectionId?: string): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -2333,6 +2351,9 @@ export function createActions(
     searchChannel(channelId, text, cursor) {
       return searchChannelMessages(call, channelId, text, cursor);
     },
+    searchMessages(text, cursor) {
+      return searchAllMessages(call, text, cursor);
+    },
     async markChannelRead(channelId) {
       const messageId = clientStore
         .getSnapshot()
@@ -2745,6 +2766,9 @@ export function createActions(
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
+    marketplaceSections: (lang) => loadMarketplaceSections(call, lang),
+    marketplaceDigests: (lang) => loadMarketplaceDigests(call, lang),
+    marketplaceDigest: (day, lang) => loadMarketplaceDigest(call, day, lang),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
     marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
     marketplaceAccount: () => invoke('marketplaceAccount', {}),
@@ -2767,8 +2791,9 @@ export function createActions(
       await invoke('shareDraftDiscard', { slug });
     },
     shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
-    async marketplaceInstall(id, sectionId) {
-      return openCreatedBot(await installMarketplaceBot(call, id), sectionId);
+    marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
+    async marketplaceInstall(id, reviewId, sectionId) {
+      return openCreatedBot(await installMarketplaceBot(call, id, reviewId), sectionId);
     },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),

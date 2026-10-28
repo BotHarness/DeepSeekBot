@@ -12,7 +12,7 @@
 
 ## How to get to it (user POV)
 
-Enter Bot mode, dismiss the first-run welcome, and choose **Bot Marketplace / Bot 市场** in the Control Rail. Close Home for a full-height market. The fallback sidebar's New menu also opens the shared Marketplace modal.
+Enter Bot mode, dismiss the first-run welcome, and choose **Bot Marketplace / Bot 市场** in the Control Rail. The fallback sidebar's New menu also opens the shared Marketplace modal.
 
 ## Driving it with verify-app
 
@@ -24,9 +24,13 @@ Launch a task-owned instance with `node scripts/verify-app.mjs launch --name <n>
 4. Select a topic and verify the visible filtered cards match the Host list call. Open Import and inspect the confirmation; cancel without cloning. Open Upload Bot and inspect the existing dialog.
 7. Share Draft: on a Bot profile choose **⋯ → Share to Marketplace → Check with Tob**. Prove with `deepseekbot share-draft-show <bot>` that a `reviewing` draft exists and that `git -C <memory> status --porcelain` stays empty. Drive the decisions through Tob's DM (or `share-draft-decide`), run `share-draft-finish`, and observe the dialog reopen on Check with the counts; continue to Where.
 5. Resize the dock narrow enough to wrap controls. Verify each control remains 32px high and cards do not overflow horizontally.
-6. Open five full-height columns at 1440px (Bot Marketplace, Messages, Activity Center, Home, Channels). The Market column shows a Sort menu instead of tabs; open it, pick Recently updated, and confirm the list request and the tabs (after widening) both read `updated`.
+6. Open five full-height columns at 1440px (Bot Marketplace, Messages, Activity Center, Generated files, Channels). The Market column shows a Sort menu instead of tabs; open it, pick Recently updated, and confirm the list request and the tabs (after widening) both read `updated`.
 
 For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/market-search.test.ts`; it walks 1/2/3/50-item pages through the production Worker and D1 adapter with independent ties at every level. A live Host can point at a task-local Worker using the existing `marketplaceUrl` Plugin configuration, then exercise `deepseekbot marketplace-list --sort stars`.
+
+## Tob install review
+
+Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
 
 ## Gotchas
 
