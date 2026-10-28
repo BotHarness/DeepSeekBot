@@ -28,6 +28,7 @@
     "test/conversation-cache-host.test.ts",
     "test/reanimated-shim.ts",
     "test/platform-tokens.test.ts",
+    "test/swipe-chat-target.test.ts",
     "test/**/*.tsx"
   ]
 }
