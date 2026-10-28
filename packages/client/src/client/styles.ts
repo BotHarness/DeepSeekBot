@@ -3375,6 +3375,24 @@ button.bh-profile-heat-cell:focus-visible {
   outline: ${border.focus} solid var(--dsw-alias-label-primary);
   outline-offset: 2px;
 }
+.bh-profile-avatar-button { position: relative; }
+.bh-profile-avatar-button:disabled { cursor: default; }
+.bh-profile-avatar-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-alias-bg-module-platform) 60%, transparent);
+  color: var(--dsw-alias-label-primary);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.bh-profile-avatar-button:hover .bh-profile-avatar-overlay,
+.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .bh-profile-avatar-overlay { transition: none; } }
 .bh-content {
   flex: 1;
   min-height: 0;
@@ -4464,6 +4482,8 @@ a.bh-message-file-download:hover, button.bh-message-file-download:hover { backgr
   margin: 0 ${space.x4} calc(${space.x4} + env(safe-area-inset-bottom, 0px));
   flex: 0 0 auto;
 }
+/* Cards above the composer (the Tob journey) share the composer's side inset. */
+.bh-composer-inset { margin-inline: ${space.x4}; }
 .bh-composer {
   --bh-composer-body-height: 34px;
   --bh-composer-compact-padding-left: 44px;
@@ -5630,7 +5650,8 @@ html[data-botharness-motion='full'] .bh-motion-preview-sample i:nth-child(3) {
 }
 
 @media (max-width: 720px) {
-  .bh-composer-shell {
+  .bh-composer-shell,
+  .bh-composer-inset {
     margin-right: ${space.x3};
     margin-left: ${space.x3};
   }

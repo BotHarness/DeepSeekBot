@@ -4,6 +4,7 @@ import * as stylex from '@stylexjs/stylex';
 import { BANNER_SCENES, seededBannerRecipe } from '@botharness/pixel-banner';
 import {
   Button,
+  IconEditOutlineRegular,
   IconEllipsisOutlineRegular,
   IconShareOutlineRegular,
   IconTrashOutlineRegular,
@@ -19,6 +20,7 @@ import { Field, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { BannerCropModal, PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
@@ -249,7 +251,19 @@ function EditProfileModal({
   );
 }
 
-function AvatarModal({
+export type BotAvatarActions = Pick<
+  BridgeActions,
+  | 'setBotAppearance'
+  | 'setBotAvatar'
+  | 'setBotPrimaryColor'
+  | 'loadPartLibrary'
+  | 'addLibraryPart'
+  | 'exportLibraryParts'
+  | 'importLibraryParts'
+  | 'importLibraryImage'
+>;
+
+export function BotAvatarModal({
   bot,
   channel,
   actions,
@@ -542,24 +556,38 @@ export function ProfileHeader({
       </div>
       <div className="bh-profile-header-body">
         <div className="bh-profile-header-top">
-          <button
-            type="button"
-            className="bh-profile-avatar-button"
-            aria-label={t('profile.avatar.change')}
-            disabled={bot.deleted}
-            onClick={() => setPanel('avatar')}
+          <Tooltip
+            label={t('profile.avatar.change')}
+            side="bottom"
+            portal
+            delayMs={300}
+            disabled={bot.deleted === true}
           >
-            <PersonaBotAvatar
-              t={t}
-              personaBotId={bot.slug}
-              name={bot.displayName}
-              src={bot.avatar}
-              appearance={bot.appearance}
-              avatarSeed={bot.avatarSeed}
-              size={80}
-              indicator={false}
-            />
-          </button>
+            <button
+              type="button"
+              className="bh-profile-avatar-button"
+              aria-label={t('profile.avatar.change')}
+              data-avatar-editable={bot.deleted ? undefined : ''}
+              disabled={bot.deleted}
+              onClick={() => setPanel('avatar')}
+            >
+              <PersonaBotAvatar
+                t={t}
+                personaBotId={bot.slug}
+                name={bot.displayName}
+                src={bot.avatar}
+                appearance={bot.appearance}
+                avatarSeed={bot.avatarSeed}
+                size={80}
+                indicator={false}
+              />
+              {bot.deleted ? null : (
+                <span aria-hidden="true" className="bh-profile-avatar-overlay">
+                  <IconEditOutlineRegular size={20} />
+                </span>
+              )}
+            </button>
+          </Tooltip>
           {bot.deleted ? null : (
             <div className="bh-profile-header-actions">
               <BotZipShareButton bot={bot} actions={actions} t={t} />
@@ -615,7 +643,7 @@ export function ProfileHeader({
         />
       ) : null}
       {panel === 'avatar' ? (
-        <AvatarModal
+        <BotAvatarModal
           bot={bot}
           channel={channel}
           actions={actions}

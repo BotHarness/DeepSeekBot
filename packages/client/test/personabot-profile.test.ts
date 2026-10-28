@@ -304,6 +304,15 @@ describe('PersonaBot Profile surface', () => {
         '所选时间范围内暂无模型调用记录。',
       );
       expect(container.querySelectorAll('.bh-profile-avatar-button').length).toBe(1);
+      const avatarButton = container.querySelector<HTMLButtonElement>('.bh-profile-avatar-button')!;
+      expect(avatarButton.getAttribute('aria-label')).toBe('更换头像');
+      expect(avatarButton.hasAttribute('data-avatar-editable')).toBe(true);
+      expect(avatarButton.disabled).toBe(false);
+      const overlay = avatarButton.querySelector('.bh-profile-avatar-overlay');
+      expect(overlay?.getAttribute('aria-hidden')).toBe('true');
+      const { CSS } = await import('../src/client/styles.js');
+      expect(CSS).toContain('.bh-profile-avatar-button:hover .bh-profile-avatar-overlay');
+      expect(CSS).toContain('.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay');
       expect(container.querySelectorAll('.bh-profile-card').length).toBe(3);
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,

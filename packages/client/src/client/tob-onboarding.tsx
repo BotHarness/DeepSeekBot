@@ -160,7 +160,7 @@ export function TobOnboarding({
     );
   return (
     <section
-      {...stylex.props(styles.card)}
+      className={`${stylex.props(styles.card).className ?? ''} bh-composer-inset`}
       aria-label={t('onboarding.short.title')}
       data-tob-onboarding
     >

@@ -467,11 +467,21 @@ try {
 
   step = 'header-profile-details';
   assert.equal(await page.$('.bh-topbar .bh-channel-island'), null, 'no floating profile chip');
-  await page
-    .locator(
+  assert.equal(
+    await page.$(
       `[data-dock-header="bh:channel-body"] button[aria-label="${chinese ? '查看资料' : 'View profile'}"]`,
-    )
-    .click();
+    ),
+    null,
+    'the header has no separate profile button',
+  );
+  assert.equal(
+    await page.$eval('[data-dock-header="bh:channel-body"] [data-panel-actions]', (node) =>
+      [...node.querySelectorAll('button')].at(-1)?.hasAttribute('data-subpanel-column-toggle'),
+    ),
+    true,
+    'the subpanel column toggle is the last header control',
+  );
+  await page.click('[data-dock-header="bh:channel-body"] [data-channel-header-profile]');
   await page.waitForSelector('.bh-profile-view');
   assert.equal(await page.$('.bh-profile-popover'), null, 'profile opens without a popover');
   assert.equal(
