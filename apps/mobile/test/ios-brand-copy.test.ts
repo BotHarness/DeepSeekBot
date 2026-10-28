@@ -18,7 +18,7 @@ it.each([
     expect(t.pairAccount.deleteTitle).toContain(name);
     expect(t.appIconDeepSeekBot).toBe(name);
     expect(t.appIconDeepSeekBotSimple).toContain(name);
-    expect(t.pairHint).toContain(name);
+    expect(t.pairChoice.needs).toContain(name);
     expect(t.dictationDenied).toContain(name);
     expect(t.notificationsDenied).toContain(name);
   },
