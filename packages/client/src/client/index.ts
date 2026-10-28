@@ -1,4 +1,4 @@
-import { readChannelDock, writeChannelDock } from './channel-dock-layout.js';
+import { CHANNEL_BODY_PANEL, readChannelDock, writeChannelDock } from './channel-dock-layout.js';
 import { createBotPresentation } from './bot-presentation.js';
 import { mountWindowZoomControl } from './window-zoom-control.js';
 import { mountWindowZoom, type ZoomCompatibility } from './window-zoom-mount.js';
@@ -508,6 +508,13 @@ export function apply(ctx: ClientContext): void {
       dockPanels,
       () => document.querySelector('[data-workspace-enabled]') !== null,
       t,
+      () => {
+        dockPanels.open(CHANNEL_BODY_PANEL);
+        void actions
+          .tobHome()
+          .then((tob) => actions.openChannel(tob.channelId))
+          .catch(() => {});
+      },
     ),
   );
   ctx.effect(() =>

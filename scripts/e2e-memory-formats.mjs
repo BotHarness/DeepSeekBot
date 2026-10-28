@@ -199,7 +199,8 @@ try {
   await click('Bot mode');
   await page.waitForSelector('.bh-root.bh-main');
   await click('Image Formats QA: Idle Image Formats QA No messages yet');
-  await click('Messages · ⌥ ⇧ ⌘ 2');
+  if (await page.$('.bh-workspace-rail [data-pinned-panel="bh:channel-body"]'))
+    await click('Messages · ⌥ ⇧ ⌘ 2');
   for (const label of ['Close Home', 'Close Sessions']) await maybe(label);
   const pixels = {};
   for (const [ext] of formats) {

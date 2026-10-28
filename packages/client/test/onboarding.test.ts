@@ -302,11 +302,11 @@ it('ends the active highlight when the first real reply completes onboarding', a
   });
 });
 
-it('v2 entry and progress refresh preserve the selected DM and open Home only on explicit start', async () => {
+it('v2 entry and progress refresh preserve the selected DM and reveal the Tob DM only on explicit start', async () => {
   const { actions, controller } = harness(true);
   actions.onboarding.mockResolvedValue({ ...receipt, journey: { version: 2, done: false } });
   const reveal = vi.fn();
-  controller.attachHome(reveal);
+  controller.attachTobConversation(reveal);
   await controller.enter();
   expect(actions.openChannel).not.toHaveBeenCalled();
   expect(reveal).not.toHaveBeenCalled();
@@ -316,29 +316,53 @@ it('v2 entry and progress refresh preserve the selected DM and open Home only on
   expect(actions.openChannel).not.toHaveBeenCalled();
   expect(reveal).toHaveBeenCalledTimes(1);
 });
-it('v2 requires the real Home title action after layout tips before finishing', async () => {
+const journeyReceipt: OnboardingSnapshot = {
+  ...receipt,
+  tutorial: 'active',
+  journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
+};
+const finishes = (actions: ReturnType<typeof harness>['actions']) =>
+  actions.onboarding.mock.calls.filter((call) => (call as unknown[])[1] === 'finish').length;
+const land = (channelId: string, error?: string) => {
+  store.select({ kind: 'channel', channelId });
+  store.setConversation({ status: 'ready', error });
+};
+
+it('v2 finishes step 5 only after the layout tips, when the Human lands in the Tob DM', async () => {
   const { actions, controller } = harness(true);
-  actions.onboarding.mockResolvedValue({
-    ...receipt,
-    tutorial: 'active',
-    journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
-  });
+  actions.onboarding.mockResolvedValue(journeyReceipt);
   await controller.enter();
-  const reveal = vi.fn();
-  await controller.finishFromHomeTitle(reveal);
-  expect(reveal).not.toHaveBeenCalled();
+  const stop = controller.watchTobLanding();
+  land('dm-ada');
+  await Promise.resolve();
+  expect(finishes(actions)).toBe(0);
+  land('group');
   controller.finishTour();
   await Promise.resolve();
-  expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
-  actions.openChannel.mockImplementationOnce(async () => {
-    store.select({ kind: 'channel', channelId: 'dm-ada' });
-    store.setConversation({ status: 'ready', error: undefined });
-  });
-  await controller.finishFromHomeTitle(reveal);
-  expect(reveal).toHaveBeenCalledOnce();
-  expect(actions.openChannel).toHaveBeenLastCalledWith('dm-ada');
-  expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish');
+  expect(finishes(actions)).toBe(0);
+  land('dm-ada');
+  await vi.waitFor(() => expect(finishes(actions)).toBe(1));
+  expect(actions.openChannel).not.toHaveBeenCalled();
   expect(controller.getSnapshot().checklistOpen).toBe(false);
+  store.setConversation({ sending: true });
+  await Promise.resolve();
+  expect(finishes(actions)).toBe(1);
+  stop();
+  land('group');
+  land('dm-ada');
+  await Promise.resolve();
+  expect(finishes(actions)).toBe(1);
+});
+
+it('v2 finishes at once when the layout tips end inside the Tob DM', async () => {
+  const { actions, controller } = harness(true);
+  actions.onboarding.mockResolvedValue(journeyReceipt);
+  await controller.enter();
+  land('dm-ada');
+  const stop = controller.watchTobLanding();
+  controller.finishTour();
+  await vi.waitFor(() => expect(finishes(actions)).toBe(1));
+  stop();
 });
 
 it('v2 explicit replay resets only local tips while continue retains them', async () => {
@@ -359,75 +383,42 @@ it('v2 explicit replay resets only local tips while continue retains them', asyn
   });
   expect(localStorage.getItem('botharness/onboarding/layout-v2/qa')).toBeNull();
 });
-it.each(['no-op', 'failure', 'timeline-error'])(
-  'v2 does not finish after %s navigation',
-  async (kind) => {
-    const { actions, controller } = harness(true);
-    actions.onboarding.mockResolvedValue({
-      ...receipt,
-      tutorial: 'active',
-      journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
-    });
-    const home = vi.fn();
-    controller.attachHome(home);
-    await controller.enter();
-    controller.finishTour();
-    if (kind === 'failure') actions.openChannel.mockRejectedValueOnce(new Error('offline'));
-    if (kind === 'timeline-error')
-      actions.openChannel.mockImplementationOnce(async () => {
-        store.select({ kind: 'channel', channelId: 'dm-ada' });
-        store.setConversation({ error: 'offline' });
-      });
-    await controller.finishFromHomeTitle(vi.fn());
-    expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
-    expect(home).toHaveBeenCalledOnce();
-    expect(controller.getSnapshot().error).toBeTruthy();
-  },
-);
+it('v2 does not finish in another Channel or a Tob DM that failed to load', async () => {
+  const { actions, controller } = harness(true);
+  actions.onboarding.mockResolvedValue(journeyReceipt);
+  await controller.enter();
+  controller.finishTour();
+  const stop = controller.watchTobLanding();
+  land('group');
+  land('dm-ada', 'offline');
+  await Promise.resolve();
+  expect(finishes(actions)).toBe(0);
+  stop();
+});
 it.each(['simple', 'advanced'] as const)(
-  'v2 %s step 5 finishes only from the action of that Layout mode',
+  'v2 %s step 5 finishes when the Human reaches the Tob DM',
   async (mode) => {
     const { actions, controller } = harness(true);
-    actions.onboarding.mockResolvedValue({
-      ...receipt,
-      tutorial: 'active',
-      journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
-    });
+    actions.onboarding.mockResolvedValue(journeyReceipt);
     await controller.enter();
     controller.attachLayout(mode, { setMode: vi.fn() });
     controller.finishTour();
-    const reveal = vi.fn();
-    const other = mode === 'simple' ? 'finishFromHomeTitle' : 'finishFromRail';
-    const own = mode === 'simple' ? 'finishFromRail' : 'finishFromHomeTitle';
-    await controller[other](reveal);
-    expect(reveal).not.toHaveBeenCalled();
-    expect(actions.openChannel).not.toHaveBeenCalled();
-    actions.openChannel.mockImplementationOnce(async () => {
-      store.select({ kind: 'channel', channelId: 'dm-ada' });
-      store.setConversation({ status: 'ready', error: undefined });
-    });
-    await controller[own](reveal);
-    expect(reveal).toHaveBeenCalledOnce();
-    expect(actions.openChannel).toHaveBeenLastCalledWith('dm-ada');
-    expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish');
+    const stop = controller.watchTobLanding();
+    land('dm-ada');
+    await vi.waitFor(() =>
+      expect(actions.onboarding).toHaveBeenLastCalledWith(undefined, 'finish'),
+    );
+    stop();
   },
 );
-it('v2 Simple rail selection before the layout tips does not finish', async () => {
+it('v2 layout choice follows the attached Layout mode owner', async () => {
   const { actions, controller } = harness(true);
-  actions.onboarding.mockResolvedValue({
-    ...receipt,
-    tutorial: 'active',
-    journey: { version: 2, done: false, botSlug: 'ada', groupChannelId: 'group' },
-  });
+  actions.onboarding.mockResolvedValue(journeyReceipt);
   await controller.enter();
   const setMode = vi.fn();
   const detach = controller.attachLayout('simple', { setMode });
   controller.chooseLayout('advanced');
   expect(setMode).toHaveBeenCalledWith('advanced');
-  const reveal = vi.fn();
-  await controller.finishFromRail(reveal);
-  expect(reveal).not.toHaveBeenCalled();
-  expect(actions.onboarding).not.toHaveBeenLastCalledWith(undefined, 'finish');
   const stale = controller.attachLayout('advanced', { setMode });
   detach();
   expect(controller.getSnapshot().layoutMode).toBe('advanced');

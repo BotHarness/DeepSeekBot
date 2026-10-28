@@ -215,7 +215,7 @@ try {
         .click(),
     );
   await page.waitForSelector('.bh-chat-body [data-message-id]');
-  for (const label of ['Close Home', 'Close Sessions', '关闭 首页', '关闭 会话'])
+  for (const label of ['Close Sessions', '关闭 会话'])
     await page.evaluate(
       (label) =>
         [...document.querySelectorAll('button')]

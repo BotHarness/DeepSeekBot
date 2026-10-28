@@ -5,6 +5,21 @@ import { readdirSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 
+const TOB_INPUT = '.bh-dock-body .bh-composer-input';
+const CHANNELS_SWITCH = '.bh-workspace-rail [data-pinned-panel="bh:channels"]';
+async function showTobDm(on) {
+  await page.waitForSelector(CHANNELS_SWITCH, { visible: true });
+  if ((await page.$eval(CHANNELS_SWITCH, (n) => n.getAttribute('aria-pressed'))) !== 'true')
+    await page.click(CHANNELS_SWITCH);
+  if (!on) return;
+  const { channelId } = await rpc('tobHome');
+  const row = `.bh-workspace-channels [data-channel-id=${JSON.stringify(channelId)}]`;
+  await page.waitForSelector(row, { visible: true });
+  await page.click(row);
+  await page.waitForSelector(`${row}.bh-selected`);
+  await page.waitForSelector(TOB_INPUT, { visible: true });
+}
+
 const native = !!process.env.BH_DESKTOP_CDP;
 const instance = native ? undefined : JSON.parse(readFileSync(process.env.BH_E2E_INSTANCE));
 const out = resolve(
@@ -165,26 +180,6 @@ async function visibleElement(selector) {
   assert.ok(element, 'visible element missing: ' + selector);
   return element;
 }
-async function setHomeVisible(open) {
-  const showing = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-home-panel]')].some((node) => {
-      const rect = node.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && getComputedStyle(node).visibility !== 'hidden';
-    }),
-  );
-  if (showing !== open)
-    await (await visibleElement('.bh-workspace-rail [data-pinned-panel="bh:home"]')).click();
-  await page.waitForFunction(
-    (open) =>
-      [...document.querySelectorAll('[data-home-panel]')].some((node) => {
-        const rect = node.getBoundingClientRect();
-        return rect.width > 0 && rect.height > 0 && getComputedStyle(node).visibility !== 'hidden';
-      }) === open,
-    {},
-    open,
-  );
-}
-
 async function humanCli(command, args = [], input, expectedFailure = false) {
   const manifest = process.env.BH_E2E_HUMAN_INSTANCE
     ? JSON.parse(readFileSync(process.env.BH_E2E_HUMAN_INSTANCE, 'utf8'))
@@ -339,7 +334,7 @@ async function verifyCliTrace(slug, previousIds, commands, refusal) {
 
 async function showApproval(message) {
   await dismissBubble();
-  await setHomeVisible(false);
+  await showTobDm(false);
   mark('approval-current-card');
   const latest = '.bh-timeline-new';
   if (await page.$(latest)) await page.locator(latest).setTimeout(5000).click();
@@ -434,8 +429,8 @@ async function beginPrompt(home, prompt) {
     previousMessages: new Set(messages.map((message) => message.id)),
     previousCalls: new Set(trace.turns.flatMap((turn) => turn.calls).map((call) => call.callId)),
   };
-  await setHomeVisible(true);
-  const input = await visibleElement('[data-home-panel] textarea');
+  await showTobDm(true);
+  const input = await visibleElement(TOB_INPUT);
   await input.type(prompt);
   await input.press('Enter');
   await page.waitForSelector('[data-dock-header="bh:channel-body"]');
@@ -522,7 +517,7 @@ async function saveState(fixture, label) {
 }
 async function openGroup(fixture, label) {
   await dismissBubble();
-  await setHomeVisible(false);
+  await showTobDm(false);
   await (
     await visibleElement(
       `[data-dock-panel="bh:channels"] [data-channel-id=${JSON.stringify(fixture.channelId)}]`,
@@ -868,7 +863,7 @@ try {
   assert.ok(entered, 'Client did not expose Bot mode workspace after onboarding');
   await visibleElement('.bh-workspace-rail');
   mark('entry-home');
-  await setHomeVisible(true);
+  await showTobDm(true);
   await pause(1200);
   mark('entry-home-ready');
   const home = await rpc('tobHome');
@@ -876,7 +871,7 @@ try {
     new Set((await Promise.all([rpc('tobHome'), rpc('tobHome')])).map((x) => x.botSlug)).size,
     1,
   );
-  steps.push('concurrent Home identity converges');
+  steps.push('concurrent Tob identity converges');
 
   assert.ok(
     phases.every((item) =>
