@@ -13,7 +13,8 @@ export function DeliveryReceiptSetting() {
     <SettingsRow
       on={SHEET_GROUP}
       title={t.delivery.setting}
-      detail={state.storageError ? t.delivery.settingStorageError : t.delivery.settingHint}
+      icon="delivery"
+      {...(state.storageError ? { detail: t.delivery.settingStorageError } : {})}
       control={{
         kind: 'switch',
         value: state.enabled,
