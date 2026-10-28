@@ -42,8 +42,8 @@ const styles = stylex.create({
   },
   heroTitle: {
     margin: 0,
-    fontSize: '20px',
-    lineHeight: '28px',
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
     fontWeight: text.strong,
   },
   lede: { margin: 0, color: color.muted, fontSize: text.bodySize, lineHeight: text.bodyLine },
