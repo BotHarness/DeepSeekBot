@@ -102,6 +102,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
     addView(coordinator, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     coordinator.addView(content, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     scrim.visibility = INVISIBLE
+    scrim.isEnabled = false
     scrim.importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
     scrim.setOnClickListener { setOpen(false) }
     coordinator.addView(scrim, CoordinatorLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
@@ -133,7 +134,10 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
   }
 
   private fun updateScrim(offset: Float) {
-    scrim.visibility = if (!fullWidth && offset > 0) VISIBLE else INVISIBLE
+    val visible = !fullWidth && offset > 0
+    scrim.visibility = if (visible) VISIBLE else INVISIBLE
+    // RN hit testing ignores Android visibility; disabled leaf views are skipped.
+    scrim.isEnabled = visible
     scrim.alpha = offset.coerceIn(0f, 1f)
   }
 
