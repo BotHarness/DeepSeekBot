@@ -321,6 +321,14 @@ describe('Bot Group invitation tracer', () => {
       expect(core.contentPurge.history()).toEqual([]);
       expect(core.channels.get(group.id)).toBeUndefined();
       expect(methods.channelMessages({ channelId: group.id })).toMatchObject({ ok: false });
+      const leftover = core.channels.createGroup({ name: 'Leftover', members: [] });
+      core.channels.deleteGroup(leftover.id);
+      expect(core.contentPurge.history()).toMatchObject([{ id: leftover.id }]);
+      expect(methods.channelGroupDelete({ channelId: leftover.id })).toEqual({
+        ok: true,
+        value: { deleted: true, messages: 0 },
+      });
+      expect(core.contentPurge.history()).toEqual([]);
       expect(core.channels.list().some((channel) => channel.id === group.id)).toBe(false);
     } finally {
       await core.runtime.close();

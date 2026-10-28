@@ -5497,24 +5497,26 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
       if (channelId === undefined) return invalidInput('channelId is required');
       const purge = deps.contentPurge;
       if (!purge) return unavailable();
-      try {
-        deps.channels.deleteGroup(channelId);
-        deps.externalMessaging?.inbound.endChannel(channelId);
-        void deps.runtime
-          ?.endGroup?.(channelId)
-          .catch((error: unknown) =>
-            deps.warn?.(`botharness.group_disband.stop_turns_failed error=${String(error)}`),
-          );
-        deps.toolApproval?.cancelChannel(channelId);
-        deps.userQuestions?.cancelChannel(channelId);
-        void deps.roster
-          .channelForget(channelId)
-          .catch((error: unknown) =>
-            deps.warn?.(`botharness.group_disband.roster_failed error=${String(error)}`),
-          );
-      } catch (error) {
-        return invalidInput(String(error));
-      }
+      const ended = purge.history().some((channel) => channel.id === channelId);
+      if (!ended)
+        try {
+          deps.channels.deleteGroup(channelId);
+          deps.externalMessaging?.inbound.endChannel(channelId);
+          void deps.runtime
+            ?.endGroup?.(channelId)
+            .catch((error: unknown) =>
+              deps.warn?.(`botharness.group_disband.stop_turns_failed error=${String(error)}`),
+            );
+          deps.toolApproval?.cancelChannel(channelId);
+          deps.userQuestions?.cancelChannel(channelId);
+          void deps.roster
+            .channelForget(channelId)
+            .catch((error: unknown) =>
+              deps.warn?.(`botharness.group_disband.roster_failed error=${String(error)}`),
+            );
+        } catch (error) {
+          return invalidInput(String(error));
+        }
       try {
         return { ok: true, value: { deleted: true, ...purge.disband(channelId) } };
       } catch (error) {
