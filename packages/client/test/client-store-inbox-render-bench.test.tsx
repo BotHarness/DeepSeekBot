@@ -29,9 +29,6 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { ActivityInboxMenu } from '../src/client/activity-inbox-menu.js';
-import { createDockPanelRegistry } from '../src/client/dock-panels.js';
-import { HomeOverview } from '../src/client/home-overview.js';
-import { HomeWelcome } from '../src/client/home-welcome.js';
 import { HumanInboxView } from '../src/client/human-inbox-view.js';
 import { ImAppsSection } from '../src/client/im-apps-section.js';
 import { zhTranslate as t } from '../src/client/locale.js';
@@ -136,13 +133,11 @@ const quiet = {
   'unrelated-activity': (n: number) => activity('cy', n),
 };
 type Phase = keyof typeof quiet;
-type Part = 'humanInbox' | 'activityMenu' | 'homeOverview' | 'homeWelcome' | 'imApps';
-const PARTS: Part[] = ['humanInbox', 'activityMenu', 'homeOverview', 'homeWelcome', 'imApps'];
+type Part = 'humanInbox' | 'activityMenu' | 'imApps';
+const PARTS: Part[] = ['humanInbox', 'activityMenu', 'imApps'];
 const quietFor: Record<Part, Phase[]> = {
   humanInbox: ['stream', 'conversation-revision', 'search', 'unrelated-activity'],
   activityMenu: ['stream', 'conversation-revision', 'search', 'inbox-count', 'unrelated-activity'],
-  homeOverview: ['stream', 'conversation-revision', 'search', 'inbox-count'],
-  homeWelcome: ['stream', 'conversation-revision', 'search', 'inbox-count', 'unrelated-activity'],
   imApps: ['stream', 'conversation-revision', 'search', 'inbox-count', 'unrelated-activity'],
 };
 const FRAMES = 200;
@@ -158,7 +153,7 @@ const report: Record<
 const updates: Record<string, Record<Part, number>> = {};
 const gc = (globalThis as { gc?: () => void }).gc;
 
-describe('Inbox and home render benchmark', () => {
+describe('Inbox render benchmark', () => {
   beforeAll(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
@@ -179,7 +174,7 @@ describe('Inbox and home render benchmark', () => {
     vi.useRealTimers();
   });
 
-  it('keeps Inbox and home surfaces still on writes they do not show', async () => {
+  it('keeps Inbox surfaces still on writes they do not show', async () => {
     store.setRoster([bot('ada'), bot('bob'), bot('cy')], [DM, channel('team')]);
     activity(undefined, 0);
     store.select({ kind: 'inbox' });
@@ -216,19 +211,6 @@ describe('Inbox and home render benchmark', () => {
           null,
           profiled('humanInbox', createElement(HumanInboxView, { actions, t })),
           profiled('activityMenu', createElement(ActivityInboxMenu, { actions, t })),
-          profiled(
-            'homeOverview',
-            createElement(HomeOverview, { actions, registry: createDockPanelRegistry(), t }),
-          ),
-          profiled(
-            'homeWelcome',
-            createElement(HomeWelcome, {
-              actions,
-              botSlug: 'ada',
-              t,
-              onEditHumanName: () => undefined,
-            }),
-          ),
           profiled('imApps', createElement(ImAppsSection, { imApps, store, t } as never)),
         ),
       ),
@@ -283,13 +265,10 @@ describe('Inbox and home render benchmark', () => {
       for (const phase of quietFor[part])
         expect(report[phase]!.renders[part], `${part} on ${phase}`).toBe(0);
     expect(updates['inbox-items']!.humanInbox).toBeGreaterThan(0);
-    for (const part of ['humanInbox', 'activityMenu', 'homeOverview'] as const)
+    for (const part of ['humanInbox', 'activityMenu'] as const)
       expect(updates['channel-added']![part], part).toBeGreaterThan(0);
     for (const part of PARTS) expect(updates['bot-renamed']![part], part).toBeGreaterThan(0);
-    for (const part of PARTS.filter((value) => value !== 'homeWelcome'))
-      expect(updates['bot-added']![part], part).toBeGreaterThan(0);
-    expect(updates['activity-sync']!.homeOverview).toBeGreaterThan(0);
-    expect(updates['own-avatar']!.homeWelcome).toBeGreaterThan(0);
+    for (const part of PARTS) expect(updates['bot-added']![part], part).toBeGreaterThan(0);
     expect(updates['own-avatar']!.humanInbox).toBeGreaterThan(0);
   });
 });

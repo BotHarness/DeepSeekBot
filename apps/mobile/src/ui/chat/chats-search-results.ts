@@ -1,6 +1,7 @@
 import type { ChatsSearchResult } from '../shell/chats-search-bar';
+import type { MessageSearchHit } from '../../host/message-search';
 import { avatarFile } from '../../host/notification-avatars';
-import { previewText, titleOf } from './conversations';
+import { previewText, shortTime, titleOf, type Conversation } from './conversations';
 import type { EnvironmentChatItem, EnvironmentChatRow } from './environment-chat-list';
 
 export type AvatarImage = (hostId: string, file: string) => string | undefined;
@@ -24,8 +25,15 @@ function avatarOfRow(
   image: AvatarImage,
 ): Pick<ChatsSearchResult, 'initial' | 'image' | 'dimmed'> {
   if (row.type === 'cloud') return { initial: '#', image: '', dimmed: false };
-  const conversation = row.conversation;
-  const hostId = row.host.saved.hostId;
+  return avatarOfConversation(row.conversation, row.host.saved.hostId, title, image);
+}
+
+function avatarOfConversation(
+  conversation: Conversation,
+  hostId: string,
+  title: string,
+  image: AvatarImage,
+): Pick<ChatsSearchResult, 'initial' | 'image' | 'dimmed'> {
   if (conversation.kind === 'channel')
     return {
       initial: '#',
@@ -56,6 +64,25 @@ export function chatsSearchResults(
       title,
       subtitle: previewOfRow(row),
       ...avatarOfRow(row, title, image),
+    };
+  });
+}
+
+export function messageSearchResults(
+  items: readonly { key: string; hit: MessageSearchHit; conversation: Conversation }[],
+  heading: string,
+  now: Date,
+  image: AvatarImage = () => undefined,
+): ChatsSearchResult[] {
+  return items.map(({ key, hit, conversation }, index) => {
+    const title = titleOf(conversation);
+    return {
+      key,
+      title,
+      subtitle: hit.snippet,
+      ...avatarOfConversation(conversation, hit.hostId, title, image),
+      trailing: shortTime(hit.at, now),
+      ...(index === 0 ? { section: heading } : {}),
     };
   });
 }

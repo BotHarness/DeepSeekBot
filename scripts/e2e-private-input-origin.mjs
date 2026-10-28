@@ -75,8 +75,6 @@ try {
     ),
   );
   await messagesButton.asElement().click();
-  const homeClose = await page.$('::-p-aria("关闭 首页")');
-  if (homeClose) await homeClose.click();
   const shot = async (label, actions = []) => {
     await dismiss();
     for (let n = 0; n < actions.length; n += 2) {

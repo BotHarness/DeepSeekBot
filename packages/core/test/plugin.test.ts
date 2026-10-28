@@ -669,6 +669,7 @@ describe('plugin entry', () => {
       'channelMarkAllRead',
       'channelReact',
       'channelSearch',
+      'messageSearch',
       'channelUnreadCounts',
       'channelAllBotPreview',
       'channelSend',

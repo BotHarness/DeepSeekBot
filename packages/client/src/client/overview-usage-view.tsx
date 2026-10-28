@@ -22,15 +22,13 @@ import { useMountedResource } from './mounted-resource.js';
 export function OverviewUsageView({
   actions,
   t,
-  historyOnly = false,
 }: {
   actions: {
     overviewUsage(period: UsageOverviewPeriod, after?: string): Promise<OverviewUsage>;
   } & Partial<Pick<BridgeActions, 'openBot'>>;
   t: BotHarnessTranslate;
-  historyOnly?: boolean;
 }): ReactElement {
-  const [period, setPeriod] = useState<UsageOverviewPeriod>(historyOnly ? 'week' : 'today');
+  const [period, setPeriod] = useState<UsageOverviewPeriod>('today');
   const [value, setValue] = useState<OverviewUsage>();
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(false);
@@ -133,7 +131,6 @@ export function OverviewUsageView({
       ref={mount}
       className="bh-profile-card bh-overview-usage"
       aria-label={t('overviewUsage.title')}
-      data-home-history={historyOnly || undefined}
     >
       <header className="bh-profile-card-head">
         <h3 className="bh-profile-card-label">{t('overviewUsage.title')}</h3>
@@ -177,21 +174,17 @@ export function OverviewUsageView({
         ) : null}
         {value ? (
           <>
-            {!historyOnly && (
-              <>
-                <span className="bh-note bh-overview-usage-period">
-                  {value.start} – {value.end} · {value.timezone}
-                </span>
-                <strong className="bh-profile-card-total" aria-live="polite">
-                  {t('overviewUsage.total')}:{' '}
-                  <span data-usage-total>
-                    {count(value.totals.totalTokens)}
-                    {value.totals.partial && value.totals.totalTokens !== null ? '+' : ''}
-                  </span>{' '}
-                  tokens
-                </strong>
-              </>
-            )}
+            <span className="bh-note bh-overview-usage-period">
+              {value.start} – {value.end} · {value.timezone}
+            </span>
+            <strong className="bh-profile-card-total" aria-live="polite">
+              {t('overviewUsage.total')}:{' '}
+              <span data-usage-total>
+                {count(value.totals.totalTokens)}
+                {value.totals.partial && value.totals.totalTokens !== null ? '+' : ''}
+              </span>{' '}
+              tokens
+            </strong>
             {value.freshness !== 'ready' ? (
               <p className="bh-note" role="status">
                 {t(`overviewUsage.${value.freshness}`)}
@@ -204,7 +197,7 @@ export function OverviewUsageView({
             ) : null}
             {rows.some((row) => row.totalTokens !== null && row.totalTokens > 0) ? (
               <div className="bh-usage-daily">
-                {!historyOnly && <strong>{t('profile.usage.daily')}</strong>}
+                <strong>{t('profile.usage.daily')}</strong>
                 <UsageLegend rows={rows} t={t} />
                 <UsageChart rows={rows} kind="daily" label={t('overviewUsage.trend')} t={t} />
                 <div className="bh-usage-axis-labels">
@@ -213,100 +206,93 @@ export function OverviewUsageView({
                 </div>
               </div>
             ) : null}
-            {!historyOnly && (
-              <div className="bh-usage-models">
-                <div className="bh-usage-model-heading">
-                  <strong>{t('overviewUsage.bots')}</strong>
-                  {value.bots.length === 0 ? null : <UsageToneLegend t={t} />}
-                </div>
-                {value.bots.length === 0 ? (
-                  <p className="bh-profile-empty">{t('overviewUsage.empty')}</p>
-                ) : (
-                  <div className="bh-usage-model-plot">
-                    <div>
-                      {value.bots.map((bot) => (
-                        <div
-                          className="bh-usage-model-label"
-                          key={bot.slug}
-                          data-usage-bot={bot.slug}
-                        >
-                          <span className="bh-overview-usage-bot-name" title={bot.displayName}>
-                            <span
-                              ref={(element) => paintBotName(element, bot.primaryColor)}
-                              data-usage-bot-name=""
-                            >
-                              {bot.displayName}
-                            </span>
-                            {!bot.current ? <span>{t('overviewUsage.retained')}</span> : null}
-                          </span>
-                          <strong>{count(bot.totalTokens)}</strong>
-                          {bot.current && actions.openBot !== undefined ? (
-                            <button
-                              type="button"
-                              className="bh-profile-pin"
-                              aria-label={`${t('profile.open')}: ${bot.displayName}`}
-                              title={`${t('profile.open')}: ${bot.displayName}`}
-                              onClick={() => void actions.openBot?.(bot.slug, 'profile')}
-                            >
-                              <IconRightUpOutlineRegular size={16} />
-                            </button>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                    <UsageChart rows={bots} kind="model" label={t('overviewUsage.bots')} t={t} />
-                  </div>
-                )}
-                {value.nextCursor ? (
-                  <button
-                    type="button"
-                    className="bh-profile-action"
-                    disabled={busy}
-                    onClick={() => refresh.current(value.nextCursor)}
-                  >
-                    {t('overviewUsage.more')}
-                  </button>
-                ) : null}
+            <div className="bh-usage-models">
+              <div className="bh-usage-model-heading">
+                <strong>{t('overviewUsage.bots')}</strong>
+                {value.bots.length === 0 ? null : <UsageToneLegend t={t} />}
               </div>
-            )}
-            {historyOnly && value.bots.length === 0 && (
-              <p className="bh-profile-empty">{t('overviewUsage.empty')}</p>
-            )}
-            {!historyOnly && (
-              <details className="bh-usage-details bh-overview-usage-days">
-                <summary>{t('profile.usage.details')}</summary>
-                <div>
-                  <p className="bh-note">{t('overviewUsage.scope')}</p>
-                  <div className="bh-usage-table-scroll">
-                    <table className="bh-usage-day-table">
-                      <caption>{t('overviewUsage.daily')}</caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">{t('profile.usage.day')}</th>
-                          <th scope="col">{t('profile.usage.total')}</th>
-                          <th scope="col">{t('profile.tokens.uncachedInput')}</th>
-                          <th scope="col">{t('profile.usage.cacheRead')}</th>
-                          <th scope="col">{t('profile.usage.cacheWrite')}</th>
-                          <th scope="col">{t('profile.tokens.output')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {value.days.map((row) => (
-                          <tr key={row.day}>
-                            <td>{row.day}</td>
-                            <td>{count(row.totalTokens)}</td>
-                            <td>{count(row.inputTokens)}</td>
-                            <td>{count(row.cacheReadTokens)}</td>
-                            <td>{count(row.cacheWriteTokens)}</td>
-                            <td>{count(row.outputTokens)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+              {value.bots.length === 0 ? (
+                <p className="bh-profile-empty">{t('overviewUsage.empty')}</p>
+              ) : (
+                <div className="bh-usage-model-plot">
+                  <div>
+                    {value.bots.map((bot) => (
+                      <div
+                        className="bh-usage-model-label"
+                        key={bot.slug}
+                        data-usage-bot={bot.slug}
+                      >
+                        <span className="bh-overview-usage-bot-name" title={bot.displayName}>
+                          <span
+                            ref={(element) => paintBotName(element, bot.primaryColor)}
+                            data-usage-bot-name=""
+                          >
+                            {bot.displayName}
+                          </span>
+                          {!bot.current ? <span>{t('overviewUsage.retained')}</span> : null}
+                        </span>
+                        <strong>{count(bot.totalTokens)}</strong>
+                        {bot.current && actions.openBot !== undefined ? (
+                          <button
+                            type="button"
+                            className="bh-profile-pin"
+                            aria-label={`${t('profile.open')}: ${bot.displayName}`}
+                            title={`${t('profile.open')}: ${bot.displayName}`}
+                            onClick={() => void actions.openBot?.(bot.slug, 'profile')}
+                          >
+                            <IconRightUpOutlineRegular size={16} />
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
+                  <UsageChart rows={bots} kind="model" label={t('overviewUsage.bots')} t={t} />
                 </div>
-              </details>
-            )}
+              )}
+              {value.nextCursor ? (
+                <button
+                  type="button"
+                  className="bh-profile-action"
+                  disabled={busy}
+                  onClick={() => refresh.current(value.nextCursor)}
+                >
+                  {t('overviewUsage.more')}
+                </button>
+              ) : null}
+            </div>
+            <details className="bh-usage-details bh-overview-usage-days">
+              <summary>{t('profile.usage.details')}</summary>
+              <div>
+                <p className="bh-note">{t('overviewUsage.scope')}</p>
+                <div className="bh-usage-table-scroll">
+                  <table className="bh-usage-day-table">
+                    <caption>{t('overviewUsage.daily')}</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">{t('profile.usage.day')}</th>
+                        <th scope="col">{t('profile.usage.total')}</th>
+                        <th scope="col">{t('profile.tokens.uncachedInput')}</th>
+                        <th scope="col">{t('profile.usage.cacheRead')}</th>
+                        <th scope="col">{t('profile.usage.cacheWrite')}</th>
+                        <th scope="col">{t('profile.tokens.output')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {value.days.map((row) => (
+                        <tr key={row.day}>
+                          <td>{row.day}</td>
+                          <td>{count(row.totalTokens)}</td>
+                          <td>{count(row.inputTokens)}</td>
+                          <td>{count(row.cacheReadTokens)}</td>
+                          <td>{count(row.cacheWriteTokens)}</td>
+                          <td>{count(row.outputTokens)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
           </>
         ) : null}
       </div>

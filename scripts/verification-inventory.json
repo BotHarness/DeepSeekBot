@@ -699,8 +699,8 @@
     },
     {
       "id": "desktop.tob.home",
-      "label": "Home model setup and protected Tob DM with approved global concurrency change",
-      "source": "packages/client/src/client/home-panel.tsx",
+      "label": "Open the protected Tob DM (Channel list or Home shortcut), Settings model setup and approved global concurrency change",
+      "source": "packages/client/src/client/workspace-shortcuts.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/tob-home.md",
       "task": 2082,
       "gap": null
@@ -2130,25 +2130,25 @@
       "path": "scripts/e2e-tob-home.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI.",
-      "task": 2087,
-      "sha256": "514e694627ffa1b018ddc0ab3eb236b54978965dcaa260a9e0924ab2c6e11c89"
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged.",
+      "task": 3092,
+      "sha256": "245ecfc859d40454440557fc658725f03fb701ed91b8de29dc7654dae7615336"
     },
     {
       "path": "scripts/e2e-tob-model-runtime.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop.",
-      "task": 2088,
-      "sha256": "cbd8d9837eb8657672c2ec765f2fd5f8cd7a302dc1950e362d2135cfae01a578"
+      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "4645ad3a5786d6948570509bc8344baf6cb2329bed3fb27e6ebc7940c9dc3e1d"
     },
     {
       "path": "scripts/e2e-tob-bot-management.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Natural Tob creation, profile and optional model changes through rendered approval, completed native Shell turns, canonical identity/Memory/DM replay, deny/protected refusals and separate restart readback on Web and Desktop.",
-      "task": 2089,
-      "sha256": "a0ba72ab479894cab9050ed440c72d32b20330b9694c3d9edcab2dd49183e5f8"
+      "reason": "Natural Tob creation, profile and optional model changes through rendered approval, completed native Shell turns, canonical identity/Memory/DM replay, deny/protected refusals and separate restart readback on Web and Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "e49b6571082e5c32f92824c749cfb4d78d5cd5dcf90c3c682d8b5c3dad7925ae"
     },
     {
       "path": "scripts/e2e-install-review.mjs",
@@ -2170,9 +2170,9 @@
       "path": "scripts/e2e-tob-channel-management.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, protected identity and receipt replay/conflict, plus separate same-Profile restart on Web/macOS.",
-      "task": 2090,
-      "sha256": "bef6529005d394eba0f34a2c6e4e5be9d61891501c44b14140ba49fa2c1ec907"
+      "reason": "Natural Tob Group creation and invitation through rendered approval, default automatic acceptance and visible Members; optional invitee-decision opt-out, denial, protected identity and receipt replay/conflict, plus separate same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "9b542ad7c4a3f73d7b7dd79cbf94536ab233a09651d11e35cab844b66680bcc3"
     },
     {
       "path": "scripts/e2e-group-send-review.mjs",
@@ -2194,17 +2194,17 @@
       "path": "scripts/e2e-tob-group-settings.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Natural Tob Group rename, member attention and removal through rendered approval, denial and stale refusal; independent avatar clearing, canonical readback and actual settings/Members UI, plus same-Profile restart on Web/macOS.",
-      "task": 2090,
-      "sha256": "61d1770c1471e8a598df11d385585182082e1c8189b591d0814a15e658a543c0"
+      "reason": "Natural Tob Group rename, member attention and removal through rendered approval, denial and stale refusal; independent avatar clearing, canonical readback and actual settings/Members UI, plus same-Profile restart on Web/macOS. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "c318e2ccc7bd23ca155479db8e5f4e6e4afb5aa476c9c761722028a820ebb893"
     },
     {
       "path": "scripts/e2e-tob-group-decisions.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Natural Tob pending-invitation cancellation and join acceptance/decline through rendered approval, denial and concurrent stale refusal; actual ordinary-Bot selected-Group join preconditions, canonical decision history and Members UI, terminal refusal and Web/macOS restart.",
-      "task": 2090,
-      "sha256": "6998a510585f53ccbe6210f73458fd8c666716df6dbb257c8388f1e345cf916e"
+      "reason": "Natural Tob pending-invitation cancellation and join acceptance/decline through rendered approval, denial and concurrent stale refusal; actual ordinary-Bot selected-Group join preconditions, canonical decision history and Members UI, terminal refusal and Web/macOS restart. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged.",
+      "task": 3092,
+      "sha256": "e74a39e4791e496074e77120323711b1f7cc31256160ac5923e192d9519965f3"
     },
     {
       "path": "scripts/e2e-group-busy-review.mjs",
@@ -2226,9 +2226,9 @@
       "path": "scripts/e2e-memory-diff-wrap.mjs",
       "category": "mapped",
       "behaviors": ["memory.diff-wrap"],
-      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors.",
-      "task": 2213,
-      "sha256": "d0777a9dfd7bb30de5a23f03be842de9fde975a391e64a32c61123a44103294e"
+      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "51ff7e018f008ef2542336b59b0a4fa9638ab2abafd40c011b1368efb35db004"
     },
     {
       "path": "scripts/e2e-activity-approve-sync.mjs",
@@ -2250,32 +2250,32 @@
       "path": "scripts/e2e-memory-images.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.png-preview"],
-      "reason": "Task-owned isolated Host, synthetic Git fixture, current/working/history Web decode and image exports with unauthenticated-route refusal.",
-      "task": 2214,
-      "sha256": "9684512792bcea2179b176cf7dbfd8a2e3c0db5cf5a694a7cda740cd9634e3f8"
+      "reason": "Task-owned isolated Host, synthetic Git fixture, current/working/history Web decode and image exports with unauthenticated-route refusal. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "task": 3092,
+      "sha256": "c296b85e45009f92dc0c61884ea41800c93486d8fee56ff1b04c5a0d6615e8e9"
     },
     {
       "path": "scripts/e2e-memory-markdown.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.markdown-preview"],
-      "reason": "Task-owned isolated Git/Host fixture; real Markdown rendering and image decode, source/line toggles, historical/index/local bytes, explicit intercepted external load, missing/stale/anonymous refusal and narrow layout.",
-      "task": 2214,
-      "sha256": "504d4ddc27e5fd5b4f844a044f02c5ea04a05e487c691841dceac97d4e087abf"
+      "reason": "Task-owned isolated Git/Host fixture; real Markdown rendering and image decode, source/line toggles, historical/index/local bytes, explicit intercepted external load, missing/stale/anonymous refusal and narrow layout. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "task": 3092,
+      "sha256": "a1a02122ef5d04cae90d1e2ac7d6cda7e276c49af4cc0bb1e29eeb73a47f2d01"
     },
     {
       "path": "scripts/e2e-memory-formats.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.image-formats"],
-      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads.",
-      "task": 2214,
-      "sha256": "f781c109dba94abe6bae2b3a41b2db0d68a86e3dd3f6a0904ebe5dbf536c0391"
+      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged.",
+      "task": 3092,
+      "sha256": "affcb7bc549c5bb4e7c6ebff4f5e25e1f783e890d4056a5ae099ca5a41d29a5b"
     },
     {
       "path": "scripts/e2e-vrm-companion.mjs",
-      "sha256": "1065b820340e720bb0580d98dfb889040bd39e7316dcaa9612f9c25506882fe6",
+      "sha256": "38fb73a5d34efe8fffc4135b9ef845b3a78ffba97249711bf101060b1559449d",
       "category": "mapped",
-      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
-      "task": 2222,
+      "reason": "Isolated real Host journey for VRM loading (opting past the headless software-renderer notice), live speech, fixed bindings, refresh, Group gating and renderer disposal; native CLI uninstall/reinstall requires a task-owned Host restart. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
       "behaviors": ["desktop.vrm-companion"]
     },
     {
@@ -2314,17 +2314,17 @@
       "path": "scripts/e2e-global-materials.mjs",
       "category": "mapped",
       "behaviors": ["desktop.global-materials"],
-      "reason": "Real mode/material UI and CLI, reload, native isolation and controlled background pixel proof of blur.",
-      "task": 2259,
-      "sha256": "3ce22699ec4b3373fca5e15be2c2062b8e49a4c98466eaf86349a7dfcc9741b1"
+      "reason": "Real mode/material UI and CLI, reload, native isolation and controlled background pixel proof of blur. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "ecc2ec3fb6b8df39cc21cfdc996823f8b81cc99b046faa9d0a78d84b2f50692f"
     },
     {
       "path": "scripts/e2e-panel-appearance.mjs",
       "category": "mapped",
       "behaviors": ["desktop.panel-appearance"],
-      "reason": "Real Header menus, UI/CLI overrides, follow global, modes, close/reopen, content switch, reload and scoped reset.",
-      "task": 2260,
-      "sha256": "0f3a4d906880314ceacab68e14e2e2f2fb653f49a198ef5506865ad8874e06f9"
+      "reason": "Real Header menus, UI/CLI overrides, follow global, modes, close/reopen, content switch, reload and scoped reset. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Simple keeps Messages beside the Side column; the journey reopens the Channel list before selecting a Bot and skips Close Messages where Simple offers none. Classification unchanged.",
+      "task": 3092,
+      "sha256": "6c48e126ff46fa220e749999ddef1cc7e21baaf943cbf82c68f64fa13a697dde"
     },
     {
       "path": "scripts/e2e-nested-appearance.mjs",
@@ -2362,17 +2362,17 @@
       "path": "scripts/e2e-message-history-mask.mjs",
       "category": "mapped",
       "behaviors": ["desktop.appearance-recovery"],
-      "reason": "Human QA alpha-mask regression: committed Channel history, edge/center pixels, custom Panel colors and wallpaper, composer input, reload and task-owned Desktop.",
-      "task": 2264,
-      "sha256": "65040dd245fc5eb18148f8f4660ef55d093eebf8457e36c5694c246002876625"
+      "reason": "Human QA alpha-mask regression: committed Channel history, edge/center pixels, custom Panel colors and wallpaper, composer input, reload and task-owned Desktop. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "c19df69e293b6987d90c681ac63a17576b582eb2bc824320da005922e6b98844"
     },
     {
       "path": "scripts/e2e-private-input-origin.mjs",
       "category": "mapped",
       "behaviors": ["credentials.private-input-origin"],
-      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification.",
-      "task": 2290,
-      "sha256": "b633a28c55407d48f7c1a732f5cbbbcf4268f558d0d24628dbb00b8a779fefe7"
+      "reason": "Isolated Host, visible DM composer, synthetic private input, native approval and actual Tool result with two live accepted IM sources; no production receiver or credential. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Journey classification unchanged; this hash is not runtime qualification. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "task": 3089,
+      "sha256": "e4724d10c8af9f37c6805beadecf97271c39f27dbfd53947c8fb1c673d04510b"
     },
     {
       "path": "scripts/e2e-desktop-zoom-windows.mjs",

@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.material3.AppBarWithSearch
@@ -62,6 +61,8 @@ class SearchResult : Record {
   @Field val initial: String = ""
   @Field val image: String = ""
   @Field val dimmed: Boolean = false
+  @Field val section: String = ""
+  @Field val trailing: String = ""
 }
 
 @OptimizedComposeProps
@@ -181,30 +182,60 @@ fun FunctionalComposableScope.SearchBarContent(
         )
       }
       LazyColumn(modifier = Modifier.semantics { testTagsAsResourceId = true }) {
-        items(props.results, key = { it.key }) { result ->
-          val subtitle: (@Composable () -> Unit)? =
-            if (result.subtitle.isEmpty()) null
-            else {
-              { Text(result.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+        props.results.forEach { result ->
+          if (result.section.isNotEmpty()) {
+            item(key = "section:${result.key}") {
+              Text(
+                result.section,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelLarge,
+              )
             }
-          ListItem(
-            onClick = {
+          }
+          item(key = result.key) {
+            SearchResultItem(result) {
               onPick(result.key)
               scope.launch { bar.animateToCollapsed() }
-            },
-            modifier = Modifier.testTag("search-result"),
-            leadingContent = { ResultAvatar(result) },
-            supportingContent = subtitle,
-            colors = ListItemDefaults.colors(
-              containerColor = Color.Transparent,
-              contentColor = MaterialTheme.colorScheme.onSurface,
-            ),
-          ) {
-            Text(result.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
           }
         }
       }
     }
+  }
+}
+
+/** One search result row: avatar, title, optional subtitle and trailing time. */
+@Composable
+private fun SearchResultItem(result: SearchResult, onPick: () -> Unit) {
+  val trailing: (@Composable () -> Unit)? =
+    if (result.trailing.isEmpty()) null
+    else {
+      {
+        Text(
+          result.trailing,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          style = MaterialTheme.typography.labelSmall,
+        )
+      }
+    }
+  val subtitle: (@Composable () -> Unit)? =
+    if (result.subtitle.isEmpty()) null
+    else {
+      { Text(result.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+    }
+  ListItem(
+    onClick = onPick,
+    modifier = Modifier.testTag("search-result"),
+    leadingContent = { ResultAvatar(result) },
+    supportingContent = subtitle,
+    trailingContent = trailing,
+    colors = ListItemDefaults.colors(
+      containerColor = Color.Transparent,
+      contentColor = MaterialTheme.colorScheme.onSurface,
+    ),
+  ) {
+    Text(result.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
   }
 }
 
