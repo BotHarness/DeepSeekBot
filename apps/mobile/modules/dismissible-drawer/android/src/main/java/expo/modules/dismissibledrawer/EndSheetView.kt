@@ -34,7 +34,12 @@ internal fun startsEndDrag(dx: Float, dy: Float, slop: Int): Boolean =
 /** One native side sheet; its RN slots keep their identity throughout drag and settle. */
 class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   private val materialContext = ContextThemeWrapper(context, com.google.android.material.R.style.Theme_Material3_DayNight_NoActionBar)
-  private val coordinator = CoordinatorLayout(materialContext)
+  private val coordinator = object : CoordinatorLayout(materialContext) {
+    override fun requestDisallowInterceptTouchEvent(disallow: Boolean) {
+      android.util.Log.i("BHSheetQA", "phase=intercept-request disallow=$disallow")
+      super.requestDisallowInterceptTouchEvent(disallow)
+    }
+  }
   private val content = FrameLayout(context)
   private val panel = FrameLayout(materialContext)
   private val scrim = View(context)
@@ -62,6 +67,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         down = MotionEvent.obtain(event)
         val edges = ViewCompat.getRootWindowInsets(this@EndSheetView)?.getInsets(WindowInsetsCompat.Type.systemGestures())
         val reserve = 24 * resources.displayMetrics.density
+        android.util.Log.i("BHSheetQA", "phase=down active=$active enabled=$gesturesEnabled state=$state horizontal=${horizontalTarget(content, event.rawX, event.rawY)}")
         eligible = active && gesturesEnabled && state == STATE_HIDDEN &&
           event.x > max(reserve, (edges?.left ?: 0).toFloat()) &&
           event.x < parent.width - max(reserve, (edges?.right ?: 0).toFloat()) &&
@@ -75,6 +81,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
         val slop = ViewConfiguration.get(context).scaledTouchSlop
         if (abs(dy) > slop && abs(dy) >= abs(dx)) eligible = false
         if (startsEndDrag(dx, dy, slop)) {
+          android.util.Log.i("BHSheetQA", "phase=claim dx=$dx dy=$dy")
           eligible = false
           child.visibility = VISIBLE
           reportOpening()

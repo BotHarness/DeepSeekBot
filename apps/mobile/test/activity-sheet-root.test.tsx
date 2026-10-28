@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 import type { EndSheetProps } from '../src/ui/primitives/end-sheet';
 vi.mock('react-native', () => ({ Platform: { OS: 'android' } }));
 vi.mock('../src/ui/primitives/end-sheet', () => ({
-  EndSheet: ({ children, panel, open, active, onOpenChange }: EndSheetProps) => (
+  EndSheet: ({ children, panel, open, onOpenChange }: EndSheetProps) => (
     <main>
       <section data-background>{children}</section>
       {open ? (
