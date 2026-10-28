@@ -1,0 +1,51 @@
+{
+  "main": "b3f2372e0586502b11227750fffc16727f148259",
+  "candidate": "f16aadec154671ddea3876b8f079be9c21ed12d6",
+  "simulator": "iOS27.0 / iPhone18 Pro Max / current-worktree Metro in qualified compatible native Debug client",
+  "phone": {
+    "source": "f16aadec154671ddea3876b8f079be9c21ed12d6",
+    "configuration": "Release",
+    "bundle": "ai.botharness.deepseekbot.dev",
+    "version": "0.0.1",
+    "build": "1",
+    "hashes": {
+      "Info.plist": "6628ea1d945f815ac317bc026ca3974056ebf3741a19b6aeeeb6d7a1ffcafbf3",
+      "DeepSeekBotDev": "db279f293fc3db35b4e44b6bba16621edcd8d02ef140f6a59aa6f12472685764",
+      "main.jsbundle": "b7cbdc64d6c267e989567375f74d85b24e6a3fa7379db8eda2f9751fed1bcc43"
+    }
+  },
+  "phoneOS": "iOS18.1.1 / XSMax",
+  "redactions": "None; only selected synthetic QA app content. Personal Settings/addresses and pairings excluded. Video frames exported without UI redraw or aspect-ratio change.",
+  "images": [
+    {
+      "file": "before.png",
+      "width": 1320,
+      "height": 2868,
+      "sha256": "6931585f9f007598377dab16a0b485feaf26556c5cf187a210d18a7cbef54346"
+    },
+    {
+      "file": "edge.png",
+      "width": 440,
+      "height": 956,
+      "sha256": "adc59795d5ba09f2139a05ca76597384faaf7091bfc2f6cf1c04c384ee5b47dc"
+    },
+    {
+      "file": "after.png",
+      "width": 1320,
+      "height": 2868,
+      "sha256": "5b16f470f08f13d8ad578f67798897f721e6a023ad9da75f9f092ae96ea9bb94"
+    },
+    {
+      "file": "p0.png",
+      "width": 1125,
+      "height": 2436,
+      "sha256": "c55def985e3a7d76a6077161a754a703e99f5218774e490d534b45449f748ddd"
+    },
+    {
+      "file": "p1.png",
+      "width": 1125,
+      "height": 2436,
+      "sha256": "b81e100435e9938487c007fa09de856f831e9f18f3d5d8dc037da621a86d2bf0"
+    }
+  ]
+}
