@@ -77,7 +77,7 @@ const body = (core: Awaited<ReturnType<typeof seeded>>, messageId: string) =>
     String(db.prepare('SELECT body FROM source_events WHERE message_id = ?').get(messageId)!.body),
   );
 
-describe('Group Disband (ADR-0273)', () => {
+describe('Group Disband (ADR-0274)', () => {
   it('deletes the group content no other Channel shares and keeps only its identity', async () => {
     const core = await seeded();
     core.channels.deleteGroup(core.group.id);

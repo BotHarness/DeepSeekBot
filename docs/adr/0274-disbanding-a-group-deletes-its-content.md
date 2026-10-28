@@ -1,4 +1,4 @@
-# ADR-0273: Disbanding a group deletes its content
+# ADR-0274: Disbanding a group deletes its content
 
 - Status: Accepted
 - Date: 2026-10-28
