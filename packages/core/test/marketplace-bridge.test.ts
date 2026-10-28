@@ -8,6 +8,7 @@ import { createChannelStore } from '../src/channels/store.js';
 import { solveChallenge } from '../src/marketplace/altcha.js';
 import {
   createMarketplaceClient,
+  parseMarketplaceDigests,
   parseMarketplacePage,
   type MarketplaceClient,
 } from '../src/marketplace/client.js';
@@ -204,7 +205,9 @@ describe('Bot Marketplace bridge', () => {
 
   it('reads the latest Marketplace Digest, a past day and the archive', async () => {
     const market = createMarket();
-    const repository = fakeRepository();
+    const repository = fakeRepository({
+      descriptor: JSON.stringify({ banner: { recipe: { scene: 'sea', seed: 7 } } }),
+    });
     market.publish(repository);
     const methods = methodsWith(marketClient(market));
     await submitThrough(methods, repository.htmlUrl);
@@ -229,7 +232,22 @@ describe('Bot Marketplace bridge', () => {
     expect(await methods.marketplaceDigests({ lang: 'zh' })).toEqual({
       ok: true,
       value: {
-        digests: [{ day: '2026-10-05', lang: 'zh', title: '今天值得一试', lede: '一位写作伙伴。' }],
+        digests: [
+          {
+            day: '2026-10-05',
+            lang: 'zh',
+            title: '今天值得一试',
+            lede: '一位写作伙伴。',
+            picks: [
+              {
+                id: repository.nodeId,
+                displayName: null,
+                banner: { recipe: { scene: 'sea', seed: 7 } },
+                avatar: null,
+              },
+            ],
+          },
+        ],
       },
     });
     for (const payload of [{ lang: 'zh' }, { day: '2026-10-05', lang: 'en' }]) {
@@ -436,5 +454,35 @@ describe('Marketplace banner', () => {
       null,
       null,
     ]);
+  });
+});
+
+describe('Digest Picks', () => {
+  it('keeps upload art only under the pick files base', () => {
+    const image = 'https://market.test/v1/bots/U_1/files/.botharness/banner.png';
+    const digest = (pick: Record<string, unknown>) =>
+      parseMarketplaceDigests({
+        digests: [{ day: '2026-10-05', lang: 'en', title: 'Today', lede: 'Picks.', picks: [pick] }],
+      })?.[0]?.picks[0];
+    const art = { id: 'U_1', displayName: 'Helper', banner: { image }, avatar: { image } };
+    expect(digest({ ...art, filesBase: 'https://market.test/v1/bots/U_1/files/' })).toEqual({
+      id: 'U_1',
+      displayName: 'Helper',
+      banner: { image },
+      avatar: { image },
+    });
+    for (const filesBase of [
+      undefined,
+      null,
+      'http://market.test/v1/bots/U_1/files/',
+      'https://market.test/v1/bots/U_2/files/',
+      'https://market.test/v1/bots/U_1',
+    ])
+      expect(digest({ ...art, filesBase })).toMatchObject({ banner: null, avatar: null });
+    expect(
+      parseMarketplaceDigests({
+        digests: [{ day: '2026-10-05', lang: 'en', title: 'Today', lede: 'Picks.' }],
+      })?.[0]?.picks,
+    ).toEqual([]);
   });
 });

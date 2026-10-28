@@ -461,12 +461,17 @@ export function parseMarketplaceSection(value: unknown): MarketplaceSection | un
 function parseDigestPick(value: unknown): MarketplaceDigestPick | undefined {
   const source = record(value);
   const displayName = source?.['displayName'];
+  const base = source?.['filesBase'];
+  const filesBase =
+    typeof base === 'string' && base.startsWith('https://') && base.endsWith('/files/')
+      ? base
+      : undefined;
   return typeof source?.['id'] === 'string'
     ? {
         id: source['id'],
         displayName: typeof displayName === 'string' && displayName.length > 0 ? displayName : null,
-        banner: parseBanner(source['banner']),
-        avatar: parseAvatar(source['avatar']),
+        banner: parseBanner(source['banner'], filesBase),
+        avatar: parseAvatar(source['avatar'], filesBase),
       }
     : undefined;
 }
