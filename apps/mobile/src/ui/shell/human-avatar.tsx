@@ -15,9 +15,11 @@ export function humanInitial(name: string | undefined): string | undefined {
 export function HumanAvatarButton({
   loadName,
   onPress,
+  testID,
 }: {
   loadName: (() => Promise<string | undefined>) | undefined;
   onPress: () => void;
+  testID?: string;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -36,6 +38,7 @@ export function HumanAvatarButton({
   const initial = humanInitial(name);
   return (
     <Pressable
+      testID={testID}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={t.settings}
