@@ -47,7 +47,7 @@ vi.mock('react-native-reanimated', async () => {
   const shim = await import('./reanimated-shim');
   return {
     ...shim,
-    useReducedMotion: () => state.reduced,
+    useReducedMotion: () => false,
     withSpring: (to: unknown, config: unknown, done?: (finished?: boolean) => void) => {
       state.springs.push({ to, config });
       done?.(true);
@@ -55,6 +55,9 @@ vi.mock('react-native-reanimated', async () => {
     },
   };
 });
+vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
+  useSystemReducedMotion: () => state.reduced,
+}));
 vi.mock('react-native-gesture-handler', async () => {
   const { createElement, Fragment } = await import('react');
   return {
@@ -271,6 +274,17 @@ describe('the top entrance', () => {
     state.reduced = true;
     await render();
     expect(state.springs).toEqual([]);
+    expect(state.prevent!.prevent).toBe(false);
+    await remove();
+    expect(state.springs).toEqual([]);
+    expect(state.repeat).toHaveBeenCalledOnce();
+  });
+
+  it('stops sliding when Reduce Motion changes while Tob Mode is open', async () => {
+    await render();
+    state.springs.length = 0;
+    state.reduced = true;
+    await render();
     expect(state.prevent!.prevent).toBe(false);
     await remove();
     expect(state.springs).toEqual([]);
