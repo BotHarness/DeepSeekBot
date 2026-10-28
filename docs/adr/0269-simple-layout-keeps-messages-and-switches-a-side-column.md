@@ -6,7 +6,7 @@
 
 ## Context
 
-In Simple layout mode (ADR-0259), each Workspace Control Rail switch replaced the whole view with one full-height Global panel. Opening Activity Center or Marketplace hid the conversation, and the Channel list could not be collapsed. ADR-0268 then added a Tob Mode switch only to hide everything except Messages. The Human wants the conversation to stay put, and the rail to behave like an editor's activity bar.
+In Simple layout mode (ADR-0259), each Workspace Control Rail switch replaced the whole view with one full-height Global panel. Opening Activity Center or Marketplace hid the conversation, and the Channel list could not be collapsed. An earlier draft of ADR-0268 added a desktop Tob Mode switch only to hide everything except Messages; ADR-0268 now removes Home with no desktop Tob Mode switch. The Human wants the conversation to stay put, and the rail to behave like an editor's activity bar.
 
 ## Decision
 
