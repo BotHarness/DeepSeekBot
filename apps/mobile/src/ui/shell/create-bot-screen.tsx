@@ -33,6 +33,8 @@ import { KeyboardFormFooter } from '../primitives/keyboard-form-footer';
 import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
 import { CreationField as TextField } from '../primitives/creation-field';
+import { CreationTagsField } from '../primitives/creation-tags-field';
+import { editCreationTags } from '../../host/bot-creation-tags';
 import { EnvironmentList } from '../primitives/environment-list';
 import { StepBar, type StepBarProps } from '../primitives/step-bar';
 import { creationCopy as copy, creationError } from './bot-creation-copy';
@@ -525,7 +527,7 @@ function CreationStepContent({ index }: { index: number }) {
       ) : draft ? (
         <>
           <Text variant="title" strong>
-            {importing && step === 'persona' ? copy.prompt.importDetails : copy.prompt[step]}
+            {copy.prompt[step]}
           </Text>
           {step === 'environment' ? (
             hosts.length === 0 ? (
@@ -651,18 +653,24 @@ function CreationStepContent({ index }: { index: number }) {
             </View>
           ) : null}
           {step === 'persona' && flow === 'blank' ? (
-            <TextField
-              testID="create-bot-persona"
-              accessibilityLabel={copy.persona}
-              placeholder={copy.personaHint}
-              value={draft.persona}
-              onChangeText={(persona) => edit({ persona })}
-              multiline
-              editable={!state.busy}
-            />
-          ) : null}
-          {step === 'persona' || step === 'confirm' ? (
             <>
+              <Text strong>{copy.personaSystemLabel}</Text>
+              <Text tone="muted">{copy.personaSystemHint}</Text>
+              <TextField
+                testID="create-bot-persona"
+                accessibilityLabel={copy.persona}
+                placeholder={copy.personaHint}
+                value={draft.persona}
+                onChangeText={(persona) => edit({ persona })}
+                multiline
+                editable={!state.busy}
+              />
+            </>
+          ) : null}
+          {step === 'details' ? (
+            <>
+              <Text tone="muted">{copy.profileHint}</Text>
+              {importing ? <Text tone="muted">{copy.prompt.importDetails}</Text> : null}
               <TextField
                 testID="create-bot-bio"
                 accessibilityLabel={copy.bio}
@@ -671,12 +679,15 @@ function CreationStepContent({ index }: { index: number }) {
                 multiline
                 editable={!state.busy}
               />
-              <TextField
-                testID="create-bot-tags"
-                accessibilityLabel={copy.tags}
-                value={draft.tags}
-                onChangeText={(tags) => edit({ tags })}
-                editable={!state.busy}
+              <CreationTagsField
+                value={draft}
+                onChange={(action) =>
+                  void botCreation.edit((current) => ({
+                    ...current,
+                    ...editCreationTags(current, action),
+                  }))
+                }
+                disabled={state.busy}
               />
               <Text tone="muted">{copy.model}</Text>
             </>

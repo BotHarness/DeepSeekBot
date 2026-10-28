@@ -58,6 +58,7 @@ vi.mock('react-native', async () => ({
     },
   },
 }));
+vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('expo-router', () => ({
   Stack: Object.assign(
     ({ children }: { children?: ReactNode }) =>
@@ -125,17 +126,23 @@ vi.mock('../src/ui/primitives/creation-field', () => ({
     onChangeText,
     accessibilityLabel,
     editable,
+    onSubmitEditing,
   }: {
     value: string;
     onChangeText(value: string): void;
     accessibilityLabel: string;
     editable?: boolean;
+    onSubmitEditing?: (event: { nativeEvent: { text: string } }) => void;
   }) =>
     createElement('input', {
       value,
       'aria-label': accessibilityLabel,
       disabled: editable === false,
       onInput: (event) => onChangeText(event.currentTarget.value),
+      onKeyDown: (event) => {
+        if (event.key === 'Enter')
+          onSubmitEditing?.({ nativeEvent: { text: event.currentTarget.value } });
+      },
       readOnly: true,
     }),
 }));
@@ -412,6 +419,7 @@ async function named(name: string) {
   await next('blank', 1);
   await type(t.botCreation.name, name);
   await next('blank', 2);
+  await next('blank', 3);
 }
 
 it('walks Environment, name and persona pages, then opens the new Bot from the last one', async () => {
@@ -419,13 +427,19 @@ it('walks Environment, name and persona pages, then opens the new Bot from the l
   expect(container.textContent).toContain(t.botCreation.prompt.environment);
   expect(button('create-bot-host-A')?.getAttribute('aria-pressed')).toBe('true');
   expect(button('create-bot-back')).toBeNull();
-  expect(button('create-bot-next')?.textContent).toBe(`${t.botCreation.next} · 1/3`);
+  expect(button('create-bot-next')?.textContent).toBe(`${t.botCreation.next} · 1/4`);
   await next('blank', 1);
   expect(button('create-bot-back')).not.toBeNull();
   expect(button('create-bot-next')?.disabled).toBe(true);
   await type(t.botCreation.name, 'New Bot');
-  expect(button('create-bot-next')?.textContent).toBe(`${t.botCreation.next} · 2/3`);
+  expect(button('create-bot-next')?.textContent).toBe(`${t.botCreation.next} · 2/4`);
   await next('blank', 2);
+  expect(container.textContent).toContain(t.botCreation.personaSystemLabel);
+  expect(container.querySelector(`input[aria-label="${t.botCreation.bio}"]`)).toBeNull();
+  expect(container.querySelector(`input[aria-label="${t.botCreation.tags}"]`)).toBeNull();
+  await next('blank', 3);
+  expect(container.textContent).toContain(t.botCreation.profileHint);
+  expect(container.querySelector(`input[aria-label="${t.botCreation.persona}"]`)).toBeNull();
   expect(button('create-bot-submit')?.textContent).toBe(t.botCreation.createShort);
   await press('create-bot-submit');
   await act(async () => finish?.());
@@ -437,6 +451,45 @@ it('walks Environment, name and persona pages, then opens the new Bot from the l
   });
   await act(() => root.render(<DmScreen />));
   expect(container.textContent).toBe('Conversation');
+});
+
+it('keeps persona instructions separate from metadata and retains tag chips across steps', async () => {
+  await named('Guide');
+  await go('blank', 2);
+  await type(t.botCreation.persona, 'Keep answers concise.');
+  expect(container.textContent).toContain(t.botCreation.personaSystemHint);
+  await next('blank', 3);
+  await type(t.botCreation.bio, 'A friendly guide');
+  await type(t.botCreation.tags, '旅行');
+  const input = container.querySelector<HTMLInputElement>(
+    `input[aria-label="${t.botCreation.tags}"]`,
+  )!;
+  await act(async () =>
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(button('create-bot-tag-0')?.getAttribute('aria-label')).toBe(
+    t.botCreation.removeTag('旅行'),
+  );
+  expect(input.value).toBe('');
+  await type(t.botCreation.tags, 'family');
+  await press('create-bot-tag-0');
+  expect(input.value).toBe('family');
+  await go('blank', 2);
+  expect(
+    container.querySelector<HTMLInputElement>(`input[aria-label="${t.botCreation.persona}"]`)
+      ?.value,
+  ).toBe('Keep answers concise.');
+  await next('blank', 3);
+  expect(
+    container.querySelector<HTMLInputElement>(`input[aria-label="${t.botCreation.tags}"]`)?.value,
+  ).toBe('family');
+  await press('create-bot-submit');
+  expect(operation?.input).toMatchObject({
+    persona: 'Keep answers concise.',
+    description: 'A friendly guide',
+    roles: ['family'],
+  });
+  await act(async () => finish?.());
 });
 
 it('goes back one step with the round button and leaves the whole flow from the close button', async () => {
@@ -488,6 +541,7 @@ it('keeps details while changing the Environment and submits the selected one', 
   await type(t.botCreation.name, 'Travel Bot');
   await next('blank', 2);
   await type(t.botCreation.persona, 'Plan accessible trips');
+  await next('blank', 3);
   await type(t.botCreation.bio, 'Local guide');
   await type(t.botCreation.tags, 'travel, family');
   await press('create-bot-submit');
@@ -596,7 +650,7 @@ it('offers explicit opening after successful completion in the background', asyn
   expect(creates).toBe(1);
 });
 
-const lastStep = { git: 3, marketplace: 2, zip: 3 } as const;
+const lastStep = { git: 3, marketplace: 3, zip: 3 } as const;
 async function importDraft(source: 'git' | 'marketplace' | 'zip') {
   await controller.ready;
   await controller.enter({ kind: 'host', hostId: 'A' });
@@ -765,6 +819,7 @@ it.each([
     expect(controller.getSnapshot().record).toMatchObject({ draft: { avatar } });
     expect(disk).toMatchObject({ draft: { avatar } });
     await next('blank', 2);
+    await next('blank', 3);
     await press('create-bot-submit');
     expect(disk).toMatchObject({ kind: 'submitted', avatar });
     expect(operation?.input).not.toHaveProperty('avatar');
@@ -786,6 +841,7 @@ it('keeps the created Bot and raises a notice when its avatar cannot be applied'
   await press('create-bot-avatar-shuffle');
   await type(t.botCreation.name, 'Avatar Bot');
   await next('blank', 2);
+  await next('blank', 3);
   await press('create-bot-submit');
   await act(async () => finish?.());
   expect(applied).toHaveLength(1);
@@ -800,11 +856,13 @@ it('keeps the created Bot and raises a notice when its avatar cannot be applied'
   expect(controller.getSnapshot().notice).toBeUndefined();
 });
 
-it('does not apply anything when the default generated avatar is kept', async () => {
+it('applies the exact initial avatar so creating the Bot does not replace its preview', async () => {
   await named('Plain Bot');
+  const before = controller.getSnapshot().record;
+  if (before.kind !== 'draft') throw Error('Expected draft');
   await press('create-bot-submit');
   await act(async () => finish?.());
-  expect(applied).toEqual([]);
+  expect(applied).toEqual([{ channelId: 'dm-new-bot', avatar: before.draft.avatar }]);
 });
 
 it('keeps the Android identity header and footer mounted while only step content changes', async () => {
@@ -823,20 +881,27 @@ it('keeps the Android identity header and footer mounted while only step content
   await act(async () => root.render(<CreationFlowLayout />));
   await type(t.botCreation.name, 'Mira');
   expect(header?.getAttribute('data-name')).toBe('Mira');
-  expect(progress.value).toBeCloseTo(1 / 3);
+  expect(progress.value).toBeCloseTo(1 / 4);
   expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
   expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
   await press('create-bot-next');
   fixture.params = { flow: 'blank', step: '2' };
   fixture.body = <CreateBotStepScreen key="persona" />;
   await act(async () => root.render(<CreationFlowLayout />));
-  expect(progress.value).toBeCloseTo(2 / 3);
+  expect(progress.value).toBeCloseTo(2 / 4);
   expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
   expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
   expect(controller.getSnapshot().record).toMatchObject({
     kind: 'draft',
     draft: { hostId: 'A', displayName: 'Mira' },
   });
+  await press('create-bot-next');
+  fixture.params = { flow: 'blank', step: '3' };
+  fixture.body = <CreateBotStepScreen key="details" />;
+  await act(async () => root.render(<CreationFlowLayout />));
+  expect(progress.value).toBeCloseTo(3 / 4);
+  expect(container.querySelector('[data-testid="create-bot-header"]')).toBe(header);
+  expect(container.querySelector('[data-testid="creation-footer"]')).toBe(footer);
   await press('create-bot-back');
   expect(fixture.back).toHaveBeenCalledTimes(1);
   await press('create-bot-close');

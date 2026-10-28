@@ -8,10 +8,10 @@ import {
 } from '../src/host/bot-creation-steps';
 
 it.each([
-  ['blank', ['environment', 'identity', 'persona']],
-  ['git', ['environment', 'git', 'identity', 'persona']],
-  ['zip', ['environment', 'zip', 'identity', 'persona']],
-  ['marketplace', ['environment', 'identity', 'confirm']],
+  ['blank', ['environment', 'identity', 'persona', 'details']],
+  ['git', ['environment', 'git', 'identity', 'details']],
+  ['zip', ['environment', 'zip', 'identity', 'details']],
+  ['marketplace', ['environment', 'identity', 'details', 'confirm']],
 ] as const)('orders the %s steps', (flow, steps) => {
   expect(isCreationFlow(flow)).toBe(true);
   expect(creationSteps(flow)).toEqual(steps);
