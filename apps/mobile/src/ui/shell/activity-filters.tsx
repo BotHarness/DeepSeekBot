@@ -23,7 +23,7 @@ export type ActivityFilter = {
 };
 export type ActivitySort = 'default' | 'newest' | 'oldest';
 export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
-export const DEFAULT_ACTIVITY: ActivityFilter = { section: 'action', bot: undefined };
+export const DEFAULT_ACTIVITY: ActivityFilter = ALL_ACTIVITY;
 export const ACTIVITY_SECTIONS: readonly ActivitySection[] = [
   'all',
   ...INBOX_SECTIONS.filter((section) => section !== 'unread'),
