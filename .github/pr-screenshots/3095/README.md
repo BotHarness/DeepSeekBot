@@ -35,8 +35,35 @@ Debug APK SHA-256: `82fa4366ad2584ceaf4636d951fb20817ec3c7baacf7f3db0d8fb03d8b37
 - Phone code tests: 318 files passed, 9 skipped; 2,392 tests passed, 11 skipped. The final keyboard action was then checked with all 7 adapter tests.
 - Root lint, formatting, typecheck and build passed.
 
-The default/intermediate/maximum × light/dark native matrix and final Release creation readback are in progress.
-This report will be updated with their actual results before handoff.
+All six font/theme cases passed with a real keyboard, an actual persona edit, tag submission and reachable bottom actions.
+Each persona edit was also checked against its captured native text, not just a key-event return value.
+
+| System font | Theme | Persona with keyboard  | Tags after Enter, keyboard retained |
+| ----------- | ----- | ---------------------- | ----------------------------------- |
+| 1.0         | Light | [Capture](m10-l-p.png) | [Capture](m10-l-d.png)              |
+| 1.0         | Dark  | [Capture](m10-d-p.png) | [Capture](m10-d-d.png)              |
+| 1.3         | Light | [Capture](m13-l-p.png) | [Capture](m13-l-d.png)              |
+| 1.3         | Dark  | [Capture](m13-d-p.png) | [Capture](m13-d-d.png)              |
+| 2.0         | Light | [Capture](m20-l-p.png) | [Capture](m20-l-d.png)              |
+| 2.0         | Dark  | [Capture](m20-d-p.png) | [Capture](m20-d-d.png)              |
+
+## Final Release creation
+
+Development application ID, arm64 Release, integration source `16a2d66a016b366c5e9bc363abd4d4cc08a9839d`.
+APK SHA-256: `8953cfe0d52f66e67fdf2aa24da1c8960cdc27377686c59a7ea5abe45ca4bddb`.
+The APK and build manifest are retained locally with the private QA record.
+
+- Cold-started the Release APK with the saved draft. [Persona](rp.png) and [profile details](rd.png) matched that draft.
+- Created exactly one Bot through the native form and reached [its empty DM](rc.png). No model message was sent.
+- Read the canonical Bot with the existing CLI: description and roles matched the profile fields, including the pending tag that had not received Enter.
+- Read that Bot's canonical `SOUL.md`: it contained the exact persona; bio/tag markers were absent.
+- Deleted only that identified QA fixture through its canonical confirmation flow. The retained deleted record is a tombstone; no active QA Bots remain.
+- Revoked and removed only the QA device/pairing; restored the exact original raw draft, five pairings and interface preferences.
+- Reinstalled the original accepted APK and verified its hash, font, original input method and saved settings. Its native drawer showed the exact original five pairings.
+- Stopped the owned Host and Metro, removed only the two owned reverse mappings and temporary credentials, and released the device lease. The shared ADB service was unchanged.
+
+The first follow-up Release build hit a shared Metro file-cache race while Debug Metro was active.
+Stopping the owned Metro and rebuilding sequentially succeeded; the successful final APK above is the one tested.
 
 ## Review limits
 
