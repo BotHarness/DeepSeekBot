@@ -1194,6 +1194,7 @@ const en = {
   olderLoadFailed: 'Earlier messages could not be loaded.',
   jumpToLatest: 'Return to latest messages',
   pullToCompose: 'Pull up to type',
+  pullToLeave: 'Pull up to go back',
   clipboardImage: 'Image on the clipboard',
   pasteImage: 'Paste image',
   share: {
@@ -1203,6 +1204,7 @@ const en = {
     files: (count: number) => (count === 1 ? '1 attachment' : `${count} attachments`),
   },
   releaseToCompose: 'Release to type',
+  releaseToLeave: 'Release to go back',
   unseenLatest: (count: number) =>
     `${count} new ${count === 1 ? 'message' : 'messages'} · Jump to latest`,
   beginning: 'This is the beginning of your DM.',
@@ -3190,6 +3192,7 @@ const zh: typeof en = {
   olderLoadFailed: '加载更早的消息失败。',
   jumpToLatest: '返回最新消息',
   pullToCompose: '上拉输入消息',
+  pullToLeave: '上拉返回',
   clipboardImage: '剪贴板里有一张图片',
   pasteImage: '粘贴图片',
   share: {
@@ -3199,6 +3202,7 @@ const zh: typeof en = {
     files: (count: number) => `${count} 个附件`,
   },
   releaseToCompose: '松手输入消息',
+  releaseToLeave: '松手返回',
   unseenLatest: (count: number) => `${count} 条新消息 · 跳到最新`,
   beginning: '这是你们私信的开始。',
   beginningChannel: '这是这个频道的开始。',
