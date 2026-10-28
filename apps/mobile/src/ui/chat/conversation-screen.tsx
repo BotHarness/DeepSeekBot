@@ -127,7 +127,7 @@ import { createSpeakerRegistry, SpeakerStageContext } from './speaker-row';
 import { QuestionCard } from './question-card';
 import { TimeSeparator } from './time-separator';
 import { AccentProvider, pressTint, useDesignTheme } from '../design/theme';
-import { edge, edgeFade, pullToCompose, radius, space } from '../design/tokens';
+import { edge, edgeFade, glassPress, pullToCompose, radius, space } from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
@@ -1259,7 +1259,7 @@ function ChatConversation({
                             onPress: leave,
                           },
                         ]),
-                  { type: 'spacing' as const, spacing: 0 },
+                  { type: 'spacing' as const, spacing: glassPress.gap },
                   { type: 'custom' as const, element: titleItem },
                 ],
               }

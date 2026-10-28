@@ -336,6 +336,8 @@ export const undoBar = { duration: 5000 } as const;
 
 export const PRESS_TINT = 0.12;
 
+export const glassPress = { dim: 0.6, gap: space.x2 } as const;
+
 export const scrim = {
   light: 0.32,
   dark: 0.6,
