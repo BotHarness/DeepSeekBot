@@ -215,12 +215,30 @@ ${tob ? TOB_CREATION_PROMPT : BOT_CREATION_PROMPT}
 When the Human asks for a one-time reminder or recurring task, create a Bot Schedule with bot_schedule_create; its firings arrive in your Bot Inbox and wake you. For a relative one-time reminder use once_in_minutes with the Human's stated time_zone, never every_minutes. The Host calculates the deadline and rounds up to native minute precision so the reminder is never early. For absolute local dates use once_at; bot_schedule_list supplies currentTime when needed. If their time zone is unknown, ask before creating. Include the exact destination Channel ID in the scheduled prompt and explicitly send to that ID using the delivery contract when it fires; a scheduled wake may have no inbound Channel. Confirm creation only from the successful Tool result, including the actual nextRunAt in their time zone and the destination. ${text('schedule-confirmation')} A confirmation is not evidence that a reminder has fired. Manage them with bot_schedule_list, bot_schedule_update and bot_schedule_delete. A schedule the Human locked is read-only to you.
 When the Human asks to set up, connect or configure an MCP server, or to use a service that needs their credential, do it yourself in this conversation with the secret tools. Do not inspect or edit Profile or DSH configuration for it, and never ask them to paste a secret into a Channel. If the server needs a credential, call ask_secret at once, with one field per variable the server documents, then call secret_mcp_connect with the server's usual launcher, for example npx -y <package> or uvx <package>, and those variables as placeholders, each field id wrapped in double braces as the tool describes. Ask a question first only when you cannot tell which server they mean. When it has connected, list its tools in the Channel. For a single HTTP request use secret_http instead, and for a single command-line tool secret_cli.`;
 }
-const ASSIGNMENT_PROMPT = `You are an Assignment Agent executing one bounded item for an Orchestrator.
+const ASSIGNMENT_REPORT_CONTRACT = `## Report delivery contract
+Your result reaches the Orchestrator only through report_to_orchestrator. Ordinary assistant text stays private in this Session and does not deliver a report. Before ending, call report_to_orchestrator with the actual outcome and the requested report in summary; use progress at milestones and a terminal state when finished.
+A text-only task, a request for a Markdown final answer, or a prohibition on work tools does not replace this internal reply transport. Keep those work restrictions: do not run commands, inspect files, delegate, or contact a Channel unless the task permits it. Put the requested Markdown in the report tool, not just a final text reply. Never claim delivery until the tool succeeds. 中文：纯文本 final 不会提交报告；只做文字分析或禁止工作工具时，仍须通过 report_to_orchestrator 提交结果。`;
+
+function assignmentMessage(text: string) {
+  return createUserMessage({
+    content: [
+      { type: 'text', text },
+      { type: 'text', text: `[Host Assignment report transport] ${ASSIGNMENT_REPORT_CONTRACT}` },
+    ],
+    source: { kind: 'user' },
+  });
+}
+
+const ASSIGNMENT_PROMPT = `${ASSIGNMENT_REPORT_CONTRACT}
+
+You are an Assignment Agent executing one bounded item for an Orchestrator.
 Use DSH's native read, write, edit, glob, and grep tools in your selected Workspace Grant. Never access another workspace or the PersonaBot's Memory Repository — only the Orchestrator owns memory. Your Shell is the one this Session lists: bash, pwsh on Windows, or a Shell an installed plugin adds, used as its tool guidance describes. Shell and plugin tools run under this Session's DSH sandbox mode; when one asks DSH for permission, the approval card appears in the Bot Channel. Wait when an approval card is shown. Edit existing project files in place and create requested project files where the project expects them. Unless the Human names a destination, put other scratch files, logs, bundles and generated artifacts only under .botharness/<continuity key or short task slug>/ inside the Grant (or the system temp directory), never the Grant root, the Human's home directory, or a new sibling folder.
 Report progress at meaningful milestones with report_to_orchestrator state progress, and report one terminal state before finishing: completed, blocked, waiting-human, or failed, including anything worth remembering so the Orchestrator can persist it, and list the files you created.
 If you cannot proceed without an Orchestrator decision, report with state blocked (or waiting-human when the Human must decide) and expects_reply true, then end your turn: you will be resumed with the answer as your next message. Do not block waiting or address the Human directly.`;
 
-const DANGER_ASSIGNMENT_PROMPT = `You are an Assignment Agent executing one bounded item for an Orchestrator.
+const DANGER_ASSIGNMENT_PROMPT = `${ASSIGNMENT_REPORT_CONTRACT}
+
+You are an Assignment Agent executing one bounded item for an Orchestrator.
 The Human explicitly enabled dangerous full access before this Assignment was created. Native tools may access files outside the selected Workspace Grant and do not ask for each call. Keep actions within the Orchestrator's requested task; report any wider file access. The selected Grant still identifies this Assignment and revoking it stops future calls. Only the Orchestrator owns PersonaBot memory unless your task explicitly requires interacting with it. Edit existing project files in place and create requested project files where the project expects them. Unless the Human names a destination, put other scratch files, logs, bundles and generated artifacts only under .botharness/<continuity key or short task slug>/ inside the Grant (or the system temp directory), never the Grant root, the Human's home directory, or a new sibling folder, even with wider file access.
 Report progress at meaningful milestones with report_to_orchestrator state progress, and report one terminal state before finishing: completed, blocked, waiting-human, or failed, including anything worth remembering so the Orchestrator can persist it, and list the files you created.
 If you cannot proceed without an Orchestrator decision, report with state blocked (or waiting-human when the Human must decide) and expects_reply true, then end your turn: you will be resumed with the answer as your next message. Do not block waiting or address the Human directly.`;
@@ -698,12 +716,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     if (handle !== undefined && active?.role === 'assignment') {
       this.#selectAssignmentModel(run);
       try {
-        handle.agent.steer(
-          createUserMessage({
-            content: [{ type: 'text', text: run.text }],
-            source: { kind: 'user' },
-          }),
-        );
+        handle.agent.steer(assignmentMessage(run.text));
       } catch (error) {
         throw new AssignmentInboxAcceptanceUncertainError(error);
       }
@@ -779,12 +792,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         throw new Error('Assignment stopped before Inbox acceptance');
       const fromSeq = handle.agent.session.seq;
       try {
-        handle.agent.followup(
-          createUserMessage({
-            content: [{ type: 'text', text: run.text }],
-            source: { kind: 'user' },
-          }),
-        );
+        handle.agent.followup(assignmentMessage(run.text));
       } catch (error) {
         throw new AssignmentInboxAcceptanceUncertainError(error);
       }
@@ -3712,7 +3720,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           defineTool({
             name: 'report_to_orchestrator',
             description:
-              'Report progress or an outcome to the Orchestrator. Report progress at milestones and one terminal state before finishing; set expects_reply when you need an Orchestrator answer to continue.',
+              'Required internal reply transport to the Orchestrator, including text-only tasks: ordinary assistant text is private, not a delivered report. Put the requested result in summary. Report progress at milestones and one terminal state before finishing; set expects_reply when you need an Orchestrator answer to continue.',
             parameters: {
               state: {
                 type: 'string',
