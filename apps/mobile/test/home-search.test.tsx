@@ -162,6 +162,7 @@ vi.mock('expo-secure-store', () => ({
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/shell/last-chat-swipe', () => ({
+  LastChatPreview: () => null,
   LastChatSwipe: ({ enabled, children }: { enabled: boolean; children: ReactNode }) => (
     <div data-testid="last-chat-swipe" data-enabled={String(enabled)}>
       {children}

@@ -246,6 +246,8 @@ export function createConnectAccount(options: {
       return session === undefined ? null : session.email;
     },
 
+    accessToken: () => settle(() => access()),
+
     signIn: () =>
       settle(async () => {
         if (parseSession(await runtime.read())?.action) throw new Refused('account-action-pending');

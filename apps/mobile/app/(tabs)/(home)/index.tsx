@@ -10,7 +10,7 @@ import {
 } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useSharedValue } from 'react-native-reanimated';
 import {
   refreshQuietChannels,
   useHostSession,
@@ -55,7 +55,7 @@ import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
-import { LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
+import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
 import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
 import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
@@ -132,6 +132,7 @@ const HomeContent = memo(function HomeContent({
     }, [router, client]),
   );
   const [query, setQuery] = useState('');
+  const lastChatTravel = useSharedValue(0);
   const messageSearch = useMessageSearch();
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
@@ -583,7 +584,10 @@ const HomeContent = memo(function HomeContent({
           }
         >
           {(headerTravel) => (
-            <LastChatSwipe enabled={!searching && !searchFocused && query === ''}>
+            <LastChatSwipe
+              enabled={!searching && !searchFocused && query === ''}
+              travel={lastChatTravel}
+            >
               <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
                 {(pull) => (
                   <Animated.FlatList<HomeItem>
@@ -739,6 +743,7 @@ const HomeContent = memo(function HomeContent({
           )}
         </HomeHeader>
       </HostDrawerEdge>
+      <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet
           key={`${deleting.host.saved.hostId}:${deleting.target.kind}:${deleting.target.id}`}

@@ -22,6 +22,11 @@ import { StatisticsSettings } from '../src/ui/shell/statistics-settings';
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/haptics', () => ({ haptic: vi.fn() }));
 
+vi.mock('../src/account/native-account-profile', () => ({
+  accountProfile: { getSnapshot: () => ({ status: 'signed-out' }), refresh: vi.fn() },
+  useAccountProfile: () => ({ status: 'signed-out' }),
+}));
+vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('../src/telemetry/native', () => ({
   mobileTelemetry: {
     subscribe: () => () => {},

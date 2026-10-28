@@ -3,6 +3,7 @@ import { parseChallenge, solveChallenge } from '../marketplace/altcha.js';
 import { pairingCapabilities, type PairingCapability } from '../messaging/pairing.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
+import { imageDataUrl, readBytes } from './cli-profile.js';
 
 export const HOST_ADMIN_OPTIONS = {
   force: { type: 'boolean' },
@@ -43,6 +44,8 @@ export interface HostAdminValues {
   'operation-key'?: string;
   'accept-terms'?: boolean;
   'include-uploads'?: boolean;
+  file?: string;
+  clear?: boolean;
   review?: string;
   replaces?: string;
   day?: string;
@@ -79,11 +82,15 @@ export const HOST_ADMIN_COMMANDS = [
   { command: 'marketplace-report', description: 'report a Bot Marketplace listing for review' },
   {
     command: 'marketplace-account',
-    description: 'read the Connect sign-in and Bot Marketplace author used for uploads',
+    description: 'read the Connect sign-in and its Account Profile (name, avatar, Author ID)',
   },
   {
     command: 'marketplace-author',
-    description: 'choose the author display name; the first time needs --accept-terms',
+    description: 'set the Account Profile display name; uploading also needs --accept-terms once',
+  },
+  {
+    command: 'marketplace-author-avatar',
+    description: 'set the Account Profile avatar from a PNG, JPEG or WebP --file, or --clear it',
   },
   {
     command: 'marketplace-upload-plan',
@@ -176,6 +183,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-report': 1,
   'marketplace-account': 0,
   'marketplace-author': 0,
+  'marketplace-author-avatar': 0,
   'marketplace-upload-plan': 1,
   'marketplace-upload': 1,
   'marketplace-mine': 0,
@@ -258,6 +266,11 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     );
   if (command === 'marketplace-author' && (values.name === undefined || !values.name.trim()))
     usage('marketplace-author needs --name <display name>.');
+  if (
+    command === 'marketplace-author-avatar' &&
+    (values.file !== undefined) === (values.clear === true)
+  )
+    usage('marketplace-author-avatar needs exactly one of --file or --clear.');
   if (values.replaces !== undefined && command !== 'marketplace-upload')
     usage('--replaces only applies to marketplace-upload.');
   if (command === 'marketplace-delete' && values.confirm !== true)
@@ -455,6 +468,12 @@ export async function runHostAdminCommand(
         author: await rpc('marketplaceAuthorSave', {
           displayName: values.name!.trim(),
           acceptTerms: values['accept-terms'] === true,
+        }),
+      };
+    case 'marketplace-author-avatar':
+      return {
+        author: await rpc('marketplaceAuthorAvatarSet', {
+          avatar: values.clear === true ? null : imageDataUrl(readBytes(values.file)),
         }),
       };
     case 'marketplace-upload-plan':

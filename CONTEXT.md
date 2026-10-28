@@ -461,6 +461,10 @@ _Avoid_: username, account id
 The short, never-changing identifier the Bot Marketplace assigns to an uploading account, shown beside its free display name so same-named authors stay distinct; never the account's email.
 _Avoid_: handle, username, account email
 
+**Account Profile**:
+The display name and optional photo of one Connect account, kept by the Bot Marketplace with its Author ID. The Human edits it from Settings on any client, and Uploaded Bots show it as their author; the email is never part of it.
+_Avoid_: Human display name, user profile, author account
+
 **Bot set**:
 A named group of Listings meant to be imported together.
 _Avoid_: collection, bundle, pack, team

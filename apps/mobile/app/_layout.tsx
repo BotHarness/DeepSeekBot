@@ -24,7 +24,9 @@ import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
 import { sheetScreenOptions } from '../src/ui/primitives/sheet-screen';
+import { useSystemReducedMotion } from '../src/ui/primitives/use-system-reduced-motion';
 import { profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { swipeEntryListeners, swipeEntryOptions } from '../src/ui/shell/swipe-entry';
 import { HostAccentProvider } from '../src/ui/shell/host-accent-provider';
 import { useDesignTheme } from '../src/ui/design/theme';
 import { useStrings } from '../src/ui/strings';
@@ -47,11 +49,15 @@ function RootNavigator() {
   const t = useStrings();
   const theme = useTheme();
   const design = useDesignTheme();
+  const reducedMotion = useSystemReducedMotion();
   const [routingPending, setRoutingPending] = useState(false);
   const routing = usePushRouting(setRoutingPending, hostDrawer.captureWorkspaceSelection);
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
   const back = usePredictiveBack();
+  const profileListeners = swipeEntryListeners(
+    profileScreenOptions(design, reducedMotion).animation,
+  );
   const stack = useCallback(
     (node: ViewInstance | null) => {
       workspace(node);
@@ -92,28 +98,49 @@ function RootNavigator() {
                 <Stack.Screen
                   name="dm/[slug]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '', fullScreenGestureEnabled: false }}
+                  options={({ route }) => ({
+                    title: '',
+                    fullScreenGestureEnabled: false,
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen
                   name="channel/[id]"
                   dangerouslySingular={channelRouteId}
-                  options={{ title: '', fullScreenGestureEnabled: false }}
+                  options={({ route }) => ({
+                    title: '',
+                    fullScreenGestureEnabled: false,
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={swipeEntryListeners('default')}
                 />
                 <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
                 <Stack.Screen
                   name="bot/[slug]"
-                  options={{
+                  options={({ route }) => ({
                     title: t.profile,
-                    ...profileScreenOptions(design),
-                  }}
+                    ...profileScreenOptions(design, reducedMotion),
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
-                <Stack.Screen name="channel-details" options={profileScreenOptions(design)} />
+                <Stack.Screen
+                  name="channel-details"
+                  options={({ route }) => ({
+                    ...profileScreenOptions(design, reducedMotion),
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
+                />
                 <Stack.Screen
                   name="group/[id]"
-                  options={{
+                  options={({ route }) => ({
                     title: t.groupInfo,
-                    ...profileScreenOptions(design),
-                  }}
+                    ...profileScreenOptions(design, reducedMotion),
+                    ...swipeEntryOptions(route),
+                  })}
+                  listeners={profileListeners}
                 />
                 <Stack.Screen
                   name="settings"

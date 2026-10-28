@@ -2211,6 +2211,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceAuthorSave({ displayName, acceptTerms }));
   }
 
+  async marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount> {
+    return unwrapAsync(this.methods.marketplaceAuthorAvatarSet({ avatar }));
+  }
+
   marketplaceUploadPlan(slug: string): UploadPlan {
     return unwrap(this.methods.marketplaceUploadPlan({ slug }));
   }
@@ -2609,6 +2613,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceReport',
   'marketplaceAccount',
   'marketplaceAuthorSave',
+  'marketplaceAuthorAvatarSet',
   'marketplaceUploadPlan',
   'marketplaceUpload',
   'marketplaceInstallReview',

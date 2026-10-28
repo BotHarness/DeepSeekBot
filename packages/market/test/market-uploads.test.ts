@@ -105,15 +105,35 @@ describe('Uploaded Bot authors', () => {
     expect(await response.json()).toEqual({ error: { code: 'uploads-unavailable' } });
   });
 
-  it('creates an author once terms are accepted and keeps the Author ID on rename', async () => {
+  it('creates a profile without terms and records terms on the first acceptance', async () => {
     const market = createMarket();
     expect(await (await call(market, 'GET', '/v1/me', 'token-alice')).json()).toEqual({
       author: null,
     });
-    const refused = await call(market, 'PUT', '/v1/me', 'token-alice', { displayName: 'Alice' });
-    expect(refused.status).toBe(400);
-    expect(await refused.json()).toEqual({ error: { code: 'terms-required' } });
+    const profile = (await (
+      await call(market, 'PUT', '/v1/me', 'token-alice', { displayName: 'Alice' })
+    ).json()) as { author: { id: string } };
+    expect(profile.author).toEqual({
+      id: expect.stringMatching(/^[2-9a-z]{6}$/u),
+      name: 'Alice',
+      termsAcceptedAt: null,
+      avatar: null,
+    });
+    const refused = await upload(market, { 'SOUL.md': 'hi' });
+    expect(await refused.json()).toEqual({ error: { code: 'author-required' } });
 
+    const accepted = (await (await becomeAuthor(market)).json()) as { author: unknown };
+    expect(accepted.author).toEqual({
+      id: profile.author.id,
+      name: 'Alice',
+      termsAcceptedAt: '2026-10-05T12:00:00.000Z',
+      avatar: null,
+    });
+    expect((await upload(market, { 'SOUL.md': 'hi' })).status).toBe(201);
+  });
+
+  it('keeps the Author ID on rename', async () => {
+    const market = createMarket();
     const created = (await (await becomeAuthor(market, 'token-alice', '爱丽丝')).json()) as {
       author: { id: string; name: string; termsAcceptedAt: string };
     };
@@ -121,6 +141,7 @@ describe('Uploaded Bot authors', () => {
       id: expect.stringMatching(/^[2-9a-z]{6}$/u),
       name: '爱丽丝',
       termsAcceptedAt: '2026-10-05T12:00:00.000Z',
+      avatar: null,
     });
     const renamed = (await (
       await call(market, 'PUT', '/v1/me', 'token-alice', { displayName: 'Alice' })
@@ -142,6 +163,73 @@ describe('Uploaded Bot authors', () => {
       });
       expect(await response.json()).toEqual({ error: { code: 'invalid-author-name' } });
     }
+  });
+});
+
+describe('Account Profile avatars', () => {
+  const putAvatar = (market: Market, body: Uint8Array<ArrayBuffer>, token = 'token-alice') =>
+    market.request('/v1/me/avatar', {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/octet-stream' },
+      body,
+    });
+  const authorKeys = (market: Market) =>
+    [...market.bucket.objects.keys()].filter((key) => key.startsWith('authors/'));
+
+  it('needs a profile, an image and a small file', async () => {
+    const market = createMarket();
+    expect(await (await putAvatar(market, PNG)).json()).toEqual({
+      error: { code: 'author-required' },
+    });
+    await call(market, 'PUT', '/v1/me', 'token-alice', { displayName: 'Alice' });
+    expect(await (await putAvatar(market, bytesOf('<svg/>'))).json()).toEqual({
+      error: { code: 'avatar-type-refused' },
+    });
+    const large = new Uint8Array(1024 * 1024 + 1);
+    large.set(PNG);
+    expect((await putAvatar(market, large)).status).toBe(413);
+  });
+
+  it('serves the current avatar publicly, replaces the old file and follows on listings', async () => {
+    const market = createMarket();
+    await becomeAuthor(market);
+    const { bot } = (await (await upload(market, BOT_FILES)).json()) as { bot: { id: string } };
+    const authorOf = async () =>
+      (
+        (await (await market.request(`/v1/bots/${bot.id}`)).json()) as {
+          bot: { author: { avatar: string | null } };
+        }
+      ).bot.author;
+    const first = (await (await putAvatar(market, PNG)).json()) as {
+      author: { id: string; avatar: string };
+    };
+    expect(first.author.avatar).toMatch(
+      new RegExp(`/v1/authors/${first.author.id}/avatar/[a-f0-9]{64}\\.png$`, 'u'),
+    );
+    const served = await market.request(new URL(first.author.avatar).pathname);
+    expect(served.status).toBe(200);
+    expect(served.headers.get('content-type')).toBe('image/png');
+    expect(new Uint8Array(await served.arrayBuffer())).toEqual(PNG);
+
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2]);
+    const second = (await (await putAvatar(market, jpeg)).json()) as { author: { avatar: string } };
+    expect(second.author.avatar).toMatch(/\.jpg$/u);
+    expect((await market.request(new URL(first.author.avatar).pathname)).status).toBe(404);
+    expect(authorKeys(market)).toHaveLength(1);
+    expect((await authorOf()).avatar).toBe(second.author.avatar);
+
+    const cleared = await call(market, 'DELETE', '/v1/me/avatar', 'token-alice');
+    expect(((await cleared.json()) as { author: { avatar: null } }).author.avatar).toBeNull();
+    expect(authorKeys(market)).toEqual([]);
+    expect((await authorOf()).avatar).toBeNull();
+  });
+
+  it('removes the avatar with the account', async () => {
+    const market = createMarket();
+    await call(market, 'PUT', '/v1/me', 'token-alice', { displayName: 'Alice' });
+    await putAvatar(market, PNG);
+    await call(market, 'DELETE', '/v1/me', 'token-alice');
+    expect([...market.bucket.objects.keys()]).toEqual([]);
   });
 });
 

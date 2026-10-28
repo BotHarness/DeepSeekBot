@@ -225,6 +225,7 @@ vi.mock('../src/ui/chat/native-header', () => ({
   floatingHeader: false,
   useHeaderPadding: () => 0,
 }));
+vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('../src/ui/shell/swipe-open', () => ({
   SwipeOpen: ({
     enabled,
@@ -1168,7 +1169,7 @@ it('a swipe left on the messages opens the same profile as the title', async () 
   );
   expect(profileHistory.state.routes.at(-1)).toMatchObject({
     name: 'bot/[slug]',
-    params: { slug: 'ada', hostId: 'computer_a' },
+    params: { slug: 'ada', hostId: 'computer_a', entry: 'swipe' },
   });
 });
 

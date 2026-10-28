@@ -8,6 +8,7 @@ import { SheetHeader } from './sheet-header';
 
 import { useDesignTheme } from '../design/theme';
 import { SheetScreen } from './sheet-screen';
+import { profileRootHeader } from '../chat/profile-presentation';
 
 function sheetStackHeader(close: () => void) {
   return function SheetStackHeader({ back, navigation, options, route }: NativeStackHeaderProps) {
@@ -34,6 +35,7 @@ export function SheetStack({
   const t = useStrings();
   const theme = useDesignTheme();
   const navigation = useNavigation('/');
+  const screen = useNavigation();
   const insets = useSafeAreaInsets();
   const contentInsets = useMemo(() => ({ ...insets, top: 0 }), [insets]);
   const header = useMemo(() => sheetStackHeader(() => navigation.goBack()), [navigation]);
@@ -44,6 +46,12 @@ export function SheetStack({
         style={{ flex: 1, backgroundColor: theme.overlay.fill }}
       >
         <Stack
+          screenListeners={({ route }) => ({
+            focus: () => {
+              const header = profileRootHeader(route.name);
+              if (header !== undefined) screen.setOptions(header);
+            },
+          })}
           screenOptions={{
             headerStyle: { backgroundColor: theme.overlay.fill },
             headerTintColor: theme.color.fg,

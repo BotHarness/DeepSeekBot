@@ -1,22 +1,32 @@
 import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { runOnJS, useSharedValue } from 'react-native-reanimated';
+import { runOnJS, useSharedValue, withSpring, type SharedValue } from 'react-native-reanimated';
+import { spring } from '../design/motion';
 import { swipeOpen } from '../design/tokens';
-import { swipeOpenProgress, swipeOpens } from './swipe-open-model';
+import { swipeOpenTravel, swipeOpens } from './swipe-open-model';
 
 export function SwipeOpen({
   enabled,
   onOpen,
+  travel,
   testID,
   children,
 }: {
   enabled: boolean;
   onOpen(): void;
+  travel: SharedValue<number>;
   testID?: string;
   children: ReactNode;
 }) {
+  const { width } = useWindowDimensions();
   const opened = useSharedValue(false);
+  const open = () => {
+    onOpen();
+    setTimeout(() => {
+      travel.value = 0;
+    }, swipeOpen.settle);
+  };
   const pan = Gesture.Pan()
     .enabled(enabled)
     .activeOffsetX(-swipeOpen.start)
@@ -25,14 +35,24 @@ export function SwipeOpen({
       opened.value = false;
     })
     .onUpdate((event) => {
-      if (opened.value || swipeOpenProgress(event.translationX) < 1) return;
-      opened.value = true;
-      runOnJS(onOpen)();
+      if (opened.value) return;
+      travel.value = swipeOpenTravel(event.translationX, width);
     })
     .onEnd((event) => {
-      if (opened.value || !swipeOpens(event.translationX, event.velocityX)) return;
+      if (opened.value) return;
+      const release = {
+        ...spring.spatial.fast,
+        overshootClamping: true,
+        velocity: -event.velocityX,
+      };
+      if (!swipeOpens(event.translationX, event.velocityX)) {
+        travel.value = withSpring(0, release);
+        return;
+      }
       opened.value = true;
-      runOnJS(onOpen)();
+      travel.value = withSpring(width, release, (finished) => {
+        if (finished) runOnJS(open)();
+      });
     });
   return (
     <GestureDetector gesture={pan}>

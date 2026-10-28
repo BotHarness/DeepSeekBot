@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import type { SharedValue } from 'react-native-reanimated';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type PanEvent = { translationX: number; velocityX: number };
@@ -59,10 +60,14 @@ vi.mock('expo-secure-store', () => ({
 }));
 vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: state.hosts }) }));
+vi.mock('../src/ui/chat/native-header', () => ({ useHeaderOverlap: () => 0 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({ useHostDrawerOpen: () => state.drawerOpen }));
 
 const { LastChatSwipe } = await import('../src/ui/shell/last-chat-swipe');
-const { swipeOpenProgress, swipeOpens } = await import('../src/ui/shell/swipe-open-model');
+const { swipeOpenProgress, swipeOpenTravel, swipeOpens } =
+  await import('../src/ui/shell/swipe-open-model');
+const { swipeEntryListeners, swipeEntryOptions, swipeHref } =
+  await import('../src/ui/shell/swipe-entry');
 const { lastChat, recordRecentChat } = await import('../src/ui/shell/recent-chats');
 const { swipeOpen } = await import('../src/ui/design/tokens');
 
@@ -93,6 +98,29 @@ describe('the last chat', () => {
     expect(swipeOpens(-swipeOpen.commit, swipeOpen.flick + 1)).toBe(false);
     expect(swipeOpens(swipeOpen.commit, -swipeOpen.flick - 1)).toBe(false);
   });
+
+  it('follows the finger from the right edge, never past the screen', () => {
+    expect(swipeOpenTravel(40, 390)).toBe(0);
+    expect(swipeOpenTravel(-120, 390)).toBe(120);
+    expect(swipeOpenTravel(-500, 390)).toBe(390);
+  });
+
+  it('pushes a swiped-in screen without a second animation, then pops it with its own', () => {
+    expect(swipeHref('/dm/b?hostId=h2')).toBe('/dm/b?hostId=h2&entry=swipe');
+    expect(swipeHref('/dm/b')).toBe('/dm/b?entry=swipe');
+    expect(swipeEntryOptions({ params: { entry: 'swipe' } })).toEqual({ animation: 'none' });
+    expect(swipeEntryOptions({ params: { slug: 'b' } })).toEqual({});
+    expect(swipeEntryOptions({})).toEqual({});
+    const setOptions = vi.fn();
+    swipeEntryListeners('slide_from_right')({
+      navigation: { setOptions },
+      route: { params: { entry: 'swipe' } },
+    }).transitionEnd();
+    expect(setOptions).toHaveBeenCalledWith({ animation: 'slide_from_right' });
+    setOptions.mockClear();
+    swipeEntryListeners('default')({ navigation: { setOptions }, route: {} }).transitionEnd();
+    expect(setOptions).not.toHaveBeenCalled();
+  });
 });
 
 describe('the Chats left swipe', () => {
@@ -114,12 +142,13 @@ describe('the Chats left swipe', () => {
   const render = (enabled = true) =>
     act(async () =>
       root.render(
-        <LastChatSwipe enabled={enabled}>
+        <LastChatSwipe enabled={enabled} travel={travel}>
           <div data-testid="chats" />
         </LastChatSwipe>,
       ),
     );
   const pan = () => state.pans.at(-1)!;
+  const travel = { value: 0 } as SharedValue<number>;
 
   it('starts only leftward, gives way to vertical scrolling, and has nothing to open at first', async () => {
     await render();
@@ -130,7 +159,7 @@ describe('the Chats left swipe', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('opens the last chat once the drag passes the threshold, only once', async () => {
+  it('moves the chat in with the finger and opens it once on release past the threshold', async () => {
     await act(async () => {
       await recordRecentChat(chat('a', 'h1', 'Ada'));
       await recordRecentChat(chat('b', 'h2', 'Bea'));
@@ -142,14 +171,24 @@ describe('the Chats left swipe', () => {
       pan().start();
       pan().update({ translationX: -swipeOpen.commit / 2, velocityX: 0 });
     });
+    expect(travel.value).toBe(swipeOpen.commit / 2);
     expect(state.navigate).not.toHaveBeenCalled();
     await act(async () => {
-      pan().update({ translationX: -swipeOpen.commit, velocityX: 0 });
       pan().update({ translationX: -swipeOpen.commit * 2, velocityX: 0 });
+    });
+    expect(travel.value).toBe(swipeOpen.commit * 2);
+    expect(state.navigate).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    await act(async () => {
+      pan().end({ translationX: -swipeOpen.commit * 2, velocityX: -swipeOpen.flick * 2 });
       pan().end({ translationX: -swipeOpen.commit * 2, velocityX: -swipeOpen.flick * 2 });
     });
     expect(state.navigate).toHaveBeenCalledTimes(1);
-    expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2');
+    expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2&entry=swipe');
+    expect(travel.value).toBeGreaterThan(0);
+    vi.advanceTimersByTime(swipeOpen.settle);
+    vi.useRealTimers();
+    expect(travel.value).toBe(0);
   });
 
   it('opens on a short leftward flick', async () => {
@@ -159,7 +198,7 @@ describe('the Chats left swipe', () => {
       pan().update({ translationX: -30, velocityX: 0 });
       pan().end({ translationX: -30, velocityX: -swipeOpen.flick - 1 });
     });
-    expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2');
+    expect(state.navigate).toHaveBeenCalledWith('/dm/b?hostId=h2&entry=swipe');
   });
 
   it('does not open when let go early', async () => {
@@ -170,6 +209,7 @@ describe('the Chats left swipe', () => {
       pan().end({ translationX: -30, velocityX: 0 });
     });
     expect(state.navigate).not.toHaveBeenCalled();
+    expect(travel.value).toBe(0);
   });
 
   it('stays off while the workspace drawer is open, while searching, and without a paired chat', async () => {

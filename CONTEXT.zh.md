@@ -458,6 +458,10 @@ _避免使用_：username、account id
 Bot Marketplace 为上传账号分配的永不改变的短标识，显示在可自由设置的显示名旁边，用来区分重名作者；绝不使用 account email。
 _避免使用_：handle、username、account email
 
+**Account Profile**：
+一个 Connect 账号的显示名和可选头像，由 Bot Marketplace 和它的 Author ID 一起保存。Human 可以在任一客户端的设置里编辑它，Uploaded Bot 会把它显示为作者；account email 从不属于它。
+_避免使用_：Human display name、user profile、author account
+
 **Bot set**：
 一组计划一同导入、带名称的 Listing。
 _避免使用_：collection、bundle、pack、team

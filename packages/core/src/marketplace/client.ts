@@ -44,10 +44,11 @@ export type MarketplaceSource = 'github' | 'upload';
 export interface MarketplaceAuthor {
   name: string;
   id: string;
+  avatar: string | null;
 }
 
 export interface MarketplaceAuthorAccount extends MarketplaceAuthor {
-  termsAcceptedAt: string;
+  termsAcceptedAt: string | null;
 }
 
 export type MarketplaceFileKind = 'text' | 'script' | 'image';
@@ -164,6 +165,10 @@ export interface MarketplaceClient {
   saveAuthor(
     token: string,
     input: { displayName: string; acceptTerms: boolean },
+  ): Promise<MarketplaceResult<MarketplaceAuthorAccount>>;
+  saveAuthorAvatar(
+    token: string,
+    avatar: Uint8Array | null,
   ): Promise<MarketplaceResult<MarketplaceAuthorAccount>>;
   beginUpload(
     token: string,
@@ -299,15 +304,16 @@ function parseInstalled(value: unknown): MarketplaceInstalled | undefined {
 
 function parseAuthor(value: unknown): MarketplaceAuthor | undefined {
   const source = record(value);
+  const avatar = source?.['avatar'];
   return typeof source?.['name'] === 'string' && typeof source['id'] === 'string'
-    ? { name: source['name'], id: source['id'] }
+    ? { name: source['name'], id: source['id'], avatar: typeof avatar === 'string' ? avatar : null }
     : undefined;
 }
 
 function parseAuthorAccount(value: unknown): MarketplaceAuthorAccount | undefined {
   const author = parseAuthor(value);
   const accepted = record(value)?.['termsAcceptedAt'];
-  return author === undefined || typeof accepted !== 'string'
+  return author === undefined || (typeof accepted !== 'string' && accepted !== null)
     ? undefined
     : { ...author, termsAcceptedAt: accepted };
 }
@@ -649,6 +655,18 @@ export function createMarketplaceClient(options: {
       request(
         '/v1/me',
         { method: 'PUT', headers: authorized(token, true), body: JSON.stringify(input) },
+        (value) => parseAuthorAccount(record(value)?.['author']),
+      ),
+    saveAuthorAvatar: (token, avatar) =>
+      request(
+        '/v1/me/avatar',
+        avatar === null
+          ? { method: 'DELETE', headers: authorized(token, false) }
+          : {
+              method: 'PUT',
+              headers: { ...authorized(token, false), 'content-type': 'application/octet-stream' },
+              body: new Uint8Array(avatar),
+            },
         (value) => parseAuthorAccount(record(value)?.['author']),
       ),
     beginUpload: (token, input) =>

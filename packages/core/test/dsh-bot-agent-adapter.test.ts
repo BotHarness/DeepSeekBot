@@ -602,6 +602,8 @@ describe('DSH Bot Agent adapter', () => {
           rolePrompt?.includes("Tob is the Human's private steward, never a Group participant"),
         ).toBe(tobCli);
         expect(rolePrompt?.includes('You may create a Group with group_create')).toBe(!tobCli);
+        expect(rolePrompt?.includes('Tob Delegation:')).toBe(tobCli);
+        expect(scope.tools.map((tool) => tool.name)).toContain('list_bot_contacts');
         expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_read');
         expect(scope.tools.map((tool) => tool.name)).not.toContain('tob_assignment_limit_set');
         expect(scope.tools.map((tool) => tool.name)).toContain('create_assignment');
@@ -2431,7 +2433,10 @@ describe('DSH Bot Agent adapter', () => {
       type: 'text',
       text: expect.stringContaining('[Host reply transport reminder]'),
     });
-    expect(host.received.get('assignment-1')?.[0]?.content).toHaveLength(1);
+    expect(host.received.get('assignment-1')?.[0]?.content).toEqual([
+      { type: 'text', text: '核对发布状态' },
+      { type: 'text', text: expect.stringContaining('[Host Assignment report transport]') },
+    ]);
     expect(host.steered.get('orchestrator-ada')?.[0]?.content).toEqual([
       { type: 'text', text: '请继续回复当前 Channel' },
       {
