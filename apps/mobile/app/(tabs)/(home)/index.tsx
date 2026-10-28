@@ -425,7 +425,6 @@ const HomeContent = memo(function HomeContent({
         ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
-  // Every branch sets the header options, otherwise iOS shows the route name "index" as a large title.
   const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
     return (
