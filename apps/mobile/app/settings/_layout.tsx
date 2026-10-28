@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { Platform } from 'react-native';
 import { SheetStack } from '../../src/ui/primitives/sheet-stack';
 import { useStrings } from '../../src/ui/strings';
 
@@ -7,7 +8,10 @@ export default function SettingsLayout() {
   return (
     <SheetStack>
       <Stack.Screen name="chat-background" options={{ title: t.chatBackground.global }} />
-      <Stack.Screen name="index" options={{ title: t.settings }} />
+      <Stack.Screen
+        name="index"
+        options={{ title: t.settings, headerShown: Platform.OS !== 'android' }}
+      />
       <Stack.Screen name="usage" options={{ title: t.usage }} />
       <Stack.Screen name="storage" options={{ title: t.storage.title }} />
       <Stack.Screen name="app-icon" options={{ title: t.appIcon }} />

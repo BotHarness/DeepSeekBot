@@ -30,14 +30,23 @@ vi.mock('@expo/ui/jetpack-compose', () => ({
     children,
     onDismissRequest,
     skipPartiallyExpanded,
+    containerColor,
+    contentColor,
   }: {
     children: ReactNode;
     onDismissRequest(): void;
     skipPartiallyExpanded?: boolean;
+    containerColor?: string;
+    contentColor?: string;
   }) =>
     createElement(
       'dialog',
-      { open: true, 'data-skip-partial': String(skipPartiallyExpanded) },
+      {
+        open: true,
+        'data-skip-partial': String(skipPartiallyExpanded),
+        'data-fill': containerColor,
+        'data-ink': contentColor,
+      },
       createElement('button', { 'data-testid': 'dismiss', onClick: onDismissRequest }),
       children,
     ),
@@ -45,7 +54,12 @@ vi.mock('@expo/ui/jetpack-compose', () => ({
     createElement('section', { 'data-match': JSON.stringify(matchContents) }, children),
 }));
 vi.mock('../src/ui/design/theme', () => ({
-  useDesignTheme: () => ({ scheme: 'light', touch: 48, color: { accent: 'seed' } }),
+  useDesignTheme: () => ({
+    scheme: 'light',
+    touch: 48,
+    color: { accent: 'seed', fg: 'ink' },
+    layer: { sheet: { fill: 'sheet-surface' } },
+  }),
 }));
 vi.mock('../src/ui/strings', () => ({ useStrings: () => ({ cancel: 'Cancel' }) }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({
@@ -90,6 +104,16 @@ it('opens the shell in the Material 3 modal bottom sheet with the hosted content
   expect(view.querySelector('section p')?.textContent).toBe('body');
   expect(view.querySelector('[role="dialog"]')).toBeNull();
   expect(view.querySelectorAll('[aria-label="Cancel"]')).toHaveLength(0);
+});
+
+it('uses the body sheet surface for the native handle and container too', async () => {
+  const view = await mount(
+    <Sheet visible label="Filters" onClose={() => {}}>
+      <p>Filters</p>
+    </Sheet>,
+  );
+  expect(view.querySelector('dialog')?.getAttribute('data-fill')).toBe('sheet-surface');
+  expect(view.querySelector('dialog')?.getAttribute('data-ink')).toBe('ink');
 });
 
 it('calls the caller close for every native dismissal', async () => {
