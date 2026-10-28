@@ -14,7 +14,11 @@ import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
 import { locale, useStrings } from '../strings';
 import { MarketplaceAvatarImage, MarketplaceBannerImage } from './marketplace-art';
-import { MarketplaceHeading } from './marketplace-heading';
+import {
+  MarketplaceHeading,
+  MarketplacePlaceholder,
+  MarketplaceRetry,
+} from './marketplace-heading';
 import {
   importMarketplaceBot,
   openMarketplaceBot,
@@ -177,6 +181,7 @@ function HotCarousel({
 
 export function MarketplaceSections({ target }: { target: MarketplaceTarget }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const title = useSectionTitle();
   const resource = marketplace.sections(locale);
   const state = useCatalogueResource(resource);
@@ -219,6 +224,22 @@ export function MarketplaceSections({ target }: { target: MarketplaceTarget }) {
           )}
         </View>
       ))}
+      {state.status === 'failed' ? (
+        <MarketplaceRetry
+          testID="marketplace-sections-retry"
+          busy={state.busy}
+          onRetry={() => void resource.refresh()}
+        />
+      ) : state.value === undefined ? (
+        <MarketplacePlaceholder
+          testID="marketplace-sections-loading"
+          label={t.contextLoading}
+          blocks={[
+            { width: '30%', height: theme.type.title.line },
+            { height: marketplaceHome.posterWidth / marketplaceHome.posterAspect },
+          ]}
+        />
+      ) : null}
     </View>
   );
 }

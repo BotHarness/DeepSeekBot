@@ -1,7 +1,9 @@
-import { Pressable, View } from 'react-native';
+import { Pressable, View, type DimensionValue } from 'react-native';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
+import { Button } from '../primitives/button';
 import { Text } from '../primitives/text';
+import { useStrings } from '../strings';
 import { ChevronRightIcon } from './icons';
 
 export function MarketplaceLink({
@@ -63,6 +65,58 @@ export function MarketplaceHeading({
         {title}
       </Text>
       {link ? <MarketplaceLink {...link} /> : null}
+    </View>
+  );
+}
+
+export function MarketplaceRetry({
+  testID,
+  busy,
+  onRetry,
+}: {
+  testID: string;
+  busy: boolean;
+  onRetry(): void;
+}) {
+  const t = useStrings();
+  return (
+    <View style={{ gap: space.x3 }}>
+      <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
+      <Button testID={testID} label={t.marketplace.retry} busy={busy} onPress={onRetry} />
+    </View>
+  );
+}
+
+export function MarketplacePlaceholder({
+  testID,
+  label,
+  blocks,
+}: {
+  testID: string;
+  label: string;
+  blocks: readonly { width?: DimensionValue; height: number }[];
+}) {
+  const theme = useDesignTheme();
+  return (
+    <View
+      testID={testID}
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      style={{ gap: space.x3 }}
+    >
+      {blocks.map((block, index) => (
+        <View
+          key={index}
+          accessible={false}
+          importantForAccessibility="no-hide-descendants"
+          style={{
+            width: block.width ?? '100%',
+            height: block.height,
+            borderRadius: radius.lg,
+            backgroundColor: theme.layer.canvas.inset,
+          }}
+        />
+      ))}
     </View>
   );
 }

@@ -215,6 +215,43 @@ describe('Digest Cover', () => {
 });
 
 describe('Marketplace home', () => {
+  it('shows placeholders while loading and a retry when the first load fails', async () => {
+    const original = fixture.fetch.getMockImplementation()!;
+    let fail: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    fixture.fetch.mockImplementation(async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/v1/digests' || path.startsWith('/v1/sections/')) {
+        await gate;
+        return new Response('down', { status: 503 });
+      }
+      return original(url, init);
+    });
+    await act(async () => root.render(<MarketplaceScreen />));
+    expect(byTestId('marketplace-daily-picks-loading')?.getAttribute('aria-label')).toBe(
+      t.marketplace.loadingPicks,
+    );
+    expect(byTestId('marketplace-sections-loading')).not.toBeNull();
+    expect(byTestId('marketplace-daily-picks-retry')).toBeNull();
+
+    await act(async () => fail());
+    expect(byTestId('marketplace-daily-picks-loading')).toBeNull();
+    expect(byTestId('marketplace-sections-loading')).toBeNull();
+    expect(element.textContent).toContain(t.marketplace.unavailable);
+    expect(byTestId('marketplace-daily-picks-retry')).not.toBeNull();
+    expect(byTestId('marketplace-sections-retry')).not.toBeNull();
+
+    fixture.fetch.mockImplementation(original);
+    await act(async () => byTestId('marketplace-daily-picks-retry')!.click());
+    await act(async () => byTestId('marketplace-sections-retry')!.click());
+    expect(byTestId('marketplace-daily-picks-retry')).toBeNull();
+    expect(byTestId('marketplace-sections-retry')).toBeNull();
+    expect(byTestId('digest-cover-three')).not.toBeNull();
+    expect(byTestId('marketplace-section-hot')).not.toBeNull();
+  });
+
   it('shows Daily picks, Hot, New and Rising above the list in that order', async () => {
     await act(async () => root.render(<MarketplaceScreen />));
     const order = testIds();

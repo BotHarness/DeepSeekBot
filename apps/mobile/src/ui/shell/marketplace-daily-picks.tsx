@@ -7,7 +7,11 @@ import { marketplaceHome, radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { locale, useStrings } from '../strings';
 import { DigestCover } from './marketplace-cover';
-import { MarketplaceHeading } from './marketplace-heading';
+import {
+  MarketplaceHeading,
+  MarketplacePlaceholder,
+  MarketplaceRetry,
+} from './marketplace-heading';
 import { openDigest, openPastPicks, type MarketplaceTarget } from './marketplace-navigation';
 
 export function DigestCard({
@@ -51,6 +55,7 @@ export function DigestCard({
 
 export function MarketplaceDailyPicks({ target }: { target: MarketplaceTarget }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const resource = marketplace.digests(locale);
   const state = useCatalogueResource(resource);
   const mounted = useMounted<ViewInstance>(() => {
@@ -74,6 +79,21 @@ export function MarketplaceDailyPicks({ target }: { target: MarketplaceTarget })
           />
           <DigestCard digest={today} onPress={() => openDigest(today.day, 'hero', target)} />
         </>
+      ) : state.status === 'failed' ? (
+        <MarketplaceRetry
+          testID="marketplace-daily-picks-retry"
+          busy={state.busy}
+          onRetry={() => void resource.refresh()}
+        />
+      ) : state.value === undefined ? (
+        <MarketplacePlaceholder
+          testID="marketplace-daily-picks-loading"
+          label={t.marketplace.loadingPicks}
+          blocks={[
+            { width: '40%', height: theme.type.title.line },
+            { height: marketplaceHome.heroCover + theme.type.body.line * 3 },
+          ]}
+        />
       ) : null}
     </View>
   );
