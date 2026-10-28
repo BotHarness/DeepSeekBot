@@ -10,6 +10,7 @@ export function HapticFeedbackSetting() {
     <SettingsRow
       on={SHEET_GROUP}
       title={t.hapticFeedback.title}
+      icon="haptics"
       {...(state.storageError ? { detail: t.hapticFeedback.storageError } : {})}
       control={{
         kind: 'switch',

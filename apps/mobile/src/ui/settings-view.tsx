@@ -133,11 +133,11 @@ export function SettingsView({
       <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
+        {messageDisplay}
         <SettingsRow
           on={SHEET_GROUP}
           title={t.appIcon}
           icon="appIcon"
-          detail={t.appIconHint}
           disclosure
           onPress={actions.onAppIcon}
         />
@@ -147,7 +147,6 @@ export function SettingsView({
         {deliveryReceipts}
       </SettingsSection>
       <InterfaceSaveNotice />
-      {messageDisplay}
       <SettingsSection title={t.about} on={SHEET_GROUP}>
         <SettingsRow
           on={SHEET_GROUP}
