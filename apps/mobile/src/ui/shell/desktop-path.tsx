@@ -38,6 +38,8 @@ export function DesktopPath({ steps }: { steps: readonly string[] }) {
               flexDirection: 'row',
               alignItems: 'center',
               gap: space.x2,
+              flexShrink: 1,
+              maxWidth: '100%',
             }}
           >
             <View
@@ -46,6 +48,7 @@ export function DesktopPath({ steps }: { steps: readonly string[] }) {
                 paddingVertical: space.x2,
                 borderRadius: radius.sm,
                 backgroundColor: theme.layer.well.fill,
+                flexShrink: 1,
               }}
             >
               <Text variant="meta" strong={index === steps.length - 1}>
