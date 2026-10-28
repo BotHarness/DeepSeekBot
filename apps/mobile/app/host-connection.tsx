@@ -71,13 +71,13 @@ export default function HostConnectionScreen() {
         {routes.map(({ url, status }, index) => {
           const current =
             snapshot.connection.status === 'connected' && snapshot.connection.route === url;
-          const kind = isLanRoute(url)
-            ? copy.lan
+          const [kind, icon] = isLanRoute(url)
+            ? ([copy.lan, 'lan'] as const)
             : isConnectRoute(url)
-              ? 'Connect'
+              ? (['Connect', 'encrypted'] as const)
               : new URL(url).hostname.endsWith('.ts.net')
-                ? 'Tailscale'
-                : copy.local;
+                ? (['Tailscale', 'encrypted'] as const)
+                : ([copy.local, 'computer'] as const);
           return (
             <SettingsSection
               key={url}
@@ -87,6 +87,7 @@ export default function HostConnectionScreen() {
             >
               <SettingsRow
                 on={SHEET_GROUP}
+                icon={icon}
                 title={current ? copy.current : copy[status]}
                 tone={status === 'unreachable' && !current ? 'danger' : 'fg'}
                 detail={url}
