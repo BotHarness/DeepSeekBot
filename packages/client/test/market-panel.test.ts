@@ -436,6 +436,191 @@ describe('Market panel', () => {
     );
   });
 
+  it('shows Hot as banner posters and New and Rising as compact cards', async () => {
+    const author = { name: 'Alice', id: 'k3x9q2', avatar: null };
+    const sections = vi.fn(async () => [
+      {
+        section: 'hot',
+        day: '2026-10-28',
+        entries: [
+          {
+            bot: entry('popular', {
+              installs: 1200,
+              banner: { recipe: { scene: 'sea', seed: 1 } },
+            } as Partial<MarketplaceEntry>),
+            score: 4,
+          },
+          { bot: entry('plain'), score: 2 },
+        ],
+      },
+      {
+        section: 'new',
+        day: '2026-10-28',
+        entries: [
+          {
+            bot: entry('fresh', {
+              id: 'U_fresh',
+              displayName: 'Fresh',
+              fullName: 'Alice/Fresh',
+              source: 'upload',
+              author,
+              installs: 3,
+            }),
+            score: 1,
+          },
+        ],
+      },
+      { section: 'rising', day: '2026-10-28', entries: [{ bot: entry('climber'), score: 3 }] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host }) => {
+        const row = (name: string) => host.querySelector(`[data-market-section="${name}"]`)!;
+        const cards = (name: string) =>
+          [...row(name).querySelectorAll('[data-market-card]')].map((card) =>
+            card.getAttribute('data-market-card'),
+          );
+        expect(cards('hot')).toEqual(['poster', 'poster']);
+        expect(cards('new')).toEqual(['compact']);
+        expect(cards('rising')).toEqual(['compact']);
+
+        const poster = row('hot').querySelector('[data-market-bot="alice/popular"]')!;
+        expect(
+          poster.querySelector('[data-market-banner]')?.getAttribute('data-market-banner'),
+        ).toBe('shown');
+        expect(poster.querySelector('[data-market-avatar]')).not.toBeNull();
+        expect(
+          poster.querySelector('[data-market-installs]')?.getAttribute('data-market-installs'),
+        ).toBe('1200');
+        expect(poster.textContent).not.toContain('popular description');
+        expect(
+          row('hot')
+            .querySelector('[data-market-bot="alice/plain"] [data-market-banner]')
+            ?.getAttribute('data-market-banner'),
+        ).toBe('none');
+
+        const compact = row('new').querySelector('[data-market-bot="Alice/Fresh"]')!;
+        expect(compact.querySelector('[data-market-author]')?.textContent).toBe('Alice #k3x9q2');
+        expect(compact.textContent).toContain('fresh description');
+        expect(
+          compact.querySelector('[data-market-installs]')?.getAttribute('data-market-installs'),
+        ).toBe('3');
+        expect(compact.querySelector('[data-market-banner]')).toBeNull();
+        expect(row('rising').querySelector('[data-market-author]')?.textContent).toBe(
+          'alice/climber',
+        );
+        expect(
+          [...host.querySelectorAll('[data-market-see-all]')].map((link) => link.textContent),
+        ).toEqual(['查看全部', '查看全部', '查看全部']);
+      },
+      { marketplaceSections: sections },
+    );
+  });
+
+  it('opens every entry of a ranking from See all and goes back to the home', async () => {
+    const climbers = ['climber', 'sprinter', 'jumper'].map((name, index) => ({
+      bot: entry(name),
+      score: 3 - index,
+    }));
+    const sections = vi.fn(async () => [
+      { section: 'hot', day: '2026-10-28', entries: [] },
+      { section: 'new', day: '2026-10-28', entries: [{ bot: entry('fresh'), score: 1 }] },
+      { section: 'rising', day: '2026-10-28', entries: climbers },
+    ]);
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host, actions }) => {
+        expect(host.querySelector('[data-market-section="hot"]')).toBeNull();
+        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
+        const rising = host.querySelector('[data-market-section="rising"]')!;
+        await act(async () =>
+          rising.querySelector<HTMLButtonElement>('[data-market-see-all="rising"]')!.click(),
+        );
+        const page = host.querySelector<HTMLElement>('[data-market-page="ranking"]')!;
+        expect(page.getAttribute('aria-label')).toBe('上升最快');
+        expect(home.hidden).toBe(true);
+        const grid = page.querySelector('.bh-market-grid[data-market-ranking="rising"]')!;
+        expect(
+          [...grid.querySelectorAll('[data-market-bot]')].map((tile) =>
+            tile.getAttribute('data-market-bot'),
+          ),
+        ).toEqual(['alice/climber', 'alice/sprinter', 'alice/jumper']);
+
+        await act(async () => button(page, '查看 alice/sprinter 详情').click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'rising',
+          step: 'detail',
+        });
+        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+        expect(page.getAttribute('aria-hidden')).toBe('true');
+        await act(async () =>
+          button(host.querySelector<HTMLElement>('[data-market-page="bot"]')!, '返回').click(),
+        );
+        expect(host.querySelector('[data-market-page="bot"]')).toBeNull();
+        expect(host.querySelector('[data-market-page="ranking"]')).toBe(page);
+
+        const imports = [...grid.querySelectorAll('button')].filter(
+          (item) => item.textContent === '导入',
+        );
+        await act(async () => imports[2]!.click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'rising',
+          step: 'install',
+        });
+        expect(host.querySelector('h1')?.textContent).toBe('安装 jumper');
+        await act(async () => button(host.querySelector('[data-dialog]')!, '返回').click());
+
+        await act(async () => button(page, '返回').click());
+        expect(host.querySelector('[data-market-page="ranking"]')).toBeNull();
+        expect(home.hidden).toBe(false);
+        expect(host.querySelector('.bh-market-page')).toBe(home);
+        expect(home.querySelector('[data-market-section="rising"]')).toBe(rising);
+      },
+      {
+        marketplaceSections: sections,
+        marketplaceInstallReview: vi.fn(() => new Promise(() => undefined)),
+        marketplaceDetail: vi.fn(async () => ({
+          bot: climbers[1]!.bot,
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [],
+        })),
+      },
+    );
+  });
+
+  it('sends the ranking name when a Bot is opened or imported from a home row', async () => {
+    const sections = vi.fn(async () => [
+      { section: 'hot', day: '2026-10-28', entries: [{ bot: entry('popular'), score: 4 }] },
+      { section: 'new', day: '2026-10-28', entries: [{ bot: entry('fresh'), score: 1 }] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, actions }) => {
+        const hot = host.querySelector<HTMLElement>('[data-market-section="hot"]')!;
+        await act(async () => button(hot, '导入').click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'hot',
+          step: 'install',
+        });
+        await act(async () => button(host.querySelector('[data-dialog]')!, '返回').click());
+        const fresh = host.querySelector<HTMLElement>('[data-market-section="new"]')!;
+        await act(async () => button(fresh, '查看 alice/fresh 详情').click());
+        expect(actions['telemetryEvent']).toHaveBeenLastCalledWith('marketplace:bot_open', {
+          entry: 'new',
+          step: 'detail',
+        });
+        expect(host.querySelector('[data-market-page="bot"]')).not.toBeNull();
+      },
+      {
+        marketplaceSections: sections,
+        marketplaceInstallReview: vi.fn(() => new Promise(() => undefined)),
+        marketplaceDetail: vi.fn(() => new Promise(() => undefined)),
+      },
+    );
+  });
+
   it('defaults to stars and remembers each explicit sort after reopening', async () => {
     await withPanel(
       async () => ({ bots: [] }),

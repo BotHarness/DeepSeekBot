@@ -1871,11 +1871,9 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   display: flex;
   flex-direction: column;
   gap: ${space.x3};
-  height: 100%;
+  min-height: 100%;
   min-width: 0;
   padding: ${space.x4};
-  overflow-y: auto;
-  overscroll-behavior: contain;
   box-sizing: border-box;
   container: bh-market / inline-size;
 }

@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -10,141 +10,23 @@ import type {
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
-import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketDailyPicks, MarketDigestPage, MarketPastPicksPage } from './market-digest.js';
 import { MyUploadsDialog } from './market-mine.js';
 import { useKeptScroll } from './market-page.js';
-import { useMountedResource } from './mounted-resource.js';
+import { MarketRankingPage, MarketplaceSections, MarketplaceTile } from './market-rankings.js';
 import { MarketUploadDialog } from './market-upload.js';
 import {
-  MarketplaceAvatar,
-  MarketplaceBanner,
   MarketplaceBotFlow,
   MarketplaceBrowseControls,
-  MarketplaceDescription,
   MarketplaceListStatus,
   MarketplaceLoadMore,
-  MarketplaceMeta,
-  MarketplaceSubmitField,
   marketplaceLanguage,
-  marketplaceName,
-  MarketplaceOwner,
   useMarketplaceBrowse,
-  useMarketplaceSubmit,
   type MarketplaceFlowStart,
 } from './marketplace.js';
-import { store, type BotSummary } from './store.js';
 
 export const MARKET_PANEL = 'bot-market';
-
-function MarketplaceTile({
-  bot,
-  created,
-  t,
-  onOpen,
-  onImport,
-}: {
-  bot: MarketplaceEntry;
-  created: boolean;
-  t: BotHarnessTranslate;
-  onOpen: () => void;
-  onImport: () => void;
-}): ReactElement {
-  return (
-    <div className="bh-market-tile" role="listitem" data-market-bot={bot.fullName}>
-      <button
-        type="button"
-        className="bh-market-open bh-market-tile-open"
-        aria-label={t('market.detail.open', { name: bot.fullName })}
-        onClick={onOpen}
-      >
-        <MarketplaceBanner bot={bot} className="bh-market-tile-banner" />
-        <span className="bh-market-tile-head">
-          <MarketplaceAvatar bot={bot} size={40} t={t} />
-          <span className="bh-market-copy">
-            <span className="bh-market-card-name">{marketplaceName(bot)}</span>
-            <span className="bh-market-owner">
-              {bot.source === 'upload' ? <MarketplaceOwner bot={bot} /> : bot.fullName}
-            </span>
-          </span>
-        </span>
-      </button>
-      {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
-      <div className="bh-market-tile-foot">
-        <MarketplaceMeta bot={bot} t={t} topics={false} created={created} />
-        <Button size="sm" variant="primary" onClick={onImport}>
-          {t('market.import')}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-const SECTION_TITLES = {
-  hot: 'market.section.hot',
-  new: 'market.section.new',
-  rising: 'market.section.rising',
-} as const;
-
-function MarketplaceSections({
-  actions,
-  lang,
-  t,
-  onOpen,
-  onImport,
-}: {
-  actions: BridgeActions;
-  lang: ReturnType<typeof marketplaceLanguage>;
-  t: BotHarnessTranslate;
-  onOpen: (bot: MarketplaceEntry, source: MarketplaceInstallSource) => void;
-  onImport: (bot: MarketplaceEntry, source: MarketplaceInstallSource) => void;
-}): ReactElement {
-  const [sections, setSections] = useState<MarketplaceSection[]>([]);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    let live = true;
-    setSections([]);
-    void actions.marketplaceSections(lang).then(
-      (loaded) => {
-        if (!live) return;
-        setSections(loaded);
-        if (loaded.some((section) => section.entries.length > 0))
-          actions.telemetryEvent('marketplace:section_view');
-      },
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, [lang]);
-  const shown = sections.filter((section) => section.entries.length > 0);
-  return (
-    <div className="bh-market-sections" ref={mount} hidden={shown.length === 0}>
-      {shown.map((section) => (
-        <section
-          key={section.section}
-          className="bh-market-section"
-          data-market-section={section.section}
-          aria-label={t(SECTION_TITLES[section.section])}
-        >
-          <h3 className="bh-market-section-title">{t(SECTION_TITLES[section.section])}</h3>
-          <div className="bh-market-carousel" role="list">
-            {section.entries.map(({ bot }) => (
-              <MarketplaceTile
-                key={bot.id}
-                bot={bot}
-                created={false}
-                t={t}
-                onOpen={() => onOpen(bot, section.section)}
-                onImport={() => onImport(bot, section.section)}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
 
 type MarketPageTarget =
   | {
@@ -242,6 +124,7 @@ export function MarketPanelView({
               t={t}
               onOpen={(bot, source) => start(bot, 'detail', source)}
               onImport={(bot, source) => start(bot, 'install', source)}
+              onSeeAll={(section) => push({ kind: 'ranking', section })}
             />
           ) : null}
           <MarketplaceListStatus browse={browse} t={t} />
@@ -278,6 +161,18 @@ export function MarketPanelView({
                 onInstalled={installed}
               />
             );
+          case 'ranking':
+            return (
+              <MarketRankingPage
+                key={page.key}
+                section={page.section}
+                hidden={hidden}
+                t={t}
+                onBack={back}
+                onOpen={(bot, source) => start(bot, 'detail', source)}
+                onImport={(bot, source) => start(bot, 'install', source)}
+              />
+            );
           case 'digest':
             return (
               <MarketDigestPage
@@ -312,8 +207,6 @@ export function MarketPanelView({
                 onOpen={(day) => openDigest(day, 'archive')}
               />
             );
-          case 'ranking':
-            return null;
         }
       })}
       {flow === undefined ? null : (
