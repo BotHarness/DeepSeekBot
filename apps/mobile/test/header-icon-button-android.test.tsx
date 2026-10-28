@@ -87,6 +87,7 @@ for (const name of [
   'language',
   'computer',
   'do-not-touch',
+  'tob-mode',
 ]) {
   const path = requireAsset.resolve(`../assets/header/${name}.xml`);
   const asset = new Module(path);

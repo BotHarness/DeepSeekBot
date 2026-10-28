@@ -20,6 +20,7 @@ const symbols = {
   filter: 'line.3.horizontal.decrease',
   search: 'magnifyingglass',
   settings: 'gearshape',
+  tob: 'chevron.down.circle',
 } as const;
 
 export function HeaderAction({ icon, label, testID, active = false, onPress }: HeaderActionProps) {

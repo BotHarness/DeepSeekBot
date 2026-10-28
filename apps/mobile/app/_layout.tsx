@@ -99,6 +99,16 @@ function RootNavigator() {
                   options={{ title: '' }}
                 />
                 <Stack.Screen
+                  name="tob"
+                  options={{
+                    headerShown: false,
+                    presentation: 'transparentModal',
+                    animation: 'none',
+                    gestureEnabled: false,
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}
+                />
+                <Stack.Screen
                   name="bot/[slug]"
                   options={{
                     title: t.profile,

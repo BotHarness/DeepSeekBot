@@ -83,7 +83,8 @@ import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
+import { EdgeFade, HeaderBackButton, HeaderCloseUpButton, titleChipFill } from './header-chrome';
+import { useConversationChrome } from './conversation-chrome';
 import {
   barLabelStyle,
   floatingHeader,
@@ -1049,8 +1050,9 @@ function ChatConversation({
   );
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
-  const leave = () => leaveScreen(router);
-  const canGoBack = router.canGoBack();
+  const chrome = useConversationChrome();
+  const leave = chrome?.close ?? (() => leaveScreen(router));
+  const canGoBack = chrome === undefined && router.canGoBack();
   const botDmName =
     channelDetails?.members
       .map(
@@ -1133,7 +1135,12 @@ function ChatConversation({
     />
   );
   const ios = Platform.OS === 'ios';
-  const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
+  const back = chrome ? (
+    <HeaderCloseUpButton label={chrome.closeLabel} plain={!headerIslands} onPress={leave} />
+  ) : (
+    <HeaderBackButton plain={!headerIslands} onPress={leave} />
+  );
+  const trailing = chrome?.trailing;
   const titleItem = (
     <View
       style={{
@@ -1208,7 +1215,8 @@ function ChatConversation({
                 title: '',
                 headerTitle: '',
                 headerBackVisible: canGoBack && !headerIslands,
-                unstable_headerRightItems: () => [],
+                unstable_headerRightItems: () =>
+                  trailing === undefined ? [] : [{ type: 'custom' as const, element: trailing }],
                 unstable_headerLeftItems: () => [
                   ...(headerIslands
                     ? [{ type: 'custom' as const, element: back }]
@@ -1217,10 +1225,10 @@ function ChatConversation({
                       : [
                           {
                             type: 'button' as const,
-                            label: t.back,
+                            label: chrome?.closeLabel ?? t.back,
                             icon: {
                               type: 'sfSymbol' as const,
-                              name: 'chevron.left' as const,
+                              name: chrome ? ('chevron.up' as const) : ('chevron.left' as const),
                             },
                             onPress: leave,
                           },
@@ -1231,7 +1239,7 @@ function ChatConversation({
               }
             : {
                 headerTitleAlign: 'left' as const,
-                headerRight: () => null,
+                headerRight: () => trailing ?? null,
                 headerTitle: () => (
                   <View
                     key={`${theme.scheme}:${theme.fontScale}:${bot?.displayName ?? channel?.name ?? ''}`}

@@ -278,6 +278,13 @@ export const lastChatSwipe = {
   flick: 500,
 } as const;
 
+export const tobMode = {
+  start: 12,
+  horizontalFail: 24,
+  commit: 96,
+  flick: 800,
+} as const;
+
 export const markdownTable = {
   minColumnWidth: 96,
   maxColumnWidth: 280,

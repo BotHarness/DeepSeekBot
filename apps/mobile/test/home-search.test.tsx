@@ -155,6 +155,11 @@ vi.mock('../src/cloud/native-conversations', () => ({
   },
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('expo-secure-store', () => ({
+  getItemAsync: async () => null,
+  setItemAsync: async () => undefined,
+}));
+vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/shell/last-chat-swipe', () => ({
   LastChatSwipe: ({ enabled, children }: { enabled: boolean; children: ReactNode }) => (
@@ -1025,6 +1030,34 @@ describe('Search in the Chats header', () => {
       view.querySelector<HTMLButtonElement>(`button[aria-label="${t.closeSearch}"]`)!.click(),
     );
     expect(swipe().dataset.enabled).toBe('true');
+  });
+  it("offers Tob Mode for the selected computer's Tob, and not where there is no Tob", async () => {
+    const tobButton = (view: HTMLElement) =>
+      view.querySelector<HTMLButtonElement>(`button[aria-label="${t.tobMode.open}"]`);
+    let view = await home();
+    expect(tobButton(view)).toBeNull();
+    act(() => root?.unmount());
+    host?.remove();
+    roster.bots.push({
+      slug: 'tob',
+      displayName: 'Tob',
+      tob: true,
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      state: 'idle',
+      paused: false,
+      dmChannelId: 'dm-tob',
+    });
+    try {
+      view = await home();
+      await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+      expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
+      await act(async () => tobButton(view)!.click());
+      expect(push).toHaveBeenCalledWith({ pathname: '/tob', params: { hostId: 'h1' } });
+    } finally {
+      roster.bots.pop();
+    }
   });
   it('closes search, clearing the query, from the button beside the field', async () => {
     const view = await home();
