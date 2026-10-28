@@ -13,6 +13,7 @@ import {
   PencilIcon,
   PlusIcon,
   SettingsIcon,
+  TobModeIcon,
 } from './icons';
 
 export type HeaderIcon =
@@ -26,7 +27,8 @@ export type HeaderIcon =
   | 'add'
   | 'browser'
   | 'computer'
-  | 'hand-back';
+  | 'hand-back'
+  | 'tob';
 
 export type HeaderIconButtonProps = {
   icon: HeaderIcon;
@@ -48,6 +50,7 @@ const glyphs = {
   browser: { Glyph: BrowserIcon, size: (theme) => theme.touch / 2 },
   computer: { Glyph: ComputerIcon, size: (theme) => theme.touch / 2 },
   'hand-back': { Glyph: HandBackIcon, size: (theme) => theme.touch / 2 },
+  tob: { Glyph: TobModeIcon, size: (theme) => theme.type.title.line },
 } satisfies Record<HeaderIcon, { Glyph: typeof CloseIcon; size(theme: DesignTheme): number }>;
 
 export function HeaderIconButton({

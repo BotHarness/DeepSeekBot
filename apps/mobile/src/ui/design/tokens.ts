@@ -295,6 +295,14 @@ export const swipeReply = {
   bar: 3,
 } as const;
 
+export const topEntrance = {
+  edge: 20,
+  start: 12,
+  verticalFail: 16,
+  commit: 96,
+  flick: 500,
+} as const;
+
 export const markdownTable = {
   minColumnWidth: 96,
   maxColumnWidth: 280,

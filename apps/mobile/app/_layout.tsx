@@ -19,6 +19,7 @@ import { StatisticsNotice } from '../src/ui/shell/statistics-notice';
 import { BotCreationNotice } from '../src/ui/shell/bot-creation-notice';
 import { ChannelCreationNotice } from '../src/ui/shell/channel-creation-notice';
 import { cloudChannelRouteId } from '../src/ui/shell/cloud-channel-navigation';
+import { topEntranceScreenOptions } from '../src/ui/shell/tob-mode-model';
 import { KeyboardRoot } from '../src/ui/primitives/keyboard-frame';
 import { AppDialogHost } from '../src/ui/primitives/app-dialog-host';
 import { noteTouch } from '../src/ui/primitives/touch-anchor';
@@ -110,6 +111,7 @@ function RootNavigator() {
                   })}
                   listeners={swipeEntryListeners('default')}
                 />
+                <Stack.Screen name="dm-top" options={topEntranceScreenOptions} />
                 <Stack.Screen
                   name="bot/[slug]"
                   options={({ route }) => ({

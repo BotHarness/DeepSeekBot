@@ -155,6 +155,11 @@ vi.mock('../src/cloud/native-conversations', () => ({
   },
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('expo-secure-store', () => ({
+  getItemAsync: async () => null,
+  setItemAsync: async () => undefined,
+}));
+vi.mock('expo-quick-actions', () => ({ setItems: async () => undefined }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/shell/last-chat-swipe', () => ({
   LastChatPreview: () => null,
@@ -429,6 +434,7 @@ const rows = (view: HTMLElement) =>
           'studio',
           t.closeSearch,
           t.openSearch,
+          t.openTobMode,
           t.settings,
           t.workspaces,
         ].includes(node.getAttribute('aria-label') ?? ''),
@@ -1064,6 +1070,40 @@ describe('Search in the Chats header', () => {
       view.querySelector<HTMLButtonElement>(`button[aria-label="${t.closeSearch}"]`)!.click(),
     );
     expect(swipe().dataset.enabled).toBe('true');
+  });
+  it("opens the computer's Tob DM from the Tob Mode action, through the top entrance", async () => {
+    const tobButton = (view: HTMLElement) =>
+      view.querySelector<HTMLButtonElement>(`button[aria-label="${t.openTobMode}"]`);
+    let view = await home();
+    expect(tobButton(view)).not.toBeNull();
+    push.mockClear();
+    await act(async () => tobButton(view)!.click());
+    expect(push).not.toHaveBeenCalled();
+    act(() => root?.unmount());
+    host?.remove();
+    roster.bots.push({
+      slug: 'tob',
+      displayName: 'Tob',
+      tob: true,
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      state: 'idle',
+      paused: false,
+      dmChannelId: 'dm-tob',
+    });
+    try {
+      view = await home();
+      const href = { pathname: '/dm-top/[slug]', params: { slug: 'tob', hostId: 'h1' } };
+      await act(async () => tobButton(view)!.click());
+      expect(push).toHaveBeenLastCalledWith(href);
+      await act(async () => conversationFilter.set(computerEnvironmentKey('h1')));
+      expect(view.querySelector('[data-testid="conversation-row-bot:tob"]')).not.toBeNull();
+      await act(async () => tobButton(view)!.click());
+      expect(push).toHaveBeenLastCalledWith(href);
+    } finally {
+      roster.bots.pop();
+    }
   });
   it('closes search, clearing the query, from the button beside the field', async () => {
     const view = await home();

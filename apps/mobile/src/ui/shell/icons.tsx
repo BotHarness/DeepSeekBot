@@ -99,6 +99,10 @@ export function ChevronRightIcon(props: IconProps) {
   return <Glyph {...props} d="m9 6 6 6-6 6" />;
 }
 
+export function TobModeIcon(props: IconProps) {
+  return <Glyph {...props} d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM8 10.5l4 4 4-4" />;
+}
+
 export function ChevronUpIcon(props: IconProps) {
   return <Glyph {...props} d="m6 15 6-6 6 6" />;
 }

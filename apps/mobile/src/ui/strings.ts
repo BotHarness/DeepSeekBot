@@ -1374,6 +1374,7 @@ const en = {
   mutedUnread: (count: number) =>
     count === 1 ? 'muted, 1 unread message' : `muted, ${count} unread messages`,
   openSearch: 'Search',
+  openTobMode: 'Tob Mode',
   closeSearch: 'Close search',
   searchPlaceholder: 'Search Bots, Channels and messages',
   searchIn: (place: string) => `Search ${place}`,
@@ -3334,6 +3335,7 @@ const zh: typeof en = {
   unreadCount: (count: number) => `${count} 条未读消息`,
   mutedUnread: (count: number) => `已静音，${count} 条未读消息`,
   openSearch: '搜索',
+  openTobMode: 'Tob 模式',
   closeSearch: '关闭搜索',
   searchPlaceholder: '搜索 Bot、频道和消息',
   searchIn: (place: string) => `在${place}中搜索`,
