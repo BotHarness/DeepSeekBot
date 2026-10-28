@@ -20,10 +20,12 @@ Use the assigned Windows/Android or Mac/iOS shared device lane. Do not boot a pr
 6. Change only the selected current Host through a notification, or refresh a Cloud Organization/session with the same account. Confirm valid history is retained. Chats/Activity switching retains list position, filters and drafts; no whole-app remount or draft deletion is allowed.
 7. Capture redacted before/after state and Back paths in light/dark and default/intermediate/maximum text sizes. Record Android hardware/predictive Back and TalkBack separately from iOS swipe/dismiss and VoiceOver. Keep native acceptance separate from source-test evidence.
 
+8. On iOS, scroll a populated Chats list into history, record the selected environment and visible row positions, then right-swipe to Workspaces without choosing a row and left-swipe back. The same list instance, offset and search text remain; there is no new skeleton. Record a slow drag and cancellation: the tab bar travels with the complete Chats page and never appears over Workspaces. Repeat from a typed search with the real keyboard, after Settings/Notifications, under live Reduce Motion, and at the three required text sizes in both themes. On Activity and inside a chat/profile, workspace paging must not intercept their gestures. This uses the native SwiftUI paged container, not the old stack-pop/skeleton-return path (#3017).
+
 ## Gotchas
 
 Source tests do not qualify native gestures or accessibility. Account cleanup removes only explicitly scoped routes; ordinary notification source selection must preserve the return path.
 
 ## Automated coverage
 
-`apps/mobile/test/workspace-navigation.test.tsx` drives the production drawer selection owner and Cloud selection adapter through the installed Expo stack reducer. `apps/mobile/test/workspace-lifecycle.test.tsx` mounts the production root lifecycle hook, changes external account/Host snapshots and asserts actual retained routes and Back. Existing Host drawer and bottom-navigation tests remain part of the focused run.
+`apps/mobile/test/workspace-navigation.test.tsx` drives the production drawer selection owner and Cloud selection adapter through the installed Expo stack reducer. `apps/mobile/test/workspace-lifecycle.test.tsx` mounts the production root lifecycle hook, changes external account/Host snapshots and asserts actual retained routes and Back. `apps/mobile/test/workspace-pager.test.tsx` covers retained child identity/input/offset, native commands, live Reduce Motion and inactive-tab gesture isolation; native motion still requires the assigned iOS device lane. Existing Host drawer and bottom-navigation tests remain part of the focused run.

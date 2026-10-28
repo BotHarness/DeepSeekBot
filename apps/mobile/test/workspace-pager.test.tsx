@@ -1,0 +1,160 @@
+// @vitest-environment jsdom
+import { act, useState, type ReactNode } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const native = vi.hoisted(() => ({
+  segments: ['(tabs)', '(home)'],
+  reduced: false,
+  selected: (_page: number) => {},
+  scrollEnabled: false,
+  setPage: vi.fn(),
+  setPageWithoutAnimation: vi.fn(),
+}));
+
+vi.mock('expo-router', () => ({ useSegments: () => native.segments }));
+vi.mock('react-native', async () => {
+  const { createElement } = await import('react');
+  return {
+    View: ({
+      children,
+      accessibilityElementsHidden,
+    }: {
+      children?: ReactNode;
+      accessibilityElementsHidden?: boolean;
+    }) => createElement('div', { 'aria-hidden': accessibilityElementsHidden }, children),
+  };
+});
+vi.mock('react-native-pager-view', async () => {
+  const { createElement, forwardRef, useImperativeHandle } = await import('react');
+  return {
+    default: forwardRef(
+      (
+        props: {
+          children?: ReactNode;
+          scrollEnabled: boolean;
+          onPageSelected(event: { nativeEvent: { position: number } }): void;
+        },
+        ref,
+      ) => {
+        useImperativeHandle(ref, () => ({
+          setPage: native.setPage,
+          setPageWithoutAnimation: native.setPageWithoutAnimation,
+        }));
+        native.scrollEnabled = props.scrollEnabled;
+        native.selected = (position) => props.onPageSelected({ nativeEvent: { position } });
+        return createElement('div', null, props.children);
+      },
+    ),
+  };
+});
+vi.mock('../src/ui/design/theme', () => ({
+  useDesignTheme: () => ({ color: { base: 'Canvas' } }),
+}));
+vi.mock('../src/ui/primitives/use-system-reduced-motion', () => ({
+  useSystemReducedMotion: () => native.reduced,
+}));
+vi.mock('../src/ui/shell/host-drawer', async () => {
+  const { createElement } = await import('react');
+  return { WorkspacePanel: () => createElement('span', null, 'Workspaces') };
+});
+
+const { WorkspacePager } = await import('../src/ui/shell/workspace-pager.ios');
+const { openWorkspacePage, closeWorkspacePage } = await import('../src/ui/shell/workspace-paging');
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
+function Chats() {
+  const [draft, setDraft] = useState('');
+  return (
+    <div data-testid="chat-list">
+      <input
+        aria-label="Search chats"
+        value={draft}
+        onInput={(e) => setDraft(e.currentTarget.value)}
+      />
+      <span>Environment A</span>
+      <nav>Chats / Activity / Settings</nav>
+    </div>
+  );
+}
+
+describe('retained iOS workspace pages', () => {
+  let element: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    native.segments = ['(tabs)', '(home)'];
+    native.reduced = false;
+    native.setPage.mockClear();
+    native.setPageWithoutAnimation.mockClear();
+    element = document.createElement('div');
+    document.body.append(element);
+    root = createRoot(element);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    element.remove();
+  });
+
+  const render = async () => {
+    await act(async () =>
+      root.render(
+        <WorkspacePager>
+          <Chats />
+        </WorkspacePager>,
+      ),
+    );
+  };
+
+  it('keeps the Chats instance, input and reading position when visiting Workspaces', async () => {
+    await render();
+    const input = element.querySelector('input');
+    const list = element.querySelector<HTMLElement>('[data-testid="chat-list"]');
+    if (!input || !list) throw new Error('Chats did not mount');
+    await act(async () => {
+      input.value = 'retained search';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    list.scrollTop = 375;
+    await act(async () => native.selected(0));
+    expect(input.isConnected).toBe(true);
+    expect(list.closest('[aria-hidden="true"]')).not.toBeNull();
+    await act(async () => native.selected(1));
+    expect(element.querySelector('input')).toBe(input);
+    expect(input.value).toBe('retained search');
+    expect(list.scrollTop).toBe(375);
+    expect(list.closest('[aria-hidden="true"]')).toBeNull();
+    expect(native.setPage).not.toHaveBeenCalled();
+  });
+
+  it('uses native page commands for button navigation and follows live Reduce Motion', async () => {
+    await render();
+    expect(openWorkspacePage()).toBe(true);
+    expect(closeWorkspacePage()).toBe(true);
+    expect(native.setPage.mock.calls).toEqual([[0], [1]]);
+    native.reduced = true;
+    await render();
+    openWorkspacePage();
+    closeWorkspacePage();
+    expect(native.setPageWithoutAnimation.mock.calls).toEqual([[0], [1]]);
+  });
+
+  it('disables workspace paging on Activity without replacing the retained Chats view', async () => {
+    await render();
+    const input = element.querySelector('input');
+    expect(native.scrollEnabled).toBe(true);
+    native.segments = ['(tabs)', '(activity)'];
+    await render();
+    expect(native.scrollEnabled).toBe(false);
+    expect(element.querySelector('input')).toBe(input);
+  });
+
+  it('releases the native page controller when its shell unmounts', async () => {
+    await render();
+    await act(async () => root.render(null));
+    expect(openWorkspacePage()).toBe(false);
+    expect(closeWorkspacePage()).toBe(false);
+  });
+});

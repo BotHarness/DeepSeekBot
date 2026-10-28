@@ -1072,6 +1072,8 @@ _避免使用_：短网址、UTM 链接、邀请链接
 
 ### 原生 UI 组件
 
+iOS 工作区切换采用应用自定义的两张常驻页面，由 `PagerView` 连接原生 SwiftUI `TabView` 的 `.tabViewStyle(.page)`：工作区在左，完整聊天列表和底部导航在右。Android 保留原导航抽屉。详见 `apps/mobile/DESIGN.md` 的 iOS workspace panel。
+
 讨论界面时说出平台自己的组件名，而不是描述它长什么样。Android 的名称来自 [Material 3 glossary](https://m3.material.io/foundations/glossary) 与 [Material 3 components](https://m3.material.io/components) 索引，代码名来自 [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary)。Apple 没有单独的 glossary 页面；与之对应的是 [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) 索引（Content、Layout and organization、Menus and actions、Navigation and search、Presentation、Selection and input、Status、System experiences 八类），代码名来自 [SwiftUI](https://developer.apple.com/documentation/swiftui) 与 [UIKit](https://developer.apple.com/documentation/uikit)，行文拼写以 [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web) 为准。某个界面用哪个组件、读哪一层 token，由 `apps/mobile/DESIGN.md`、[#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) 与 ADR-0266 决定。
 
 **Component term**：
@@ -1156,7 +1158,7 @@ _避免使用_：Material You（动态取色以外）、毛玻璃、玻璃拟态
 
 - 按钮：主要 → filled ↔ bordered prominent（iOS 26 为 glass prominent）；次要与 tonal → filled tonal ↔ bordered（glass）；文本 → text button ↔ borderless；危险 → 使用 Material error 颜色的 filled ↔ destructive role。
 - Sheet：Android `ModalBottomSheet` ↔ iOS 带 detents 的 form sheet（经 Expo Router 的 `presentation: 'formSheet'`，或 `@expo/ui` 的 SwiftUI `BottomSheet`）。
-- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 把工作区面板作为 Chats 导航栈的根。
+- Chats 的「-1 屏」：Android `DismissibleNavigationDrawer` ↔ iOS 两张原生常驻页面：工作区与完整聊天列表及导航栏相邻，通过 `PagerView` 使用 `TabView` 的 `.page`。
 - 顶级导航：Android navigation bar 加创建 FAB ↔ iOS tab island 及其 **+**（自定义界面，ADR-0235）。
 - 活动与工作区标签页：Android primary tabs（`PrimaryTabRow`）。
 - 设置页：Android 分段列表的 list item ↔ iOS inset grouped list（SwiftUI `Form`，配 `Section`、`Label`、`Toggle`、menu 样式 `Picker`、`LabeledContent`），统一经由 `SettingsForm`。

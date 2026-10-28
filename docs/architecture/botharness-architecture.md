@@ -1294,6 +1294,10 @@ window zoom. It keeps the native Menu renderer and keyboard owner inside the own
 converts viewport anchor coordinates through effective CSS zoom, clamps to the safe viewport
 and returns focus after dismissal. No second shortcut router or Panel state is introduced.
 
+### Retained iOS workspace presentation
+
+The iOS workspace candidate keeps Workspaces and the complete existing Chats tab shell in two native SwiftUI paged views through `react-native-pager-view` ([ADR-0270](../adr/0270-ios-workspace-pages-retain-the-chats-shell.md), proposed). Paging changes presentation only: both React trees and their existing caches stay mounted, and the tab bar belongs to Chats. Explicit Computer/All/Cloud choices still use the existing selection and scoped navigation adapters. The component adds no Host, account, permission or persistence authority; normal chat/profile stacks and Android navigation retain their owners.
+
 ### Mobile notification and interruption conversation entry
 
 The mobile Channel navigation owner (`apps/mobile/src/ui/shell/channel-navigation.ts`) resolves notification and interrupted-processing destinations from the Host Roster, including Bot-to-Bot DMs. It dispatches into the existing Expo root stack: new destinations preserve their origin, while an existing Host-scoped destination unwinds to its retained route. Message focus does not create a second page. Notification routing owns serialized Host switching, cancellable readiness and latest-intent selection; the screen owns unavailable-message feedback. Opening does not mutate the Human Inbox or retry interrupted execution. See the [ADR-0211 amendment](../adr/0211-the-mobile-app-has-two-tabs-with-settings-and-hosts-in-the-header.md) and [#2798](https://github.com/BotHarness/DeepSeekBot/issues/2798). Remaining entry and reset migrations are separate work.
