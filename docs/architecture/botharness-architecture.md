@@ -807,6 +807,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 [ADR-0267](../adr/0267-the-bot-marketplace-hosts-uploaded-bots-under-connect-accounts.md) 加入安装计数：Host 在 Bot 建成之后（UI 或 CLI，上传条目或 GitHub 条目）向 Worker 发送一次 Install Receipt（`POST /v1/bots/{id}/installs`），键是 Host 数据目录 `marketplace-host.json` 里只给市场用的随机标识，与遥测安装 ID 无关；Worker 只存它的 SHA-256，`install_receipts` 以 (条目, Host) 去重并按来源地址限流，`installs` 随列表和详情返回。
 
+每日发现任务之后，Worker 为当天（UTC）写一份热门／新上架／上升最快快照（`ranking_runs` 与 `ranking_snapshots`，重跑覆盖当天、保留 30 天）：热门按近 7 天 Install Receipt 数，新上架按首次收录时间，上升最快按近 7 天比前 7 天的增长且近 7 天至少 3 次安装；两种条目都参与。`GET /v1/sections/{hot|new|rising}` 读最近一次快照，隐藏或屏蔽的条目立即消失。Host 的 `marketplaceSections` 一次取回三行，市场面板在未搜索、未选主题时把非空的行显示在列表上方，CLI 为 `marketplace-sections`。
+
 ### 移动端原生创建与导入
 
 [移动端设计](../../apps/mobile/DESIGN.md#native-bot-creation-and-import) 统一空白创建、市场、Git 链接和 Bot Zip 导入的原生流程：“全部”中显式选择已配对 Remote Host，最近使用的 Host 只作预选；从 A 进入沿用 A，提交前可改目标并保留表单。市场先浏览，点击导入后再确认目标；手机有网络时，无已配对或在线 Host 也可浏览，配对／连接后保留选择，但不自动提交。统一确认页显示来源、环境与可编辑名称，简介和标签收起。选择目标不切换主浏览环境；仍在进度页时，确认成功后进入目标 Host 的新 Bot DM；已经离开则保留完成提示与“打开 Bot”，不抢占当前页面。

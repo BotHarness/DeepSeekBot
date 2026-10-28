@@ -50,6 +50,7 @@ import type {
   MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
@@ -222,6 +223,7 @@ import {
   loadMarketplaceFile,
   loadMarketplacePage,
   loadMarketplaceTopics,
+  loadMarketplaceSections,
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
@@ -895,6 +897,7 @@ export interface BridgeActions {
   marketplaceSubmit(url: string, altcha: string): Promise<MarketplaceEntry>;
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
+  marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -2757,6 +2760,7 @@ export function createActions(
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
+    marketplaceSections: (lang) => loadMarketplaceSections(call, lang),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
     marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
     marketplaceAccount: () => invoke('marketplaceAccount', {}),

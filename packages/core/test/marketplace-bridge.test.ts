@@ -160,6 +160,48 @@ describe('Bot Marketplace bridge', () => {
     });
   });
 
+  it('reads the Hot, New and Rising rows from the latest daily snapshot', async () => {
+    const market = createMarket();
+    const repository = fakeRepository();
+    market.publish(repository);
+    const methods = methodsWith(marketClient(market));
+    await submitThrough(methods, repository.htmlUrl);
+    market.sqlite
+      .prepare('INSERT INTO install_receipts (bot_id, host_hash, created_at) VALUES (?, ?, ?)')
+      .run(repository.nodeId, 'host-hash', market.clock.value.getTime() - 3_600_000);
+    expect(await methods.marketplaceSections({})).toEqual({
+      ok: true,
+      value: {
+        sections: [
+          { section: 'hot', day: null, entries: [] },
+          { section: 'new', day: null, entries: [] },
+          { section: 'rising', day: null, entries: [] },
+        ],
+      },
+    });
+
+    await market.daily();
+    const sections = await methods.marketplaceSections({ lang: 'zh' });
+    expect(sections).toMatchObject({
+      ok: true,
+      value: {
+        sections: [
+          {
+            section: 'hot',
+            day: '2026-10-05',
+            entries: [{ bot: { id: repository.nodeId }, score: 1 }],
+          },
+          { section: 'new', entries: [{ bot: { id: repository.nodeId }, score: 0 }] },
+          { section: 'rising', entries: [] },
+        ],
+      },
+    });
+    expect(await methods.marketplaceSections({ lang: 'fr' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  });
+
   it('loads a listed entry detail with its prepared README', async () => {
     const market = createMarket();
     const repository = fakeRepository({ readme: '![shot](shot.png)' });

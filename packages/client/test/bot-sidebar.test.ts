@@ -197,6 +197,7 @@ function stubActions(): BridgeActions {
       throw new Error('unused');
     }),
     marketplaceTopics: vi.fn(async () => []),
+    marketplaceSections: vi.fn(async () => []),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),

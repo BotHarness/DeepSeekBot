@@ -140,8 +140,10 @@ import type {
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceResult,
+  MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
+import { MARKETPLACE_SECTIONS } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type {
   MarketplaceAccount,
@@ -965,6 +967,7 @@ export interface BridgeMethods {
   marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
+  marketplaceSections(payload: unknown): Promise<BridgeResult<{ sections: MarketplaceSection[] }>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
@@ -3682,6 +3685,27 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     marketplaceTopics() {
       return marketplaceCall((client) => client.topics());
+    },
+    marketplaceSections(payload) {
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall(async (client) => {
+        const results = await Promise.all(
+          MARKETPLACE_SECTIONS.map((name) => client.section(name, lang)),
+        );
+        const sections: MarketplaceSection[] = [];
+        for (const result of results) {
+          if (!result.ok) return result;
+          sections.push({
+            ...result.value,
+            entries: result.value.entries.map((entry) => ({
+              ...entry,
+              bot: withInstalls(entry.bot),
+            })),
+          });
+        }
+        return { ok: true, value: { sections } };
+      });
     },
     releaseInfo(payload) {
       if (deps.release === undefined) return releaseUnavailable();

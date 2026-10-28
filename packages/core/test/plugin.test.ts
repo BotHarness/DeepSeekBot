@@ -790,6 +790,7 @@ describe('plugin entry', () => {
       'marketplaceList',
       'marketplaceSubmit',
       'marketplaceTopics',
+      'marketplaceSections',
       'marketplaceDetail',
       'marketplaceFileView',
       'marketplaceChallenge',

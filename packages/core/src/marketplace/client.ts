@@ -95,6 +95,15 @@ export interface MarketplacePage {
 
 export type MarketplaceSort = 'updated' | 'created' | 'stars';
 
+export const MARKETPLACE_SECTIONS = ['hot', 'new', 'rising'] as const;
+export type MarketplaceSectionName = (typeof MARKETPLACE_SECTIONS)[number];
+
+export interface MarketplaceSection {
+  section: MarketplaceSectionName;
+  day: string | null;
+  entries: Array<{ bot: MarketplaceEntry; score: number }>;
+}
+
 export interface MarketplaceQuery {
   cursor?: string;
   sort?: MarketplaceSort;
@@ -125,6 +134,10 @@ export type MarketplaceResult<T> =
 export interface MarketplaceClient {
   list(query: MarketplaceQuery): Promise<MarketplaceResult<MarketplacePage>>;
   topics(): Promise<MarketplaceResult<MarketplaceTopic[]>>;
+  section(
+    name: MarketplaceSectionName,
+    lang?: MarketplaceLanguage,
+  ): Promise<MarketplaceResult<MarketplaceSection>>;
   detail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceResult<MarketplaceDetail>>;
   challenge(): Promise<MarketplaceResult<AltchaChallenge>>;
   submit(url: string, altcha: string): Promise<MarketplaceResult<{ bot: MarketplaceEntry }>>;
@@ -391,6 +404,29 @@ export function parseMarketplaceTopics(value: unknown): MarketplaceTopic[] | und
   return parsed.every((item): item is MarketplaceTopic => item !== undefined) ? parsed : undefined;
 }
 
+export function parseMarketplaceSection(value: unknown): MarketplaceSection | undefined {
+  const source = record(value);
+  const section = source?.['section'];
+  const day = source?.['day'];
+  const entries = source?.['entries'];
+  if (
+    typeof section !== 'string' ||
+    !(MARKETPLACE_SECTIONS as readonly string[]).includes(section) ||
+    (day !== null && typeof day !== 'string') ||
+    !Array.isArray(entries)
+  )
+    return undefined;
+  const parsed = entries.map((item) => {
+    const entry = record(item);
+    const bot = parseEntry(entry?.['bot']);
+    const score = entry?.['score'];
+    return bot === undefined || typeof score !== 'number' ? undefined : { bot, score };
+  });
+  return parsed.every((item) => item !== undefined)
+    ? { section: section as MarketplaceSectionName, day, entries: parsed }
+    : undefined;
+}
+
 function listPath(query: MarketplaceQuery): string {
   const params = new URLSearchParams();
   if (query.sort !== undefined) params.set('sort', query.sort);
@@ -507,6 +543,12 @@ export function createMarketplaceClient(options: {
         '/v1/topics',
         { method: 'GET', headers: { accept: 'application/json' } },
         parseMarketplaceTopics,
+      ),
+    section: (name, lang) =>
+      request(
+        `/v1/sections/${name}${lang === undefined ? '' : `?lang=${lang}`}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseMarketplaceSection,
       ),
     challenge: () =>
       request(

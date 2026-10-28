@@ -195,6 +195,7 @@ async function withPanel(
   const actions = {
     marketplaceList: list,
     marketplaceTopics: vi.fn(async () => []),
+    marketplaceSections: vi.fn(async () => []),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),
@@ -238,6 +239,34 @@ afterEach(() => {
 });
 
 describe('Market panel', () => {
+  it('opens on the Hot, New and Rising rows and hides an empty row', async () => {
+    const sections = vi.fn(async () => [
+      { section: 'hot', day: '2026-10-28', entries: [{ bot: entry('popular'), score: 4 }] },
+      { section: 'new', day: '2026-10-28', entries: [] },
+      { section: 'rising', day: '2026-10-28', entries: [{ bot: entry('climber'), score: 3 }] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [entry('helper')] }),
+      async ({ host }) => {
+        expect(sections).toHaveBeenCalledWith('zh');
+        const rows = [...host.querySelectorAll('[data-market-section]')];
+        expect(rows.map((row) => row.getAttribute('data-market-section'))).toEqual([
+          'hot',
+          'rising',
+        ]);
+        expect(rows.map((row) => row.querySelector('h3')?.textContent)).toEqual([
+          '热门',
+          '上升最快',
+        ]);
+        expect(rows[0]!.querySelector('[data-market-bot]')?.getAttribute('data-market-bot')).toBe(
+          'alice/popular',
+        );
+        expect([...rows[0]!.querySelectorAll('button')].at(-1)?.textContent).toBe('导入');
+      },
+      { marketplaceSections: sections },
+    );
+  });
+
   it('defaults to stars and remembers each explicit sort after reopening', async () => {
     await withPanel(
       async () => ({ bots: [] }),

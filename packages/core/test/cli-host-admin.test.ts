@@ -104,6 +104,8 @@ describe('Bot Marketplace commands', () => {
     await invoke(['marketplace-detail', 'owner/repo'], live.url);
     await invoke(['marketplace-detail', 'owner/repo', '--lang', 'en'], live.url);
     await invoke(['marketplace-file', 'U_abc', 'notes/today.md'], live.url);
+    await invoke(['marketplace-sections'], live.url);
+    await invoke(['marketplace-sections', '--lang', 'zh'], live.url);
     expect(live.calls).toEqual([
       { method: 'marketplaceList', args: { query: {} } },
       {
@@ -115,6 +117,8 @@ describe('Bot Marketplace commands', () => {
       { method: 'marketplaceDetail', args: { id: 'owner/repo' } },
       { method: 'marketplaceDetail', args: { id: 'owner/repo', lang: 'en' } },
       { method: 'marketplaceFileView', args: { id: 'U_abc', path: 'notes/today.md' } },
+      { method: 'marketplaceSections', args: {} },
+      { method: 'marketplaceSections', args: { lang: 'zh' } },
     ]);
   });
 
@@ -128,6 +132,8 @@ describe('Bot Marketplace commands', () => {
       ['marketplace-topics', '--sort', 'stars'],
       ['marketplace-list', '--lang', 'fr'],
       ['marketplace-topics', '--lang', 'zh'],
+      ['marketplace-sections', 'hot'],
+      ['marketplace-sections', '--lang', 'fr'],
       ['marketplace-report', 'owner/repo', '--reason', 'x'.repeat(501)],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');

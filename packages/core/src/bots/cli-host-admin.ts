@@ -56,6 +56,10 @@ export const HOST_ADMIN_COMMANDS = [
   },
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
   { command: 'marketplace-topics', description: 'list Bot Marketplace topics with counts' },
+  {
+    command: 'marketplace-sections',
+    description: "read today's Hot, New and Rising Bot Marketplace rows",
+  },
   { command: 'marketplace-detail', description: 'read one Bot Marketplace listing and README' },
   {
     command: 'marketplace-file',
@@ -156,6 +160,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   onboarding: 0,
   'marketplace-list': 0,
   'marketplace-topics': 0,
+  'marketplace-sections': 0,
   'marketplace-detail': 1,
   'marketplace-file': 2,
   'marketplace-submit': 1,
@@ -212,12 +217,13 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     values.lang !== undefined &&
     ((command !== 'marketplace-list' &&
       command !== 'marketplace-detail' &&
+      command !== 'marketplace-sections' &&
       command !== 'marketplace-install' &&
       command !== 'marketplace-mine') ||
       (values.lang !== 'zh' && values.lang !== 'en'))
   )
     usage(
-      '--lang must be zh or en, on marketplace-list, marketplace-detail, marketplace-mine or marketplace-install.',
+      '--lang must be zh or en, on marketplace-list, marketplace-detail, marketplace-sections, marketplace-mine or marketplace-install.',
     );
   if (command === 'marketplace-report' && values.reason !== undefined) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
@@ -397,6 +403,8 @@ export async function runHostAdminCommand(
       });
     case 'marketplace-topics':
       return { topics: await rpc('marketplaceTopics', {}) };
+    case 'marketplace-sections':
+      return rpc('marketplaceSections', values.lang === undefined ? {} : { lang: values.lang });
     case 'marketplace-detail':
       return rpc(
         'marketplaceDetail',

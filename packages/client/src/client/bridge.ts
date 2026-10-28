@@ -40,6 +40,7 @@ import {
   parseAuthoredBots,
   parseMarketplaceFileView,
   parseMarketplacePage,
+  parseMarketplaceSection,
   parseMarketplaceSubmission,
   type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
@@ -48,6 +49,7 @@ import {
   type MarketplaceFileView,
   type MarketplacePage,
   type MarketplaceQuery,
+  type MarketplaceSection,
   type MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
@@ -2110,6 +2112,18 @@ export async function loadMarketplaceTopics(call: BridgeCall): Promise<Marketpla
   const topics = parseMarketplaceTopics({ topics: await unwrap(call, 'marketplaceTopics', {}) });
   if (topics === undefined) throw new Error('invalid marketplaceTopics response');
   return topics;
+}
+
+export async function loadMarketplaceSections(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceSection[]> {
+  const body = await unwrap(call, 'marketplaceSections', lang === undefined ? {} : { lang });
+  const raw = (body as { sections?: unknown } | null)?.sections;
+  const sections = Array.isArray(raw) ? raw.map(parseMarketplaceSection) : undefined;
+  if (sections === undefined || sections.some((section) => section === undefined))
+    throw new Error('invalid marketplaceSections response');
+  return sections as MarketplaceSection[];
 }
 
 export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {

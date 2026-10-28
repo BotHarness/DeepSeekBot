@@ -1894,6 +1894,26 @@ html[data-botharness-motion='reduce'] .bh-section-chevron {
   gap: ${space.x3};
 }
 .bh-market-panel > button:last-of-type { align-self: center; }
+.bh-market-sections { display: flex; flex-direction: column; gap: ${space.x4}; flex-shrink: 0; }
+.bh-market-sections[hidden] { display: none; }
+.bh-market-section { display: flex; flex-direction: column; gap: ${space.x2}; min-width: 0; }
+.bh-market-section-title {
+  margin: 0;
+  font-size: ${text.titleSize};
+  font-weight: ${text.strong};
+  line-height: ${text.bodyLine};
+}
+.bh-market-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: min(240px, 80%);
+  gap: ${space.x3};
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.bh-market-row > .bh-market-tile { scroll-snap-align: start; }
 .bh-market-tile {
   display: flex;
   flex-direction: column;
