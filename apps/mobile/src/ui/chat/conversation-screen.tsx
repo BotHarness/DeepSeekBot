@@ -1,5 +1,5 @@
 import { useProfilePaging } from './profile-paging';
-import { NativePageNavigation } from '../primitives/native-page-navigation';
+import { NativePageHeader } from '../primitives/native-page-navigation';
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
@@ -192,13 +192,12 @@ export function ConversationScreen({
   const shownHostId = expectedHostId ?? openedOn;
   if (shownHostId && saved?.hostId !== shownHostId)
     return (
-      <NativePageNavigation
-        enabled={paging !== undefined}
-        onBack={() => router.back()}
-        backID="chat-page-back"
-      >
+      <>
         <Text>{t.sourceChanged}</Text>
-      </NativePageNavigation>
+        {paging === undefined ? null : (
+          <NativePageHeader onBack={() => router.back()} backID="chat-page-back" />
+        )}
+      </>
     );
   return (
     <HostScope value={saved?.hostId}>
@@ -1241,12 +1240,7 @@ function ChatConversation({
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
-    <NativePageNavigation
-      enabled={paging !== undefined}
-      onBack={leave}
-      backID="chat-page-back"
-      title={titleItem}
-    >
+    <>
       <Stack.Screen
         options={{
           headerShown: paging === undefined,
@@ -1718,6 +1712,9 @@ function ChatConversation({
         onCopy={copyMessage}
         onShareText={shareText}
       />
-    </NativePageNavigation>
+      {paging === undefined ? null : (
+        <NativePageHeader title={titleItem} onBack={leave} backID="chat-page-back" />
+      )}
+    </>
   );
 }

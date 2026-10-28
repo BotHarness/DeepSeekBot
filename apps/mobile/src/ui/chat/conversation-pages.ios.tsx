@@ -7,7 +7,7 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { profilePageTarget } from './profile-page-target';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
-import { NativePageNavigation } from '../primitives/native-page-navigation';
+import { NativePageHeader, NativePageNavigation } from '../primitives/native-page-navigation';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { BotProfileContent } from './bot-profile-content';
 import { ChannelDetailsScreen } from './channel-details-screen';
@@ -74,7 +74,9 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
           accessibilityElementsHidden={visible}
           style={{ width: '100%', height: '100%' }}
         >
-          <ConversationScreen {...props} expectedHostId={hostId} />
+          <NativePageNavigation>
+            <ConversationScreen {...props} expectedHostId={hostId} />
+          </NativePageNavigation>
         </View>
         <View
           key="profile"
@@ -84,8 +86,9 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
           onAccessibilityEscape={close}
           style={{ width: '100%', height: '100%' }}
         >
-          <NativePageNavigation onBack={close} backID="profile-back">
+          <NativePageNavigation>
             <HostScope value={target?.hostId}>{profile}</HostScope>
+            <NativePageHeader onBack={close} backID="profile-back" />
           </NativePageNavigation>
         </View>
       </PagerView>

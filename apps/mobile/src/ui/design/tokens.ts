@@ -356,7 +356,6 @@ export const marketplaceArt = {
 } as const;
 
 export const profileShell = {
-  backEdge: 24,
   avatar: 72,
   avatarEdge: 3,
   bannerAspect: 3,
