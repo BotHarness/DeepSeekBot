@@ -1375,10 +1375,15 @@ const en = {
     choose: 'Choose an environment',
   },
   closeSearch: 'Close search',
-  searchPlaceholder: 'Search Bots and Channels',
+  searchPlaceholder: 'Search Bots, Channels and messages',
   searchIn: (place: string) => `Search ${place}`,
   searchNoResults: 'No Bot or Channel matches.',
   searchNoMatch: (query: string) => `No Bot or Channel matches “${query}”.`,
+  searchMessages: 'Messages',
+  searchMessagesLoading: 'Searching messages',
+  searchMessageAuthorYou: 'You',
+  searchMessageLabel: (place: string, author: string, snippet: string, time: string) =>
+    `${author} in ${place}, ${time}: ${snippet}`,
   pinnedSection: 'Pinned',
   loading: 'Loading',
   rowActions: {
@@ -3332,10 +3337,15 @@ const zh: typeof en = {
     choose: '选择环境',
   },
   closeSearch: '关闭搜索',
-  searchPlaceholder: '搜索 Bot 和频道',
+  searchPlaceholder: '搜索 Bot、频道和消息',
   searchIn: (place: string) => `在${place}中搜索`,
   searchNoResults: '没有匹配的 Bot 或频道。',
   searchNoMatch: (query: string) => `没有名称包含“${query}”的 Bot 或频道。`,
+  searchMessages: '消息',
+  searchMessagesLoading: '正在搜索消息',
+  searchMessageAuthorYou: '你',
+  searchMessageLabel: (place: string, author: string, snippet: string, time: string) =>
+    `${author}在${place}，${time}：${snippet}`,
   pinnedSection: '已置顶',
   loading: '正在加载',
   rowActions: {

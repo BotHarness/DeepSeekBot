@@ -10,6 +10,7 @@ import { WorkspaceContext } from './workspace-context.js';
 import { OnboardingMemoryNavigation } from './onboarding-memory.js';
 import { useTimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
+import { TobJourneyCard } from './tob-onboarding.js';
 import { BotIntro } from './bot-intro.js';
 import type { Wallpaper } from './wallpaper.js';
 import {
@@ -3268,6 +3269,20 @@ function ConversationView({
                       </div>
                     ))}
                   </section>
+                ) : null}
+                {dmBotSlug !== undefined &&
+                state.bots.some((bot) => bot.slug === dmBotSlug && bot.tob !== undefined) ? (
+                  <TobJourneyCard
+                    actions={actions}
+                    t={t}
+                    botSlug={dmBotSlug}
+                    hasDraft={draft.trim().length > 0 || uploadItems.length > 0}
+                    suggest={(body) => {
+                      recovery.update({ text: body, mentions: [], channelRefs: [] });
+                      setRestoreFocusSignal((value) => value + 1);
+                    }}
+                    openChannel={(id) => void actions.openChannel(id)}
+                  />
                 ) : null}
                 <ChannelComposer
                   key={channelId}

@@ -58,45 +58,23 @@ Screens follow the shared [UI design standard](../../docs/agents/ui-design.md) a
 
 **The bar.** In a Release build on a ProMotion iPhone, a DM holds 120 FPS (8.3 ms frames) while a reply streams, while the user scrolls long history, and while both happen at once ([#1845](https://github.com/BotHarness/DeepSeekBot/issues/1845)). No frame may hitch over 16.7 ms. Numbers from a development build or the Simulator are evidence for a change, not proof that the bar is met.
 
-Performance work is measured, not guessed. Before you change code for speed (jank, re-renders, a slow list, a long stream), profile the scenario, then profile it again after the change. The PR records both sets of numbers. `scripts/rn-profile.mjs` lets an agent read the profile itself, the way the Chrome DevTools MCP does for the web: no one clicks in DevTools.
+Performance work follows the mandatory [iOS performance tuning and physical-device verification
+(AX)](../../docs/agents/ios-performance.md) workflow: validate the workload, capture the relevant
+JS/React/native/display layer, attribute the cause, make the smallest change and run matched
+physical Release A/B/B/A/A/B measurements. Keep Simulator, physical Release and Human QA results
+separate, and preserve failed/invalid samples.
 
-- **Where it runs.** On a Mac, with the development build in the iOS Simulator and Metro. It talks to the app through Metro's inspector (CDP). Cloud sessions reach a Mac through Remote Control. The project shares one Simulator: send the run to the Simulator queue ([shared device QA](../../docs/agents/device-qa.md)) instead of booting your own.
-- **Run it.** Run it from the repository root, so `ws` and `source-map` resolve from the workspace:
+Use `react-native-best-practices` for diagnosis and implementation. RN DevTools/Hermes and
+Instruments serve different measurement layers. `scripts/rn-profile.mjs` is diagnostic scaffolding:
+its React-hook requirement, fixed-60Hz JS rAF drop estimate and base-duration accumulation are
+not native FPS or exact current-update CPU measurements. Development-build improvement ratios
+must be revalidated in Release. See the AX workflow for commands, supported-tool checks,
+provenance, low-overhead instrumentation and required evidence.
 
-  ```bash
-  pnpm --filter @botharness/mobile start --port 8085
-  xcrun simctl terminate <udid> ai.botharness.deepseekbot.dev
-  xcrun simctl openurl <udid> "exp+deepseekbot://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8085"
-  node apps/mobile/scripts/rn-profile.mjs --metro 8085 --out /tmp/run --max 900 --quiet 3 --top 40 --run "<command that drives the scenario and exits when it is over>"
-  ```
-
-  The script starts recording and then runs `--run`. It stops once that command has exited and React has made no commit for `--quiet` seconds, or after `--max` seconds.
-
-- **Read `summary.json`.** It holds:
-  - `react`: commits per second over the streaming window, components rendered per commit, and render and mount counts for each component, from a hook on `__REACT_DEVTOOLS_GLOBAL_HOOK__.onCommitFiberRoot`.
-  - `cpu`: JS busy time, GC time, and the top functions by self and total time, from the Hermes sampling profiler mapped through Metro's source map.
-  - `frames`: JS FPS, dropped frames, the longest frame and frames over 50 ms, from a `requestAnimationFrame` loop.
-
-  `profile.cpuprofile` is also saved for a human to open as a flame chart in DevTools.
-
-- **Compare like with like.**
-  - Feed both versions the same input. For streaming, replay one recorded reply from a local OpenAI-compatible mock model at a fixed chunk size and interval, not two live model calls.
-  - Alternate the runs (A, B, B, A) and run each version at least three times.
-  - Compare against the PR's merge base when the installed dev build cannot run the current base branch.
-  - Keep other builds off the Mac while you measure.
-- **Read the numbers with care.**
-  - A development build adds React's development-mode cost (`console.createTask` is often the top function), so absolute times are inflated. The ratio between before and after carries over.
-  - `cpu.instrumentationMs` is the script's own cost and should stay near 0.
-- **Gotchas.**
-  - Expo's inspector proxy drops any debugger socket whose `Origin` is not exactly `http://127.0.0.1:<port>`. Node's built-in `WebSocket` cannot set it, so the script uses `ws`.
-  - Hermes rejects `Profiler.enable`, `Tracing.*` and `HeapProfiler.*`, but `Profiler.start` and `Profiler.stop` work.
-  - `Page.reload` replays the URL the app was launched with. To restart cleanly, relaunch with `simctl terminate` and the dev-client URL.
-- **Release builds and the UI thread.** `rn-profile.mjs` needs Metro, so it can't attach to a Release build and only sees the JS thread. For the bar above:
-  - Measure JS cost with production JS (`expo start --no-dev --minify`) on the dev build, and say it ran on a Debug native binary.
-  - Measure the UI thread and render server on a Release build on a real ProMotion iPhone with `xcrun xctrace record --template "Animation Hitches"`. Report the hitch time ratio (ms of hitches per second), hitches over 8.3 ms and 16.7 ms, and the frame rate reached.
-  - The iOS Simulator doesn't emulate ProMotion and runs on the Mac's CPU and GPU. Use it only for before/after comparisons, never for a 120 FPS claim.
-  - The `requestAnimationFrame` FPS in `summary.json` is capped by the display link, so it can't show more than 60 FPS unless the app opts in to higher frame rates.
-- **Scenarios.** Cover streaming a long reply, fling-scrolling a DM with several hundred history messages that include tables and code blocks, and scrolling while a reply streams.
+Cover streaming a long reply, scrolling hundreds of messages including tables/code, and both
+at once. Include keyboard, draft, anchor and accessibility regressions when affected. Follow
+[shared device QA](../../docs/agents/device-qa.md) for resource ownership and
+[QA evidence](../../docs/agents/qa-evidence.md) for retained captures.
 
 ## Checks
 

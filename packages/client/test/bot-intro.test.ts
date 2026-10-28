@@ -48,7 +48,7 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { Appearance } from '../src/client/appearance.js';
 import { BotIntro } from '../src/client/bot-intro.js';
 import { cachedGithubStars, fetchGithubStars } from '../src/client/community-links.js';
-import { receiveHomeMessages, requestHomeMessage } from '../src/client/home-requests.js';
+import { receiveTobMessages, requestTobMessage } from '../src/client/tob-requests.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { OnboardingController, onboardingFor } from '../src/client/onboarding.js';
 
@@ -146,12 +146,12 @@ describe('community links', () => {
   });
 });
 
-describe('home requests', () => {
-  it('holds a request until Home listens, then hands it over once', () => {
-    requestHomeMessage('hello Tob');
+describe('Tob requests', () => {
+  it('holds a request until the workspace listens, then hands it over once', () => {
+    requestTobMessage('hello Tob');
     const received: string[] = [];
-    const stop = receiveHomeMessages((body) => received.push(body));
-    requestHomeMessage('again');
+    const stop = receiveTobMessages((body) => received.push(body));
+    requestTobMessage('again');
     stop();
     expect(received).toEqual(['hello Tob', 'again']);
   });
@@ -242,7 +242,7 @@ describe('intro modal', () => {
     await click('下一步');
     expect(step()).toBe('start');
     const sent: string[] = [];
-    const stop = receiveHomeMessages((body) => sent.push(body));
+    const stop = receiveTobMessages((body) => sent.push(body));
     await click(zhTranslate('onboarding.firstRequest'));
     stop();
     expect(sent).toEqual([zhTranslate('onboarding.firstRequest')]);

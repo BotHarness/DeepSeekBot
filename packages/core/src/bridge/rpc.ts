@@ -65,6 +65,7 @@ import type {
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
+import type { InstallReviewResult } from '../marketplace/install-review.js';
 import type { ShareDraftView } from '../marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
@@ -128,7 +129,7 @@ import type {
 import type { ChannelActivityToday } from '../channels/activity-today.js';
 import type { GroupProfileActivity } from '../channels/profile-activity.js';
 import type { ChannelMessage, ChannelReaction, ChannelRecord } from '../channels/channel.js';
-import type { ChannelSendStatus } from '../channels/store.js';
+import type { ChannelSendStatus, HumanMessageSearchPage } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelReadPosition } from '../channels/store.js';
 import type { RosterSection, RosterSnapshot } from '../roster/store.js';
@@ -1541,6 +1542,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.channelSearch({ channelId, text, cursor, limit }));
   }
 
+  messageSearch(text: string, cursor?: string, limit?: number): HumanMessageSearchPage {
+    return unwrap(this.methods.messageSearch({ text, cursor, limit }));
+  }
+
   channelAllBotPreview(channelId: string): AllBotPreview {
     return unwrap(this.methods.channelAllBotPreview({ channelId }));
   }
@@ -2201,6 +2206,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceDelete({ id }));
   }
 
+  async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
+    return unwrapAsync(
+      this.methods.marketplaceInstallReview(lang === undefined ? { id } : { id, lang }),
+    );
+  }
+
   shareDraftStart(slug: string): ShareDraftView {
     return unwrap(this.methods.shareDraftStart({ slug }));
   }
@@ -2236,6 +2247,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
 
   async marketplaceInstall(
     id: string,
+    reviewId: string,
     operationKey?: string,
   ): Promise<{
     bot: PersonaBotDetail;
@@ -2243,7 +2255,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     receipt?: BotCreationReceipt;
     listing: MarketplaceEntry;
   }> {
-    return unwrapAsync(this.methods.marketplaceInstall({ id, operationKey }));
+    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey }));
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
@@ -2440,6 +2452,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelMarkAllRead',
   'channelReact',
   'channelSearch',
+  'messageSearch',
   'channelUnreadCounts',
   'channelAllBotPreview',
   'channelSend',
@@ -2568,6 +2581,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceAuthorSave',
   'marketplaceUploadPlan',
   'marketplaceUpload',
+  'marketplaceInstallReview',
   'marketplaceMine',
   'marketplaceDelete',
   'shareDraftStart',

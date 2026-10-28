@@ -76,6 +76,10 @@ export const CHANNEL_COMMANDS = [
     description: 'add or remove your emoji reaction on one Channel message',
   },
   { command: 'channel-search', description: "search a Channel's messages, newest first" },
+  {
+    command: 'message-search',
+    description: 'search messages across every Channel you can see, newest first',
+  },
   { command: 'channel-unread', description: 'list unread message counts per Channel' },
   {
     command: 'channel-mute',
@@ -216,7 +220,8 @@ export async function runChannelCommand(
   const noTarget =
     command === 'channel-history' ||
     command === 'channel-mark-all-read' ||
-    command === 'channel-unread';
+    command === 'channel-unread' ||
+    command === 'message-search';
   if (rest.length !== (noTarget ? 0 : 1))
     usage(
       `${command} ${noTarget ? 'takes no positional arguments' : 'needs exactly one Channel ID'}.`,
@@ -360,6 +365,14 @@ export async function runChannelCommand(
       method = 'channelSearch';
       const limit = integer(values.limit, '--limit', 1, 50);
       args.text = required(values.query, '--query');
+      if (values.cursor !== undefined) args.cursor = values.cursor;
+      if (limit !== undefined) args.limit = limit;
+      break;
+    }
+    case 'message-search': {
+      method = 'messageSearch';
+      const limit = integer(values.limit, '--limit', 1, 50);
+      args = { text: required(values.query, '--query') };
       if (values.cursor !== undefined) args.cursor = values.cursor;
       if (limit !== undefined) args.limit = limit;
       break;

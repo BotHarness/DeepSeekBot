@@ -214,7 +214,8 @@ Usage:
   tobs marketplace-upload <bot-id> --name <name> [--description <bio>] [--role <tag> ...] [--replaces <listing-id>] --confirm
   tobs marketplace-mine [--lang zh|en]
   tobs marketplace-delete <listing-id> --confirm
-  tobs marketplace-install <listing-id> [--operation-key <key>]
+  tobs marketplace-install <listing-id> [--lang zh|en]
+  tobs marketplace-install <listing-id> --review <review-id> --confirm [--operation-key <key>]
   tobs share-draft-start <bot-id>
   tobs share-draft-show <bot-id>
   tobs share-draft-file <bot-id> --path <file>

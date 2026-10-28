@@ -2,7 +2,7 @@ import type { Shortcuts } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { createContext, type ReactNode } from 'react';
 import type { DockviewApi } from 'dockview-react';
 
-export const WORKSPACE_HOME = 'bh:home';
+export const HOME_SLOT = 'bh:home';
 export const WORKSPACE_RAIL = 'bh:workspace-rail';
 export const WORKSPACE_CHANNELS = 'bh:channels';
 export const WorkspaceContext = createContext<

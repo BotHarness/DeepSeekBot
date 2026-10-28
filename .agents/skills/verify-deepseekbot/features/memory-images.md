@@ -9,7 +9,7 @@
 
 ## How to get to it (user POV)
 
-Enter Bot mode, select a disposable Bot DM in Channels and open Messages. Close Home if it obscures the review area. Use the Messages header switches to open Memory files and select a PNG. Open Memory evolution and select its working change or a commit. Close the side panels to give the reader more room; the selected reader stays open. Click a ready image to enlarge it, then press Escape. Refresh the reader if mutable image content changed.
+Enter Bot mode, select a disposable Bot DM in Channels and open Messages. Use the Messages header switches to open Memory files and select a PNG. Open Memory evolution and select its working change or a commit. Close the side panels to give the reader more room; the selected reader stays open. Click a ready image to enlarge it, then press Escape. Refresh the reader if mutable image content changed.
 
 ## Driving it with verify-app
 
@@ -21,7 +21,7 @@ For before/after review, run `node scripts/e2e-memory-images.mjs --name <name> -
 
 This is the first Web PNG slice of #2214. JPEG/GIF/WebP/SVG, editor/file-card previews and mobile remain follow-up work; the second Web Markdown slice is documented below. A supported header is not decoding proof: the browser journey checks `naturalWidth`. Source/CLI transport tests do not replace Web rendering or Human QA. No model reply is needed.
 
-The current dock opens Channels and Messages independently; selecting a Channel while only Home is visible does not itself expose Memory controls. Use the Messages rail entry and its header switches. Image selection and diff source identities are separate from the existing Open current file action. All fixtures belong to the isolated test Host; never point this journey at an everyday or shared QA Profile.
+The current dock opens Channels and Messages independently; selecting a Channel while Messages is hidden does not itself expose Memory controls. Use the Messages rail entry and its header switches. Image selection and diff source identities are separate from the existing Open current file action. All fixtures belong to the isolated test Host; never point this journey at an everyday or shared QA Profile.
 
 At 700px, wait for the narrow shell to mount, select the Bot from its visible list, open Conversation settings, expand Memory, select the working change, then press Escape to close the overlay. Resizing remounts the conversation; a screenshot of the roster or an occluded old desktop view is not image evidence. The journey measures the two visible figure positions to prove stacking.
 

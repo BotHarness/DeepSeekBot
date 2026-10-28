@@ -20,6 +20,7 @@ import {
   type ConnectedHost,
 } from '../../../src/host/host-session';
 import { prefetchInbox } from '../../../src/host/inbox';
+import { useMessageSearch, type MessageSearchHit } from '../../../src/host/message-search';
 import { hostLooks, useHostLook } from '../../../src/host/native-host-look';
 import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
 import { cloudAvailable } from '../../../src/cloud/available';
@@ -31,7 +32,12 @@ import type { CloudConversation } from '../../../src/cloud/conversations';
 import { DeletionSheet } from '../../../src/ui/chat/deletion-sheet';
 import type { DeletionTarget } from '../../../src/host/deletion';
 import { ItemMenu } from '../../../src/ui/primitives/item-menu';
-import { conversations, searchKey, PINNED_SECTION } from '../../../src/ui/chat/conversations';
+import {
+  conversations,
+  searchKey,
+  PINNED_SECTION,
+  type Conversation,
+} from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
@@ -53,7 +59,10 @@ import { LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
 import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
 import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
 import { tobComputer, tobModeHostId } from '../../../src/ui/shell/tob-mode-model';
-import { chatsSearchResults } from '../../../src/ui/chat/chats-search-results';
+import {
+  chatsSearchResults,
+  messageSearchResults,
+} from '../../../src/ui/chat/chats-search-results';
 import { avatarImageUri } from '../../../src/host/native-notification-avatars';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
 import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
@@ -70,6 +79,18 @@ import {
   type EnvironmentChatItem,
 } from '../../../src/ui/chat/environment-chat-list';
 import { SectionHeader } from '../../../src/ui/chat/section-header';
+import { MessageSearchHeading, MessageSearchRow } from '../../../src/ui/chat/message-search-row';
+import { conversationHref } from '../../../src/ui/shell/open-conversation';
+import { navigateChannel } from '../../../src/ui/shell/channel-navigation';
+
+type MessageItem = {
+  type: 'message';
+  key: string;
+  hit: MessageSearchHit;
+  host: ConnectedHost;
+  conversation: Conversation;
+};
+type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } | MessageItem;
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 
 export default function HomeScreen() {
@@ -111,6 +132,7 @@ const HomeContent = memo(function HomeContent({
     }, [router, client]),
   );
   const [query, setQuery] = useState('');
+  const messageSearch = useMessageSearch();
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const onScroll = useChromeScroll(
@@ -301,15 +323,80 @@ const HomeContent = memo(function HomeContent({
     collapsed,
     query.trim() !== '',
   );
+  const searchHosts = (selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [])
+    .filter((host) => host.snapshot.connection.status === 'connected')
+    .map((host) => ({ hostId: host.saved.hostId, client: host.client }));
+  const searchScope = searchHosts.map((host) => host.hostId).join('|');
+  const scheduleMessageSearch = messageSearch.schedule;
+  useFocusEffect(
+    useCallback(() => {
+      scheduleMessageSearch(query, searchHosts);
+    }, [scheduleMessageSearch, query, searchScope]),
+  );
+  const onQuery = (value: string) => setQuery(value);
+  const conversationIndex = useMemo(() => {
+    const index = new Map<string, { host: ConnectedHost; conversation: Conversation }>();
+    for (const host of hosts)
+      for (const conversation of conversations(host.snapshot.roster, [])) {
+        const channelId =
+          conversation.kind === 'bot' ? conversation.bot.dmChannelId : conversation.channel.id;
+        if (channelId !== undefined)
+          index.set(JSON.stringify([host.saved.hostId, channelId]), { host, conversation });
+      }
+    return index;
+  }, [hosts]);
+  const messages = messageSearch.state;
+  const messageItems = useMemo<MessageItem[]>(
+    () =>
+      query.trim() === '' || messages.query !== query.trim()
+        ? []
+        : messages.hits.flatMap((hit) => {
+            const found = conversationIndex.get(JSON.stringify([hit.hostId, hit.channelId]));
+            return found === undefined
+              ? []
+              : [
+                  {
+                    type: 'message' as const,
+                    key: JSON.stringify(['message', hit.hostId, hit.channelId, hit.messageId]),
+                    hit,
+                    ...found,
+                  },
+                ];
+          }),
+    [query, messages, conversationIndex],
+  );
+  const messagesShown =
+    messageItems.length > 0 || (messages.loading && query.trim() !== '' && displayed.length > 0);
+  const listItems: HomeItem[] =
+    Platform.OS !== 'android' && messagesShown
+      ? [...displayed, { type: 'message-heading', key: 'message-heading' }, ...messageItems]
+      : displayed;
+  const openMessage = ({ hit, host, conversation }: MessageItem) => {
+    if (
+      !navigateChannel(
+        navigation,
+        conversationHref(conversation, host.saved.hostId, hit.messageId, String(Date.now())),
+      )
+    )
+      setActionError(true);
+  };
   const searchResults = useMemo(
     () =>
       Platform.OS === 'android'
-        ? chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri)
+        ? [
+            ...chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri),
+            ...messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri),
+          ]
         : [],
-    [displayed, query],
+    [displayed, query, messageItems, t],
   );
   const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
   const pickSearch = (key: string) => {
+    const message = messageItems.find((entry) => entry.key === key);
+    if (message !== undefined) {
+      openMessage(message);
+      return;
+    }
     const item = displayed.find((entry) => entry.type !== 'section' && entry.key === key);
     if (item === undefined || item.type === 'section') return;
     if (item.type === 'cloud') void openCloud(item.conversation);
@@ -444,9 +531,9 @@ const HomeContent = memo(function HomeContent({
             Platform.OS === 'android' ? (
               <ChatsSearchBar
                 placeholder={t.searchIn(environment.title)}
-                busy={connecting}
+                busy={connecting || messages.loading}
                 results={searchResults}
-                onQuery={setQuery}
+                onQuery={onQuery}
                 onExpanded={setSearchFocused}
                 onPick={pickSearch}
                 onNavigation={openHostDrawer}
@@ -459,7 +546,7 @@ const HomeContent = memo(function HomeContent({
               <HeaderSearch
                 value={query}
                 placeholder={t.searchPlaceholder}
-                onChangeText={setQuery}
+                onChangeText={onQuery}
                 onFocusChange={(next) => {
                   setSearchFocused(next);
                   if (!next && query === '') setSearching(false);
@@ -495,7 +582,7 @@ const HomeContent = memo(function HomeContent({
             <LastChatSwipe enabled={!searching && !searchFocused && query === ''}>
               <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
                 {(pull) => (
-                  <Animated.FlatList<EnvironmentChatItem>
+                  <Animated.FlatList<HomeItem>
                     {...pull}
                     renderScrollComponent={renderKeyboardFormScroll}
                     onScroll={onScroll}
@@ -503,7 +590,7 @@ const HomeContent = memo(function HomeContent({
                     contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
-                    data={displayed}
+                    data={listItems}
                     keyExtractor={(r) => r.key}
                     ListHeaderComponent={
                       <>
@@ -574,7 +661,16 @@ const HomeContent = memo(function HomeContent({
                       )
                     }
                     renderItem={({ item }) =>
-                      item.type === 'section' ? (
+                      item.type === 'message-heading' ? (
+                        <MessageSearchHeading loading={messages.loading} />
+                      ) : item.type === 'message' ? (
+                        <MessageSearchRow
+                          hit={item.hit}
+                          conversation={item.conversation}
+                          now={new Date()}
+                          onPress={() => openMessage(item)}
+                        />
+                      ) : item.type === 'section' ? (
                         <ItemMenu
                           title={item.name ?? t.pinnedSection}
                           actions={

@@ -110,7 +110,7 @@ interface Harness {
   submit: ReturnType<typeof vi.fn<(url: string, altcha: string) => Promise<MarketplaceEntry>>>;
   challenge: ReturnType<typeof vi.fn<() => ReturnType<typeof createChallenge>>>;
   report: ReturnType<typeof vi.fn<(id: string, altcha: string, reason?: string) => Promise<void>>>;
-  createBot: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+  createBot: ReturnType<typeof vi.fn<(id: string, reviewId: string) => Promise<unknown>>>;
   onInstalled: ReturnType<typeof vi.fn<() => void>>;
   translate: (t: BotHarnessTranslate) => Promise<void>;
 }
@@ -123,7 +123,7 @@ async function withMarketplace(
   pages: (query?: MarketplaceQuery) => Promise<MarketplacePage>,
   test: (harness: Harness) => Promise<void>,
   submit: (url: string) => Promise<MarketplaceEntry> = async () => entry('pasted'),
-  createBot: () => Promise<unknown> = async () => undefined,
+  createBot: (id: string, reviewId: string) => Promise<unknown> = async () => undefined,
   topics: () => Promise<MarketplaceTopic[]> = async () => [],
   detail: (id: string) => Promise<MarketplaceDetail> = async () => {
     throw new Error('unused');
@@ -148,6 +148,14 @@ async function withMarketplace(
       await act(async () => render(t));
     },
   };
+  const listed = async (id: string) => {
+    for (const result of harness.list.mock.results) {
+      const page = (await result.value) as MarketplacePage;
+      const found = page.bots.find((bot) => bot.id === id);
+      if (found !== undefined) return found;
+    }
+    return (await detail(id)).bot;
+  };
   const render = (t: BotHarnessTranslate) =>
     root.render(
       createElement(MarketplaceModal, {
@@ -158,7 +166,12 @@ async function withMarketplace(
           marketplaceReport: harness.report,
           marketplaceTopics: topics,
           marketplaceDetail: detail,
-          createBot: harness.createBot,
+          marketplaceInstallReview: async (id: string) => ({
+            reviewId: `review-${id}`,
+            listing: await listed(id),
+            review: { status: 'reviewed', findings: [], files: 1, read: 1, partial: false },
+          }),
+          marketplaceInstall: harness.createBot,
         } as unknown as BridgeActions,
         t,
         onClose: vi.fn(),
@@ -430,7 +443,7 @@ describe('Bot Marketplace modal', () => {
     );
   });
 
-  it('confirms with commit time, short SHA and the risk notice before installing through Git', async () => {
+  it('confirms with commit time, short SHA and the Tob review before installing', async () => {
     await withMarketplace(
       async () => ({ bots: [entry('helper')] }),
       async ({ host, createBot, onInstalled }) => {
@@ -440,20 +453,12 @@ describe('Bot Marketplace modal', () => {
         expect(host.querySelector('[data-market-commit]')?.textContent).toBe(
           '0123456 · 2026-09-30',
         );
-        expect(host.textContent).toContain('这是第三方仓库');
-        expect(host.textContent).toContain('只安装你信任的仓库');
+        expect(host.textContent).toContain('Tob 没发现风险');
         expect(createBot).not.toHaveBeenCalled();
 
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith({
-          displayName: 'helper',
-          gitUrl: 'https://github.com/alice/helper.git',
-          roles: [],
-          origin: 'marketplace',
-          listingId: 'R_helper',
-          description: 'helper description',
-        });
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper');
         expect(onInstalled).toHaveBeenCalledOnce();
       },
     );
@@ -468,13 +473,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith({
-          displayName: 'helper',
-          gitUrl: 'https://github.com/alice/helper.git',
-          roles: [],
-          origin: 'marketplace',
-          listingId: 'R_helper',
-        });
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper');
         expect(onInstalled).not.toHaveBeenCalled();
         expect(host.querySelector('[role="alert"]')?.textContent).toContain('克隆失败');
 
@@ -627,9 +626,7 @@ describe('Bot Marketplace modal', () => {
 
         await click(host, '安装');
         await click(host, '确认安装');
-        expect(createBot).toHaveBeenCalledWith(
-          expect.objectContaining({ gitUrl: 'https://github.com/alice/helper.git' }),
-        );
+        expect(createBot).toHaveBeenCalledWith('R_helper', 'review-R_helper');
       },
       undefined,
       undefined,
@@ -713,14 +710,7 @@ describe('Bot Marketplace modal', () => {
         expect(host.querySelector('h1')?.textContent).toBe('安装 Helper');
         await click(host, '确认安装');
 
-        expect(createBot).toHaveBeenCalledWith({
-          displayName: 'Helper',
-          gitUrl: 'https://github.com/alice/helper-bot.git',
-          roles: ['writer', 'editor'],
-          origin: 'marketplace',
-          listingId: 'R_helper-bot',
-          description: 'helper-bot description',
-        });
+        expect(createBot).toHaveBeenCalledWith('R_helper-bot', 'review-R_helper-bot');
       },
     );
   });
