@@ -1,10 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
-import {
-  GroupProfileContent,
-  type GroupProfileParams,
-} from '../../../src/ui/chat/group-profile-content';
+import { GroupProfileScreen } from '../../../src/ui/chat/group-profile-screen';
 
-export default function GroupProfileScreen() {
-  const params = useLocalSearchParams<GroupProfileParams>();
-  return <GroupProfileContent {...params} />;
+export default function GroupProfileRoute() {
+  const params = useLocalSearchParams<{ id: string; hostId?: string }>();
+  return <GroupProfileScreen {...params} />;
 }

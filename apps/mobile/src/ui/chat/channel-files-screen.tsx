@@ -1,4 +1,10 @@
-import { Stack, useFocusEffect, useIsFocused, useNavigationContainerRef } from 'expo-router';
+import { Stack, useNavigationContainerRef } from 'expo-router';
+import {
+  useProfileFocused,
+  useProfileFocusEffect,
+  RevealProfileConversation,
+} from './profile-visibility';
+import { useContext } from 'react';
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { FlatList, Pressable, View } from 'react-native';
 
@@ -68,7 +74,8 @@ export function useChannelFilesList(
   const t = useStrings();
   const theme = useDesignTheme();
   const navigation = useNavigationContainerRef();
-  const focused = useIsFocused();
+  const focused = useProfileFocused();
+  const revealConversation = useContext(RevealProfileConversation);
   const host = useHostSnapshot(client, focused);
   const files = useMemo(() => createChannelFiles({ host: client, channelId }), [client, channelId]);
   const snapshot = useSyncExternalStore(files.subscribe, files.getSnapshot);
@@ -82,7 +89,7 @@ export function useChannelFilesList(
   const [visited, setVisited] = useState(active);
   const attached = active || (retain && visited);
   const mount = useMounted<unknown>(() => () => files.stop(), [files]);
-  useFocusEffect(
+  useProfileFocusEffect(
     useCallback(() => {
       if (!active) return;
       setVisited(true);
@@ -94,7 +101,7 @@ export function useChannelFilesList(
       };
     }, [active]),
   );
-  useFocusEffect(
+  useProfileFocusEffect(
     useCallback(() => {
       if (!attached) return;
       live.current = true;
@@ -173,6 +180,7 @@ export function useChannelFilesList(
       ),
     );
     if (!opened) setSourceUnavailable(true);
+    else revealConversation?.();
   };
   const author = ({ author: sender }: ChannelFile) =>
     sender.kind === 'human'

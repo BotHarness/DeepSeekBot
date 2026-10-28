@@ -12,22 +12,27 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { useProfileFocused } from './profile-visibility';
 
-export type GroupProfileParams = { id: string; hostId?: string };
-
-export function GroupProfileContent({
+export function GroupProfileScreen({
   id,
   hostId,
   onClose,
-}: GroupProfileParams & { onClose?: () => void }) {
+}: {
+  id: string;
+  hostId?: string | undefined;
+  onClose?: () => void;
+}) {
   const t = useStrings();
+  const focused = useProfileFocused();
+
   const router = useRouter();
   const theme = useDesignTheme();
   const { client, saved } = useHostSession(hostId);
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
   const sourceChanged = (hostId ?? openedOn) !== saved?.hostId;
-  const snapshot = useHostSnapshot(sourceChanged ? undefined : client);
+  const snapshot = useHostSnapshot(sourceChanged ? undefined : client, focused);
   const roster = snapshot.roster;
   const refused = snapshot.connection.status === 'refused';
   const info = useMemo(
@@ -95,7 +100,7 @@ export function GroupProfileContent({
                 client={client}
                 hostId={saved.hostId}
                 channelId={info.channel.id}
-                active={active}
+                active={active && focused}
               >
                 {render}
               </ChannelFilesTab>

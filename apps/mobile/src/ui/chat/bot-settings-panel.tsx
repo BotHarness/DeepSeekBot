@@ -1,5 +1,5 @@
-import { useProfileFocusEffect } from './profile-paging';
 import { useRouter } from 'expo-router';
+import { useProfileFocusEffect } from './profile-visibility';
 import { useMemo, useCallback, useRef, useState, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
@@ -87,7 +87,10 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
             icon="model"
             control={{ kind: 'chevron' }}
             onPress={() => {
-              router.push({ pathname: '/bot/[slug]/model', params: { slug: bot.slug } });
+              router.push({
+                pathname: '/bot/[slug]/model',
+                params: { slug: bot.slug, hostId: saved?.hostId },
+              });
             }}
           />,
         )}

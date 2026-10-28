@@ -18,6 +18,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { useProfileFocused } from './profile-visibility';
 
 export type BotProfileParams = {
   slug: string;
@@ -26,7 +27,7 @@ export type BotProfileParams = {
   activityMessageId?: string | undefined;
 };
 
-export function BotProfileContent({
+export function BotProfileScreen({
   slug,
   hostId,
   channelId,
@@ -34,12 +35,13 @@ export function BotProfileContent({
   onClose,
 }: BotProfileParams & { onClose?: () => void }) {
   const t = useStrings();
+  const focused = useProfileFocused();
   const router = useRouter();
   const theme = useDesignTheme();
   const { client, saved } = useHostSession(hostId);
   const [openedOn, setOpenedOn] = useState(saved?.hostId);
   if (openedOn === undefined && saved?.hostId !== undefined) setOpenedOn(saved.hostId);
-  const snapshot = useHostSnapshot(client);
+  const snapshot = useHostSnapshot(client, focused);
   const roster = snapshot.roster;
   const bot = roster?.bots.find((entry) => entry.slug === slug);
   const channels = useMemo(() => botChannels(roster, slug ?? ''), [roster, slug]);
@@ -109,7 +111,7 @@ export function BotProfileContent({
                 hostId={saved.hostId}
                 channelId={filesChannel}
                 botSlug={bot.slug}
-                active={active}
+                active={active && focused}
               >
                 {render}
               </ChannelFilesTab>

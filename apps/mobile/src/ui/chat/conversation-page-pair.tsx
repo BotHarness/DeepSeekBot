@@ -4,10 +4,11 @@ import { HostScope } from '../../host/host-scope';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { NativePageHeader, NativePageNavigation } from '../primitives/native-page-navigation';
-import { BotProfileContent } from './bot-profile-content';
+import { BotProfileScreen } from './bot-profile-screen';
+import { ProfileVisibility } from './profile-visibility';
 import { ChannelDetailsScreen } from './channel-details-screen';
 import { ConversationScreen } from './conversation-screen';
-import { GroupProfileContent } from './group-profile-content';
+import { GroupProfileScreen } from './group-profile-screen';
 import { profilePageTarget } from './profile-page-target';
 import { ProfilePagingContext, type ProfilePaging } from './profile-paging';
 
@@ -26,7 +27,7 @@ export function useConversationPagePair(
     target === undefined ? (
       <LoadingIndicator />
     ) : target.kind === 'bot' ? (
-      <BotProfileContent
+      <BotProfileScreen
         slug={target.slug}
         hostId={target.hostId}
         channelId={paging.activity?.channelId}
@@ -40,7 +41,7 @@ export function useConversationPagePair(
         onClose={paging.close}
       />
     ) : (
-      <GroupProfileContent id={target.channelId} hostId={target.hostId} onClose={paging.close} />
+      <GroupProfileScreen id={target.channelId} hostId={target.hostId} onClose={paging.close} />
     );
   return {
     chat: (
@@ -67,7 +68,9 @@ export function useConversationPagePair(
           style={{ flex: 1 }}
         >
           <NativePageNavigation>
-            <HostScope value={target?.hostId}>{profile}</HostScope>
+            <ProfileVisibility value={paging.focused && paging.visible}>
+              <HostScope value={target?.hostId}>{profile}</HostScope>
+            </ProfileVisibility>
             <NativePageHeader onBack={paging.close} backID="profile-back" />
           </NativePageNavigation>
         </View>

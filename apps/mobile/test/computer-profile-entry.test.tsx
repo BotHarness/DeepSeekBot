@@ -27,6 +27,7 @@ vi.mock('react-native', () => ({
   View: 'div',
 }));
 vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
   useNavigationContainerRef: () => channelNavigationHarness().navigation,
   useLocalSearchParams: () => ({ slug: 'test' }),
   useRouter: () => ({ push: state.push }),

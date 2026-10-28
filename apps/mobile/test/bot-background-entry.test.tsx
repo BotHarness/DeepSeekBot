@@ -5,7 +5,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const push = vi.hoisted(() => vi.fn());
-vi.mock('expo-router', () => ({ useRouter: () => ({ push }), useFocusEffect: () => {} }));
+vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
+  useRouter: () => ({ push }),
+  useFocusEffect: () => {},
+}));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/shell/icons', async () => ({
   ...(await import('./shell-icons-shim')),

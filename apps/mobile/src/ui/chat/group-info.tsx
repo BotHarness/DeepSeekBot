@@ -1,5 +1,5 @@
-import { useProfileFocusEffect, useProfileIsFocused } from './profile-paging';
 import { TextField } from '../primitives/text-field';
+import { useProfileFocusEffect } from './profile-visibility';
 import { useCallback, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
@@ -223,7 +223,6 @@ export function GroupProfilePage({
   files,
 }: GroupProfileProps) {
   const t = useStrings();
-  const pageFocused = useProfileIsFocused();
   const [busy, setBusy] = useState<string | undefined>();
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | undefined>();
@@ -483,7 +482,7 @@ export function GroupProfilePage({
                 )),
               ],
             })
-          : files(tab === 'files' && pageFocused, shell)}
+          : files(tab === 'files', shell)}
       </View>
       {sheet === 'invite' ? (
         <InviteSheet

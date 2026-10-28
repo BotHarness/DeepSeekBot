@@ -1,4 +1,3 @@
-import { useProfileFocusEffect, useProfileIsFocused } from './profile-paging';
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
@@ -19,6 +18,7 @@ import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
+import { useProfileFocusEffect } from './profile-visibility';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
@@ -633,7 +633,6 @@ export function BotProfilePage({
   tabMemory: ProfileTabMemory;
 }) {
   const t = useStrings();
-  const pageFocused = useProfileIsFocused();
   const theme = useDesignTheme();
   const avatarEditor = useAvatarEditor(avatar);
   const [profile, setProfile] = useState(initialProfile);
@@ -803,7 +802,7 @@ export function BotProfilePage({
               )),
             ],
           })
-        : files(tab === 'files' && pageFocused, shell)}
+        : files(tab === 'files', shell)}
     </View>
   );
 }
