@@ -47,6 +47,8 @@ One presentation owner
 
 ## Header and dismissal contract
 
+Android Activity filtering is a standard, nonmodal Material side sheet (#3146). Its fixed title and Close stay visible while options scroll; header and body share one surface colour. There is no scrim or accessibility focus trap, and the page and bottom navigation remain operable. Reserve the floating navigation inset so the final choice and reset remain reachable. Interior left drag opens it; system Back closes it only while Activity is active, after the keyboard. Filter state and scroll position survive closing.
+
 | Mode                      | iOS header                                                                                                             | Android header / system Back                                                          | State after dismissal                             |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | Immediate settings, root  | Task title; no trailing Down/Done/Save. Settings integrates Close into its accessible, tappable handle; no separate X. | Task title; shared accessible handle/Close affordance. Back dismisses.                | Completed changes remain.                         |

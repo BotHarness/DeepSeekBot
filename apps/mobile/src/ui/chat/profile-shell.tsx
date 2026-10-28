@@ -4,7 +4,7 @@ import { Tabs, type TabBarProps } from 'react-native-collapsible-tab-view';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useHeaderHeight } from 'expo-router/react-navigation';
-import { useIsFocused } from 'expo-router';
+import { useProfileFocused } from './profile-visibility';
 
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
@@ -51,7 +51,7 @@ export function ProfileShell({
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
-  const focused = useIsFocused();
+  const focused = useProfileFocused();
   const [selection] = useState(() => createProfilePagerSelection(tab));
   const showTabs = tabs.length > 1;
   return (

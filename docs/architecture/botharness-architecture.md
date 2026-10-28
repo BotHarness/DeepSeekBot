@@ -1344,6 +1344,8 @@ The same application-defined Computer owner now supports a macOS sender and an i
 
 ### Android control and navigation presentation
 
+Android conversation profile entry retains the actual profile beside the conversation in a native Material side-sheet container. Native code owns drag and settling; profile visibility separately owns refresh and subscription lifetime. Shared route controllers preserve Host scope and nested editor routes. Activity uses the same native container as a nonmodal standard side sheet with fixed heading and reachable options. Neither creates a new Host or persistence authority. See [ADR-0271](../adr/0271-android-profile-drag-keeps-the-real-scene.md).
+
 Android Computer uses native Material command buttons and a floating toolbar; the custom two-axis pad repeats wheel input only during an active held gesture, serializing acknowledgements through the existing viewer input authority. Android Chats/Activity use native Material navigation items with horizontal icon-label content, preserving the existing tab navigator and Activity count source (ADR-0235). These presentation changes add no Host endpoint or persistent authority.
 
 ### Continuous macOS Human scroll input

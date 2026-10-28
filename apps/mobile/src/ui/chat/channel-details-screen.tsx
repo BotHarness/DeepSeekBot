@@ -16,12 +16,22 @@ import { ProfileHero } from './profile-hero';
 import { ChannelFilesTab } from './channel-files-tab';
 import { ProfileShell, type ProfileTabBody } from './profile-shell';
 import { profileTabs } from './profile-tabs';
+import { useProfileFocused } from './profile-visibility';
 
 const PAIR_TABS = profileTabs('bot-pair');
 
-export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; channelId: string }) {
+export function ChannelDetailsScreen({
+  hostId,
+  channelId,
+  onClose,
+}: {
+  hostId: string;
+  channelId: string;
+  onClose?: () => void;
+}) {
   const { client, saved } = useHostSession(hostId);
-  const host = useHostSnapshot(client);
+  const focused = useProfileFocused();
+  const host = useHostSnapshot(client, focused);
   const t = useStrings();
   const router = useRouter();
   const offline = host.connection.status === 'unreachable' || host.connection.status === 'stopped';
@@ -53,7 +63,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
       tab="files"
       onTab={() => {}}
       body={() => body}
-      onClose={() => router.back()}
+      onClose={onClose ?? (() => router.back())}
     />
   );
   const note = (node: ReactNode) => shell({ rows: [{ key: 'note', render: () => node }] });
@@ -68,7 +78,9 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
             variant="text"
             label={host.connection.status === 'unreachable' ? t.retry : t.back}
             onPress={() =>
-              host.connection.status === 'unreachable' ? client?.retryNow() : router.back()
+              host.connection.status === 'unreachable'
+                ? client?.retryNow()
+                : (onClose ?? (() => router.back()))()
             }
           />
         ) : null}
@@ -76,7 +88,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
     );
   if (!channel || !client || !saved) return note(<LoadingIndicator />);
   return (
-    <ChannelFilesTab client={client} hostId={hostId} channelId={channelId} active>
+    <ChannelFilesTab client={client} hostId={hostId} channelId={channelId} active={focused}>
       {shell}
     </ChannelFilesTab>
   );
