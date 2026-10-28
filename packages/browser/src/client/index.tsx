@@ -531,7 +531,6 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
   const toggleRef = useRef(toggleTakeover);
   toggleRef.current = toggleTakeover;
   const messageResource = useMountedResource<HTMLDivElement>(() => {
-    recordViewerOpen(connectionRpc, 'browser');
     const onMessage = (event: MessageEvent): void => {
       const data = event.data as { type?: unknown } | null;
       if (typeof window === 'undefined' || event.origin !== window.location.origin) return;
@@ -919,6 +918,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
 
 function createBrowserBody(t: BrowserTranslate): ComponentType<ChannelSidebarEntryProps> {
   return function BrowserBodyView(props: Omit<ChannelSidebarEntryProps, 't'>): ReactElement {
+    useState(() => recordViewerOpen(connectionRpc, 'browser'));
     const store = botInfoStore(props.botSlug);
     const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
     if (info.browserAccess === false)

@@ -105,7 +105,8 @@ describe('remote hosts', () => {
 
   it('refuses this remote’s own link, a second pairing and a broken link', async () => {
     const { carrier, calls } = fakeCarrier();
-    const sources = createRemoteHosts({ storage: memoryStorage(), carrier });
+    const record = vi.fn();
+    const sources = createRemoteHosts({ storage: memoryStorage(), carrier, record });
     expect(await sources.pair(link('host-a'), 'Browser', 'host-a')).toEqual({
       ok: false,
       code: 'this-host',
@@ -114,12 +115,27 @@ describe('remote hosts', () => {
       ok: false,
       code: 'link-invalid',
     });
+    expect(record).toHaveBeenCalledWith('remote_host:host_pair_complete', { outcome: 'refused' });
     await sources.pair(link(), 'Browser', 'host-a');
     expect(await sources.pair(link(), 'Browser', 'host-a')).toEqual({
       ok: false,
       code: 'already-paired',
     });
     expect(calls.filter((call) => call.url.endsWith('/pair'))).toHaveLength(1);
+  });
+
+  it('records an unreachable remote as a failed pairing', async () => {
+    const record = vi.fn();
+    const carrier: HostCarrier = {
+      request: () => Promise.reject(new Error('offline')),
+      openSocket: () => ({ send: () => {}, close: () => {} }),
+    };
+    const sources = createRemoteHosts({ storage: memoryStorage(), carrier, record });
+    expect(await sources.pair(link(), 'Browser', 'host-a')).toEqual({
+      ok: false,
+      code: 'unreachable',
+    });
+    expect(record).toHaveBeenCalledWith('remote_host:host_pair_complete', { outcome: 'failed' });
   });
 
   it('keys conversations by remote so the same slug on two hosts never shares state', async () => {

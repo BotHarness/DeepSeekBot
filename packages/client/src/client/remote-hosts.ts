@@ -156,6 +156,11 @@ interface HostEntry {
   activity: ReadonlyMap<string, RemoteBotActivity>;
 }
 
+const PAIR_FAILURES: ReadonlySet<string> = new Set([
+  'unreachable',
+  'no-route',
+  'host-key-required',
+]);
 const idleInbox: InboxSnapshot = { status: 'idle' };
 type NotificationTranslate = (key: 'remoteHosts.notifications.privateBody') => string;
 
@@ -375,7 +380,10 @@ export function createRemoteHosts(options: {
     async pair(link, deviceName, localHostId, trust) {
       if (trust?.signal?.aborted) return { ok: false, code: 'cancelled' };
       const parsed = parsePairingLink(link);
-      if (!parsed.ok) return parsed;
+      if (!parsed.ok) {
+        record('remote_host:host_pair_complete', { outcome: 'refused' });
+        return parsed;
+      }
       if (parsed.payload.host.id === localHostId) return { ok: false, code: 'this-host' };
       if (clients.has(parsed.payload.host.id)) return { ok: false, code: 'already-paired' };
       if (pairing.has(parsed.payload.host.id)) return { ok: false, code: 'pairing-in-progress' };
@@ -388,7 +396,9 @@ export function createRemoteHosts(options: {
           ...trust,
         });
         if (!redeemed.ok) {
-          record('remote_host:host_pair_complete', { outcome: 'refused' });
+          record('remote_host:host_pair_complete', {
+            outcome: PAIR_FAILURES.has(redeemed.code) ? 'failed' : 'refused',
+          });
           return redeemed;
         }
         if (trust?.signal?.aborted) {

@@ -6208,7 +6208,6 @@ class BotRuntimeImplementation implements BotRuntime {
           replyTo: input.replyTo,
           deliveryKey: input.deliveryKey,
         });
-        if (this.#tob?.isTob(botSlug)) this.#onTobDelegation();
         return sent;
       },
       ignore: ({ channelId, messageId }) => {
@@ -7212,6 +7211,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (result.status === 'conflict') throw new Error('Bot DM delivery key has different content');
     input.afterSend?.();
     this.admitBotDmMessage(channel.id, result.message.id);
+    if (result.status === 'appended' && this.#tob?.isTob(botSlug)) this.#onTobDelegation();
     return { channelId: channel.id, message: result.message };
   }
 

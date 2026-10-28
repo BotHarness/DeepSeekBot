@@ -426,11 +426,12 @@ export function createConnectAccount(options: {
       }
       const refreshToken = reply.body['refresh_token'];
       if (!reply.ok || typeof refreshToken !== 'string') {
-        status = {
-          state: 'error',
-          issue: error === 'expired_token' ? 'sign-in-expired' : 'sign-in-denied',
-        };
-        record('sign-in-failed', `error=${typeof error === 'string' ? error : reply.status}`);
+        const expired = error === 'expired_token';
+        status = { state: 'error', issue: expired ? 'sign-in-expired' : 'sign-in-denied' };
+        record(
+          expired ? 'sign-in-expired' : 'sign-in-failed',
+          `error=${typeof error === 'string' ? error : reply.status}`,
+        );
         return;
       }
       const email = (reply.body['user'] as { email?: unknown } | undefined)?.email;

@@ -3742,7 +3742,6 @@ window.__ModuleLoader__.load({
 			const toggleRef = (0, react.useRef)(toggleTakeover);
 			toggleRef.current = toggleTakeover;
 			const messageResource = useMountedResource(() => {
-				recordViewerOpen(connectionRpc, "browser");
 				const onMessage = (event) => {
 					const data = event.data;
 					if (typeof window === "undefined" || event.origin !== window.location.origin) return;
@@ -4078,6 +4077,7 @@ window.__ModuleLoader__.load({
 		}
 		function createBrowserBody(t) {
 			return function BrowserBodyView(props) {
+				(0, react.useState)(() => recordViewerOpen(connectionRpc, "browser"));
 				const store = botInfoStore(props.botSlug);
 				if ((0, react.useSyncExternalStore)(store.subscribe, store.getSnapshot).browserAccess === false) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PanelEmptyState, {
 					icon: "globe",
