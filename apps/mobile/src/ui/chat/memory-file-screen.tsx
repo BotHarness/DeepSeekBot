@@ -71,8 +71,12 @@ export function MemoryFileScreen({
   const askDiscard = (onDiscard: () => void) =>
     confirmDestructive(t.memoryDiscardTitle, t.memoryDiscardMessage, t.memoryDiscard, onDiscard);
 
-  usePreventRemove(unsaved, ({ data }) =>
-    askDiscard(() => navigation.dispatch(data.action as never)),
+  usePreventRemove(unsaved, ({ repeat }) =>
+    askDiscard(() => {
+      setEditing(undefined);
+      setKept(undefined);
+      repeat();
+    }),
   );
   const holdDismissal = useMounted<ViewInstance>(() => {
     const parent = navigation.getParent();

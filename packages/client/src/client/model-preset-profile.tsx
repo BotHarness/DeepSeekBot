@@ -679,30 +679,37 @@ export function ModelPresetProfile({
       <SidebarCardList label={t('modelPreset.title')}>
         <SidebarCardRow
           icon="bot"
-          title={t('modelPreset.orchestrator')}
-          chips={presetLabel === undefined ? undefined : <Tag tone="neutral">{presetLabel}</Tag>}
-          meta={summary}
+          title={t('modelPreset.title')}
+          chips={
+            presetLabel === undefined && extraAllowed <= 0 ? undefined : (
+              <>
+                {presetLabel === undefined ? null : <Tag tone="neutral">{presetLabel}</Tag>}
+                {extraAllowed > 0 ? (
+                  <Tag tone="quiet">{t('modelPreset.moreAllowed', { count: extraAllowed })}</Tag>
+                ) : null}
+              </>
+            )
+          }
+          meta={
+            plan === undefined || repair !== undefined || hasPlanError ? (
+              summary
+            ) : (
+              <>
+                <span className="bh-card-meta-line">
+                  {t('modelPreset.orchestrator')} · {summary}
+                </span>
+                <span className="bh-card-meta-line">
+                  {t('modelPreset.assignment')} ·{' '}
+                  {plan.assignmentDefault === undefined
+                    ? t('onboarding.inherit')
+                    : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
+                </span>
+              </>
+            )
+          }
           onClick={openEditor}
           dialog
         />
-        {plan === undefined ? null : (
-          <SidebarCardRow
-            icon="list-checks"
-            title={t('modelPreset.assignment')}
-            chips={
-              extraAllowed > 0 ? (
-                <Tag tone="quiet">{t('modelPreset.moreAllowed', { count: extraAllowed })}</Tag>
-              ) : undefined
-            }
-            meta={
-              plan.assignmentDefault === undefined
-                ? t('onboarding.inherit')
-                : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))
-            }
-            onClick={openEditor}
-            dialog
-          />
-        )}
       </SidebarCardList>
       {editorOpen ? null : messages}
       {editorOpen && (
