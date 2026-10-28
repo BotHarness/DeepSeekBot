@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useProfileFocusEffect } from './profile-visibility';
 import { useCallback, useMemo } from 'react';
 import { View } from 'react-native';
 
@@ -33,7 +33,7 @@ export function BotPermissions({
   const theme = useDesignTheme();
   const settings = useMemo(() => botSettings(client, bot.slug), [client, bot.slug]);
   const context = useComposerContext(settings);
-  useFocusEffect(
+  useProfileFocusEffect(
     useCallback(() => {
       context.reloadGrants();
     }, [settings]),

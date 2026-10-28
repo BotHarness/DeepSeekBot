@@ -1,3 +1,4 @@
+import { ActivitySheetRoot } from './activity-sheet-root';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
@@ -45,7 +46,9 @@ type TabBarProps = ComponentProps<typeof BottomTabBar>;
 export function BottomNavigation() {
   return (
     <ScrollChromeProvider>
-      <NavigationLayout />
+      <ActivitySheetRoot>
+        <NavigationLayout />
+      </ActivitySheetRoot>
     </ScrollChromeProvider>
   );
 }

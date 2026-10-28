@@ -11,6 +11,7 @@ import { Stack, useIsFocused, useRouter, useNavigationContainerRef } from 'expo-
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
+  Keyboard,
   Platform,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -20,6 +21,12 @@ import {
   type ViewInstance,
 } from 'react-native';
 import Animated, { useAnimatedRef, useScrollOffset, useSharedValue } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { EndSheet } from '../primitives/end-sheet';
+import { BotProfileScreen } from './bot-profile-screen';
+import { GroupProfileScreen } from './group-profile-screen';
+import { ChannelDetailsScreen } from './channel-details-screen';
+import { ProfileVisibility, RevealProfileConversation } from './profile-visibility';
 
 import {
   chatBackgrounds,
@@ -83,7 +90,7 @@ import { ChatTitle } from './chat-title';
 import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
-import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
+import { EdgeFade, HeaderBackButton, titleChipFill, useChatHeaderHeight } from './header-chrome';
 import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
@@ -329,7 +336,19 @@ function ChatConversation({
   const router = useRouter();
   const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
-  const headerPadding = useHeaderPadding();
+  const nativeHeaderPadding = useHeaderPadding();
+  const inlineHeaderHeight = useChatHeaderHeight();
+  const insets = useSafeAreaInsets();
+  const android = Platform.OS === 'android';
+  const headerPadding = android ? inlineHeaderHeight : nativeHeaderPadding;
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileVisited, setProfileVisited] = useState(false);
+  const [profileOpening, setProfileOpening] = useState(false);
+  const prepareProfile = () => {
+    setProfileVisited(true);
+    setProfileOpening(true);
+    Keyboard.dismiss();
+  };
   const { width: windowWidth } = useWindowDimensions();
   const listSafeArea = useListBottomSafeArea();
   const { client, inbox, saved } = useHostSession();
@@ -1138,11 +1157,17 @@ function ChatConversation({
       <WorkingStatus bots={working} />
     </Pressable>
   );
-  const openProfile = dm
+  const pushProfile = dm
     ? () => router.push(profileHref)
     : botDm
       ? () => router.push(pairHref)
       : () => router.push(groupHref);
+  const openProfile = android
+    ? () => {
+        prepareProfile();
+        setProfileOpen(true);
+      }
+    : pushProfile;
   const swipeProfile = dm
     ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
     : botDm
@@ -1224,7 +1249,7 @@ function ChatConversation({
     <>
       <Stack.Screen
         options={{
-          headerShown: true,
+          headerShown: !android,
           headerTransparent: ios || floatingHeader,
           headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
           headerShadowVisible: false,
@@ -1282,370 +1307,425 @@ function ChatConversation({
               }),
         }}
       />
-      <KeyboardChatFrame
-        onMount={screenRef}
-        backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
-        background={
-          background.kind === 'image' ? (
-            <ChatBackground choice={background} imageUri={backgroundImageUri} />
-          ) : undefined
-        }
-        onComposerLayout={latest.onComposerLayout}
-        composer={
-          selected !== undefined ? (
-            <SelectionBar
-              count={selected.length}
-              onCancel={() => setPicked(undefined)}
-              onCopy={() => copyMessage(selectionText(selected, visible))}
-              onScreenshot={() =>
-                setImageSelection({
-                  scope: selectionScope,
-                  messages: visible.filter((m) => selected.includes(m.id)),
-                })
-              }
-            />
-          ) : botDm ? (
-            <View style={{ padding: space.x5, alignItems: 'center' }}>
-              <Text variant="meta" tone="muted">
-                {t.activityRow.botDm}
-              </Text>
-            </View>
-          ) : (
-            <Composer
-              value={draft}
-              placeholder={
-                bot !== undefined
-                  ? t.messageBot(bot.displayName)
-                  : channel !== undefined
-                    ? t.messageBot(`#${channel.name}`)
-                    : t.messagePlaceholder
-              }
-              disabled={
-                conversation === undefined ||
-                host.connection.status !== 'connected' ||
-                !draftPersistence.loaded ||
-                draftPersistence.failed
-              }
-              files={files}
-              canAttach={files.length < MAX_PICKED}
-              dictation={dictation.state.status}
-              canDictate={conversation !== undefined}
-              onChange={edit}
-              selection={selection}
-              onSelection={(next) => {
-                setSelection(undefined);
-                setCaret(next);
-              }}
-              above={
-                <>
-                  {replyTarget === undefined ? null : (
-                    <ReplyBar
-                      message={replyTarget}
-                      botName={botName}
-                      onCancel={() => setReplying(undefined)}
-                    />
-                  )}
-                  {draftPersistence.failed ? (
-                    <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
-                  ) : null}
-                  {candidates.length > 0 ? (
-                    <MentionSuggestions candidates={candidates} onChoose={mention} />
-                  ) : clipboard.offered ? (
-                    <ClipboardImageOffer
-                      onUnreadable={clipboard.used}
-                      onPaste={(data) => {
-                        clipboard.used();
-                        setAttachError(false);
-                        setFiles((current) =>
-                          [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
-                        );
-                      }}
-                    />
-                  ) : null}
-                </>
-              }
-              onSend={send}
-              onPick={pick}
-              onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
-              onDictate={() => {
-                setAttachError(false);
-                dictation.start();
-              }}
-              onStopDictation={dictation.stop}
-              onCancelDictation={dictation.cancel}
-              inputRef={composerInput}
-              onFocusChange={setTyping}
-            />
-          )
+      <EndSheet
+        open={profileOpen}
+        active={focused}
+        enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
+        fullWidth
+        onOpening={prepareProfile}
+        onOpenChange={(open) => {
+          setProfileOpen(open);
+          setProfileOpening(false);
+        }}
+        panel={
+          android && profileVisited && saved != null ? (
+            <ProfileVisibility value={profileOpen || profileOpening}>
+              <RevealProfileConversation value={() => setProfileOpen(false)}>
+                {dm ? (
+                  <BotProfileScreen {...profileHref.params} onClose={() => setProfileOpen(false)} />
+                ) : botDm ? (
+                  <ChannelDetailsScreen
+                    hostId={saved.hostId}
+                    channelId={pairHref.params.channelId}
+                    onClose={() => setProfileOpen(false)}
+                  />
+                ) : (
+                  <GroupProfileScreen {...groupHref.params} onClose={() => setProfileOpen(false)} />
+                )}
+              </RevealProfileConversation>
+            </ProfileVisibility>
+          ) : null
         }
       >
-        {notice === undefined ? null : (
-          <View
-            style={{
-              marginTop: headerOverlap + headerPadding,
-              backgroundColor: theme.color.warningSoft,
-              paddingHorizontal: space.x5,
-              paddingVertical: space.x3,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: space.x4,
-            }}
-          >
-            <Text
-              accessibilityLiveRegion="polite"
-              variant="meta"
-              tone="warning"
-              style={{ flex: 1 }}
-            >
-              {notice}
-            </Text>
-            {hostRefused ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push('/pair')}
-                hitSlop={space.x3}
-              >
-                <Text variant="meta" tone="accent" strong>
-                  {t.pairAgain}
+        <KeyboardChatFrame
+          onMount={screenRef}
+          backgroundColor={background.kind === 'color' ? background.color : theme.color.base}
+          background={
+            background.kind === 'image' ? (
+              <ChatBackground choice={background} imageUri={backgroundImageUri} />
+            ) : undefined
+          }
+          onComposerLayout={latest.onComposerLayout}
+          composer={
+            selected !== undefined ? (
+              <SelectionBar
+                count={selected.length}
+                onCancel={() => setPicked(undefined)}
+                onCopy={() => copyMessage(selectionText(selected, visible))}
+                onScreenshot={() =>
+                  setImageSelection({
+                    scope: selectionScope,
+                    messages: visible.filter((m) => selected.includes(m.id)),
+                  })
+                }
+              />
+            ) : botDm ? (
+              <View style={{ padding: space.x5, alignItems: 'center' }}>
+                <Text variant="meta" tone="muted">
+                  {t.activityRow.botDm}
                 </Text>
-              </Pressable>
-            ) : host.connection.status === 'unreachable' ? (
-              <Pressable
-                testID="chat-connection-retry"
-                accessibilityRole="button"
-                accessibilityLabel={t.retry}
-                onPress={() => client?.retryNow()}
-                hitSlop={space.x3}
-              >
-                <Text variant="meta" tone="accent" strong>
-                  {t.retry}
-                </Text>
-              </Pressable>
-            ) : notice === t.noBot || notice === t.noChannel ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.dismissTo('/')}
-                hitSlop={space.x3}
-              >
-                <Text variant="meta" tone="accent" strong>
-                  {t.backToChats}
-                </Text>
-              </Pressable>
-            ) : null}
-          </View>
-        )}
-        <SwipeOpen
-          testID="chat-profile-swipe"
-          enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
-          travel={profileTravel}
-          onOpen={swipeProfile}
-        >
-          <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
-            <MarkdownViewportContext.Provider value={markdownViewport}>
-              <SpeakerStageContext.Provider value={dm ? undefined : stage}>
-                <Animated.FlatList
-                  ref={attachList}
-                  renderScrollComponent={latest.renderScrollComponent}
-                  removeClippedSubviews={false}
-                  CellRendererComponentStyle={cellLayer}
-                  style={{
-                    flex: 1,
-                    opacity: latest.ready || rows.length === 0 ? 1 : 0,
-                  }}
-                  pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                  accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                  importantForAccessibility={
-                    !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                  }
-                  contentInsetAdjustmentBehavior="automatic"
-                  contentInset={{ bottom: -listSafeArea }}
-                  automaticallyAdjustsScrollIndicatorInsets
-                  scrollToOverflowEnabled
-                  contentContainerStyle={{
-                    minHeight: Math.max(
-                      0,
-                      viewportHeight -
-                        (notice === undefined ? headerOverlap : 0) +
-                        (Platform.OS === 'android' ? edge.hairline : 0),
-                    ),
-                    justifyContent: 'flex-end',
-                    paddingTop: space.x3 + listTop,
-                    paddingBottom: composerHeight + edgeFade.bottom,
-                  }}
-                  data={rows}
-                  keyExtractor={(row) => row.key}
-                  renderItem={renderItem}
-                  onViewableItemsChanged={onFocusViewabilityChange}
-                  onScrollToIndexFailed={(info) => {
-                    const attempt = focusAttempt.current;
-                    if (
-                      focusCancelled.current ||
-                      attempt === undefined ||
-                      attempt.index !== info.index ||
-                      attempt.message !== focusIntent.current.message ||
-                      attempt.request !== focusIntent.current.request
-                    )
-                      return;
-                    focusNeedsLayout.current = true;
-                    jumped.current = undefined;
-                    focusAttempt.current = undefined;
-                    const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
-                    if (focusEstimate.current === estimate) return;
-                    focusEstimate.current = estimate;
-                    list.current?.scrollToOffset({
-                      offset: info.averageItemLength * info.index,
-                      animated: false,
-                    });
-                  }}
-                  {...(latest.ready && latest.browsed && !snapshot.olderError
-                    ? { onStartReached: () => void conversation?.loadOlder() }
-                    : {})}
-                  onStartReachedThreshold={0.5}
-                  {...latest.listProps}
-                  onScrollBeginDrag={(event: ScrollEvent) => {
-                    focusCancelled.current = true;
-                    focusAttempt.current = undefined;
-                    pull.onScrollBeginDrag(event);
-                    latest.listProps.onScrollBeginDrag();
-                  }}
-                  onScroll={(event: ScrollEvent) => {
-                    latest.listProps.onScroll(event);
-                    pull.onScroll(event);
-                  }}
-                  onScrollEndDrag={(event: ScrollEvent) => {
-                    latest.listProps.onScrollEndDrag(event);
-                    pull.onScrollEndDrag(event);
-                  }}
-                  onContentSizeChange={(width: number, height: number) => {
-                    latest.listProps.onContentSizeChange(width, height);
-                    focusNeedsLayout.current = false;
-                    jump();
-                  }}
-                  scrollEventThrottle={32}
-                  keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                  keyboardShouldPersistTaps="handled"
-                  ListHeaderComponent={
-                    snapshot.loadingOlder ? (
-                      <View
-                        style={{
-                          padding: space.x4,
-                          alignItems: 'center',
-                          gap: space.x2,
+              </View>
+            ) : (
+              <Composer
+                value={draft}
+                placeholder={
+                  bot !== undefined
+                    ? t.messageBot(bot.displayName)
+                    : channel !== undefined
+                      ? t.messageBot(`#${channel.name}`)
+                      : t.messagePlaceholder
+                }
+                disabled={
+                  conversation === undefined ||
+                  host.connection.status !== 'connected' ||
+                  !draftPersistence.loaded ||
+                  draftPersistence.failed
+                }
+                files={files}
+                canAttach={files.length < MAX_PICKED}
+                dictation={dictation.state.status}
+                canDictate={conversation !== undefined}
+                onChange={edit}
+                selection={selection}
+                onSelection={(next) => {
+                  setSelection(undefined);
+                  setCaret(next);
+                }}
+                above={
+                  <>
+                    {replyTarget === undefined ? null : (
+                      <ReplyBar
+                        message={replyTarget}
+                        botName={botName}
+                        onCancel={() => setReplying(undefined)}
+                      />
+                    )}
+                    {draftPersistence.failed ? (
+                      <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
+                    ) : null}
+                    {candidates.length > 0 ? (
+                      <MentionSuggestions candidates={candidates} onChoose={mention} />
+                    ) : clipboard.offered ? (
+                      <ClipboardImageOffer
+                        onUnreadable={clipboard.used}
+                        onPaste={(data) => {
+                          clipboard.used();
+                          setAttachError(false);
+                          setFiles((current) =>
+                            [...current, fromClipboardImage(data)].slice(0, MAX_PICKED),
+                          );
                         }}
-                      >
-                        <LoadingIndicator />
-                        <Text variant="meta" tone="muted">
-                          {t.olderLoading}
-                        </Text>
-                      </View>
-                    ) : snapshot.olderError ? (
-                      <View style={{ padding: space.x4, gap: space.x2 }}>
-                        <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
-                          {t.olderLoadFailed}
-                        </Text>
-                        <Button
-                          label={t.retry}
-                          variant="text"
-                          testID="history-retry"
-                          onPress={() => void conversation?.loadOlder()}
-                        />
-                      </View>
-                    ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-                      <Text
-                        variant="meta"
-                        tone="muted"
-                        style={{ textAlign: 'center', padding: space.x5 }}
-                      >
-                        {dm ? t.beginning : t.beginningChannel}
-                      </Text>
-                    ) : undefined
-                  }
-                />
-              </SpeakerStageContext.Provider>
-            </MarkdownViewportContext.Provider>
-            <Animated.View
-              ref={viewport}
-              collapsable={false}
-              pointerEvents="box-none"
-              style={[
-                { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-                latest.overlayStyle,
-              ]}
-              onLayout={() => {
-                viewportLayout.value += 1;
+                      />
+                    ) : null}
+                  </>
+                }
+                onSend={send}
+                onPick={pick}
+                onRemove={(id) => setFiles((current) => current.filter((file) => file.id !== id))}
+                onDictate={() => {
+                  setAttachError(false);
+                  dictation.start();
+                }}
+                onStopDictation={dictation.stop}
+                onCancelDictation={dictation.cancel}
+                inputRef={composerInput}
+                onFocusChange={setTyping}
+              />
+            )
+          }
+        >
+          {notice === undefined ? null : (
+            <View
+              style={{
+                marginTop: headerOverlap + headerPadding,
+                backgroundColor: theme.color.warningSoft,
+                paddingHorizontal: space.x5,
+                paddingVertical: space.x3,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.x4,
               }}
             >
-              {(!latest.ready && rows.length > 0) ||
-              (snapshot.status === 'opening' && rows.length === 0) ? (
-                <View
-                  pointerEvents={latest.canRetry ? 'auto' : 'none'}
-                  style={{
-                    position: 'absolute',
-                    top: listTop,
-                    bottom: composerHeight + edgeFade.bottom,
-                    left: 0,
-                    right: 0,
-                    justifyContent: 'flex-end',
-                  }}
+              <Text
+                accessibilityLiveRegion="polite"
+                variant="meta"
+                tone="warning"
+                style={{ flex: 1 }}
+              >
+                {notice}
+              </Text>
+              {hostRefused ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push('/pair')}
+                  hitSlop={space.x3}
                 >
-                  <ListSkeleton layout="messages" />
-                  {latest.canRetry ? (
-                    <Button
-                      label={t.retry}
-                      variant="text"
-                      testID="history-loading-retry"
-                      onPress={latest.retry}
-                    />
-                  ) : null}
-                </View>
+                  <Text variant="meta" tone="accent" strong>
+                    {t.pairAgain}
+                  </Text>
+                </Pressable>
+              ) : host.connection.status === 'unreachable' ? (
+                <Pressable
+                  testID="chat-connection-retry"
+                  accessibilityRole="button"
+                  accessibilityLabel={t.retry}
+                  onPress={() => client?.retryNow()}
+                  hitSlop={space.x3}
+                >
+                  <Text variant="meta" tone="accent" strong>
+                    {t.retry}
+                  </Text>
+                </Pressable>
+              ) : notice === t.noBot || notice === t.noChannel ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.dismissTo('/')}
+                  hitSlop={space.x3}
+                >
+                  <Text variant="meta" tone="accent" strong>
+                    {t.backToChats}
+                  </Text>
+                </Pressable>
               ) : null}
-              {topFade > 0 ? (
+            </View>
+          )}
+          <SwipeOpen
+            testID="chat-profile-swipe"
+            enabled={
+              !android && saved !== undefined && !hostRefused && !missing && selected === undefined
+            }
+            travel={profileTravel}
+            onOpen={swipeProfile}
+          >
+            <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
+              <MarkdownViewportContext.Provider value={markdownViewport}>
+                <SpeakerStageContext.Provider value={dm ? undefined : stage}>
+                  <Animated.FlatList
+                    ref={attachList}
+                    renderScrollComponent={latest.renderScrollComponent}
+                    removeClippedSubviews={false}
+                    CellRendererComponentStyle={cellLayer}
+                    style={{
+                      flex: 1,
+                      opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                    }}
+                    pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                    accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                    importantForAccessibility={
+                      !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
+                    }
+                    contentInsetAdjustmentBehavior="automatic"
+                    contentInset={{ bottom: -listSafeArea }}
+                    automaticallyAdjustsScrollIndicatorInsets
+                    scrollToOverflowEnabled
+                    contentContainerStyle={{
+                      minHeight: Math.max(
+                        0,
+                        viewportHeight -
+                          (notice === undefined ? headerOverlap : 0) +
+                          (Platform.OS === 'android' ? edge.hairline : 0),
+                      ),
+                      justifyContent: 'flex-end',
+                      paddingTop: space.x3 + listTop,
+                      paddingBottom: composerHeight + edgeFade.bottom,
+                    }}
+                    data={rows}
+                    keyExtractor={(row) => row.key}
+                    renderItem={renderItem}
+                    onViewableItemsChanged={onFocusViewabilityChange}
+                    onScrollToIndexFailed={(info) => {
+                      const attempt = focusAttempt.current;
+                      if (
+                        focusCancelled.current ||
+                        attempt === undefined ||
+                        attempt.index !== info.index ||
+                        attempt.message !== focusIntent.current.message ||
+                        attempt.request !== focusIntent.current.request
+                      )
+                        return;
+                      focusNeedsLayout.current = true;
+                      jumped.current = undefined;
+                      focusAttempt.current = undefined;
+                      const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                      if (focusEstimate.current === estimate) return;
+                      focusEstimate.current = estimate;
+                      list.current?.scrollToOffset({
+                        offset: info.averageItemLength * info.index,
+                        animated: false,
+                      });
+                    }}
+                    {...(latest.ready && latest.browsed && !snapshot.olderError
+                      ? { onStartReached: () => void conversation?.loadOlder() }
+                      : {})}
+                    onStartReachedThreshold={0.5}
+                    {...latest.listProps}
+                    onScrollBeginDrag={(event: ScrollEvent) => {
+                      focusCancelled.current = true;
+                      focusAttempt.current = undefined;
+                      pull.onScrollBeginDrag(event);
+                      latest.listProps.onScrollBeginDrag();
+                    }}
+                    onScroll={(event: ScrollEvent) => {
+                      latest.listProps.onScroll(event);
+                      pull.onScroll(event);
+                    }}
+                    onScrollEndDrag={(event: ScrollEvent) => {
+                      latest.listProps.onScrollEndDrag(event);
+                      pull.onScrollEndDrag(event);
+                    }}
+                    onContentSizeChange={(width: number, height: number) => {
+                      latest.listProps.onContentSizeChange(width, height);
+                      focusNeedsLayout.current = false;
+                      jump();
+                    }}
+                    scrollEventThrottle={32}
+                    keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
+                    keyboardShouldPersistTaps="handled"
+                    ListHeaderComponent={
+                      snapshot.loadingOlder ? (
+                        <View
+                          style={{
+                            padding: space.x4,
+                            alignItems: 'center',
+                            gap: space.x2,
+                          }}
+                        >
+                          <LoadingIndicator />
+                          <Text variant="meta" tone="muted">
+                            {t.olderLoading}
+                          </Text>
+                        </View>
+                      ) : snapshot.olderError ? (
+                        <View style={{ padding: space.x4, gap: space.x2 }}>
+                          <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+                            {t.olderLoadFailed}
+                          </Text>
+                          <Button
+                            label={t.retry}
+                            variant="text"
+                            testID="history-retry"
+                            onPress={() => void conversation?.loadOlder()}
+                          />
+                        </View>
+                      ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
+                        <Text
+                          variant="meta"
+                          tone="muted"
+                          style={{ textAlign: 'center', padding: space.x5 }}
+                        >
+                          {dm ? t.beginning : t.beginningChannel}
+                        </Text>
+                      ) : undefined
+                    }
+                  />
+                </SpeakerStageContext.Provider>
+              </MarkdownViewportContext.Provider>
+              <Animated.View
+                ref={viewport}
+                collapsable={false}
+                pointerEvents="box-none"
+                style={[
+                  { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+                  latest.overlayStyle,
+                ]}
+                onLayout={() => {
+                  viewportLayout.value += 1;
+                }}
+              >
+                {(!latest.ready && rows.length > 0) ||
+                (snapshot.status === 'opening' && rows.length === 0) ? (
+                  <View
+                    pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                    style={{
+                      position: 'absolute',
+                      top: listTop,
+                      bottom: composerHeight + edgeFade.bottom,
+                      left: 0,
+                      right: 0,
+                      justifyContent: 'flex-end',
+                    }}
+                  >
+                    <ListSkeleton layout="messages" />
+                    {latest.canRetry ? (
+                      <Button
+                        label={t.retry}
+                        variant="text"
+                        testID="history-loading-retry"
+                        onPress={latest.retry}
+                      />
+                    ) : null}
+                  </View>
+                ) : null}
+                {topFade > 0 ? (
+                  <EdgeFade
+                    edge="top"
+                    height={topFade + edgeFade.reach}
+                    cover={topFade}
+                    color={fadeColor}
+                  />
+                ) : null}
                 <EdgeFade
-                  edge="top"
-                  height={topFade + edgeFade.reach}
-                  cover={topFade}
+                  edge="bottom"
+                  height={composerCover + edgeFade.bottom}
+                  cover={composerCover}
+                  solid={composerCover}
                   color={fadeColor}
                 />
-              ) : null}
-              <EdgeFade
-                edge="bottom"
-                height={composerCover + edgeFade.bottom}
-                cover={composerCover}
-                solid={composerCover}
-                color={fadeColor}
-              />
-              {(composable || stackRoot) && Platform.OS === 'ios' ? (
-                <PullToComposeHint
-                  progress={pull.progress}
-                  ready={pull.ready}
-                  bottom={composerHeight + space.x3}
-                  leaves={stackRoot}
-                />
-              ) : null}
-              {latest.away ? (
-                <View
-                  pointerEvents="box-none"
-                  style={{
-                    position: 'absolute',
-                    bottom: composerHeight + space.x2,
-                    left: 0,
-                    right: space.x4,
-                    alignItems: 'flex-end',
-                  }}
-                >
-                  <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-                </View>
-              ) : null}
+                {(composable || stackRoot) && Platform.OS === 'ios' ? (
+                  <PullToComposeHint
+                    progress={pull.progress}
+                    ready={pull.ready}
+                    bottom={composerHeight + space.x3}
+                    leaves={stackRoot}
+                  />
+                ) : null}
+                {latest.away ? (
+                  <View
+                    pointerEvents="box-none"
+                    style={{
+                      position: 'absolute',
+                      bottom: composerHeight + space.x2,
+                      left: 0,
+                      right: space.x4,
+                      alignItems: 'flex-end',
+                    }}
+                  >
+                    <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+                  </View>
+                ) : null}
+              </Animated.View>
             </Animated.View>
-          </Animated.View>
-        </SwipeOpen>
-      </KeyboardChatFrame>
-      <ProfileSwipePreview
-        travel={profileTravel}
-        name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
-        bot={dm ? bot : undefined}
-        groupAvatar={channel?.avatar}
-      />
+          </SwipeOpen>
+        </KeyboardChatFrame>
+        {android ? (
+          <View
+            pointerEvents="box-none"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: inlineHeaderHeight,
+              paddingTop: insets.top,
+              paddingHorizontal: space.x4,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: space.x3,
+            }}
+          >
+            {back}
+            {titleItem}
+          </View>
+        ) : null}
+      </EndSheet>
+      {!android ? (
+        <ProfileSwipePreview
+          travel={profileTravel}
+          name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
+          bot={dm ? bot : undefined}
+          groupAvatar={channel?.avatar}
+        />
+      ) : null}
       {imageSelection?.scope === selectionScope ? (
         <SelectionScreenshot
           messages={imageSelection.messages}

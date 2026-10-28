@@ -11,6 +11,7 @@ import type { Conversation, ConversationSnapshot } from '../src/host/conversatio
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
+vi.mock('expo-image', () => ({ Image: () => null }));
 vi.mock('expo-sharing', () => ({ isAvailableAsync: vi.fn(), shareAsync: vi.fn() }));
 vi.mock('react-native-view-shot', () => ({ captureRef: vi.fn(), releaseCapture: vi.fn() }));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
@@ -227,7 +228,9 @@ vi.mock('../src/ui/chat/native-header', () => ({
   floatingHeader: false,
   useHeaderPadding: () => 0,
 }));
-vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
+vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
+vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
+vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
 vi.mock('../src/ui/shell/swipe-open', () => ({
   SwipeOpen: ({
     enabled,
@@ -248,6 +251,7 @@ vi.mock('../src/ui/shell/swipe-open', () => ({
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
+  useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
     <button type="button" onClick={onPress}>
       {label}

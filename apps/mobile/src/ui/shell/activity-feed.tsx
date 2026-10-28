@@ -1,4 +1,6 @@
 import { HostGlyph } from './host-tile';
+import { useIsFocused } from 'expo-router';
+import { ActivitySheetRegistration } from './activity-sheet-root';
 import { DEFAULT_HOST_LOOK, hostColorInk } from '../design/host-look';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
@@ -94,6 +96,7 @@ import { useStrings } from '../strings';
 import {
   DEFAULT_ACTIVITY,
   ActivityFilters,
+  ActivityFilterContent,
   type ActivityFilter,
   type ActivitySort,
 } from './activity-filters';
@@ -474,6 +477,7 @@ type ActivityFeedProps = {
 };
 
 export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps) {
+  const focused = useIsFocused();
   const { botSlugs, channels = [], bot } = props;
   const theme = useDesignTheme();
   const toolbar = useRef<ActivityToolbarHandle>(null);
@@ -536,7 +540,7 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
   const pageStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: -travel * progress.value }],
   }));
-  return (
+  const content = (
     <KeyboardAvoidingView
       style={{ flex: 1, overflow: 'hidden', backgroundColor: theme.color.base }}
       enabled={searchFocused}
@@ -635,8 +639,38 @@ export const ActivityFeed = memo(function ActivityFeed(props: ActivityFeedProps)
         }}
       />
       <UndoBar notice={notice} bottom={tabInset} onDone={noticeDone} />
-      <ActivityFilters visible={filtering} {...filterOptions} onClose={() => setFiltering(false)} />
+      {Platform.OS !== 'android' ? (
+        <ActivityFilters
+          visible={filtering}
+          {...filterOptions}
+          onClose={() => setFiltering(false)}
+        />
+      ) : null}
     </KeyboardAvoidingView>
+  );
+  return Platform.OS === 'android' ? (
+    <>
+      <ActivitySheetRegistration
+        open={filtering}
+        active={focused}
+        enabled={!searchFocused && search === ''}
+        onOpenChange={setFiltering}
+        panel={
+          <View
+            style={{
+              flex: 1,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            }}
+          >
+            <ActivityFilterContent {...filterOptions} onClose={() => setFiltering(false)} />
+          </View>
+        }
+      />
+      {content}
+    </>
+  ) : (
+    content
   );
 });
 
