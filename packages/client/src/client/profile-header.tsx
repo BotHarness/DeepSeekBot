@@ -583,7 +583,9 @@ export function ProfileHeader({
               />
               {bot.deleted ? null : (
                 <span aria-hidden="true" className="bh-profile-avatar-overlay">
-                  <IconEditOutlineRegular size={20} />
+                  <span className="bh-profile-avatar-overlay-icon">
+                    <IconEditOutlineRegular size={16} />
+                  </span>
                 </span>
               )}
             </button>

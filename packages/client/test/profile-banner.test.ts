@@ -10,6 +10,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
     ...dialogPrimitives(),
     IconCloseOutlineRegular: stub,
+    IconEditOutlineRegular: stub,
     IconEllipsisOutlineRegular: stub,
     IconTrashOutlineRegular: stub,
     IconShareOutlineRegular: stub,

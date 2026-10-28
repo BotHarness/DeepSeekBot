@@ -3383,16 +3383,26 @@ button.bh-profile-heat-cell:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: ${radius.lg};
   background: color-mix(in srgb, var(--dsw-alias-bg-module-platform) 60%, transparent);
   color: var(--dsw-alias-label-primary);
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease;
 }
+.bh-profile-avatar-overlay-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: ${border.hairline} solid ${color.border};
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-module-platform);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--dsw-alias-label-primary) 16%, transparent);
+}
 .bh-profile-avatar-button:hover .bh-profile-avatar-overlay,
 .bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .bh-profile-avatar-overlay { transition: none; } }
 .bh-content {
   flex: 1;
   min-height: 0;
