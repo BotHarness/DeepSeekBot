@@ -1505,7 +1505,7 @@ function ChatConversation({
               ) : notice === t.noBot || notice === t.noChannel ? (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => router.dismissTo('/')}
+                  onPress={() => (closePresentation ? closePresentation() : router.dismissTo('/'))}
                   hitSlop={space.x3}
                 >
                   <Text variant="meta" tone="accent" strong>

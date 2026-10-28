@@ -15,14 +15,14 @@ import { EndSheet } from '../primitives/end-sheet';
 import { ScrollChromeProvider } from './scroll-chrome';
 import { conversationTarget } from './swipe-chat-target';
 import type { ChatsSheetRequest } from './chats-sheet-root';
+import type { RecentChat } from './recent-chats';
 const Register = createContext<Dispatch<SetStateAction<ChatsSheetRequest | null>>>(() => {});
 export function ChatsSheetRoot({ children }: { children: ReactNode }) {
   const [request, register] = useState<ChatsSheetRequest | null>(null);
   const routeFocused = useIsFocused();
-  const target = conversationTarget(request?.chat?.href);
   return (
     <Register.Provider value={register}>
-      <ChatPanel request={request} target={target} covered={!routeFocused}>
+      <ChatPanel request={request} covered={!routeFocused}>
         {children}
       </ChatPanel>
     </Register.Provider>
@@ -30,19 +30,19 @@ export function ChatsSheetRoot({ children }: { children: ReactNode }) {
 }
 function ChatPanel({
   request,
-  target,
   children,
   covered,
 }: {
   covered: boolean;
   request: ChatsSheetRequest | null;
-  target: ReturnType<typeof conversationTarget>;
   children: ReactNode;
 }) {
-  const [opened, setOpened] = useState<string>();
-  const href = request?.chat?.href;
-  const open = href !== undefined && opened === href;
-  const setOpen = useCallback((next: boolean) => setOpened(next ? href : undefined), [href]);
+  const [opened, setOpened] = useState<RecentChat>();
+  const chat = opened ?? request?.chat;
+  const href = chat?.href;
+  const target = conversationTarget(href);
+  const open = opened !== undefined;
+  const setOpen = useCallback((next: boolean) => setOpened(next ? chat : undefined), [chat]);
   const [nested, setNested] = useState(false);
   const close = useCallback(() => {
     Keyboard.dismiss();

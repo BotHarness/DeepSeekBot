@@ -1294,3 +1294,26 @@ it('preloads inline chat without marking read or recording recents until it sett
     Object.assign(Platform, { OS: os });
   }
 });
+
+it('closes an inline deleted conversation through its recovery action', async () => {
+  const os = Platform.OS;
+  Object.assign(Platform, { OS: 'android' });
+  container = document.createElement('div');
+  root = createRoot(container);
+  const onClose = vi.fn();
+  try {
+    await act(async () =>
+      root!.render(
+        <ConversationScreen
+          place={{ kind: 'dm', slug: 'gone' }}
+          focus={undefined}
+          presentation={{ active: true, onClose, onNestedChange: () => {} }}
+        />,
+      ),
+    );
+    await press(container, t.backToChats);
+    expect(onClose).toHaveBeenCalledOnce();
+  } finally {
+    Object.assign(Platform, { OS: os });
+  }
+});
