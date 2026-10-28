@@ -106,6 +106,9 @@ describe('Bot Marketplace commands', () => {
     await invoke(['marketplace-file', 'U_abc', 'notes/today.md'], live.url);
     await invoke(['marketplace-sections'], live.url);
     await invoke(['marketplace-sections', '--lang', 'zh'], live.url);
+    await invoke(['marketplace-digest'], live.url);
+    await invoke(['marketplace-digest', '--day', '2026-10-28', '--lang', 'en'], live.url);
+    await invoke(['marketplace-digests', '--lang', 'zh'], live.url);
     expect(live.calls).toEqual([
       { method: 'marketplaceList', args: { query: {} } },
       {
@@ -119,6 +122,9 @@ describe('Bot Marketplace commands', () => {
       { method: 'marketplaceFileView', args: { id: 'U_abc', path: 'notes/today.md' } },
       { method: 'marketplaceSections', args: {} },
       { method: 'marketplaceSections', args: { lang: 'zh' } },
+      { method: 'marketplaceDigest', args: {} },
+      { method: 'marketplaceDigest', args: { day: '2026-10-28', lang: 'en' } },
+      { method: 'marketplaceDigests', args: { lang: 'zh' } },
     ]);
   });
 
@@ -134,6 +140,9 @@ describe('Bot Marketplace commands', () => {
       ['marketplace-topics', '--lang', 'zh'],
       ['marketplace-sections', 'hot'],
       ['marketplace-sections', '--lang', 'fr'],
+      ['marketplace-digest', '--day', 'yesterday'],
+      ['marketplace-digests', '--day', '2026-10-28'],
+      ['marketplace-digest', '2026-10-28'],
       ['marketplace-report', 'owner/repo', '--reason', 'x'.repeat(501)],
     ])
       expect((await invoke(argv, live.url)).json.error.code).toBe('usage');

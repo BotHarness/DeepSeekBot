@@ -809,6 +809,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 每日发现任务之后，Worker 为当天（UTC）写一份热门／新上架／上升最快快照（`ranking_runs` 与 `ranking_snapshots`，重跑覆盖当天、保留 30 天）：热门按近 7 天 Install Receipt 数，新上架按首次收录时间，上升最快按近 7 天比前 7 天的增长且近 7 天至少 3 次安装；两种条目都参与。`GET /v1/sections/{hot|new|rising}` 读最近一次快照，隐藏或屏蔽的条目立即消失。Host 的 `marketplaceSections` 一次取回三行，市场面板在未搜索、未选主题时把非空的行显示在列表上方，CLI 为 `marketplace-sections`。
 
+快照之后，Worker 用与简介相同的 OpenCode 免费模型为当天写一篇中英文每日精选（`digests`）：从快照取最多 6 个条目（GitHub 条目取 README，上传条目从 R2 取至多三个文本文件，每个条目最多 1,500 字），模型只填固定 JSON 模板（标题、导语、1–4 段，每段指向一个候选条目 ID）；未知 ID、链接、语言不符或超长的输出被拒绝，每小时刷新在当天快照之后重试，最多 3 次。模型输出始终当作不可信纯文本，客户端按原生块渲染并嵌入可一键安装的 Bot 卡片，已隐藏的条目不显示卡片。`GET /v1/digests` 与 `/v1/digests/{day|latest}` 提供往期与当天，Host 方法为 `marketplaceDigests`／`marketplaceDigest`，CLI 为 `marketplace-digests`／`marketplace-digest`。
+
 ### 移动端原生创建与导入
 
 [移动端设计](../../apps/mobile/DESIGN.md#native-bot-creation-and-import) 统一空白创建、市场、Git 链接和 Bot Zip 导入的原生流程：“全部”中显式选择已配对 Remote Host，最近使用的 Host 只作预选；从 A 进入沿用 A，提交前可改目标并保留表单。市场先浏览，点击导入后再确认目标；手机有网络时，无已配对或在线 Host 也可浏览，配对／连接后保留选择，但不自动提交。统一确认页显示来源、环境与可编辑名称，简介和标签收起。选择目标不切换主浏览环境；仍在进度页时，确认成功后进入目标 Host 的新 Bot DM；已经离开则保留完成提示与“打开 Bot”，不抢占当前页面。

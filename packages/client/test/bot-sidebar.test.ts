@@ -198,6 +198,10 @@ function stubActions(): BridgeActions {
     }),
     marketplaceTopics: vi.fn(async () => []),
     marketplaceSections: vi.fn(async () => []),
+    marketplaceDigests: vi.fn(async () => []),
+    marketplaceDigest: vi.fn(async () => {
+      throw new Error('digest-not-found');
+    }),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),

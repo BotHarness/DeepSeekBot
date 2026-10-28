@@ -205,6 +205,8 @@ Usage:
   tobs marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--cursor <c>] [--include-uploads]
   tobs marketplace-topics
   tobs marketplace-sections [--lang zh|en]
+  tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
+  tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
   tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>

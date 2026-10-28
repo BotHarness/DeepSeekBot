@@ -50,6 +50,8 @@ import type {
   MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
   MarketplaceSection,
   MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
@@ -224,6 +226,8 @@ import {
   loadMarketplacePage,
   loadMarketplaceTopics,
   loadMarketplaceSections,
+  loadMarketplaceDigests,
+  loadMarketplaceDigest,
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
@@ -898,6 +902,8 @@ export interface BridgeActions {
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
   marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
+  marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
+  marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -2761,6 +2767,8 @@ export function createActions(
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
     marketplaceSections: (lang) => loadMarketplaceSections(call, lang),
+    marketplaceDigests: (lang) => loadMarketplaceDigests(call, lang),
+    marketplaceDigest: (day, lang) => loadMarketplaceDigest(call, day, lang),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
     marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
     marketplaceAccount: () => invoke('marketplaceAccount', {}),

@@ -8,6 +8,7 @@ import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { MarketDigestHero } from './market-digest.js';
 import { MyUploadsDialog } from './market-mine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { MarketUploadDialog } from './market-upload.js';
@@ -166,6 +167,28 @@ export function MarketPanelView({
           </>
         }
       />
+      {filters.query.length === 0 && filters.topic === undefined ? (
+        <MarketDigestHero
+          actions={actions}
+          lang={marketplaceLanguage(t)}
+          t={t}
+          renderBot={(bot, close) => (
+            <MarketplaceTile
+              bot={bot}
+              created={false}
+              t={t}
+              onOpen={() => {
+                close();
+                setFlow({ bot, step: 'detail' });
+              }}
+              onImport={() => {
+                close();
+                setFlow({ bot, step: 'install' });
+              }}
+            />
+          )}
+        />
+      ) : null}
       {filters.query.length === 0 && filters.topic === undefined ? (
         <MarketplaceSections
           actions={actions}

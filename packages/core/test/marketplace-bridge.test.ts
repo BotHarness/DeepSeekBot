@@ -202,6 +202,54 @@ describe('Bot Marketplace bridge', () => {
     });
   });
 
+  it('reads the latest Marketplace Digest, a past day and the archive', async () => {
+    const market = createMarket();
+    const repository = fakeRepository();
+    market.publish(repository);
+    const methods = methodsWith(marketClient(market));
+    await submitThrough(methods, repository.htmlUrl);
+    expect(await methods.marketplaceDigest({})).toMatchObject({
+      ok: false,
+      error: { code: 'digest-not-found' },
+    });
+    market.sqlite
+      .prepare(
+        'INSERT INTO digests (day, lang, title, lede, sections, model, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      )
+      .run(
+        '2026-10-05',
+        'zh',
+        '今天值得一试',
+        '一位写作伙伴。',
+        JSON.stringify([{ heading: '写作', body: '它陪你写文章。', bot: repository.nodeId }]),
+        'big-free',
+        0,
+      );
+
+    expect(await methods.marketplaceDigests({ lang: 'zh' })).toEqual({
+      ok: true,
+      value: {
+        digests: [{ day: '2026-10-05', lang: 'zh', title: '今天值得一试', lede: '一位写作伙伴。' }],
+      },
+    });
+    for (const payload of [{ lang: 'zh' }, { day: '2026-10-05', lang: 'en' }]) {
+      expect(await methods.marketplaceDigest(payload)).toMatchObject({
+        ok: true,
+        value: {
+          digest: {
+            day: '2026-10-05',
+            lang: 'zh',
+            sections: [{ heading: '写作', bot: { id: repository.nodeId } }],
+          },
+        },
+      });
+    }
+    expect(await methods.marketplaceDigest({ day: 'today' })).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+  });
+
   it('loads a listed entry detail with its prepared README', async () => {
     const market = createMarket();
     const repository = fakeRepository({ readme: '![shot](shot.png)' });

@@ -135,6 +135,8 @@ import type {
   MarketplaceAuthorAccount,
   MarketplaceClient,
   MarketplaceDetail,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
   MarketplaceEntry,
   MarketplaceFileView,
   MarketplacePage,
@@ -143,7 +145,7 @@ import type {
   MarketplaceSection,
   MarketplaceTopic,
 } from '../marketplace/client.js';
-import { MARKETPLACE_SECTIONS } from '../marketplace/client.js';
+import { MARKETPLACE_DIGEST_DAY, MARKETPLACE_SECTIONS } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import type {
   MarketplaceAccount,
@@ -968,6 +970,10 @@ export interface BridgeMethods {
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
   marketplaceSections(payload: unknown): Promise<BridgeResult<{ sections: MarketplaceSection[] }>>;
+  marketplaceDigests(
+    payload: unknown,
+  ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
+  marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
@@ -3685,6 +3691,38 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
     },
     marketplaceTopics() {
       return marketplaceCall((client) => client.topics());
+    },
+    marketplaceDigests(payload) {
+      const lang = marketplaceLang(asObject(payload)['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      return marketplaceCall(async (client) => {
+        const digests = await client.digests(lang);
+        return digests.ok ? { ok: true, value: { digests: digests.value } } : digests;
+      });
+    },
+    marketplaceDigest(payload) {
+      const source = asObject(payload);
+      const lang = marketplaceLang(source['lang']);
+      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
+      const day = source['day'] ?? 'latest';
+      if (typeof day !== 'string' || (day !== 'latest' && !MARKETPLACE_DIGEST_DAY.test(day)))
+        return Promise.resolve(invalidInput('invalid day'));
+      return marketplaceCall(async (client) => {
+        const digest = await client.digest(day, lang);
+        if (!digest.ok) return digest;
+        return {
+          ok: true,
+          value: {
+            digest: {
+              ...digest.value,
+              sections: digest.value.sections.map((section) => ({
+                ...section,
+                bot: section.bot === null ? null : withInstalls(section.bot),
+              })),
+            },
+          },
+        };
+      });
     },
     marketplaceSections(payload) {
       const lang = marketplaceLang(asObject(payload)['lang']);

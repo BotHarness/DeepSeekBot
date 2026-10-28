@@ -802,12 +802,16 @@ Marketplace browsing in the Client defaults to most stars and remembers the chos
 
 `marketplace-sections` returns the Market panel's Hot, New and Rising rows from the Worker's latest daily snapshot as `{ sections: [{ section, day, entries: [{ bot, score }] }] }`. `score` is the installs in the last 7 days for Hot, 0 for New and the 7-day growth for Rising; `day` is `null` before the first snapshot.
 
+`marketplace-digest` returns the latest daily Marketplace Digest (the article at the top of the Market panel), or the one for `--day`, as `{ digest: { day, lang, title, lede, sections: [{ heading, body, bot }] } }`; `bot` is `null` when the listing has since been hidden. It answers `digest-not-found` when no digest exists. `marketplace-digests` lists past digests newest first as `{ digests: [{ day, lang, title, lede }] }`. Both prefer `--lang` and fall back to the other language for a day written only in that one.
+
 These commands call the same Host methods as the Marketplace page, the update card, the usage statistics notice, the Git prompt and the IM pairing panel:
 
 ```bash
 deepseekbot marketplace-list [--query <words>] [--topic <topic>] [--sort updated|created|stars] [--lang zh|en] [--cursor <next-cursor>] [--include-uploads]
 deepseekbot marketplace-topics
 deepseekbot marketplace-sections [--lang zh|en]
+deepseekbot marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
+deepseekbot marketplace-digests [--lang zh|en]
 deepseekbot marketplace-detail <owner/repo> [--lang zh|en]
 deepseekbot marketplace-file <listing-id> <path>
 deepseekbot marketplace-submit https://github.com/<owner>/<repo>

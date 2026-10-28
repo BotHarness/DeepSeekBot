@@ -196,6 +196,9 @@ async function withPanel(
     marketplaceList: list,
     marketplaceTopics: vi.fn(async () => []),
     marketplaceSections: vi.fn(async () => []),
+    marketplaceDigest: vi.fn(async () => {
+      throw new Error('digest-not-found');
+    }),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),
@@ -239,6 +242,50 @@ afterEach(() => {
 });
 
 describe('Market panel', () => {
+  it('opens the latest daily picks with install cards and lists past days', async () => {
+    const today = {
+      day: '2026-10-28',
+      lang: 'zh',
+      title: '今天值得一试的 Bot',
+      lede: '一位写作伙伴。',
+      sections: [
+        { heading: '写作伙伴', body: '它帮你整理想法。', bot: entry('writer') },
+        { heading: '已下架', body: '这位已经不在市场里。', bot: null },
+      ],
+    };
+    const yesterday = { ...today, day: '2026-10-27', title: '昨天的精选', sections: [] };
+    const digest = vi.fn(async (day?: string) => (day === '2026-10-27' ? yesterday : today));
+    const digests = vi.fn(async () => [
+      { day: '2026-10-28', lang: 'zh', title: today.title, lede: today.lede },
+      { day: '2026-10-27', lang: 'zh', title: yesterday.title, lede: yesterday.lede },
+    ]);
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host }) => {
+        expect(digest).toHaveBeenCalledWith(undefined, 'zh');
+        await click(host, '阅读每日精选：今天值得一试的 Bot');
+        const dialog = document.querySelector('[data-market-digest="2026-10-28"]');
+        expect(dialog?.textContent).toContain('它帮你整理想法。');
+        expect(dialog?.querySelectorAll('[data-market-bot]')).toHaveLength(1);
+        expect([...(dialog?.querySelectorAll('h3') ?? [])].map((node) => node.textContent)).toEqual(
+          ['写作伙伴', '已下架'],
+        );
+
+        await act(async () => button(document.body, '往期精选').click());
+        expect(digests).toHaveBeenCalledWith('zh');
+        const days = [...document.querySelectorAll('[data-market-digest-day]')];
+        expect(days.map((node) => node.getAttribute('data-market-digest-day'))).toEqual([
+          '2026-10-28',
+          '2026-10-27',
+        ]);
+        await act(async () => (days[1] as HTMLButtonElement).click());
+        expect(digest).toHaveBeenLastCalledWith('2026-10-27', 'zh');
+        expect(document.querySelector('[data-market-digest="2026-10-27"]')).not.toBeNull();
+      },
+      { marketplaceDigest: digest, marketplaceDigests: digests },
+    );
+  });
+
   it('opens on the Hot, New and Rising rows and hides an empty row', async () => {
     const sections = vi.fn(async () => [
       { section: 'hot', day: '2026-10-28', entries: [{ bot: entry('popular'), score: 4 }] },

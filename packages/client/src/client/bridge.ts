@@ -41,6 +41,8 @@ import {
   parseMarketplaceFileView,
   parseMarketplacePage,
   parseMarketplaceSection,
+  parseMarketplaceDigest,
+  parseMarketplaceDigests,
   parseMarketplaceSubmission,
   type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
@@ -50,6 +52,8 @@ import {
   type MarketplacePage,
   type MarketplaceQuery,
   type MarketplaceSection,
+  type MarketplaceDigest,
+  type MarketplaceDigestSummary,
   type MarketplaceTopic,
 } from '../../../core/src/marketplace/client.js';
 import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
@@ -2124,6 +2128,32 @@ export async function loadMarketplaceSections(
   if (sections === undefined || sections.some((section) => section === undefined))
     throw new Error('invalid marketplaceSections response');
   return sections as MarketplaceSection[];
+}
+
+export async function loadMarketplaceDigests(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigestSummary[]> {
+  const digests = parseMarketplaceDigests(
+    await unwrap(call, 'marketplaceDigests', lang === undefined ? {} : { lang }),
+  );
+  if (digests === undefined) throw new Error('invalid marketplaceDigests response');
+  return digests;
+}
+
+export async function loadMarketplaceDigest(
+  call: BridgeCall,
+  day?: string,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigest> {
+  const digest = parseMarketplaceDigest(
+    await unwrap(call, 'marketplaceDigest', {
+      ...(day === undefined ? {} : { day }),
+      ...(lang === undefined ? {} : { lang }),
+    }),
+  );
+  if (digest === undefined) throw new Error('invalid marketplaceDigest response');
+  return digest;
 }
 
 export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
