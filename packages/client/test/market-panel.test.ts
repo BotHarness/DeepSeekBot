@@ -34,6 +34,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
     ),
   IconChevronDownOutlineRegular: () => null,
   IconChevronLeftOutlineRegular: () => null,
+  IconChevronRightOutlineRegular: () => null,
   Menu: (props: {
     open: boolean;
     items: readonly { id: string; label: ReactNode }[];
@@ -199,6 +200,7 @@ async function withPanel(
     marketplaceDigest: vi.fn(async () => {
       throw new Error('digest-not-found');
     }),
+    marketplaceDigests: vi.fn(async () => []),
     marketplaceDetail: vi.fn(async () => {
       throw new Error('unused');
     }),
@@ -243,12 +245,59 @@ afterEach(() => {
 });
 
 describe('Market panel', () => {
-  it('opens the latest daily picks with install cards and lists past days', async () => {
+  it('shows the Daily Picks row with a cover per pick count and at most seven days', async () => {
+    const pick = (name: string) => ({
+      id: `R_${name}`,
+      displayName: name,
+      banner: null,
+      avatar: null,
+    });
+    const picks = (count: number) =>
+      Array.from({ length: count }, (_, index) => pick(`bot${index}`));
+    const counts = [1, 2, 3, 4, 5, 0, 1, 2];
+    const digests = vi.fn(async () =>
+      counts.map((count, index) => ({
+        day: `2026-10-${String(28 - index).padStart(2, '0')}`,
+        lang: 'zh',
+        title: `第 ${index} 天`,
+        lede: '',
+        picks: picks(Math.min(count, 4)),
+      })),
+    );
+    await withPanel(
+      async () => ({ bots: [] }),
+      async ({ host, actions }) => {
+        expect(digests).toHaveBeenCalledWith('zh');
+        const row = host.querySelector<HTMLElement>('[data-market-daily-picks]')!;
+        expect(row.hidden).toBe(false);
+        const cards = [...row.querySelectorAll('[data-market-digest-day]')];
+        expect(cards).toHaveLength(7);
+        expect(
+          cards.map((card) =>
+            card.querySelector('[data-digest-cover]')!.getAttribute('data-digest-cover'),
+          ),
+        ).toEqual(['one', 'two', 'three', 'four', 'four', 'date', 'one']);
+        expect(
+          cards.map((card) => card.querySelectorAll('[data-digest-cover-pick]').length),
+        ).toEqual([1, 2, 3, 4, 4, 0, 1]);
+        expect(row.lastElementChild!.lastElementChild!.hasAttribute('data-market-past-picks')).toBe(
+          true,
+        );
+        const order = [...host.querySelectorAll('[data-market-daily-picks], .bh-market-sections')];
+        expect(order[0]).toBe(row);
+        expect(actions['telemetryEvent']).toHaveBeenCalledWith('marketplace:digest_view');
+      },
+      { marketplaceDigests: digests },
+    );
+  });
+
+  it('opens a digest and past picks as panel pages and walks back one page at a time', async () => {
     const today = {
       day: '2026-10-28',
       lang: 'zh',
       title: '今天值得一试的 Bot',
       lede: '一位写作伙伴。',
+      picks: [],
       sections: [
         { heading: '写作伙伴', body: '它帮你整理想法。', bot: entry('writer') },
         { heading: '已下架', body: '这位已经不在市场里。', bot: null },
@@ -257,39 +306,104 @@ describe('Market panel', () => {
     const yesterday = { ...today, day: '2026-10-27', title: '昨天的精选', sections: [] };
     const digest = vi.fn(async (day?: string) => (day === '2026-10-27' ? yesterday : today));
     const digests = vi.fn(async () => [
-      { day: '2026-10-28', lang: 'zh', title: today.title, lede: today.lede },
-      { day: '2026-10-27', lang: 'zh', title: yesterday.title, lede: yesterday.lede },
+      { day: today.day, lang: 'zh', title: today.title, lede: today.lede, picks: [] },
+      { day: yesterday.day, lang: 'zh', title: yesterday.title, lede: yesterday.lede, picks: [] },
     ]);
     await withPanel(
       async () => ({ bots: [] }),
       async ({ host, actions }) => {
-        expect(digest).toHaveBeenCalledWith(undefined, 'zh');
+        const home = host.querySelector<HTMLElement>('.bh-market-page')!;
         await click(host, '阅读每日精选：今天值得一试的 Bot');
-        const dialog = document.querySelector('[data-market-digest="2026-10-28"]');
-        expect(dialog?.textContent).toContain('它帮你整理想法。');
-        expect(dialog?.querySelectorAll('[data-market-bot]')).toHaveLength(1);
-        expect([...(dialog?.querySelectorAll('h3') ?? [])].map((node) => node.textContent)).toEqual(
-          ['写作伙伴', '已下架'],
-        );
+        expect(digest).toHaveBeenCalledWith('2026-10-28', 'zh');
+        expect(home.hidden).toBe(true);
+        expect(host.querySelector('[role="dialog"]')).toBeNull();
+        const article = host.querySelector('[data-market-digest="2026-10-28"]')!;
+        expect(article.textContent).toContain('它帮你整理想法。');
+        expect(
+          article.querySelector('[data-digest-cover]')!.getAttribute('data-digest-cover'),
+        ).toBe('one');
+        expect(article.querySelectorAll('[data-market-bot]')).toHaveLength(1);
+        expect([...article.querySelectorAll('h3')].map((node) => node.textContent)).toEqual([
+          '写作伙伴',
+          '已下架',
+        ]);
 
-        await act(async () => button(document.body, '往期精选').click());
-        expect(digests).toHaveBeenCalledWith('zh');
-        const days = [...document.querySelectorAll('[data-market-digest-day]')];
+        await act(async () =>
+          article.querySelector<HTMLButtonElement>('[data-market-past-picks]')!.click(),
+        );
+        const archive = host.querySelector('[data-market-digest="archive"]')!;
+        const days = [...archive.querySelectorAll<HTMLButtonElement>('[data-market-digest-day]')];
         expect(days.map((node) => node.getAttribute('data-market-digest-day'))).toEqual([
           '2026-10-28',
           '2026-10-27',
         ]);
-        await act(async () => (days[1] as HTMLButtonElement).click());
+        await act(async () => days[1]!.click());
         expect(digest).toHaveBeenLastCalledWith('2026-10-27', 'zh');
-        expect(document.querySelector('[data-market-digest="2026-10-27"]')).not.toBeNull();
+        const visible = () =>
+          [...host.querySelectorAll<HTMLElement>('[data-market-page]')]
+            .filter((page) => !page.hasAttribute('aria-hidden'))
+            .map((page) => page.getAttribute('data-market-page'));
+        expect(visible()).toEqual(['digest:2026-10-27']);
+
+        await click(host, '返回');
+        expect(visible()).toEqual(['past-picks']);
+        await click(host, '返回');
+        expect(visible()).toEqual(['digest:2026-10-28']);
+        await act(async () =>
+          article.querySelector<HTMLButtonElement>('.bh-market-tile-open')!.click(),
+        );
+        expect(visible()).toEqual(['bot']);
+        await click(host, '返回');
+        expect(visible()).toEqual(['digest:2026-10-28']);
+        await click(host, '返回');
+        expect(visible()).toEqual([]);
+        expect(home.hidden).toBe(false);
         expect(actions['telemetryEvent']!.mock.calls).toEqual([
           ['marketplace:digest_view'],
           ['marketplace:digest_open', { entry: 'hero' }],
           ['marketplace:digest_archive_open'],
           ['marketplace:digest_open', { entry: 'archive' }],
+          ['marketplace:bot_open', { entry: 'digest', step: 'detail' }],
         ]);
       },
-      { marketplaceDigest: digest, marketplaceDigests: digests },
+      {
+        marketplaceDigest: digest,
+        marketplaceDigests: digests,
+        marketplaceDetail: vi.fn(async () => ({
+          bot: entry('writer'),
+          readme: null,
+          readmeLanguage: null,
+          commitSha: null,
+          files: [],
+        })),
+      },
+    );
+  });
+
+  it('hides the Daily Picks row while searching', async () => {
+    const digests = vi.fn(async () => [
+      { day: '2026-10-28', lang: 'zh', title: '今天', lede: '', picks: [] },
+    ]);
+    await withPanel(
+      async () => ({ bots: [entry('translator')] }),
+      async ({ host }) => {
+        expect(host.querySelector('[data-market-daily-picks]')).not.toBeNull();
+        const search = host.querySelector<HTMLInputElement>('input[type="search"]')!;
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+            search,
+            'translator',
+          );
+          search.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await act(async () => {
+          search.dispatchEvent(
+            new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+          );
+        });
+        expect(host.querySelector('[data-market-daily-picks]')).toBeNull();
+      },
+      { marketplaceDigests: digests },
     );
   });
 

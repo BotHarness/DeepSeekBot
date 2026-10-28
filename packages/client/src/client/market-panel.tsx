@@ -12,7 +12,7 @@ import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { MarketDigestHero } from './market-digest.js';
+import { MarketDailyPicks, MarketDigestPage, MarketPastPicksPage } from './market-digest.js';
 import { MyUploadsDialog } from './market-mine.js';
 import { useKeptScroll } from './market-page.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -170,6 +170,7 @@ export function MarketPanelView({
   const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t), {
     includeUploads: true,
   });
+  const lang = marketplaceLanguage(t);
   const keepHome = useKeptScroll<HTMLDivElement>();
   const [pages, setPages] = useState<readonly MarketPageEntry[]>([]);
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
@@ -192,6 +193,14 @@ export function MarketPanelView({
       return;
     }
     push({ kind: 'bot', bot, source });
+  };
+  const openDigest = (day: string, from: 'hero' | 'archive'): void => {
+    actions.telemetryEvent('marketplace:digest_open', { entry: from });
+    push({ kind: 'digest', day });
+  };
+  const openArchive = (): void => {
+    actions.telemetryEvent('marketplace:digest_archive_open');
+    push({ kind: 'archive' });
   };
   const back = (): void => setPages((current) => current.slice(0, -1));
   const installed = (): void => {
@@ -218,25 +227,12 @@ export function MarketPanelView({
             }
           />
           {filters.query.length === 0 && filters.topic === undefined ? (
-            <MarketDigestHero
+            <MarketDailyPicks
               actions={actions}
-              lang={marketplaceLanguage(t)}
+              lang={lang}
               t={t}
-              renderBot={(bot, close) => (
-                <MarketplaceTile
-                  bot={bot}
-                  created={false}
-                  t={t}
-                  onOpen={() => {
-                    close();
-                    start(bot, 'detail', 'digest');
-                  }}
-                  onImport={() => {
-                    close();
-                    start(bot, 'install', 'digest');
-                  }}
-                />
-              )}
+              onOpen={(day) => openDigest(day, 'hero')}
+              onArchive={openArchive}
             />
           ) : null}
           {filters.query.length === 0 && filters.topic === undefined ? (
@@ -283,7 +279,39 @@ export function MarketPanelView({
               />
             );
           case 'digest':
+            return (
+              <MarketDigestPage
+                key={page.key}
+                actions={actions}
+                day={page.day}
+                lang={lang}
+                t={t}
+                hidden={hidden}
+                onBack={back}
+                onArchive={openArchive}
+                renderBot={(bot) => (
+                  <MarketplaceTile
+                    bot={bot}
+                    created={false}
+                    t={t}
+                    onOpen={() => start(bot, 'detail', 'digest')}
+                    onImport={() => start(bot, 'install', 'digest')}
+                  />
+                )}
+              />
+            );
           case 'archive':
+            return (
+              <MarketPastPicksPage
+                key={page.key}
+                actions={actions}
+                lang={lang}
+                t={t}
+                hidden={hidden}
+                onBack={back}
+                onOpen={(day) => openDigest(day, 'archive')}
+              />
+            );
           case 'ranking':
             return null;
         }
