@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { createHostClient } from '../src/host/client';
@@ -12,6 +12,7 @@ import { SettingsForm, SettingsFormItem } from '../src/ui/primitives/settings-fo
 import { SettingsRow, SettingsSection } from '../src/ui/primitives/settings-row';
 import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { Text } from '../src/ui/primitives/text';
+import { useMounted } from '../src/ui/mounted';
 import { useStrings } from '../src/ui/strings';
 
 export default function HostConnectionScreen() {
@@ -35,12 +36,14 @@ export default function HostConnectionScreen() {
   );
   const snapshot = useHostSnapshot(client);
   const [busy, setBusy] = useState<string>();
-  const [copied, setCopied] = useState<{ url: string }>();
-  useEffect(() => {
-    if (!copied) return;
-    const timer = setTimeout(() => setCopied(undefined), 1500);
-    return () => clearTimeout(timer);
-  }, [copied]);
+  const [copied, setCopied] = useState<string>();
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const mount = useMounted(() => () => clearTimeout(copiedTimer.current), []);
+  const showCopied = (url: string) => {
+    clearTimeout(copiedTimer.current);
+    setCopied(url);
+    copiedTimer.current = setTimeout(() => setCopied(undefined), 1500);
+  };
   const routes =
     snapshot.routes ?? host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ?? [];
   const header = (
@@ -51,7 +54,7 @@ export default function HostConnectionScreen() {
     />
   );
   return (
-    <SheetScreen>
+    <SheetScreen onMount={mount}>
       <SettingsForm header={header} testID="host-connection">
         {host && routes.length > 0 ? null : (
           <SettingsFormItem>
@@ -101,10 +104,10 @@ export default function HostConnectionScreen() {
               <SettingsRow
                 on={SHEET_GROUP}
                 icon="copy"
-                title={copied?.url === url ? copy.copied : copy.copy}
+                title={copied === url ? copy.copied : copy.copy}
                 testID={`connection-copy-${index}`}
                 onPress={() => {
-                  void Clipboard.setStringAsync(url).then(() => setCopied({ url }));
+                  void Clipboard.setStringAsync(url).then(() => showCopied(url));
                 }}
               />
               <SettingsRow
