@@ -68,7 +68,7 @@ export function CreationTagsField({ value, onChange, disabled }: CreationTagsFie
         autoCapitalize="none"
         autoCorrect={false}
         editable={!disabled}
-        returnKeyType="done"
+        returnKeyType="send"
         submitBehavior="submit"
         onChangeText={(text) => onChange({ kind: 'input', value: text })}
         onSubmitEditing={({ nativeEvent }) => onChange({ kind: 'add', value: nativeEvent.text })}

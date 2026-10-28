@@ -248,10 +248,11 @@ it('submits the current native text while retaining focus for tag entry', async 
   const submitted = vi.fn();
   await render({
     value: '',
+    returnKeyType: 'send',
     submitBehavior: 'submit',
     onSubmitEditing: (event) => submitted(event.nativeEvent.text),
   });
-  await act(() => native.props.keyboardActions?.['onDone']?.('旅行'));
+  await act(() => native.props.keyboardActions?.['onSend']?.('旅行'));
   expect(submitted).toHaveBeenCalledWith('旅行');
   expect(native.blurs).toBe(0);
   expect(native.mounts).toBe(1);
