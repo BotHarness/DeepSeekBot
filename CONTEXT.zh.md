@@ -27,16 +27,20 @@ _避免使用_：已安装发布版、latest 版本、0.0.0 发布版
 ### PersonaBot（持久机器人身份）
 
 **Steward Bot**：
-一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。其主要用途是帮助创建和管理其他 Bot、调取工作进展并汇总待处理事项，对话是管理入口。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
+一种持久的本地 PersonaBot，拥有自己的 Memory，可读取 Human 的所有 Bot 与 Channel 内容，并沿用现有审批规则帮助 Human 管理这些身份与应用设置。它是 Human 的唯一对接人：创建和管理其他 Bot，通过 Bot-to-Bot DM 把请求交给最合适的同事，调取工作进展、汇总待处理事项，并在 Human DM 中回报结果。总管身份本身不授予代批其他 Bot 操作的权限。通过对话处理待审批事项属于后续有明确范围的能力，应由原有审批 owner 接收 Human 的明确决定，而不是赋予总管自行批准一切操作的权限。
 _避免使用_：全局 Orchestrator、Home 面板、Dashboard
 
 **Tob**：
 为 Human 提供的内置本地总管 Bot，拥有独立于普通 DeepSeek Bot 的持久身份；名称是 Bot 的倒写，也寓意 Thousands of Bot。Tob 不可删除或归档，但其 Soul 与 Memory 可以编辑和迁移，且不携带本地管理权限。管理操作通过原生 Shell 调用 DeepSeekBot CLI；Host 只为当前已准入的 Human DM 执行授予明确支持的操作，保留身份、审批和 revision 校验。总管身份不等于无限制 CLI 或管理员权限。
 _避免使用_：Home 面板、全局 Orchestrator
 
-**Home**：
-一个全局 Dock panel，提供跨 Bot 概览、Bot 创建入口和面向 Tob 的消息输入。持续对话使用消息面板中的同一个 Tob DM；Home 保持为独立概览，不形成第二套聊天历史。
-_避免使用_：Tob、Bot Profile、Channel 子面板
+**Tob Mode**：
+Tob 模式。手机端在聊天列表下拉并按住后，从顶部滑入的 Tob DM 普通聊天详情页。与点击 Tob 行相比只是入口和入场动画不同；它就是同一个 Tob DM 与同一份历史，不是第二个对话或页面。下拉的目标总是 Tob，必要时使用最近使用的电脑环境的 Tob。桌面端没有 Tob 模式：原来的 Home 面板已移除，在 Simple 布局模式下隐藏 Side column 即可专注于任意频道的对话。
+_避免使用_：Home、Home 面板、拖布模式、personal agent 模式
+
+**Tob Delegation**：
+Tob 委派。Tob 把 Human 的请求交给它判断最合适的同事 PersonaBot：在双方的 Bot-to-Bot DM 中发一条普通消息，再把对方的结果回报到 Human DM。Tob 不先征求 Human 同意，Human 通过每次发送产生的活动提示看到它。委派不带审批权限：同事自己的审批仍交给 Human。
+_避免使用_：分发、路由、Assignment（Assignment 是 Bot 自己的 Session，不是另一个 Bot）
 
 **PersonaBot**：
 由 Host 拥有的一等 bot 实体：一种带 Git-backed Memory Repository、跨越 Session、Chat 与 Workspace，并可同时持有多个 Session 的持久身份。它的 Soul 是 Memory 中的 optional 内容，而不是身份本身。
@@ -865,8 +869,12 @@ _避免使用_：sidebar roster、dashboard、bot list
 _避免使用_：workbench、panel layout、dock
 
 **Layout mode**：
-布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下 Workspace Control Rail 每次只显示一个全局面板，频道子面板纵向排列在 Subpanel column 中；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
+布局模式。Human 在本设备上为桌面端 Bot mode 布局选择的行为：**Simple**（简单模式）或 **Advanced**（高级模式）。Simple 下消息面板始终显示，频道子面板纵向排列在其 Subpanel column 中，Workspace Control Rail 决定 Side column 显示什么；Advanced 是可自由排布的两层工作区。两种模式各自保存布局，切换不会改写另一方；新用户默认 Simple。
 _避免使用_：Bot mode、DSB mode、简单视图、专家模式
+
+**Side column**：
+侧列。Simple 布局模式下，位于 Workspace Control Rail 与消息面板之间的可选一列，显示一个全局面板，例如频道列表、Activity Center 或 Marketplace。点选控制列开关会在这里显示对应面板；再点一次当前已显示的开关则隐藏这一列，只留下控制列和消息面板。显示的各个面板共用同一宽度。
+_避免使用_：sidebar、左侧面板、App Sidebar、primary side bar
 
 **Subpanel column**：
 子面板列。Simple 布局模式下，消息面板内可展开收起的右侧一列，按固定顺序纵向列出当前频道可用的子面板。每个子面板可折叠，整列可滚动；折叠只卸载呈现，不会停止正在运行的浏览器、电脑或会话。

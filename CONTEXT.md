@@ -27,16 +27,20 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. Its primary purpose is to help create and manage other Bots, inspect their progress and surface attention items; conversation is the management interface. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
 The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the DeepSeekBot CLI through native Shell; the Host grants only explicitly supported operations for the current accepted Human DM execution and retains ownership, approval and revision checks. This role is not unrestricted CLI or administrator access.
 _Avoid_: Home panel, global Orchestrator
 
-**Home**:
-A global Dock panel that presents the Human's cross-Bot overview, Bot creation entry points and an input addressed to Tob. Continuing a conversation uses the same Tob DM in the Messages panel; Home remains an independent overview rather than another conversation history.
-_Avoid_: Tob, Bot Profile, Channel subpanel
+**Tob Mode**:
+On mobile, the Tob DM's normal chat detail screen opened by pulling and holding on Chats, sliding in from the top. Only the entry and animation differ from tapping the Tob row; it is the same Tob DM and history, never a second conversation or screen. The pull always targets a Tob, falling back to the most recently used computer Environment's Tob. Desktop has no Tob Mode: the former Home panel is removed, and hiding the Side column in Simple layout mode gives a focused conversation with any Channel.
+_Avoid_: Home, Home panel, Tob chat, 拖布模式, personal agent mode
+
+**Tob Delegation**:
+Tob handing a Human's request to the colleague PersonaBot it judges best suited, as an ordinary message in their Bot-to-Bot DM, then reporting the colleague's result back in its Human DM. Tob sends without asking the Human first; the Human sees each send as an action notice. It carries no approval authority: the colleague's own approvals still go to the Human.
+_Avoid_: dispatch, routing, Assignment (an Assignment is a Bot's own Session, not another Bot)
 
 **PersonaBot**:
 A first-class bot entity owned by the Host: a durable identity with a Git-backed Memory Repository that spans Sessions, Chats, and Workspaces and can hold several Sessions at once. Its Soul is optional content within Memory, not the identity itself.
@@ -868,8 +872,12 @@ The desktop Bot mode arrangement of a Global workspace and the active Channel's 
 _Avoid_: workbench, panel layout, dock
 
 **Layout mode**:
-The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple shows one Global panel at a time, chosen from the Workspace Control Rail, with Channel subpanels stacked in the Subpanel column; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
+The Human's device-local choice of how the desktop Bot mode layout behaves: **Simple** or **Advanced**. Simple always shows the Messages panel, with Channel subpanels stacked in its Subpanel column, and the Workspace Control Rail chooses what the Side column shows; Advanced is the freely arranged two-level workspace. Each mode keeps its own arrangement, so switching never rewrites the other; Simple is the default for new Humans.
 _Avoid_: Bot mode, DSB mode, simple view, expert mode
+
+**Side column**:
+In Simple layout mode, the optional column between the Workspace Control Rail and the Messages panel that shows one Global panel, such as Channel list, Activity Center or Marketplace. Selecting a rail switch shows that panel there; selecting the switch that is already shown hides the column, leaving only the rail and Messages. Its width is shared by every panel it shows.
+_Avoid_: sidebar, left panel, App Sidebar, primary side bar
 
 **Subpanel column**:
 In Simple layout mode, the collapsible right-hand column inside the Messages panel that lists the active Channel's available subpanels in a fixed vertical order. Each subpanel can be collapsed, and the column scrolls; collapsing only removes presentation, never stopping a running Browser, Computer or Session.
