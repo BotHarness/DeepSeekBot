@@ -1,6 +1,6 @@
 # iOS workspace paging checks for #3017
 
-The native SwiftUI paged container retains Workspaces and the complete Chats tab shell. Merely viewing Workspaces must not select an environment, pop Chats or replace its cached list. See [DESIGN.md](../../apps/mobile/DESIGN.md#ios-workspace-panel-3017). Use the assigned Mac/iOS lane; record source, native/JS build identities, actual OS/text size/theme, and PASS / FAIL / UNTESTED separately for Simulator and physical Release.
+The native UIKit page-view controller retains Workspaces and the complete Chats tab shell. Merely viewing Workspaces must not select an environment, pop Chats or replace its cached list. See [DESIGN.md](../../apps/mobile/DESIGN.md#ios-workspace-panel-3017). Use the assigned Mac/iOS lane; record source, native/JS build identities, actual OS/text size/theme, and PASS / FAIL / UNTESTED separately for Simulator and physical Release.
 
 | #   | Steps                                                                                                          | Expected                                                                                                                                                |
 | --- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -10,7 +10,7 @@ The native SwiftUI paged container retains Workspaces and the complete Chats tab
 | 4   | Scroll a long Chats list into the middle, open Workspaces without selecting anything, then return three times. | Environment, visible rows, offset and cached data remain; no new skeleton or route is created.                                                          |
 | 5   | Type a Chats search with the real keyboard and repeat the round trip.                                          | The keyboard dismisses on drag, query/filter remain and the same results return.                                                                        |
 | 6   | Choose All, a different Computer and the previous Computer explicitly. Test a refusal/offline choice.          | Only selection changes environment; successful selection uses existing scoped navigation; failure retains a usable page and reports failure.            |
-| 7   | On Chats, left-swipe into the last chat, return, open a profile and use its native Back gesture.               | Workspace paging does not steal the existing gestures or alter their history/drafts.                                                                    |
+| 7   | On Chats, left-swipe into the last chat, return, open a profile and use its native Back gesture.               | The complete tab bar leaves with Chats. Native chat/profile pages and their child routes preserve draft, reading position and explicit Host identity.   |
 | 8   | Open Activity and its original workspace drawer; open Settings and Notifications from Workspaces and return.   | Activity keeps its own gestures. Workspaces title survives and returning to Chats retains its state.                                                    |
 | 9   | Exercise quick actions and conversation notifications from cold/warm starts.                                   | The explicit Host/Channel opens; Back restores the correct retained Chats.                                                                              |
 | 10  | Change Reduce Motion while the app is alive; repeat gestures and title-button navigation.                      | The live preference is respected, native nonanimated commands are used for button navigation, and no retained page is replaced.                         |
@@ -18,3 +18,9 @@ The native SwiftUI paged container retains Workspaces and the complete Chats tab
 | 12  | VoiceOver: title button, offscreen elements and two-finger scrub.                                              | Only the visible page is reachable; title opens Workspaces and escape returns to Chats. Record actual spoken/native results.                            |
 
 Profile the physical Release on frozen identical inputs with A/B/B/A/A/B as required by [iOS performance verification](../agents/ios-performance.md). Simulator video, callback frequency and source tests do not qualify display FPS or hitch budgets. Retain unsupported/invalid profiler attempts and keep measurement gaps explicit.
+
+## Profile title regression
+
+With an idle multi-message Bot chat and keyboard closed, capture a fixed visible body. Tap the native title button, confirm the actual profile, return, and compare that body. Repeat three times and from held history, both themes and required font sizes. Record a native transition: the outgoing chat may translate horizontally but must not scroll vertically first. Also tap the real status bar and confirm it still scrolls to the top. A source-layout assertion does not qualify this regression.
+
+Native source, loaded JavaScript source, simulation/phone results and physical performance measurements remain separate. Earlier parent-transfer prototypes failed the native entry gate; they are retained only as private diagnosis evidence, not acceptance.
