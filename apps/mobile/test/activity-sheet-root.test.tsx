@@ -8,7 +8,7 @@ vi.mock('../src/ui/primitives/end-sheet', () => ({
   EndSheet: ({ children, panel, open, active, onOpenChange }: EndSheetProps) => (
     <main>
       <section data-background>{children}</section>
-      {active && open ? (
+      {open ? (
         <aside>
           {panel}
           <button onClick={() => onOpenChange(false)}>Scrim</button>
@@ -26,13 +26,15 @@ it('owns filters above navigation, preserves choices on reopen and clears them w
   function Activity() {
     renders++;
     const [open, setOpen] = useState(false);
+    const [active, setActive] = useState(true);
     const [choice, setChoice] = useState('default');
     return (
       <>
         <button onClick={() => setOpen(true)}>Filter</button>
+        <button onClick={() => setActive(false)}>Leave Activity</button>
         <ActivitySheetRegistration
           open={open}
-          active
+          active={active}
           enabled
           onOpenChange={setOpen}
           panel={<button onClick={() => setChoice('newest')}>{choice}</button>}
@@ -67,6 +69,8 @@ it('owns filters above navigation, preserves choices on reopen and clears them w
     expect(container.querySelector('aside')).toBeNull();
     await click('Filter');
     expect(container.querySelector('aside')?.textContent).toContain('newest');
+    await click('Leave Activity');
+    expect(container.querySelector('aside')).toBeNull();
     await render(false);
     expect(container.querySelector('aside')).toBeNull();
   } finally {

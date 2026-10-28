@@ -20,7 +20,7 @@ export function ActivitySheetRoot({ children }: { children: ReactNode }) {
   return (
     <Register.Provider value={setSheet}>
       <EndSheet
-        open={sheet?.open ?? false}
+        open={Boolean(sheet?.active && sheet.open)}
         active={sheet?.active ?? false}
         enabled={sheet?.enabled ?? false}
         panel={sheet?.panel}
