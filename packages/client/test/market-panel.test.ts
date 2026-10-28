@@ -582,7 +582,7 @@ describe('Market panel', () => {
 
         expect(install).toHaveBeenCalledWith('R_helper', 'review-1', undefined, 'list');
         expect(actions['introEvent']).toHaveBeenCalledWith('marketplace_bot_opened', {
-          source: 'list',
+          from: 'list',
           step: 'install',
         });
         expect(actions['createBot']).not.toHaveBeenCalled();

@@ -1370,7 +1370,7 @@ const INTRO_EVENTS: Record<string, Record<string, readonly string[] | 'boolean'>
   intro_model_saved: { advanced: 'boolean' },
   intro_community_clicked: { target: ['github', 'discord', 'qq'] },
   marketplace_sections_shown: {},
-  marketplace_bot_opened: { source: MARKETPLACE_INSTALL_SOURCES, step: ['detail', 'install'] },
+  marketplace_bot_opened: { from: MARKETPLACE_INSTALL_SOURCES, step: ['detail', 'install'] },
   marketplace_digest_shown: {},
   marketplace_digest_opened: { from: ['hero', 'archive'] },
   marketplace_digest_archive_opened: {},
@@ -4050,7 +4050,7 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         try {
           deps.telemetry?.capture?.(
             'marketplace_bot_installed',
-            typeof installSource === 'string' ? { source: installSource } : undefined,
+            typeof installSource === 'string' ? { from: installSource } : undefined,
           );
         } catch {}
         const listing = prepared.value.listing;

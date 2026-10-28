@@ -32,7 +32,7 @@ describe('intro and tutorial telemetry', () => {
     const { methods, capture } = methodsWith();
     expect(methods.introEvent({ event: 'marketplace_sections_shown' }).ok).toBe(true);
     expect(
-      methods.introEvent({ event: 'marketplace_bot_opened', source: 'rising', step: 'install' }).ok,
+      methods.introEvent({ event: 'marketplace_bot_opened', from: 'rising', step: 'install' }).ok,
     ).toBe(true);
     expect(methods.introEvent({ event: 'marketplace_digest_shown' }).ok).toBe(true);
     expect(methods.introEvent({ event: 'marketplace_digest_opened', from: 'archive' }).ok).toBe(
@@ -42,11 +42,11 @@ describe('intro and tutorial telemetry', () => {
       true,
     );
     expect(
-      methods.introEvent({ event: 'marketplace_bot_opened', source: 'R_kgDO', step: 'detail' }).ok,
+      methods.introEvent({ event: 'marketplace_bot_opened', from: 'R_kgDO', step: 'detail' }).ok,
     ).toBe(false);
     expect(capture.mock.calls).toEqual([
       ['marketplace_sections_shown', {}],
-      ['marketplace_bot_opened', { source: 'rising', step: 'install' }],
+      ['marketplace_bot_opened', { from: 'rising', step: 'install' }],
       ['marketplace_digest_shown', {}],
       ['marketplace_digest_opened', { from: 'archive' }],
       ['marketplace_digest_archive_opened', {}],

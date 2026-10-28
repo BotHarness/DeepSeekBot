@@ -190,7 +190,7 @@ DeepSeekBot 默认由 DSH 后台发送匿名使用统计；首次打开 Bot 模�
 
 - `plugin_started`：插件版本、DSH 版本、操作系统和架构。
 - `bot_created`、`bot_archived`、`bot_deleted`、`avatar_edited`：只记录发生了这个操作。
-- 市场：`marketplace_bot_installed` 和 `marketplace_bot_opened`（从哪里打开的 Bot：`list`、`hot`、`new`、`rising` 或 `digest`；`marketplace_bot_opened` 还记录打开的是详情还是安装步骤）；`marketplace_sections_shown` 和 `marketplace_digest_shown`（只记录显示了热门、新上架、上升最快三排或每日精选）；`marketplace_digest_opened`（从面板还是往期列表打开）；以及 `marketplace_digest_archive_opened`。不包含 Bot 名称、条目 ID 或搜索文字。
+- 市场：`marketplace_bot_installed` 和 `marketplace_bot_opened`（`from`，从哪里打开的 Bot：`list`、`hot`、`new`、`rising` 或 `digest`；`marketplace_bot_opened` 还记录打开的是详情还是安装步骤）；`marketplace_sections_shown` 和 `marketplace_digest_shown`（只记录显示了热门、新上架、上升最快三排或每日精选）；`marketplace_digest_opened`（从面板还是往期列表打开）；以及 `marketplace_digest_archive_opened`。不包含 Bot 名称、条目 ID 或搜索文字。
 - `connector_enabled`：只记录连接器类型（`feishu`、`lark`、`slack`、`discord`、`weixin` 或 `other`）。
 - 首次进入引导和新手教程：`intro_shown`；`intro_step_viewed`（步骤名）；`intro_dismissed`（停在哪一步，点的是跳过还是关闭）；`intro_completed`（选了哪个开场问题，不含文字）；`intro_theme_changed`（只记 `scheme`、`preset`、`layout` 或 `wallpaper`）；`intro_model_saved`（只记是否用了进阶的执行模型）；`intro_community_clicked`（`github`、`discord` 或 `qq`）；以及 `tutorial_action`（`start`、`pause`、`skip`、`continue`、`restart` 或 `finish`）。不包含模型名称、壁纸文件或输入的文字。
 - `daily_usage`：每天最多一次，记录 PersonaBot 数量、自上次汇总以来新增的会话数和消息数，以及这段统计时长（整小时数）；不会按单条消息发送事件。

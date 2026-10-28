@@ -164,7 +164,7 @@ export function MarketPanelView({
     step: MarketplaceFlowStart['step'],
     source: MarketplaceInstallSource,
   ): void => {
-    actions.introEvent('marketplace_bot_opened', { source, step });
+    actions.introEvent('marketplace_bot_opened', { from: source, step });
     setFlow({ bot, step, source });
   };
   return (
