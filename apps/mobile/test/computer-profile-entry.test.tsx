@@ -30,6 +30,7 @@ vi.mock('expo-router', () => ({
   useNavigationContainerRef: () => channelNavigationHarness().navigation,
   useLocalSearchParams: () => ({ slug: 'test' }),
   useRouter: () => ({ push: state.push }),
+  useIsFocused: () => true,
 }));
 vi.mock('../src/host/native-live-activity', () => ({
   useRequestActivity: () => ({ ready: true, tracking: false, busy: false }),

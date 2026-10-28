@@ -37,15 +37,32 @@ import type {
 } from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
+  parseAuthoredBots,
+  parseMarketplaceFileView,
   parseMarketplacePage,
+  parseMarketplaceSection,
+  parseMarketplaceDigest,
+  parseMarketplaceDigests,
   parseMarketplaceSubmission,
+  type MarketplaceAuthoredBot,
   parseMarketplaceTopics,
   type MarketplaceDetail,
   type MarketplaceEntry,
+  type MarketplaceFileView,
   type MarketplacePage,
   type MarketplaceQuery,
+  type MarketplaceSection,
+  type MarketplaceDigest,
+  type MarketplaceDigestSummary,
   type MarketplaceTopic,
+  type MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
+import type { UploadPlan } from '../../../core/src/marketplace/uploaded-bots.js';
+import type {
+  InstallFinding,
+  InstallReview,
+  InstallReviewResult,
+} from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { OverviewUsage } from '../../../core/src/bridge/methods.js';
@@ -329,6 +346,7 @@ export interface CreatePersonaBotInput {
   description?: string;
   gitUrl?: string;
   origin?: 'marketplace';
+  listingId?: string;
   memoryLocation?: string;
 }
 
@@ -1678,6 +1696,48 @@ export async function searchChannelMessages(
   };
 }
 
+export interface MessageSearchHit {
+  channelId: string;
+  message: ChannelMessage;
+  snippet: string;
+}
+
+export interface MessageSearchPage {
+  hits: MessageSearchHit[];
+  nextCursor?: string;
+}
+
+export async function searchAllMessages(
+  call: BridgeCall,
+  text: string,
+  cursor?: string,
+  limit = 8,
+): Promise<MessageSearchPage> {
+  const value = asRecord(
+    await unwrap(call, 'messageSearch', {
+      text,
+      limit,
+      ...(cursor === undefined ? {} : { cursor }),
+    }),
+  );
+  const hits = value?.['hits'];
+  const nextCursor = value?.['nextCursor'];
+  if (!Array.isArray(hits) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+    throw new Error('invalid messageSearch response');
+  return {
+    hits: hits.flatMap((entry) => {
+      const hit = asRecord(entry);
+      const message = parseChannelMessage(hit?.['message']);
+      const channelId = hit?.['channelId'];
+      const snippet = hit?.['snippet'];
+      return message === undefined || typeof channelId !== 'string' || typeof snippet !== 'string'
+        ? []
+        : [{ channelId, message, snippet }];
+    }),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  };
+}
+
 export function parseChannelMessages(value: unknown): ChannelMessage[] {
   const messages = asRecord(value)?.['messages'];
   if (!Array.isArray(messages)) return [];
@@ -2041,10 +2101,60 @@ export async function loadMarketplaceDetail(
   return detail;
 }
 
+export async function loadMarketplaceFile(
+  call: BridgeCall,
+  id: string,
+  path: string,
+): Promise<MarketplaceFileView> {
+  const file = parseMarketplaceFileView({
+    file: await unwrap(call, 'marketplaceFileView', { id, path }),
+  });
+  if (file === undefined) throw new Error('invalid marketplaceFileView response');
+  return file;
+}
+
 export async function loadMarketplaceTopics(call: BridgeCall): Promise<MarketplaceTopic[]> {
   const topics = parseMarketplaceTopics({ topics: await unwrap(call, 'marketplaceTopics', {}) });
   if (topics === undefined) throw new Error('invalid marketplaceTopics response');
   return topics;
+}
+
+export async function loadMarketplaceSections(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceSection[]> {
+  const body = await unwrap(call, 'marketplaceSections', lang === undefined ? {} : { lang });
+  const raw = (body as { sections?: unknown } | null)?.sections;
+  const sections = Array.isArray(raw) ? raw.map(parseMarketplaceSection) : undefined;
+  if (sections === undefined || sections.some((section) => section === undefined))
+    throw new Error('invalid marketplaceSections response');
+  return sections as MarketplaceSection[];
+}
+
+export async function loadMarketplaceDigests(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigestSummary[]> {
+  const digests = parseMarketplaceDigests(
+    await unwrap(call, 'marketplaceDigests', lang === undefined ? {} : { lang }),
+  );
+  if (digests === undefined) throw new Error('invalid marketplaceDigests response');
+  return digests;
+}
+
+export async function loadMarketplaceDigest(
+  call: BridgeCall,
+  day?: string,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceDigest> {
+  const digest = parseMarketplaceDigest(
+    await unwrap(call, 'marketplaceDigest', {
+      ...(day === undefined ? {} : { day }),
+      ...(lang === undefined ? {} : { lang }),
+    }),
+  );
+  if (digest === undefined) throw new Error('invalid marketplaceDigest response');
+  return digest;
 }
 
 export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
@@ -2063,6 +2173,108 @@ export async function submitMarketplaceRepository(
   );
   if (result === undefined) throw new Error('invalid marketplaceSubmit response');
   return result.bot;
+}
+
+const INSTALL_FINDING_KINDS = new Set(['prompt-injection', 'exfiltration', 'script']);
+
+function parseInstallFinding(value: unknown): InstallFinding | undefined {
+  const finding = asRecord(value);
+  const kind = finding?.['kind'];
+  const path = finding?.['path'];
+  const note = finding?.['note'];
+  if (typeof kind !== 'string' || !INSTALL_FINDING_KINDS.has(kind) || typeof path !== 'string')
+    return undefined;
+  return {
+    kind: kind as InstallFinding['kind'],
+    path,
+    ...(typeof note === 'string' && note.length > 0 ? { note } : {}),
+  };
+}
+
+export function parseInstallReviewResult(value: unknown): InstallReviewResult | undefined {
+  const result = asRecord(value);
+  const review = asRecord(result?.['review']);
+  const reviewId = result?.['reviewId'];
+  const listing = parseMarketplaceSubmission({ bot: result?.['listing'] })?.bot;
+  if (typeof reviewId !== 'string' || listing === undefined || review === undefined)
+    return undefined;
+  const findings = Array.isArray(review['findings'])
+    ? review['findings'].map(parseInstallFinding)
+    : undefined;
+  if (findings === undefined || findings.some((finding) => finding === undefined)) return undefined;
+  const files = typeof review['files'] === 'number' ? review['files'] : 0;
+  let parsed: InstallReview;
+  if (review['status'] === 'reviewed') {
+    parsed = {
+      status: 'reviewed',
+      findings: findings as InstallFinding[],
+      files,
+      read: typeof review['read'] === 'number' ? review['read'] : files,
+      partial: review['partial'] === true,
+      ...(typeof review['model'] === 'string' ? { model: review['model'] } : {}),
+    };
+  } else if (review['status'] === 'unavailable' && typeof review['reason'] === 'string') {
+    parsed = {
+      status: 'unavailable',
+      reason: review['reason'] as Extract<InstallReview, { status: 'unavailable' }>['reason'],
+      findings: findings as InstallFinding[],
+      files,
+    };
+  } else return undefined;
+  return { reviewId, listing, review: parsed };
+}
+
+export async function reviewMarketplaceInstall(
+  call: BridgeCall,
+  id: string,
+  lang?: MarketplaceLanguage,
+): Promise<InstallReviewResult> {
+  const result = parseInstallReviewResult(
+    await unwrap(call, 'marketplaceInstallReview', lang === undefined ? { id } : { id, lang }),
+  );
+  if (result === undefined) throw new Error('invalid marketplaceInstallReview response');
+  return result;
+}
+
+export async function installMarketplaceBot(
+  call: BridgeCall,
+  id: string,
+  reviewId: string,
+  source?: MarketplaceInstallSource,
+): Promise<BotSummary> {
+  const value = await unwrap(call, 'marketplaceInstall', {
+    id,
+    reviewId,
+    ...(source === undefined ? {} : { source }),
+  });
+  const bot = parseBotSummary(asRecord(value)?.['bot']);
+  if (bot === undefined) throw new Error('invalid marketplaceInstall response');
+  return bot;
+}
+
+export async function loadMyMarketplaceUploads(
+  call: BridgeCall,
+  lang?: MarketplaceLanguage,
+): Promise<MarketplaceAuthoredBot[]> {
+  const bots = parseAuthoredBots(
+    await unwrap(call, 'marketplaceMine', lang === undefined ? {} : { lang }),
+  );
+  if (bots === undefined) throw new Error('invalid marketplaceMine response');
+  return bots;
+}
+
+export async function uploadMarketplaceBot(
+  call: BridgeCall,
+  slug: string,
+  presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+  const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
+  const parsed = parseMarketplaceSubmission(value);
+  if (parsed === undefined) throw new Error('invalid marketplaceUpload response');
+  return {
+    bot: parsed.bot,
+    skipped: Array.isArray(value?.['skipped']) ? (value['skipped'] as UploadPlan['skipped']) : [],
+  };
 }
 
 export async function reportMarketplaceBot(

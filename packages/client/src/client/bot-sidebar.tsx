@@ -115,6 +115,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { personaBotActivity } from './persona-activity.js';
 import { CreatePersonaBotModal } from './persona-bot-create.js';
+import { BotAvatarModal } from './profile-header.js';
 import { BotZipShareDialog, ImportBotZipModal } from './bot-zip.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { PersonaBotDeletionView } from './personabot-deletion.js';
@@ -140,6 +141,9 @@ import {
 } from './dm-actions.js';
 import { GitUnavailableNotice, gitReady } from './git-unavailable-notice.js';
 import { MarketplaceModal } from './marketplace.js';
+import { MarketUploadDialog } from './market-upload.js';
+import { MARKET_PANEL } from './market-panel.js';
+import type { DockPanelRegistry } from './dock-panels.js';
 import {
   defaultStorage,
   saveRosterConfig,
@@ -180,6 +184,7 @@ import {
 import { store, type BotSummary, type ChannelSummary, type ClientState } from './store.js';
 import {
   errorMessage,
+  type MessageSearchHit,
   type ModelCatalogView,
   type ModelPlanStateView,
   type ModelRouteView,
@@ -453,6 +458,7 @@ interface SidebarProps {
   channelSidebar?: ChannelSidebarRegistry | undefined;
   shortcutBindings?: ShortcutBindings | undefined;
   quickSwitcherSettings?: QuickSwitcherSettings | undefined;
+  dockPanels?: DockPanelRegistry | undefined;
   t: BotHarnessTranslate;
 }
 
@@ -1003,6 +1009,7 @@ export function BotSidebar({
   channelSidebar,
   shortcutBindings = fallbackShortcutBindings,
   quickSwitcherSettings,
+  dockPanels,
   t,
 }: SidebarProps): ReactElement {
   const state = useClientStore(keepClientState, rosterInputs);
@@ -1025,6 +1032,10 @@ export function BotSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
+  const [avatarTarget, setAvatarTarget] = useState<{ slug: string; channelId: string } | undefined>(
+    undefined,
+  );
+  const [publishing, setPublishing] = useState<BotSummary | undefined>(undefined);
   const [undoToast, setUndoToast] = useState<
     { seq: number; text: string; undo: () => Promise<unknown> } | undefined
   >(undefined);
@@ -1438,6 +1449,7 @@ export function BotSidebar({
       event.preventDefault();
       setShowShortcutHints(false);
       setQuickSwitcherOpen(true);
+      actions.telemetryEvent('search:switcher_open');
     };
     document.addEventListener('keydown', onChannelShortcut);
     document.addEventListener('keydown', onConversationStep);
@@ -1838,7 +1850,10 @@ export function BotSidebar({
       : actions.openBot(channel.botSlug));
   };
 
-  const openQuickSwitcherEntry = ({ channel }: QuickSwitcherEntry): void => {
+  const openQuickSwitcherEntry = (
+    { channel }: Pick<QuickSwitcherEntry, 'channel'>,
+    then?: () => Promise<void>,
+  ): void => {
     setQuickSwitcherOpen(false);
     openLocalConversation();
     setChannelSelection((current) =>
@@ -1849,9 +1864,18 @@ export function BotSidebar({
         'plain',
       ),
     );
-    void (channel.botSlug === undefined
-      ? actions.openChannel(channel.id)
-      : actions.openBot(channel.botSlug));
+    void (
+      channel.botSlug === undefined
+        ? actions.openChannel(channel.id)
+        : actions.openBot(channel.botSlug)
+    ).then(then);
+  };
+
+  const openQuickSwitcherMessage = ({ channelId, message }: MessageSearchHit): void => {
+    const channel = state.channels.find((item) => item.id === channelId);
+    if (channel === undefined) return;
+    actions.telemetryEvent('search:result_open', { kind: 'message' });
+    openQuickSwitcherEntry({ channel }, () => actions.openAround(channelId, message.id));
   };
 
   const openChannelMenu = (request: ChannelMenuRequest): void => {
@@ -2996,15 +3020,24 @@ export function BotSidebar({
                   search: quickSwitcherSettings.search,
                   open: (result) => {
                     setQuickSwitcherOpen(false);
+                    actions.telemetryEvent('search:result_open', { kind: 'setting' });
                     quickSwitcherSettings.open(result);
                   },
                 }
+          }
+          messages={
+            actions.searchMessages === undefined
+              ? undefined
+              : { search: actions.searchMessages, open: openQuickSwitcherMessage }
           }
           bots={botBySlug}
           activityOf={(bot) => personaBotActivity(state, bot)}
           shortcutBindings={shortcutBindings}
           t={t}
-          onOpen={openQuickSwitcherEntry}
+          onOpen={(entry) => {
+            actions.telemetryEvent('search:result_open', { kind: 'channel' });
+            openQuickSwitcherEntry(entry);
+          }}
           onClose={() => setQuickSwitcherOpen(false)}
         />
       ) : null}
@@ -3101,6 +3134,15 @@ export function BotSidebar({
                   else void actions.openBot(menuBotSlug, 'profile');
                 }
           }
+          avatarAction={(() => {
+            const bot = state.bots.find((item) => item.slug === menuBotSlug);
+            if (bot === undefined || bot.deleted === true) return undefined;
+            const channelId = channelMenu.channelId;
+            return () => {
+              setAvatarTarget({ slug: bot.slug, channelId });
+              setChannelMenu(undefined);
+            };
+          })()}
           settingsAction={(() => {
             const channel = state.channels.find(
               (candidate) => candidate.id === channelMenu.channelId,
@@ -3178,6 +3220,19 @@ export function BotSidebar({
               },
             };
           })()}
+          marketAction={(() => {
+            if (dockPanels === undefined) return undefined;
+            const botId = state.channels.find(
+              (channel) => channel.id === channelMenu.channelId && channel.type === 'dm',
+            )?.botSlug;
+            const bot = state.bots.find((item) => item.slug === botId);
+            if (bot === undefined || bot.deleted === true || bot.tob !== undefined)
+              return undefined;
+            return () => {
+              setPublishing(bot);
+              setChannelMenu(undefined);
+            };
+          })()}
           companionAction={(() => {
             const botId = state.channels.find(
               (channel) => channel.id === channelMenu.channelId,
@@ -3242,6 +3297,33 @@ export function BotSidebar({
           onClose={() => setNicknameTarget(undefined)}
         />
       )}
+      {publishing === undefined || dockPanels === undefined ? null : (
+        <MarketUploadDialog
+          key={publishing.slug}
+          actions={actions}
+          registry={dockPanels}
+          t={t}
+          initialSlug={publishing.slug}
+          onListed={() => dockPanels.open(MARKET_PANEL)}
+          onClose={() => setPublishing(undefined)}
+        />
+      )}
+      {(() => {
+        if (avatarTarget === undefined) return null;
+        const bot = state.bots.find((item) => item.slug === avatarTarget.slug);
+        const channel = state.channels.find((item) => item.id === avatarTarget.channelId);
+        if (bot === undefined || channel === undefined || bot.deleted === true) return null;
+        return (
+          <BotAvatarModal
+            key={bot.slug}
+            bot={bot}
+            channel={channel}
+            actions={actions}
+            t={t}
+            onClose={() => setAvatarTarget(undefined)}
+          />
+        );
+      })()}
       {sharing === undefined ? null : (
         <BotZipShareDialog
           key={sharing.slug}
@@ -3508,9 +3590,11 @@ export function ChannelMoveMenu({
   muteAction,
   companionAction,
   shareAction,
+  marketAction,
   deleteAction,
   settingsAction,
   profileAction,
+  avatarAction,
   nicknameAction,
   dmActions,
   modelAction,
@@ -3530,9 +3614,11 @@ export function ChannelMoveMenu({
   muteAction?: { label: string; muted: boolean; run(): void } | undefined;
   companionAction?: { label: string; run(): void } | undefined;
   shareAction?: { label: string; run(): void } | undefined;
+  marketAction?: (() => void) | undefined;
   deleteAction?: { label: string; run(): void } | undefined;
   settingsAction?: { attention: boolean; run(): void } | undefined;
   profileAction?: (() => void) | undefined;
+  avatarAction?: (() => void) | undefined;
   nicknameAction?: (() => void) | undefined;
   dmActions?:
     | {
@@ -3585,6 +3671,15 @@ export function ChannelMoveMenu({
           },
         ]
       : []),
+    ...(avatarAction
+      ? [
+          {
+            id: 'change-avatar',
+            label: t('roster.menu.changeAvatar'),
+            icon: <ChannelSidebarIcon name="image-up" size={16} />,
+          },
+        ]
+      : []),
     ...(settingsAction === undefined
       ? []
       : [
@@ -3607,6 +3702,15 @@ export function ChannelMoveMenu({
             id: 'share',
             label: shareAction.label,
             icon: <IconShareOutlineRegular size={16} />,
+          },
+        ]),
+    ...(marketAction === undefined
+      ? []
+      : [
+          {
+            id: 'share-market',
+            label: t('market.share'),
+            icon: <ChannelSidebarIcon name="store" size={16} />,
           },
         ]),
     {
@@ -3693,6 +3797,10 @@ export function ChannelMoveMenu({
             profileAction?.();
             return;
           }
+          if (id === 'change-avatar') {
+            avatarAction?.();
+            return;
+          }
           if (id === 'mark-read') {
             readAction?.run();
             return;
@@ -3729,6 +3837,10 @@ export function ChannelMoveMenu({
           }
           if (id === 'share') {
             shareAction?.run();
+            return;
+          }
+          if (id === 'share-market') {
+            marketAction?.();
             return;
           }
           if (id === 'delete') {

@@ -152,7 +152,7 @@ export function PinnedPanelCards({
           ...(run === undefined ? [t('dock.cardUnavailable')] : []),
         ].join(' · ');
         const label = [tooltipLabel, ...(keys?.length ? [keys.join(' ')] : [])].join(' · ');
-        return (
+        const card = (
           <Tooltip
             key={panel.id}
             label={tooltipLabel}
@@ -257,6 +257,7 @@ export function PinnedPanelCards({
             </button>
           </Tooltip>
         );
+        return card;
       })}
     </div>
   );

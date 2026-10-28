@@ -1,4 +1,5 @@
-import { router, usePathname, useGlobalSearchParams } from 'expo-router';
+import { closeWorkspacePage } from './workspace-paging';
+import { router, useIsFocused, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
@@ -49,9 +50,14 @@ import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../des
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { spring } from '../design/motion';
-import { edge, motion, radius, scrim, sidebar, space } from '../design/tokens';
+import { edge, motion, radius, scrim, sidebar, space, workspaceStack } from '../design/tokens';
+import { HeaderCircleButton } from '../chat/header-chrome';
+import { HumanAvatarButton } from './human-avatar';
 import { SidebarMaterial, useLiquidGlass } from '../primitives/drawer-material';
+import { SettingsForm } from '../primitives/settings-form';
+import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { CountBadge } from '../primitives/count-badge';
+import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { useStrings, t } from '../strings';
@@ -61,6 +67,7 @@ import { ContextMenuArea, nativeContextMenu } from '../primitives/context-menu';
 import { MENU_SYMBOL } from '../primitives/menu-symbols';
 import { WorkspaceTabs, type WorkspaceTab } from './workspace-tabs';
 import { WorkspaceAddButton } from './workspace-add';
+import { useFloatingTabInset } from './floating-tab-inset';
 import {
   addressLines,
   createHostDrawer,
@@ -76,6 +83,7 @@ import { ActivityIcon, ChatsIcon, CloudIcon, ComputerIcon, PlusIcon } from './ic
 import { noticeHostKept } from '../unpair-notice';
 import { chooseCloudWorkspace, showWorkspaceRoot } from './native-workspace-navigation';
 import { holdBack } from './back-owner';
+import { NativeHostDrawer, nativeHostDrawer } from './native-host-drawer';
 
 export const hostDrawer = createHostDrawer({
   switchTo: (hostId, current) => hostSession.switchTo(hostId, current),
@@ -95,6 +103,23 @@ const workspaceDirectory = createWorkspaceDirectory(cloudClient);
 const DRAG_START = 10;
 const VERTICAL_FAIL = 15;
 
+let docked = 0;
+const dockedWatchers = new Set<() => void>();
+
+function dock(by: number): void {
+  docked += by;
+  for (const watcher of dockedWatchers) watcher();
+}
+
+function watchDocked(watcher: () => void): () => void {
+  dockedWatchers.add(watcher);
+  return () => dockedWatchers.delete(watcher);
+}
+
+function useDocked(): boolean {
+  return useSyncExternalStore(watchDocked, () => docked > 0);
+}
+
 function hidden(): void {
   hostDrawer.hidden();
 }
@@ -112,7 +137,7 @@ function slide(open: boolean, velocity = 0): void {
 function settle(open: boolean, velocity = 0): void {
   if (open) hostDrawer.open();
   else hostDrawer.close();
-  slide(open, velocity);
+  if (docked === 0) slide(open, velocity);
 }
 
 function reveal(): void {
@@ -139,16 +164,72 @@ function clamp(value: number): number {
 export function HostDrawerEdge({
   children,
   anywhere = false,
+  enabled = true,
 }: {
   children: ReactNode;
   anywhere?: boolean;
+  enabled?: boolean;
+}) {
+  if (anywhere && nativeHostDrawer) return <DockedHostDrawer>{children}</DockedHostDrawer>;
+  return (
+    <PanHostDrawerEdge anywhere={anywhere} enabled={enabled}>
+      {children}
+    </PanHostDrawerEdge>
+  );
+}
+
+function dockedOpenChange(open: boolean): void {
+  if (open) {
+    hostDrawer.open();
+    return;
+  }
+  hostDrawer.close();
+  hostDrawer.hidden();
+}
+
+function DockedHostDrawer({ children }: { children: ReactNode }) {
+  const t = useStrings();
+  const { hosts } = useHostSession();
+  const open = useHostDrawerOpen();
+  const focused = useIsFocused();
+  const mount = useMounted<ViewInstance>(() => {
+    if (!focused) return;
+    dock(1);
+    return () => {
+      dockedOpenChange(false);
+      dock(-1);
+    };
+  }, [focused]);
+  return (
+    <View ref={mount} style={{ flex: 1 }} collapsable={false}>
+      <NativeHostDrawer
+        open={open && focused}
+        enabled={hosts.length > 0}
+        closeLabel={t.closeWorkspaces}
+        panel={<HostDrawerPanel docked />}
+        onOpenChange={dockedOpenChange}
+      >
+        {children}
+      </NativeHostDrawer>
+    </View>
+  );
+}
+
+function PanHostDrawerEdge({
+  children,
+  anywhere,
+  enabled,
+}: {
+  children: ReactNode;
+  anywhere: boolean;
+  enabled: boolean;
 }) {
   const width = drawerWidth(useWindowDimensions().width, Platform.OS);
   const reduced = useReducedMotion();
   const { hosts } = useHostSession();
   const swipe = drawerSwipe(Platform.OS, anywhere);
   const pan = Gesture.Pan()
-    .enabled(hosts.length > 0)
+    .enabled(enabled && hosts.length > 0)
     .activeOffsetX(swipe.activeX)
     .failOffsetY([-swipe.failY, swipe.failY])
     .onStart(() => {
@@ -214,7 +295,7 @@ function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
   return [
     {
       label: t.connectionRoutes.title,
-      icon: 'computer',
+      icon: 'connection',
       run: () =>
         closeThen(() =>
           router.push({ pathname: '/host-connection', params: { hostId: row.hostId } }),
@@ -302,6 +383,45 @@ function DrawerTile({ look, name, current }: { look: HostLook; name: string; cur
             : hostColorInk(theme.scheme, theme.color, look.color)
         }
       />
+    </View>
+  );
+}
+
+const loadAccountName = () => connectAccount.email().then((email) => email ?? undefined);
+
+function StackedHostTile({ row, first }: { row: HostDrawerRow; first: boolean }) {
+  const theme = useDesignTheme();
+  const look = useHostLook(row.hostId);
+  return (
+    <View
+      style={{
+        marginLeft: first ? 0 : -workspaceStack.overlap,
+        padding: workspaceStack.ring,
+        borderRadius: radius.md,
+        backgroundColor: theme.layer.sheet.fill,
+      }}
+    >
+      <HostTile
+        hostName={shownHostName(look, row.hostName)}
+        icon={look.icon}
+        size={workspaceStack.tile}
+        fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
+        ink={
+          look.color === undefined
+            ? theme.color.fg
+            : hostColorInk(theme.scheme, theme.color, look.color)
+        }
+      />
+    </View>
+  );
+}
+
+function StackedHostTiles({ rows }: { rows: readonly HostDrawerRow[] }) {
+  return (
+    <View testID="drawer-all-stack" style={{ flexDirection: 'row' }}>
+      {rows.slice(0, workspaceStack.max).map((row, index) => (
+        <StackedHostTile key={row.hostId} row={row} first={index === 0} />
+      ))}
     </View>
   );
 }
@@ -428,6 +548,84 @@ function HostRow({
         onOpen={() => openHostMenu(row, name)}
       />
     </View>
+  );
+}
+
+function HostFormRow({
+  row,
+  address,
+  selected,
+}: {
+  row: HostDrawerRow;
+  address: string;
+  selected: boolean;
+}) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const look = useHostLook(row.hostId);
+  const name = shownHostName(look, row.hostName);
+  const pending = row.glance.pending ?? 0;
+  const unread = row.glance.unread ?? 0;
+  const badge = hostRowBadge(row.glance);
+  const status = statusText(row.glance.status);
+  return (
+    <SettingsRow
+      testID={`drawer-host-${row.hostId}`}
+      title={name}
+      detail={[status, address].filter((part) => part !== '').join(' · ')}
+      leading={
+        <HostTile
+          hostName={name}
+          icon={look.icon}
+          size={workspaceStack.tile}
+          fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
+          ink={
+            look.color === undefined
+              ? theme.color.fg
+              : hostColorInk(theme.scheme, theme.color, look.color)
+          }
+        />
+      }
+      {...(selected && badge === undefined ? { control: { kind: 'check' as const } } : {})}
+      trailing={
+        badge === undefined ? undefined : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
+            <CountBadge
+              count={badge.count}
+              tone={badge.tone}
+              label={
+                badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
+              }
+            />
+            {selected ? (
+              <SystemSymbol
+                name={{ ios: 'checkmark', android: 'check' }}
+                size={theme.type.title.line}
+                color={theme.color.accent}
+              />
+            ) : null}
+          </View>
+        )
+      }
+      accessory={
+        <ActionMenuButton
+          label={t.hostMore(name)}
+          actions={hostMenuActions(row, name)}
+          onOpen={() => openHostMenu(row, name)}
+        />
+      }
+      selected={selected}
+      accessibilityLabel={[
+        name,
+        selected ? t.showing : undefined,
+        status,
+        pending > 0 ? t.hostPending(pending) : undefined,
+        unread > 0 ? t.hostUnread(unread) : undefined,
+      ]
+        .filter((part) => part !== undefined)
+        .join(', ')}
+      onPress={() => void hostDrawer.select(row.hostId)}
+    />
   );
 }
 
@@ -626,19 +824,25 @@ function WorkspaceRow({
   );
 }
 
-export function HostDrawer() {
+export function WorkspacePanel({
+  active,
+  page = false,
+  docked = false,
+}: {
+  active: boolean;
+  page?: boolean;
+  docked?: boolean;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const insets = useSafeAreaInsets();
-  const width = drawerWidth(useWindowDimensions().width, Platform.OS);
-  const reduced = useReducedMotion();
-  const state = useSyncExternalStore(hostDrawer.subscribe, hostDrawer.getSnapshot);
+  const bottom = useFloatingTabInset();
   const { saved, hosts, client, inbox } = useHostSession();
   const [filter] = useConversationFilter();
-  const connection = useHostSnapshot(client).connection;
-  const list = useInbox(inbox);
-  const feeds = useHostSessions();
+  const connection = useHostSnapshot(client, active).connection;
+  const list = useInbox(inbox, active);
+  const feeds = useHostSessions(active);
   const glanceMap = useMemo(
     () =>
       Object.fromEntries(
@@ -669,11 +873,11 @@ export function HostDrawer() {
   const cloudRoute = pathname.startsWith('/cloud-');
   const [tab, setTab] = useState<WorkspaceTab>(cloudRoute ? 'cloud' : 'computers');
   const tabMount = useMounted<ViewInstance>(() => {
-    if (state.open) setTab(cloudRoute ? 'cloud' : 'computers');
-  }, [state.open, cloudRoute]);
+    if (active) setTab(cloudRoute ? 'cloud' : 'computers');
+  }, [active, cloudRoute]);
   const [linked, setLinked] = useState<ConnectHost[]>([]);
   const accountMount = useMounted<ViewInstance>(() => {
-    if (!state.open || tab !== 'computers') return;
+    if (!active || tab !== 'computers') return;
     let live = true;
     setLinked([]);
     void connectAccount.email().then(async (email) => {
@@ -684,14 +888,14 @@ export function HostDrawer() {
     return () => {
       live = false;
     };
-  }, [state.open, tab]);
+  }, [active, tab]);
   const currentId = cloudRoute ? undefined : saved?.hostId;
   const cloudKey = JSON.stringify(cloud.rows.map(cloudViewScope));
   const cloudMount = useMounted<ViewInstance>(() => {
-    if (!state.open || tab !== 'cloud' || !cloud.ready) return;
+    if (!active || tab !== 'cloud' || !cloud.ready) return;
     void workspaceDirectory.refresh(cloud.rows);
     return () => workspaceDirectory.clear();
-  }, [state.open, tab, cloud.ready, cloudKey]);
+  }, [active, tab, cloud.ready, cloudKey]);
   const choose = async (workspace: CloudWorkspace) => {
     if (selecting || cloud.busy || directory.busy) return;
     const current = hostDrawer.beginWorkspaceSelection();
@@ -714,19 +918,21 @@ export function HostDrawer() {
 
   const tabFocus = useMounted<ViewInstance>(
     (node) => {
-      if (!state.open) return;
+      if (!active || page) return;
 
       const focus = setTimeout(() => focusOn(node), motion.drawer);
-      const back = holdBack(() => {
-        settle(false);
-        return true;
-      });
+      const back = docked
+        ? undefined
+        : holdBack(() => {
+            settle(false);
+            return true;
+          });
       return () => {
         clearTimeout(focus);
-        back.remove();
+        back?.remove();
       };
     },
-    [state.open, hosts],
+    [active, page, docked, hosts],
   );
 
   const unpaired = unpairedAccountHosts(linked, hosts);
@@ -759,6 +965,368 @@ export function HostDrawer() {
           })),
           { kind: 'status', key: entry.instanceId + ':status', entry },
         ]);
+  const top = (
+    <>
+      <View
+        ref={tabMount}
+        style={{
+          paddingTop: Math.max(insets.top - (glass ? sidebar.inset : 0), 0) + space.x5,
+          paddingHorizontal: space.x5,
+          paddingBottom: space.x4,
+        }}
+      >
+        {cloudAvailable && <WorkspaceTabs value={tab} onChange={setTab} selectedRef={tabFocus} />}
+      </View>
+      <WorkspaceAddButton
+        glass={glass}
+        label={tab === 'computers' ? t.pairAnother : t.workspaceAdd.join}
+        onPress={() =>
+          closeThen(() => {
+            if (tab === 'computers') hostDrawer.pairNew();
+            else router.push('/cloud-join');
+          })
+        }
+      />
+    </>
+  );
+  const status = (
+    <View ref={page ? undefined : accountMount}>
+      {tab === 'cloud' && directory.busy && (
+        <Text style={{ padding: space.x5 }} accessibilityLiveRegion="polite">
+          {t.workspaceLoading}
+        </Text>
+      )}
+      {tab === 'cloud' && !!selectionError && (
+        <Text style={{ padding: space.x5 }} accessibilityLiveRegion="polite">
+          {selectionError}
+        </Text>
+      )}
+      {tab === 'cloud' && cloud.ready && !directory.busy && directory.entries.length === 0 && (
+        <Text style={{ padding: space.x5 }} tone="muted">
+          {t.workspaceEmpty}
+        </Text>
+      )}
+      {tab === 'computers' && rows.length === 0 && (
+        <Text style={{ padding: space.x5 }} tone="muted">
+          {t.workspaceAdd.noComputers}
+        </Text>
+      )}
+    </View>
+  );
+  const actions = (
+    <View
+      style={{
+        paddingTop: space.x2,
+        paddingBottom: page
+          ? bottom
+          : Math.max(insets.bottom - (glass ? sidebar.inset : 0), 0) + space.x2,
+        borderTopWidth: edge.hairline,
+        borderTopColor: theme.layer.sheet.edge,
+      }}
+    >
+      {tab === 'cloud' && (
+        <FooterRow
+          label={t.workspaceAdd.manage}
+          icon={<CloudIcon color={theme.color.fg} size={icon} />}
+          onPress={() => closeThen(() => router.push('/cloud-services'))}
+        />
+      )}
+      <FooterRow
+        label={t.notifications}
+        icon={<ActivityIcon color={theme.color.fg} size={icon} />}
+        onPress={() => closeThen(() => hostDrawer.openNotifications())}
+      />
+    </View>
+  );
+
+  const allSelected = !cloudRoute && filter === 'all';
+  const title = (
+    <View
+      ref={tabMount}
+      style={{
+        paddingTop: insets.top + space.x2,
+        paddingHorizontal: space.x5,
+        paddingBottom: space.x3,
+        gap: space.x4,
+      }}
+    >
+      <Text variant="display" accessibilityRole="header">
+        {t.workspaces}
+      </Text>
+      {cloudAvailable && <WorkspaceTabs value={tab} onChange={setTab} selectedRef={tabFocus} />}
+    </View>
+  );
+  const form = (
+    <SettingsForm testID="workspace-panel">
+      <SettingsSection>
+        <SettingsRow
+          testID="workspace-pair"
+          title={t.pairAnother}
+          tone="accent"
+          icon="add"
+          iconTone="accent"
+          onPress={() => hostDrawer.pairNew()}
+        />
+      </SettingsSection>
+      <SettingsSection footer={rows.length === 0 ? t.workspaceAdd.noComputers : undefined}>
+        <SettingsRow
+          testID="drawer-all"
+          title={t.allEnvironmentsRow}
+          leading={
+            rows.length > 0 ? (
+              <StackedHostTiles rows={rows} />
+            ) : (
+              <ChatsIcon color={theme.color.accent} size={workspaceStack.tile} />
+            )
+          }
+          {...(allSelected ? { control: { kind: 'check' as const } } : {})}
+          selected={allSelected}
+          onPress={() => hostDrawer.selectAll()}
+        />
+        {rows.map((row) => (
+          <HostFormRow
+            key={row.hostId}
+            row={row}
+            selected={!cloudRoute && filter === computerEnvironmentKey(row.hostId)}
+            address={connectionAddress(hosts.find((host) => host.hostId === row.hostId)?.routes[0])}
+          />
+        ))}
+      </SettingsSection>
+      {unpaired.length === 0 ? null : (
+        <SettingsSection title={t.pairAccount.drawerTitle}>
+          {unpaired.map((host) => (
+            <SettingsRow
+              key={host.id}
+              title={host.name}
+              detail={host.online ? t.pairAccount.pair : t.pairAccount.offline}
+              icon="computer"
+              accessibilityLabel={
+                host.online
+                  ? t.pairAccount.pairWith(host.name)
+                  : [t.pairAccount.pairWith(host.name), t.pairAccount.offline].join(', ')
+              }
+              onPress={() =>
+                router.push({ pathname: '/pair/account', params: { account: host.id } })
+              }
+            />
+          ))}
+        </SettingsSection>
+      )}
+    </SettingsForm>
+  );
+  const bar = (
+    <View
+      ref={accountMount}
+      testID="workspace-panel-bar"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: space.x4,
+        paddingTop: space.x2,
+        paddingBottom: Math.max(insets.bottom, space.x4),
+      }}
+    >
+      <HumanAvatarButton
+        testID="workspace-account"
+        loadName={loadAccountName}
+        onPress={() => {
+          if (page) closeWorkspacePage();
+          router.push('/settings');
+        }}
+      />
+      <HeaderCircleButton
+        testID="workspace-notifications"
+        label={t.notifications}
+        onPress={() => hostDrawer.openNotifications()}
+      >
+        <ActivityIcon color={theme.color.fg} size={theme.type.title.line} />
+      </HeaderCircleButton>
+    </View>
+  );
+
+  if (page && tab === 'computers')
+    return (
+      <View ref={cloudMount} style={{ flex: 1, backgroundColor: theme.overlay.fill }}>
+        {title}
+        {form}
+        {bar}
+      </View>
+    );
+
+  return (
+    <View
+      ref={cloudMount}
+      style={{ flex: 1, ...(page ? { backgroundColor: theme.overlay.fill } : {}) }}
+    >
+      {page ? title : top}
+      <FlatList<WorkspaceDrawerItem>
+        key={tab}
+        testID={page ? 'workspace-panel' : undefined}
+        style={{ flex: 1 }}
+        data={drawerRows}
+        keyExtractor={(row) => row.key}
+        contentContainerStyle={{ paddingBottom: page ? 0 : space.x4 }}
+        ListHeaderComponent={
+          page ? (
+            <WorkspaceAddButton
+              glass={glass}
+              label={t.workspaceAdd.join}
+              onPress={() => router.push('/cloud-join')}
+            />
+          ) : undefined
+        }
+        renderItem={({ item }) => {
+          if (item.kind === 'all')
+            return (
+              <Pressable
+                ref={cloudAvailable ? undefined : tabFocus}
+                testID="drawer-all"
+                accessibilityRole="button"
+                accessibilityLabel={page ? t.allEnvironmentsRow : t.allEnvironments}
+                accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
+                onPress={() => closeThen(() => hostDrawer.selectAll())}
+                android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
+                style={({ pressed }) => ({
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: space.x4,
+                  minHeight: theme.touch + space.x3,
+                  padding: space.x4,
+                  ...rowStyle(theme, glass, pressed, !cloudRoute && filter === 'all'),
+                  overflow: 'hidden',
+                })}
+              >
+                {page && rows.length > 0 ? (
+                  <StackedHostTiles rows={rows} />
+                ) : (
+                  <ChatsIcon
+                    color={theme.color.accent}
+                    size={theme.type.body.line * theme.fontScale}
+                  />
+                )}
+                <Text strong style={{ flexShrink: 1 }}>
+                  {page ? t.allEnvironmentsRow : t.allEnvironments}
+                </Text>
+              </Pressable>
+            );
+          if (item.kind === 'host')
+            return (
+              <HostRow
+                row={item.row}
+                selected={!cloudRoute && filter === computerEnvironmentKey(item.row.hostId)}
+                address={connectionAddress(
+                  hosts.find((host) => host.hostId === item.row.hostId)?.routes[0],
+                )}
+              />
+            );
+          if (item.kind === 'account-title')
+            return (
+              <Text
+                variant="meta"
+                tone="muted"
+                accessibilityRole="header"
+                style={{
+                  paddingHorizontal: space.x5,
+                  paddingTop: space.x4,
+                  paddingBottom: space.x2,
+                }}
+              >
+                {t.pairAccount.drawerTitle}
+              </Text>
+            );
+          if (item.kind === 'account')
+            return (
+              <AccountHostRow
+                host={item.host}
+                onPress={() =>
+                  closeThen(() =>
+                    router.push({
+                      pathname: '/pair/account',
+                      params: { account: item.host.id },
+                    }),
+                  )
+                }
+              />
+            );
+          if (item.kind === 'workspace')
+            return (
+              <WorkspaceRow
+                workspace={item.workspace}
+                server={item.server}
+                selected={
+                  cloudRoute &&
+                  params.instanceId === item.workspace.instanceId &&
+                  params.organizationId === item.workspace.organizationId
+                }
+                disabled={selecting || cloud.busy || directory.busy}
+                onPress={() => void choose(item.workspace)}
+              />
+            );
+          const entry = item.entry;
+          if (!entry.hasSession)
+            return (
+              <CloudServiceRow
+                name={
+                  cloud.rows.find((row) => row.config.instanceId === entry.instanceId)?.config
+                    .name ?? entry.instanceId
+                }
+                server={entry.server}
+                onPress={() => closeThen(() => router.push('/cloud-services'))}
+              />
+            );
+          return (
+            <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+              {!!entry.error && (
+                <Text accessibilityLiveRegion="polite">
+                  {new URL(entry.server).host}: {entry.error}
+                </Text>
+              )}
+              {!directory.busy &&
+                !entry.error &&
+                entry.workspaces.length === 0 &&
+                entry.membersAfter === null &&
+                entry.guestsAfter === null && <Text tone="muted">{t.workspaceEmpty}</Text>}
+              {!directory.busy &&
+                (entry.error || entry.membersAfter !== null || entry.guestsAfter !== null) && (
+                  <FooterRow
+                    label={entry.error ? t.retry : t.cloudOrganizations.more}
+                    icon={<PlusIcon color={theme.color.fg} size={icon} />}
+                    onPress={() => void workspaceDirectory.more(entry.instanceId)}
+                  />
+                )}
+            </View>
+          );
+        }}
+        ListFooterComponent={
+          <>
+            {status}
+            {page && tab === 'cloud' ? (
+              <FooterRow
+                label={t.workspaceAdd.manage}
+                icon={<CloudIcon color={theme.color.fg} size={icon} />}
+                onPress={() => router.push('/cloud-services')}
+              />
+            ) : null}
+          </>
+        }
+      />
+      {page ? bar : actions}
+    </View>
+  );
+}
+
+export function HostDrawer() {
+  return useDocked() ? null : <HostDrawerPanel docked={false} />;
+}
+
+function HostDrawerPanel({ docked }: { docked: boolean }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const glass = useLiquidGlass();
+  const width = drawerWidth(useWindowDimensions().width, Platform.OS);
+  const reduced = useReducedMotion();
+  const state = useSyncExternalStore(hostDrawer.subscribe, hostDrawer.getSnapshot);
   const fade = theme.scheme === 'dark' ? scrim.dark : scrim.light;
   const backdropStyle = useAnimatedStyle(() => ({ opacity: clamp(progress.value) * fade }));
   const travel = glass ? width + sidebar.inset : width;
@@ -767,7 +1335,7 @@ export function HostDrawer() {
   }));
 
   const swipe = Gesture.Pan()
-    .enabled(state.open)
+    .enabled(state.open && !docked)
     .activeOffsetX(-DRAG_START)
     .failOffsetY([-VERTICAL_FAIL, VERTICAL_FAIL])
     .onUpdate((event) => {
@@ -783,255 +1351,64 @@ export function HostDrawer() {
   return (
     <GestureDetector gesture={swipe}>
       <View
-        ref={cloudMount}
-        style={StyleSheet.absoluteFill}
+        style={docked ? { flex: 1 } : StyleSheet.absoluteFill}
         pointerEvents={state.open ? 'auto' : 'none'}
         accessibilityElementsHidden={!state.open}
         importantForAccessibility={state.open ? 'auto' : 'no-hide-descendants'}
       >
         {state.open ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              backgroundColor: theme.scheme === 'dark' ? theme.layer.canvas.fill : theme.color.fg,
-            },
-            backdropStyle,
-          ]}
-        >
-          <Pressable
-            style={{ flex: 1 }}
-            accessibilityRole="button"
-            accessibilityLabel={t.closeWorkspaces}
-            onPress={() => settle(false)}
-          />
-        </Animated.View>
+        {docked ? null : (
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: theme.scheme === 'dark' ? theme.layer.canvas.fill : theme.color.fg,
+              },
+              backdropStyle,
+            ]}
+          >
+            <Pressable
+              style={{ flex: 1 }}
+              accessibilityRole="button"
+              accessibilityLabel={t.closeWorkspaces}
+              onPress={() => settle(false)}
+            />
+          </Animated.View>
+        )}
         <Animated.View
           accessibilityViewIsModal
           accessible={false}
           onAccessibilityEscape={() => settle(false)}
           style={[
-            glass
-              ? {
-                  position: 'absolute',
-                  top: sidebar.inset,
-                  bottom: sidebar.inset,
-                  left: sidebar.inset,
-                  width,
-                  borderRadius: sidebar.radius,
-                  overflow: 'hidden',
-                }
-              : {
-                  position: 'absolute',
-                  top: 0,
-                  bottom: 0,
-                  left: 0,
-                  width,
-                  backgroundColor: theme.overlay.fill,
-                  borderTopRightRadius: radius.lg,
-                  borderBottomRightRadius: radius.lg,
-                  boxShadow: glassShadow(theme.scheme),
-                  overflow: 'hidden',
-                },
-            panelStyle,
+            docked
+              ? { flex: 1 }
+              : glass
+                ? {
+                    position: 'absolute',
+                    top: sidebar.inset,
+                    bottom: sidebar.inset,
+                    left: sidebar.inset,
+                    width,
+                    borderRadius: sidebar.radius,
+                    overflow: 'hidden',
+                  }
+                : {
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 0,
+                    left: 0,
+                    width,
+                    backgroundColor: theme.overlay.fill,
+                    borderTopRightRadius: radius.lg,
+                    borderBottomRightRadius: radius.lg,
+                    boxShadow: glassShadow(theme.scheme),
+                    overflow: 'hidden',
+                  },
+            docked ? undefined : panelStyle,
           ]}
         >
           {glass ? <SidebarMaterial cornerRadius={sidebar.radius} /> : null}
-          <View
-            ref={tabMount}
-            style={{
-              paddingTop: Math.max(insets.top - (glass ? sidebar.inset : 0), 0) + space.x5,
-              paddingHorizontal: space.x5,
-              paddingBottom: space.x4,
-            }}
-          >
-            {cloudAvailable && (
-              <WorkspaceTabs value={tab} onChange={setTab} selectedRef={tabFocus} />
-            )}
-          </View>
-          <WorkspaceAddButton
-            glass={glass}
-            label={tab === 'computers' ? t.pairAnother : t.workspaceAdd.join}
-            onPress={() =>
-              closeThen(() => {
-                if (tab === 'computers') hostDrawer.pairNew();
-                else router.push('/cloud-join');
-              })
-            }
-          />
-          <FlatList<WorkspaceDrawerItem>
-            key={tab}
-            style={{ flex: 1 }}
-            data={drawerRows}
-            keyExtractor={(row) => row.key}
-            contentContainerStyle={{ paddingBottom: space.x4 }}
-            renderItem={({ item }) => {
-              if (item.kind === 'all')
-                return (
-                  <Pressable
-                    ref={cloudAvailable ? undefined : tabFocus}
-                    testID="drawer-all"
-                    accessibilityRole="button"
-                    accessibilityLabel={t.allEnvironments}
-                    accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
-                    onPress={() => closeThen(() => hostDrawer.selectAll())}
-                    android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
-                    style={({ pressed }) => ({
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: space.x4,
-                      minHeight: theme.touch + space.x3,
-                      padding: space.x4,
-                      ...rowStyle(theme, glass, pressed, !cloudRoute && filter === 'all'),
-                      overflow: 'hidden',
-                    })}
-                  >
-                    <ChatsIcon
-                      color={theme.color.accent}
-                      size={theme.type.body.line * theme.fontScale}
-                    />
-                    <Text strong style={{ flexShrink: 1 }}>
-                      {t.allEnvironments}
-                    </Text>
-                  </Pressable>
-                );
-              if (item.kind === 'host')
-                return (
-                  <HostRow
-                    row={item.row}
-                    selected={!cloudRoute && filter === computerEnvironmentKey(item.row.hostId)}
-                    address={connectionAddress(
-                      hosts.find((host) => host.hostId === item.row.hostId)?.routes[0],
-                    )}
-                  />
-                );
-              if (item.kind === 'account-title')
-                return (
-                  <Text
-                    variant="meta"
-                    tone="muted"
-                    accessibilityRole="header"
-                    style={{
-                      paddingHorizontal: space.x5,
-                      paddingTop: space.x4,
-                      paddingBottom: space.x2,
-                    }}
-                  >
-                    {t.pairAccount.drawerTitle}
-                  </Text>
-                );
-              if (item.kind === 'account')
-                return (
-                  <AccountHostRow
-                    host={item.host}
-                    onPress={() =>
-                      closeThen(() =>
-                        router.push({
-                          pathname: '/pair/account',
-                          params: { account: item.host.id },
-                        }),
-                      )
-                    }
-                  />
-                );
-              if (item.kind === 'workspace')
-                return (
-                  <WorkspaceRow
-                    workspace={item.workspace}
-                    server={item.server}
-                    selected={
-                      cloudRoute &&
-                      params.instanceId === item.workspace.instanceId &&
-                      params.organizationId === item.workspace.organizationId
-                    }
-                    disabled={selecting || cloud.busy || directory.busy}
-                    onPress={() => void choose(item.workspace)}
-                  />
-                );
-              const entry = item.entry;
-              if (!entry.hasSession)
-                return (
-                  <CloudServiceRow
-                    name={
-                      cloud.rows.find((row) => row.config.instanceId === entry.instanceId)?.config
-                        .name ?? entry.instanceId
-                    }
-                    server={entry.server}
-                    onPress={() => closeThen(() => router.push('/cloud-services'))}
-                  />
-                );
-              return (
-                <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                  {!!entry.error && (
-                    <Text accessibilityLiveRegion="polite">
-                      {new URL(entry.server).host}: {entry.error}
-                    </Text>
-                  )}
-                  {!directory.busy &&
-                    !entry.error &&
-                    entry.workspaces.length === 0 &&
-                    entry.membersAfter === null &&
-                    entry.guestsAfter === null && <Text tone="muted">{t.workspaceEmpty}</Text>}
-                  {!directory.busy &&
-                    (entry.error || entry.membersAfter !== null || entry.guestsAfter !== null) && (
-                      <FooterRow
-                        label={entry.error ? t.retry : t.cloudOrganizations.more}
-                        icon={<PlusIcon color={theme.color.fg} size={icon} />}
-                        onPress={() => void workspaceDirectory.more(entry.instanceId)}
-                      />
-                    )}
-                </View>
-              );
-            }}
-            ListFooterComponent={
-              <View ref={accountMount}>
-                {tab === 'cloud' && directory.busy && (
-                  <Text style={{ padding: space.x5 }} accessibilityLiveRegion="polite">
-                    {t.workspaceLoading}
-                  </Text>
-                )}
-                {tab === 'cloud' && !!selectionError && (
-                  <Text style={{ padding: space.x5 }} accessibilityLiveRegion="polite">
-                    {selectionError}
-                  </Text>
-                )}
-                {tab === 'cloud' &&
-                  cloud.ready &&
-                  !directory.busy &&
-                  directory.entries.length === 0 && (
-                    <Text style={{ padding: space.x5 }} tone="muted">
-                      {t.workspaceEmpty}
-                    </Text>
-                  )}
-                {tab === 'computers' && rows.length === 0 && (
-                  <Text style={{ padding: space.x5 }} tone="muted">
-                    {t.workspaceAdd.noComputers}
-                  </Text>
-                )}
-              </View>
-            }
-          />
-          <View
-            style={{
-              paddingTop: space.x2,
-              paddingBottom: Math.max(insets.bottom - (glass ? sidebar.inset : 0), 0) + space.x2,
-              borderTopWidth: edge.hairline,
-              borderTopColor: theme.layer.sheet.edge,
-            }}
-          >
-            {tab === 'cloud' && (
-              <FooterRow
-                label={t.workspaceAdd.manage}
-                icon={<CloudIcon color={theme.color.fg} size={icon} />}
-                onPress={() => closeThen(() => router.push('/cloud-services'))}
-              />
-            )}
-            <FooterRow
-              label={t.notifications}
-              icon={<ActivityIcon color={theme.color.fg} size={icon} />}
-              onPress={() => closeThen(() => hostDrawer.openNotifications())}
-            />
-          </View>
+          <WorkspacePanel active={state.shown} docked={docked} />
         </Animated.View>
       </View>
     </GestureDetector>

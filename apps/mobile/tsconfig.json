@@ -13,6 +13,7 @@
     "app",
     "src",
     "test/posthog-sender.test.ts",
+    "test/workspace-panel-root.test.ts",
     "test/mobile-telemetry-wire-live.test.ts",
     "test/native-telemetry.test.ts",
     "test/native-persistence.test.ts",
@@ -26,6 +27,7 @@
     "test/host-session-multiple.test.ts",
     "test/conversation-cache-host.test.ts",
     "test/reanimated-shim.ts",
+    "test/platform-tokens.test.ts",
     "test/**/*.tsx"
   ]
 }

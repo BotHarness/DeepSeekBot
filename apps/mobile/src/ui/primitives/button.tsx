@@ -12,8 +12,8 @@ import {
   TerminalIcon,
   InfoIcon,
   RefreshIcon,
+  PhotoIcon,
 } from '../shell/icons';
-import type { ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 import { controlCase } from '../platform-copy';
 
@@ -26,6 +26,8 @@ import { LoadingIndicator } from './loading-indicator';
 
 export type { ButtonTone } from '../design/controls';
 
+export type ButtonSymbol = ActionSymbol | 'photo';
+
 export function Button({
   label,
   onPress,
@@ -34,10 +36,10 @@ export function Button({
   busy = false,
   on = 'raised',
   variant = 'filled',
-  icon,
   symbol,
   testID,
 }: {
+  fit?: boolean;
   label: string;
   onPress(): void;
   tone?: ButtonTone;
@@ -45,8 +47,7 @@ export function Button({
   busy?: boolean;
   on?: LayerName;
   variant?: 'filled' | 'text';
-  icon?: ReactNode;
-  symbol?: ActionSymbol;
+  symbol?: ButtonSymbol;
   testID?: string;
 }) {
   const theme = useDesignTheme();
@@ -99,15 +100,12 @@ export function Button({
               'external-link': ExternalLinkIcon,
               terminal: TerminalIcon,
               info: InfoIcon,
+              photo: PhotoIcon,
             }[symbol];
             return <Icon color={labelColor} size={theme.type.body.size} />;
           })()}
         </View>
-      ) : icon === undefined ? null : (
-        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-          {icon}
-        </View>
-      )}
+      ) : null}
       <Text strong style={{ color: labelColor, textAlign: 'center', flexShrink: 1 }}>
         {controlCase(label)}
       </Text>

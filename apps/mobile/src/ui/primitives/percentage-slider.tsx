@@ -3,15 +3,13 @@ import { PanResponder, View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 
-export function PercentageSlider({
-  label,
-  value,
-  onChange,
-}: {
+export interface PercentageSliderProps {
   label: string;
   value: number;
   onChange(value: number): void;
-}) {
+}
+
+export function PercentageSlider({ label, value, onChange }: PercentageSliderProps) {
   const theme = useDesignTheme();
   const [width, setWidth] = useState(0);
   const current = useRef({ value, width, onChange });

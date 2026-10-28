@@ -82,6 +82,7 @@ export const materialNavigationBar = {
   iconLabelGap: 4,
 } as const;
 export const materialIconButton = {
+  target: 48,
   container: 40,
   iconSize: 24,
 } as const;
@@ -108,9 +109,17 @@ export const loadingIndicator = {
   control: 20,
   controlStroke: 2.5,
 } as const;
+export const materialButton = { icon: 18, iconGap: space.x3 } as const;
 export const stepBar = { height: { ios: 52, android: 56 }, gap: space.x3 } as const;
 
 export const creationAvatar = { size: 112 } as const;
+export const avatarEditor = {
+  preview: 112,
+  tile: 64,
+  color: 40,
+  columns: 3,
+  largeColumns: 2,
+} as const;
 export const creationHeader = {
   avatar: 40,
   progressSpring: {
@@ -120,7 +129,6 @@ export const creationHeader = {
     overshootClamping: true,
   },
 } as const;
-export const swipeAction = { size: 56 } as const;
 export const tabHeader = { gutter: space.x4 } as const;
 export const chatList = {
   gutter: tabHeader.gutter,
@@ -270,6 +278,38 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
 
+export const workspaceStack = { max: 3, tile: 28, overlap: 10, ring: 2 } as const;
+
+export const swipeOpen = {
+  start: 24,
+  verticalFail: 8,
+  commit: 64,
+  flick: 500,
+  dim: 0.4,
+  settle: 400,
+  edgeShadow: {
+    light: '-4px 0 12px rgba(15, 17, 21, 0.12)',
+    dark: '-4px 0 12px rgba(0, 0, 0, 0.45)',
+  },
+} as const;
+
+export const swipeReply = {
+  start: 12,
+  verticalFail: 10,
+  commit: 56,
+  reach: 72,
+  icon: 28,
+  bar: 3,
+} as const;
+
+export const topEntrance = {
+  edge: 20,
+  start: 12,
+  verticalFail: 16,
+  commit: 96,
+  flick: 500,
+} as const;
+
 export const markdownTable = {
   minColumnWidth: 96,
   maxColumnWidth: 280,
@@ -303,6 +343,8 @@ export const undoBar = { duration: 5000 } as const;
 
 export const PRESS_TINT = 0.12;
 
+export const glassPress = { dim: 0.6, gap: space.x2 } as const;
+
 export const scrim = {
   light: 0.32,
   dark: 0.6,
@@ -326,8 +368,6 @@ export const profileShell = {
   bannerAspect: 3,
   overlap: 28,
   chipOverlap: 12,
-  openScale: 0.94,
-  dismissDistance: 96,
 } as const;
 
 export const channelMedia = {

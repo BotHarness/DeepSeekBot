@@ -1,12 +1,8 @@
+import { Host, type PrimitiveBaseProps } from '@expo/ui/jetpack-compose';
+import { testID } from '@expo/ui/jetpack-compose/modifiers';
 import { requireNativeView } from 'expo';
 import { useState } from 'react';
-import {
-  Keyboard,
-  View,
-  useWindowDimensions,
-  type ViewInstance,
-  type ViewProps,
-} from 'react-native';
+import { Keyboard, View, useWindowDimensions, type ViewInstance } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useDesignTheme } from '../design/theme';
 import { fab } from '../design/tokens';
@@ -18,23 +14,21 @@ import { creationMenuItems, type CreationMenuItem } from './creation-menu-items'
 import type { CreationMenuButtonProps } from './creation-menu-button';
 import { fabMenuPath, type FabMenuIcon } from './fab-menu-paths';
 
-type NativeFabMenuProps = ViewProps & {
+type NativeFabMenuProps = PrimitiveBaseProps & {
   items: { key: string; label: string; path: string }[];
   expanded: boolean;
   available: boolean;
   label: string;
   closeLabel: string;
-  dark: boolean;
-  buttonContainer: string;
-  buttonContent: string;
-  itemContainer: string;
-  itemContent: string;
   reduceMotion: boolean;
   onToggle(event: { nativeEvent: { expanded: boolean } }): void;
   onPick(event: { nativeEvent: { key: string } }): void;
 };
 
-const NativeFabMenu = requireNativeView<NativeFabMenuProps>('MaterialFabMenu');
+const NativeFabMenu = requireNativeView<NativeFabMenuProps>(
+  'MaterialFabMenu',
+  'MaterialFabMenuView',
+);
 
 export function fabMenuHeight(count: number, size: number): number {
   return (
@@ -110,35 +104,31 @@ export function CreationMenuButton(props: CreationMenuButtonProps) {
       }
     >
       {open ? <BackWhileOpen onBack={close} /> : null}
-      <NativeFabMenu
-        testID="creation-fab-menu"
-        style={{ flex: 1 }}
-        items={entries.map((entry) => ({
-          key: entry.key,
-          label: entry.label,
-          path: fabMenuPath[entry.icon],
-        }))}
-        expanded={open}
-        available={!props.busy}
-        label={t.createHere}
-        closeLabel={t.close}
-        dark={theme.scheme === 'dark'}
-        buttonContainer={theme.layer.canvas.chosen}
-        buttonContent={theme.color.fg}
-        itemContainer={theme.color.accent}
-        itemContent={theme.color.onAccent}
-        reduceMotion={reduced}
-        onToggle={(event) => {
-          if (event.nativeEvent.expanded) {
-            if (props.busy) return;
-            Keyboard.dismiss();
-            haptic('menu');
-            setSized(true);
-            setOpen(true);
-          } else close();
-        }}
-        onPick={(event) => pick(event.nativeEvent.key)}
-      />
+      <Host colorScheme={theme.scheme} seedColor={theme.color.accent} style={{ flex: 1 }}>
+        <NativeFabMenu
+          modifiers={[testID('creation-fab-menu')]}
+          items={entries.map((entry) => ({
+            key: entry.key,
+            label: entry.label,
+            path: fabMenuPath[entry.icon],
+          }))}
+          expanded={open}
+          available={!props.busy}
+          label={t.createHere}
+          closeLabel={t.close}
+          reduceMotion={reduced}
+          onToggle={(event) => {
+            if (event.nativeEvent.expanded) {
+              if (props.busy) return;
+              Keyboard.dismiss();
+              haptic('menu');
+              setSized(true);
+              setOpen(true);
+            } else close();
+          }}
+          onPick={(event) => pick(event.nativeEvent.key)}
+        />
+      </Host>
     </View>
   );
 }

@@ -4,10 +4,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { frosted, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
+import { edge, glassPress, radius, space } from '../design/tokens';
 import { DrawerMaterial, EdgeMaterial, useLiquidGlass } from '../primitives/drawer-material';
 import { BackIcon } from '../shell/back-icon';
-import { headerIslands } from './header-kind';
+import { glassHeader, headerIslands } from './header-kind';
 import { useStrings } from '../strings';
 import { edgeFadeStops } from './edge-fade';
 
@@ -86,6 +86,7 @@ export function headerGlassFill(theme: DesignTheme, glass: boolean, pressed: boo
 
 export function titleChipFill(theme: DesignTheme, pressed: boolean) {
   if (headerIslands) return headerGlassFill(theme, false, pressed);
+  if (glassHeader) return { opacity: pressed ? glassPress.dim : 1 };
   return { backgroundColor: pressed ? theme.layer.raised.pressed : undefined };
 }
 

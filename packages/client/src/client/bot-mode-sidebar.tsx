@@ -207,6 +207,7 @@ export function BotModeSidebar(props: BotModeSidebarProps): ReactElement {
           quickSwitcherSettings={props.quickSwitcherSettings}
           setSortMode={props.setSortMode}
           setSectionSortMode={props.setSectionSortMode}
+          dockPanels={props.dockPanels}
           t={t}
         />
       </div>

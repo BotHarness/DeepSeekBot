@@ -26,6 +26,7 @@ export function ActionMenuButton({
       <Host
         colorScheme={theme.scheme}
         seedColor={theme.color.accent}
+        ignoreSafeAreaKeyboardInsets
         pointerEvents="none"
         style={StyleSheet.absoluteFill}
       >
@@ -57,7 +58,7 @@ export function ActionMenuButton({
                       icon: (
                         <MenuIcon
                           icon={action.icon}
-                          color={destructive ? theme.color.danger : theme.color.muted}
+                          color={destructive ? theme.color.danger : theme.color.fg}
                           size={materialMenu.iconSize}
                         />
                       ),

@@ -1,9 +1,7 @@
 import { FlatList, View } from 'react-native';
 import type { InviteSheetProps } from './invite-selection';
-import { useDesignTheme } from '../design/theme';
 import { BotAvatar } from '../bot-avatar';
 import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
-import { PlusIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { SHEET_GROUP, Sheet, SheetNote } from './sheet';
 import { useRef, useState } from 'react';
@@ -13,7 +11,6 @@ import { radius } from '../design/tokens';
 
 export function InviteSheet({ candidates, onInvite, onClose }: InviteSheetProps) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const alive = useRef(false);
   const mount = useMounted<unknown>(() => {
     alive.current = true;
@@ -43,7 +40,7 @@ export function InviteSheet({ candidates, onInvite, onClose }: InviteSheetProps)
                   title={item.displayName}
                   on={SHEET_GROUP}
                   leading={<BotAvatar bot={item} size={32} ring={false} corner={radius.sm} />}
-                  trailing={<PlusIcon color={theme.color.muted} size={20} />}
+                  control={{ kind: 'add' }}
                   onPress={
                     busy
                       ? undefined

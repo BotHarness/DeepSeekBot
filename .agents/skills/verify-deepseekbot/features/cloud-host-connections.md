@@ -21,6 +21,6 @@ Reserve the shared QA lane before starting Hosts. Use two distinct isolated DSH 
 
 ## Gotchas
 
-On the Chinese shell, pass `--locale zh --bot-mode`. Open the Messages rail panel before selecting a local group. Wait for that group's composer, not just its text: a sidebar preview can satisfy a text wait while the main pane remains Home. Inspect the screenshot and ARIA tree before accepting the journey.
+On the Chinese shell, pass `--locale zh --bot-mode`. Open the Messages rail panel before selecting a local group. Wait for that group's composer, not just its text: a sidebar preview can satisfy a text wait while the main pane shows another panel. Inspect the screenshot and ARIA tree before accepting the journey.
 
 HTTP history is the first transport; WebSocket remains separate. Import/binding does not grant shell access, remote approval authority, or membership in another organization. The protected local steward Tob is not this cloud Agent. Native/phone/Android and Human QA remain separate evidence categories.

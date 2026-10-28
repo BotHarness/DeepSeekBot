@@ -87,11 +87,11 @@ it.each([
 });
 
 it.each([
-  ['mobile_app_opened', { launch_kind: 'cold', paired_host_count_bucket: '0' }],
-  ['mobile_pairing_started', { method: 'qr', attempt_id: id }],
-  ['mobile_pairing_started', { method: 'image', attempt_id: id }],
+  ['app:app_open', { launch_kind: 'cold', paired_host_count_bucket: '0' }],
+  ['pairing:attempt_start', { method: 'qr', attempt_id: id }],
+  ['pairing:attempt_start', { method: 'image', attempt_id: id }],
   [
-    'mobile_pairing_result',
+    'pairing:attempt_complete',
     {
       method: 'image',
       attempt_id: id,
@@ -101,7 +101,7 @@ it.each([
     },
   ],
   [
-    'mobile_pairing_result',
+    'pairing:attempt_complete',
     {
       method: 'qr',
       attempt_id: id,
@@ -111,7 +111,7 @@ it.each([
     },
   ],
   [
-    'mobile_connection_result',
+    'connection:attempt_complete',
     {
       trigger: 'open',
       outcome: 'ready',
@@ -121,7 +121,7 @@ it.each([
       retry_count_bucket: '0',
     },
   ],
-  ['mobile_activation_step', { step: 'host_ready', channel_kind: 'none' }],
+  ['onboarding:activation_step_complete', { step: 'host_ready', channel_kind: 'none' }],
 ] as const)(
   'preserves common context for %s and still accepts its old queued shape',
   (event, properties) => {
@@ -164,7 +164,7 @@ it.each([
 ] as const)('refuses an invalid %s field before storage or sending', (name, value) => {
   expect(
     sanitizeEvent(
-      envelope('mobile_app_opened', {
+      envelope('app:app_open', {
         ...context,
         launch_kind: 'cold',
         paired_host_count_bucket: '0',
@@ -172,4 +172,13 @@ it.each([
       }),
     ),
   ).toBeUndefined();
+});
+
+it('renames events queued before the tracking plan instead of dropping them', () => {
+  const old = sanitizeEvent(
+    envelope('mobile_activation_step' as never, { step: 'host_ready', channel_kind: 'dm' }),
+  );
+  expect(old?.event).toBe('onboarding:activation_step_complete');
+  expect(old?.properties).toMatchObject({ step: 'host_ready', channel_kind: 'dm' });
+  expect(sanitizeEvent(envelope('mobile_unknown' as never, {}))).toBeUndefined();
 });

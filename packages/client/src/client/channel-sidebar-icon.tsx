@@ -210,6 +210,22 @@ const glyphs: Record<string, readonly [string, Record<string, string | number>][
     ],
     ['path', { d: 'm9 12 2 2 4-4' }],
   ],
+  upload: [
+    ['path', { d: 'M12 3v12' }],
+    ['path', { d: 'm17 8-5-5-5 5' }],
+    ['path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }],
+  ],
+  package: [
+    [
+      'path',
+      {
+        d: 'M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z',
+      },
+    ],
+    ['path', { d: 'M12 22V12' }],
+    ['path', { d: 'M3.29 7 12 12l8.71-5' }],
+    ['path', { d: 'm7.5 4.27 9 5.15' }],
+  ],
   plus: [
     ['path', { d: 'M5 12h14' }],
     ['path', { d: 'M12 5v14' }],

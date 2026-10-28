@@ -6,6 +6,7 @@ import {
   font,
   foregroundStyle,
   frame,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 
 import { controlCase } from '../platform-copy';
@@ -43,6 +44,7 @@ export function ActionMenuButton({
           accessibilityLabel(label),
           accessibilityIdentifier(testID),
           disabledModifier(disabled),
+          tint(theme.color.fg),
         ]}
       >
         {actions.map((action) => (
@@ -51,6 +53,9 @@ export function ActionMenuButton({
             label={controlCase(action.label)}
             systemImage={SYMBOL[action.icon]}
             {...(action.destructive === true ? { role: 'destructive' as const } : {})}
+            modifiers={[
+              foregroundStyle(action.destructive === true ? theme.color.danger : theme.color.fg),
+            ]}
             onPress={action.run}
           />
         ))}

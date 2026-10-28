@@ -1,20 +1,25 @@
 import { Platform } from 'react-native';
-
 import type { DesignTheme } from '../design/theme';
-import { sheetScreenOptions } from '../primitives/sheet-screen';
-import { zoomTransition } from './profile-shell';
 
-function transition(theme: DesignTheme, reducedMotion: boolean) {
-  if (Platform.OS === 'android') return sheetScreenOptions(theme, true);
-  if (zoomTransition && !reducedMotion) return { presentation: 'fullScreenModal' as const };
-  return { presentation: 'fullScreenModal' as const, animation: 'fade' as const };
+export function profileScreenOptions(theme: DesignTheme, reducedMotion = false) {
+  return {
+    presentation: 'card' as const,
+    gestureEnabled: true,
+    fullScreenGestureEnabled: false,
+    contentStyle: { backgroundColor: theme.overlay.fill },
+    ...(Platform.OS === 'ios'
+      ? {
+          animation: reducedMotion ? ('fade' as const) : ('default' as const),
+          headerShown: true,
+          headerTransparent: true,
+          headerShadowVisible: false,
+          headerBackButtonDisplayMode: 'minimal' as const,
+          title: '',
+        }
+      : { animation: 'slide_from_right' as const, headerShown: false }),
+  };
 }
 
-export function profileScreenOptions(theme: DesignTheme, reducedMotion: boolean) {
-  return {
-    headerShown: false,
-    gestureEnabled: true,
-    contentStyle: { backgroundColor: theme.overlay.fill },
-    ...transition(theme, reducedMotion),
-  };
+export function profileRootHeader(route: string): { headerShown: boolean } | undefined {
+  return Platform.OS === 'ios' ? { headerShown: route === 'index' } : undefined;
 }

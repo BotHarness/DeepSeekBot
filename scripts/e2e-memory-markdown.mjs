@@ -216,7 +216,8 @@ try {
   await page.waitForSelector('.bh-root.bh-main', { visible: true });
   await dismiss();
   await click('Markdown Preview QA: Idle Markdown Preview QA No messages yet');
-  await click('Messages · ⌥ ⇧ ⌘ 2');
+  if (await page.$('.bh-workspace-rail [data-pinned-panel="bh:channel-body"]'))
+    await click('Messages · ⌥ ⇧ ⌘ 2');
   await dismiss();
   for (const name of ['Close Home', 'Close Sessions']) {
     const el = await page.$(`::-p-aria([name=${JSON.stringify(name)}][role="button"])`);

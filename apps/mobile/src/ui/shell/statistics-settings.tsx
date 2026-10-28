@@ -2,7 +2,6 @@ import { useState, useSyncExternalStore } from 'react';
 import { mobileTelemetry } from '../../telemetry/native';
 import { SHEET_GROUP } from '../chat/sheet';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { Toggle } from '../primitives/toggle';
 import { useStrings } from '../strings';
 
 export function StatisticsSettings() {
@@ -25,18 +24,15 @@ export function StatisticsSettings() {
       <SettingsRow
         on={on}
         title={t.statisticsTitle}
-        trailing={
-          <Toggle
-            on={on}
-            label={t.statisticsTitle}
-            value={state.enabled}
-            disabled={!state.loaded || saving}
-            onChange={(value) => {
-              setSaving(true);
-              void mobileTelemetry.setEnabled(value).finally(() => setSaving(false));
-            }}
-          />
-        }
+        control={{
+          kind: 'switch',
+          value: state.enabled,
+          onChange: (value) => {
+            setSaving(true);
+            void mobileTelemetry.setEnabled(value).finally(() => setSaving(false));
+          },
+          disabled: !state.loaded || saving,
+        }}
       />
       <SettingsRow
         on={on}

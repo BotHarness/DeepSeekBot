@@ -2,9 +2,9 @@ import { useHostSession } from '../../host/host-session';
 import { useRouter } from 'expo-router';
 import { Button } from '../primitives/button';
 import type { RequestRef } from '../../host/requests';
-import { CardLine, CardNote, ActionCard } from './action-card';
+import { CardNote, CardPreview, ActionCard } from './action-card';
+import { CardLine } from './card-line';
 import type { BubbleGroup } from './bubble-shape';
-import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 
 export function PrivateInputCard({
@@ -47,11 +47,7 @@ export function PrivateInputCard({
       {...(purpose === undefined
         ? {}
         : {
-            preview: (
-              <Text selectable variant="meta">
-                {purpose}
-              </Text>
-            ),
+            preview: <CardPreview text={purpose} well={false} />,
           })}
     >
       <CardNote>{t.privateInputSecureNote}</CardNote>

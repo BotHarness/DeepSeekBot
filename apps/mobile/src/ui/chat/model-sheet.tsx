@@ -10,9 +10,11 @@ import {
   type ModelCatalogEntry,
   type ModelPreset,
 } from '../../host/bot-settings';
-import { useDesignTheme } from '../design/theme';
-import { SettingsGroupItem, SettingsRow } from '../primitives/settings-row';
-import { CheckIcon } from '../shell/icons';
+import {
+  SettingsGroupItem,
+  SettingsRow,
+  type SettingsRowControl,
+} from '../primitives/settings-row';
 import { useStrings, t } from '../strings';
 import {
   Sheet,
@@ -24,7 +26,6 @@ import {
   SheetNote,
   SHEET_GROUP,
 } from './sheet';
-import { LoadingIndicator } from '../primitives/loading-indicator';
 
 type Row =
   | { kind: 'preset'; key: string; preset: ModelPreset }
@@ -56,7 +57,6 @@ export function ModelSheet({
   onClose(): void;
 }) {
   const t = useStrings();
-  const theme = useDesignTheme();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const close = () => {
@@ -79,12 +79,8 @@ export function ModelSheet({
       },
     );
   };
-  const trailing = (key: string, selected: boolean) =>
-    busy === key ? (
-      <LoadingIndicator size="control" />
-    ) : selected ? (
-      <CheckIcon color={theme.color.fg} size={theme.type.title.line} />
-    ) : undefined;
+  const control = (key: string, selected: boolean): SettingsRowControl | undefined =>
+    busy === key ? { kind: 'busy' } : selected ? { kind: 'check' } : undefined;
 
   let body;
   if (model.status === 'loading') body = <SheetLoading />;
@@ -129,7 +125,7 @@ export function ModelSheet({
             detail={detail}
             selected={selected}
             on={SHEET_GROUP}
-            trailing={trailing(item.key, selected)}
+            control={control(item.key, selected)}
             onPress={() => run(item.key, () => onPreset(item.preset.id))}
           />
         );
@@ -143,7 +139,7 @@ export function ModelSheet({
           tone={usable ? 'fg' : 'muted'}
           selected={selected}
           on={SHEET_GROUP}
-          trailing={trailing(item.key, selected)}
+          control={control(item.key, selected)}
           {...(usable
             ? {
                 onPress: () => run(item.key, () => onChoose(value, item.entry)),
@@ -154,6 +150,7 @@ export function ModelSheet({
     };
     body = (
       <SectionList<Row, { title: string; data: readonly Row[] }>
+        nestedScrollEnabled
         style={page !== undefined ? { flex: 1 } : { flexShrink: 1 }}
         sections={sections}
         keyExtractor={(row) => row.key}

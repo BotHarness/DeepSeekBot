@@ -2,21 +2,25 @@ package expo.modules.materialsplitbutton
 
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.ui.ExpoUIView
 
 class MaterialSplitButtonModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("MaterialSplitButton")
-    View(MaterialSplitButtonView::class) {
-      Events("onPress", "onPick", "onSize")
-      Prop("label") { view: MaterialSplitButtonView, value: String -> view.label = value }
-      Prop("path") { view: MaterialSplitButtonView, value: String -> view.path = value }
-      Prop("menuLabel") { view: MaterialSplitButtonView, value: String -> view.menuLabel = value }
-      Prop("items") { view: MaterialSplitButtonView, value: List<SplitMenuItem> -> view.items = value }
-      Prop("available") { view: MaterialSplitButtonView, value: Boolean -> view.available = value }
-      Prop("dark") { view: MaterialSplitButtonView, value: Boolean -> view.dark = value }
-      Prop("container") { view: MaterialSplitButtonView, value: String -> view.container = value }
-      Prop("content") { view: MaterialSplitButtonView, value: String -> view.content = value }
-      Prop("testPrefix") { view: MaterialSplitButtonView, value: String -> view.testPrefix = value }
+    ExpoUIView<SplitButtonProps>("MaterialSplitButtonView") {
+      val onPress by Event<Unit>()
+      val onPick by Event<SplitPickEvent>()
+      val onSize by Event<SplitSizeEvent>()
+
+      Content { props ->
+        SplitButtonContent(
+          props,
+          onPress = { onPress(Unit) },
+          onPick = { onPick(SplitPickEvent(it)) },
+          // Posted, like Host's own size event: dispatching from a measure pass can re-enter it.
+          onSize = { width, height -> view.post { onSize(SplitSizeEvent(width, height)) } },
+        )
+      }
     }
   }
 }

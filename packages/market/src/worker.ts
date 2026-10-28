@@ -24,7 +24,29 @@ import {
   type Protection,
   type ProtectionLimits,
 } from './protection.js';
+import { prepareReadme } from './readme.js';
 import { createSummarizer, refreshSummaries, type Summarizer } from './summary.js';
+import { bearer, createAccessTokenVerifier, workosKeys, type AccessTokenVerifier } from './auth.js';
+import type { R2Bucket } from './r2.js';
+import {
+  createDigests,
+  createDigestWriter,
+  DIGEST_DAY,
+  refreshDigest,
+  type DigestFiles,
+  type Digests,
+  type DigestWriter,
+} from './digest.js';
+import { createRankings, isRankingSection, type Rankings } from './rankings.js';
+import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
+import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
+import {
+  createUploads,
+  MAX_AUTHOR_AVATAR_BYTES,
+  UPLOAD_REFUSAL_STATUS,
+  type UploadResult,
+  type Uploads,
+} from './uploads.js';
 
 export interface MarketEnv {
   MARKET_DB: D1Database;
@@ -35,6 +57,8 @@ export interface MarketEnv {
   SUMMARY_API_KEY?: string;
   SUMMARY_API_BASE?: string;
   SUMMARY_MODEL?: string;
+  MARKET_FILES?: R2Bucket | undefined;
+  WORKOS_CLIENT_ID?: string;
 }
 
 export interface MarketHandlerDeps {
@@ -43,12 +67,17 @@ export interface MarketHandlerDeps {
   protection: Protection | undefined;
   adminToken: string | undefined;
   reportThreshold: number;
+  receipts?: Receipts | undefined;
+  rankings?: Rankings | undefined;
+  digests?: Digests | undefined;
+  uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
 }
 
 export interface MarketOptions {
   now?: () => Date;
   limits?: Partial<ProtectionLimits>;
   challengeNumber?: () => number;
+  verifier?: AccessTokenVerifier;
 }
 
 const refusalStatus: Record<SubmissionRefusal, number> = {
@@ -68,8 +97,13 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function failure(status: number, code: string, headers: Record<string, string> = {}): Response {
-  const response = json(status, { error: { code } });
+function failure(
+  status: number,
+  code: string,
+  headers: Record<string, string> = {},
+  path?: string,
+): Response {
+  const response = json(status, { error: path === undefined ? { code } : { code, path } });
   for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
   return response;
 }
@@ -90,6 +124,18 @@ function blocklistTarget(body: Record<string, unknown>): BlocklistTarget | undef
   if (typeof id === 'string' && id.length > 0 && url === undefined) return { id };
   if (typeof url === 'string' && url.length > 0 && id === undefined) return { url };
   return undefined;
+}
+
+function refused<T>(result: UploadResult<T> & { ok: false }): Response {
+  return failure(UPLOAD_REFUSAL_STATUS[result.code], result.code, {}, result.path);
+}
+
+function decodePath(value: string): string | undefined {
+  try {
+    return value.split('/').map(decodeURIComponent).join('/');
+  } catch {
+    return undefined;
+  }
 }
 
 function isBrowseSort(value: string): value is BrowseSort {
@@ -152,6 +198,169 @@ export function createMarketHandler(
       };
       return failure(status[result.code], result.code);
     }
+    const viewMatch = /^\/v1\/bots\/([^/]+)\/view\/(.+)$/u.exec(url.pathname);
+    if (viewMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const id = decodePath(viewMatch[1]!);
+      const path = decodePath(viewMatch[2]!);
+      const file =
+        id === undefined || path === undefined || deps.uploads === undefined
+          ? undefined
+          : await deps.uploads.store.readText(id, path);
+      if (file === undefined) return failure(404, 'file-not-found');
+      if (file === null) return failure(415, 'file-not-text');
+      const directory = file.path.split('/').slice(0, -1).join('/');
+      return json(200, {
+        file: {
+          path: file.path,
+          size: file.size,
+          type: file.type,
+          text:
+            file.type === 'markdown'
+              ? prepareReadme(file.text, {
+                  owner: '',
+                  name: '',
+                  ref: '',
+                  filesBase: `${url.origin}/v1/bots/${encodeURIComponent(id!)}/files`,
+                  ...(directory === '' ? {} : { directory }),
+                })
+              : file.text,
+        },
+      });
+    }
+    const avatarMatch = /^\/v1\/authors\/([2-9a-z]{6})\/avatar\/([^/]+)$/u.exec(url.pathname);
+    if (avatarMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const avatar = await deps.uploads?.store.readAvatar(avatarMatch[1]!, avatarMatch[2]!);
+      if (avatar === undefined) return failure(404, 'file-not-found');
+      return new Response(avatar.bytes, {
+        status: 200,
+        headers: {
+          'content-type': avatar.contentType,
+          'cache-control': 'public, max-age=31536000, immutable',
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'none'; sandbox",
+        },
+      });
+    }
+    const fileMatch = /^\/v1\/bots\/([^/]+)\/files\/(.+)$/u.exec(url.pathname);
+    if (fileMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const id = decodePath(fileMatch[1]!);
+      const path = decodePath(fileMatch[2]!);
+      const file =
+        id === undefined || path === undefined || deps.uploads === undefined
+          ? undefined
+          : await deps.uploads.store.readFile(id, path);
+      if (file === undefined) return failure(404, 'file-not-found');
+      return new Response(file.bytes, {
+        status: 200,
+        headers: {
+          'content-type': file.contentType,
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'none'; sandbox",
+        },
+      });
+    }
+    if (
+      url.pathname === '/v1/me' ||
+      url.pathname.startsWith('/v1/me/') ||
+      url.pathname.startsWith('/v1/uploads')
+    ) {
+      if (deps.uploads === undefined) return failure(503, 'uploads-unavailable');
+      const token = bearer(request);
+      const account = token === undefined ? undefined : await deps.uploads.verifier.verify(token);
+      if (account === undefined) return failure(401, 'unauthorized');
+      const store = deps.uploads.store;
+      if (url.pathname === '/v1/me') {
+        if (request.method === 'GET') return json(200, { author: await store.author(account) });
+        if (request.method === 'DELETE') {
+          await store.removeAccount(account);
+          return json(200, { deleted: true });
+        }
+        if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
+        const body = await readBody(request);
+        const saved = await store.saveAuthor(account, {
+          displayName: body?.['displayName'],
+          acceptTerms: body?.['acceptTerms'],
+        });
+        return saved.ok ? json(200, { author: saved.value }) : refused(saved);
+      }
+      if (url.pathname === '/v1/me/avatar') {
+        if (request.method === 'DELETE') {
+          const removed = await store.removeAvatar(account);
+          return removed.ok ? json(200, { author: removed.value }) : refused(removed);
+        }
+        if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
+        const declared = Number(request.headers.get('content-length') ?? '0');
+        if (declared > MAX_AUTHOR_AVATAR_BYTES) return failure(413, 'avatar-too-large');
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        const saved = await store.saveAvatar(account, bytes, url.origin);
+        return saved.ok ? json(200, { author: saved.value }) : refused(saved);
+      }
+      if (url.pathname === '/v1/me/bots') {
+        if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+        const lang = parseMarketplaceLanguage(url.searchParams.get('lang'));
+        return json(200, { bots: await catalog.authored(account, lang) });
+      }
+      const mine = /^\/v1\/me\/bots\/([^/]+)$/u.exec(url.pathname);
+      if (mine !== null) {
+        if (request.method !== 'DELETE') return failure(405, 'method-not-allowed');
+        const id = decodePath(mine[1]!);
+        return id !== undefined && (await store.remove(account, id))
+          ? json(200, { deleted: true })
+          : failure(404, 'bot-not-found');
+      }
+      if (url.pathname === '/v1/uploads') {
+        if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+        const body = await readBody(request);
+        if (body === undefined) return failure(400, 'invalid-upload');
+        const begun = await store.begin(account, body);
+        return begun.ok ? json(201, { upload: begun.value }) : refused(begun);
+      }
+      const put = /^\/v1\/uploads\/([a-f0-9]{32})\/files\/(.+)$/u.exec(url.pathname);
+      if (put !== null) {
+        if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
+        const path = decodePath(put[2]!);
+        if (path === undefined) return failure(400, 'invalid-path');
+        const declared = Number(request.headers.get('content-length') ?? '0');
+        if (declared > MAX_UPLOAD_FILE_BYTES) return failure(413, 'file-too-large', {}, path);
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        if (bytes.byteLength > MAX_UPLOAD_FILE_BYTES)
+          return failure(413, 'file-too-large', {}, path);
+        const stored = await store.putFile(account, put[1]!, path, bytes);
+        return stored.ok ? new Response(null, { status: 204 }) : refused(stored);
+      }
+      const publish = /^\/v1\/uploads\/([a-f0-9]{32})\/publish$/u.exec(url.pathname);
+      if (publish !== null) {
+        if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+        const published = await store.publish(account, publish[1]!, url.origin);
+        if (!published.ok) return refused(published);
+        const detail = await catalog.detail(published.value);
+        return detail === undefined
+          ? failure(404, 'bot-not-found')
+          : json(201, { bot: detail.bot });
+      }
+      return failure(404, 'not-found');
+    }
+    const installId = /^\/v1\/bots\/([^/]+)\/installs$/u.exec(url.pathname)?.[1];
+    if (installId !== undefined) {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (protection === undefined || deps.receipts === undefined) {
+        return failure(503, 'receipts-unavailable');
+      }
+      const id = decodePath(installId);
+      const hostId = (await readBody(request))?.['hostId'];
+      if (id === undefined) return failure(404, 'bot-not-found');
+      if (!isMarketplaceHostId(hostId)) return failure(400, 'invalid-receipt');
+      if (!(await protection.allow(await protection.source(request), 'install'))) {
+        return failure(429, 'rate-limited', { 'retry-after': '3600' });
+      }
+      const recorded = await deps.receipts.record(id, hostId);
+      return recorded.ok
+        ? json(202, { counted: recorded.counted, installs: recorded.installs })
+        : failure(404, 'bot-not-found');
+    }
     const reportId = /^\/v1\/bots\/([^/]+)\/reports$/u.exec(url.pathname)?.[1];
     if (reportId !== undefined) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
@@ -192,7 +401,9 @@ export function createMarketHandler(
       if ([...query].length > MAX_QUERY_LENGTH) return failure(400, 'invalid-query');
       const topic = url.searchParams.get('topic')?.trim().toLowerCase() ?? '';
       const language = parseMarketplaceLanguage(url.searchParams.get('lang'));
+      const include = url.searchParams.get('include') ?? '';
       const page = await catalog.list({
+        ...(include.split(',').includes('uploads') ? { includeUploads: true } : {}),
         ...(language === undefined ? {} : { language }),
         sort: sortParam,
         ...(limit === undefined ? {} : { limit }),
@@ -216,6 +427,39 @@ export function createMarketHandler(
         parseMarketplaceLanguage(url.searchParams.get('lang')),
       );
       return detail === undefined ? failure(404, 'bot-not-found') : json(200, detail);
+    }
+    const sectionName = /^\/v1\/sections\/([^/]+)$/u.exec(url.pathname)?.[1];
+    if (sectionName !== undefined) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (!isRankingSection(sectionName) || deps.rankings === undefined) {
+        return failure(404, 'section-not-found');
+      }
+      return json(
+        200,
+        await deps.rankings.section(
+          sectionName,
+          parseMarketplaceLanguage(url.searchParams.get('lang')),
+        ),
+      );
+    }
+    if (url.pathname === '/v1/digests') {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (deps.digests === undefined) return json(200, { digests: [] });
+      return json(200, {
+        digests: await deps.digests.list(parseMarketplaceLanguage(url.searchParams.get('lang'))),
+      });
+    }
+    const digestDay = /^\/v1\/digests\/([^/]+)$/u.exec(url.pathname)?.[1];
+    if (digestDay !== undefined) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (digestDay !== 'latest' && !DIGEST_DAY.test(digestDay)) {
+        return failure(400, 'invalid-day');
+      }
+      const digest = await deps.digests?.get(
+        digestDay,
+        parseMarketplaceLanguage(url.searchParams.get('lang')),
+      );
+      return digest === undefined ? failure(404, 'digest-not-found') : json(200, { digest });
     }
     if (url.pathname === '/v1/topics') {
       if (request.method !== 'GET') return failure(405, 'method-not-allowed');
@@ -264,7 +508,20 @@ export function handlerForEnv(
 ): (request: Request) => Promise<Response> {
   const now = options.now ?? (() => new Date());
   const db = env.MARKET_DB;
-  const catalog = createCatalog({ db, github, now });
+  const bucket = env.MARKET_FILES;
+  const clientId = env.WORKOS_CLIENT_ID;
+  const store = bucket === undefined ? undefined : createUploads({ db, bucket, now });
+  const verifier =
+    options.verifier ??
+    (clientId === undefined || clientId.length === 0
+      ? undefined
+      : createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }));
+  const catalog = createCatalog({
+    db,
+    github,
+    now,
+    ...(store === undefined ? {} : { uploadedFiles: (id: string) => store.files(id) }),
+  });
   const key = env.ALTCHA_HMAC_KEY;
   return createMarketHandler({
     catalog,
@@ -284,6 +541,10 @@ export function handlerForEnv(
     adminToken:
       env.ADMIN_TOKEN === undefined || env.ADMIN_TOKEN.length === 0 ? undefined : env.ADMIN_TOKEN,
     reportThreshold: reportThreshold(env.REPORT_THRESHOLD),
+    receipts: createReceipts({ db, now }),
+    rankings: createRankings({ db, now }),
+    digests: createDigests({ db }),
+    uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }
 
@@ -304,12 +565,80 @@ export function summarizerForEnv(env: MarketEnv, fetchImpl?: typeof fetch): Summ
   });
 }
 
+export function digestWriterForEnv(
+  env: MarketEnv,
+  fetchImpl?: typeof fetch,
+): DigestWriter | undefined {
+  const apiKey = env.SUMMARY_API_KEY;
+  if (apiKey === undefined || apiKey.length === 0) return undefined;
+  return createDigestWriter({
+    apiKey,
+    apiBase: env.SUMMARY_API_BASE || DEFAULT_SUMMARY_API_BASE,
+    model: env.SUMMARY_MODEL || DEFAULT_SUMMARY_MODEL,
+    ...(fetchImpl === undefined ? {} : { fetchImpl }),
+  });
+}
+
+function digestFiles(env: MarketEnv, now: () => Date): DigestFiles | undefined {
+  const bucket = env.MARKET_FILES;
+  return bucket === undefined ? undefined : createUploads({ db: env.MARKET_DB, bucket, now });
+}
+
+async function writeDigest(
+  env: MarketEnv,
+  writer: DigestWriter | undefined,
+  log: (line: string) => void,
+  now: () => Date,
+): Promise<void> {
+  if (writer === undefined) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'digest',
+        skipped: 'missing-summary-api-key',
+      }),
+    );
+    return;
+  }
+  const started = Date.now();
+  try {
+    const report = await refreshDigest({
+      db: env.MARKET_DB,
+      writer,
+      now,
+      files: digestFiles(env, now),
+    });
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'digest',
+        durationMs: Date.now() - started,
+        ...report,
+      }),
+    );
+  } catch (error) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'digest',
+        durationMs: Date.now() - started,
+        failed: error instanceof Error ? error.message : 'unknown',
+      }),
+    );
+  }
+}
+
 export async function runScheduled(
   cron: string,
   env: MarketEnv,
   github: GitHubClient = createGitHubClient({ token: env.GITHUB_TOKEN }),
   log: (line: string) => void = (line) => console.log(line),
   summarizer: Summarizer | undefined = summarizerForEnv(env),
+  digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
+  now: () => Date = () => new Date(),
 ): Promise<void> {
   const crawler = createCrawler({ db: env.MARKET_DB, github, now: () => new Date() });
   const started = Date.now();
@@ -334,8 +663,17 @@ export async function runScheduled(
         skipped: 'missing-summary-api-key',
       }),
     );
-    return;
+  } else {
+    await refreshSummariesLogged(env, summarizer, log);
   }
+  if (digestWriter !== undefined) await writeDigest(env, digestWriter, log, now);
+}
+
+async function refreshSummariesLogged(
+  env: MarketEnv,
+  summarizer: Summarizer,
+  log: (line: string) => void,
+): Promise<void> {
   const summaryStarted = Date.now();
   const summaries = await refreshSummaries({ db: env.MARKET_DB, summarizer });
   log(
@@ -350,6 +688,46 @@ export async function runScheduled(
   );
 }
 
+export async function runDaily(
+  env: MarketEnv,
+  log: (line: string) => void = (line) => console.log(line),
+  now: () => Date = () => new Date(),
+  digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
+): Promise<void> {
+  await snapshotRankings(env, log, now);
+  await writeDigest(env, digestWriter, log, now);
+}
+
+async function snapshotRankings(
+  env: MarketEnv,
+  log: (line: string) => void,
+  now: () => Date,
+): Promise<void> {
+  const started = Date.now();
+  try {
+    const snapshot = await createRankings({ db: env.MARKET_DB, now }).snapshot();
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'rankings',
+        durationMs: Date.now() - started,
+        ...snapshot,
+      }),
+    );
+  } catch (error) {
+    log(
+      JSON.stringify({
+        module: 'marketplace-worker',
+        initiator: 'scheduled',
+        phase: 'rankings',
+        durationMs: Date.now() - started,
+        failed: error instanceof Error ? error.message : 'unknown',
+      }),
+    );
+  }
+}
+
 export default {
   fetch(request: Request, env: MarketEnv): Promise<Response> {
     return handlerForEnv(env)(request);
@@ -359,6 +737,11 @@ export default {
     env: MarketEnv,
     context: { waitUntil(promise: Promise<unknown>): void },
   ): void {
-    context.waitUntil(runScheduled(controller.cron, env));
+    const crawl = runScheduled(controller.cron, env);
+    context.waitUntil(
+      controller.cron === DISCOVERY_CRON
+        ? crawl.then(undefined, (error: unknown) => console.error(error)).then(() => runDaily(env))
+        : crawl,
+    );
   },
 };

@@ -1,4 +1,13 @@
-export type ChatsSearchResult = { key: string; title: string; subtitle: string; initial: string };
+export type ChatsSearchResult = {
+  key: string;
+  title: string;
+  subtitle: string;
+  initial: string;
+  image: string;
+  dimmed: boolean;
+  section?: string;
+  trailing?: string;
+};
 
 export type ChatsSearchBarProps = {
   placeholder: string;

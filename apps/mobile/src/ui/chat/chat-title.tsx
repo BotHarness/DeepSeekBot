@@ -1,6 +1,6 @@
-import type { Href } from 'expo-router';
+import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { RosterBot } from '../../host/client';
 import { BotAvatar } from '../bot-avatar';
@@ -10,7 +10,6 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
-import { ProfileZoomSource } from './profile-zoom-source';
 import { botBusy } from './bot-tone';
 import { stepLabel } from './bot-steps';
 
@@ -20,13 +19,11 @@ export function ChatTitle({
   bot,
   fallback,
   connectionLabel,
-  profileHref,
   onPress,
 }: {
   bot: RosterBot | undefined;
   fallback: string;
   connectionLabel?: string | undefined;
-  profileHref?: Href;
   onPress(): void;
 }) {
   const t = useStrings();
@@ -35,8 +32,8 @@ export function ChatTitle({
   const name = bot?.displayName ?? fallback;
   const activity =
     bot !== undefined && botBusy(bot) ? stepLabel(bot.activity, bot.state) : undefined;
-  const chip = (press: (() => void) | undefined) => (
-    <Pressable
+  const chip = (press: () => void) => (
+    <HeaderTitleButton
       testID="bot-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[name, activity ?? status, connectionLabel].filter(Boolean).join(', ')}
@@ -65,13 +62,7 @@ export function ChatTitle({
         {activity ?? name}
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
-    </Pressable>
+    </HeaderTitleButton>
   );
-  return profileHref === undefined || bot === undefined ? (
-    chip(onPress)
-  ) : (
-    <ProfileZoomSource href={profileHref} onPress={onPress}>
-      {chip}
-    </ProfileZoomSource>
-  );
+  return chip(onPress);
 }

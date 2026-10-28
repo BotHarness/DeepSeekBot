@@ -1,180 +1,83 @@
-import { useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-
-import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
+import type {
+  MarketplaceEntry,
+  MarketplaceInstallSource,
+  MarketplaceSection,
+} from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
-import { PersonaBotAvatar } from './avatar.js';
-import { errorMessage } from './bridge.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import { appendConversationDraft, conversationDraftKey } from './conversation-draft.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { IconButton } from './ds/icon-button.js';
+import { Tooltip } from './ds/tooltip.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
-import { Note } from './ds/note.js';
-import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
+import { MarketDailyPicks, MarketDigestPage, MarketPastPicksPage } from './market-digest.js';
+import { MyUploadsDialog } from './market-mine.js';
+import { useKeptScroll } from './market-page.js';
+import { MarketRankingPage, MarketplaceSections, MarketplaceTile } from './market-rankings.js';
+import { MarketUploadDialog } from './market-upload.js';
+import { useMountedResource } from './mounted-resource.js';
 import {
-  MarketplaceAvatar,
-  MarketplaceBanner,
   MarketplaceBotFlow,
   MarketplaceBrowseControls,
-  MarketplaceDescription,
   MarketplaceListStatus,
   MarketplaceLoadMore,
-  MarketplaceMeta,
-  MarketplaceSubmitField,
   marketplaceLanguage,
-  marketplaceName,
   useMarketplaceBrowse,
-  useMarketplaceSubmit,
   type MarketplaceFlowStart,
 } from './marketplace.js';
-import { store, type BotSummary } from './store.js';
 
 export const MARKET_PANEL = 'bot-market';
 
-function MarketplaceTile({
-  bot,
-  created,
-  t,
-  onOpen,
-  onImport,
-}: {
-  bot: MarketplaceEntry;
-  created: boolean;
-  t: BotHarnessTranslate;
-  onOpen: () => void;
-  onImport: () => void;
-}): ReactElement {
+type MarketRequest = 'upload' | 'mine';
+
+const marketRequests = new Set<(request: MarketRequest) => void>();
+
+function requestMarket(request: MarketRequest): void {
+  for (const listener of marketRequests) listener(request);
+}
+
+export function MarketHeaderAction({ t }: { t: BotHarnessTranslate }): ReactElement {
   return (
-    <div className="bh-market-tile" role="listitem" data-market-bot={bot.fullName}>
-      <button
-        type="button"
-        className="bh-market-open bh-market-tile-open"
-        aria-label={t('market.detail.open', { name: bot.fullName })}
-        onClick={onOpen}
-      >
-        <MarketplaceBanner bot={bot} className="bh-market-tile-banner" />
-        <span className="bh-market-tile-head">
-          <MarketplaceAvatar bot={bot} size={40} t={t} />
-          <span className="bh-market-copy">
-            <span className="bh-market-card-name">{marketplaceName(bot)}</span>
-            <span className="bh-market-owner">{bot.fullName}</span>
-          </span>
-        </span>
-      </button>
-      {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
-      <div className="bh-market-tile-foot">
-        <MarketplaceMeta bot={bot} t={t} topics={false} created={created} />
-        <Button size="sm" variant="primary" onClick={onImport}>
-          {t('market.import')}
-        </Button>
-      </div>
-    </div>
+    <>
+      <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
+        <IconButton
+          size="row"
+          tone="subtle"
+          aria-label={t('market.mine.open')}
+          aria-haspopup="dialog"
+          onClick={() => requestMarket('mine')}
+        >
+          <ChannelSidebarIcon name="package" />
+        </IconButton>
+      </Tooltip>
+      <Tooltip label={t('market.panel.upload')} side="bottom" delayMs={500}>
+        <IconButton
+          size="row"
+          tone="subtle"
+          aria-label={t('market.panel.upload')}
+          aria-haspopup="dialog"
+          onClick={() => requestMarket('upload')}
+        >
+          <ChannelSidebarIcon name="upload" />
+        </IconButton>
+      </Tooltip>
+    </>
   );
 }
 
-function publishable(bots: readonly BotSummary[]): BotSummary[] {
-  return bots.filter((bot) => !bot.deleted && bot.tob === undefined);
-}
-
-function UploadDialog({
-  actions,
-  registry,
-  t,
-  onListed,
-  onClose,
-}: {
-  actions: BridgeActions;
-  registry: DockPanelRegistry;
-  t: BotHarnessTranslate;
-  onListed: (bot: MarketplaceEntry) => void;
-  onClose: () => void;
-}): ReactElement {
-  const bots = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
-  const submit = useMarketplaceSubmit(actions, onListed);
-  const [opening, setOpening] = useState<string | undefined>(undefined);
-  const [cause, setCause] = useState<unknown | undefined>(undefined);
-  const candidates = publishable(bots);
-
-  const publish = async (bot: BotSummary): Promise<void> => {
-    setOpening(bot.slug);
-    setCause(undefined);
-    try {
-      await actions.openBot(bot.slug);
-      const scope = conversationDraftKey(store.getSnapshot());
-      if (scope !== undefined) {
-        appendConversationDraft(scope, MARKET_SHARE_PROMPT[marketplaceLanguage(t)]);
-      }
-      registry.open(CHANNEL_BODY_PANEL);
-      onClose();
-    } catch (failure) {
-      setCause(failure);
-    } finally {
-      setOpening(undefined);
+type MarketPageTarget =
+  | {
+      readonly kind: 'bot';
+      readonly bot: MarketplaceEntry;
+      readonly source: MarketplaceInstallSource;
     }
-  };
+  | { readonly kind: 'digest'; readonly day: string }
+  | { readonly kind: 'archive' }
+  | { readonly kind: 'ranking'; readonly section: MarketplaceSection };
 
-  return (
-    <PanelDialog
-      size="medium"
-      onClose={onClose}
-      closeLabel={t('common.close')}
-      title={t('market.upload.title')}
-      description={t('market.upload.description')}
-      scroll
-      data={{ 'data-market-upload': '' }}
-      actions={
-        <Button variant="outline" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      }
-    >
-      <section className="bh-market-upload-section">
-        <strong>{t('market.upload.byBot')}</strong>
-        <span className="bh-market-hint">{t('market.upload.byBotHint')}</span>
-        {candidates.length === 0 ? (
-          <span className="bh-market-state">{t('market.upload.noBots')}</span>
-        ) : (
-          <div className="bh-market-upload-bots" role="list">
-            {candidates.map((bot) => (
-              <div key={bot.slug} className="bh-market-upload-bot" role="listitem">
-                <PersonaBotAvatar
-                  personaBotId={bot.slug}
-                  name={bot.displayName}
-                  src={bot.avatar}
-                  appearance={bot.appearance}
-                  avatarSeed={bot.avatarSeed}
-                  size={28}
-                  indicator={false}
-                  still
-                  t={t}
-                />
-                <span className="bh-market-upload-name">{bot.displayName}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label={t('market.upload.publishLabel', { name: bot.displayName })}
-                  disabled={opening !== undefined}
-                  onClick={() => void publish(bot)}
-                >
-                  {t('market.upload.publish')}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-        {cause === undefined ? null : (
-          <Note tone="danger">{t('market.upload.failed', { error: errorMessage(cause) })}</Note>
-        )}
-      </section>
-      <section className="bh-market-upload-section">
-        <strong>{t('market.upload.byUrl')}</strong>
-        <MarketplaceSubmitField submit={submit} t={t} />
-      </section>
-    </PanelDialog>
-  );
-}
+type MarketPageEntry = MarketPageTarget & { readonly key: number };
 
 export function MarketPanelView({
   actions,
@@ -185,37 +88,163 @@ export function MarketPanelView({
   registry: DockPanelRegistry;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t));
+  const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t), {
+    includeUploads: true,
+  });
+  const lang = marketplaceLanguage(t);
+  const keepHome = useKeptScroll<HTMLDivElement>();
+  const [pages, setPages] = useState<readonly MarketPageEntry[]>([]);
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
+  const [mine, setMine] = useState(false);
+  const pageKey = useRef(0);
+  const listen = useMountedResource<HTMLDivElement>(() => {
+    const listener = (request: MarketRequest): void => {
+      if (request === 'upload') setUploading(true);
+      else setMine(true);
+    };
+    marketRequests.add(listener);
+    return () => {
+      marketRequests.delete(listener);
+    };
+  }, []);
   const { list, filters } = browse;
+  const push = (target: MarketPageTarget): void => {
+    const key = ++pageKey.current;
+    setPages((current) => [...current, { ...target, key }]);
+  };
+  const start = (
+    bot: MarketplaceEntry,
+    step: MarketplaceFlowStart['step'],
+    source: MarketplaceInstallSource,
+  ): void => {
+    actions.telemetryEvent('marketplace:bot_open', { entry: source, step });
+    if (step === 'install') {
+      setFlow({ bot, step, source });
+      return;
+    }
+    push({ kind: 'bot', bot, source });
+  };
+  const openDigest = (day: string, from: 'hero' | 'archive'): void => {
+    actions.telemetryEvent('marketplace:digest_open', { entry: from });
+    push({ kind: 'digest', day });
+  };
+  const openArchive = (): void => {
+    actions.telemetryEvent('marketplace:digest_archive_open');
+    push({ kind: 'archive' });
+  };
+  const back = (): void => setPages((current) => current.slice(0, -1));
+  const installed = (): void => {
+    setFlow(undefined);
+    setPages([]);
+    registry.open(CHANNEL_BODY_PANEL);
+  };
   return (
-    <div className="bh-market-panel" ref={browse.mount} data-market-panel>
-      <MarketplaceBrowseControls
-        browse={browse}
-        t={t}
-        action={
-          <Button variant="primary" onClick={() => setUploading(true)}>
-            {t('market.panel.upload')}
-          </Button>
-        }
-      />
-      <MarketplaceListStatus browse={browse} t={t} />
-      {list.status === 'ready' && list.bots.length > 0 ? (
-        <div className="bh-market-grid" role="list" aria-label={t('market.title')}>
-          {list.bots.map((bot) => (
-            <MarketplaceTile
-              key={bot.id}
-              bot={bot}
-              created={filters.sort === 'created' && filters.query.length === 0}
+    <div className="bh-market-stack" data-market-panel ref={listen}>
+      <div className="bh-market-page" ref={keepHome} hidden={pages.length > 0}>
+        <div className="bh-market-panel" ref={browse.mount}>
+          <MarketplaceBrowseControls browse={browse} t={t} />
+          {filters.query.length === 0 && filters.topic === undefined ? (
+            <MarketDailyPicks
+              actions={actions}
+              lang={lang}
               t={t}
-              onOpen={() => setFlow({ bot, step: 'detail' })}
-              onImport={() => setFlow({ bot, step: 'install' })}
+              onOpen={(day) => openDigest(day, 'hero')}
+              onArchive={openArchive}
             />
-          ))}
+          ) : null}
+          {filters.query.length === 0 && filters.topic === undefined ? (
+            <MarketplaceSections
+              actions={actions}
+              lang={marketplaceLanguage(t)}
+              t={t}
+              onOpen={(bot, source) => start(bot, 'detail', source)}
+              onImport={(bot, source) => start(bot, 'install', source)}
+              onSeeAll={(section) => push({ kind: 'ranking', section })}
+            />
+          ) : null}
+          <MarketplaceListStatus browse={browse} t={t} />
+          {list.status === 'ready' && list.bots.length > 0 ? (
+            <div className="bh-market-grid" role="list" aria-label={t('market.title')}>
+              {list.bots.map((bot) => (
+                <MarketplaceTile
+                  key={bot.id}
+                  bot={bot}
+                  created={filters.sort === 'created' && filters.query.length === 0}
+                  t={t}
+                  onOpen={() => start(bot, 'detail', 'list')}
+                  onImport={() => start(bot, 'install', 'list')}
+                />
+              ))}
+            </div>
+          ) : null}
+          <MarketplaceLoadMore browse={browse} t={t} />
         </div>
-      ) : null}
-      <MarketplaceLoadMore browse={browse} t={t} />
+      </div>
+      {pages.map((page, index) => {
+        const hidden = index !== pages.length - 1;
+        switch (page.kind) {
+          case 'bot':
+            return (
+              <MarketplaceBotFlow
+                key={page.key}
+                actions={actions}
+                t={t}
+                start={{ bot: page.bot, step: 'detail', source: page.source }}
+                page={{ hidden }}
+                onExit={back}
+                onClose={back}
+                onInstalled={installed}
+              />
+            );
+          case 'ranking':
+            return (
+              <MarketRankingPage
+                key={page.key}
+                section={page.section}
+                hidden={hidden}
+                t={t}
+                onBack={back}
+                onOpen={(bot, source) => start(bot, 'detail', source)}
+                onImport={(bot, source) => start(bot, 'install', source)}
+              />
+            );
+          case 'digest':
+            return (
+              <MarketDigestPage
+                key={page.key}
+                actions={actions}
+                day={page.day}
+                lang={lang}
+                t={t}
+                hidden={hidden}
+                onBack={back}
+                onArchive={openArchive}
+                renderBot={(bot) => (
+                  <MarketplaceTile
+                    bot={bot}
+                    created={false}
+                    t={t}
+                    onOpen={() => start(bot, 'detail', 'digest')}
+                    onImport={() => start(bot, 'install', 'digest')}
+                  />
+                )}
+              />
+            );
+          case 'archive':
+            return (
+              <MarketPastPicksPage
+                key={page.key}
+                actions={actions}
+                lang={lang}
+                t={t}
+                hidden={hidden}
+                onBack={back}
+                onOpen={(day) => openDigest(day, 'archive')}
+              />
+            );
+        }
+      })}
       {flow === undefined ? null : (
         <MarketplaceBotFlow
           actions={actions}
@@ -223,14 +252,21 @@ export function MarketPanelView({
           start={flow}
           onExit={() => setFlow(undefined)}
           onClose={() => setFlow(undefined)}
-          onInstalled={() => {
-            setFlow(undefined);
-            registry.open(CHANNEL_BODY_PANEL);
-          }}
+          onInstalled={installed}
         />
       )}
+      {mine ? (
+        <MyUploadsDialog
+          actions={actions}
+          registry={registry}
+          t={t}
+          onUpdated={browse.prepend}
+          onDeleted={browse.remove}
+          onClose={() => setMine(false)}
+        />
+      ) : null}
       {uploading ? (
-        <UploadDialog
+        <MarketUploadDialog
           actions={actions}
           registry={registry}
           t={t}
@@ -255,5 +291,6 @@ export function createMarketPanel(
     order: 500,
     defaultPosition: { zone: 'right' },
     component: () => <MarketPanelView actions={actions} registry={registry} t={t} />,
+    headerAction: () => <MarketHeaderAction t={t} />,
   };
 }

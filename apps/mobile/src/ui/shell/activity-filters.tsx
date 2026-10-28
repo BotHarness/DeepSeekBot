@@ -6,12 +6,12 @@ import { INBOX_SECTIONS, type InboxSection, type InboxSetAside } from '../../hos
 import { Sheet } from '../chat/sheet';
 import { useDesignTheme } from '../design/theme';
 import { androidSettings, edge, radius, space } from '../design/tokens';
+import { CheckmarkRow } from '../primitives/checkmark-row';
 import { DrawerHeader } from '../primitives/drawer-header';
 import { RadioMark } from '../primitives/radio-mark';
 import { segmentCorners } from '../design/segment-corners';
 import { Text } from '../primitives/text';
 import { Toggle } from '../primitives/toggle';
-import { CheckIcon } from './icons';
 import { useStrings, t } from '../strings';
 
 export type ActivitySection = 'all' | InboxSection | InboxSetAside;
@@ -26,7 +26,7 @@ export const ALL_ACTIVITY: ActivityFilter = { section: 'all', bot: undefined };
 export const DEFAULT_ACTIVITY: ActivityFilter = { section: 'action', bot: undefined };
 export const ACTIVITY_SECTIONS: readonly ActivitySection[] = [
   'all',
-  ...INBOX_SECTIONS,
+  ...INBOX_SECTIONS.filter((section) => section !== 'unread'),
   'snoozed',
   'cleared',
 ];
@@ -75,14 +75,15 @@ function TextAction({ label, onPress }: { label: string; onPress(): void }) {
   );
 }
 
-function Selection({ selected }: { selected: boolean }) {
-  const theme = useDesignTheme();
-  if (Platform.OS === 'ios')
-    return selected ? <CheckIcon color={theme.color.accent} size={theme.type.body.line} /> : null;
-  return <RadioMark selected={selected} />;
-}
-
-function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose }: Props) {
+export function ActivityFilterContent({
+  bots,
+  channels,
+  filter,
+  sort,
+  onFilter,
+  onSort,
+  onClose,
+}: Omit<Props, 'visible'>) {
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -173,11 +174,19 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
           }}
         />
       ) : null}
+      {!ios ? (
+        <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
+          <DrawerHeader title={t.activityOptions} onClose={onClose} />
+        </View>
+      ) : null}
       <FlatList
+        nestedScrollEnabled
         ListHeaderComponent={
-          <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
-            <DrawerHeader title={t.activityOptions} onClose={onClose} />
-          </View>
+          ios ? (
+            <View style={{ paddingHorizontal: space.x5, paddingTop: space.x2 }}>
+              <DrawerHeader title={t.activityOptions} onClose={onClose} />
+            </View>
+          ) : undefined
         }
         data={rows}
         keyExtractor={(row) => row.key}
@@ -224,13 +233,33 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
               </View>
             );
           const { choice, first, last } = item;
+          if (ios)
+            return (
+              <View
+                style={{
+                  marginHorizontal: space.x5,
+                  borderTopLeftRadius: first ? radius.md : 0,
+                  borderTopRightRadius: first ? radius.md : 0,
+                  borderBottomLeftRadius: last ? radius.md : 0,
+                  borderBottomRightRadius: last ? radius.md : 0,
+                  borderBottomWidth: last ? 0 : edge.hairline,
+                  borderBottomColor: theme.layer.raised.divider,
+                  backgroundColor: theme.layer.raised.fill,
+                  overflow: 'hidden',
+                }}
+              >
+                <CheckmarkRow
+                  label={choice.label}
+                  selected={choice.selected}
+                  onPress={choice.choose}
+                />
+              </View>
+            );
           return (
             <Pressable
-              accessibilityRole={ios ? 'button' : 'radio'}
+              accessibilityRole="radio"
               accessibilityLabel={choice.label}
-              accessibilityState={
-                ios ? { selected: choice.selected } : { checked: choice.selected }
-              }
+              accessibilityState={{ checked: choice.selected }}
               onPress={choice.choose}
               style={({ pressed }) => ({
                 minHeight: theme.touch,
@@ -240,26 +269,14 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
                 marginHorizontal: space.x5,
                 paddingHorizontal: space.x5,
                 paddingVertical: space.x3,
-                ...(ios
-                  ? {
-                      borderTopLeftRadius: first ? radius.md : 0,
-                      borderTopRightRadius: first ? radius.md : 0,
-                      borderBottomLeftRadius: last ? radius.md : 0,
-                      borderBottomRightRadius: last ? radius.md : 0,
-                      borderBottomWidth: last ? 0 : edge.hairline,
-                      borderBottomColor: theme.layer.raised.divider,
-                    }
-                  : {
-                      ...segmentCorners(first, last),
-                      marginTop: first ? 0 : androidSettings.segmentGap,
-                      overflow: 'hidden',
-                    }),
+                ...segmentCorners(first, last),
+                marginTop: first ? 0 : androidSettings.segmentGap,
+                overflow: 'hidden',
                 backgroundColor: pressed ? theme.layer.raised.pressed : theme.layer.raised.fill,
               })}
             >
-              {ios ? null : <Selection selected={choice.selected} />}
+              <RadioMark selected={choice.selected} />
               <Text style={{ flex: 1 }}>{choice.label}</Text>
-              {ios ? <Selection selected={choice.selected} /> : null}
             </Pressable>
           );
         }}
@@ -280,18 +297,16 @@ function OptionsEditor({ bots, channels, filter, sort, onFilter, onSort, onClose
     </>
   );
   return (
-    <OptionsSurface onClose={onClose}>
-      <View
-        style={{
-          flex: ios ? 1 : undefined,
-          flexShrink: 1,
-          paddingBottom: ios ? Math.max(insets.bottom, space.x5) : 0,
-          backgroundColor: theme.layer.sheet.fill,
-        }}
-      >
-        {content}
-      </View>
-    </OptionsSurface>
+    <View
+      style={{
+        flex: 1,
+        flexShrink: 1,
+        paddingBottom: ios ? Math.max(insets.bottom, space.x5) : 0,
+        backgroundColor: ios ? theme.layer.sheet.fill : theme.overlay.fill,
+      }}
+    >
+      {content}
+    </View>
   );
 }
 
@@ -324,5 +339,9 @@ function OptionsSurface({ children, onClose }: { children: ReactNode; onClose():
 }
 
 export function ActivityFilters(props: Props) {
-  return props.visible ? <OptionsEditor {...props} /> : null;
+  return props.visible ? (
+    <OptionsSurface onClose={props.onClose}>
+      <ActivityFilterContent {...props} />
+    </OptionsSurface>
+  ) : null;
 }

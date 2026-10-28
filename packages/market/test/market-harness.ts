@@ -3,12 +3,48 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
 import type { GitHubRepository } from '../src/github.js';
 import { parseChallenge, solveChallenge } from '../../core/src/marketplace/altcha.js';
-import { handlerForEnv, runScheduled, type MarketEnv } from '../src/worker.js';
+import { handlerForEnv, runDaily, runScheduled, type MarketEnv } from '../src/worker.js';
 import { createGitHubClient } from '../src/github.js';
 import type { ProtectionLimits } from '../src/protection.js';
 import type { Summarizer } from '../src/summary.js';
+import type { DigestWriter } from '../src/digest.js';
+import type { R2Bucket } from '../src/r2.js';
+import type { AccessTokenVerifier } from '../src/auth.js';
 
 export const TEST_ADMIN_TOKEN = 'test-admin-token';
+
+export function createMemoryBucket(): R2Bucket & { objects: Map<string, Uint8Array> } {
+  const objects = new Map<string, Uint8Array>();
+  return {
+    objects,
+    put(key, value) {
+      objects.set(key, new Uint8Array(value instanceof Uint8Array ? value : new Uint8Array(value)));
+      return Promise.resolve(undefined);
+    },
+    get(key) {
+      const bytes = objects.get(key);
+      return Promise.resolve(
+        bytes === undefined
+          ? null
+          : {
+              size: bytes.byteLength,
+              arrayBuffer: () => Promise.resolve(bytes.slice().buffer),
+            },
+      );
+    },
+    delete(keys) {
+      for (const key of typeof keys === 'string' ? [keys] : keys) objects.delete(key);
+      return Promise.resolve();
+    },
+  };
+}
+
+export const testVerifier: AccessTokenVerifier = {
+  verify: (token) =>
+    Promise.resolve(
+      /^token-[A-Za-z0-9]+$/u.test(token) ? `user_${token.slice('token-'.length)}` : undefined,
+    ),
+};
 
 export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
   const sqlite = new DatabaseSync(':memory:');
@@ -230,6 +266,7 @@ export function createFakeGitHub(): {
 export const LENIENT_LIMITS: ProtectionLimits = {
   submitPerHour: 1000,
   reportPerHour: 1000,
+  installPerHour: 1000,
   repositoryCooldownMs: 0,
   elevatedAfter: 1000,
   highAfter: 2000,
@@ -241,6 +278,7 @@ export function createMarket(
     env?: Partial<Omit<MarketEnv, 'MARKET_DB'>>;
     realChallenges?: boolean;
     summarizer?: Summarizer;
+    digestWriter?: DigestWriter;
   } = {},
 ): {
   request: (path: string, init?: RequestInit) => Promise<Response>;
@@ -249,9 +287,12 @@ export function createMarket(
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
+  daily: () => Promise<Record<string, unknown>[]>;
   logs: Record<string, unknown>[];
+  bucket: ReturnType<typeof createMemoryBucket>;
 } {
   const { db, sqlite } = createLocalD1();
+  const bucket = createMemoryBucket();
   const clock = { value: new Date('2026-10-05T12:00:00Z') };
   const github = createFakeGitHub();
   const logs: Record<string, unknown>[] = [];
@@ -265,11 +306,13 @@ export function createMarket(
       MARKET_DB: db,
       ALTCHA_HMAC_KEY: 'test-altcha-key',
       ADMIN_TOKEN: TEST_ADMIN_TOKEN,
+      MARKET_FILES: bucket,
       ...options.env,
     },
     client,
     {
       now: () => clock.value,
+      verifier: testVerifier,
       limits: { ...LENIENT_LIMITS, ...options.limits },
       ...(options.realChallenges === true ? {} : { challengeNumber: () => 0 }),
     },
@@ -287,11 +330,26 @@ export function createMarket(
         client,
         (line) => lines.push(line),
         options.summarizer,
+        options.digestWriter,
+        () => clock.value,
       );
       logs.push(...lines.map((line) => JSON.parse(line) as Record<string, unknown>));
       return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
     },
+    daily: async () => {
+      const lines: string[] = [];
+      await runDaily(
+        { MARKET_DB: db, MARKET_FILES: bucket },
+        (line) => lines.push(line),
+        () => clock.value,
+        options.digestWriter,
+      );
+      const parsed = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+      logs.push(...parsed);
+      return parsed;
+    },
     logs,
+    bucket,
     publish: (repository) =>
       github.repositories.set(`${repository.owner}/${repository.name}`.toLowerCase(), repository),
   };

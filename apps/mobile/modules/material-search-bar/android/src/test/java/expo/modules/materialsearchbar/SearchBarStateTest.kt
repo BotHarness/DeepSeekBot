@@ -23,9 +23,11 @@ class SearchBarStateTest {
   }
 
   @Test
-  fun readsCssHexColors() {
-    assertEquals(0xff4176e6.toInt(), cssColor("#4176e6"))
-    assertEquals(0x80ffffff.toInt(), cssColor("#ffffff80"))
-    assertNull(cssColor("rgba(0,0,0,0.5)"))
+  fun readsAvatarsOnlyFromLocalFiles() {
+    assertEquals("/data/avatars/h1/bot-ada.png", avatarPath("file:///data/avatars/h1/bot-ada.png"))
+    assertEquals("/data/avatars/h 1/bot-ada.png", avatarPath("file:///data/avatars/h%201/bot-ada.png"))
+    assertNull(avatarPath(""))
+    assertNull(avatarPath("https://host/avatar.png"))
+    assertNull(avatarPath("not a uri"))
   }
 }

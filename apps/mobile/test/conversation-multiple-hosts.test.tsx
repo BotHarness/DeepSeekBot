@@ -14,6 +14,11 @@ const activity = vi.hoisted(() => ({
   start: vi.fn(async (_target: ActivityTarget) => {}),
   confirm: undefined as (() => Promise<void> | void) | undefined,
 }));
+vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
+vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
+vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
+vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
 vi.mock('../src/host/native-live-activity', () => ({
   useRequestActivity: () => ({ ready: true, busy: false, tracking: false }),
   requestActivitySession: { start: activity.start, stop: async () => {} },
@@ -108,6 +113,7 @@ vi.mock('expo-router', () => ({
     },
   }),
 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
@@ -155,6 +161,7 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
     <button onClick={onPress}>{label}</button>
   ),

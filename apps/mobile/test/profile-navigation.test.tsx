@@ -85,10 +85,12 @@ vi.mock('expo-file-system', () => ({
   Paths: { document: '' },
 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({
   scheduleOnRN: (callback: () => void) => callback(),
 }));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
   Alert: { alert: vi.fn() },

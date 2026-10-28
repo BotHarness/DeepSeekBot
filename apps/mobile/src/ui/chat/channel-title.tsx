@@ -1,6 +1,5 @@
-import type { Href } from 'expo-router';
+import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
-import { Pressable } from 'react-native';
 
 import type { RosterBot, RosterChannel } from '../../host/client';
 import { useDesignTheme } from '../design/theme';
@@ -10,7 +9,6 @@ import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
 import { barLabelStyle } from './native-header';
 import { GroupMark } from './group-mark';
-import { ProfileZoomSource } from './profile-zoom-source';
 import { WorkingStatus, workingLabel } from './working-status';
 
 const MARK = 28;
@@ -20,22 +18,20 @@ export function ChannelTitle({
   fallback,
   connectionLabel,
   working = [],
-  profileHref,
   onPress,
 }: {
   channel: RosterChannel | undefined;
   fallback: string;
   working?: readonly RosterBot[];
   connectionLabel?: string | undefined;
-  profileHref?: Href;
   onPress(): void;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const name = channel?.name ?? fallback;
   const members = channel === undefined ? undefined : t.members(channel.memberCount);
-  const chip = (press: (() => void) | undefined) => (
-    <Pressable
+  const chip = (press: () => void) => (
+    <HeaderTitleButton
       testID="channel-details-chip"
       accessibilityRole="button"
       accessibilityLabel={[
@@ -71,13 +67,7 @@ export function ChannelTitle({
       </Text>
       <ConnectionProgress active={connectionLabel !== undefined} />
       <WorkingStatus bots={working} />
-    </Pressable>
+    </HeaderTitleButton>
   );
-  return profileHref === undefined || channel === undefined ? (
-    chip(onPress)
-  ) : (
-    <ProfileZoomSource href={profileHref} onPress={onPress}>
-      {chip}
-    </ProfileZoomSource>
-  );
+  return chip(onPress);
 }

@@ -6,6 +6,7 @@ import { Text } from '../primitives/text';
 
 export function GroupMark({
   avatar,
+  initial = '#',
   size,
   corner,
   fill,
@@ -13,6 +14,7 @@ export function GroupMark({
   strong = true,
 }: {
   avatar: string | undefined;
+  initial?: string;
   size: number;
   corner: number;
   fill?: string;
@@ -34,7 +36,7 @@ export function GroupMark({
     >
       {avatar === undefined ? (
         <Text allowFontScaling={false} variant={variant} strong={strong} tone="muted">
-          #
+          {initial}
         </Text>
       ) : (
         <Image

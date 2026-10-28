@@ -5,6 +5,8 @@ Date: 2026-10-06
 
 # A Bot moves between people as a zip of its Memory files
 
+> Partly superseded by [ADR-0267](0267-the-bot-marketplace-hosts-uploaded-bots-under-connect-accounts.md) (2026-10-27): the Bot Marketplace now hosts Uploaded Bots under Connect accounts and counts installs. Bot Zip is unchanged.
+
 BotHarness drops platform accounts for good. The account-based second phase of the Bot Marketplace ([ADR-0131](0131-bot-marketplace-starts-as-a-github-indexed-catalog.md), [#17](https://github.com/BotHarness/BotHarness/issues/17)) is withdrawn: an open-source harness should not need a sign-in service, email delivery or hosted uploads to share a Bot. Public sharing stays GitHub-only through Indexed Repositories. Handing one Bot to another person or another device becomes plain file sharing: the Human exports the Bot as a **Bot Zip**, sends it any way they like, and the receiver imports it as a fresh PersonaBot.
 
 ## Decision

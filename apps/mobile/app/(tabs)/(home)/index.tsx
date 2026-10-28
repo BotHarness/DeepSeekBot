@@ -10,7 +10,7 @@ import {
 } from 'expo-router';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { useSharedValue } from 'react-native-reanimated';
 import {
   refreshQuietChannels,
   useHostSession,
@@ -20,6 +20,7 @@ import {
   type ConnectedHost,
 } from '../../../src/host/host-session';
 import { prefetchInbox } from '../../../src/host/inbox';
+import { useMessageSearch, type MessageSearchHit } from '../../../src/host/message-search';
 import { hostLooks, useHostLook } from '../../../src/host/native-host-look';
 import { cloudClient, useCloudSnapshot } from '../../../src/cloud/native';
 import { cloudAvailable } from '../../../src/cloud/available';
@@ -31,7 +32,12 @@ import type { CloudConversation } from '../../../src/cloud/conversations';
 import { DeletionSheet } from '../../../src/ui/chat/deletion-sheet';
 import type { DeletionTarget } from '../../../src/host/deletion';
 import { ItemMenu } from '../../../src/ui/primitives/item-menu';
-import { conversations, searchKey, PINNED_SECTION } from '../../../src/ui/chat/conversations';
+import {
+  conversations,
+  searchKey,
+  PINNED_SECTION,
+  type Conversation,
+} from '../../../src/ui/chat/conversations';
 import { CloudConversationRow } from '../../../src/ui/chat/cloud-conversation-row';
 import { useConversationFilter } from '../../../src/host/native-conversation-filter';
 import { ConnectionBanner } from '../../../src/ui/connection-banner';
@@ -49,7 +55,16 @@ import { HeaderSearch } from '../../../src/ui/shell/header-search';
 import { HomeHeader } from '../../../src/ui/shell/home-header';
 import { HostDrawerEdge, hostDrawer, openHostDrawer } from '../../../src/ui/shell/host-drawer';
 import { ChatsSearchBar } from '../../../src/ui/shell/chats-search-bar';
-import { chatsSearchResults } from '../../../src/ui/chat/chats-search-results';
+import { LastChatPreview, LastChatSwipe } from '../../../src/ui/shell/last-chat-swipe';
+import { useWorkspacePanel } from '../../../src/ui/shell/use-workspace-panel';
+import { recentHostIds, useRecentChats } from '../../../src/ui/shell/recent-chats';
+import { tobComputer, tobModeHostId, tobModeHref } from '../../../src/ui/shell/tob-mode-model';
+import { recordFeature } from '../../../src/telemetry/features';
+import {
+  chatsSearchResults,
+  messageSearchResults,
+} from '../../../src/ui/chat/chats-search-results';
+import { avatarImageUri } from '../../../src/host/native-notification-avatars';
 import { openConversation } from '../../../src/ui/shell/open-conversation';
 import { useConnectionProgress } from '../../../src/ui/primitives/connection-progress';
 import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
@@ -65,6 +80,18 @@ import {
   type EnvironmentChatItem,
 } from '../../../src/ui/chat/environment-chat-list';
 import { SectionHeader } from '../../../src/ui/chat/section-header';
+import { MessageSearchHeading, MessageSearchRow } from '../../../src/ui/chat/message-search-row';
+import { conversationHref } from '../../../src/ui/shell/open-conversation';
+import { navigateChannel } from '../../../src/ui/shell/channel-navigation';
+
+type MessageItem = {
+  type: 'message';
+  key: string;
+  hit: MessageSearchHit;
+  host: ConnectedHost;
+  conversation: Conversation;
+};
+type HomeItem = EnvironmentChatItem | { type: 'message-heading'; key: string } | MessageItem;
 import { sectionCollapse, useCollapsedSections } from '../../../src/host/native-section-collapse';
 
 export default function HomeScreen() {
@@ -87,6 +114,7 @@ const HomeContent = memo(function HomeContent({
   const t = useStrings();
   const router = useRouter();
   const navigation = useNavigationContainerRef();
+  const showWorkspaces = useWorkspacePanel();
   const prepared = useRef<typeof client>(undefined);
   const pairingOffered = useRef(false);
   useFocusEffect(
@@ -105,6 +133,8 @@ const HomeContent = memo(function HomeContent({
     }, [router, client]),
   );
   const [query, setQuery] = useState('');
+  const lastChatTravel = useSharedValue(0);
+  const messageSearch = useMessageSearch();
   const [searching, setSearching] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const onScroll = useChromeScroll(
@@ -182,6 +212,28 @@ const HomeContent = memo(function HomeContent({
       };
     }, [enrollment, effectiveFilter]),
   );
+  const recent = useRecentChats();
+  const tobComputers = hosts.map(tobComputer);
+  const tobHostId = tobModeHostId(
+    effectiveFilter,
+    tobComputers,
+    recentHostIds(recent),
+    saved?.hostId,
+  );
+  const tobAction =
+    tobHostId === undefined ? null : (
+      <HeaderAction
+        icon="tob"
+        label={t.openTobMode}
+        testID="tob-mode-button"
+        onPress={() => {
+          const href = tobModeHref(tobHostId, tobComputers);
+          if (href === undefined) return;
+          recordFeature('tob:mode_open', {});
+          router.push(href);
+        }}
+      />
+    );
   const collapseScope =
     hosts.find((host) => computerEnvironmentKey(host.saved.hostId) === effectiveFilter)?.saved
       .hostId ?? ALL_HOSTS_COLLAPSE;
@@ -279,13 +331,81 @@ const HomeContent = memo(function HomeContent({
     collapsed,
     query.trim() !== '',
   );
+  const searchHosts = (selectedHost ? [selectedHost] : effectiveFilter === 'all' ? hosts : [])
+    .filter((host) => host.snapshot.connection.status === 'connected')
+    .map((host) => ({ hostId: host.saved.hostId, client: host.client }));
+  const searchScope = searchHosts.map((host) => host.hostId).join('|');
+  const scheduleMessageSearch = messageSearch.schedule;
+  useFocusEffect(
+    useCallback(() => {
+      scheduleMessageSearch(query, searchHosts);
+    }, [scheduleMessageSearch, query, searchScope]),
+  );
+  const onQuery = (value: string) => setQuery(value);
+  const conversationIndex = useMemo(() => {
+    const index = new Map<string, { host: ConnectedHost; conversation: Conversation }>();
+    for (const host of hosts)
+      for (const conversation of conversations(host.snapshot.roster, [])) {
+        const channelId =
+          conversation.kind === 'bot' ? conversation.bot.dmChannelId : conversation.channel.id;
+        if (channelId !== undefined)
+          index.set(JSON.stringify([host.saved.hostId, channelId]), { host, conversation });
+      }
+    return index;
+  }, [hosts]);
+  const messages = messageSearch.state;
+  const messageItems = useMemo<MessageItem[]>(
+    () =>
+      query.trim() === '' || messages.query !== query.trim()
+        ? []
+        : messages.hits.flatMap((hit) => {
+            const found = conversationIndex.get(JSON.stringify([hit.hostId, hit.channelId]));
+            return found === undefined
+              ? []
+              : [
+                  {
+                    type: 'message' as const,
+                    key: JSON.stringify(['message', hit.hostId, hit.channelId, hit.messageId]),
+                    hit,
+                    ...found,
+                  },
+                ];
+          }),
+    [query, messages, conversationIndex],
+  );
+  const messagesShown =
+    messageItems.length > 0 || (messages.loading && query.trim() !== '' && displayed.length > 0);
+  const listItems: HomeItem[] =
+    Platform.OS !== 'android' && messagesShown
+      ? [...displayed, { type: 'message-heading', key: 'message-heading' }, ...messageItems]
+      : displayed;
+  const openMessage = ({ hit, host, conversation }: MessageItem) => {
+    recordFeature('search:result_open', { kind: 'message' });
+    if (
+      !navigateChannel(
+        navigation,
+        conversationHref(conversation, host.saved.hostId, hit.messageId, String(Date.now())),
+      )
+    )
+      setActionError(true);
+  };
   const searchResults = useMemo(
     () =>
-      Platform.OS === 'android' ? chatsSearchResults(displayed, query, searchAppBar.recent) : [],
-    [displayed, query],
+      Platform.OS === 'android'
+        ? [
+            ...chatsSearchResults(displayed, query, searchAppBar.recent, avatarImageUri),
+            ...messageSearchResults(messageItems, t.searchMessages, new Date(), avatarImageUri),
+          ]
+        : [],
+    [displayed, query, messageItems, t],
   );
   const connecting = useConnectionProgress(selectedHost?.snapshot.connection.status) !== undefined;
   const pickSearch = (key: string) => {
+    const message = messageItems.find((entry) => entry.key === key);
+    if (message !== undefined) {
+      openMessage(message);
+      return;
+    }
     const item = displayed.find((entry) => entry.type !== 'section' && entry.key === key);
     if (item === undefined || item.type === 'section') return;
     if (item.type === 'cloud') void openCloud(item.conversation);
@@ -305,35 +425,44 @@ const HomeContent = memo(function HomeContent({
         ['connecting', 'reconnecting'].includes(host.snapshot.connection.status),
     ) ||
     (includesCloud && cloud.rows.some((row) => row.hasSession) && !directory.ready && !cloudFailed);
+  const screen = <Stack.Screen options={{ title: environment.title, headerShown: false }} />;
   if (saved === undefined || (!cloud.ready && !cloud.error && displayed.length === 0))
-    return <ListSkeleton />;
+    return (
+      <>
+        {screen}
+        <ListSkeleton />
+      </>
+    );
   if (saved === null && cloud.rows.length === 0)
     return cloudAvailable ? (
       <Redirect href="/cloud-join" />
     ) : (
-      <View
-        testID="home-unpaired"
-        style={{
-          flex: 1,
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: space.x6,
-          gap: space.x4,
-        }}
-      >
-        <Text variant="title" strong style={{ textAlign: 'center' }}>
-          {t.pairChoice.emptyTitle}
-        </Text>
-        <Text tone="muted" style={{ textAlign: 'center' }}>
-          {t.pairChoice.emptyBody}
-        </Text>
-        <Button
-          label={t.pairChoice.emptyAction}
-          tone="primary"
-          on="canvas"
-          onPress={() => router.push('/pair')}
-        />
-      </View>
+      <>
+        {screen}
+        <View
+          testID="home-unpaired"
+          style={{
+            flex: 1,
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: space.x6,
+            gap: space.x4,
+          }}
+        >
+          <Text variant="title" strong style={{ textAlign: 'center' }}>
+            {t.pairChoice.emptyTitle}
+          </Text>
+          <Text tone="muted" style={{ textAlign: 'center' }}>
+            {t.pairChoice.emptyBody}
+          </Text>
+          <Button
+            label={t.pairChoice.emptyAction}
+            tone="primary"
+            on="canvas"
+            onPress={() => router.push('/pair')}
+          />
+        </View>
+      </>
     );
   const refresh = async (target?: ConnectedHost) => {
     setRefreshing(true);
@@ -410,30 +539,32 @@ const HomeContent = memo(function HomeContent({
   };
   return (
     <>
-      <Stack.Screen options={{ title: environment.title, headerShown: false }} />
-      <HostDrawerEdge anywhere>
+      {screen}
+      <HostDrawerEdge anywhere enabled={showWorkspaces === undefined}>
         <HomeHeader
           environment={environment}
           connection={selectedHost?.snapshot.connection}
+          onWorkspaces={showWorkspaces}
           bar={
             Platform.OS === 'android' ? (
               <ChatsSearchBar
                 placeholder={t.searchIn(environment.title)}
-                busy={connecting}
+                busy={connecting || messages.loading}
                 results={searchResults}
-                onQuery={setQuery}
+                onQuery={onQuery}
                 onExpanded={setSearchFocused}
                 onPick={pickSearch}
                 onNavigation={openHostDrawer}
               />
             ) : undefined
           }
+          barActions={searchFocused ? null : tobAction}
           search={
             searching ? (
               <HeaderSearch
                 value={query}
                 placeholder={t.searchPlaceholder}
-                onChangeText={setQuery}
+                onChangeText={onQuery}
                 onFocusChange={(next) => {
                   setSearchFocused(next);
                   if (!next && query === '') setSearching(false);
@@ -453,161 +584,171 @@ const HomeContent = memo(function HomeContent({
                 testID="search-button"
                 onPress={() => setSearching(true)}
               />
-              {Platform.OS !== 'ios' && Platform.OS !== 'android' && (
-                <HeaderAction
-                  icon="settings"
-                  label={t.settings}
-                  testID="settings-button"
-                  onPress={() => router.push('/settings')}
-                />
-              )}
+              {tobAction}
             </>
           }
         >
           {(headerTravel) => (
-            <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
-              {(pull) => (
-                <Animated.FlatList<EnvironmentChatItem>
-                  {...pull}
-                  renderScrollComponent={renderKeyboardFormScroll}
-                  onScroll={onScroll}
-                  scrollEventThrottle={1}
-                  contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
-                  keyboardShouldPersistTaps="handled"
-                  keyboardDismissMode="on-drag"
-                  data={displayed}
-                  keyExtractor={(r) => r.key}
-                  ListHeaderComponent={
-                    <>
-                      {actionError ? (
-                        <Text accessibilityRole="alert" tone="danger">
-                          {t.rowActions.failed}
+            <LastChatSwipe
+              enabled={!searching && !searchFocused && query === ''}
+              travel={lastChatTravel}
+            >
+              <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
+                {(pull) => (
+                  <Animated.FlatList<HomeItem>
+                    {...pull}
+                    renderScrollComponent={renderKeyboardFormScroll}
+                    onScroll={onScroll}
+                    scrollEventThrottle={1}
+                    contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    data={listItems}
+                    keyExtractor={(r) => r.key}
+                    ListHeaderComponent={
+                      <>
+                        {actionError ? (
+                          <Text accessibilityRole="alert" tone="danger">
+                            {t.rowActions.failed}
+                          </Text>
+                        ) : null}
+                        {selectedHost &&
+                          selectedHost.snapshot.connection.status !== 'unreachable' && (
+                            <ConnectionBanner
+                              connection={selectedHost.snapshot.connection}
+                              onRetry={() => selectedHost.client.retryNow()}
+                              onPairAgain={() => router.push('/pair')}
+                            />
+                          )}
+                        {selectedHost &&
+                        ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
+                          selectedHost.snapshot.connection.status === 'unreachable' ||
+                          selectedHost.snapshot.connection.status === 'stopped') ? (
+                          <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                            <Text tone="muted">
+                              {selectedHost.snapshot.roster === undefined
+                                ? t.hostListLoadFailed
+                                : t.hostListUnavailable}
+                            </Text>
+                            <Button
+                              testID="chat-list-retry"
+                              label={t.retry}
+                              on="canvas"
+                              onPress={() => void refresh(selectedHost)}
+                              disabled={refreshing}
+                            />
+                          </View>
+                        ) : null}
+                        {(cloudFailed || error) && (
+                          <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
+                            <Text tone="muted" accessibilityRole="alert">
+                              {t.cloudListUnavailable}
+                              {error ? ` (${error})` : ''}
+                            </Text>
+                            <Button
+                              testID="cloud-list-retry"
+                              label={t.retry}
+                              on="canvas"
+                              onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
+                              disabled={refreshing}
+                            />
+                          </View>
+                        )}
+                      </>
+                    }
+                    ListEmptyComponent={
+                      coldLoading ? (
+                        <ListSkeleton />
+                      ) : hostFailed || cloudFailed ? undefined : (
+                        <Text tone="muted" style={{ padding: space.x6 }}>
+                          {query
+                            ? t.searchNoMatch(query.trim())
+                            : effectiveFilter === 'all' &&
+                                hosts.length > 0 &&
+                                hosts.every(
+                                  (host) => host.snapshot.connection.status !== 'connected',
+                                )
+                              ? t.noOnlineChats
+                              : t.cloudChannels.empty}
                         </Text>
-                      ) : null}
-                      {selectedHost &&
-                        selectedHost.snapshot.connection.status !== 'unreachable' && (
-                          <ConnectionBanner
-                            connection={selectedHost.snapshot.connection}
-                            onRetry={() => selectedHost.client.retryNow()}
-                            onPairAgain={() => router.push('/pair')}
-                          />
-                        )}
-                      {selectedHost &&
-                      ((refreshFailedHosts.includes(selectedHost.saved.hostId) && !hostFailed) ||
-                        selectedHost.snapshot.connection.status === 'unreachable' ||
-                        selectedHost.snapshot.connection.status === 'stopped') ? (
-                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                          <Text tone="muted">
-                            {selectedHost.snapshot.roster === undefined
-                              ? t.hostListLoadFailed
-                              : t.hostListUnavailable}
-                          </Text>
-                          <Button
-                            testID="chat-list-retry"
-                            label={t.retry}
-                            on="canvas"
-                            onPress={() => void refresh(selectedHost)}
-                            disabled={refreshing}
-                          />
-                        </View>
-                      ) : null}
-                      {(cloudFailed || error) && (
-                        <View style={{ paddingHorizontal: space.x5, gap: space.x2 }}>
-                          <Text tone="muted" accessibilityRole="alert">
-                            {t.cloudListUnavailable}
-                            {error ? ` (${error})` : ''}
-                          </Text>
-                          <Button
-                            testID="cloud-list-retry"
-                            label={t.retry}
-                            on="canvas"
-                            onPress={() => (failedOpen ? openCloud(failedOpen) : void refresh())}
-                            disabled={refreshing}
-                          />
-                        </View>
-                      )}
-                    </>
-                  }
-                  ListEmptyComponent={
-                    coldLoading ? (
-                      <ListSkeleton />
-                    ) : hostFailed || cloudFailed ? undefined : (
-                      <Text tone="muted" style={{ padding: space.x6 }}>
-                        {query
-                          ? t.searchNoMatch(query.trim())
-                          : effectiveFilter === 'all' &&
-                              hosts.length > 0 &&
-                              hosts.every((host) => host.snapshot.connection.status !== 'connected')
-                            ? t.noOnlineChats
-                            : t.cloudChannels.empty}
-                      </Text>
-                    )
-                  }
-                  renderItem={({ item }) =>
-                    item.type === 'section' ? (
-                      <ItemMenu
-                        title={item.name ?? t.pinnedSection}
-                        actions={
-                          item.id === PINNED_SECTION || !item.host
-                            ? []
-                            : [
-                                {
-                                  key: 'delete-section',
-                                  glyph: 'delete',
-                                  label: t.deletion.deleteSection,
-                                  destructive: true,
-                                  run: () =>
-                                    setDeleting({
-                                      host: item.host!,
-                                      target: {
-                                        kind: 'section',
-                                        id: item.id,
-                                        name: item.name ?? '',
-                                      },
-                                    }),
-                                },
-                              ]
-                        }
-                      >
-                        {(open, nativeContextMenu) => (
-                          <SectionHeader
-                            count={item.count}
-                            needsYou={item.needsYou}
-                            unread={item.unread}
-                            collapsed={item.collapsed}
-                            testID={`chat-section-${item.id}`}
-                            name={item.name ?? t.pinnedSection}
-                            onLongPress={
-                              nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
-                            }
-                            onMenu={item.id === PINNED_SECTION ? undefined : open}
-                            onToggle={() => {
-                              sectionCollapse.toggle(collapseScope, item.id);
-                            }}
-                          />
-                        )}
-                      </ItemMenu>
-                    ) : item.type === 'computer' ? (
-                      <HostRow
-                        item={item}
-                        showSourceLabel={effectiveFilter === 'all'}
-                        onError={() => setActionError(true)}
-                        onDelete={(target) => setDeleting({ host: item.host, target })}
-                      />
-                    ) : (
-                      <CloudConversationRow
-                        row={item.conversation}
-                        pending={opening === item.conversation.key}
-                        onPress={() => void openCloud(item.conversation)}
-                      />
-                    )
-                  }
-                />
-              )}
-            </PullToRefresh>
+                      )
+                    }
+                    renderItem={({ item }) =>
+                      item.type === 'message-heading' ? (
+                        <MessageSearchHeading loading={messages.loading} />
+                      ) : item.type === 'message' ? (
+                        <MessageSearchRow
+                          hit={item.hit}
+                          conversation={item.conversation}
+                          now={new Date()}
+                          onPress={() => openMessage(item)}
+                        />
+                      ) : item.type === 'section' ? (
+                        <ItemMenu
+                          title={item.name ?? t.pinnedSection}
+                          actions={
+                            item.id === PINNED_SECTION || !item.host
+                              ? []
+                              : [
+                                  {
+                                    key: 'delete-section',
+                                    glyph: 'delete',
+                                    label: t.deletion.deleteSection,
+                                    destructive: true,
+                                    run: () =>
+                                      setDeleting({
+                                        host: item.host!,
+                                        target: {
+                                          kind: 'section',
+                                          id: item.id,
+                                          name: item.name ?? '',
+                                        },
+                                      }),
+                                  },
+                                ]
+                          }
+                        >
+                          {(open, nativeContextMenu) => (
+                            <SectionHeader
+                              count={item.count}
+                              needsYou={item.needsYou}
+                              unread={item.unread}
+                              collapsed={item.collapsed}
+                              testID={`chat-section-${item.id}`}
+                              name={item.name ?? t.pinnedSection}
+                              onLongPress={
+                                nativeContextMenu || item.id === PINNED_SECTION ? undefined : open
+                              }
+                              onMenu={item.id === PINNED_SECTION ? undefined : open}
+                              onToggle={() => {
+                                sectionCollapse.toggle(collapseScope, item.id);
+                              }}
+                            />
+                          )}
+                        </ItemMenu>
+                      ) : item.type === 'computer' ? (
+                        <HostRow
+                          item={item}
+                          showSourceLabel={effectiveFilter === 'all'}
+                          onError={() => setActionError(true)}
+                          onDelete={(target) => setDeleting({ host: item.host, target })}
+                        />
+                      ) : (
+                        <CloudConversationRow
+                          row={item.conversation}
+                          pending={opening === item.conversation.key}
+                          onPress={() => void openCloud(item.conversation)}
+                        />
+                      )
+                    }
+                  />
+                )}
+              </PullToRefresh>
+            </LastChatSwipe>
           )}
         </HomeHeader>
       </HostDrawerEdge>
+      <LastChatPreview travel={lastChatTravel} />
       {deleting && hosts.some((host) => host.client === deleting.host.client) ? (
         <DeletionSheet
           key={`${deleting.host.saved.hostId}:${deleting.target.kind}:${deleting.target.id}`}

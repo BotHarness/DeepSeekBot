@@ -23,6 +23,19 @@ export interface ConnectRelayEnv {
   RECLAIM_AFTER_MINUTES?: string;
   CONNECT_HOST_KEY?: string;
   WORKOS_API_KEY?: string;
+  MARKET?: { fetch: typeof fetch };
+}
+
+export const MARKETPLACE_ORIGIN = 'https://market.botharness.ai';
+
+export function marketplaceAuthorDeleter(fetcher: typeof fetch) {
+  return async (accessToken: string): Promise<void> => {
+    const response = await fetcher(`${MARKETPLACE_ORIGIN}/v1/me`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) throw new Error(`marketplace ${response.status}`);
+  };
 }
 
 export function workosUserDeleter(apiKey: string, fetcher: typeof fetch = fetch) {
@@ -78,6 +91,9 @@ export function relayForEnv(env: ConnectRelayEnv): ReturnType<typeof createRelay
       ? {}
       : { limit: async (account: string) => (await limiter.limit({ key: account })).success }),
     ...(apiKey ? { deleteUser: workosUserDeleter(apiKey) } : {}),
+    deleteMarketplaceAuthor: marketplaceAuthorDeleter(
+      env.MARKET === undefined ? fetch : env.MARKET.fetch.bind(env.MARKET),
+    ),
     ...(hostSecret ? { hostKey: (hostId: string) => hmac(hostSecret, `host:${hostId}`) } : {}),
   });
   cached = { env, relay };

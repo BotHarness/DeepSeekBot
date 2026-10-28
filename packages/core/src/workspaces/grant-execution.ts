@@ -1,4 +1,4 @@
-import { changesApprovalPolicy } from './approval-templates.js';
+import { requiresHumanDecision } from './approval-templates.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -29,18 +29,26 @@ export function alignOrchestratorSubagentPermission(
   session: Session,
   policy: SandboxPolicyService | undefined,
   approval: ApprovalService | undefined,
-): void {
+): boolean {
   if (
     core.ownership.resolve(session.id)?.provenance !== 'subagent' ||
     policy === undefined ||
     approval === undefined
   )
-    return;
+    return false;
   const owner = rootOwner(core, session.id);
-  if (owner?.rootRole !== 'orchestrator') return;
+  if (owner?.rootRole !== 'orchestrator') return false;
   const mode = orchestratorPermission(core, owner.botSlug).mode;
-  if (policy.resolve({ session }).mode !== mode) setSandboxMode(session, mode);
-  if (approval.overrideOf(session) !== 'never') setApprovalPolicy(session, 'never');
+  let changed = false;
+  if (policy.resolve({ session }).mode !== mode) {
+    setSandboxMode(session, mode);
+    changed = true;
+  }
+  if (approval.overrideOf(session) !== 'never') {
+    setApprovalPolicy(session, 'never');
+    changed = true;
+  }
+  return changed;
 }
 
 export function alignOrchestratorPermission(
@@ -257,18 +265,33 @@ export function sessionRefusalMessage(denial: string): string {
   return `${code}: The Host refused this turn: ${denial}.${fix === undefined ? '' : ' ' + fix}`;
 }
 
-export function borrowedAgentDenial(
+export type BotSessionRepair = 'orchestrator' | 'assignment' | 'orchestrator-subagent';
+
+export function admitBotSession(
   core: Pick<BotHarnessCore, 'ownership' | 'runtime' | 'grants' | 'registry'> & AccessCore,
   session: Session,
-  role: 'orchestrator' | 'assignment',
+  role: 'orchestrator' | 'assignment' | undefined,
   policy: SandboxPolicyService | undefined,
   approval: ApprovalService | undefined,
+  repaired?: (repair: BotSessionRepair) => void,
 ): string | undefined {
-  if (core.ownership.resolve(session.id)?.rootRole !== role)
-    return 'BotHarness Agent role mismatch';
-  if (role === 'orchestrator') alignOrchestratorPermission(core, session, policy, approval);
-  else alignAssignmentPermission(core, session, policy, approval);
+  const roleDenial = role === undefined ? undefined : borrowedAgentDenial(core, session, role);
+  if (roleDenial !== undefined) return roleDenial;
+  if (alignOrchestratorPermission(core, session, policy, approval)) repaired?.('orchestrator');
+  if (alignAssignmentPermission(core, session, policy, approval)) repaired?.('assignment');
+  if (alignOrchestratorSubagentPermission(core, session, policy, approval))
+    repaired?.('orchestrator-subagent');
   return grantExecutionDenial(core, session, policy, approval);
+}
+
+export function borrowedAgentDenial(
+  core: Pick<BotHarnessCore, 'ownership'>,
+  session: Session,
+  role: 'orchestrator' | 'assignment',
+): string | undefined {
+  return core.ownership.resolve(session.id)?.rootRole === role
+    ? undefined
+    : 'BotHarness Agent role mismatch';
 }
 
 const BOT_TOOL_NAMES = new Set([
@@ -355,7 +378,7 @@ export function requiresHumanToolApproval(
       (args as Record<string, unknown>).access !== 'read'
     );
   if (name === 'secret_cli' || name === 'secret_mcp_connect' || name === 'bot_create') return true;
-  return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args), templateInUse);
+  return isDshGovernedTool(name) && requiresHumanDecision(policyInput(args), templateInUse);
 }
 
 export function approvalTemplateInUse(

@@ -148,7 +148,6 @@ try {
   });
   await page.locator('::-p-aria("消息 · ⌥ ⇧ ⌘ 2")').click();
   await new Promise((done) => setTimeout(done, 500));
-  await page.locator('::-p-aria("关闭 首页")').click();
   await page.locator('::-p-aria("记忆演化")').click();
   await page.waitForSelector('.bh-memory-working-list', { visible: true });
   const draftRow = await page.waitForFunction(() =>

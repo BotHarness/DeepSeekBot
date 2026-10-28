@@ -1,4 +1,6 @@
 import { approveWorkspaceGrantRequest } from './bridge.js';
+import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
+import { telemetrySurface } from './telemetry-surface.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
@@ -18,7 +20,12 @@ import type {
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
 import type { SenderAccessInput } from '../../../core/src/messaging/sender-access.js';
 import { unreadAfterAnchor } from './timeline-position.js';
-import { reactToChannelMessage, searchChannelMessages } from './bridge.js';
+import {
+  reactToChannelMessage,
+  searchAllMessages,
+  searchChannelMessages,
+  type MessageSearchPage,
+} from './bridge.js';
 import { toggledReactions } from './message-reactions-model.js';
 import {
   gitInstalling,
@@ -38,14 +45,27 @@ import type { GroupMemberWakePolicy } from '../../../core/src/channels/channel.j
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import { parsePrivateAccountList, type PrivateAccountList } from './private-accounts.js';
 import type {
+  MarketplaceAuthoredBot,
+  MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
+  MarketplaceSection,
   MarketplaceTopic,
+  MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
 import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type {
+  MarketplaceAccount,
+  UploadPlan,
+} from '../../../core/src/marketplace/uploaded-bots.js';
+import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
 import { loadAllBotPreview } from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
@@ -205,11 +225,19 @@ import {
   loadOverviewMemory,
   loadOverviewUsage,
   loadMarketplaceDetail,
+  loadMarketplaceFile,
   loadMarketplacePage,
   loadMarketplaceTopics,
+  loadMarketplaceSections,
+  loadMarketplaceDigests,
+  loadMarketplaceDigest,
   submitMarketplaceRepository,
   loadMarketplaceChallenge,
   reportMarketplaceBot,
+  installMarketplaceBot,
+  reviewMarketplaceInstall,
+  loadMyMarketplaceUploads,
+  uploadMarketplaceBot,
   type UsageFilter,
   type UsageQueryResult,
   loadGroupProfileActivity,
@@ -371,7 +399,10 @@ export interface BridgeActions {
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
-  introEvent(event: string, properties?: Record<string, string | boolean>): void;
+  telemetryEvent(
+    event: ClientTelemetryEventName,
+    properties?: Record<string, string | boolean>,
+  ): void;
   retryMessage(
     channelId: string,
     messageId: string,
@@ -638,6 +669,7 @@ export interface BridgeActions {
     text: string,
     cursor?: string,
   ): Promise<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  searchMessages?(text: string, cursor?: string): Promise<MessageSearchPage>;
   markChannelRead(channelId: string): Promise<void>;
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
@@ -875,7 +907,35 @@ export interface BridgeActions {
   marketplaceSubmit(url: string, altcha: string): Promise<MarketplaceEntry>;
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceTopics(): Promise<MarketplaceTopic[]>;
+  marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
+  marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
+  marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
+  marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
+  marketplaceAccount(): Promise<MarketplaceAccount>;
+  marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms: boolean,
+  ): Promise<MarketplaceAuthorAccount>;
+  marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount>;
+  marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
+  marketplaceUpload(
+    slug: string,
+    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
+  marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
+  marketplaceDelete(id: string): Promise<void>;
+  shareDraftStart(slug: string): Promise<ShareDraftView>;
+  shareDraftGet(slug: string): Promise<ShareDraftView | undefined>;
+  shareDraftDiscard(slug: string): Promise<void>;
+  shareDraftExport(slug: string): Promise<{ path: string; files: number }>;
+  marketplaceInstallReview(id: string, lang?: MarketplaceLanguage): Promise<InstallReviewResult>;
+  marketplaceInstall(
+    id: string,
+    reviewId: string,
+    sectionId?: string,
+    source?: MarketplaceInstallSource,
+  ): Promise<BotSummary>;
   createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
@@ -1022,6 +1082,20 @@ function mergeLatestWindow(
     return true;
   });
   return { messages, keptPrefix: overlap >= 0 || continues };
+}
+
+const APPROVAL_DECISIONS = {
+  'allowed-once': 'allow_once',
+  'allowed-always-tool': 'allow_always',
+  'allowed-always-exact': 'allow_always',
+  'allowed-always-all': 'allow_always',
+  rejected: 'reject',
+} as const;
+
+async function recorded<T>(work: Promise<T>, record: () => void): Promise<T> {
+  const value = await work;
+  record();
+  return value;
 }
 
 export function createActions(
@@ -1646,9 +1720,14 @@ export function createActions(
       return result;
     },
     inheritModel: (slug, expectedRevision) =>
-      invoke('modelPlanInherit', { slug, expectedRevision }),
-    introEvent: (event, properties = {}) => {
-      void invoke('introEvent', { ...properties, event }).catch(() => {});
+      recorded(invoke('modelPlanInherit', { slug, expectedRevision }), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'inherit' }),
+      ),
+    telemetryEvent: (event, properties = {}) => {
+      void invoke('telemetryEvent', {
+        event,
+        properties: { ...properties, surface: telemetrySurface() },
+      }).catch(() => {});
     },
     async botContext(botSlug) {
       return invoke('botContext', { slug: botSlug });
@@ -1708,14 +1787,32 @@ export function createActions(
       createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
     updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
       updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
-    applyModelPreset: (slug, presetId) => applyModelPreset(call, slug, presetId),
+    applyModelPreset: (slug, presetId) =>
+      recorded(applyModelPreset(call, slug, presetId), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'preset' }),
+      ),
     customizeModelPlan: (slug, orchestrator, expectedRevision) =>
-      customizeModelPlan(call, slug, orchestrator, expectedRevision),
+      recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'custom' }),
+      ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>
-      setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
+      recorded(
+        setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
+        () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
+      ),
     setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
-      setModelPlan(call, slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels),
+      recorded(
+        setModelPlan(
+          call,
+          slug,
+          expectedRevision,
+          orchestrator,
+          assignmentDefault,
+          assignmentModels,
+        ),
+        () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
+      ),
     listHostFolders: (path, signal, offset) => loadHostFolders(call, path, signal, offset),
     async addWorkspaceFolder(slug) {
       if (folderAccess === undefined) throw new Error('DSH folder picker is unavailable');
@@ -1834,22 +1931,31 @@ export function createActions(
     toolApprovalExecutionState: (channelId, messageId) =>
       loadToolApprovalExecutionState(call, channelId, messageId),
     decideToolApproval: (channelId, messageId, outcome) =>
-      settleNativeInboxAction(
-        'tool-approval',
-        channelId,
-        messageId,
-        () => decideToolApproval(call, channelId, messageId, outcome),
-        () => loadToolApprovalStatus(call, channelId, messageId),
+      recorded(
+        settleNativeInboxAction(
+          'tool-approval',
+          channelId,
+          messageId,
+          () => decideToolApproval(call, channelId, messageId, outcome),
+          () => loadToolApprovalStatus(call, channelId, messageId),
+        ),
+        () =>
+          actions.telemetryEvent('activity:approval_submit', {
+            decision: APPROVAL_DECISIONS[outcome],
+          }),
       ),
     userQuestionStatus: (channelId, messageId) =>
       loadUserQuestionStatus(call, channelId, messageId),
     answerUserQuestion: (channelId, messageId, answers) =>
-      settleNativeInboxAction(
-        'user-question',
-        channelId,
-        messageId,
-        () => answerUserQuestion(call, channelId, messageId, answers),
-        () => loadUserQuestionStatus(call, channelId, messageId),
+      recorded(
+        settleNativeInboxAction(
+          'user-question',
+          channelId,
+          messageId,
+          () => answerUserQuestion(call, channelId, messageId, answers),
+          () => loadUserQuestionStatus(call, channelId, messageId),
+        ),
+        () => actions.telemetryEvent('activity:question_submit'),
       ),
     async load(signal) {
       clientStore.setRosterStatus('loading', undefined);
@@ -2042,6 +2148,7 @@ export function createActions(
       loadHumanAttention(call, category, 50, cursor, filters),
     openHumanInbox() {
       clientStore.select({ kind: 'inbox' });
+      actions.telemetryEvent('activity:inbox_open');
       void refreshHumanInboxStatus();
       const scope = humanInboxScope();
       if (scope === undefined) return Promise.resolve();
@@ -2119,6 +2226,7 @@ export function createActions(
     },
     async dismissHumanInbox(item) {
       await dismissHumanInboxItem(call, item.id, item.sourceEventId ?? '');
+      actions.telemetryEvent('activity:inbox_item_dismiss');
       humanInboxScopeVersion += 1;
       humanInboxHeadSeq += 1;
       humanInboxPageSeq += 1;
@@ -2152,6 +2260,7 @@ export function createActions(
     },
     async snoozeHumanInbox(item, until) {
       await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);
+      actions.telemetryEvent('activity:inbox_item_snooze');
       humanInboxScopeVersion += 1;
       humanInboxHeadSeq += 1;
       humanInboxPageSeq += 1;
@@ -2218,6 +2327,7 @@ export function createActions(
         message.author.kind !== 'human'
       )
         throw new Error('Channel reply could not be confirmed');
+      actions.telemetryEvent('activity:inbox_reply_send', { target: 'message' });
       return message;
     },
     pickWorkspaceFolder() {
@@ -2257,6 +2367,7 @@ export function createActions(
         },
         async () => ((await readRequest())?.grantRequestResolved === true ? 'expired' : 'pending'),
       );
+      actions.telemetryEvent('activity:grant_request_submit');
     },
     async markAllRead() {
       try {
@@ -2302,6 +2413,9 @@ export function createActions(
     },
     searchChannel(channelId, text, cursor) {
       return searchChannelMessages(call, channelId, text, cursor);
+    },
+    searchMessages(text, cursor) {
+      return searchAllMessages(call, text, cursor);
     },
     async markChannelRead(channelId) {
       const messageId = clientStore
@@ -2350,6 +2464,7 @@ export function createActions(
           message.assignmentReply.sourceEventId !== sourceEventId
         )
           throw new Error('Assignment response could not be confirmed');
+        actions.telemetryEvent('activity:inbox_reply_send', { target: 'assignment' });
         return message;
       } finally {
         await Promise.allSettled([
@@ -2715,7 +2830,36 @@ export function createActions(
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
     marketplaceReport: (id, altcha, reason) => reportMarketplaceBot(call, id, altcha, reason),
     marketplaceTopics: () => loadMarketplaceTopics(call),
+    marketplaceSections: (lang) => loadMarketplaceSections(call, lang),
+    marketplaceDigests: (lang) => loadMarketplaceDigests(call, lang),
+    marketplaceDigest: (day, lang) => loadMarketplaceDigest(call, day, lang),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
+    marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
+    marketplaceAccount: () => invoke('marketplaceAccount', {}),
+    marketplaceAuthorSave: (displayName, acceptTerms) =>
+      invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
+    marketplaceAuthorAvatarSet: (avatar) => invoke('marketplaceAuthorAvatarSet', { avatar }),
+    marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
+    marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
+    marketplaceMine: (lang) => loadMyMarketplaceUploads(call, lang),
+    async marketplaceDelete(id) {
+      await invoke('marketplaceDelete', { id });
+    },
+    shareDraftStart: (slug) => invoke('shareDraftStart', { slug }),
+    async shareDraftGet(slug) {
+      const result = await call('shareDraftGet', { slug });
+      if (result.ok) return result.value as ShareDraftView;
+      if (result.error.code === 'share-draft-not-found') return undefined;
+      throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+    },
+    async shareDraftDiscard(slug) {
+      await invoke('shareDraftDiscard', { slug });
+    },
+    shareDraftExport: (slug) => invoke('shareDraftExport', { slug }),
+    marketplaceInstallReview: (id, lang) => reviewMarketplaceInstall(call, id, lang),
+    async marketplaceInstall(id, reviewId, sectionId, source) {
+      return openCreatedBot(await installMarketplaceBot(call, id, reviewId, source), sectionId);
+    },
     profileUsage: (channelId, filter) => loadProfileUsage(call, channelId, filter),
     channelActivityToday: () => loadChannelActivityToday(call),
     groupProfileActivity: (channelId) => loadGroupProfileActivity(call, channelId),

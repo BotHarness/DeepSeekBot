@@ -65,6 +65,13 @@ separate redacted copies. For full-frame showcase images, prepare synthetic name
 privacy-safe status bar before capture; preserve the original resolution and disclose any
 redaction. Generated artwork is presentation material, not runtime QA evidence.
 
+## iOS performance evidence
+
+Follow [iOS performance verification](ios-performance.md) for valid replay, symbolicated traces,
+matched physical Release A/B and measurement definitions. Index profiles and traces beside the
+visual evidence; video frame counts and JS callback cadence do not prove displayed FPS. Preserve
+invalid runs and instrument failures, and separate Simulator diagnostics from device acceptance.
+
 ## Preserve a release snapshot
 
 After the release coordinator freezes one acceptance SHA, both machines use that SHA for their

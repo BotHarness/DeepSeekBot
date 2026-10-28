@@ -16,16 +16,30 @@ const navigation = vi.hoisted(() => {
   };
 });
 vi.mock('expo-router', () => ({
+  useIsFocused: () => true,
   useRouter: () => ({ back() {} }),
   useNavigation: () => navigation,
   useFocusEffect: (work: () => () => void) => useLayoutEffect(work, [work]),
 }));
 
 vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 96 }));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native-worklets', () => ({
   scheduleOnRN: <A extends unknown[]>(callback: (...args: A) => void, ...args: A) =>
     callback(...args),
+}));
+vi.mock('react-native-collapsible-tab-view', () => import('./collapsible-tabs-shim'));
+vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderCircleButton: ({
+    label,
+    testID,
+    onPress,
+  }: {
+    label: string;
+    testID?: string;
+    onPress(): void;
+  }) => <button type="button" data-testid={testID} aria-label={label} onClick={onPress} />,
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
@@ -57,6 +71,9 @@ import type { RosterBot } from '../src/host/client';
 import { BotProfilePage } from '../src/ui/chat/bot-profile';
 import { createProfileTabMemory, type ProfileTab } from '../src/ui/chat/profile-tabs';
 import { t } from '../src/ui/strings';
+import { profileRootHeader, profileScreenOptions } from '../src/ui/chat/profile-presentation';
+import { Platform } from 'react-native';
+import { resolveTheme } from '../src/ui/design/resolve-theme';
 import profileWire from './fixtures/profile-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -190,7 +207,9 @@ const actions = () => ({
   onOpenActivity: vi.fn(),
 });
 const button = (view: HTMLElement, label: string) =>
-  view.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  [...view.querySelectorAll<HTMLButtonElement>(`button[aria-label="${label}"]`)].find(
+    (node) => node.closest('[hidden]') === null,
+  ) ?? null;
 function BotProfileSheet(
   props: Omit<Parameters<typeof BotProfilePage>[0], 'tabMemory'> & {
     tab?: ProfileTab;
@@ -212,13 +231,52 @@ const openTab = (view: HTMLElement, tab: ProfileTab) =>
     view.querySelector<HTMLButtonElement>(`[data-testid="profile-tab-${tab}"]`)!.click(),
   );
 const headers = (view: HTMLElement) =>
-  [...view.querySelectorAll('[role="header"]')].map((node) => node.textContent);
+  [...view.querySelectorAll('[role="header"]')]
+    .filter((node) => node.closest('[hidden]') === null)
+    .map((node) => node.textContent);
 
 describe('Bot profile page', () => {
   const avatarNone = {
     pick: async () => undefined,
     save: async () => undefined,
   };
+
+  it('retains a loaded tab component and its edits when switching away and back', async () => {
+    function EditableSettings() {
+      const [value, setValue] = useState('');
+      return (
+        <input
+          aria-label="Retained setting"
+          value={value}
+          onInput={(event) => setValue(event.currentTarget.value)}
+        />
+      );
+    }
+    const load = vi.fn(async () => empty);
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={load}
+        actions={actions()}
+        avatar={avatarNone}
+        settings={<EditableSettings />}
+      />,
+    );
+    await openTab(view, 'settings');
+    const input = view.querySelector<HTMLInputElement>('input[aria-label="Retained setting"]');
+    expect(input).not.toBeNull();
+    if (input === null) throw new Error('The settings input must be mounted');
+    await act(async () => {
+      input.value = 'Keep this edit';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await openTab(view, 'work');
+    await openTab(view, 'settings');
+    expect(view.querySelector('input[aria-label="Retained setting"]')).toBe(input);
+    expect(input.value).toBe('Keep this edit');
+    expect(load).toHaveBeenCalledTimes(1);
+  });
 
   it('lets the Human change the Bot avatar from its portrait and the settings row', async () => {
     const avatar = {
@@ -311,6 +369,49 @@ describe('Bot profile page', () => {
     expect(
       view.querySelector('[data-testid="profile-tab-routines"]')?.getAttribute('aria-selected'),
     ).toBe('true');
+  });
+
+  it('pushes in like a page from the right with a Back button instead of a sheet handle', async () => {
+    const options = profileScreenOptions(resolveTheme('light', {}, 'ios'));
+    expect(options).toMatchObject({
+      headerShown: false,
+      presentation: 'card',
+      animation: 'slide_from_right',
+      gestureEnabled: true,
+      fullScreenGestureEnabled: false,
+    });
+    expect(options).not.toHaveProperty('sheetAllowedDetents');
+    expect(profileRootHeader('index')).toBeUndefined();
+    const os = Platform.OS;
+    Object.assign(Platform, { OS: 'ios' });
+    try {
+      expect(profileScreenOptions(resolveTheme('light', {}, 'ios'))).toMatchObject({
+        headerShown: true,
+        headerTransparent: true,
+        title: '',
+        presentation: 'card',
+        animation: 'default',
+      });
+      expect(profileRootHeader('index')).toEqual({ headerShown: true });
+      expect(profileRootHeader('memory')).toEqual({ headerShown: false });
+    } finally {
+      Object.assign(Platform, { OS: os });
+    }
+    const onClose = vi.fn();
+    const view = await render(
+      <BotProfileSheet
+        bot={bot}
+        channels={[]}
+        load={async () => full}
+        actions={{ ...actions(), onClose }}
+        avatar={avatarNone}
+      />,
+    );
+    expect(view.querySelector('[data-testid="profile-handle"]')).toBeNull();
+    const back = view.querySelector('[data-testid="profile-back"]') as HTMLElement;
+    expect(back.getAttribute('aria-label')).toBe(t.back);
+    await act(async () => back.click());
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('lists the Bot’s Assignments by Title and Description under the day of their last activity', async () => {
@@ -493,7 +594,7 @@ describe('Bot profile page', () => {
     expect(view.textContent).toContain('Morning digest');
   });
 
-  it('closes, opens notifications and retries a failed section', async () => {
+  it('opens notifications and retries a failed section', async () => {
     const handlers = actions();
     let attempt = 0;
     const view = await render(
@@ -528,10 +629,8 @@ describe('Bot profile page', () => {
     await act(async () => undefined);
     expect(view.textContent).toContain('Morning digest');
 
-    await act(async () => button(view, t.close)!.click());
     await openTab(view, 'settings');
     await act(async () => button(view, t.profileNotifications)!.click());
-    expect(handlers.onClose).toHaveBeenCalledTimes(1);
     expect(handlers.onNotifications).toHaveBeenCalledTimes(1);
   });
 

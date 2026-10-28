@@ -20,7 +20,9 @@ import {
   foregroundStyle,
   frame,
   labelStyle,
+  listRowBackground,
   offset,
+  scrollContentBackground,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
@@ -34,11 +36,12 @@ export function AccountPanel(props: AccountPanelProps) {
   const t = useStrings();
   const theme = useDesignTheme();
   const locked = props.loading || props.busy;
+  const row = [listRowBackground(theme.layer.raised.fill)];
   return (
     <View style={{ flex: 1 }}>
       <Host style={{ flex: 1 }} colorScheme={theme.scheme} seedColor={theme.color.accent}>
-        <Form testID="account-hosts">
-          <Section title={t.pairAccount.title}>
+        <Form testID="account-hosts" modifiers={[scrollContentBackground('hidden')]}>
+          <Section title={t.pairAccount.title} modifiers={row}>
             <HStack spacing={space.x3}>
               <Image systemName="person.crop.circle" />
               <Text modifiers={[font({ textStyle: 'body' })]}>
@@ -75,7 +78,7 @@ export function AccountPanel(props: AccountPanelProps) {
             ) : null}
           </Section>
           {props.email !== null && props.email !== false ? (
-            <Section title={t.pairAccount.computers}>
+            <Section title={t.pairAccount.computers} modifiers={row}>
               {props.rows?.map((row) => (
                 <Button
                   key={row.id}
@@ -96,7 +99,10 @@ export function AccountPanel(props: AccountPanelProps) {
                       <Text
                         modifiers={[
                           font({ textStyle: 'caption' }),
-                          foregroundStyle({ type: 'color', color: theme.color.muted }),
+                          foregroundStyle({
+                            type: 'color',
+                            color: theme.color.muted,
+                          }),
                         ]}
                       >
                         {row.pairing ? t.pairAccount.pairing : row.detail}
@@ -110,7 +116,10 @@ export function AccountPanel(props: AccountPanelProps) {
                         systemName="checkmark"
                         modifiers={[
                           font({ textStyle: 'body', weight: 'semibold' }),
-                          foregroundStyle({ type: 'color', color: theme.color.accent }),
+                          foregroundStyle({
+                            type: 'color',
+                            color: theme.color.accent,
+                          }),
                         ]}
                       />
                     ) : null}
@@ -131,7 +140,7 @@ export function AccountPanel(props: AccountPanelProps) {
             </Section>
           ) : null}
           {props.error ? (
-            <Section>
+            <Section modifiers={row}>
               <Text modifiers={[foregroundStyle({ type: 'color', color: theme.color.danger })]}>
                 {props.error}
               </Text>
@@ -185,9 +194,16 @@ function AccountAction(props: {
               font({ textStyle: 'body' }),
               foregroundStyle(theme.color.danger),
               ...(props.systemImage === 'rectangle.portrait.and.arrow.right'
-                ? [offset({ x: accountActionIcon.signOutOpticalOffset * theme.fontScale })]
+                ? [
+                    offset({
+                      x: accountActionIcon.signOutOpticalOffset * theme.fontScale,
+                    }),
+                  ]
                 : []),
-              frame({ width: accountActionIcon.slot * theme.fontScale, alignment: 'center' }),
+              frame({
+                width: accountActionIcon.slot * theme.fontScale,
+                alignment: 'center',
+              }),
               accessibilityHidden(),
             ]}
           />

@@ -24,12 +24,21 @@ const ROW_ICONS = {
   appIcon: { ios: 'app.badge', android: 'apps' },
   activityCount: { ios: 'number.circle', android: 'tag' },
   background: { ios: 'photo', android: 'wallpaper' },
+  haptics: { ios: 'iphone.radiowaves.left.and.right', android: 'mobile_vibrate' },
+  delivery: { ios: 'checkmark.bubble', android: 'mark_chat_read' },
+  messageDisplay: { ios: 'text.bubble', android: 'chat' },
+  streaming: { ios: 'ellipsis.bubble', android: 'stream' },
+  complete: { ios: 'bubble.left', android: 'chat_bubble' },
   version: { ios: 'info.circle', android: 'info' },
   open: { ios: 'arrow.up.forward.app', android: 'open_in_new' },
   copy: { ios: 'doc.on.doc', android: 'content_copy' },
+  testRoute: { ios: 'antenna.radiowaves.left.and.right', android: 'network_check' },
   share: { ios: 'square.and.arrow.up', android: 'share' },
   account: { ios: 'person.crop.circle', android: 'account_circle' },
   qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
+  lan: { ios: 'wifi', android: 'wifi' },
+  encrypted: { ios: 'lock', android: 'vpn_lock' },
+  add: { ios: 'plus', android: 'add' },
 } as const;
 
 export type RowIconName = keyof typeof ROW_ICONS;

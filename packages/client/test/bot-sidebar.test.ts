@@ -12,6 +12,26 @@ const captured = vi.hoisted(() => ({
     onSelect?: (id: string) => void;
     point?: { x: number; y: number };
   }>,
+  uploads: [] as Array<{ initialSlug?: string | undefined; onListed: () => void }>,
+  avatarEditors: [] as Array<{
+    bot: { slug: string };
+    channelId: string;
+    onSave(channelId: string, recipe: unknown): Promise<boolean>;
+  }>,
+}));
+
+vi.mock('../src/client/avatar-appearance-editor.js', () => ({
+  AvatarAppearanceEditor: (props: (typeof captured.avatarEditors)[number]) => {
+    captured.avatarEditors.push(props);
+    return null;
+  },
+}));
+
+vi.mock('../src/client/market-upload.js', () => ({
+  MarketUploadDialog: (props: { initialSlug?: string | undefined; onListed: () => void }) => {
+    captured.uploads.push(props);
+    return null;
+  },
 }));
 
 vi.mock('../src/client/ds/pointer-menu.js', () => ({
@@ -63,7 +83,10 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
       captured.menus.push(props);
       return props.anchor as never;
     },
-    Modal: stub,
+    Modal: (props: { open: boolean; title: string; children?: ReactNode }) =>
+      props.open
+        ? createElement('div', { role: 'dialog', 'aria-label': props.title }, props.children)
+        : null,
     StateDot: stub,
     Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
     Tooltip: (props: { children?: unknown }) => (props.children ?? null) as never,
@@ -138,7 +161,7 @@ function stubActions(): BridgeActions {
     onboarding: vi.fn(),
     onboardingModel: vi.fn(),
     inheritModel: vi.fn(),
-    introEvent: vi.fn(),
+    telemetryEvent: vi.fn(),
     retryMessage: vi.fn(),
     stopBot: vi.fn(),
     botContext: vi.fn(),
@@ -162,8 +185,45 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected Overview usage');
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
+    marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    marketplaceAuthorSave: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceAuthorAvatarSet: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUploadPlan: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUpload: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstallReview: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceMine: vi.fn(async () => []),
+    marketplaceDelete: vi.fn(async () => {}),
+    shareDraftStart: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    shareDraftGet: vi.fn(async () => undefined),
+    shareDraftDiscard: vi.fn(async () => undefined),
+    shareDraftExport: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstall: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceTopics: vi.fn(async () => []),
+    marketplaceSections: vi.fn(async () => []),
+    marketplaceDigests: vi.fn(async () => []),
+    marketplaceDigest: vi.fn(async () => {
+      throw new Error('digest-not-found');
+    }),
     marketplaceDetail: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceFile: vi.fn(async () => {
       throw new Error('unused');
     }),
     marketplaceSubmit: vi.fn(async () => {
@@ -756,6 +816,98 @@ describe('bot sidebar rows', () => {
       await act(() => root.unmount());
       node.remove();
       companion.dispose();
+    }
+  });
+
+  it('opens Marketplace upload for the right-clicked Bot from its DM context menu', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const open = vi.fn();
+    captured.uploads.length = 0;
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions: stubActions(),
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            dockPanels: { open } as never,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() =>
+        node
+          .querySelector('[data-channel-id="dm-atlas"]')!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      expect(
+        menuWithItem('share-market').items.find((item) => item['id'] === 'share-market')?.['label'],
+      ).toBe('分享到市场');
+      await act(() => menuWithItem('share-market').onSelect!('share-market'));
+      expect(captured.uploads.at(-1)?.initialSlug).toBe('atlas');
+      captured.uploads.at(-1)?.onListed();
+      expect(open).toHaveBeenCalledWith('bot-market');
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
+    }
+  });
+
+  it('changes a Bot avatar from its DM context menu through the Profile avatar editor', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    captured.avatarEditors.length = 0;
+    const actions = stubActions();
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() =>
+        node
+          .querySelector('[data-channel-id="dm-atlas"]')!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      const menu = menuWithItem('change-avatar');
+      const ids = menu.items.filter((item) => item['type'] === undefined).map((item) => item['id']);
+      expect(ids.slice(0, 2)).toEqual(['profile', 'change-avatar']);
+      expect(menu.items.find((item) => item['id'] === 'change-avatar')).toMatchObject({
+        label: '修改头像…',
+      });
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      await act(() => menu.onSelect!('change-avatar'));
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.getAttribute('aria-label')).toBe(zhTranslate('profile.avatar.section'));
+      const editor = captured.avatarEditors.at(-1)!;
+      expect(editor.bot.slug).toBe('atlas');
+      expect(editor.channelId).toBe('dm-atlas');
+      const recipe = { version: 1 };
+      await act(async () => {
+        await editor.onSave('dm-atlas', recipe);
+      });
+      expect(actions.setBotAppearance).toHaveBeenCalledWith('dm-atlas', recipe);
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
     }
   });
 
@@ -1898,6 +2050,7 @@ describe('bot sidebar rows', () => {
 
   it('gives every Channel menu row an icon and offers Delete Bot last as a danger row', () => {
     const share = vi.fn();
+    const market = vi.fn();
     const companion = vi.fn();
     const remove = vi.fn();
     renderToStaticMarkup(
@@ -1908,6 +2061,7 @@ describe('bot sidebar rows', () => {
         t: zhTranslate as never,
         companionAction: { label: '显示为窗口伙伴', run: companion },
         shareAction: { label: '分享', run: share },
+        marketAction: market,
         deleteAction: { label: '删除 Bot', run: remove },
         onPick: vi.fn(),
         onClose: vi.fn(),
@@ -1920,6 +2074,7 @@ describe('bot sidebar rows', () => {
     expect(rows.map((item) => item['id'])).toEqual([
       'companion',
       'share',
+      'share-market',
       'pin',
       'move',
       'rename',
@@ -1928,6 +2083,9 @@ describe('bot sidebar rows', () => {
     ]);
     for (const row of rows) expect(row['icon']).toBeDefined();
     expect(rows.at(-1)?.['danger']).toBe(true);
+    expect(rows.find((row) => row['id'] === 'share-market')?.['label']).toBe('分享到市场');
+    menu.onSelect?.('share-market');
+    expect(market).toHaveBeenCalledOnce();
     menu.onSelect?.('delete');
     expect(remove).toHaveBeenCalledOnce();
   });

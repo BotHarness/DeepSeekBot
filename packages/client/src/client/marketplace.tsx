@@ -24,18 +24,30 @@ import type { MarketplaceLanguage } from '../../../core/src/marketplace/language
 import type {
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFile,
   MarketplaceQuery,
   MarketplaceSort,
   MarketplaceTopic,
+  MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
+import type {
+  InstallFinding,
+  InstallReviewResult,
+} from '../../../core/src/marketplace/install-review.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Callout } from './ds/callout.js';
+import { formatStars } from './community-links.js';
+import { formatRelativeTime } from './labels.js';
 import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
+import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
+import { MarketPage } from './market-page.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
 
@@ -49,6 +61,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'repository-blocked': 'market.error.blocked',
   'upstream-unavailable': 'market.error.upstream',
   'bot-not-found': 'market.error.botNotFound',
+  'file-not-found': 'market.error.fileNotFound',
   'challenge-unavailable': 'market.error.challengeUnavailable',
   'challenge-invalid': 'market.error.challenge',
   'challenge-expired': 'market.error.challenge',
@@ -56,6 +69,19 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'rate-limited': 'market.error.rateLimited',
   'repository-rate-limited': 'market.error.repositoryRateLimited',
   'invalid-report': 'market.error.invalidReport',
+  'sign-in-required': 'market.error.signIn',
+  'sign-in-rejected': 'market.error.signInRejected',
+  'author-required': 'market.error.authorRequired',
+  'terms-required': 'market.error.terms',
+  'invalid-author-name': 'market.error.authorName',
+  'uploads-unavailable': 'market.error.uploadsUnavailable',
+  'too-many-files': 'market.error.tooManyFiles',
+  'too-large': 'market.error.tooLarge',
+  'bot-limit': 'market.error.botLimit',
+  'nothing-to-upload': 'market.error.nothingToUpload',
+  'listing-not-installable': 'market.error.botNotFound',
+  'not-an-uploaded-bot': 'market.error.botNotFound',
+  'replace-limit': 'market.error.replaceLimit',
 };
 
 export const MAX_REPORT_REASON_LENGTH = 500;
@@ -94,11 +120,30 @@ export function marketplaceName(bot: MarketplaceEntry): string {
   return bot.displayName ?? bot.name;
 }
 
+export function marketplaceOwner(bot: MarketplaceEntry): string {
+  if (bot.source === 'upload' && bot.author !== null) return `${bot.author.name} #${bot.author.id}`;
+  return bot.displayName === null ? bot.owner : bot.fullName;
+}
+
+export function MarketplaceOwner({ bot }: { bot: MarketplaceEntry }): ReactElement {
+  const avatar = bot.source === 'upload' ? bot.author?.avatar : null;
+  return (
+    <>
+      {avatar == null ? null : (
+        <img className="bh-market-author-avatar" src={avatar} alt="" data-market-author-avatar="" />
+      )}
+      {marketplaceOwner(bot)}
+    </>
+  );
+}
+
 function MarketplaceName({ bot }: { bot: MarketplaceEntry }): ReactElement {
   return (
     <span className="bh-market-name">
       <span>{marketplaceName(bot)}</span>
-      <span className="bh-market-owner">{bot.displayName === null ? bot.owner : bot.fullName}</span>
+      <span className="bh-market-owner">
+        <MarketplaceOwner bot={bot} />
+      </span>
       {bot.roles.map((role) => (
         <Tag key={role} tone="outline">
           {role}
@@ -131,6 +176,11 @@ function day(value: string): string {
   return value.slice(0, 10);
 }
 
+function ago(value: string, t: BotHarnessTranslate): string {
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? day(value) : formatRelativeTime(at, Date.now(), t);
+}
+
 const VISIBLE_TOPICS = 12;
 const MAX_QUERY_LENGTH = 100;
 
@@ -148,10 +198,16 @@ export interface Filters {
   topic?: string;
 }
 
-function queryFor(filters: Filters, lang: MarketplaceLanguage, cursor?: string): MarketplaceQuery {
+function queryFor(
+  filters: Filters,
+  lang: MarketplaceLanguage,
+  cursor?: string,
+  includeUploads = false,
+): MarketplaceQuery {
   return {
     sort: filters.sort,
     lang,
+    ...(includeUploads ? { includeUploads: true } : {}),
     ...(filters.query.length === 0 ? {} : { q: filters.query }),
     ...(filters.topic === undefined ? {} : { topic: filters.topic }),
     ...(cursor === undefined ? {} : { cursor }),
@@ -173,6 +229,27 @@ function mergeBots(current: MarketplaceEntry[], next: MarketplaceEntry[]): Marke
   return [...current.filter((bot) => !seen.has(bot.id)), ...next];
 }
 
+export function MarketplaceInstalls({
+  bot,
+  t,
+  className = 'bh-market-installs',
+}: {
+  bot: MarketplaceEntry;
+  t: BotHarnessTranslate;
+  className?: string;
+}): ReactElement {
+  return (
+    <span
+      className={className}
+      data-market-installs={bot.installs}
+      aria-label={t('market.installs', { count: String(bot.installs) })}
+      title={t('market.installs', { count: String(bot.installs) })}
+    >
+      {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
+    </span>
+  );
+}
+
 export function MarketplaceMeta({
   bot,
   t,
@@ -186,11 +263,21 @@ export function MarketplaceMeta({
 }): ReactElement {
   return (
     <span className="bh-market-meta">
-      <span>{t('market.stars', { count: String(bot.stars) })}</span>
+      {bot.source === 'upload' ? null : (
+        <span>{t('market.stars', { count: String(bot.stars) })}</span>
+      )}
+      <MarketplaceInstalls bot={bot} t={t} />
+      {bot.installed?.authorUpdated === true ? (
+        <span data-market-author-updated="">
+          <Tag tone="info">{t('market.authorUpdated')}</Tag>
+        </span>
+      ) : null}
       {created && bot.createdAt !== undefined ? (
-        <span>{t('market.created', { date: day(bot.createdAt) })}</span>
+        <span title={day(bot.createdAt)}>
+          {t('market.created', { date: ago(bot.createdAt, t) })}
+        </span>
       ) : (
-        <span>{t('market.updated', { date: day(bot.pushedAt) })}</span>
+        <span title={day(bot.pushedAt)}>{t('market.updated', { date: ago(bot.pushedAt, t) })}</span>
       )}
       {(topics ? bot.topics : []).map((topic) => (
         <Tag key={topic} tone="neutral">
@@ -210,11 +297,22 @@ export function MarketplaceAvatar({
   size: number;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const avatar = bot.avatar;
   return (
-    <span className="bh-market-avatar" aria-hidden="true">
+    <span
+      className="bh-market-avatar"
+      aria-hidden="true"
+      data-market-avatar={avatar === null ? 'seeded' : 'recipe' in avatar ? 'recipe' : 'image'}
+    >
       <PersonaBotAvatar
         personaBotId=""
         name={marketplaceName(bot)}
+        src={avatar !== null && 'image' in avatar ? avatar.image : undefined}
+        appearance={
+          avatar !== null && 'recipe' in avatar
+            ? { recipe: avatar.recipe, revision: '0'.repeat(64) }
+            : undefined
+        }
         size={size}
         indicator={false}
         still
@@ -342,18 +440,21 @@ function ReportPanel({
 }
 
 function MarketplaceDetailView({
+  actions,
   bot,
   state,
   t,
   onRetry,
   report,
 }: {
+  actions: Pick<BridgeActions, 'marketplaceFile'>;
   bot: MarketplaceEntry;
   state: DetailState;
   t: BotHarnessTranslate;
   onRetry: () => void;
   report: ReactElement | null;
 }): ReactElement {
+  const [reading, setReading] = useState<MarketplaceFile | undefined>(undefined);
   const labels = useMemo<MarkdownLabels>(
     () => ({
       code: {
@@ -374,9 +475,11 @@ function MarketplaceDetailView({
           <span className="bh-market-copy">
             <MarketplaceName bot={shown} />
           </span>
-          <a className="bh-market-github" href={shown.htmlUrl} target="_blank" rel="noreferrer">
-            {t('market.detail.github')}
-          </a>
+          {shown.source === 'upload' ? null : (
+            <a className="bh-market-github" href={shown.htmlUrl} target="_blank" rel="noreferrer">
+              {t('market.detail.github')}
+            </a>
+          )}
         </div>
         {shown.description === null ? null : <MarketplaceDescription bot={shown} t={t} />}
         <MarketplaceMeta bot={shown} t={t} />
@@ -392,10 +495,31 @@ function MarketplaceDetailView({
           {t('market.detail.error', { error: marketplaceError(state.cause, t) })}
         </ReadFailure>
       ) : null}
-      {state.status === 'ready' && state.detail.readme === null ? (
+      {state.status === 'ready' && reading !== undefined ? (
+        <MarketplaceFileReader
+          actions={actions}
+          botId={shown.id}
+          file={reading}
+          labels={labels}
+          t={t}
+          describeError={(cause) => marketplaceError(cause, t)}
+          onBack={() => setReading(undefined)}
+        />
+      ) : null}
+      {state.status === 'ready' && reading === undefined && state.detail.files !== undefined ? (
+        <MarketplaceFileTree
+          files={state.detail.files}
+          {...(state.detail.fileSummary === undefined ? {} : { summary: state.detail.fileSummary })}
+          t={t}
+          onOpen={setReading}
+        />
+      ) : null}
+      {state.status === 'ready' &&
+      state.detail.readme === null &&
+      state.detail.files === undefined ? (
         <div className="bh-market-state">{t('market.detail.noReadme')}</div>
       ) : null}
-      {state.status === 'ready' && state.detail.readme !== null ? (
+      {state.status === 'ready' && reading === undefined && state.detail.readme !== null ? (
         <div className="bh-market-readme" data-market-readme>
           <MarkdownText text={state.detail.readme} labels={labels} />
         </div>
@@ -404,13 +528,113 @@ function MarketplaceDetailView({
   );
 }
 
+type ReviewState =
+  | { status: 'reviewing' }
+  | { status: 'ready'; result: InstallReviewResult }
+  | { status: 'error'; cause: unknown };
+
+const FINDING_ICONS: Record<InstallFinding['kind'], string> = {
+  'prompt-injection': 'text-quote',
+  exfiltration: 'globe',
+  script: 'terminal',
+};
+
+function InstallFindings({
+  findings,
+  t,
+}: {
+  findings: readonly InstallFinding[];
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <ul className="bh-market-findings">
+      {findings.map((finding) => (
+        <li
+          key={finding.kind + finding.path}
+          className="bh-market-finding"
+          data-market-finding={finding.kind}
+        >
+          <span className="bh-market-finding-icon" data-tone={finding.kind}>
+            <ChannelSidebarIcon name={FINDING_ICONS[finding.kind]} size={14} />
+          </span>
+          <span className="bh-market-finding-body">
+            <span className="bh-market-finding-head">
+              <strong>{t(`market.review.kind.${finding.kind}`)}</strong>
+              <code>{finding.path}</code>
+            </span>
+            {finding.note === undefined ? null : <span>{finding.note}</span>}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function InstallReviewView({
+  state,
+  t,
+  onRetry,
+}: {
+  state: ReviewState;
+  t: BotHarnessTranslate;
+  onRetry: () => void;
+}): ReactElement {
+  if (state.status === 'reviewing')
+    return (
+      <div className="bh-market-review" data-market-review="reviewing" role="status">
+        <span className="bh-market-review-pulse" aria-hidden="true" />
+        {t('market.review.reviewing')}
+      </div>
+    );
+  if (state.status === 'error')
+    return (
+      <ReadFailure retryLabel={t('market.retry')} onRetry={onRetry}>
+        {t('market.review.failed', { error: marketplaceError(state.cause, t) })}
+      </ReadFailure>
+    );
+  const { review } = state.result;
+  if (review.status === 'unavailable')
+    return (
+      <div className="bh-market-review-result" data-market-review="unavailable">
+        <Callout tone="warning" role="alert" title={t('market.review.unavailable')}>
+          {t('market.review.unavailableHint')}
+        </Callout>
+        {review.findings.length === 0 ? null : <InstallFindings findings={review.findings} t={t} />}
+      </div>
+    );
+  if (review.findings.length === 0)
+    return (
+      <div className="bh-market-review" data-market-review="clean" data-tone="clean" role="status">
+        <ChannelSidebarIcon name="shield-check" size={16} />
+        {t('market.review.clean')}
+        {review.partial ? <Note tone="subtle">{t('market.review.partial')}</Note> : null}
+      </div>
+    );
+  return (
+    <div className="bh-market-review-result" data-market-review="findings">
+      <Callout
+        tone="danger"
+        role="alert"
+        title={t('market.review.found', { count: String(review.findings.length) })}
+      >
+        <InstallFindings findings={review.findings} t={t} />
+      </Callout>
+      {review.partial ? <Note tone="subtle">{t('market.review.partial')}</Note> : null}
+    </div>
+  );
+}
+
 function InstallConfirmation({
   bot,
   t,
+  review,
+  onRetry,
   cause,
 }: {
   bot: MarketplaceEntry;
   t: BotHarnessTranslate;
+  review: ReviewState;
+  onRetry: () => void;
   cause: unknown | undefined;
 }): ReactElement {
   return (
@@ -428,32 +652,43 @@ function InstallConfirmation({
           {bot.description === null ? null : <MarketplaceDescription bot={bot} t={t} />}
         </span>
       </div>
-      <dl className="bh-market-facts">
-        <div>
-          <dt>{t('market.confirm.source')}</dt>
-          <dd>
-            <a href={bot.htmlUrl} target="_blank" rel="noreferrer">
-              {bot.fullName}
-            </a>
-          </dd>
-        </div>
-        <div>
-          <dt>{t('market.confirm.commit')}</dt>
-          <dd data-market-commit>
-            {bot.headCommit === null
-              ? t('market.confirm.noCommit')
-              : t('market.confirm.commitValue', {
-                  sha: shortSha(bot.headCommit.sha),
-                  date: day(bot.headCommit.committedAt),
-                })}
-          </dd>
-        </div>
-      </dl>
-      <div className="bh-market-risk" role="note">
-        <strong>{t('market.confirm.riskTitle')}</strong>
-        <span>{t('market.confirm.risk')}</span>
-        <span>{t('market.confirm.newer')}</span>
-      </div>
+      {bot.source === 'upload' ? (
+        <dl className="bh-market-facts">
+          <div>
+            <dt>{t('market.confirm.author')}</dt>
+            <dd data-market-author>
+              <MarketplaceOwner bot={bot} />
+            </dd>
+          </div>
+          <div>
+            <dt>{t('market.confirm.uploaded')}</dt>
+            <dd>{day(bot.pushedAt)}</dd>
+          </div>
+        </dl>
+      ) : (
+        <dl className="bh-market-facts">
+          <div>
+            <dt>{t('market.confirm.source')}</dt>
+            <dd>
+              <a href={bot.htmlUrl} target="_blank" rel="noreferrer">
+                {bot.fullName}
+              </a>
+            </dd>
+          </div>
+          <div>
+            <dt>{t('market.confirm.commit')}</dt>
+            <dd data-market-commit>
+              {bot.headCommit === null
+                ? t('market.confirm.noCommit')
+                : t('market.confirm.commitValue', {
+                    sha: shortSha(bot.headCommit.sha),
+                    date: day(bot.headCommit.committedAt),
+                  })}
+            </dd>
+          </div>
+        </dl>
+      )}
+      <InstallReviewView state={review} t={t} onRetry={onRetry} />
       {cause === undefined ? null : (
         <div className="bh-modal-error" role="alert">
           {t('market.install.failed', {
@@ -463,6 +698,15 @@ function InstallConfirmation({
       )}
     </div>
   );
+}
+
+function installLabel(review: ReviewState, installing: boolean, t: BotHarnessTranslate): string {
+  if (installing) return t('market.confirm.installing');
+  if (review.status !== 'ready') return t('market.confirm.reviewing');
+  if (review.result.review.status === 'unavailable') return t('market.confirm.installUnreviewed');
+  return review.result.review.findings.length === 0
+    ? t('market.confirm.install')
+    : t('market.confirm.installAnyway');
 }
 
 export interface MarketplaceBrowse {
@@ -478,6 +722,7 @@ export interface MarketplaceBrowse {
   retry(): void;
   loadMore(): void;
   prepend(bot: MarketplaceEntry): void;
+  remove(id: string): void;
 }
 
 const SORT_STORAGE_KEY = 'botharness.marketplace.sort';
@@ -493,7 +738,9 @@ function preferredSort(): MarketplaceSort {
 export function useMarketplaceBrowse(
   actions: BridgeActions,
   lang: MarketplaceLanguage,
+  options: { includeUploads?: boolean } = {},
 ): MarketplaceBrowse {
+  const includeUploads = options.includeUploads === true;
   const [list, setList] = useState<ListState>({ status: 'loading' });
   const [filters, setFilters] = useState<Filters>(() => ({ sort: preferredSort(), query: '' }));
   const [searchText, setSearchText] = useState('');
@@ -506,7 +753,7 @@ export function useMarketplaceBrowse(
     latestFilters.current = next;
     setFilters(next);
     setList({ status: 'loading' });
-    void actions.marketplaceList(queryFor(next, lang)).then(
+    void actions.marketplaceList(queryFor(next, lang, undefined, includeUploads)).then(
       (page) => {
         if (ticket !== generation.current) return;
         setList({
@@ -557,26 +804,34 @@ export function useMarketplaceBrowse(
       const ticket = generation.current;
       const current = list;
       setList({ ...current, loadingMore: true });
-      void actions.marketplaceList(queryFor(filters, lang, current.nextCursor)).then(
-        (page) => {
-          if (ticket !== generation.current) return;
-          setList({
-            status: 'ready',
-            bots: mergeBots(current.bots, page.bots),
-            ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-            loadingMore: false,
-          });
-        },
-        (cause: unknown) => {
-          if (ticket === generation.current) setList({ status: 'error', cause });
-        },
-      );
+      void actions
+        .marketplaceList(queryFor(filters, lang, current.nextCursor, includeUploads))
+        .then(
+          (page) => {
+            if (ticket !== generation.current) return;
+            setList({
+              status: 'ready',
+              bots: mergeBots(current.bots, page.bots),
+              ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
+              loadingMore: false,
+            });
+          },
+          (cause: unknown) => {
+            if (ticket === generation.current) setList({ status: 'error', cause });
+          },
+        );
     },
     prepend: (bot) =>
       setList((current) =>
         current.status === 'ready'
           ? { ...current, bots: [bot, ...current.bots.filter((item) => item.id !== bot.id)] }
           : { status: 'ready', bots: [bot], loadingMore: false },
+      ),
+    remove: (id) =>
+      setList((current) =>
+        current.status === 'ready'
+          ? { ...current, bots: current.bots.filter((item) => item.id !== id) }
+          : current,
       ),
   };
 }
@@ -820,6 +1075,7 @@ export function MarketplaceSubmitField({
 export interface MarketplaceFlowStart {
   readonly bot: MarketplaceEntry;
   readonly step: 'detail' | 'install';
+  readonly source?: MarketplaceInstallSource;
 }
 
 export function MarketplaceBotFlow({
@@ -829,6 +1085,7 @@ export function MarketplaceBotFlow({
   onExit,
   onClose,
   onInstalled,
+  page,
 }: {
   actions: BridgeActions;
   t: BotHarnessTranslate;
@@ -836,6 +1093,7 @@ export function MarketplaceBotFlow({
   onExit: () => void;
   onClose: () => void;
   onInstalled: () => void;
+  page?: { readonly hidden: boolean } | undefined;
 }): ReactElement {
   const lang = marketplaceLanguage(t);
   const viewing = start.step === 'detail' ? start.bot : undefined;
@@ -846,7 +1104,36 @@ export function MarketplaceBotFlow({
   const [report, setReport] = useState<ReportState>({ status: 'closed' });
   const [installing, setInstalling] = useState(false);
   const [installCause, setInstallCause] = useState<unknown | undefined>(undefined);
+  const [review, setReview] = useState<ReviewState>({ status: 'reviewing' });
   const detailGeneration = useRef(0);
+  const reviewGeneration = useRef(0);
+
+  const startReview = (bot: MarketplaceEntry): void => {
+    const ticket = ++reviewGeneration.current;
+    setReview({ status: 'reviewing' });
+    void actions.marketplaceInstallReview(bot.id, lang).then(
+      (result) => {
+        if (ticket === reviewGeneration.current) setReview({ status: 'ready', result });
+      },
+      (cause: unknown) => {
+        if (ticket === reviewGeneration.current) setReview({ status: 'error', cause });
+      },
+    );
+  };
+
+  const choose = (bot: MarketplaceEntry | undefined): void => {
+    setSelected(bot);
+    setInstallCause(undefined);
+    if (bot === undefined) reviewGeneration.current += 1;
+    else startReview(bot);
+  };
+
+  const loadReview = useMountedResource<HTMLDivElement>(() => {
+    if (start.step === 'install') startReview(start.bot);
+    return () => {
+      reviewGeneration.current += 1;
+    };
+  }, []);
 
   const openDetail = (bot: MarketplaceEntry): void => {
     const ticket = ++detailGeneration.current;
@@ -894,65 +1181,165 @@ export function MarketplaceBotFlow({
   };
 
   const install = (): void => {
-    if (selected === undefined || installing) return;
+    if (selected === undefined || installing || review.status !== 'ready') return;
     setInstalling(true);
     setInstallCause(undefined);
-    void actions
-      .createBot({
-        displayName: marketplaceName(selected),
-        gitUrl: selected.cloneUrl,
-        roles: selected.roles,
-        origin: 'marketplace',
-        ...(selected.description === null ? {} : { description: selected.description }),
-      })
-      .then(
-        () => {
-          setInstalling(false);
-          onInstalled();
-        },
-        (cause: unknown) => {
-          setInstalling(false);
-          setInstallCause(cause);
-        },
-      );
+    const installed: Promise<unknown> = actions.marketplaceInstall(
+      selected.id,
+      review.result.reviewId,
+      undefined,
+      start.source ?? 'list',
+    );
+    void installed.then(
+      () => {
+        setInstalling(false);
+        onInstalled();
+      },
+      (cause: unknown) => {
+        setInstalling(false);
+        setInstallCause(cause);
+      },
+    );
   };
 
-  if (selected !== undefined) {
-    return (
+  const confirm =
+    selected === undefined ? null : (
       <PanelDialog
         size="medium"
         fill
         onClose={() => {
-          if (!installing) onClose();
+          if (installing) return;
+          if (page === undefined) onClose();
+          else choose(undefined);
         }}
         closeLabel={t('common.close')}
         title={t('market.confirm.title', { name: marketplaceName(selected) })}
+        bodyRef={loadReview}
+        data={{ 'data-market-install': review.status }}
         actions={
           <>
             <Button
               variant="outline"
               disabled={installing}
               onClick={() => {
-                setInstallCause(undefined);
                 if (viewing === undefined) onExit();
-                else setSelected(undefined);
+                else choose(undefined);
               }}
             >
               {t('market.back')}
             </Button>
-            <Button variant="primary" disabled={installing} onClick={install}>
-              {installing ? t('market.confirm.installing') : t('market.confirm.install')}
+            <Button
+              variant={
+                review.status === 'ready' &&
+                review.result.review.status === 'reviewed' &&
+                review.result.review.findings.length === 0
+                  ? 'primary'
+                  : 'outline'
+              }
+              disabled={installing || review.status !== 'ready'}
+              onClick={install}
+            >
+              {installLabel(review, installing, t)}
             </Button>
           </>
         }
       >
-        <InstallConfirmation bot={selected} t={t} cause={installCause} />
+        <InstallConfirmation
+          bot={review.status === 'ready' ? review.result.listing : selected}
+          t={t}
+          review={review}
+          onRetry={() => startReview(selected)}
+          cause={installCause}
+        />
       </PanelDialog>
     );
-  }
+
+  if (confirm !== null && (page === undefined || viewing === undefined)) return confirm;
 
   const bot = viewing ?? start.bot;
   const shown = detail.status === 'ready' ? detail.detail.bot : bot;
+  const secondary =
+    report.status === 'closed' ? (
+      <Button
+        variant="ghost"
+        onClick={() => setReport({ status: 'open', reason: '', phase: 'idle' })}
+      >
+        {t('market.report.open')}
+      </Button>
+    ) : undefined;
+  const footer =
+    report.status === 'open' ? (
+      <>
+        <Button
+          variant="outline"
+          disabled={report.phase !== 'idle'}
+          onClick={() => setReport({ status: 'closed' })}
+        >
+          {t('common.cancel')}
+        </Button>
+        <Button
+          variant="primary"
+          disabled={report.phase !== 'idle'}
+          onClick={() => sendReport(shown)}
+        >
+          {report.phase === 'verifying'
+            ? t('market.challenge.verifying')
+            : report.phase === 'sending'
+              ? t('market.report.sending')
+              : t('market.report.send')}
+        </Button>
+      </>
+    ) : (
+      <>
+        {page === undefined ? (
+          <Button variant="outline" onClick={onExit}>
+            {t('market.back')}
+          </Button>
+        ) : null}
+        <Button variant="primary" onClick={() => choose(shown)}>
+          {t('market.install')}
+        </Button>
+      </>
+    );
+  const body = (
+    <MarketplaceDetailView
+      actions={actions}
+      bot={bot}
+      state={detail}
+      t={t}
+      onRetry={() => openDetail(bot)}
+      report={
+        <ReportPanel
+          state={report}
+          t={t}
+          onReason={(reason) =>
+            setReport((current) =>
+              current.status === 'open' ? { ...current, reason, cause: undefined } : current,
+            )
+          }
+        />
+      }
+    />
+  );
+
+  if (page !== undefined) {
+    return (
+      <MarketPage
+        page="bot"
+        title={marketplaceName(shown)}
+        hidden={page.hidden}
+        t={t}
+        onBack={onExit}
+        pageRef={loadDetail}
+        secondary={secondary}
+        actions={footer}
+      >
+        {body}
+        {confirm}
+      </MarketPage>
+    );
+  }
+
   return (
     <PanelDialog
       size="medium"
@@ -961,75 +1348,10 @@ export function MarketplaceBotFlow({
       closeLabel={t('common.close')}
       title={marketplaceName(shown)}
       bodyRef={loadDetail}
-      {...(report.status === 'closed'
-        ? {
-            secondary: (
-              <Button
-                variant="ghost"
-                onClick={() => setReport({ status: 'open', reason: '', phase: 'idle' })}
-              >
-                {t('market.report.open')}
-              </Button>
-            ),
-          }
-        : {})}
-      actions={
-        report.status === 'open' ? (
-          <>
-            <Button
-              variant="outline"
-              disabled={report.phase !== 'idle'}
-              onClick={() => setReport({ status: 'closed' })}
-            >
-              {t('common.cancel')}
-            </Button>
-            <Button
-              variant="primary"
-              disabled={report.phase !== 'idle'}
-              onClick={() => sendReport(shown)}
-            >
-              {report.phase === 'verifying'
-                ? t('market.challenge.verifying')
-                : report.phase === 'sending'
-                  ? t('market.report.sending')
-                  : t('market.report.send')}
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button variant="outline" onClick={onExit}>
-              {t('market.back')}
-            </Button>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setSelected(shown);
-                setInstallCause(undefined);
-              }}
-            >
-              {t('market.install')}
-            </Button>
-          </>
-        )
-      }
+      {...(secondary === undefined ? {} : { secondary })}
+      actions={footer}
     >
-      <MarketplaceDetailView
-        bot={bot}
-        state={detail}
-        t={t}
-        onRetry={() => openDetail(bot)}
-        report={
-          <ReportPanel
-            state={report}
-            t={t}
-            onReason={(reason) =>
-              setReport((current) =>
-                current.status === 'open' ? { ...current, reason, cause: undefined } : current,
-              )
-            }
-          />
-        }
-      />
+      {body}
     </PanelDialog>
   );
 }
