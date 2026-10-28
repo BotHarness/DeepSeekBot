@@ -30,7 +30,7 @@
 
 ## iOS 与 Android
 
-- **iOS**：优先原生 sheet、导航标题和手势。即时设置根页不放右上角 Down/Done；Settings 以原生 `formSheet` 呈现，系统抓手只负责调整高度，所以根页 `SheetHeader` 左侧放 Close；Android 的固定 handle 本身就是 Close，根页不再重复 X。编辑根页左侧 Cancel、右侧 Save/Create；子页左侧 Back。不要同时堆 Back、Cancel、Done。
+- **iOS**：优先原生 sheet、导航标题和手势。即时设置根页不放右上角 Down/Done；Settings 以原生 `formSheet` 呈现，系统抓手只负责调整高度，所以根页 `SheetHeader` 左侧放 Close；Android 的固定 handle 本身就是 Close；Settings 根页省略额外标题栏和 X，子页保留返回与标题。编辑根页左侧 Cancel、右侧 Save/Create；子页左侧 Back。不要同时堆 Back、Cancel、Done。
 - **Android**：保留近期 Material/OCAT 风格、固定可访问 handle、内容优先滚动、键盘避让与系统 Back。Back 依次由键盘、子页面、弹层处理；预测返回动画须单独验证。菜单与确认框沿用统一适配器，#2109 未合并前不能算已落地。
 - **两端一致的是语义**：关闭、返回、保存各司其职；外观、标题对齐和系统手势遵循各自平台。iOS 标题优先原生居中，Android 延续左对齐标题。大字时操作仍可达，长标题不能挤掉按钮。
 - **handle 不能只是装饰**：有它就应能完成对应拖动行为。原生 handle 已存在时不再画第二个。全屏 modal、alert 和菜单不因“都是弹层”而统一加 handle。
@@ -41,7 +41,7 @@
 
 Apple 要求可调整高度的 sheet 使用 grabber，支持竖向关闭，并保护未保存内容。2026 年更新还明确了 Cancel/Close、Done、Back 的位置与含义。这并不表示每一种 modal 都必须有 handle，也不表示可以去掉所有退出入口。[Apple Sheets](https://developer.apple.com/design/human-interface-guidelines/sheets) · [Modality](https://developer.apple.com/design/human-interface-guidelines/modality)
 
-我们进一步规定：可下滑关闭的底部 sheet 使用一致的 handle → header → body；即时设置不使用表示提交的 Done；长 Settings 页把明确的 Close 入口整合到可点击 handle。这是产品规范，而非声称 Apple 强制所有应用使用同一模板。
+我们进一步规定：可下滑关闭的底部 sheet 使用一致的 handle → 按需 header → body（Android Settings 根页省略额外标题栏）；即时设置不使用表示提交的 Done；长 Settings 页把明确的 Close 入口整合到可点击 handle。这是产品规范，而非声称 Apple 强制所有应用使用同一模板。
 
 Android 对照：[Bottom sheets](https://developer.android.com/develop/ui/compose/components/bottom-sheets-partial) · [Dialogs](https://developer.android.com/develop/ui/compose/components/dialog)。其他 Apple 类型的官方来源与完整验收矩阵见英文规范。
 
