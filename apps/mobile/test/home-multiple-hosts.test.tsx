@@ -10,7 +10,9 @@ vi.mock('react-native-tab-view', () => import('./tab-view-shim'));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) => callback() }));
-vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circle: () => null }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -52,6 +54,7 @@ vi.mock('../src/ui/shell/home-header', () => ({
   ),
 }));
 vi.mock('../src/ui/shell/host-drawer', () => ({
+  useHostDrawerOpen: () => false,
   HostDrawerEdge: ({ children }: { children: ReactNode | ((height: number) => ReactNode) }) =>
     typeof children === 'function' ? children(0) : children,
 }));

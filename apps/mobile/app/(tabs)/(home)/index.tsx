@@ -70,7 +70,7 @@ import { useFloatingTabInset } from '../../../src/ui/shell/floating-tab-inset';
 import { useChromeScroll } from '../../../src/ui/shell/scroll-chrome';
 import { useStrings } from '../../../src/ui/strings';
 import { ListSkeleton } from '../../../src/ui/primitives/list-skeleton';
-import { PullToRefresh } from '../../../src/ui/primitives/pull-to-refresh';
+import { PullToTob } from '../../../src/ui/shell/pull-to-tob';
 
 import {
   environmentChatList,
@@ -219,6 +219,8 @@ const HomeContent = memo(function HomeContent({
     recentHostIds(recent),
     saved?.hostId,
   );
+  const tobHref = tobModeHref(tobHostId, tobComputers);
+  const pullFocused = useIsFocused();
   const tobAction =
     tobHostId === undefined ? null : (
       <HeaderAction
@@ -226,8 +228,7 @@ const HomeContent = memo(function HomeContent({
         label={t.openTobMode}
         testID="tob-mode-button"
         onPress={() => {
-          const href = tobModeHref(tobHostId, tobComputers);
-          if (href !== undefined) router.push(href);
+          if (tobHref !== undefined) router.push(tobHref);
         }}
       />
     );
@@ -588,12 +589,20 @@ const HomeContent = memo(function HomeContent({
               enabled={!searching && !searchFocused && query === ''}
               travel={lastChatTravel}
             >
-              <PullToRefresh refreshing={refreshing} onRefresh={() => void refresh()}>
+              <PullToTob
+                enabled={pullFocused && !searching && !searchFocused && query === ''}
+                scope={`${effectiveFilter}:${tobHostId ?? ''}:${tobHref?.params.slug ?? ''}`}
+                hostId={tobHostId}
+                href={tobHref}
+                refreshing={refreshing}
+                onRefresh={() => void refresh()}
+                onOpen={(href) => router.push(href)}
+                onScroll={onScroll}
+              >
                 {(pull) => (
                   <Animated.FlatList<HomeItem>
                     {...pull}
                     renderScrollComponent={renderKeyboardFormScroll}
-                    onScroll={onScroll}
                     scrollEventThrottle={1}
                     contentContainerStyle={{ paddingBottom: bottom + headerTravel + space.x6 }}
                     keyboardShouldPersistTaps="handled"
@@ -738,7 +747,7 @@ const HomeContent = memo(function HomeContent({
                     }
                   />
                 )}
-              </PullToRefresh>
+              </PullToTob>
             </LastChatSwipe>
           )}
         </HomeHeader>
