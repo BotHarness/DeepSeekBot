@@ -1118,7 +1118,11 @@ export function WorkspacePanel({
             paddingBottom: Math.max(insets.bottom, space.x4),
           }}
         >
-          <HumanAvatarButton loadName={loadAccountName} onPress={() => router.push('/settings')} />
+          <HumanAvatarButton
+            testID="workspace-account"
+            loadName={loadAccountName}
+            onPress={() => router.push('/settings')}
+          />
           <HeaderCircleButton
             testID="workspace-notifications"
             label={t.notifications}
