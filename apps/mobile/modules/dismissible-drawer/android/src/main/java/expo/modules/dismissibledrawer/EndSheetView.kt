@@ -206,7 +206,7 @@ class EndSheetView(context: Context, appContext: AppContext) : ExpoView(context,
 }
 
 private fun horizontalTarget(view: View, x: Float, y: Float): Boolean {
-  if (view.visibility != View.VISIBLE) return false
+  if (!view.isShown) return false
   val at = IntArray(2)
   view.getLocationOnScreen(at)
   if (x < at[0] || x >= at[0] + view.width || y < at[1] || y >= at[1] + view.height) return false
