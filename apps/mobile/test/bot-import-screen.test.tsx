@@ -86,7 +86,7 @@ vi.mock('../src/host/native-bot-creation', () => ({
 }));
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ hosts: fixture.hosts }),
-  useHostSessions: () => [],
+  useHostAvailability: () => fixture.hosts.map(({ hostId }) => ({ hostId, status: 'checking' })),
 }));
 vi.mock('../src/host/native-host-look', () => ({ hostLooks: { look: () => ({}) } }));
 vi.mock('../src/ui/design/host-look', () => ({

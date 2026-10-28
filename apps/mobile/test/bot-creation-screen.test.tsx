@@ -26,7 +26,11 @@ const fixture = vi.hoisted(() => ({
   dismiss: vi.fn(),
   close: vi.fn(),
   body: undefined as ReactNode,
-  feeds: [] as unknown[],
+  feeds: new Array<{
+    saved: { hostId: string };
+    snapshot: { connection: { status: string; route: string } };
+    attention: { status: string };
+  }>(),
 }));
 let controller: ReturnType<typeof createBotCreationController>;
 let disk: CreationRecord | undefined;
@@ -103,7 +107,18 @@ const paired = [
 const hosts = [...paired];
 vi.mock('../src/host/host-session', () => ({
   useHostSession: () => ({ hosts: [...hosts], saved: hosts[0] }),
-  useHostSessions: () => fixture.feeds,
+  useHostAvailability: () =>
+    hosts.map((host) => {
+      const feed = fixture.feeds.find((candidate) => candidate.saved.hostId === host.hostId);
+      return {
+        hostId: host.hostId,
+        status: !feed
+          ? 'checking'
+          : feed.snapshot.connection.status === 'connected'
+            ? 'online'
+            : 'offline',
+      };
+    }),
   hostSession: { getState: () => ({ hosts }), switchTo: async () => true },
 }));
 vi.mock('../src/host/native-conversation-filter', () => ({
