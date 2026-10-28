@@ -6,6 +6,8 @@ Issues: [#1848](https://github.com/BotHarness/DeepSeekBot/issues/1848), [#1849](
 
 # The mobile app has two tabs, with Settings and Hosts in the header
 
+> Superseded in part by [ADR-0271](0271-settings-is-a-mobile-tab.md): on iOS and Android, Settings is a tab page, not a sheet.
+
 > Amends [ADR-0201](0201-the-mobile-design-system-maps-web-roles-onto-native-components.md)'s interaction baseline: the mobile app no longer copies the Web Client's three-tab mobile shell.
 
 ADR-0201 took the Web Client's mobile shell (Conversations / Inbox / Settings) as the app's interaction baseline, and `apps/mobile/DESIGN.md` turned it into three tabs: Home, Activity and Me. That split came from the Web Client, not from how the Human uses the phone. On the phone the Human mostly opens the Channel list to message a PersonaBot, and clears the Human Inbox to approve or answer. Me is a light, rarely used settings page that took a third of the tab bar.

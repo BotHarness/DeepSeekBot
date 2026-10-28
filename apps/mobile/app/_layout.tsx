@@ -55,6 +55,19 @@ function RootNavigator() {
   const workspace = useWorkspaceNavigation(hostDrawer.beginWorkspaceSelection);
   const activity = useMounted(watchRequestActivity, []);
   const back = usePredictiveBack();
+  const settingsPages: [string, string | undefined][] = [
+    ['profile', t.accountProfile.title],
+    ['profile-name', undefined],
+    ['usage', t.usage],
+    ['models', t.modelSettings.title],
+    ['model-picker', undefined],
+    ['model-preset', undefined],
+    ['notifications', t.notifications],
+    ['storage', t.storage.title],
+    ['app-icon', t.appIcon],
+    ['activity-count', t.activityCountSettings.title],
+    ['chat-background', t.chatBackground.global],
+  ];
   const profileListeners = swipeEntryListeners(
     profileScreenOptions(design, reducedMotion).animation,
   );
@@ -142,13 +155,18 @@ function RootNavigator() {
                   })}
                   listeners={profileListeners}
                 />
-                <Stack.Screen
-                  name="settings"
-                  options={{
-                    title: t.settings,
-                    ...sheetScreenOptions(design, true),
-                  }}
-                />
+                {settingsPages.map(([name, title]) => (
+                  <Stack.Screen
+                    key={name}
+                    name={`settings/${name}`}
+                    options={{
+                      ...(title === undefined ? {} : { title }),
+                      ...(name === 'profile-name' ? { headerShown: false } : {}),
+                      headerStyle: { backgroundColor: design.overlay.fill },
+                      contentStyle: { backgroundColor: design.overlay.fill },
+                    }}
+                  />
+                ))}
                 <Stack.Screen
                   name="pair"
                   options={{
