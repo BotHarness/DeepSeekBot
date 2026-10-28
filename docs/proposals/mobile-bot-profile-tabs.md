@@ -1,13 +1,12 @@
 # Mobile Bot profile tabs
 
-Status: agreed design (grilled 2026-10-26), not yet built. Tracked in #2904. Reference: Meta Muse's agent profile.
+Status: implemented design, with native acceptance tracked in #2921 under #2904. The later iOS sheet and pinned-tab changes in #3036 supersede the original zoom/full-screen presentation. Reference: Meta Muse's agent profile.
 
 Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applies. Use native controls wherever they exist: SwiftUI controls with Liquid Glass on iOS 26 (opaque fallback on earlier iOS and with Reduce Transparency), and Material 3 Expressive Compose controls on Android.
 
 ## Presentation
 
-- Tapping the title chip in a Bot DM or Group opens the profile as a **full-screen page**, replacing today's form sheet. The avatar and name are a shared element: on iOS 18+ the chip zooms into the header (native zoom transition); Android and older iOS use a scale-and-fade fallback.
-- Leading ✕ closes. No trailing action: Share is hidden for now.
+- Tapping the title chip in a Bot DM or Group opens a full-height native sheet on both platforms (`sheetScreenOptions(theme, true)`), following the later accepted #3036 design. The system grabber, downward drag and accessibility escape close it. The original iOS shared-element zoom and leading ✕ were removed; Share remains hidden.
 - Header: Profile Banner behind the avatar (fades in during the transition), avatar, name, status, then a row of small round buttons for **Browser** and **Computer**, each shown only when the Bot has that access. The old Message button is removed.
 - One navigation stack inside the page, as OVERLAYS.md requires.
 
@@ -18,12 +17,12 @@ Every rule in `apps/mobile/DESIGN.md` and `apps/mobile/OVERLAYS.md` still applie
 - Bot-to-Bot DM: Files only, so no tab bar.
 - Icon-only tabs (SF Symbols / Material Symbols) with accessibility labels. The icon tab names the content, so a tab does not repeat its name as a heading unless it has a header action (Routines shows its name beside **+**); sections inside a tab keep their own headings ("Daily").
 - iOS: native segmented `Picker`, using system springs. Android: M3 Expressive connected button group (`ButtonGroup` + `ToggleButton`) using the connected leading, middle and trailing shapes, with the selected button morphing to a fully round shape on the Expressive spatial spring; see [Button groups guidelines](https://m3.material.io/components/button-groups/guidelines) and [specs](https://m3.material.io/components/button-groups/specs). Reduce Motion and animator scale 0 use fades.
-- Scrolling collapses the avatar and name; the tab bar sticks to the top and floats over the content (glass on iOS 26, opaque `raised` elsewhere). Horizontal swipe switches tabs.
+- Scrolling collapses the avatar and name; the tab bar sticks to the top and floats over the content (an opaque plate shaped like the native control, with a soft shadow while pinned; #3036). Horizontal swipe switches tabs.
 - The last tab is remembered globally, once for Bot profiles and once for Group profiles, not per Bot. A remembered tab that the page lacks falls back to the first tab. A Live Activity deep link opens that Assignment's detail instead.
 
 ## Work
 
-- One row per **Assignment** (see CONTEXT.md): Assignment Title, Assignment Description and the time, grouped by the day of last activity. Orchestrator turns are not listed; they are already in the chat. Group Work lists the Group's Assignments with the same row.
+- One row per **Assignment** (see CONTEXT.md): Assignment Title, Assignment Description and the time. At large system text sizes, title and description wrap without a line cap. Rows are grouped by the day of last activity. Orchestrator turns are not listed; they are already in the chat. Group Work lists the Group's Assignments with the same row.
 - The detail page is read-only: status, Title, Description, latest Assignment Report, and a timeline of MAIN (the Assignment Agent) and SUBAGENT 01, 02… showing public summaries only, never raw tool input. Stop and archive stay with the Orchestrator; the Human asks the Bot in chat.
 - Depends on ADR-0262 (Assignment Title and Description).
 
