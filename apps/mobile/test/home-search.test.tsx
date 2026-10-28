@@ -157,6 +157,7 @@ vi.mock('../src/cloud/native-conversations', () => ({
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('../src/ui/shell/last-chat-swipe', () => ({
+  LastChatPreview: () => null,
   LastChatSwipe: ({ enabled, children }: { enabled: boolean; children: ReactNode }) => (
     <div data-testid="last-chat-swipe" data-enabled={String(enabled)}>
       {children}

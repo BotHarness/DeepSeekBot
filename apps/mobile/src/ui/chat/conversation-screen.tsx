@@ -19,7 +19,7 @@ import {
   View,
   type ViewInstance,
 } from 'react-native';
-import Animated, { useAnimatedRef, useScrollOffset } from 'react-native-reanimated';
+import Animated, { useAnimatedRef, useScrollOffset, useSharedValue } from 'react-native-reanimated';
 
 import {
   chatBackgrounds,
@@ -96,6 +96,8 @@ import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
 import { SwipeOpen } from '../shell/swipe-open';
+import { swipeEntry } from '../shell/swipe-entry';
+import { ProfileSwipePreview } from './profile-swipe-preview';
 import { ReplyBar } from './reply-bar';
 import { PullToComposeHint } from './pull-to-compose-hint';
 import { useMarkRead } from './mark-read';
@@ -1069,6 +1071,7 @@ function ChatConversation({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
+  const profileTravel = useSharedValue(0);
   const canGoBack = router.canGoBack();
   const botDmName =
     channelDetails?.members
@@ -1138,6 +1141,11 @@ function ChatConversation({
     : botDm
       ? () => router.push(pairHref)
       : () => router.push(groupHref);
+  const swipeProfile = dm
+    ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
+    : botDm
+      ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
+      : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const title = dm ? (
     <ChatTitle
       bot={bot}
@@ -1427,7 +1435,8 @@ function ChatConversation({
         <SwipeOpen
           testID="chat-profile-swipe"
           enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
-          onOpen={openProfile}
+          travel={profileTravel}
+          onOpen={swipeProfile}
         >
           <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
             <MarkdownViewportContext.Provider value={markdownViewport}>
@@ -1628,6 +1637,12 @@ function ChatConversation({
           </Animated.View>
         </SwipeOpen>
       </KeyboardChatFrame>
+      <ProfileSwipePreview
+        travel={profileTravel}
+        name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
+        bot={dm ? bot : undefined}
+        groupAvatar={channel?.avatar}
+      />
       {imageSelection?.scope === selectionScope ? (
         <SelectionScreenshot
           messages={imageSelection.messages}

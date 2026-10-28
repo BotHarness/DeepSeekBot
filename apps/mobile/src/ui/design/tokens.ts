@@ -276,6 +276,12 @@ export const swipeOpen = {
   verticalFail: 8,
   commit: 64,
   flick: 500,
+  dim: 0.4,
+  settle: 400,
+  edgeShadow: {
+    light: '-4px 0 12px rgba(15, 17, 21, 0.12)',
+    dark: '-4px 0 12px rgba(0, 0, 0, 0.45)',
+  },
 } as const;
 
 export const swipeReply = {
