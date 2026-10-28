@@ -122,7 +122,12 @@ function MemberAvatar({ entry }: { entry: { slug: string; bot?: RosterBot } }) {
 }
 
 function RowButtons({ children }: { children: ReactNode }) {
-  return <View style={{ flexDirection: 'row', gap: space.x2 }}>{children}</View>;
+  const theme = useDesignTheme();
+  return (
+    <View style={{ flexDirection: theme.largeText ? 'column' : 'row', gap: space.x2 }}>
+      {children}
+    </View>
+  );
 }
 
 function RenameSheet({
