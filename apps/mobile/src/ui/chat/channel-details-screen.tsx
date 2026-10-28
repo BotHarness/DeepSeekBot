@@ -19,11 +19,20 @@ import { profileTabs } from './profile-tabs';
 
 const PAIR_TABS = profileTabs('bot-pair');
 
-export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; channelId: string }) {
+export function ChannelDetailsScreen({
+  hostId,
+  channelId,
+  onClose,
+}: {
+  hostId: string;
+  channelId: string;
+  onClose?: () => void;
+}) {
   const { client, saved } = useHostSession(hostId);
   const host = useHostSnapshot(client);
   const t = useStrings();
   const router = useRouter();
+  const close = onClose ?? (() => router.back());
   const offline = host.connection.status === 'unreachable' || host.connection.status === 'stopped';
   const channel = host.roster?.activityChannels?.find(
     (entry) =>
@@ -53,7 +62,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
       tab="files"
       onTab={() => {}}
       body={body}
-      onClose={() => router.back()}
+      onClose={close}
     />
   );
   const note = (node: ReactNode) => shell({ rows: [{ key: 'note', render: () => node }] });
@@ -68,7 +77,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
             variant="text"
             label={host.connection.status === 'unreachable' ? t.retry : t.back}
             onPress={() =>
-              host.connection.status === 'unreachable' ? client?.retryNow() : router.back()
+              host.connection.status === 'unreachable' ? client?.retryNow() : close()
             }
           />
         ) : null}

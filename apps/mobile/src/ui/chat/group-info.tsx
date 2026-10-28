@@ -1,5 +1,5 @@
+import { useProfileFocusEffect } from './profile-paging';
 import { TextField } from '../primitives/text-field';
-import { useFocusEffect } from 'expo-router';
 import { useCallback, useState, type ReactNode } from 'react';
 import { View } from 'react-native';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
@@ -249,7 +249,7 @@ export function GroupProfilePage({
       live = false;
     };
   }, [loadWork]);
-  useFocusEffect(readWork);
+  useProfileFocusEffect(readWork);
 
   const run = async (key: string, change: () => Promise<void>): Promise<boolean> => {
     setBusy(key);

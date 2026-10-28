@@ -1,4 +1,5 @@
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useProfileFocusEffect } from './profile-paging';
+import { useRouter } from 'expo-router';
 import { useMemo, useCallback, useRef, useState, type ReactNode } from 'react';
 import { Platform, View } from 'react-native';
 
@@ -45,7 +46,7 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
       setOpeningBackground(false);
     }
   };
-  useFocusEffect(
+  useProfileFocusEffect(
     useCallback(() => {
       context.reloadModel();
     }, [settings]),

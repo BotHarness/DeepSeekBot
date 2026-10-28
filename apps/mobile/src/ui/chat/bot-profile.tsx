@@ -1,3 +1,4 @@
+import { useProfileFocusEffect } from './profile-paging';
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
@@ -18,7 +19,6 @@ import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { edge, memoryGrid, profileShell, radius, rowGlyph, space } from '../design/tokens';
 import { profileTabPaths, profileTabSymbols } from '../design/profile-tab-icons';
-import { useFocusEffect } from 'expo-router';
 import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
@@ -646,7 +646,7 @@ export function BotProfilePage({
       live = false;
     };
   }, [load]);
-  useFocusEffect(read);
+  useProfileFocusEffect(read);
   const rows = profileRows(content.ready ? profile : undefined, channels, columns);
   const [memoryView, setMemoryView] = useState<MemoryView>('files');
   const changes = useMemoryChanges(memoryChanges);

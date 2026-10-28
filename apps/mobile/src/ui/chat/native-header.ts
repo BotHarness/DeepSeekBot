@@ -1,3 +1,4 @@
+import { useProfilePaging } from './profile-paging';
 import { useHeaderHeight } from 'expo-router/react-navigation';
 import { Platform, PlatformColor, type TextStyle } from 'react-native';
 
@@ -7,7 +8,8 @@ export { floatingHeader, glassHeader, headerIslands } from './header-kind';
 
 export function useHeaderOverlap(): number {
   const height = useHeaderHeight();
-  return Platform.OS === 'ios' ? height : 0;
+  const paging = useProfilePaging();
+  return paging !== undefined ? 0 : Platform.OS === 'ios' ? height : 0;
 }
 
 export function useHeaderPadding(): number {

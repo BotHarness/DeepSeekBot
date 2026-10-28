@@ -1,3 +1,5 @@
+import { useProfilePaging } from './profile-paging';
+import { NativePageNavigation } from '../primitives/native-page-navigation';
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { SelectionBar, SelectionScreenshot, MessageSelectionRow } from './message-selection-ui';
@@ -162,6 +164,8 @@ export function ConversationScreen({
   latestWindowOnly?: boolean;
 }) {
   const t = useStrings();
+  const router = useRouter();
+  const paging = useProfilePaging();
   const initial = useHostSession();
   const [openedOn, setOpenedOn] = useState(initial.saved?.hostId);
   if (openedOn === undefined && initial.saved?.hostId !== undefined)
@@ -186,7 +190,16 @@ export function ConversationScreen({
   const bot =
     place.kind === 'dm' ? roster?.bots.find((entry) => entry.slug === place.slug) : undefined;
   const shownHostId = expectedHostId ?? openedOn;
-  if (shownHostId && saved?.hostId !== shownHostId) return <Text>{t.sourceChanged}</Text>;
+  if (shownHostId && saved?.hostId !== shownHostId)
+    return (
+      <NativePageNavigation
+        enabled={paging !== undefined}
+        onBack={() => router.back()}
+        backID="chat-page-back"
+      >
+        <Text>{t.sourceChanged}</Text>
+      </NativePageNavigation>
+    );
   return (
     <HostScope value={saved?.hostId}>
       <AccentProvider accent={bot === undefined ? undefined : botColor(bot)}>
@@ -327,6 +340,7 @@ function ChatConversation({
   const t = useStrings();
   const theme = useDesignTheme();
   const router = useRouter();
+  const paging = useProfilePaging();
   const navigation = useNavigationContainerRef();
   const headerOverlap = useHeaderOverlap();
   const headerPadding = useHeaderPadding();
@@ -1138,11 +1152,17 @@ function ChatConversation({
       <WorkingStatus bots={working} />
     </Pressable>
   );
-  const openProfile = dm
-    ? () => router.push(profileHref)
-    : botDm
-      ? () => router.push(pairHref)
-      : () => router.push(groupHref);
+  const canSwipeProfile = saved !== undefined && !hostRefused && !missing && selected === undefined;
+  useLayoutEffect(() => {
+    paging?.setEnabled(canSwipeProfile);
+  }, [paging?.setEnabled, canSwipeProfile]);
+  const openProfile =
+    paging?.open ??
+    (dm
+      ? () => router.push(profileHref)
+      : botDm
+        ? () => router.push(pairHref)
+        : () => router.push(groupHref));
   const swipeProfile = dm
     ? () => router.push({ ...profileHref, params: { ...profileHref.params, entry: swipeEntry } })
     : botDm
@@ -1221,10 +1241,15 @@ function ChatConversation({
   const fadeColor = background.kind === 'color' ? background.color : theme.color.base;
 
   return (
-    <>
+    <NativePageNavigation
+      enabled={paging !== undefined}
+      onBack={leave}
+      backID="chat-page-back"
+      title={titleItem}
+    >
       <Stack.Screen
         options={{
-          headerShown: true,
+          headerShown: paging === undefined,
           headerTransparent: ios || floatingHeader,
           headerStyle: ios || floatingHeader ? {} : { backgroundColor: theme.color.base },
           headerShadowVisible: false,
@@ -1436,7 +1461,7 @@ function ChatConversation({
         )}
         <SwipeOpen
           testID="chat-profile-swipe"
-          enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
+          enabled={paging === undefined && canSwipeProfile}
           travel={profileTravel}
           onOpen={swipeProfile}
         >
@@ -1639,12 +1664,14 @@ function ChatConversation({
           </Animated.View>
         </SwipeOpen>
       </KeyboardChatFrame>
-      <ProfileSwipePreview
-        travel={profileTravel}
-        name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
-        bot={dm ? bot : undefined}
-        groupAvatar={channel?.avatar}
-      />
+      {paging === undefined ? (
+        <ProfileSwipePreview
+          travel={profileTravel}
+          name={dm ? (bot?.displayName ?? slug ?? '') : botDm ? botDmName : (channel?.name ?? '')}
+          bot={dm ? bot : undefined}
+          groupAvatar={channel?.avatar}
+        />
+      ) : null}
       {imageSelection?.scope === selectionScope ? (
         <SelectionScreenshot
           messages={imageSelection.messages}
@@ -1691,6 +1718,6 @@ function ChatConversation({
         onCopy={copyMessage}
         onShareText={shareText}
       />
-    </>
+    </NativePageNavigation>
   );
 }

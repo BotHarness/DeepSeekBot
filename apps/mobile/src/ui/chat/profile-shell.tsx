@@ -1,3 +1,4 @@
+import { useProfilePaging } from './profile-paging';
 import { useRef, useState, type ReactNode } from 'react';
 import {
   FlatList,
@@ -20,7 +21,7 @@ import { useHeaderHeight } from 'expo-router/react-navigation';
 
 import { useDesignTheme } from '../design/theme';
 import { spring } from '../design/motion';
-import { radius, space, swipeRow } from '../design/tokens';
+import { profileShell, radius, space, swipeRow } from '../design/tokens';
 import { systemSegmented } from '../design/system-shape';
 import { IconTabs, type IconTabOption } from '../primitives/icon-tabs';
 import { Text } from '../primitives/text';
@@ -69,6 +70,7 @@ export function ProfileShell({
   onClose(): void;
 }) {
   const t = useStrings();
+  const paging = useProfilePaging();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const headerHeight = useHeaderHeight();
@@ -100,6 +102,7 @@ export function ProfileShell({
   const direction = I18nManager.isRTL ? -1 : 1;
   const swipe = Gesture.Pan()
     .enabled(showTabs)
+    .hitSlop(paging === undefined ? {} : { left: -profileShell.backEdge })
     .activeOffsetX([-swipeRow.start, swipeRow.start])
     .failOffsetY([-swipeRow.verticalFail, swipeRow.verticalFail])
     .onEnd((event) => {

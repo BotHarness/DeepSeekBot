@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from 'expo-router';
 
-import { ConversationScreen } from '../../src/ui/chat/conversation-screen';
+import { ConversationPages } from '../../src/ui/chat/conversation-pages';
 
 export default function DmScreen() {
   const { slug, focus, focusRequest, hostId } = useLocalSearchParams<{
@@ -10,7 +10,7 @@ export default function DmScreen() {
     focusRequest?: string;
   }>();
   return (
-    <ConversationScreen
+    <ConversationPages
       expectedHostId={hostId}
       place={{ kind: 'dm', slug }}
       focus={focus}
