@@ -52,7 +52,7 @@ export function ChannelDetailsScreen({ hostId, channelId }: { hostId: string; ch
       options={[]}
       tab="files"
       onTab={() => {}}
-      body={body}
+      body={() => body}
       onClose={() => router.back()}
     />
   );
@@ -98,7 +98,7 @@ function PairIdentity({
       }
       name={title}
       avatar={
-        <View style={{ flexDirection: 'row' }}>
+        <View pointerEvents="none" style={{ flexDirection: 'row' }}>
           {members.map((bot, index) =>
             bot === undefined ? null : (
               <View
