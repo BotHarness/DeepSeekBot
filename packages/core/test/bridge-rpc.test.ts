@@ -721,6 +721,7 @@ describe('bridge typert service', () => {
       'channelMarkAllRead',
       'channelReact',
       'channelSearch',
+      'messageSearch',
       'channelUnreadCounts',
       'channelAllBotPreview',
       'channelSend',
@@ -989,6 +990,7 @@ describe('bridge typert service', () => {
       'active',
     ]);
     expect(parameterNames(service.channelSearch)).toEqual(['channelId', 'text', 'cursor', 'limit']);
+    expect(parameterNames(service.messageSearch)).toEqual(['text', 'cursor', 'limit']);
     expect(parameterNames(service.releaseInstall)).toEqual(['version']);
     expect(parameterNames(service.releaseRestart)).toEqual([]);
     expect(parameterNames(service.telemetryStatus)).toEqual([]);

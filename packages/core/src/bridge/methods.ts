@@ -252,7 +252,12 @@ import { ChannelAttachmentError } from '../attachments/store.js';
 import { isChannelAttachmentRef } from '../attachments/ref.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
 import type { ComposerRecoveryIdentity } from './composer-recovery.js';
-import type { ChannelReadPosition, ChannelStore, ChannelSendStatus } from '../channels/store.js';
+import type {
+  ChannelReadPosition,
+  ChannelStore,
+  ChannelSendStatus,
+  HumanMessageSearchPage,
+} from '../channels/store.js';
 import { groupProfileActivity, type GroupProfileActivity } from '../channels/profile-activity.js';
 import { channelActivityToday, type ChannelActivityToday } from '../channels/activity-today.js';
 import type { ChannelTimelinePage } from '../channels/timeline.js';
@@ -765,6 +770,7 @@ export interface BridgeMethods {
   channelSearch(
     payload: unknown,
   ): BridgeResult<{ messages: ChannelMessage[]; nextCursor?: string }>;
+  messageSearch(payload: unknown): BridgeResult<HumanMessageSearchPage>;
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
@@ -5524,6 +5530,46 @@ export function createBridgeMethods(deps: BridgeMethodsDeps): BridgeMethods {
         return { ok: true, value: page };
       } catch (error) {
         return invalidInput((error as Error).message.replace(/^channel_read: /u, ''));
+      }
+    },
+    messageSearch(payload) {
+      const source = asObject(payload);
+      const text = source['text'];
+      const cursor = source['cursor'];
+      const limit = source['limit'];
+      if (typeof text !== 'string' || text.trim().length === 0 || text.length > 200)
+        return invalidInput('text must be 1 to 200 characters');
+      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 1024))
+        return invalidInput('cursor must be the nextCursor of the previous page');
+      if (
+        limit !== undefined &&
+        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 50)
+      )
+        return invalidInput('limit must be an integer from 1 to 50');
+      if (deps.channels.searchAllHumanMessages === undefined)
+        return {
+          ok: false,
+          error: { code: 'storage-unavailable', message: 'search is unavailable' },
+        };
+      let hidden: string[];
+      try {
+        hidden = deps.roster.snapshot().hidden;
+      } catch (error) {
+        if (error instanceof RosterUnavailableError) return unavailable();
+        throw error;
+      }
+      try {
+        return {
+          ok: true,
+          value: deps.channels.searchAllHumanMessages({
+            text,
+            limit: limit ?? 20,
+            excludeChannelIds: hidden,
+            ...(cursor === undefined ? {} : { cursor }),
+          }),
+        };
+      } catch (error) {
+        return invalidInput((error as Error).message.replace(/^message_search: /u, ''));
       }
     },
     async channelMarkAllRead() {

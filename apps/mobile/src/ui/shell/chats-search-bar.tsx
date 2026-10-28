@@ -5,6 +5,8 @@ export type ChatsSearchResult = {
   initial: string;
   image: string;
   dimmed: boolean;
+  section?: string;
+  trailing?: string;
 };
 
 export type ChatsSearchBarProps = {
