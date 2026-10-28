@@ -81,6 +81,7 @@ export function WorkspacePager({ children }: { children: ReactNode }) {
       ref={mount}
       testID="workspace-pager"
       style={{ flex: 1, backgroundColor: theme.color.base }}
+      stableNativePages
       initialPage={1}
       scrollEnabled={home}
       pageLimit={limit}

@@ -46,6 +46,7 @@ export function ConversationPages(props: ComponentProps<typeof ConversationScree
         ref={pager}
         testID="conversation-profile-pager"
         style={{ flex: 1, backgroundColor: theme.color.base }}
+        stableNativePages
         initialPage={0}
         scrollEnabled={focused && (visible || enabled)}
         overdrag={false}
