@@ -3,6 +3,7 @@ import type { MenuAction } from './action-menu-button';
 export const MENU_SYMBOL = {
   settings: 'paintbrush',
   computer: 'desktopcomputer',
+  connection: 'network',
   close: 'xmark.circle',
   person: 'person.crop.circle',
   remove: 'person.badge.minus',
