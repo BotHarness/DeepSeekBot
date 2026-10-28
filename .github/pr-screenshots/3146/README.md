@@ -7,7 +7,7 @@ Physical USB Android, 1220 × 2712, arm64-v8a, development application ID with b
 - Before captures: installed baseline794856ec489b (prior notification candidate; old profile-preview and bottom-filter behavior).
 - Six-case Activity matrix:0e88d4f9553295555e5d9237dcd12392e5d1f2b5, font1.0/1.3/2.0 × light/dark. Each case: scroll to Reset, tap Reset, scrim close, hardware Back, open/close/repeated left swipe.
 - Final installed runtime:45d380c022e47e7d8196825e7bdcda46033748ca; includes visible-page hit testing and hidden-scrim touch passthrough. Targeted final checks: chat row actually opens; real Profile held/reversed in one touch; Memory tab retained; SOUL.md child route opens and returns; visible real keyboard; group Profile left swipe and Back; actual filter selection/readback, retained choice, reset, two successive left swipes, maximum-text dark bottom action.
-- al.png, md.png, ap.png: final runtime45d380c022e4. ad.png and ml.png: matrix runtime0e88d4f95532. bl.png, bd.png and bp.png: baseline.
+- al.png, ad.png, md.png, ap.png: final runtime45d380c022e4. ml.png: matrix runtime0e88d4f95532. bl.png, bd.png and bp.png: baseline.
 - Status bars cropped. Dedicated test computer labels masked with solid blocks. ml/md are bottom crops; other images preserve the remaining full viewport. Originals retained in the primary checkout's ignored task evidence directory.
 
 ## Limits
