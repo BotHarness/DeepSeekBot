@@ -4,13 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 
 const route = vi.hoisted(() => ({ focused: true }));
-vi.mock('expo-router', async () => {
-  const { useLayoutEffect } = await import('react');
-  return {
-    useIsFocused: () => route.focused,
-    useFocusEffect: (effect: () => void | (() => void)) => useLayoutEffect(effect, [effect]),
-  };
-});
+vi.mock('expo-router', () => ({ useIsFocused: () => route.focused }));
 
 import { ProfileVisibility, useProfileFocusEffect } from '../src/ui/chat/profile-visibility';
 

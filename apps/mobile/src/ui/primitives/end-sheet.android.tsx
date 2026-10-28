@@ -1,5 +1,5 @@
 import { requireNativeView } from 'expo';
-import { useMounted } from '../mounted';
+import { useLayoutEffect } from 'react';
 import { View, processColor, useWindowDimensions, type ViewProps } from 'react-native';
 import { holdBack } from '../shell/back-owner';
 
@@ -40,7 +40,7 @@ export function EndSheet({
   const panelWidth = fullWidth
     ? width
     : Math.min(materialDrawer.width, width - materialDrawer.scrimGutter);
-  const backRef = useMounted(() => {
+  useLayoutEffect(() => {
     if (!active || !open) return;
     const subscription = holdBack(() => {
       onOpenChange(false);
@@ -61,7 +61,7 @@ export function EndSheet({
       onOpening={() => onOpening?.()}
       onOpenChange={({ nativeEvent }) => onOpenChange(nativeEvent.open)}
     >
-      <View ref={backRef} collapsable={false} style={{ position: 'absolute', inset: 0 }}>
+      <View collapsable={false} style={{ position: 'absolute', inset: 0 }}>
         {children}
       </View>
       <View

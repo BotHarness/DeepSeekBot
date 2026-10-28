@@ -1,10 +1,10 @@
+import { WorkspacePager } from './workspace-pager';
 import { ActivitySheetRoot } from './activity-sheet-root';
 import { BottomTabBar, Tabs } from 'expo-router/js-tabs';
 import { router } from 'expo-router';
 import { useRef, useState, type ComponentProps } from 'react';
 import {
   AccessibilityInfo,
-  Keyboard,
   Platform,
   View,
   useWindowDimensions,
@@ -38,7 +38,6 @@ import { FloatingTabInset } from './floating-tab-inset';
 import { ScrollChromeProvider, useChromeHidden, useChromeProgress } from './scroll-chrome';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
-import { WorkspacePager } from './workspace-pager';
 import type { NavigationDestination } from './navigation-destination';
 
 type TabBarProps = ComponentProps<typeof BottomTabBar>;
@@ -100,6 +99,7 @@ function NavigationLayout() {
           >
             <Tabs.Screen name="(home)" options={{ title: t.chats }} />
             <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
+            <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
           </Tabs>
         </View>
       </WorkspacePager>
@@ -235,6 +235,7 @@ function ScopedNavigationBar({
     key: route.key,
     focused: route.key === currentKey,
     activity: route.name === '(activity)',
+    settings: route.name === '(settings)',
     count: route.name === '(activity)' ? pending : 0,
     onPress: () => {
       const event = emitter.emit({
@@ -246,20 +247,6 @@ function ScopedNavigationBar({
     },
     onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
   }));
-  if (Platform.OS === 'ios' || Platform.OS === 'android') {
-    items.push({
-      key: 'settings',
-      focused: false,
-      activity: false,
-      settings: true,
-      count: 0,
-      onPress: () => {
-        Keyboard.dismiss();
-        router.push('/settings');
-      },
-      onLongPress: () => {},
-    });
-  }
   const fabBottom = size + bottom + fab.margin;
   const create = (buttonSize: number) => (
     <CreationMenuButton

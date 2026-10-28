@@ -64,9 +64,17 @@ function actionsFor(account: MarketplaceAccount) {
   };
 }
 
-async function render(actions: ReturnType<typeof actionsFor>, openSignIn = vi.fn()) {
+const CODE = {
+  userCode: 'NXKC-GQXZ',
+  verificationUri: 'https://auth.example/device?user_code=NXKC-GQXZ',
+};
+
+async function render(
+  actions: ReturnType<typeof actionsFor>,
+  startSignIn = vi.fn(async () => CODE),
+) {
   await act(async () => {
-    root.render(createElement(AccountProfileSettings, { actions, openSignIn, t }));
+    root.render(createElement(AccountProfileSettings, { actions, startSignIn, t }));
   });
   await act(async () => {});
 }
@@ -77,13 +85,48 @@ function nameInput(): HTMLInputElement {
   return input;
 }
 
-it('sends a signed-out Human to sign in', async () => {
-  const openSignIn = vi.fn();
-  await render(actionsFor({ signedIn: false, author: null }), openSignIn);
+it('signs a signed-out Human in from the profile and shows it once approved', async () => {
+  vi.useFakeTimers();
+  try {
+    const startSignIn = vi.fn(async () => CODE);
+    const actions = actionsFor({ signedIn: false, author: null });
+    await render(actions, startSignIn);
 
-  expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
+    expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
+    await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
+    expect(startSignIn).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('[data-account-profile="signing-in"]')).not.toBeNull();
+    expect(host.querySelector('[data-account-sign-in-code]')?.textContent).toBe('NXKC-GQXZ');
+
+    const open = vi.spyOn(window, 'open').mockReturnValue(null);
+    await act(async () => buttonNamed(t('devices.connect.openPage'), host).click());
+    expect(open).toHaveBeenCalledWith(CODE.verificationUri, '_blank', 'noopener');
+
+    actions.marketplaceAccount.mockResolvedValue({
+      signedIn: true,
+      email: 'vain@example.com',
+      author: AUTHOR,
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(host.querySelector('[data-account-profile="ready"]')).not.toBeNull();
+    expect(nameInput().value).toBe('Vain');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('explains when sign-in cannot start', async () => {
+  await render(
+    actionsFor({ signedIn: false, author: null }),
+    vi.fn(async () => {
+      throw new Error('relay-unavailable');
+    }),
+  );
   await act(async () => buttonNamed(t('accountProfile.signIn'), host).click());
-  expect(openSignIn).toHaveBeenCalledTimes(1);
+  expect(host.textContent).toContain(t('accountProfile.signInFailed'));
+  expect(host.querySelector('[data-account-profile="signed-out"]')).not.toBeNull();
 });
 
 it('shows the profile and renames it once on Enter then blur', async () => {

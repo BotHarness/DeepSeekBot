@@ -1,4 +1,4 @@
-# ADR-0272: iOS workspace pages retain the complete Chats shell
+# ADR-0273: iOS workspace pages retain the complete Chats shell
 
 - Status: Proposed — native candidate for Human review
 - Date: 2026-10-28

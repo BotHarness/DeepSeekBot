@@ -6,9 +6,9 @@ vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 
 const push = vi.hoisted(() => vi.fn());
 vi.mock('expo-router', () => ({
-  useIsFocused: () => true,
   useRouter: () => ({ push }),
   useFocusEffect: () => {},
+  useIsFocused: () => true,
 }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('../src/ui/shell/icons', async () => ({
@@ -24,6 +24,7 @@ vi.mock('../src/ui/chat/composer-context', () => ({
   useComposerContext: () => ({
     model: { status: 'loading' },
     grants: { status: 'loading' },
+    reloadModel: () => {},
   }),
 }));
 vi.mock('../src/ui/chat/dm-activity-settings', () => ({ DmActivitySettings: () => null }));
