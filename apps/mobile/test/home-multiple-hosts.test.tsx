@@ -316,7 +316,10 @@ it('All renders both real Host feeds and opens the tapped row on its own Host', 
 });
 
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
-
-vi.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
-  default: ({ children }: { children: ReactNode }) => children,
+vi.mock('../src/ui/shell/last-chat-swipe', () => ({
+  LastChatSwipe: ({ enabled, children }: { enabled: boolean; children: ReactNode }) => (
+    <div data-testid="last-chat-swipe" data-enabled={String(enabled)}>
+      {children}
+    </div>
+  ),
 }));

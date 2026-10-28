@@ -12,6 +12,14 @@ const captured = vi.hoisted(() => ({
     onSelect?: (id: string) => void;
     point?: { x: number; y: number };
   }>,
+  uploads: [] as Array<{ initialSlug?: string | undefined; onListed: () => void }>,
+}));
+
+vi.mock('../src/client/market-upload.js', () => ({
+  MarketUploadDialog: (props: { initialSlug?: string | undefined; onListed: () => void }) => {
+    captured.uploads.push(props);
+    return null;
+  },
 }));
 
 vi.mock('../src/client/ds/pointer-menu.js', () => ({
@@ -162,8 +170,37 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected Overview usage');
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
+    marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
+    marketplaceAuthorSave: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUploadPlan: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceUpload: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstallReview: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceMine: vi.fn(async () => []),
+    marketplaceDelete: vi.fn(async () => {}),
+    shareDraftStart: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    shareDraftGet: vi.fn(async () => undefined),
+    shareDraftDiscard: vi.fn(async () => undefined),
+    shareDraftExport: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceInstall: vi.fn(async () => {
+      throw new Error('unused');
+    }),
     marketplaceTopics: vi.fn(async () => []),
     marketplaceDetail: vi.fn(async () => {
+      throw new Error('unused');
+    }),
+    marketplaceFile: vi.fn(async () => {
       throw new Error('unused');
     }),
     marketplaceSubmit: vi.fn(async () => {
@@ -756,6 +793,47 @@ describe('bot sidebar rows', () => {
       await act(() => root.unmount());
       node.remove();
       companion.dispose();
+    }
+  });
+
+  it('opens Marketplace upload for the right-clicked Bot from its DM context menu', async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const open = vi.fn();
+    captured.uploads.length = 0;
+    const node = document.createElement('div');
+    document.body.append(node);
+    const root = createRoot(node);
+    try {
+      await act(() =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions: stubActions(),
+            useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+              selector(prefs)) as never,
+            setSortMode,
+            setSectionSortMode,
+            dockPanels: { open } as never,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(() =>
+        node
+          .querySelector('[data-channel-id="dm-atlas"]')!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      expect(
+        menuWithItem('share-market').items.find((item) => item['id'] === 'share-market')?.['label'],
+      ).toBe('分享到市场');
+      await act(() => menuWithItem('share-market').onSelect!('share-market'));
+      expect(captured.uploads.at(-1)?.initialSlug).toBe('atlas');
+      captured.uploads.at(-1)?.onListed();
+      expect(open).toHaveBeenCalledWith('bot-market');
+    } finally {
+      await act(() => root.unmount());
+      node.remove();
     }
   });
 
@@ -1898,6 +1976,7 @@ describe('bot sidebar rows', () => {
 
   it('gives every Channel menu row an icon and offers Delete Bot last as a danger row', () => {
     const share = vi.fn();
+    const market = vi.fn();
     const companion = vi.fn();
     const remove = vi.fn();
     renderToStaticMarkup(
@@ -1908,6 +1987,7 @@ describe('bot sidebar rows', () => {
         t: zhTranslate as never,
         companionAction: { label: '显示为窗口伙伴', run: companion },
         shareAction: { label: '分享', run: share },
+        marketAction: market,
         deleteAction: { label: '删除 Bot', run: remove },
         onPick: vi.fn(),
         onClose: vi.fn(),
@@ -1920,6 +2000,7 @@ describe('bot sidebar rows', () => {
     expect(rows.map((item) => item['id'])).toEqual([
       'companion',
       'share',
+      'share-market',
       'pin',
       'move',
       'rename',
@@ -1928,6 +2009,9 @@ describe('bot sidebar rows', () => {
     ]);
     for (const row of rows) expect(row['icon']).toBeDefined();
     expect(rows.at(-1)?.['danger']).toBe(true);
+    expect(rows.find((row) => row['id'] === 'share-market')?.['label']).toBe('分享到市场');
+    menu.onSelect?.('share-market');
+    expect(market).toHaveBeenCalledOnce();
     menu.onSelect?.('delete');
     expect(remove).toHaveBeenCalledOnce();
   });

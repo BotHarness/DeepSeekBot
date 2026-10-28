@@ -21,7 +21,7 @@ import {
   DEVICE_MUX_PATH,
   DEVICE_SIGNALING_PATHS,
 } from './gateway.js';
-import { createConnectAccount } from './connect-account.js';
+import { createConnectAccount, type ConnectAccount } from './connect-account.js';
 import { cloudflaredCacheRoot } from './cloudflared.js';
 import { createDeviceConnect } from './connect.js';
 import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
@@ -94,6 +94,7 @@ export function mountDevicePairing(
     requestStatus?: (channelId: string, messageId: string) => ChannelSendStatus | undefined;
     credentials?: () => CredentialProvider | undefined;
     packageAnchors?: readonly string[];
+    onAccount?: (account: ConnectAccount | undefined) => void;
   },
 ): void {
   if (options.database.mode !== 'ready') return undefined;
@@ -324,7 +325,9 @@ export function mountDevicePairing(
     }
     webCtx.effect(() => {
       void connect.start().then(() => account.start());
+      options.onAccount?.(account);
       return () => {
+        options.onAccount?.(undefined);
         void account.close().then(() => connect.close());
       };
     }, 'botharness: device connect tunnel');

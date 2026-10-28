@@ -8,6 +8,8 @@ import {
 } from './localization.js';
 import { prepareReadme } from './readme.js';
 import { createRepositoryStore, isEligible, type RepositoryRow } from './repositories.js';
+import { summarizeFiles, type FileSummary } from './upload-files.js';
+import type { UploadedFile } from './uploads.js';
 
 export interface MarketplaceEntry {
   id: string;
@@ -20,15 +22,26 @@ export interface MarketplaceEntry {
   bio: string | null;
   bioGenerated: boolean;
   banner: MarketplaceBanner | null;
+  avatar: MarketplaceAvatar | null;
   description: string | null;
   topics: string[];
   stars: number;
+  installs: number;
   pushedAt: string;
   createdAt: string;
   htmlUrl: string;
   cloneUrl: string;
   defaultBranch: string;
   headCommit: { sha: string; committedAt: string } | null;
+  source: MarketplaceSource;
+  author: MarketplaceAuthor | null;
+}
+
+export type MarketplaceSource = 'github' | 'upload';
+
+export interface MarketplaceAuthor {
+  name: string;
+  id: string;
 }
 
 export type MarketplaceBanner = { recipe: { scene: string; seed: number } } | { image: string };
@@ -44,6 +57,22 @@ function parseBanner(value: string | null): MarketplaceBanner | null {
       typeof recipe['seed'] === 'number'
     ) {
       return { recipe: { scene: recipe['scene'], seed: recipe['seed'] } };
+    }
+    return typeof parsed['image'] === 'string' ? { image: parsed['image'] } : null;
+  } catch {
+    return null;
+  }
+}
+
+export type MarketplaceAvatar = { recipe: Record<string, unknown> } | { image: string };
+
+function parseAvatar(value: string | null): MarketplaceAvatar | null {
+  if (value === null) return null;
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    const recipe = parsed['recipe'];
+    if (typeof recipe === 'object' && recipe !== null && !Array.isArray(recipe)) {
+      return { recipe: recipe as Record<string, unknown> };
     }
     return typeof parsed['image'] === 'string' ? { image: parsed['image'] } : null;
   } catch {
@@ -98,9 +127,11 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
     bio: presentation.bio,
     bioGenerated: presentation.bioGenerated,
     banner: parseBanner(row.banner),
+    avatar: parseAvatar(row.avatar),
     description: row.description,
     topics,
     stars: row.stars,
+    installs: row.installs,
     pushedAt: row.pushed_at,
     createdAt: row.created_at,
     htmlUrl: row.html_url,
@@ -109,6 +140,11 @@ function entryFromRow(row: RepositoryRow, language?: MarketplaceLanguage): Marke
     headCommit:
       row.head_sha !== null && row.head_committed_at !== null
         ? { sha: row.head_sha, committedAt: row.head_committed_at }
+        : null,
+    source: row.source,
+    author:
+      row.source === 'upload' && row.author_id !== null
+        ? { name: row.owner, id: row.author_id }
         : null,
   };
 }
@@ -182,6 +218,7 @@ export interface ListOptions {
   query?: string;
   topic?: string;
   language?: MarketplaceLanguage;
+  includeUploads?: boolean;
 }
 
 export interface TopicCount {
@@ -199,10 +236,20 @@ export interface MarketplaceDetail {
   readmeLanguage: MarketplaceLanguage | null;
   readmeLanguages: MarketplaceLanguage[];
   commitSha: string | null;
+  files?: UploadedFile[];
+  fileSummary?: FileSummary;
+}
+
+export interface AuthoredBot {
+  bot: MarketplaceEntry;
+  files: number;
+  bytes: number;
+  blocked: boolean;
 }
 
 export interface Catalog {
   submit(url: string): Promise<SubmissionResult>;
+  authored(account: string, language?: MarketplaceLanguage): Promise<AuthoredBot[]>;
   detail(id: string, language?: MarketplaceLanguage): Promise<MarketplaceDetail | undefined>;
   list(options: ListOptions): Promise<MarketplacePage | undefined>;
   topics(): Promise<TopicCount[]>;
@@ -212,10 +259,16 @@ export function createCatalog(deps: {
   db: D1Database;
   github: GitHubClient;
   now: () => Date;
+  uploadedFiles?: (id: string) => Promise<UploadedFile[]>;
 }): Catalog {
   const { db, github } = deps;
 
   const store = createRepositoryStore(deps);
+
+  const uploadedFiles = async (id: string) => {
+    const files = (await deps.uploadedFiles?.(id)) ?? [];
+    return { files, fileSummary: summarizeFiles(files) };
+  };
 
   return {
     async submit(url) {
@@ -265,6 +318,7 @@ export function createCatalog(deps: {
           : ` AND (EXISTS (SELECT 1 FROM json_each(r.topics) WHERE value = ?)
                    OR EXISTS (SELECT 1 FROM json_each(r.roles) WHERE value = ?))`;
       const topicValues = options.topic === undefined ? [] : [options.topic, options.topic];
+      const sourceClause = options.includeUploads === true ? '' : " AND r.source = 'github'";
 
       if (query.length > 0) {
         if (cursor !== undefined && cursor.mode !== 'search') return undefined;
@@ -277,7 +331,7 @@ export function createCatalog(deps: {
               .prepare(
                 `SELECT r.* FROM indexed_repositories_fts f
                  JOIN indexed_repositories r ON r.rowid = f.rowid
-                 WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${topicClause}
+                 WHERE indexed_repositories_fts MATCH ? AND r.visibility = 'listed'${sourceClause}${topicClause}
                  ORDER BY bm25(indexed_repositories_fts, 10.0, 4.0, 4.0, 1.0, 4.0, 2.0), r.node_id
                  LIMIT ? OFFSET ?`,
               )
@@ -285,7 +339,7 @@ export function createCatalog(deps: {
           : db
               .prepare(
                 `SELECT r.* FROM indexed_repositories r
-                 WHERE r.visibility = 'listed'${terms
+                 WHERE r.visibility = 'listed'${sourceClause}${terms
                    .map(
                      () =>
                        " AND instr(lower(r.name || ' ' || coalesce(r.description, '') || ' ' || r.topics || ' ' || r.roles || ' ' || coalesce(r.readme, '') || ' ' || coalesce(r.search_text, '')), lower(?)) > 0",
@@ -325,7 +379,7 @@ export function createCatalog(deps: {
       const { results } = await db
         .prepare(
           `SELECT r.* FROM indexed_repositories r
-           WHERE r.visibility = 'listed'${topicClause}${after}
+           WHERE r.visibility = 'listed'${sourceClause}${topicClause}${after}
            ORDER BY ${order}
            LIMIT ?`,
         )
@@ -352,20 +406,49 @@ export function createCatalog(deps: {
       };
     },
 
+    async authored(account, language) {
+      const { results } = await db
+        .prepare(
+          `SELECT r.*,
+             (SELECT count(*) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_count,
+             (SELECT COALESCE(sum(f.size), 0) FROM uploaded_files f
+              WHERE f.bot_id = COALESCE(r.files_id, r.node_id) AND f.stored = 1) AS file_bytes
+           FROM indexed_repositories r
+           WHERE r.author_account = ? AND r.source = 'upload'
+           ORDER BY r.pushed_at DESC, r.node_id DESC`,
+        )
+        .bind(account)
+        .all<RepositoryRow & { file_count: number; file_bytes: number }>();
+      return results.map((row) => ({
+        bot: entryFromRow(row, language),
+        files: row.file_count,
+        bytes: row.file_bytes,
+        blocked: row.visibility !== 'listed',
+      }));
+    },
+
     async detail(id, language) {
       const row = await store.find(id);
       if (row === null || row.visibility !== 'listed') return undefined;
       const ref = row.head_sha ?? row.default_branch;
       const readme = localizedReadme(row, language);
+      const uploaded = row.source === 'upload';
       return {
         bot: entryFromRow(row, language),
         readme:
           readme.markdown === null
             ? null
-            : prepareReadme(readme.markdown, { owner: row.owner, name: row.name, ref }),
+            : prepareReadme(readme.markdown, {
+                owner: row.owner,
+                name: row.name,
+                ref,
+                ...(uploaded ? { filesBase: `${row.html_url}/files` } : {}),
+              }),
         readmeLanguage: readme.language,
         readmeLanguages: readmeLanguages(row),
         commitSha: row.head_sha,
+        ...(uploaded ? await uploadedFiles(row.node_id) : {}),
       };
     },
 

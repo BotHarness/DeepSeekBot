@@ -54,13 +54,19 @@ import type {
 } from '../messaging/conversation-ingest.js';
 import type { UsageOverviewPeriod } from '../usage/overview.js';
 import type {
+  MarketplaceAuthoredBot,
+  MarketplaceAuthorAccount,
   MarketplaceDetail,
   MarketplaceEntry,
+  MarketplaceFileView,
   MarketplacePage,
   MarketplaceQuery,
   MarketplaceTopic,
 } from '../marketplace/client.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
+import type { MarketplaceAccount, UploadPlan } from '../marketplace/uploaded-bots.js';
+import type { InstallReviewResult } from '../marketplace/install-review.js';
+import type { ShareDraftView } from '../marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../marketplace/language.js';
 import type {
   ReleaseInfo,
@@ -973,6 +979,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     origin?: 'marketplace',
     operationKey?: string,
     expectedCommit?: string,
+    listingId?: string,
   ): Promise<{
     bot: PersonaBotDetail;
     httpsFallback?: HttpsFallback;
@@ -988,6 +995,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
         origin,
         operationKey,
         expectedCommit,
+        listingId,
       }),
     );
   }
@@ -2161,6 +2169,95 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
   }
 
+  async marketplaceFileView(id: string, path: string): Promise<MarketplaceFileView> {
+    return unwrapAsync(this.methods.marketplaceFileView({ id, path }));
+  }
+
+  async marketplaceAccount(): Promise<MarketplaceAccount> {
+    return unwrapAsync(this.methods.marketplaceAccount());
+  }
+
+  async marketplaceAuthorSave(
+    displayName: string,
+    acceptTerms?: boolean,
+  ): Promise<MarketplaceAuthorAccount> {
+    return unwrapAsync(this.methods.marketplaceAuthorSave({ displayName, acceptTerms }));
+  }
+
+  marketplaceUploadPlan(slug: string): UploadPlan {
+    return unwrap(this.methods.marketplaceUploadPlan({ slug }));
+  }
+
+  async marketplaceUpload(
+    slug: string,
+    displayName: string,
+    bio?: string,
+    tags?: string[],
+    replaces?: string,
+  ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
+    return unwrapAsync(this.methods.marketplaceUpload({ slug, displayName, bio, tags, replaces }));
+  }
+
+  async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
+    return unwrapAsync(this.methods.marketplaceMine(lang === undefined ? {} : { lang }));
+  }
+
+  async marketplaceDelete(id: string): Promise<{ deleted: true }> {
+    return unwrapAsync(this.methods.marketplaceDelete({ id }));
+  }
+
+  async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
+    return unwrapAsync(
+      this.methods.marketplaceInstallReview(lang === undefined ? { id } : { id, lang }),
+    );
+  }
+
+  shareDraftStart(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftStart({ slug }));
+  }
+
+  shareDraftGet(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftGet({ slug }));
+  }
+
+  shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
+    return unwrap(this.methods.shareDraftFile({ slug, path }));
+  }
+
+  shareDraftDecide(
+    slug: string,
+    path: string,
+    decision: 'keep' | 'drop' | 'rewrite',
+    text?: string,
+  ): ShareDraftView {
+    return unwrap(this.methods.shareDraftDecide({ slug, path, decision, text }));
+  }
+
+  shareDraftFinish(slug: string): ShareDraftView {
+    return unwrap(this.methods.shareDraftFinish({ slug }));
+  }
+
+  shareDraftDiscard(slug: string): { discarded: boolean } {
+    return unwrap(this.methods.shareDraftDiscard({ slug }));
+  }
+
+  async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
+    return unwrapAsync(this.methods.shareDraftExport({ slug }));
+  }
+
+  async marketplaceInstall(
+    id: string,
+    reviewId: string,
+    operationKey?: string,
+  ): Promise<{
+    bot: PersonaBotDetail;
+    channelId: string;
+    receipt?: BotCreationReceipt;
+    listing: MarketplaceEntry;
+  }> {
+    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey }));
+  }
+
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
     return unwrap(this.methods.releaseInfo(since === undefined ? {} : { since }));
   }
@@ -2477,8 +2574,24 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceSubmit',
   'marketplaceTopics',
   'marketplaceDetail',
+  'marketplaceFileView',
   'marketplaceChallenge',
   'marketplaceReport',
+  'marketplaceAccount',
+  'marketplaceAuthorSave',
+  'marketplaceUploadPlan',
+  'marketplaceUpload',
+  'marketplaceInstallReview',
+  'marketplaceMine',
+  'marketplaceDelete',
+  'shareDraftStart',
+  'shareDraftGet',
+  'shareDraftFile',
+  'shareDraftDecide',
+  'shareDraftFinish',
+  'shareDraftDiscard',
+  'shareDraftExport',
+  'marketplaceInstall',
   'releaseInfo',
   'releaseUpdate',
   'releaseInstall',

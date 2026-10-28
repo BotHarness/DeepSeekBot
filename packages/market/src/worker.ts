@@ -24,7 +24,18 @@ import {
   type Protection,
   type ProtectionLimits,
 } from './protection.js';
+import { prepareReadme } from './readme.js';
 import { createSummarizer, refreshSummaries, type Summarizer } from './summary.js';
+import { bearer, createAccessTokenVerifier, workosKeys, type AccessTokenVerifier } from './auth.js';
+import type { R2Bucket } from './r2.js';
+import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
+import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
+import {
+  createUploads,
+  UPLOAD_REFUSAL_STATUS,
+  type UploadResult,
+  type Uploads,
+} from './uploads.js';
 
 export interface MarketEnv {
   MARKET_DB: D1Database;
@@ -35,6 +46,8 @@ export interface MarketEnv {
   SUMMARY_API_KEY?: string;
   SUMMARY_API_BASE?: string;
   SUMMARY_MODEL?: string;
+  MARKET_FILES?: R2Bucket | undefined;
+  WORKOS_CLIENT_ID?: string;
 }
 
 export interface MarketHandlerDeps {
@@ -43,12 +56,15 @@ export interface MarketHandlerDeps {
   protection: Protection | undefined;
   adminToken: string | undefined;
   reportThreshold: number;
+  receipts?: Receipts | undefined;
+  uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
 }
 
 export interface MarketOptions {
   now?: () => Date;
   limits?: Partial<ProtectionLimits>;
   challengeNumber?: () => number;
+  verifier?: AccessTokenVerifier;
 }
 
 const refusalStatus: Record<SubmissionRefusal, number> = {
@@ -68,8 +84,13 @@ function json(status: number, body: unknown): Response {
   });
 }
 
-function failure(status: number, code: string, headers: Record<string, string> = {}): Response {
-  const response = json(status, { error: { code } });
+function failure(
+  status: number,
+  code: string,
+  headers: Record<string, string> = {},
+  path?: string,
+): Response {
+  const response = json(status, { error: path === undefined ? { code } : { code, path } });
   for (const [name, value] of Object.entries(headers)) response.headers.set(name, value);
   return response;
 }
@@ -90,6 +111,18 @@ function blocklistTarget(body: Record<string, unknown>): BlocklistTarget | undef
   if (typeof id === 'string' && id.length > 0 && url === undefined) return { id };
   if (typeof url === 'string' && url.length > 0 && id === undefined) return { url };
   return undefined;
+}
+
+function refused<T>(result: UploadResult<T> & { ok: false }): Response {
+  return failure(UPLOAD_REFUSAL_STATUS[result.code], result.code, {}, result.path);
+}
+
+function decodePath(value: string): string | undefined {
+  try {
+    return value.split('/').map(decodeURIComponent).join('/');
+  } catch {
+    return undefined;
+  }
 }
 
 function isBrowseSort(value: string): value is BrowseSort {
@@ -152,6 +185,142 @@ export function createMarketHandler(
       };
       return failure(status[result.code], result.code);
     }
+    const viewMatch = /^\/v1\/bots\/([^/]+)\/view\/(.+)$/u.exec(url.pathname);
+    if (viewMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const id = decodePath(viewMatch[1]!);
+      const path = decodePath(viewMatch[2]!);
+      const file =
+        id === undefined || path === undefined || deps.uploads === undefined
+          ? undefined
+          : await deps.uploads.store.readText(id, path);
+      if (file === undefined) return failure(404, 'file-not-found');
+      if (file === null) return failure(415, 'file-not-text');
+      const directory = file.path.split('/').slice(0, -1).join('/');
+      return json(200, {
+        file: {
+          path: file.path,
+          size: file.size,
+          type: file.type,
+          text:
+            file.type === 'markdown'
+              ? prepareReadme(file.text, {
+                  owner: '',
+                  name: '',
+                  ref: '',
+                  filesBase: `${url.origin}/v1/bots/${encodeURIComponent(id!)}/files`,
+                  ...(directory === '' ? {} : { directory }),
+                })
+              : file.text,
+        },
+      });
+    }
+    const fileMatch = /^\/v1\/bots\/([^/]+)\/files\/(.+)$/u.exec(url.pathname);
+    if (fileMatch !== null) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      const id = decodePath(fileMatch[1]!);
+      const path = decodePath(fileMatch[2]!);
+      const file =
+        id === undefined || path === undefined || deps.uploads === undefined
+          ? undefined
+          : await deps.uploads.store.readFile(id, path);
+      if (file === undefined) return failure(404, 'file-not-found');
+      return new Response(file.bytes, {
+        status: 200,
+        headers: {
+          'content-type': file.contentType,
+          'x-content-type-options': 'nosniff',
+          'content-security-policy': "default-src 'none'; sandbox",
+        },
+      });
+    }
+    if (
+      url.pathname === '/v1/me' ||
+      url.pathname.startsWith('/v1/me/') ||
+      url.pathname.startsWith('/v1/uploads')
+    ) {
+      if (deps.uploads === undefined) return failure(503, 'uploads-unavailable');
+      const token = bearer(request);
+      const account = token === undefined ? undefined : await deps.uploads.verifier.verify(token);
+      if (account === undefined) return failure(401, 'unauthorized');
+      const store = deps.uploads.store;
+      if (url.pathname === '/v1/me') {
+        if (request.method === 'GET') return json(200, { author: await store.author(account) });
+        if (request.method === 'DELETE') {
+          await store.removeAccount(account);
+          return json(200, { deleted: true });
+        }
+        if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
+        const body = await readBody(request);
+        const saved = await store.saveAuthor(account, {
+          displayName: body?.['displayName'],
+          acceptTerms: body?.['acceptTerms'],
+        });
+        return saved.ok ? json(200, { author: saved.value }) : refused(saved);
+      }
+      if (url.pathname === '/v1/me/bots') {
+        if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+        const lang = parseMarketplaceLanguage(url.searchParams.get('lang'));
+        return json(200, { bots: await catalog.authored(account, lang) });
+      }
+      const mine = /^\/v1\/me\/bots\/([^/]+)$/u.exec(url.pathname);
+      if (mine !== null) {
+        if (request.method !== 'DELETE') return failure(405, 'method-not-allowed');
+        const id = decodePath(mine[1]!);
+        return id !== undefined && (await store.remove(account, id))
+          ? json(200, { deleted: true })
+          : failure(404, 'bot-not-found');
+      }
+      if (url.pathname === '/v1/uploads') {
+        if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+        const body = await readBody(request);
+        if (body === undefined) return failure(400, 'invalid-upload');
+        const begun = await store.begin(account, body);
+        return begun.ok ? json(201, { upload: begun.value }) : refused(begun);
+      }
+      const put = /^\/v1\/uploads\/([a-f0-9]{32})\/files\/(.+)$/u.exec(url.pathname);
+      if (put !== null) {
+        if (request.method !== 'PUT') return failure(405, 'method-not-allowed');
+        const path = decodePath(put[2]!);
+        if (path === undefined) return failure(400, 'invalid-path');
+        const declared = Number(request.headers.get('content-length') ?? '0');
+        if (declared > MAX_UPLOAD_FILE_BYTES) return failure(413, 'file-too-large', {}, path);
+        const bytes = new Uint8Array(await request.arrayBuffer());
+        if (bytes.byteLength > MAX_UPLOAD_FILE_BYTES)
+          return failure(413, 'file-too-large', {}, path);
+        const stored = await store.putFile(account, put[1]!, path, bytes);
+        return stored.ok ? new Response(null, { status: 204 }) : refused(stored);
+      }
+      const publish = /^\/v1\/uploads\/([a-f0-9]{32})\/publish$/u.exec(url.pathname);
+      if (publish !== null) {
+        if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+        const published = await store.publish(account, publish[1]!, url.origin);
+        if (!published.ok) return refused(published);
+        const detail = await catalog.detail(published.value);
+        return detail === undefined
+          ? failure(404, 'bot-not-found')
+          : json(201, { bot: detail.bot });
+      }
+      return failure(404, 'not-found');
+    }
+    const installId = /^\/v1\/bots\/([^/]+)\/installs$/u.exec(url.pathname)?.[1];
+    if (installId !== undefined) {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (protection === undefined || deps.receipts === undefined) {
+        return failure(503, 'receipts-unavailable');
+      }
+      const id = decodePath(installId);
+      const hostId = (await readBody(request))?.['hostId'];
+      if (id === undefined) return failure(404, 'bot-not-found');
+      if (!isMarketplaceHostId(hostId)) return failure(400, 'invalid-receipt');
+      if (!(await protection.allow(await protection.source(request), 'install'))) {
+        return failure(429, 'rate-limited', { 'retry-after': '3600' });
+      }
+      const recorded = await deps.receipts.record(id, hostId);
+      return recorded.ok
+        ? json(202, { counted: recorded.counted, installs: recorded.installs })
+        : failure(404, 'bot-not-found');
+    }
     const reportId = /^\/v1\/bots\/([^/]+)\/reports$/u.exec(url.pathname)?.[1];
     if (reportId !== undefined) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
@@ -192,7 +361,9 @@ export function createMarketHandler(
       if ([...query].length > MAX_QUERY_LENGTH) return failure(400, 'invalid-query');
       const topic = url.searchParams.get('topic')?.trim().toLowerCase() ?? '';
       const language = parseMarketplaceLanguage(url.searchParams.get('lang'));
+      const include = url.searchParams.get('include') ?? '';
       const page = await catalog.list({
+        ...(include.split(',').includes('uploads') ? { includeUploads: true } : {}),
         ...(language === undefined ? {} : { language }),
         sort: sortParam,
         ...(limit === undefined ? {} : { limit }),
@@ -264,7 +435,20 @@ export function handlerForEnv(
 ): (request: Request) => Promise<Response> {
   const now = options.now ?? (() => new Date());
   const db = env.MARKET_DB;
-  const catalog = createCatalog({ db, github, now });
+  const bucket = env.MARKET_FILES;
+  const clientId = env.WORKOS_CLIENT_ID;
+  const store = bucket === undefined ? undefined : createUploads({ db, bucket, now });
+  const verifier =
+    options.verifier ??
+    (clientId === undefined || clientId.length === 0
+      ? undefined
+      : createAccessTokenVerifier({ clientId, keys: workosKeys(clientId) }));
+  const catalog = createCatalog({
+    db,
+    github,
+    now,
+    ...(store === undefined ? {} : { uploadedFiles: (id: string) => store.files(id) }),
+  });
   const key = env.ALTCHA_HMAC_KEY;
   return createMarketHandler({
     catalog,
@@ -284,6 +468,8 @@ export function handlerForEnv(
     adminToken:
       env.ADMIN_TOKEN === undefined || env.ADMIN_TOKEN.length === 0 ? undefined : env.ADMIN_TOKEN,
     reportThreshold: reportThreshold(env.REPORT_THRESHOLD),
+    receipts: createReceipts({ db, now }),
+    uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }
 

@@ -1,4 +1,4 @@
-import { changesApprovalPolicy } from './approval-templates.js';
+import { requiresHumanDecision } from './approval-templates.js';
 import type { Session } from '@deepseek-ai/dsh-session';
 import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy';
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
@@ -378,7 +378,7 @@ export function requiresHumanToolApproval(
       (args as Record<string, unknown>).access !== 'read'
     );
   if (name === 'secret_cli' || name === 'secret_mcp_connect' || name === 'bot_create') return true;
-  return isDshGovernedTool(name) && changesApprovalPolicy(policyInput(args), templateInUse);
+  return isDshGovernedTool(name) && requiresHumanDecision(policyInput(args), templateInUse);
 }
 
 export function approvalTemplateInUse(

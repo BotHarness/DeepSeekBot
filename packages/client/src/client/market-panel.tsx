@@ -4,15 +4,12 @@ import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
 import type { BridgeActions } from './actions.js';
-import { PersonaBotAvatar } from './avatar.js';
-import { errorMessage } from './bridge.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
-import { appendConversationDraft, conversationDraftKey } from './conversation-draft.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
-import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { MARKET_SHARE_PROMPT } from './market-share-prompt.js';
+import { MyUploadsDialog } from './market-mine.js';
+import { MarketUploadDialog } from './market-upload.js';
 import {
   MarketplaceAvatar,
   MarketplaceBanner,
@@ -25,6 +22,7 @@ import {
   MarketplaceSubmitField,
   marketplaceLanguage,
   marketplaceName,
+  marketplaceOwner,
   useMarketplaceBrowse,
   useMarketplaceSubmit,
   type MarketplaceFlowStart,
@@ -59,7 +57,9 @@ function MarketplaceTile({
           <MarketplaceAvatar bot={bot} size={40} t={t} />
           <span className="bh-market-copy">
             <span className="bh-market-card-name">{marketplaceName(bot)}</span>
-            <span className="bh-market-owner">{bot.fullName}</span>
+            <span className="bh-market-owner">
+              {bot.source === 'upload' ? marketplaceOwner(bot) : bot.fullName}
+            </span>
           </span>
         </span>
       </button>
@@ -74,108 +74,6 @@ function MarketplaceTile({
   );
 }
 
-function publishable(bots: readonly BotSummary[]): BotSummary[] {
-  return bots.filter((bot) => !bot.deleted && bot.tob === undefined);
-}
-
-function UploadDialog({
-  actions,
-  registry,
-  t,
-  onListed,
-  onClose,
-}: {
-  actions: BridgeActions;
-  registry: DockPanelRegistry;
-  t: BotHarnessTranslate;
-  onListed: (bot: MarketplaceEntry) => void;
-  onClose: () => void;
-}): ReactElement {
-  const bots = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
-  const submit = useMarketplaceSubmit(actions, onListed);
-  const [opening, setOpening] = useState<string | undefined>(undefined);
-  const [cause, setCause] = useState<unknown | undefined>(undefined);
-  const candidates = publishable(bots);
-
-  const publish = async (bot: BotSummary): Promise<void> => {
-    setOpening(bot.slug);
-    setCause(undefined);
-    try {
-      await actions.openBot(bot.slug);
-      const scope = conversationDraftKey(store.getSnapshot());
-      if (scope !== undefined) {
-        appendConversationDraft(scope, MARKET_SHARE_PROMPT[marketplaceLanguage(t)]);
-      }
-      registry.open(CHANNEL_BODY_PANEL);
-      onClose();
-    } catch (failure) {
-      setCause(failure);
-    } finally {
-      setOpening(undefined);
-    }
-  };
-
-  return (
-    <PanelDialog
-      size="medium"
-      onClose={onClose}
-      closeLabel={t('common.close')}
-      title={t('market.upload.title')}
-      description={t('market.upload.description')}
-      scroll
-      data={{ 'data-market-upload': '' }}
-      actions={
-        <Button variant="outline" onClick={onClose}>
-          {t('common.close')}
-        </Button>
-      }
-    >
-      <section className="bh-market-upload-section">
-        <strong>{t('market.upload.byBot')}</strong>
-        <span className="bh-market-hint">{t('market.upload.byBotHint')}</span>
-        {candidates.length === 0 ? (
-          <span className="bh-market-state">{t('market.upload.noBots')}</span>
-        ) : (
-          <div className="bh-market-upload-bots" role="list">
-            {candidates.map((bot) => (
-              <div key={bot.slug} className="bh-market-upload-bot" role="listitem">
-                <PersonaBotAvatar
-                  personaBotId={bot.slug}
-                  name={bot.displayName}
-                  src={bot.avatar}
-                  appearance={bot.appearance}
-                  avatarSeed={bot.avatarSeed}
-                  size={28}
-                  indicator={false}
-                  still
-                  t={t}
-                />
-                <span className="bh-market-upload-name">{bot.displayName}</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  aria-label={t('market.upload.publishLabel', { name: bot.displayName })}
-                  disabled={opening !== undefined}
-                  onClick={() => void publish(bot)}
-                >
-                  {t('market.upload.publish')}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-        {cause === undefined ? null : (
-          <Note tone="danger">{t('market.upload.failed', { error: errorMessage(cause) })}</Note>
-        )}
-      </section>
-      <section className="bh-market-upload-section">
-        <strong>{t('market.upload.byUrl')}</strong>
-        <MarketplaceSubmitField submit={submit} t={t} />
-      </section>
-    </PanelDialog>
-  );
-}
-
 export function MarketPanelView({
   actions,
   registry,
@@ -185,9 +83,10 @@ export function MarketPanelView({
   registry: DockPanelRegistry;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t));
+  const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t), { includeUploads: true });
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
   const [uploading, setUploading] = useState(false);
+  const [mine, setMine] = useState(false);
   const { list, filters } = browse;
   return (
     <div className="bh-market-panel" ref={browse.mount} data-market-panel>
@@ -195,9 +94,14 @@ export function MarketPanelView({
         browse={browse}
         t={t}
         action={
-          <Button variant="primary" onClick={() => setUploading(true)}>
-            {t('market.panel.upload')}
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setMine(true)}>
+              {t('market.mine.open')}
+            </Button>
+            <Button variant="primary" onClick={() => setUploading(true)}>
+              {t('market.panel.upload')}
+            </Button>
+          </>
         }
       />
       <MarketplaceListStatus browse={browse} t={t} />
@@ -229,8 +133,18 @@ export function MarketPanelView({
           }}
         />
       )}
+      {mine ? (
+        <MyUploadsDialog
+          actions={actions}
+          registry={registry}
+          t={t}
+          onUpdated={browse.prepend}
+          onDeleted={browse.remove}
+          onClose={() => setMine(false)}
+        />
+      ) : null}
       {uploading ? (
-        <UploadDialog
+        <MarketUploadDialog
           actions={actions}
           registry={registry}
           t={t}

@@ -14,7 +14,10 @@ export const PREFLIGHT_MAX_AGE_SECONDS = 86_400;
 
 export function isPublicRead(pathname: string): boolean {
   return (
-    pathname === '/v1/bots' || pathname === '/v1/topics' || /^\/v1\/bots\/[^/]+$/u.test(pathname)
+    pathname === '/v1/bots' ||
+    pathname === '/v1/topics' ||
+    /^\/v1\/bots\/[^/]+$/u.test(pathname) ||
+    /^\/v1\/bots\/[^/]+\/(files|view)\/.+$/u.test(pathname)
   );
 }
 
