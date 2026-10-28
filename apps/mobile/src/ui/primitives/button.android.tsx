@@ -1,4 +1,4 @@
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps } from 'react';
 import {
   Button as FilledButton,
   CircularProgressIndicator,
@@ -52,11 +52,13 @@ export function Button({
   variant = 'filled',
   symbol,
   testID: id,
+  fit = false,
 }: ComponentProps<typeof SharedButton>) {
   const t = useStrings();
   const theme = useDesignTheme();
   const roles = useMaterialRoles();
   const tree = useComposeTree();
+  const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
   const Control =
     variant === 'text'
@@ -75,7 +77,7 @@ export function Button({
       onClick={onPress}
       {...(colors ? { colors } : {})}
       modifiers={[
-        ...(tree?.fill === false ? [] : [fillMaxWidth()]),
+        ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
         defaultMinSize({ minHeight: theme.touch }),
         ...(id ? [testID(id)] : []),
       ]}
@@ -98,13 +100,25 @@ export function Button({
     </Control>
   );
   if (tree !== undefined) return control;
+  if (fit)
+    return (
+      <Host
+        matchContents
+        colorScheme={theme.scheme}
+        seedColor={theme.color.accent}
+        ignoreSafeAreaKeyboardInsets
+      >
+        {control}
+      </Host>
+    );
   return (
     <Host
       matchContents={{ vertical: true }}
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
       ignoreSafeAreaKeyboardInsets
-      style={{ alignSelf: 'stretch' }}
+      style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
+      onLayoutContent={(event) => setHeight(event.nativeEvent.height)}
     >
       {control}
     </Host>
