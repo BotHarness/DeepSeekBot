@@ -22,6 +22,7 @@ import {
   font,
   foregroundStyle,
   monospacedDigit,
+  tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import type { ColorValue, StyleProp, TextStyle } from 'react-native';
@@ -286,7 +287,7 @@ export function FormRow({
         {...(testID === undefined ? {} : { testID })}
         {...(tone === 'danger' ? { role: 'destructive' as const } : {})}
         onPress={onPress}
-        modifiers={a11y}
+        modifiers={tone === 'danger' || tone === 'accent' ? a11y : [tint(theme.color.fg), ...a11y]}
       >
         {content}
       </Button>

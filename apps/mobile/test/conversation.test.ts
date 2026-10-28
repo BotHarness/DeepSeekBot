@@ -490,6 +490,42 @@ describe('DM conversation', () => {
     });
   });
 
+  it('sends a reply with its target and shows the quoted message before and after the Host commits it', async () => {
+    const host = new FakeHost();
+    const channel = host.channel(DM);
+    seed(channel, 2);
+    channel.append(
+      {
+        id: 'human-3',
+        body: 'which file?',
+        author: { kind: 'human' },
+        replyTo: 'bot-2',
+        replyToPreview: { author: { kind: 'bot', slug: SLUG }, body: 'answer 2' },
+      },
+      false,
+    );
+    const target = open(host);
+    const live = await until(target, (s) => s.status === 'live');
+    expect(live.messages.at(-1)).toMatchObject({
+      replyTo: 'bot-2',
+      replyPreview: { author: { kind: 'bot', slug: SLUG }, body: 'answer 2' },
+    });
+    expect(live.messages[0]).not.toHaveProperty('replyTo');
+    const id = target.send('this one', [], { replyTo: 'human-1' });
+    expect(target.getSnapshot().messages.at(-1)).toMatchObject({
+      id,
+      replyTo: 'human-1',
+      replyPreview: { author: { kind: 'human' }, body: 'question 1' },
+    });
+    await until(target, () => host.calls.some((call) => call.method === 'channelSend'));
+    expect(host.calls.find((call) => call.method === 'channelSend')?.args).toMatchObject({
+      channelId: DM,
+      body: 'this one',
+      messageId: id,
+      replyTo: 'human-1',
+    });
+  });
+
   it('shows reactions from the journal and follows reaction changes live', async () => {
     const host = new FakeHost();
     const channel = host.channel(DM);

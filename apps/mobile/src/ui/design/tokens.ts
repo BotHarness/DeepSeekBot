@@ -271,11 +271,20 @@ export const doubleTap = { window: 300, emoji: '👍' } as const;
 
 export const recentChats = { limit: 3 } as const;
 
-export const lastChatSwipe = {
+export const swipeOpen = {
   start: 24,
   verticalFail: 8,
   commit: 64,
   flick: 500,
+} as const;
+
+export const swipeReply = {
+  start: 12,
+  verticalFail: 10,
+  commit: 56,
+  reach: 72,
+  icon: 28,
+  bar: 3,
 } as const;
 
 export const topEntrance = {

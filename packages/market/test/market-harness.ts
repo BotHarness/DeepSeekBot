@@ -3,10 +3,11 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
 import type { GitHubRepository } from '../src/github.js';
 import { parseChallenge, solveChallenge } from '../../core/src/marketplace/altcha.js';
-import { handlerForEnv, runScheduled, type MarketEnv } from '../src/worker.js';
+import { handlerForEnv, runDaily, runScheduled, type MarketEnv } from '../src/worker.js';
 import { createGitHubClient } from '../src/github.js';
 import type { ProtectionLimits } from '../src/protection.js';
 import type { Summarizer } from '../src/summary.js';
+import type { DigestWriter } from '../src/digest.js';
 import type { R2Bucket } from '../src/r2.js';
 import type { AccessTokenVerifier } from '../src/auth.js';
 
@@ -277,6 +278,7 @@ export function createMarket(
     env?: Partial<Omit<MarketEnv, 'MARKET_DB'>>;
     realChallenges?: boolean;
     summarizer?: Summarizer;
+    digestWriter?: DigestWriter;
   } = {},
 ): {
   request: (path: string, init?: RequestInit) => Promise<Response>;
@@ -285,6 +287,7 @@ export function createMarket(
   clock: { value: Date };
   publish: (repository: FakeRepository) => void;
   scheduled: (cron: string) => Promise<Record<string, unknown>>;
+  daily: () => Promise<Record<string, unknown>[]>;
   logs: Record<string, unknown>[];
   bucket: ReturnType<typeof createMemoryBucket>;
 } {
@@ -327,9 +330,23 @@ export function createMarket(
         client,
         (line) => lines.push(line),
         options.summarizer,
+        options.digestWriter,
+        () => clock.value,
       );
       logs.push(...lines.map((line) => JSON.parse(line) as Record<string, unknown>));
       return JSON.parse(lines[0] ?? '{}') as Record<string, unknown>;
+    },
+    daily: async () => {
+      const lines: string[] = [];
+      await runDaily(
+        { MARKET_DB: db, MARKET_FILES: bucket },
+        (line) => lines.push(line),
+        () => clock.value,
+        options.digestWriter,
+      );
+      const parsed = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+      logs.push(...parsed);
+      return parsed;
     },
     logs,
     bucket,

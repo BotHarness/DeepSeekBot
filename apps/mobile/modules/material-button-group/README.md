@@ -12,7 +12,7 @@ Expressive motion scheme, so this adapter supplies them: leading, middle and tra
 Host's Expressive motion scheme drives it (standard under Reduce Motion).
 
 Exactly one button stays checked: pressing the checked button keeps it checked, and pressing
-another sends `onSelect` with its value. Each button is a 48 dp target with the Tab role, its
+another sends `onButtonSelect` with its value. Each button is a 48 dp target with the Tab role, its
 selected state and its name as the content description; the test tag is `profile-tab-<value>`.
 Icons are Material Symbols path data drawn in the button's content colour. Colours are the
 `ToggleButton` defaults from the Host's colour scheme; the view takes no colour props.

@@ -96,6 +96,8 @@ import {
 import { useChannelViewport } from './channel-viewport';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
+import { SwipeOpen } from '../shell/swipe-open';
+import { ReplyBar } from './reply-bar';
 import { PullToComposeHint } from './pull-to-compose-hint';
 import { useMarkRead } from './mark-read';
 import { useBotNames } from './use-bot-names';
@@ -412,6 +414,8 @@ function ChatConversation({
     ids: readonly string[];
   }>();
   const selected = picked?.scope === selectionScope ? picked.ids : undefined;
+  const [replying, setReplying] = useState<{ scope: string; message: ConversationMessage }>();
+  const replyTarget = replying?.scope === selectionScope ? replying.message : undefined;
   const [imageSelection, setImageSelection] = useState<{
     scope: string;
     messages: ConversationMessage[];
@@ -536,6 +540,13 @@ function ChatConversation({
     jumpToLatest();
     composerInput.current?.focus();
   }, [jumpToLatest]);
+  const startReply = useCallback(
+    (message: ConversationMessage) => {
+      setReplying({ scope: selectionScope, message });
+      composerInput.current?.focus();
+    },
+    [selectionScope],
+  );
   const pull = usePullToCompose({
     enabled: composable,
     threshold: pullToCompose.threshold,
@@ -707,15 +718,20 @@ function ChatConversation({
   const send = () => {
     if (host.connection.status !== 'connected') return;
     if (!draftPersistence.loaded || draftPersistence.failed) return;
-    const { body, tags } = submittedMessage(draft, mentions);
+    const submitted = submittedMessage(draft, mentions);
+    const body = submitted.body;
+    const tags =
+      replyTarget === undefined ? submitted.tags : { ...submitted.tags, replyTo: replyTarget.id };
     if ((body === '' && files.length === 0) || conversation === undefined) return;
     if (tags.allBotMention?.preview.recipients.length === 0) return;
     if (dictation.state.status !== 'idle') dictation.cancel();
     setDraft('');
     setMentions([]);
     setFiles([]);
+    setReplying(undefined);
     latest.jumpToLatest();
     if (
+      replyTarget !== undefined ||
       !dm ||
       asking?.card === undefined ||
       client === undefined ||
@@ -1001,6 +1017,7 @@ function ChatConversation({
           onLongPress={openActions}
           lifted={Platform.OS === 'web' && item.message.id === actionsFor?.message.id}
           {...(botDm ? {} : { onReact: react })}
+          {...(composable && selected === undefined ? { onReply: startReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           readers={reading.get(item.message.id)}
           bots={roster?.bots}
@@ -1040,6 +1057,8 @@ function ChatConversation({
       receipts,
       reading,
       arrivals,
+      composable,
+      startReply,
     ],
   );
 
@@ -1116,22 +1135,27 @@ function ChatConversation({
       <WorkingStatus bots={working} />
     </Pressable>
   );
+  const openProfile = dm
+    ? () => router.push(profileHref)
+    : botDm
+      ? () => router.push(pairHref)
+      : () => router.push(groupHref);
   const title = dm ? (
     <ChatTitle
       bot={bot}
       connectionLabel={connectionLabel}
       fallback={slug ?? ''}
-      onPress={() => router.push(profileHref)}
+      onPress={openProfile}
     />
   ) : botDm ? (
-    pairChip(saved && !hostRefused ? () => router.push(pairHref) : undefined)
+    pairChip(saved && !hostRefused ? openProfile : undefined)
   ) : (
     <ChannelTitle
       channel={channel}
       working={working}
       connectionLabel={connectionLabel}
       fallback={channelId ?? ''}
-      onPress={() => router.push(groupHref)}
+      onPress={openProfile}
     />
   );
   const ios = Platform.OS === 'ios';
@@ -1306,6 +1330,13 @@ function ChatConversation({
               }}
               above={
                 <>
+                  {replyTarget === undefined ? null : (
+                    <ReplyBar
+                      message={replyTarget}
+                      botName={botName}
+                      onCancel={() => setReplying(undefined)}
+                    />
+                  )}
                   {draftPersistence.failed ? (
                     <DraftSaveNotice busy={retryingDraft} onRetry={() => void retryDraft()} />
                   ) : null}
@@ -1395,203 +1426,209 @@ function ChatConversation({
             ) : null}
           </View>
         )}
-        <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
-          <MarkdownViewportContext.Provider value={markdownViewport}>
-            <SpeakerStageContext.Provider value={dm ? undefined : stage}>
-              <Animated.FlatList
-                ref={attachList}
-                renderScrollComponent={latest.renderScrollComponent}
-                removeClippedSubviews={false}
-                CellRendererComponentStyle={cellLayer}
-                style={{
-                  flex: 1,
-                  opacity: latest.ready || rows.length === 0 ? 1 : 0,
-                }}
-                pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                importantForAccessibility={
-                  !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                }
-                contentInsetAdjustmentBehavior="automatic"
-                contentInset={{ bottom: -listSafeArea }}
-                automaticallyAdjustsScrollIndicatorInsets
-                scrollToOverflowEnabled
-                contentContainerStyle={{
-                  minHeight: Math.max(
-                    0,
-                    viewportHeight -
-                      (notice === undefined ? headerOverlap : 0) +
-                      (Platform.OS === 'android' ? edge.hairline : 0),
-                  ),
-                  justifyContent: 'flex-end',
-                  paddingTop: space.x3 + listTop,
-                  paddingBottom: composerHeight + edgeFade.bottom,
-                }}
-                data={rows}
-                keyExtractor={(row) => row.key}
-                renderItem={renderItem}
-                onViewableItemsChanged={onFocusViewabilityChange}
-                onScrollToIndexFailed={(info) => {
-                  const attempt = focusAttempt.current;
-                  if (
-                    focusCancelled.current ||
-                    attempt === undefined ||
-                    attempt.index !== info.index ||
-                    attempt.message !== focusIntent.current.message ||
-                    attempt.request !== focusIntent.current.request
-                  )
-                    return;
-                  focusNeedsLayout.current = true;
-                  jumped.current = undefined;
-                  focusAttempt.current = undefined;
-                  const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
-                  if (focusEstimate.current === estimate) return;
-                  focusEstimate.current = estimate;
-                  list.current?.scrollToOffset({
-                    offset: info.averageItemLength * info.index,
-                    animated: false,
-                  });
-                }}
-                {...(latest.ready && latest.browsed && !snapshot.olderError
-                  ? { onStartReached: () => void conversation?.loadOlder() }
-                  : {})}
-                onStartReachedThreshold={0.5}
-                {...latest.listProps}
-                onScrollBeginDrag={(event: ScrollEvent) => {
-                  focusCancelled.current = true;
-                  focusAttempt.current = undefined;
-                  pull.onScrollBeginDrag(event);
-                  latest.listProps.onScrollBeginDrag();
-                }}
-                onScroll={(event: ScrollEvent) => {
-                  latest.listProps.onScroll(event);
-                  pull.onScroll(event);
-                }}
-                onScrollEndDrag={(event: ScrollEvent) => {
-                  latest.listProps.onScrollEndDrag(event);
-                  pull.onScrollEndDrag(event);
-                }}
-                onContentSizeChange={(width: number, height: number) => {
-                  latest.listProps.onContentSizeChange(width, height);
-                  focusNeedsLayout.current = false;
-                  jump();
-                }}
-                scrollEventThrottle={32}
-                keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                keyboardShouldPersistTaps="handled"
-                ListHeaderComponent={
-                  snapshot.loadingOlder ? (
-                    <View
-                      style={{
-                        padding: space.x4,
-                        alignItems: 'center',
-                        gap: space.x2,
-                      }}
-                    >
-                      <LoadingIndicator />
-                      <Text variant="meta" tone="muted">
-                        {t.olderLoading}
+        <SwipeOpen
+          testID="chat-profile-swipe"
+          enabled={saved !== undefined && !hostRefused && !missing && selected === undefined}
+          onOpen={openProfile}
+        >
+          <Animated.View style={{ flex: 1 }} onLayout={latest.onViewportLayout}>
+            <MarkdownViewportContext.Provider value={markdownViewport}>
+              <SpeakerStageContext.Provider value={dm ? undefined : stage}>
+                <Animated.FlatList
+                  ref={attachList}
+                  renderScrollComponent={latest.renderScrollComponent}
+                  removeClippedSubviews={false}
+                  CellRendererComponentStyle={cellLayer}
+                  style={{
+                    flex: 1,
+                    opacity: latest.ready || rows.length === 0 ? 1 : 0,
+                  }}
+                  pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
+                  accessibilityElementsHidden={!latest.ready && rows.length > 0}
+                  importantForAccessibility={
+                    !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
+                  }
+                  contentInsetAdjustmentBehavior="automatic"
+                  contentInset={{ bottom: -listSafeArea }}
+                  automaticallyAdjustsScrollIndicatorInsets
+                  scrollToOverflowEnabled
+                  contentContainerStyle={{
+                    minHeight: Math.max(
+                      0,
+                      viewportHeight -
+                        (notice === undefined ? headerOverlap : 0) +
+                        (Platform.OS === 'android' ? edge.hairline : 0),
+                    ),
+                    justifyContent: 'flex-end',
+                    paddingTop: space.x3 + listTop,
+                    paddingBottom: composerHeight + edgeFade.bottom,
+                  }}
+                  data={rows}
+                  keyExtractor={(row) => row.key}
+                  renderItem={renderItem}
+                  onViewableItemsChanged={onFocusViewabilityChange}
+                  onScrollToIndexFailed={(info) => {
+                    const attempt = focusAttempt.current;
+                    if (
+                      focusCancelled.current ||
+                      attempt === undefined ||
+                      attempt.index !== info.index ||
+                      attempt.message !== focusIntent.current.message ||
+                      attempt.request !== focusIntent.current.request
+                    )
+                      return;
+                    focusNeedsLayout.current = true;
+                    jumped.current = undefined;
+                    focusAttempt.current = undefined;
+                    const estimate = `${info.index}:${info.highestMeasuredFrameIndex}:${info.averageItemLength}`;
+                    if (focusEstimate.current === estimate) return;
+                    focusEstimate.current = estimate;
+                    list.current?.scrollToOffset({
+                      offset: info.averageItemLength * info.index,
+                      animated: false,
+                    });
+                  }}
+                  {...(latest.ready && latest.browsed && !snapshot.olderError
+                    ? { onStartReached: () => void conversation?.loadOlder() }
+                    : {})}
+                  onStartReachedThreshold={0.5}
+                  {...latest.listProps}
+                  onScrollBeginDrag={(event: ScrollEvent) => {
+                    focusCancelled.current = true;
+                    focusAttempt.current = undefined;
+                    pull.onScrollBeginDrag(event);
+                    latest.listProps.onScrollBeginDrag();
+                  }}
+                  onScroll={(event: ScrollEvent) => {
+                    latest.listProps.onScroll(event);
+                    pull.onScroll(event);
+                  }}
+                  onScrollEndDrag={(event: ScrollEvent) => {
+                    latest.listProps.onScrollEndDrag(event);
+                    pull.onScrollEndDrag(event);
+                  }}
+                  onContentSizeChange={(width: number, height: number) => {
+                    latest.listProps.onContentSizeChange(width, height);
+                    focusNeedsLayout.current = false;
+                    jump();
+                  }}
+                  scrollEventThrottle={32}
+                  keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
+                  keyboardShouldPersistTaps="handled"
+                  ListHeaderComponent={
+                    snapshot.loadingOlder ? (
+                      <View
+                        style={{
+                          padding: space.x4,
+                          alignItems: 'center',
+                          gap: space.x2,
+                        }}
+                      >
+                        <LoadingIndicator />
+                        <Text variant="meta" tone="muted">
+                          {t.olderLoading}
+                        </Text>
+                      </View>
+                    ) : snapshot.olderError ? (
+                      <View style={{ padding: space.x4, gap: space.x2 }}>
+                        <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
+                          {t.olderLoadFailed}
+                        </Text>
+                        <Button
+                          label={t.retry}
+                          variant="text"
+                          testID="history-retry"
+                          onPress={() => void conversation?.loadOlder()}
+                        />
+                      </View>
+                    ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
+                      <Text
+                        variant="meta"
+                        tone="muted"
+                        style={{ textAlign: 'center', padding: space.x5 }}
+                      >
+                        {dm ? t.beginning : t.beginningChannel}
                       </Text>
-                    </View>
-                  ) : snapshot.olderError ? (
-                    <View style={{ padding: space.x4, gap: space.x2 }}>
-                      <Text variant="meta" tone="muted" accessibilityLiveRegion="polite">
-                        {t.olderLoadFailed}
-                      </Text>
-                      <Button
-                        label={t.retry}
-                        variant="text"
-                        testID="history-retry"
-                        onPress={() => void conversation?.loadOlder()}
-                      />
-                    </View>
-                  ) : !snapshot.hasOlder && snapshot.status === 'live' ? (
-                    <Text
-                      variant="meta"
-                      tone="muted"
-                      style={{ textAlign: 'center', padding: space.x5 }}
-                    >
-                      {dm ? t.beginning : t.beginningChannel}
-                    </Text>
-                  ) : undefined
-                }
-              />
-            </SpeakerStageContext.Provider>
-          </MarkdownViewportContext.Provider>
-          <Animated.View
-            ref={viewport}
-            collapsable={false}
-            pointerEvents="box-none"
-            style={[
-              { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-              latest.overlayStyle,
-            ]}
-            onLayout={() => {
-              viewportLayout.value += 1;
-            }}
-          >
-            {(!latest.ready && rows.length > 0) ||
-            (snapshot.status === 'opening' && rows.length === 0) ? (
-              <View
-                pointerEvents={latest.canRetry ? 'auto' : 'none'}
-                style={{
-                  position: 'absolute',
-                  top: listTop,
-                  bottom: composerHeight + edgeFade.bottom,
-                  left: 0,
-                  right: 0,
-                  justifyContent: 'flex-end',
-                }}
-              >
-                <ListSkeleton layout="messages" />
-                {latest.canRetry ? (
-                  <Button
-                    label={t.retry}
-                    variant="text"
-                    testID="history-loading-retry"
-                    onPress={latest.retry}
-                  />
-                ) : null}
-              </View>
-            ) : null}
-            {topFade > 0 ? (
+                    ) : undefined
+                  }
+                />
+              </SpeakerStageContext.Provider>
+            </MarkdownViewportContext.Provider>
+            <Animated.View
+              ref={viewport}
+              collapsable={false}
+              pointerEvents="box-none"
+              style={[
+                { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+                latest.overlayStyle,
+              ]}
+              onLayout={() => {
+                viewportLayout.value += 1;
+              }}
+            >
+              {(!latest.ready && rows.length > 0) ||
+              (snapshot.status === 'opening' && rows.length === 0) ? (
+                <View
+                  pointerEvents={latest.canRetry ? 'auto' : 'none'}
+                  style={{
+                    position: 'absolute',
+                    top: listTop,
+                    bottom: composerHeight + edgeFade.bottom,
+                    left: 0,
+                    right: 0,
+                    justifyContent: 'flex-end',
+                  }}
+                >
+                  <ListSkeleton layout="messages" />
+                  {latest.canRetry ? (
+                    <Button
+                      label={t.retry}
+                      variant="text"
+                      testID="history-loading-retry"
+                      onPress={latest.retry}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+              {topFade > 0 ? (
+                <EdgeFade
+                  edge="top"
+                  height={topFade + edgeFade.reach}
+                  cover={topFade}
+                  color={fadeColor}
+                />
+              ) : null}
               <EdgeFade
-                edge="top"
-                height={topFade + edgeFade.reach}
-                cover={topFade}
+                edge="bottom"
+                height={composerCover + edgeFade.bottom}
+                cover={composerCover}
+                solid={composerCover}
                 color={fadeColor}
               />
-            ) : null}
-            <EdgeFade
-              edge="bottom"
-              height={composerCover + edgeFade.bottom}
-              cover={composerCover}
-              solid={composerCover}
-              color={fadeColor}
-            />
-            {composable && Platform.OS === 'ios' ? (
-              <PullToComposeHint
-                progress={pull.progress}
-                ready={pull.ready}
-                bottom={composerHeight + space.x3}
-              />
-            ) : null}
-            {latest.away ? (
-              <View
-                pointerEvents="box-none"
-                style={{
-                  position: 'absolute',
-                  bottom: composerHeight + space.x2,
-                  left: 0,
-                  right: space.x4,
-                  alignItems: 'flex-end',
-                }}
-              >
-                <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-              </View>
-            ) : null}
+              {composable && Platform.OS === 'ios' ? (
+                <PullToComposeHint
+                  progress={pull.progress}
+                  ready={pull.ready}
+                  bottom={composerHeight + space.x3}
+                />
+              ) : null}
+              {latest.away ? (
+                <View
+                  pointerEvents="box-none"
+                  style={{
+                    position: 'absolute',
+                    bottom: composerHeight + space.x2,
+                    left: 0,
+                    right: space.x4,
+                    alignItems: 'flex-end',
+                  }}
+                >
+                  <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
+                </View>
+              ) : null}
+            </Animated.View>
           </Animated.View>
-        </Animated.View>
+        </SwipeOpen>
       </KeyboardChatFrame>
       {imageSelection?.scope === selectionScope ? (
         <SelectionScreenshot

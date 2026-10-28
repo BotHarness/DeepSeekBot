@@ -23,11 +23,11 @@ export function ContextMenuArea({
     <Host
       matchContents={{ vertical: true }}
       colorScheme={theme.scheme}
-      {...(fill ? { style: { flex: 1 } } : {})}
+      style={fill ? { flex: 1 } : { alignSelf: 'stretch' }}
     >
       <ContextMenu>
         <ContextMenu.Trigger>
-          <RNHostView matchContents>
+          <RNHostView matchContents={{ vertical: true }} boundedByHost>
             <>{children}</>
           </RNHostView>
         </ContextMenu.Trigger>

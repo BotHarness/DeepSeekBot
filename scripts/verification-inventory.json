@@ -2048,9 +2048,9 @@
       "path": "scripts/e2e-panel-workspace.mjs",
       "category": "mapped",
       "behaviors": ["desktop.bot-mode.entry", "desktop.bot-mode.dock"],
-      "reason": "Runs qualified Web/macOS workspace movement, spacing, shortcut routing, persistence and exit restoration against a real isolated Client. Profile navigation now uses the Messages header icon; no floating chip is expected (#2042). Layout persistence now expects v4; Sessions-specific controls are qualified by the nested journey.",
+      "reason": "Runs qualified Web/macOS workspace movement, spacing, shortcut routing, persistence and exit restoration against a real isolated Client. Profile navigation now uses the Messages header avatar and name, with no separate profile button and the Subpanel column toggle as the last header control; no floating chip is expected (#2042). Layout persistence now expects v4; Sessions-specific controls are qualified by the nested journey.",
       "task": 2049,
-      "sha256": "a2f1074845b99788dafc4e6dace834e8af7e53693dbf7f1e5d29e2fde01d9bf6"
+      "sha256": "27aeb93c4f272f561ce0ec841d3817ebac573fa0ea2bbc9bc06c20524e2cd122"
     },
     {
       "path": "scripts/e2e-unified-sessions.mjs",

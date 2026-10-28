@@ -94,7 +94,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelHeader } from './ds/panel-header.js';
-import { space, color, radius, text } from './ds/tokens.stylex.js';
+import { border, space, color, radius, size, text } from './ds/tokens.stylex.js';
 import { EntryPart, useStableProps } from './entry-part.js';
 import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 
@@ -133,6 +133,23 @@ const styles = stylex.create({
     lineHeight: text.titleLine,
   },
   breadcrumbIcon: { display: 'inline-flex', alignItems: 'center', flexShrink: 0 },
+  identity: { display: 'inline-flex', alignItems: 'center', gap: space.x2, minWidth: 0 },
+  identityButton: {
+    gap: space.x3,
+    height: size.row,
+    paddingBlock: 0,
+    paddingInline: space.x3,
+    borderWidth: 0,
+    borderStyle: 'none',
+    borderRadius: radius.sm,
+    backgroundColor: { default: 'transparent', ':hover': color.hover },
+    color: 'inherit',
+    fontFamily: 'inherit',
+    textAlign: 'start',
+    cursor: 'pointer',
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outlineOffset: '-2px',
+  },
   actions: { display: 'inline-flex', alignItems: 'center', minWidth: 0, gap: space.x1 },
 });
 
@@ -195,6 +212,7 @@ export interface ChannelHeaderView {
   label?: ReactNode;
   status?: ReactNode;
   icon?: ReactNode;
+  profile?: { label: string; open(): void } | undefined;
   actions: ReactNode;
 }
 
@@ -293,11 +311,8 @@ function ChannelHeaderActions(): ReactElement {
 function ChannelBreadcrumb(): ReactElement | null {
   const header = useDockSlots().header;
   if (header === undefined) return null;
-  return (
-    <span {...stylex.props(styles.breadcrumb)}>
-      <span aria-hidden="true" {...stylex.props(styles.breadcrumbIcon)}>
-        <ChannelSidebarIcon name="chevron-right" />
-      </span>
+  const identity = (
+    <>
       {header.icon !== undefined && (
         <span
           aria-hidden="true"
@@ -310,6 +325,28 @@ function ChannelBreadcrumb(): ReactElement | null {
       <span title={header.title} {...stylex.props(styles.channelName)}>
         {header.label ?? header.title}
       </span>
+    </>
+  );
+  return (
+    <span {...stylex.props(styles.breadcrumb)}>
+      <span aria-hidden="true" {...stylex.props(styles.breadcrumbIcon)}>
+        <ChannelSidebarIcon name="chevron-right" />
+      </span>
+      {header.profile === undefined ? (
+        <span {...stylex.props(styles.identity)}>{identity}</span>
+      ) : (
+        <button
+          type="button"
+          data-channel-header-profile=""
+          aria-label={header.profile.label}
+          onClick={header.profile.open}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          {...stylex.props(styles.identity, styles.identityButton)}
+        >
+          {identity}
+        </button>
+      )}
       {header.status}
     </span>
   );
@@ -954,23 +991,18 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
               onPointerDown={(event) => event.stopPropagation()}
               onMouseDown={(event) => event.stopPropagation()}
             >
-              {entryId === CHANNEL_BODY_PANEL && dock.column && (
-                <Tooltip
-                  label={dock.t('workspace.subpanelColumn')}
-                  side="bottom"
-                  portal
-                  delayMs={500}
-                >
-                  <IconButton
-                    aria-label={dock.t('workspace.subpanelColumn')}
-                    aria-pressed={dock.column.state.open}
-                    data-subpanel-column-toggle=""
-                    disabled={!dock.channel}
-                    onClick={() => dock.column?.setOpen(!dock.column.state.open)}
-                  >
-                    <ChannelSidebarIcon name="panel-right" />
-                  </IconButton>
-                </Tooltip>
+              {entryId === CHANNEL_BODY_PANEL && dock.hasHeader && <ChannelHeaderActions />}
+              {HeaderAction === undefined || props === undefined ? null : (
+                <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
+              )}
+              {PanelAction && (
+                <PanelAction
+                  key={panel.scope === 'channel' ? dock.channel?.id : undefined}
+                  channel={panel.scope === 'channel' ? dock.channel : undefined}
+                />
+              )}
+              {entryId === WORKSPACE_CHANNELS && (
+                <span className="bh-workspace-channel-actions" ref={dock.setChannelsHeader} />
               )}
               {entryId === CHANNEL_BODY_PANEL &&
                 !dock.column &&
@@ -1029,18 +1061,23 @@ function DockPanelHeader({ entryId, panelId }: { entryId: string | undefined; pa
                     </IconButton>
                   </Tooltip>
                 )}
-              {entryId === CHANNEL_BODY_PANEL && dock.hasHeader && <ChannelHeaderActions />}
-              {HeaderAction === undefined || props === undefined ? null : (
-                <EntryPart key={entryScopeKey(props)} part={HeaderAction} props={props} />
-              )}
-              {PanelAction && (
-                <PanelAction
-                  key={panel.scope === 'channel' ? dock.channel?.id : undefined}
-                  channel={panel.scope === 'channel' ? dock.channel : undefined}
-                />
-              )}
-              {entryId === WORKSPACE_CHANNELS && (
-                <span className="bh-workspace-channel-actions" ref={dock.setChannelsHeader} />
+              {entryId === CHANNEL_BODY_PANEL && dock.column && (
+                <Tooltip
+                  label={dock.t('workspace.subpanelColumn')}
+                  side="bottom"
+                  portal
+                  delayMs={500}
+                >
+                  <IconButton
+                    aria-label={dock.t('workspace.subpanelColumn')}
+                    aria-pressed={dock.column.state.open}
+                    data-subpanel-column-toggle=""
+                    disabled={!dock.channel}
+                    onClick={() => dock.column?.setOpen(!dock.column.state.open)}
+                  >
+                    <ChannelSidebarIcon name="panel-right" />
+                  </IconButton>
+                </Tooltip>
               )}
               {!dock.railed && (
                 <Tooltip label={closeLabel} side="bottom" portal delayMs={500}>

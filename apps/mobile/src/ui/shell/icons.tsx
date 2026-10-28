@@ -352,6 +352,10 @@ export function UndoIcon(props: IconProps) {
   return <Glyph {...props} d="M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />;
 }
 
+export function ReplyIcon(props: IconProps) {
+  return <Glyph {...props} d="M9 17 4 12l5-5M4 12h11a5 5 0 0 1 5 5v2" />;
+}
+
 export function RefreshIcon(props: IconProps) {
   return (
     <Glyph {...props} d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 6M4 12l2 6a7 7 0 0 0 12-1" />

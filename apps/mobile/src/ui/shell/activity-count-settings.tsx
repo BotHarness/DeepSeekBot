@@ -18,12 +18,18 @@ export function ActivityCountLink() {
       on={SHEET_GROUP}
       title={t.activityCountSettings.title}
       icon="activityCount"
-      detail={
+      accessibilityLabel={`${t.activityCountSettings.title}, ${
         kinds.length
-          ? kinds.map((kind) => t.activityCountSettings[kind]).join(' · ')
+          ? kinds.map((kind) => t.activityCountSettings[kind]).join(', ')
           : t.activityCountSettings.none
-      }
-      disclosure
+      }`}
+      control={{
+        kind: 'value',
+        text: kinds.length
+          ? t.activityCountSettings.count(kinds.length)
+          : t.activityCountSettings.none,
+        chevron: true,
+      }}
       onPress={() => router.push('/settings/activity-count')}
     />
   );

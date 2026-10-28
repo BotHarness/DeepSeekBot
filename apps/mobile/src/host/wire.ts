@@ -15,6 +15,11 @@ export type WireAuthor =
   | { kind: 'bridged'; source: string }
   | { kind: 'system' };
 
+export interface WireReplyPreview {
+  author: WireAuthor;
+  body: string;
+}
+
 export interface WireReaction {
   emoji: string;
   actors: { kind: 'human' | 'bot'; id: string }[];
@@ -57,6 +62,8 @@ export interface ChannelWireMessage extends WireMessage {
   contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];
+  replyTo?: string;
+  replyToPreview?: WireReplyPreview | null;
   reactions?: WireReaction[];
   deliveries?: WireDelivery[];
   attachments?: readonly AttachmentRef[];

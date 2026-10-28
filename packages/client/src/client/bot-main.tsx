@@ -3513,28 +3513,21 @@ function ConversationView({
                         ) : (
                           <ChannelSidebarIcon name="user" size={20} />
                         ),
+                      ...(profileBot !== undefined || channel.type === 'group'
+                        ? {
+                            profile: {
+                              label: t(
+                                channel.type === 'group'
+                                  ? 'groupProfile.openAvatar'
+                                  : 'profile.openAvatar',
+                                { name: title },
+                              ),
+                              open: openProfileView,
+                            },
+                          }
+                        : {}),
                       actions: (
                         <>
-                          {(profileBot !== undefined || channel.type === 'group') && (
-                            <Tooltip
-                              label={t(
-                                channel.type === 'group' ? 'groupProfile.label' : 'profile.view',
-                              )}
-                              side="bottom"
-                              portal
-                              delayMs={500}
-                            >
-                              <IconButton
-                                aria-label={t(
-                                  channel.type === 'group' ? 'groupProfile.label' : 'profile.view',
-                                )}
-                                aria-pressed={profileViewOpen}
-                                onClick={openProfileView}
-                              >
-                                <ChannelSidebarIcon name="id-card" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
                           {hasChannelSettings && (
                             <Tooltip
                               label={t('channelSettings.open')}

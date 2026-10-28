@@ -1,28 +1,32 @@
 import { messageDisplayPreferences, useMessageDisplay } from '../../host/native-message-display';
 import { SHEET_GROUP } from '../chat/sheet';
-import { SettingsRow, SettingsSection } from '../primitives/settings-row';
+import { PreferenceRow } from '../primitives/preference-row';
+import { SettingsFormItem } from '../primitives/settings-form';
+import { Notice } from '../request-parts';
 import { useStrings } from '../strings';
 
-export function MessageDisplaySettings() {
+export function MessageDisplaySetting() {
   const t = useStrings();
   const state = useMessageDisplay();
   return (
-    <SettingsSection
-      title={t.messageDisplay.title}
-      on={SHEET_GROUP}
-      footer={state.storageError ? t.messageDisplay.storageError : t.messageDisplay.hint}
-    >
-      {(['streaming', 'complete'] as const).map((mode) => (
-        <SettingsRow
-          key={mode}
-          on={SHEET_GROUP}
-          title={t.messageDisplay[mode]}
-          detail={t.messageDisplay[`${mode}Hint`]}
-          selected={state.loaded && state.mode === mode}
-          control={state.loaded && state.mode === mode ? { kind: 'check' } : undefined}
-          onPress={state.loaded ? () => messageDisplayPreferences.setMode(mode) : undefined}
-        />
-      ))}
-    </SettingsSection>
+    <>
+      <PreferenceRow
+        on={SHEET_GROUP}
+        title={t.messageDisplay.title}
+        icon="messageDisplay"
+        testID="settings-message-display"
+        value={state.mode}
+        options={[
+          { value: 'streaming', label: t.messageDisplay.streaming, icon: 'streaming' },
+          { value: 'complete', label: t.messageDisplay.complete, icon: 'complete' },
+        ]}
+        onChange={(mode) => messageDisplayPreferences.setMode(mode)}
+      />
+      {state.storageError ? (
+        <SettingsFormItem>
+          <Notice tone="danger">{t.messageDisplay.storageError}</Notice>
+        </SettingsFormItem>
+      ) : null}
+    </>
   );
 }

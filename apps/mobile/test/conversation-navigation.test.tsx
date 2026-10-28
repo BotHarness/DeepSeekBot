@@ -134,6 +134,7 @@ vi.mock('expo-router', () => ({
     },
   }),
 }));
+vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return { ...shim, KeyboardAvoidingView: shim.View };
@@ -223,6 +224,24 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderOverlap: () => 80,
   floatingHeader: false,
   useHeaderPadding: () => 0,
+}));
+vi.mock('../src/ui/shell/swipe-open', () => ({
+  SwipeOpen: ({
+    enabled,
+    onOpen,
+    testID,
+    children,
+  }: {
+    enabled: boolean;
+    onOpen(): void;
+    testID?: string;
+    children: ReactNode;
+  }) => (
+    <div data-testid={testID} data-enabled={String(enabled)}>
+      <button type="button" data-testid={`${testID}-trigger`} onClick={onOpen} />
+      {children}
+    </div>
+  ),
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
   titleChipFill: () => ({}),
@@ -1124,6 +1143,33 @@ it('the real conversation title opens a source-scoped Bot Profile', async () => 
   } finally {
     Object.assign(Platform, { OS: os });
   }
+});
+
+it('a swipe left on the messages opens the same profile as the title', async () => {
+  profileHistory = channelNavigationHarness();
+  profileHistory.push('dm/[slug]', { slug: 'ada', hostId: 'computer_a' });
+  state.history = ['/', '/dm/ada'];
+  state.host.roster.bots = [
+    {
+      slug: 'ada',
+      displayName: 'Ada',
+      state: 'idle',
+      roles: [],
+      computerAccess: false,
+      browserAccess: false,
+      paused: false,
+    },
+  ];
+  const view = await render({ kind: 'dm', slug: 'ada' });
+  const swipe = view.querySelector('[data-testid="chat-profile-swipe"]');
+  expect(swipe?.getAttribute('data-enabled')).toBe('true');
+  await act(async () =>
+    view.querySelector<HTMLButtonElement>('[data-testid="chat-profile-swipe-trigger"]')!.click(),
+  );
+  expect(profileHistory.state.routes.at(-1)).toMatchObject({
+    name: 'bot/[slug]',
+    params: { slug: 'ada', hostId: 'computer_a' },
+  });
 });
 
 it('opens scoped Bot-to-Bot details from its title without exposing group management', async () => {
