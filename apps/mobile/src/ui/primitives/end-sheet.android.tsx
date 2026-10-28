@@ -1,6 +1,6 @@
 import { requireNativeView } from 'expo';
 import { useEffect } from 'react';
-import { Platform, View, processColor, useWindowDimensions, type ViewProps } from 'react-native';
+import { View, processColor, useWindowDimensions, type ViewProps } from 'react-native';
 import { holdBack } from '../shell/back-owner';
 
 import { useDesignTheme } from '../design/theme';
@@ -39,7 +39,8 @@ export function EndSheet({
     ? width
     : Math.min(materialDrawer.width, width - materialDrawer.scrimGutter);
   useEffect(() => {
-    if (!active || !open || Number(Platform.Version) >= 33) return;
+    // Hardware/three-button Back can arrive through RN even when predictive Back is native.
+    if (!active || !open) return;
     const subscription = holdBack(() => {
       onOpenChange(false);
       return true;
