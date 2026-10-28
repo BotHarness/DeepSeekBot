@@ -839,9 +839,9 @@ export function WorkspacePanel({
   const bottom = useFloatingTabInset();
   const { saved, hosts, client, inbox } = useHostSession();
   const [filter] = useConversationFilter();
-  const connection = useHostSnapshot(client).connection;
-  const list = useInbox(inbox);
-  const feeds = useHostSessions();
+  const connection = useHostSnapshot(client, active).connection;
+  const list = useInbox(inbox, active);
+  const feeds = useHostSessions(active);
   const glanceMap = useMemo(
     () =>
       Object.fromEntries(
@@ -1404,7 +1404,7 @@ function HostDrawerPanel({ docked }: { docked: boolean }) {
           ]}
         >
           {glass ? <SidebarMaterial cornerRadius={sidebar.radius} /> : null}
-          <WorkspacePanel active={state.open} docked={docked} />
+          <WorkspacePanel active={state.shown} docked={docked} />
         </Animated.View>
       </View>
     </GestureDetector>

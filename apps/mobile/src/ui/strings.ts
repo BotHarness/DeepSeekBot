@@ -20,6 +20,12 @@ const fileCount = (count: number) => (count === 1 ? '1 file' : `${count} files`)
 const messageCount = (count: number) => (count === 1 ? '1 message' : `${count} messages`);
 
 const en = {
+  avatarEditor: {
+    title: 'Customize',
+    preview: 'Avatar preview',
+    saveFailed: 'Could not save the avatar. Try again.',
+    unavailable: 'Open Bot creation to customize its avatar.',
+  },
   lockScreen: {
     title: 'Lock Screen status',
     track: 'Track latest request',
@@ -253,12 +259,19 @@ const en = {
     chooseSourceAgain: 'Choose source for a different Bot',
     name: 'Name',
     persona: 'Persona',
-    personaHint: 'How should this Bot behave?',
+    personaHint: 'Describe its role, speaking style and lasting rules.',
+    personaSystemLabel: 'Added to the system prompt',
+    personaSystemHint:
+      'This edits the persona section. Platform rules and core memory can add other sections.',
+    profileHint:
+      'For introductions and classification, not automatically added as behavior instructions. Other Bots may read this in profile queries.',
     destination: 'Environment',
     choose: 'Choose an environment',
     details: 'Bio and tags',
     bio: 'Bio',
-    tags: 'Tags, separated by commas',
+    tags: 'Tags',
+    tagInputHint: 'Press Enter to add a tag. Tap a tag to remove it.',
+    removeTag: (tag: string) => `Remove tag ${tag}`,
     create: 'Create Bot',
     next: 'Next',
     createShort: 'Create',
@@ -271,9 +284,11 @@ const en = {
       environment: 'Choose the Environment this Bot lives in.',
       git: 'Paste the Git link of the Bot’s repository.',
       zip: 'Choose the Bot’s Zip file.',
-      identity: 'Give your Bot a name and an avatar.',
-      persona: 'Describe how it behaves. You can change this later.',
-      importDetails: 'Add a bio and tags. The persona comes with the imported Bot.',
+      identity: 'Name and avatar',
+      persona: 'Persona and behavior',
+      details: 'Bio and tags',
+      importDetails:
+        'The imported Bot keeps its persona instructions. Edit them from its profile after importing.',
       confirm: 'Check the details, then import.',
     },
     noEnvironments: 'No Environment yet',
@@ -2093,6 +2108,12 @@ const en = {
 };
 
 const zh: typeof en = {
+  avatarEditor: {
+    title: '捏人',
+    preview: '头像预览',
+    saveFailed: '头像未保存，请重试。',
+    unavailable: '请先打开创建 Bot。',
+  },
   lockScreen: {
     title: '锁屏状态',
     track: '跟踪最新请求',
@@ -2318,12 +2339,17 @@ const zh: typeof en = {
     chooseSourceAgain: '重新选择来源，导入另一个 Bot',
     name: '名称',
     persona: '人设',
-    personaHint: '这个 Bot 应该如何回应和行动？',
+    personaHint: '描述 Bot 的职责、说话方式和长期规则。',
+    personaSystemLabel: '加入系统提示词',
+    personaSystemHint: '这里只编辑人设；完整系统提示词还可包含平台规则和核心记忆。',
+    profileHint: '用于介绍和分类，不会自动作为行为指令注入。其他 Bot 查询资料时可能读到这些内容。',
     destination: '环境',
     choose: '选择环境',
     details: '简介和标签',
     bio: '简介',
-    tags: '标签，用逗号分隔',
+    tags: '标签',
+    tagInputHint: '回车添加标签，点击标签可删除。',
+    removeTag: (tag: string) => `删除标签 ${tag}`,
     create: '创建 Bot',
     next: '下一步',
     createShort: '创建',
@@ -2336,9 +2362,10 @@ const zh: typeof en = {
       environment: '选择这个 Bot 所在的环境。',
       git: '粘贴 Bot 仓库的 Git 链接。',
       zip: '选择 Bot 的 Zip 文件。',
-      identity: '给你的 Bot 起个名字，选一个头像。',
-      persona: '描述它的人设和简介，之后也可以修改。',
-      importDetails: '补充简介和标签。人设来自导入的 Bot。',
+      identity: '名字与头像',
+      persona: '人设与行为',
+      details: '简介与标签',
+      importDetails: '人设指令保留导入 Bot 中的内容，导入后可在资料页编辑。',
       confirm: '确认信息后导入。',
     },
     noEnvironments: '还没有环境',

@@ -83,6 +83,7 @@ export function TextField(props: TextFieldProps) {
     returnKeyType,
     secureTextEntry,
     onSubmitEditing,
+    submitBehavior,
     onFocus,
     onBlur,
     testID: id,
@@ -110,7 +111,7 @@ export function TextField(props: TextFieldProps) {
   const submitAction = submitActions[imeAction];
   const submit = (current: string) => {
     onSubmitEditing?.(event<TextInputSubmitEditingEvent['nativeEvent']>(current));
-    if (!multiline) void field.current?.blur();
+    if (!multiline && submitBehavior !== 'submit') void field.current?.blur();
   };
   return (
     <View

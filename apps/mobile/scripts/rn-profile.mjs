@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join, resolve } from 'node:path';
@@ -11,6 +12,9 @@ const args = Object.fromEntries(
     return acc;
   }, []),
 );
+const noReact = args['no-react'] === true;
+if (args['no-react'] !== undefined && !noReact)
+  throw new Error('--no-react is a flag and takes no value');
 const metro = Number(args.metro ?? 8081);
 const out = resolve(args.out ?? `rn-profile-${Date.now()}`);
 const maxSeconds = Number(args.max ?? 120);
@@ -46,7 +50,7 @@ ws.on('message', (data) => {
   if (msg.id && pending.has(msg.id)) {
     const { ok, fail } = pending.get(msg.id);
     pending.delete(msg.id);
-    if (msg.error) fail(new Error(`${msg.error.message}`));
+    if (msg.error) fail(new Error(`${msg.error.message}`, { cause: 'inspector-command-refused' }));
     else ok(msg.result);
   }
 });
@@ -56,7 +60,8 @@ ws.on('close', (code) => {
   for (const { fail } of pending.values()) fail(new Error(`inspector socket closed (${code})`));
   pending.clear();
   console.error(`inspector socket closed (${code}); the app reloaded, crashed or Metro restarted`);
-  process.exit(2);
+  if (noReact) void cleanupJsCapture().finally(() => process.exit(2));
+  else process.exit(2);
 });
 const send = (method, params = {}) =>
   new Promise((ok, fail) => {
@@ -126,53 +131,147 @@ const collect = `(() => {
     renders: p.renders, renderedPerCommit: p.renderedPerCommit, frames: p.frames });
 })()`;
 
-await send('Runtime.enable');
-await send('Profiler.enable').catch(() => {});
-await send('Profiler.setSamplingInterval', { interval: 1000 }).catch(() => {});
-const installed = await evaluate(install);
-if (installed !== 'ok') throw new Error(installed);
-await send('Profiler.start');
-const t0 = Date.now();
-let child;
-if (typeof args.run === 'string') child = spawn('sh', ['-c', args.run], { stdio: 'inherit' });
+const captureId = randomUUID();
+const installFrames = `(() => {
+  if (globalThis.__agentJsFrames) globalThis.__agentJsFrames.on = false;
+  const p = globalThis.__agentJsFrames = { id: '${captureId}', on: true, start: performance.now(), frames: [] };
+  const tick = (t) => { if (!p.on) return; p.frames.push(t); requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+  return 'ok';
+})()`;
+const collectFrames = `(() => {
+  const p = globalThis.__agentJsFrames;
+  if (p?.id !== '${captureId}') throw new Error('JS-frame capture was replaced');
+  p.on = false;
+  return JSON.stringify({ mode: 'js-only', clock: 'performance.now', start: p.start,
+    end: performance.now(), frames: p.frames });
+})()`;
 
-let lastCount = 0;
-let lastChange = Date.now();
-for (;;) {
-  await new Promise((r) => setTimeout(r, 500));
-  const n = await Promise.race([
-    evaluate('globalThis.__agentPerf.commits.length'),
-    new Promise((r) => setTimeout(() => r(-1), 5000)),
-  ]);
-  if (n === -1) lastChange = Date.now();
-  if (n !== lastCount) {
-    lastCount = n;
-    lastChange = Date.now();
-  }
-  const elapsed = (Date.now() - t0) / 1000;
-  if (elapsed > maxSeconds) break;
-  const quiet = Date.now() - lastChange > quietSeconds * 1000;
-  if (child ? child.exitCode !== null && quiet : lastCount > 0 && quiet) break;
+let child, react, profile, t0;
+let profilerState = 'not-started';
+let cleanup;
+const stopFrames = `(() => {
+  const p = globalThis.__agentJsFrames;
+  if (p?.id !== '${captureId}') return false;
+  p.on = false;
+  return true;
+})()`;
+const cleanupJsCapture = () => {
+  if (cleanup) return cleanup;
+  cleanup = (async () => {
+    closing = true;
+    const unconfirmed = () =>
+      console.error(
+        'JS-only cleanup unconfirmed; retry with a fresh capture after checking the inspector.',
+      );
+    let deadline;
+    if (profilerState === 'pending')
+      console.error(
+        'CPU profiler start unconfirmed; no stop was sent without ownership confirmation.',
+      );
+    try {
+      if (ws.readyState !== WebSocket.OPEN) unconfirmed();
+      else
+        await Promise.race([
+          evaluate(stopFrames)
+            .then((owned) =>
+              owned && profilerState === 'started' ? send('Profiler.stop') : undefined,
+            )
+            .catch(unconfirmed),
+          new Promise((resolve) => {
+            deadline = setTimeout(() => {
+              unconfirmed();
+              resolve();
+            }, 1000);
+          }),
+        ]);
+    } finally {
+      clearTimeout(deadline);
+      ws.terminate();
+      child?.kill();
+    }
+  })();
+  return cleanup;
+};
+const interrupted = (signal) => {
+  void cleanupJsCapture().finally(() => process.exit(signal === 'SIGINT' ? 130 : 143));
+};
+if (noReact) {
+  process.once('SIGINT', interrupted);
+  process.once('SIGTERM', interrupted);
 }
-const react = JSON.parse(await evaluate(collect));
-const { profile } = await send('Profiler.stop');
-closing = true;
-ws.close();
-child?.kill();
-writeFileSync(join(out, 'profile.cpuprofile'), JSON.stringify(profile));
-writeFileSync(join(out, 'react.json'), JSON.stringify(react));
+try {
+  await send('Runtime.enable');
+  await send('Profiler.enable').catch(() => {});
+  await send('Profiler.setSamplingInterval', { interval: 1000 }).catch(() => {});
+  const installed = await evaluate(noReact ? installFrames : install);
+  if (installed !== 'ok') throw new Error(installed);
+  profilerState = 'pending';
+  try {
+    await send('Profiler.start');
+    profilerState = 'started';
+  } catch (error) {
+    if (error.cause === 'inspector-command-refused') profilerState = 'not-started';
+    throw error;
+  }
+  t0 = Date.now();
+  if (typeof args.run === 'string') child = spawn('sh', ['-c', args.run], { stdio: 'inherit' });
 
-const c = react.commits;
-const windowMs = c.length > 1 ? c[c.length - 1] - c[0] : 0;
-const inWindow = react.frames.filter((t) => c.length && t >= c[0] && t <= c[c.length - 1]);
-const edges = windowMs ? [c[0], ...inWindow, c[c.length - 1]] : [];
+  let lastCount = 0;
+  let lastChange = Date.now();
+  if (noReact)
+    child?.once('exit', () => {
+      lastChange = Date.now();
+    });
+  for (;;) {
+    await new Promise((r) => setTimeout(r, 500));
+    if (!noReact) {
+      const n = await Promise.race([
+        evaluate('globalThis.__agentPerf.commits.length'),
+        new Promise((r) => setTimeout(() => r(-1), 5000)),
+      ]);
+      if (n === -1) lastChange = Date.now();
+      if (n !== lastCount) {
+        lastCount = n;
+        lastChange = Date.now();
+      }
+    }
+    const elapsed = (Date.now() - t0) / 1000;
+    if (elapsed > maxSeconds) break;
+    const quiet = Date.now() - lastChange > quietSeconds * 1000;
+    if (child ? child.exitCode !== null && quiet : !noReact && lastCount > 0 && quiet) break;
+  }
+  react = JSON.parse(await evaluate(noReact ? collectFrames : collect));
+  ({ profile } = await send('Profiler.stop'));
+  profilerState = 'not-started';
+} finally {
+  if (noReact) {
+    await cleanupJsCapture();
+    process.off('SIGINT', interrupted);
+    process.off('SIGTERM', interrupted);
+  } else {
+    closing = true;
+    ws.close();
+    child?.kill();
+  }
+}
+writeFileSync(join(out, 'profile.cpuprofile'), JSON.stringify(profile));
+const timingFile = join(out, noReact ? 'js-frames.json' : 'react.json');
+writeFileSync(timingFile, JSON.stringify(react));
+
+const c = noReact ? [] : react.commits;
+const windowStart = noReact ? react.start : c[0];
+const windowEnd = noReact ? react.end : c[c.length - 1];
+const windowMs = noReact || c.length > 1 ? windowEnd - windowStart : 0;
+const inWindow = react.frames.filter((t) => windowMs && t >= windowStart && t <= windowEnd);
+const edges = windowMs ? [windowStart, ...inWindow, windowEnd] : [];
 const gaps = edges
   .slice(1)
   .map((t, i) => t - edges[i])
   .filter((g) => g > 0);
 const frameMs = 1000 / 60;
 const droppedFrames = gaps.reduce((s, g) => s + Math.max(0, Math.round(g / frameMs) - 1), 0);
-const renders = Object.entries(react.renders)
+const renders = Object.entries(react.renders ?? {})
   .map(([name, e]) => ({ name, ...e, selfMs: +e.selfMs.toFixed(1) }))
   .sort((a, b) => b.renders + b.mounts - (a.renders + a.mounts));
 
@@ -245,19 +344,36 @@ const rank = (m) =>
 
 const summary = {
   target: target.title,
-  recordedSeconds: +((Date.now() - t0) / 1000).toFixed(1),
-  react: {
-    commits: c.length,
-    streamWindowSeconds: +(windowMs / 1000).toFixed(2),
-    commitsPerSecond: windowMs ? +((c.length - 1) / (windowMs / 1000)).toFixed(1) : 0,
-    commitRenderMsTotal: +react.commitMs.toFixed(1),
-    componentsRenderedPerCommit: c.length
-      ? +(react.renderedPerCommit.reduce((a, b) => a + b, 0) / c.length).toFixed(1)
-      : 0,
-    topComponents: renders.slice(0, top),
-    components: Object.fromEntries(renders.map((r) => [r.name, [r.renders, r.mounts]])),
+  mode: noReact ? 'js-only' : 'react-and-js',
+  reactUnavailableReason: noReact ? 'disabled-by--no-react' : null,
+  capture: {
+    jsClock: 'performance.now',
+    jsStartMs: react.start,
+    jsEndMs: react.end,
+    jsDurationSeconds: (react.end - react.start) / 1000,
+    cpuStartUs: profile.startTime,
+    cpuEndUs: profile.endTime,
+    cpuDurationSeconds: (profile.endTime - profile.startTime) / 1_000_000,
   },
+  recordedSeconds: +((Date.now() - t0) / 1000).toFixed(1),
+  react: noReact
+    ? null
+    : {
+        commits: c.length,
+        streamWindowSeconds: +(windowMs / 1000).toFixed(2),
+        commitsPerSecond: windowMs ? +((c.length - 1) / (windowMs / 1000)).toFixed(1) : 0,
+        commitRenderMsTotal: +react.commitMs.toFixed(1),
+        componentsRenderedPerCommit: c.length
+          ? +(react.renderedPerCommit.reduce((a, b) => a + b, 0) / c.length).toFixed(1)
+          : 0,
+        topComponents: renders.slice(0, top),
+        components: Object.fromEntries(renders.map((r) => [r.name, [r.renders, r.mounts]])),
+      },
   frames: {
+    source: 'javascript-requestAnimationFrame',
+    window: noReact ? 'capture' : 'react-commits',
+    windowSeconds: windowMs / 1000,
+    assumedFrameMs: frameMs,
     jsFps: windowMs ? +(inWindow.length / (windowMs / 1000)).toFixed(1) : 0,
     droppedFrames,
     droppedPct: gaps.length
@@ -274,7 +390,10 @@ const summary = {
     selfTop: rank(self),
     totalTop: rank(total),
   },
-  files: { cpuprofile: join(out, 'profile.cpuprofile') },
+  files: {
+    cpuprofile: join(out, 'profile.cpuprofile'),
+    [noReact ? 'jsFrames' : 'react']: timingFile,
+  },
 };
 writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
 console.log(JSON.stringify(summary, null, 2));
