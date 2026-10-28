@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-import { act, useEffect, useState, type ReactNode } from 'react';
+import { act, useState, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import type { EndSheetProps } from '../src/ui/primitives/end-sheet';
-const state = vi.hoisted(() => ({ routeFocused: true, mounts: 0 }));
+const state = vi.hoisted(() => ({ routeFocused: true }));
 vi.mock('expo-router', () => ({ useIsFocused: () => state.routeFocused }));
 vi.mock('react-native', () => ({ Keyboard: { dismiss: vi.fn() } }));
 vi.mock('../src/ui/shell/scroll-chrome', () => ({
@@ -26,9 +26,6 @@ vi.mock('../src/ui/chat/conversation-screen', () => ({
     presentation: { active: boolean; onClose(): void; onNestedChange(value: boolean): void };
   }) => {
     const [draft, setDraft] = useState('');
-    useEffect(() => {
-      state.mounts++;
-    }, []);
     return (
       <article data-visible={String(presentation.active)}>
         <input value={draft} onChange={(e) => setDraft(e.target.value)} />
@@ -44,11 +41,7 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 it('preloads one retained real page above navigation/FAB and preserves it beneath child routes', async () => {
   const container = document.createElement('div');
   const root = createRoot(container);
-  let homeMounts = 0;
   function Home({ active, id }: { active: boolean; id: string }) {
-    useEffect(() => {
-      homeMounts++;
-    }, []);
     return (
       <>
         <ChatsSheetRegistration
@@ -76,6 +69,7 @@ it('preloads one retained real page above navigation/FAB and preserves it beneat
   try {
     await render();
     const page = container.querySelector('article');
+    const navigation = container.querySelector('nav');
     expect(page?.getAttribute('data-visible')).toBe('false');
     expect(container.querySelector('[data-background] article')).toBeNull();
     expect(container.querySelector('[data-background] nav')).not.toBeNull();
@@ -92,19 +86,17 @@ it('preloads one retained real page above navigation/FAB and preserves it beneat
     state.routeFocused = true;
     await render(true, 'b');
     expect(container.querySelector('article')).toBe(page);
-    expect(state.mounts).toBe(1);
     await click('Back to chat');
     expect(container.querySelector('main')?.getAttribute('data-active')).toBe('true');
     await render();
     await click('Back to Chats');
     await click('Settle open');
     expect(container.querySelector('article')).toBe(page);
-    expect(state.mounts).toBe(1);
     await click('Back to Chats');
     await render(true, 'b');
     expect(container.querySelector('main')?.getAttribute('data-open')).toBe('false');
-    expect(state.mounts).toBe(2);
-    expect(homeMounts).toBe(1);
+    expect(container.querySelector('article')).not.toBe(page);
+    expect(container.querySelector('nav')).toBe(navigation);
   } finally {
     await act(async () => root.unmount());
   }
