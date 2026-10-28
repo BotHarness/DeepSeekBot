@@ -224,7 +224,7 @@ export function MarketplaceSections({ target }: { target: MarketplaceTarget }) {
           )}
         </View>
       ))}
-      {state.status === 'failed' ? (
+      {state.error && shown.length === 0 ? (
         <MarketplaceRetry
           testID="marketplace-sections-retry"
           busy={state.busy}

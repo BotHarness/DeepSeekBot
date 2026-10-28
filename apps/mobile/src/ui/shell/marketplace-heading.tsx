@@ -100,6 +100,7 @@ export function MarketplacePlaceholder({
   return (
     <View
       testID={testID}
+      accessible
       accessibilityRole="progressbar"
       accessibilityLabel={label}
       style={{ gap: space.x3 }}

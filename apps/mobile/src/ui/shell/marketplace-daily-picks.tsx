@@ -80,7 +80,7 @@ export function MarketplaceDailyPicks({ target }: { target: MarketplaceTarget })
           />
           <DigestCard digest={today} onPress={() => openDigest(today.day, 'hero', target)} />
         </>
-      ) : state.status === 'failed' ? (
+      ) : state.error ? (
         <MarketplaceRetry
           testID="marketplace-daily-picks-retry"
           busy={state.busy}

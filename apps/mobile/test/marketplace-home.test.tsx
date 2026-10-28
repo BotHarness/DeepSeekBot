@@ -252,6 +252,39 @@ describe('Marketplace home', () => {
     expect(byTestId('marketplace-section-hot')).not.toBeNull();
   });
 
+  it('shows a retry when a refresh fails over empty cached results', async () => {
+    const original = fixture.fetch.getMockImplementation()!;
+    fixture.fetch.mockImplementation(async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      const section = /^\/v1\/sections\/(hot|new|rising)$/u.exec(path)?.[1];
+      if (section) return Response.json({ section, day: '2026-10-28', entries: [] });
+      if (path === '/v1/digests') return Response.json({ digests: [] });
+      return original(url, init);
+    });
+    await act(async () => root.render(<MarketplaceScreen />));
+    expect(byTestId('marketplace-daily-picks-retry')).toBeNull();
+    expect(byTestId('marketplace-sections-retry')).toBeNull();
+    act(() => root.unmount());
+
+    fixture.fetch.mockImplementation(async (url, init) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/v1/digests' || path.startsWith('/v1/sections/'))
+        return new Response('down', { status: 503 });
+      return original(url, init);
+    });
+    root = createRoot(element);
+    await act(async () => root.render(<MarketplaceScreen />));
+    expect(byTestId('marketplace-daily-picks-retry')).not.toBeNull();
+    expect(byTestId('marketplace-sections-retry')).not.toBeNull();
+
+    fixture.fetch.mockImplementation(original);
+    await act(async () => byTestId('marketplace-daily-picks-retry')!.click());
+    await act(async () => byTestId('marketplace-sections-retry')!.click());
+    expect(byTestId('marketplace-daily-picks-retry')).toBeNull();
+    expect(byTestId('marketplace-sections-retry')).toBeNull();
+    expect(byTestId('marketplace-section-hot')).not.toBeNull();
+  });
+
   it('shows Daily picks, Hot, New and Rising above the list in that order', async () => {
     await act(async () => root.render(<MarketplaceScreen />));
     const order = testIds();
