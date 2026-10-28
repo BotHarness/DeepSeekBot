@@ -1,18 +1,22 @@
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from "react";
 
-import type { ConnectionState } from '../host/client';
-import type { OverviewUsage } from '../host/usage';
-import { SHEET_GROUP } from './chat/sheet';
-import { space } from './design/tokens';
-import { View } from 'react-native';
-import { confirmDestructive } from './primitives/app-dialog';
-import { DrawerHeader } from './primitives/drawer-header';
-import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
-import { SettingsRow, SettingsSection } from './primitives/settings-row';
-import { errorText, Notice } from './request-parts';
-import { UsageCard } from './shell/usage-card';
-import { AppearanceSetting, InterfaceSaveNotice, LanguageSetting } from './interface-settings';
-import { useStrings, t } from './strings';
+import type { ConnectionState } from "../host/client";
+import type { OverviewUsage } from "../host/usage";
+import { SHEET_GROUP } from "./chat/sheet";
+import { space } from "./design/tokens";
+import { View } from "react-native";
+import { confirmDestructive } from "./primitives/app-dialog";
+import { DrawerHeader } from "./primitives/drawer-header";
+import { SettingsForm, SettingsFormItem } from "./primitives/settings-form";
+import { SettingsRow, SettingsSection } from "./primitives/settings-row";
+import { errorText, Notice } from "./request-parts";
+import { UsageCard } from "./shell/usage-card";
+import {
+  AppearanceSetting,
+  InterfaceSaveNotice,
+  LanguageSetting,
+} from "./interface-settings";
+import { useStrings, t } from "./strings";
 
 export interface SettingsActions {
   onUsage(): void;
@@ -25,13 +29,13 @@ export interface SettingsActions {
   onCopyVersion(text: string): void;
 }
 
-const statusLabels = (): Record<ConnectionState['status'], string> => ({
+const statusLabels = (): Record<ConnectionState["status"], string> => ({
   connected: t.connected,
   connecting: t.connecting,
   reconnecting: t.reconnecting,
   refused: t.refused,
   unreachable: t.unreachable,
-  stopped: '',
+  stopped: "",
 });
 
 export function SettingsView({
@@ -63,16 +67,10 @@ export function SettingsView({
   const [unpairError, setUnpairError] = useState<string>();
   const [versionCopied, setVersionCopied] = useState(false);
   const status = [statusLabels()[connection.status], connection.route].filter(
-    (part) => part !== '',
+    (part) => part !== "",
   );
   return (
-    <SettingsForm
-      header={
-        <View style={{ paddingHorizontal: space.x5, paddingTop: space.x5 }}>
-          <DrawerHeader title={t.settings} />
-        </View>
-      }
-    >
+    <SettingsForm>
       <SettingsFormItem>
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>
@@ -87,7 +85,11 @@ export function SettingsView({
         />
       </SettingsSection>
       <SettingsSection title={t.connections} on={SHEET_GROUP}>
-        <SettingsRow on={SHEET_GROUP} title={hostName ?? '—'} detail={status.join(' · ')} />
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={hostName ?? "—"}
+          detail={status.join(" · ")}
+        />
         <SettingsRow
           on={SHEET_GROUP}
           title={t.computers}
@@ -118,10 +120,17 @@ export function SettingsView({
           iconTone="danger"
           tone="danger"
           onPress={() =>
-            confirmDestructive(t.unpairHost(hostName ?? '—'), t.unpairHostDetail, t.unpair, () => {
-              setUnpairError(undefined);
-              actions.onUnpair().catch((error: unknown) => setUnpairError(errorText(error)));
-            })
+            confirmDestructive(
+              t.unpairHost(hostName ?? "—"),
+              t.unpairHostDetail,
+              t.unpair,
+              () => {
+                setUnpairError(undefined);
+                actions
+                  .onUnpair()
+                  .catch((error: unknown) => setUnpairError(errorText(error)));
+              },
+            )
           }
         />
       </SettingsSection>
@@ -130,7 +139,11 @@ export function SettingsView({
           <Notice tone="danger">{`${t.unpairFailed} ${unpairError}`}</Notice>
         </SettingsFormItem>
       )}
-      <SettingsSection title={t.interface} on={SHEET_GROUP} footer={t.interfacePreferences.local}>
+      <SettingsSection
+        title={t.interface}
+        on={SHEET_GROUP}
+        footer={t.interfacePreferences.local}
+      >
         <LanguageSetting on={SHEET_GROUP} />
         <AppearanceSetting on={SHEET_GROUP} />
         {messageDisplay}
@@ -153,15 +166,15 @@ export function SettingsView({
           title={t.appVersion}
           icon="version"
           detail={
-            version === ''
+            version === ""
               ? t.appVersionUnknown
               : versionCopied
                 ? `${version} · ${t.copied}`
                 : version
           }
-          accessibilityLabel={`${t.appVersion}, ${version === '' ? t.appVersionUnknown : version}, ${t.copy}`}
+          accessibilityLabel={`${t.appVersion}, ${version === "" ? t.appVersionUnknown : version}, ${t.copy}`}
           onPress={
-            version === ''
+            version === ""
               ? undefined
               : () => {
                   actions.onCopyVersion(version);

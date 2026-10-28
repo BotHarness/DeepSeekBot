@@ -1,4 +1,4 @@
-import { Host } from '@expo/ui';
+import { Host } from "@expo/ui";
 import {
   Button,
   Form,
@@ -10,7 +10,7 @@ import {
   Spacer,
   Text,
   VStack,
-} from '@expo/ui/swift-ui';
+} from "@expo/ui/swift-ui";
 import {
   accessibilityHidden,
   accessibilityLabel,
@@ -20,29 +20,41 @@ import {
   foregroundStyle,
   frame,
   labelStyle,
+  listRowBackground,
   offset,
+  scrollContentBackground,
   tint,
-} from '@expo/ui/swift-ui/modifiers';
-import { View } from 'react-native';
-import { useDesignTheme } from '../design/theme';
-import { accountActionIcon, space } from '../design/tokens';
-import { useStrings } from '../strings';
-import type { AccountPanelProps } from './account-panel';
-import { StepBar } from './step-bar';
+} from "@expo/ui/swift-ui/modifiers";
+import { View } from "react-native";
+import { useDesignTheme } from "../design/theme";
+import { accountActionIcon, space } from "../design/tokens";
+import { useStrings } from "../strings";
+import type { AccountPanelProps } from "./account-panel";
+import { StepBar } from "./step-bar";
 
 export function AccountPanel(props: AccountPanelProps) {
   const t = useStrings();
   const theme = useDesignTheme();
   const locked = props.loading || props.busy;
+  const row = [listRowBackground(theme.layer.raised.fill)];
   return (
     <View style={{ flex: 1 }}>
-      <Host style={{ flex: 1 }} colorScheme={theme.scheme} seedColor={theme.color.accent}>
-        <Form testID="account-hosts">
-          <Section title={t.pairAccount.title}>
+      <Host
+        style={{ flex: 1 }}
+        colorScheme={theme.scheme}
+        seedColor={theme.color.accent}
+      >
+        <Form
+          testID="account-hosts"
+          modifiers={[scrollContentBackground("hidden")]}
+        >
+          <Section title={t.pairAccount.title} modifiers={row}>
             <HStack spacing={space.x3}>
               <Image systemName="person.crop.circle" />
-              <Text modifiers={[font({ textStyle: 'body' })]}>
-                {props.email === false ? t.loading : (props.email ?? t.pairAccount.hint)}
+              <Text modifiers={[font({ textStyle: "body" })]}>
+                {props.email === false
+                  ? t.loading
+                  : (props.email ?? t.pairAccount.hint)}
               </Text>
             </HStack>
             {props.email === null ? (
@@ -57,7 +69,9 @@ export function AccountPanel(props: AccountPanelProps) {
                 <AccountAction
                   testID="account-sign-out"
                   label={
-                    props.pendingDeletion ? t.pairAccount.cleanupConfirm : t.pairAccount.signOut
+                    props.pendingDeletion
+                      ? t.pairAccount.cleanupConfirm
+                      : t.pairAccount.signOut
                   }
                   systemImage="rectangle.portrait.and.arrow.right"
                   onPress={props.onSignOut}
@@ -75,28 +89,36 @@ export function AccountPanel(props: AccountPanelProps) {
             ) : null}
           </Section>
           {props.email !== null && props.email !== false ? (
-            <Section title={t.pairAccount.computers}>
+            <Section title={t.pairAccount.computers} modifiers={row}>
               {props.rows?.map((row) => (
                 <Button
                   key={row.id}
                   testID={`account-computer-${row.id}`}
                   onPress={() => props.onToggle(row.id)}
                   modifiers={[
-                    buttonStyle('plain'),
+                    buttonStyle("plain"),
                     disabled(row.disabled || locked),
                     accessibilityLabel(
-                      `${row.name}, ${row.pairing ? t.pairAccount.pairing : row.detail}${row.selected ? `, ${t.pairAccount.selected}` : ''}`,
+                      `${row.name}, ${row.pairing ? t.pairAccount.pairing : row.detail}${row.selected ? `, ${t.pairAccount.selected}` : ""}`,
                     ),
                   ]}
                 >
-                  <HStack spacing={space.x3} modifiers={[frame({ minHeight: theme.touch })]}>
+                  <HStack
+                    spacing={space.x3}
+                    modifiers={[frame({ minHeight: theme.touch })]}
+                  >
                     <Image systemName="desktopcomputer" />
                     <VStack alignment="leading" spacing={space.x1}>
-                      <Text modifiers={[font({ textStyle: 'body' })]}>{row.name}</Text>
+                      <Text modifiers={[font({ textStyle: "body" })]}>
+                        {row.name}
+                      </Text>
                       <Text
                         modifiers={[
-                          font({ textStyle: 'caption' }),
-                          foregroundStyle({ type: 'color', color: theme.color.muted }),
+                          font({ textStyle: "caption" }),
+                          foregroundStyle({
+                            type: "color",
+                            color: theme.color.muted,
+                          }),
                         ]}
                       >
                         {row.pairing ? t.pairAccount.pairing : row.detail}
@@ -109,8 +131,11 @@ export function AccountPanel(props: AccountPanelProps) {
                       <Image
                         systemName="checkmark"
                         modifiers={[
-                          font({ textStyle: 'body', weight: 'semibold' }),
-                          foregroundStyle({ type: 'color', color: theme.color.accent }),
+                          font({ textStyle: "body", weight: "semibold" }),
+                          foregroundStyle({
+                            type: "color",
+                            color: theme.color.accent,
+                          }),
                         ]}
                       />
                     ) : null}
@@ -131,8 +156,12 @@ export function AccountPanel(props: AccountPanelProps) {
             </Section>
           ) : null}
           {props.error ? (
-            <Section>
-              <Text modifiers={[foregroundStyle({ type: 'color', color: theme.color.danger })]}>
+            <Section modifiers={row}>
+              <Text
+                modifiers={[
+                  foregroundStyle({ type: "color", color: theme.color.danger }),
+                ]}
+              >
                 {props.error}
               </Text>
             </Section>
@@ -142,7 +171,7 @@ export function AccountPanel(props: AccountPanelProps) {
       {props.rows?.length ? (
         <StepBar
           primary={{
-            testID: 'account-add-selected',
+            testID: "account-add-selected",
             label: props.selectedCount
               ? t.pairAccount.addSelected(props.selectedCount)
               : t.pairAccount.choose,
@@ -159,8 +188,8 @@ export function AccountPanel(props: AccountPanelProps) {
 function AccountAction(props: {
   testID: string;
   label: string;
-  systemImage: 'rectangle.portrait.and.arrow.right' | 'trash';
-  role?: 'destructive';
+  systemImage: "rectangle.portrait.and.arrow.right" | "trash";
+  role?: "destructive";
   onPress: () => void;
   locked: boolean;
 }) {
@@ -168,7 +197,7 @@ function AccountAction(props: {
   return (
     <Button
       testID={props.testID}
-      role={props.role ?? 'default'}
+      role={props.role ?? "default"}
       onPress={props.onPress}
       modifiers={[
         tint(theme.color.danger),
@@ -177,23 +206,37 @@ function AccountAction(props: {
       ]}
     >
       <Label
-        modifiers={[labelStyle('titleAndIcon')]}
+        modifiers={[labelStyle("titleAndIcon")]}
         icon={
           <Image
             systemName={props.systemImage}
             modifiers={[
-              font({ textStyle: 'body' }),
+              font({ textStyle: "body" }),
               foregroundStyle(theme.color.danger),
-              ...(props.systemImage === 'rectangle.portrait.and.arrow.right'
-                ? [offset({ x: accountActionIcon.signOutOpticalOffset * theme.fontScale })]
+              ...(props.systemImage === "rectangle.portrait.and.arrow.right"
+                ? [
+                    offset({
+                      x:
+                        accountActionIcon.signOutOpticalOffset *
+                        theme.fontScale,
+                    }),
+                  ]
                 : []),
-              frame({ width: accountActionIcon.slot * theme.fontScale, alignment: 'center' }),
+              frame({
+                width: accountActionIcon.slot * theme.fontScale,
+                alignment: "center",
+              }),
               accessibilityHidden(),
             ]}
           />
         }
       >
-        <Text modifiers={[font({ textStyle: 'body' }), foregroundStyle(theme.color.danger)]}>
+        <Text
+          modifiers={[
+            font({ textStyle: "body" }),
+            foregroundStyle(theme.color.danger),
+          ]}
+        >
           {props.label}
         </Text>
       </Label>

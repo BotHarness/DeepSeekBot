@@ -1,5 +1,5 @@
-import { useRef, useState, type ReactNode } from 'react';
-import { Pressable, View } from 'react-native';
+import { useRef, useState, type ReactNode } from "react";
+import { Pressable, View } from "react-native";
 
 import {
   DEFAULT_HOST_LOOK,
@@ -17,33 +17,37 @@ import {
   type HostColorId,
   type HostIcon,
   type HostLook,
-} from '../design/host-look';
-import { contrast } from '../design/resolve-theme';
-import { useDesignTheme } from '../design/theme';
-import { edge, radius, space } from '../design/tokens';
-import type { LayerName } from '../design/layers';
-import { confirmDestructive } from '../primitives/app-dialog';
-import { DrawerHeader } from '../primitives/drawer-header';
-import { SheetSaveButton } from '../primitives/sheet-save-button';
-import { KeyboardFormScroll } from '../primitives/keyboard-form';
-import { Segmented } from '../primitives/segmented';
-import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
-import { Text } from '../primitives/text';
-import { TextField } from '../primitives/text-field';
-import { labelInField } from '../primitives/field-label';
-import { useStrings } from '../strings';
-import { useMounted } from '../mounted';
-import { HostGlyph } from './host-tile';
-import { CheckIcon } from './icons';
+} from "../design/host-look";
+import { contrast } from "../design/resolve-theme";
+import { useDesignTheme } from "../design/theme";
+import { edge, radius, space } from "../design/tokens";
+import type { LayerName } from "../design/layers";
+import { confirmDestructive } from "../primitives/app-dialog";
+import { SheetHeader } from "../primitives/sheet-header";
+import { SheetSaveButton } from "../primitives/sheet-save-button";
+import { KeyboardFormScroll } from "../primitives/keyboard-form";
+import { Segmented } from "../primitives/segmented";
+import {
+  SettingsHeading,
+  SettingsRow,
+  SettingsSection,
+} from "../primitives/settings-row";
+import { Text } from "../primitives/text";
+import { TextField } from "../primitives/text-field";
+import { labelInField } from "../primitives/field-label";
+import { useStrings } from "../strings";
+import { useMounted } from "../mounted";
+import { HostGlyph } from "./host-tile";
+import { CheckIcon } from "./icons";
 
 export interface HostLookActions {
   onSave(look: HostLook): Promise<void> | void;
   onClose(): void;
 }
 
-type IconSet = HostIcon['kind'];
+type IconSet = HostIcon["kind"];
 
-const SHEET_GROUP: LayerName = 'raised';
+const SHEET_GROUP: LayerName = "raised";
 
 function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
   const t = useStrings();
@@ -53,8 +57,8 @@ function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
     <View style={{ flexShrink: selected ? 1 : 0, minWidth: 0 }}>
       <View
         style={{
-          flexDirection: 'row',
-          alignItems: 'center',
+          flexDirection: "row",
+          alignItems: "center",
           gap: space.x2,
           paddingHorizontal: space.x5,
           paddingVertical: space.x4,
@@ -64,7 +68,7 @@ function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
         {leading}
         <Text
           strong
-          tone={selected ? 'fg' : 'muted'}
+          tone={selected ? "fg" : "muted"}
           numberOfLines={1}
           ellipsizeMode="tail"
           style={{ flexShrink: 1 }}
@@ -75,7 +79,7 @@ function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
       <View
         style={{
           height: edge.focus,
-          backgroundColor: selected ? ink : 'transparent',
+          backgroundColor: selected ? ink : "transparent",
         }}
       />
     </View>
@@ -85,9 +89,9 @@ function Preview({ hostName, look }: { hostName: string; look: HostLook }) {
       accessible
       accessibilityLabel={`${t.hostLookPreview}: ${hostName}`}
       style={{
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        overflow: 'hidden',
+        flexDirection: "row",
+        alignItems: "flex-end",
+        overflow: "hidden",
         borderRadius: radius.md,
         backgroundColor: theme.color.base,
         borderWidth: edge.hairline,
@@ -140,7 +144,7 @@ function Swatch({
         padding: space.x1 / 2,
         borderRadius: radius.round,
         borderWidth: edge.focus,
-        borderColor: selected ? ring : 'transparent',
+        borderColor: selected ? ring : "transparent",
         opacity: pressed ? 0.7 : 1,
       })}
     >
@@ -148,8 +152,8 @@ function Swatch({
         style={{
           flex: 1,
           borderRadius: radius.round,
-          alignItems: 'center',
-          justifyContent: 'center',
+          alignItems: "center",
+          justifyContent: "center",
           backgroundColor: fill,
         }}
       >
@@ -164,9 +168,9 @@ function Card({ children }: { children: ReactNode }) {
   return (
     <View
       style={{
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "center",
         gap: space.x2,
         padding: space.x3,
         borderRadius: radius.md,
@@ -179,9 +183,9 @@ function Card({ children }: { children: ReactNode }) {
 }
 
 const sameIcon = (a: HostIcon, b: HostIcon) =>
-  a.kind === 'symbol'
-    ? b.kind === 'symbol' && a.id === b.id
-    : b.kind === 'emoji' && a.emoji === b.emoji;
+  a.kind === "symbol"
+    ? b.kind === "symbol" && a.id === b.id
+    : b.kind === "emoji" && a.emoji === b.emoji;
 
 export function HostLookEditor({
   hostName,
@@ -196,7 +200,7 @@ export function HostLookEditor({
   const theme = useDesignTheme();
   const [look, setLook] = useState(initialLook);
   const [set, setSet] = useState<IconSet>(look.icon.kind);
-  const [nameDraft, setNameDraft] = useState(look.name ?? '');
+  const [nameDraft, setNameDraft] = useState(look.name ?? "");
   const [stored, setStored] = useState(initialLook);
   const edited = useRef(false);
   const saving = useRef(false);
@@ -214,7 +218,7 @@ export function HostLookEditor({
     if (!edited.current) {
       setLook(initialLook);
       setSet(initialLook.icon.kind);
-      setNameDraft(initialLook.name ?? '');
+      setNameDraft(initialLook.name ?? "");
     }
   }
   const change = (next: HostLook) => {
@@ -238,32 +242,36 @@ export function HostLookEditor({
   };
   const shown = shownHostName(look, hostName);
   const ink = hostColorInk(theme.scheme, theme.color, look.color);
-  const tile = hostTileFill(theme.scheme, theme.color, look.color, theme.layer[SHEET_GROUP].inset);
+  const tile = hostTileFill(
+    theme.scheme,
+    theme.color,
+    look.color,
+    theme.layer[SHEET_GROUP].inset,
+  );
   const glyph = look.color === undefined ? theme.color.fg : ink;
   const ring = look.color === undefined ? theme.color.fg : ink;
   const setIcon = (icon: HostIcon) => change(withHostIcon(look, icon));
-  const setColor = (color: HostColorId | undefined) => change(withHostColor(look, color));
+  const setColor = (color: HostColorId | undefined) =>
+    change(withHostColor(look, color));
   const iconSize = theme.type.title.line;
 
   return (
     <View ref={mounted} style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: space.x5, paddingTop: space.x3 }}>
-        <DrawerHeader
-          title={t.hostLook}
-          onBack={actions.onClose}
-          trailing={
-            <SheetSaveButton
-              label={t.hostLookSave}
-              testID="host-look-save"
-              busy={busy}
-              disabled={false}
-              onPress={() => void save()}
-            />
-          }
-        />
-      </View>
+      <SheetHeader
+        title={t.hostLook}
+        onBack={actions.onClose}
+        trailing={
+          <SheetSaveButton
+            label={t.hostLookSave}
+            testID="host-look-save"
+            busy={busy}
+            disabled={false}
+            onPress={() => void save()}
+          />
+        }
+      />
       <KeyboardFormScroll
-        pointerEvents={busy ? 'none' : 'auto'}
+        pointerEvents={busy ? "none" : "auto"}
         nestedScrollEnabled
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
@@ -273,7 +281,9 @@ export function HostLookEditor({
         {failed ? <Text tone="danger">{t.hostLookSaveFailed}</Text> : null}
 
         <View style={{ gap: space.x2 }}>
-          {labelInField ? null : <SettingsHeading>{t.hostLookName}</SettingsHeading>}
+          {labelInField ? null : (
+            <SettingsHeading>{t.hostLookName}</SettingsHeading>
+          )}
           <TextField
             editable={!busy}
             accessibilityLabel={t.hostLookName}
@@ -297,14 +307,14 @@ export function HostLookEditor({
             value={set}
             onChange={setSet}
             options={[
-              { value: 'symbol', label: t.hostIconSymbols },
-              { value: 'emoji', label: t.hostIconEmoji },
+              { value: "symbol", label: t.hostIconSymbols },
+              { value: "emoji", label: t.hostIconEmoji },
             ]}
           />
           <Card>
-            {set === 'symbol'
+            {set === "symbol"
               ? HOST_SYMBOL_IDS.map((id) => {
-                  const icon: HostIcon = { kind: 'symbol', id };
+                  const icon: HostIcon = { kind: "symbol", id };
                   const selected = sameIcon(look.icon, icon);
                   return (
                     <Swatch
@@ -313,7 +323,7 @@ export function HostLookEditor({
                       label={t.hostSymbol[id]}
                       selected={selected}
                       ring={ring}
-                      fill={selected ? tile : 'transparent'}
+                      fill={selected ? tile : "transparent"}
                       onPress={() => setIcon(icon)}
                     >
                       <HostGlyph
@@ -325,7 +335,7 @@ export function HostLookEditor({
                   );
                 })
               : HOST_EMOJI.map((emoji) => {
-                  const icon: HostIcon = { kind: 'emoji', emoji };
+                  const icon: HostIcon = { kind: "emoji", emoji };
                   const selected = sameIcon(look.icon, icon);
                   return (
                     <Swatch
@@ -333,7 +343,7 @@ export function HostLookEditor({
                       label={emoji}
                       selected={selected}
                       ring={ring}
-                      fill={selected ? tile : 'transparent'}
+                      fill={selected ? tile : "transparent"}
                       onPress={() => setIcon(icon)}
                     >
                       <HostGlyph icon={icon} size={iconSize} color={glyph} />
@@ -374,7 +384,8 @@ export function HostLookEditor({
                   {selected ? (
                     <CheckIcon
                       color={
-                        contrast(swatch, theme.color.base) > contrast(swatch, theme.color.fg)
+                        contrast(swatch, theme.color.base) >
+                        contrast(swatch, theme.color.fg)
                           ? theme.color.base
                           : theme.color.fg
                       }
@@ -385,7 +396,11 @@ export function HostLookEditor({
               );
             })}
           </Card>
-          <Text variant="meta" tone="muted" style={{ paddingHorizontal: space.x5 }}>
+          <Text
+            variant="meta"
+            tone="muted"
+            style={{ paddingHorizontal: space.x5 }}
+          >
             {t.hostColorHint}
           </Text>
         </View>
@@ -401,8 +416,8 @@ export function HostLookEditor({
                 undefined,
                 t.hostLookReset,
                 () => {
-                  setSet('symbol');
-                  setNameDraft('');
+                  setSet("symbol");
+                  setNameDraft("");
                   change(DEFAULT_HOST_LOOK);
                 },
               )
