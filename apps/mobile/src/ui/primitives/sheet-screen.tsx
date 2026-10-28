@@ -35,6 +35,7 @@ export function SheetScreen({
   return (
     <View
       ref={onMount}
+      collapsable={false}
       onAccessibilityEscape={close}
       style={{ flex: 1, backgroundColor: theme.overlay.fill }}
     >

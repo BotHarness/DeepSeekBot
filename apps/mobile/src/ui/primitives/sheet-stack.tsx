@@ -1,29 +1,13 @@
 import { useMemo, type ReactNode } from 'react';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useNavigation } from 'expo-router';
-import type { NativeStackHeaderProps } from 'expo-router/native-stack';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { useStrings } from '../strings';
-import { SheetHeader } from './sheet-header';
+import { sheetStackHeader } from './sheet-header';
 
 import { useDesignTheme } from '../design/theme';
 import { SheetScreen } from './sheet-screen';
 import { profileRootHeader } from '../chat/profile-presentation';
-
-function sheetStackHeader(close: () => void) {
-  return function SheetStackHeader({ back, navigation, options, route }: NativeStackHeaderProps) {
-    return (
-      <SheetHeader
-        title={typeof options.title === 'string' ? options.title : route.name}
-        {...(back !== undefined
-          ? { onBack: () => navigation.goBack() }
-          : Platform.OS === 'ios'
-            ? { onClose: close }
-            : {})}
-      />
-    );
-  };
-}
 
 export function SheetStack({
   children,
