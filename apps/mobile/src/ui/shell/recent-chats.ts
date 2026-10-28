@@ -119,6 +119,13 @@ export function lastChat(
   });
 }
 
+export function recentHostIds(list: readonly RecentChat[]): string[] {
+  return list.flatMap((chat) => {
+    const hostId = chatHostId(chat.href);
+    return hostId === undefined ? [] : [hostId];
+  });
+}
+
 function watchRecentChats(watcher: () => void): () => void {
   watchers.add(watcher);
   void load();

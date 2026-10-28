@@ -84,6 +84,7 @@ import { Composer, type ComposerInput } from './composer';
 import { DraftSaveNotice } from './draft-save-notice';
 import { ClipboardImageOffer, useClipboardImage } from './clipboard-image';
 import { EdgeFade, HeaderBackButton, titleChipFill } from './header-chrome';
+import { useStackRoot } from '../shell/stack-root';
 import {
   barLabelStyle,
   floatingHeader,
@@ -1069,7 +1070,8 @@ function ChatConversation({
   const missing =
     host.roster !== undefined && (dm ? bot === undefined : channel === undefined && !botDm);
   const leave = () => leaveScreen(router);
-  const canGoBack = router.canGoBack();
+  const stackRoot = useStackRoot();
+  const canGoBack = !stackRoot && router.canGoBack();
   const botDmName =
     channelDetails?.members
       .map(
