@@ -17,6 +17,9 @@ describe('Tob Delegation prompt', () => {
   it('keeps trivial requests with Tob and delegates the rest without asking first', () => {
     expect(delegation).toContain('Answer a trivial request yourself');
     expect(delegation).toContain('delegate it without asking the Human first');
+    expect(delegation).toContain(
+      'Keep your own Memory updates, Bot Schedules and reminders, and MCP or credential setup with you',
+    );
     expect(delegation).toContain('call list_bot_contacts');
     expect(delegation).toContain('one bot_send_message with its botId as bot_id');
     expect(delegation).toContain('Send to one colleague only and never repeat the send');

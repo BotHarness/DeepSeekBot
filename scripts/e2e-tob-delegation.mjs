@@ -261,7 +261,9 @@ async function main() {
           report: report.body,
         });
       } else {
-        const botsBefore = (await call('list')).bots?.length;
+        const listBefore = await call('list');
+        assert.ok(Array.isArray(listBefore.bots), 'list did not return a bots array');
+        const botsBefore = listBefore.bots.length;
         const context = await sendToTob(
           '我需要一位懂税务的同事帮我核对今年的个人所得税专项附加扣除，请交给合适的同事处理。',
         );
@@ -286,7 +288,9 @@ async function main() {
         const trace = (await calls(tob.botSlug)).filter(
           (entry) => !context.beforeCalls.has(entry.callId),
         );
-        const botsAfter = (await call('list')).bots?.length;
+        const listAfter = await call('list');
+        assert.ok(Array.isArray(listAfter.bots), 'list did not return a bots array');
+        const botsAfter = listAfter.bots.length;
         save('none', { tobMessages: fresh, sends, trace, botsBefore, botsAfter });
         assert.ok(reply, 'Tob did not answer the Human in its DM');
         assert.equal(sends.length, 0, 'Tob sent to a Bot although no colleague fits');

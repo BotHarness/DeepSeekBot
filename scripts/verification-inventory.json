@@ -2180,7 +2180,7 @@
       "behaviors": ["desktop.tob.home"],
       "reason": "Real-model Tob Delegation through the API: a fitting seeded colleague gets exactly one Bot-to-Bot DM message without a Human question first, the action notice shows in the Tob DM and Tob reports the colleague's answer; with no fitting colleague nothing is sent and no Bot is created.",
       "task": 3086,
-      "sha256": "f7c2bbff7f9de5891cde399b8a4e63591b37fdd1a838093587f3e1f59cfa3c5b"
+      "sha256": "199146e93a430a5e75a08ca7e326350469e338d5bfc99b4553332674dfa2c1b6"
     },
     {
       "path": "scripts/e2e-group-send-review.mjs",
