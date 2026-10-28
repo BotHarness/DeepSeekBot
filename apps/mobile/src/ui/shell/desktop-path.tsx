@@ -7,7 +7,6 @@ import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { ChevronRightIcon } from './icons';
 
-/** Where to click on the computer, drawn as the menu path instead of a sentence. */
 export function DesktopPath({ steps }: { steps: readonly string[] }) {
   const t = useStrings();
   const theme = useDesignTheme();
