@@ -446,7 +446,7 @@ export function WorkListRow({
         </View>
         <View style={{ flex: 1, gap: space.x1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x3 }}>
-            <Text numberOfLines={2} style={{ flex: 1 }}>
+            <Text numberOfLines={theme.largeText ? undefined : 2} style={{ flex: 1 }}>
               {assignment.title}
             </Text>
             <Text variant="meta" tone="muted">
@@ -454,7 +454,7 @@ export function WorkListRow({
             </Text>
           </View>
           {description === '' ? null : (
-            <Text variant="meta" tone="muted" numberOfLines={2}>
+            <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 2}>
               {description}
             </Text>
           )}
