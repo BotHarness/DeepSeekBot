@@ -241,7 +241,7 @@ describe('Bot Marketplace bridge', () => {
             picks: [
               {
                 id: repository.nodeId,
-                displayName: null,
+                displayName: 'helper-bot',
                 banner: { recipe: { scene: 'sea', seed: 7 } },
                 avatar: null,
               },
