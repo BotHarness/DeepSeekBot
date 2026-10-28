@@ -1,0 +1,3031 @@
+{
+  "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+  "native": {
+    "sourceSha": "07bf489384743ff1aed9d113bdee01d37a703925",
+    "abi": "arm64-v8a",
+    "profile": "development Debug",
+    "apkSha256": "ab71c8b0c8b2b0ea25897af3b431f56f1ebdce2ae903b54d31e67c77eaa94d08",
+    "nativeInputsUnchangedThroughTestedSource": true
+  },
+  "host": {
+    "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+    "dsh": "0.2.1-rc.3",
+    "model": "opencode-go/deepseek-v4.1-flash"
+  },
+  "platform": "Android",
+  "lane": "physical phone",
+  "os": "16",
+  "model": "24069PC21G",
+  "locale": "zh",
+  "images": [
+    {
+      "fontScale": 1,
+      "sha256": "567915bf2fe2767e0d6f06cd39ec2d2187d93140ab45d24617cf7151788799b4",
+      "captureTime": "2026-10-28T09:16:16.1789967Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "349535ea47594795984a15d5d34a78c889fd74faf452a95d2fc5c20eba112daa",
+      "file": "w-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "work-actual-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "afddaf629a7f7a181ff98f1c50383d45805f88f2b7f6323a1c3c4e5726429c69",
+      "captureTime": "2026-10-28T09:13:56.1501808Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "c5da9dd8367d50ca09c8e6f1e9e9bfff6fb7a18b972cfd6b4dce818d88177e7a",
+      "file": "w-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "work-actual-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "a6056cf2135f478dbdce67381fdef82e805567ae37f52336a5ec4dd55847ff8d",
+      "captureTime": "2026-10-28T07:07:21.5227385Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "2bcc7495395184774ec76e730375621bfada587b32da122b6fdcb147d97c3c99",
+      "file": "m-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-grid-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "158e1331b0afc0cc0b9cd0ed341136572ecd289e9825996902df9a2f5f99f010",
+      "captureTime": "2026-10-28T06:39:16.1051099Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "f3597deefde6fb98fcb69b3a909b179614c1a211a67a7ac4e4f59837cc52f5f2",
+      "file": "m-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-grid-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "b83c15903193837ebe86d8119f7e3a016951eda67f5e330f6b76af6bbde5a905",
+      "captureTime": "2026-10-28T07:11:27.1976611Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "a5bc35953f2bfe50cdcd61b76bdab53825c3cf15ea4064a1f7d3373c3cd60690",
+      "file": "mr-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-reader-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "8b1c629bc7ed834df598576f90bb1d0f1f8fdf4267a385a40f585e087b431188",
+      "captureTime": "2026-10-28T07:11:32.0179091Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "aee26335325be4478d1ed2db8dc1a9729a167c35a68aaff35c2cfc0ec4027c30",
+      "file": "mr-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-nested-reader-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "a9458a3fe8bc50971b4912740e6efa4c2f70894ad51006b54df3affecd08f842",
+      "captureTime": "2026-10-28T07:11:20.2655547Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "00712ca88229b51ee812ec8e356c9ba1b870cd774c428fe8b96f24d7582e1cd7",
+      "file": "mf-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-folder-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "bf27fb7024d0c5597a6f2cceee94c6983a6cce26c6959b508e32b68191fd1f72",
+      "captureTime": "2026-10-28T07:11:36.6083398Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "b0891ec8aa3e66829d7991e16b5b2d0373f3be3d9bb48f9fa989206dfca4fc29",
+      "file": "mf-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-folder-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "6eb929da871cfe9a49b34f27fd3b71ddbd0f27b812affe54b2b85e474b88d8bb",
+      "captureTime": "2026-10-28T07:07:41.0374906Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "81eb33a4dd2e67c4aff2f33c1afdcb2d231152c52d693aeabdd44cef199bf402",
+      "file": "f-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "files-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "048bd983b9372039eaa12284197755cd78cb652657dd9862845ba5654a8d8a8f",
+      "captureTime": "2026-10-28T06:39:36.9812294Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "9b65f3c1d387033d475637fde32ef5d1ba46f83f6202481de56b04edb345b916",
+      "file": "f-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "files-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "537386e61358c8c1e178edfebd605b9043cb7f9733033ab085d95c3d05c91f35",
+      "captureTime": "2026-10-28T07:13:20.313486Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "c6f9510e0396c67ad65780a54fa7a68673ce72dd99637181437f9660318b1228",
+      "file": "fi-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "files-list-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "e9496db63f56ef59519db0328d923051e4e9556aa765625d30d0e6b23289a6a4",
+      "captureTime": "2026-10-28T07:13:10.2234133Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "6bce38647695cc5cd9fceb7e6534bc67f61e3021020f9596dc1a5d729dfd9e77",
+      "file": "img-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "image-preview-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f4a51fb05829e9542e10fbca4de44c00f979094814c6184b1691b0bc0eb2c2c7",
+      "captureTime": "2026-10-28T07:11:49.529132Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "14b1c58642d2a1dca6892c3dca667247708da9a6cc2d1c6a42ff0ad81b175d1f",
+      "file": "img-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "image-preview-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f852ade70c46a48a1afd3f54a67132b184a8a1ab8ae34709d2d7e50b3cea915a",
+      "captureTime": "2026-10-28T07:07:50.9803732Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "6aca25f1193076c32a05158b21c775ad0bae104fa86ced5f8ede771dc7d5c47f",
+      "file": "rt-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "routines-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "2a0a0c79085641807c38920177f3f9dc785d2a9f7f3ba1b690f18091e7e31db1",
+      "captureTime": "2026-10-28T06:39:47.3569544Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "f8f0632b5face0c2fbb66bd0c7cde81ad874280e289779190a429d447c9cc598",
+      "file": "rt-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "routines-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "06f736259d8055cb7bfabd1b0534589ddea8623c59914aba86d3382507fb4dbe",
+      "captureTime": "2026-10-28T07:08:01.4886271Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "73ce069cc91a52fa795f91ecebaacb7dd27ef88e799d85113dc00518cf63967f",
+      "file": "s-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "settings-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "8c83bb9f2a35340475c1b1afbe6dfa6369f6a1a308c0e52cde6b3daa7560bf3d",
+      "captureTime": "2026-10-28T06:39:59.6008976Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "e7fc3330995e51b655990efbb8c0497f4567be5b63d862a4d6bf90cf02c9bc7c",
+      "file": "s-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "settings-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "a9c0756c963cdf04a0c1125003e81d5e7b4b89a815ccaebb11b395c95086b02f",
+      "captureTime": "2026-10-28T07:08:12.2075954Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "702aeebae143e94dea56c26383404f7c36d990aad83928f16e5a0d3c3a57e4ff",
+      "file": "st-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 2556,
+          "reason": "private local path",
+          "height": 48,
+          "width": 1028,
+          "x": 96
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "sticky-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "011e5ed69bd865d1944f5cb0cb57c343bea3fae29f1c0d645bb54327e3eb06aa",
+      "captureTime": "2026-10-28T06:40:12.1063058Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "01451fa125c07d753d4f85976a83a7467b5d54e1f37457464f33f5537fdb8474",
+      "file": "st-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 2556,
+          "reason": "private local path",
+          "height": 48,
+          "width": 1028,
+          "x": 96
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "sticky-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "952a58a20ea109ce14919ee4f2dd080cc9236d560bf9782f9c6d69123a294a82",
+      "captureTime": "2026-10-28T08:21:13.1888449Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "34379e8f615d73daca1fe580498b106b655e26132ba1f1767ba346c70be868f7",
+      "file": "p-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "bot-pair-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f307c076a4721f7035d5ae4073056d4700f374acaa49f724630057212e341b2a",
+      "captureTime": "2026-10-28T08:21:04.2330565Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "b94cdeb4b5104412e39d3661489c2d80bc114713c770533457f6e7a3de98bb19",
+      "file": "p-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "bot-pair-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "cf055b95a772a10324ef6240ba1af7191d0ccae59eead00314b1da6419f1781f",
+      "captureTime": "2026-10-28T07:45:57.7088596Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "4a7b132f96253ed8b370a29f664b1eb473f155aa73a2df25eac07484186215a6",
+      "file": "g-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "group-members-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "a20159162b93eac3c92c40c75fd0cb1800ed1c6fa53bfdb64003227c40e8ca62",
+      "captureTime": "2026-10-28T07:46:55.9937376Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "7a7b60c407f78d37b9883996af0c93892debb13ef4175ce698cd263aff0b6750",
+      "file": "g-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "group-members-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "56139e92ee30d45a83290aec09b2b69aa58a77d3a15c9dc57389a7095124ac83",
+      "captureTime": "2026-10-28T07:59:19.107169Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "f8854160d17f3d4974eb0121ec39acab84ccc9eb73c6f6ee696372f7596afc49",
+      "file": "gp-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "group-pending-confirmed-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "aaed2550971800b3d5268656e2534041e6372e7c98707a2641ba8f5ad02f54a4",
+      "captureTime": "2026-10-28T07:59:24.2670659Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "a1a9a8ed444355fd5a6204ab6a623084e947c42acab9e41274b2e5ed02b79c14",
+      "file": "gp-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "group-pending-confirmed-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "65f9605e9fb0e99f6dab34f9809f27f5b6d135c76028d4ca2a7200116576cfc3",
+      "captureTime": "2026-10-28T07:53:24.834Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "d1b9141a267d0ead1993dd8dd5430cd57f9f33f78218e0193d859a4f358e63a0",
+      "file": "gd-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "group-disband-dialog-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "09c4d9ac5f84178006ed262a9f756568b7c581c7af5fec5aef1ee4df06b72046",
+      "captureTime": "2026-10-28T07:53:15.24Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "480775e33b703381ab04b7bc64a95326a74537216f59b15f8553c7da96c972ed",
+      "file": "gd-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "group-disband-dialog-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f258eb0993b1c7fcf3c9349d66b519de01e1df6c7b2115d0f7419c01b39bcdbb",
+      "captureTime": "2026-10-28T06:53:33.073985Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "c8cdafd8b2eeb931e0360afbcd00298a4027b4ce46d881f05ace93c85be61b7a",
+      "file": "cf-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-conflict-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "9d0947d65b5a8e0c28076716a4b7a9aea2babd57c27d8dd8f356519480b4c45e",
+      "captureTime": "2026-10-28T06:51:07.5016921Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "3375d38427274ce69aa7bf3b599cd2127d38d593a6ad9555200704384d33f50a",
+      "file": "cf-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-conflict-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "aedfed2cb09bd9862bcdb4bb546f380e8fa6ffba756052b01205b0374b37b955",
+      "captureTime": "2026-10-28T07:18:47.7880079Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "7d0135784a774e903df8b339cf8a16702a0379fc64a34dae66df6912c1ca70f2",
+      "file": "rn-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "routine-end-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "bb84089d2b6ddd3c2bd0b3db75ad861abdd078b9b0736ac4add7b7774050b544",
+      "captureTime": "2026-10-28T07:18:56.5709325Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "333ccefd804ca0a3a16835f4f4497038f28225bb285c36f616dc9c8b0644f89a",
+      "file": "rn-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "routine-end-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "01e37a5a014acba6fa8911f259fd800e870c8ad5f46960fd1735a67843f58356",
+      "captureTime": "2026-10-28T08:30:48.2748761Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "16f4b91b5b637437de6cfd054188a223c87033de396c6cb1a08a781eb8f903ee",
+      "file": "sel-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "multiselect-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "6454fe34ca1b467a56830c13318a9cb112caf0c0bfee5da9bcceae0287f40152",
+      "captureTime": "2026-10-28T08:35:04.206435Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "6e47ac30b6eae50c1257ae2867d429dfd685071b33a45e76dc6772d98b6f6348",
+      "file": "sel-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "multiselect-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "8fab5c9749b3fc36a296959ffb35a41e9e6b6c0c56d968e565d61a8f1dab3c45",
+      "captureTime": "2026-10-28T07:43:24.576Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "17f76477bdeb625724f488d1122c944eeefca26bd9c5757b17259559e68821e5",
+      "file": "se-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "search-unique-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "0b2ad7d73e73b7ad495dcb3250a95a8620b12c54cb3a51759f706ad2db59740f",
+      "captureTime": "2026-10-28T07:42:10.41Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "82fe0857dce7290a8e722cc48a531393b27d1f49a79cc61a8eda9da0b36a0de9",
+      "file": "se-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "search-unique-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "d9a9a1d81d561e2b2f5edba25153e44b5f21b07c214b3555c135d313413b2104",
+      "captureTime": "2026-10-28T07:43:32.407Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "4aed4995b6342145afe3915722b35990bab0c98e09fa297a44fa04d13f2f8875",
+      "file": "sea-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "search-unique-after-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "44f7db1f70ecb595bc7ccf0685bbc5efa40f0bc944033c9efcef1a59e87e1f54",
+      "captureTime": "2026-10-28T07:42:57.701Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "586fa9bae8011ba89eb6cfa5601f2045d9aedab2a438d60b2a39443f5d516f31",
+      "file": "sea-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "search-unique-after-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "af2b01c2f129b95a7345a87deddfdd1572a12564be493258ec1b7ecd920e33eb",
+      "captureTime": "2026-10-28T08:57:22.6815266Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "25f4b08161857d80aa52765170586f16e69798fecdb8feb5729c6dc3ac933aa8",
+      "file": "ime1.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "ime-first-reply-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "57379c1b1e69dbc756753b2715916a6eadaad47ef658ee2d2bed19230241df2a",
+      "captureTime": "2026-10-28T08:57:41.0183054Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "61359848fabadb5646234476b9619e5d9381d3c35a7aa9e17abb61630a2a0143",
+      "file": "ime2.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "ime-second-reply-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "af2b01c2f129b95a7345a87deddfdd1572a12564be493258ec1b7ecd920e33eb",
+      "captureTime": "2026-10-28T08:57:51.7698834Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "25f4b08161857d80aa52765170586f16e69798fecdb8feb5729c6dc3ac933aa8",
+      "file": "ime3.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "ime-after-field-tap-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "042a7b833ddbf552a0a7d7e7e45db4d83276deb124317a0f7c1296b3a2977725",
+      "captureTime": "2026-10-28T09:16:26.4469168Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "7735061a8876b4340aa1c83351f13d2573d9709947779060b4764655aa8a2a7f",
+      "file": "a-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 1542,
+          "reason": "private local path",
+          "height": 540,
+          "width": 1028,
+          "x": 96
+        },
+        {
+          "y": 2460,
+          "reason": "private local path",
+          "height": 252,
+          "width": 1028,
+          "x": 96
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "assignment-top-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "d79db45514f1cef29ee43d46792e0dcc27506986f9dc7e697c1c555c8b37567b",
+      "captureTime": "2026-10-28T09:14:07.2857536Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "8730ef549b53a536f55c4c3946fc5514003cdbca2ec29b0cfb73315ae1b049c7",
+      "file": "a-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 1542,
+          "reason": "private local path",
+          "height": 540,
+          "width": 1028,
+          "x": 96
+        },
+        {
+          "y": 2460,
+          "reason": "private local path",
+          "height": 252,
+          "width": 1028,
+          "x": 96
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "assignment-top-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "7619835e32aed51ab4312d6bc249ef2cff0da50671db64b5d95df51d71f936b9",
+      "captureTime": "2026-10-28T09:16:42.550328Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "cc0ec62de4e8517045ff124ddbbad1c73711dd16ade237e237adeca5e2f09387",
+      "file": "as-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 792,
+          "reason": "private local path",
+          "height": 540,
+          "width": 1028,
+          "x": 96
+        },
+        {
+          "y": 2322,
+          "reason": "private local path",
+          "height": 48,
+          "width": 873,
+          "x": 299
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "assignment-subagent-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "9e1da1ab27a6d04634630a037b19447e97fc2f40419c4d1e3fbed3166be9e115",
+      "captureTime": "2026-10-28T09:14:23.9740481Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "f613f33e9de7c8e23d67d44a74295c02380cab4157dbb9fce1f2a578f285aff1",
+      "file": "as-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 792,
+          "reason": "private local path",
+          "height": 540,
+          "width": 1028,
+          "x": 96
+        },
+        {
+          "y": 2322,
+          "reason": "private local path",
+          "height": 48,
+          "width": 873,
+          "x": 299
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "assignment-subagent-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "5610dfa90682f651dc21a9af2d91072c424187063e30d0f0480465f10d4ae3cd",
+      "captureTime": "2026-10-28T09:17:06.5072175Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "d48341d821f3c79eb413821e21f62c1f9a4003f8b7ababc2922253354a832c35",
+      "file": "mo-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "model-nested-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "ffa1df14e5db02f484cfc3dca97945d61048be1c522892c55b258da659365bc4",
+      "captureTime": "2026-10-28T09:15:39.1970885Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "a8dda5c2cd7e1b9a21c92d1212a4dc36f05b5c449af971fd4cc0d4f018200e02",
+      "file": "mo-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "model-nested-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "d3009f0d13d7a0ac4a4a4f2ab6c8838ea1eb03aa53f23dedde421ea80e690ee2",
+      "captureTime": "2026-10-28T07:26:25.6713666Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "a228958065203167fe5ecd3a81913ccf23bd7434bfb0464a0a21295dead51bc1",
+      "file": "ac-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "access-controls-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "692129e1d3ee89eed4e5a0f4e43698cafd2f3ca17ff30d823ec5058b821480e2",
+      "captureTime": "2026-10-28T07:22:48.7854726Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "2a98499e8bf78a015af361999c728c0fcc4a741eeb9082675b6b1adbf0e60226",
+      "file": "ac-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "access-controls-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "5abbfe463139a4814f300264adae45d0eed9853e6ef1403fbdec0bdc614114eb",
+      "captureTime": "2026-10-28T07:30:48.3842187Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "fe5a82802bb18a6e07383c8fff6691efde2e6c53daf7ce359297d67b6d8c045a",
+      "file": "ah-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "approval-history-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "0a911f78a34051aa5953e35553ae00aeaa26e073891409e362ee4e3a622a5757",
+      "captureTime": "2026-10-28T07:33:13.1323016Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "d2ec73bb1697335cad27e03e32c1cec82fa48d8dbcf704cb5bf3daa5d2576f8f",
+      "file": "ah-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "approval-history-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "248c2dcc104f336913f692a09beae43b8e652df234ff0db4b65f61c5a741717f",
+      "captureTime": "2026-10-28T07:32:59.6785735Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "1495b59010ed0a88aed36d2521ca362562c5cdfc6e765dff5b68f77d1c6a5123",
+      "file": "ar-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "approval-rules-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "b7ea8d28fd4eef8091d731ad729113df3f97c2ae0bcb7d61751202d32979492c",
+      "captureTime": "2026-10-28T07:33:04.9053229Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "16d25ce4c416c4c395579d712f8e0f06ce2ab815ef738ab7314be4df9027ae0a",
+      "file": "ar-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "approval-rules-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "488045e9d50381b3a130c783631d3e6fa39344393644ca44a75bd3de11a6ef51",
+      "captureTime": "2026-10-28T07:03:14.8451359Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "6c1f10d80843e85c54ed140780394b795e6bbf85438b11fa686357185471c091",
+      "file": "bp-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "profile-b-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "28d3c79a3ae1bf185e647c340a00e1cee30adc0c7a38fd87c3f2b2dd2f265f92",
+      "captureTime": "2026-10-28T06:42:01.2681789Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "15c5aa4a1ec9dd105766da6678fe9699a333e956bbf69aa2078069b2682e39dc",
+      "file": "bp-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "profile-b-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "0860e1933919698f21cb6a4022743b6992ac8a115e3642bdf4300b561fca26cd",
+      "captureTime": "2026-10-28T09:06:54.9103183Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "f318a04bdc44f622deef993fca56ea113b08ab3b6d6b852e18c4b94fd3a70b59",
+      "file": "off.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "offline-no-reply"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "e2f823092bfcea39554d34b57a0916cb10167b58e75b46718152f50843527ebb",
+      "captureTime": "2026-10-28T09:00:21.0738488Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "51e8d5fd4e053815b3aaa03b513654f3fe0147590bd8dd95c2cdae0fca385d86",
+      "file": "r10l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "reply-font-10-light-static"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "5346a0adf5e363e8e47cd2a23b34e4ae8fec0b2bba22542e7da3ae45b9b57151",
+      "captureTime": "2026-10-28T09:01:23.7214534Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "1fcc80d3f1f84a643477de762ecced544a62def34639a6efaa756a7205fd8cf0",
+      "file": "r10d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "reply-font-10-dark-static"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "74cf687a5d4347dc89aab1dda86f2af7e03a47e89549a8f791fe193885bbcdc0",
+      "captureTime": "2026-10-28T09:02:27.3079186Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "1b870cc1166d4d0fa32ed00559df2d16b1b5a4dd7cb2a7ef132f4491f37fa88f",
+      "file": "r13l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "reply-font-13-light-static"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "3ff3e7e059f7895c47c43323f7d874fd370f8687872c5b951a41e921609234ab",
+      "captureTime": "2026-10-28T09:03:29.995256Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "9434d9c7cc98fd72fd542e5dd04a2d6cc77b2884301a6c01b1d5dc7125cb2f35",
+      "file": "r13d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "reply-font-13-dark-static"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "08e8875c6617c16263d5f6a4f133c5995b53a59cfe81114edb59c47827dfc599",
+      "captureTime": "2026-10-28T09:04:34.7683724Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "616a59b31b797f923f28dd2a58019d0f4eeca78b9434682d278e8efbdd65cb77",
+      "file": "r20l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "reply-font-20-light-static"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "ae47340e4dc531b116f7d66423ccdddc0cb6682900f07853a94364a751685883",
+      "captureTime": "2026-10-28T09:05:37.9068427Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "aaf86168c14913ed81d822920a6b2a94e1c26493536eddc408ccf8d8a157ee2c",
+      "file": "r20d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "reply-font-20-dark-static"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "075d526f74cc9f79fc0ea2708cfcc267bc2a30ce490b545a341355856f3dac45",
+      "captureTime": "2026-10-28T09:00:35.328504Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "b29732e023baa66deaa22bb27b49885b09c502294cd07200fca6773d26192bc8",
+      "file": "q10l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "quote-font-10-light-static"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "1909bcc54d55860cb738097319c9762fcf43d06a8dd5ef7734814cc40bb2258c",
+      "captureTime": "2026-10-28T09:01:37.51408Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "c608107f7a90f7380dbcb214ac5f03df286eaf6cc8832e7f59017678d258ba27",
+      "file": "q10d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "quote-font-10-dark-static"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "1948f380b656c86df81978e9cd332278f5c81ade6f72060e60818497805a4f06",
+      "captureTime": "2026-10-28T09:02:41.6542009Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "08d2425b06f7fe5d62ff24386b1674ed32b33788892fd70527cbbde09ad052b6",
+      "file": "q13l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "quote-font-13-light-static"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "5dcf0dfc2258e828813708f75d3868bd9ead37477209282b95ca0071700926b0",
+      "captureTime": "2026-10-28T09:03:44.7565465Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "6beb6ef5b1c9a7f72a178b154167a9390d351bb08e76d06153c643ea569f351c",
+      "file": "q13d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "quote-font-13-dark-static"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "6ba6f1cdb9bc21571cde863341c8c4a8bee0356033b11846ef594b8595538d1b",
+      "captureTime": "2026-10-28T09:04:48.5050218Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "49f8ac8e065eca5189beba7f3c040a4356c37436c667d4f594d3631a53b2fe3f",
+      "file": "q20l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "quote-font-20-light-static"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "5c719763ebe9df74f2293aeea419f0c0ed3b586c0525e15972fd3dafb0d0df8f",
+      "captureTime": "2026-10-28T09:05:51.8288071Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "0fe306842564fba95eca461198bd40f1867789879b8b74ea62742d1ad1940b9c",
+      "file": "q20d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "quote-font-20-dark-static"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "73c3d3513aba31c42ac860a658e067181854d3610961cfc0843ed1a5e653c213",
+      "captureTime": "2026-10-28T09:45:42.991Z",
+      "height": 2712,
+      "captureMethod": "Focused QA dev app visual-only screenshot; no accessibility hierarchy claimed. Used to observe native UIAutomator idle failure.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "118d14dfc26e84307ee25cede07c5a73e6890940882d9b2d894ee6ec2f4aaf59",
+      "file": "xp-l.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "max-work-light"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "af5025ec6e5e35066d7436f5a3ad823ea48604e26778e994896ec998ce655b22",
+      "captureTime": "2026-10-28T09:45:53.685Z",
+      "height": 2712,
+      "captureMethod": "Focused QA dev app visual-only screenshot; no accessibility hierarchy claimed. Used to observe native UIAutomator idle failure.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "51c67686bcdbbeb75420e857995a9657b6bf44f88c7648efd1156019b56e5381",
+      "file": "xp-d.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "max-work-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "30559421f07c39a59df9f1c53bc092801830ed2901e0a5b9d70b87de2223a616",
+      "captureTime": "2026-10-28T10:12:08.5928003Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "fe661537b0f912bd525fb16234836c8dd9384602e62e5cfbfaffb885928c9d87",
+      "file": "h-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "history-stuck-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f3ab47faaad2de73e3fa4d819d48fa2120a00cbef1a1f4059379c735ba6b5dc6",
+      "captureTime": "2026-10-28T10:12:17.496639Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "ab98b7b8def63e07bdc891d64cfa7beb64e032bb05e7c920a400559e4a74b739",
+      "file": "h-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "history-stuck-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "032c7a100e79d82d4d625f04f0cadf70da77f6e1ea26cc5e501d3d8c1a0c7220",
+      "captureTime": "2026-10-28T10:16:50.095773Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "2788fd7ebeaab475c110cb9012f198629538f88ed8ac4c42f0bdb0f2dfee49ca",
+      "file": "hr-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "history-after-field-focus"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "bfc954004ce1a1d61aab6774c929874a6b410d642b7fe0eba00771788e201c8d",
+      "captureTime": "2026-10-28T10:01:51.6869912Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "99de04faaf4dce1e707136a13e960387f10ea6ed82d73ae347037b892a6fd2af",
+      "file": "qs-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "reply-sent-light-final"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "c8d9cbbeaebaf8e2b23fc264193f26ef06e201d3531d958943b70204ba6d6eff",
+      "captureTime": "2026-10-28T10:02:07.0242794Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "4d493efe225c7936c88649782900c0eb85d176fa46d7c106d688c036df562255",
+      "file": "qy-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "reply-own-light-final"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "6e5aebf90b21c1d43e10b83eb5480d3a8b2e5d8835bdc1c8de731f6684c63db2",
+      "captureTime": "2026-10-28T10:06:53.2821307Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "56dc16b0f30fb359fa0f11ca1e14bb608f94b851f2b684341c546004fdffa995",
+      "file": "qr-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "reply-reentered-light-final"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "fb3a51c90e70894f3c5f89190ff90bcff5ba1f6666492fc0e95cce71e38c5f95",
+      "captureTime": "2026-10-28T10:20:43.6814433Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "831f25cb4d287889d1cd3dbaadcf8e3ee7ea79781022ad5be4102db318b31072",
+      "file": "ime2-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 810,
+          "reason": "private local path",
+          "height": 1482,
+          "width": 1010,
+          "x": 36
+        },
+        {
+          "y": 1146,
+          "reason": "private local path",
+          "height": 300,
+          "width": 812,
+          "x": 186
+        },
+        {
+          "y": 1458,
+          "reason": "private local path",
+          "height": 480,
+          "width": 812,
+          "x": 186
+        },
+        {
+          "y": 2472,
+          "reason": "private local path",
+          "height": 49,
+          "width": 827,
+          "x": 165
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "ime-second-reply-light-final"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f7bff337b29f71fda9f426e7bb6dfe43f4b35f8b4dfccae6015c389bef98f9ac",
+      "captureTime": "2026-10-28T10:20:55.0362082Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "a5aab03b896f7fd14eb585d64692fa5e9b735afb1ed4c7de070c898653044876",
+      "file": "ime3-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 0,
+          "reason": "private local path",
+          "height": 982,
+          "width": 1010,
+          "x": 36
+        },
+        {
+          "y": 0,
+          "reason": "private local path",
+          "height": 136,
+          "width": 812,
+          "x": 186
+        },
+        {
+          "y": 148,
+          "reason": "private local path",
+          "height": 480,
+          "width": 812,
+          "x": 186
+        },
+        {
+          "y": 1162,
+          "reason": "private local path",
+          "height": 49,
+          "width": 827,
+          "x": 165
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "ime-after-field-tap-light-final"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "28b4fde0b0c900f4fddbc7d9b3495c9db53ec4ee3e1e11e98f62d3052268da99",
+      "captureTime": "2026-10-28T10:21:21.8195985Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "e97a41304347a622cc51e10a0882e5d14a479d626a50a8a74e727d8f15a4673a",
+      "file": "qc-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "question-no-reply-light-r2"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "0bf70d49582bb25cc0d078e506d1f23b0aae4274fa7383436211bff9d0af76ef",
+      "captureTime": "2026-10-28T10:14:33.2816636Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "b370a30b95fd3a82b40e58d0f23e00a15cc799ad59bfad01144a250785371996",
+      "file": "qc-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "question-no-reply-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "c2bb86afd1d08aad8a8dae622db9bdffc93ad9611ba4b7c34067fa1ada10ecf1",
+      "captureTime": "2026-10-28T10:42:04.6658446Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "8fef786040bdde82a7e2866fa42a8467122157e320ffe29aab9bd781b36e2e6d",
+      "file": "fi-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "files-list-dark-final"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "df1e870adb7ae6e2f32219bb8b386b99a873cd3906fd7367058480da77dd8823",
+      "captureTime": "2026-10-28T06:54:54.316Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "15f7d19b2d47ca1b2d93864c1282e9265b7dfd26487192774782fcc2eeccc23a",
+      "file": "dis-l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-discard-after-confirm-light"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "784bccf1bb59001fbb115217d5051da7daf1e0ffedb3d4a0c72b35fb24dfc863",
+      "captureTime": "2026-10-28T06:50:08.634Z",
+      "height": 2712,
+      "captureMethod": "Resumed QA activity verified; native helper focused-window check cannot qualify the native popup, fallback screencap.",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "0933dcd0db0e86e5c9c9cca48b4b324c13475db59b27100e5d8a871aa3f266be",
+      "file": "dis-d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-discard-dark"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "636f010c938f815f3bdb1cf0ec597414c152e76de4773297ca01eee6bd1c23e7",
+      "captureTime": "2026-10-28T09:39:04.5909731Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "bd3f0bc1e7377b20b44498736686dce2ecb5224c65ee8e64224b31518fd29545",
+      "file": "l13l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 184,
+          "reason": "private local path",
+          "height": 91,
+          "width": 533,
+          "x": 336
+        },
+        {
+          "y": 1932,
+          "reason": "private local path",
+          "height": 210,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 2045,
+          "reason": "private local path",
+          "height": 71,
+          "width": 887,
+          "x": 225
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "list-font-13-light"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "5d47bf7a59613814f8f94e55de0fbcb48b7beebfc44cea068bad64f40ec4feea",
+      "captureTime": "2026-10-28T09:39:23.1205844Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "bdfd5fac41f9ce1d7d607063006a57e206d624e66ed89462e46d969593b2c420",
+      "file": "p13l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "profile-font-13-light"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "1bb95b6c81f6fc8532fbc2e8d329147f9b1320757857a3ac1c8318326c3ecaac",
+      "captureTime": "2026-10-28T09:39:32.5821337Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "1872d5204340656a6f28e0ed7ccb1df097835eeec17ab3094945363a955887fd",
+      "file": "m13l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-font-13-light"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "b6c1a64a4b539385ba72cbfd6604435676e5ddc0b1cdbefbaab771f13513b113",
+      "captureTime": "2026-10-28T09:39:47.2541506Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "78410b9d231aa10a609eb5e59a5804dec3a89d7f8126f89372e7b9f3e01a1a28",
+      "file": "s13l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 2482,
+          "reason": "private local path",
+          "height": 122,
+          "width": 1028,
+          "x": 96
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "settings-font-13-light"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "a9332cfd3c2a7dce6411bf9a0beb0ce963b675aa9369005c282ee2bd281990a6",
+      "captureTime": "2026-10-28T09:40:28.1775657Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "d08dcd6fa1816d5cdb5afeb23e668235a187cfd25d07ef6d370a7575d91b4bf5",
+      "file": "l13d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 184,
+          "reason": "private local path",
+          "height": 91,
+          "width": 533,
+          "x": 336
+        },
+        {
+          "y": 1932,
+          "reason": "private local path",
+          "height": 210,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 2045,
+          "reason": "private local path",
+          "height": 71,
+          "width": 887,
+          "x": 225
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "list-font-13-dark"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "9afcfcf0fa5168cafcbb46b66e2a1c68d5ca6bd808beab56cdd75e1c0d3a2c06",
+      "captureTime": "2026-10-28T09:40:46.7454578Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "db3c94934c0de3d6d29f6e95f84aa87f8e59176a7bf13b641d00e1004c24f741",
+      "file": "p13d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "profile-font-13-dark"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "1ef6cd8347aedf2c04a751bcc36c14162fc718e0e58c8a369d405f3bb957947f",
+      "captureTime": "2026-10-28T09:40:56.168575Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "87c17c82e6cc2948bb0264ea37e0196eef82e7e8fee440629d356aa5478a3975",
+      "file": "m13d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-font-13-dark"
+    },
+    {
+      "fontScale": 1.3,
+      "sha256": "136ce7760595570bec63b6c4fce2186081c7ad82486c58f752eb78d7bf49c81e",
+      "captureTime": "2026-10-28T09:41:10.5312292Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "e77dc3b4ef0d9367c0df5c99efde7e52411c7332c430d464da23f28f910fb11c",
+      "file": "s13d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 2482,
+          "reason": "private local path",
+          "height": 122,
+          "width": 1028,
+          "x": 96
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "settings-font-13-dark"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "0c4ea8aa22a296222656cb7eecc51b23964dd45a4b41442ba8290744e7045d26",
+      "captureTime": "2026-10-28T09:41:53.1492458Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "07b9a3fbdde499355e1cb04fdc8db44cc446db5161f6ea268f6720e8338818f2",
+      "file": "l20l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 184,
+          "reason": "private local path",
+          "height": 126,
+          "width": 704,
+          "x": 336
+        },
+        {
+          "y": 1824,
+          "reason": "private local path",
+          "height": 264,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 1962,
+          "reason": "private local path",
+          "height": 102,
+          "width": 887,
+          "x": 225
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "list-font-20-light"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "088b3a5ed2a6471bd97778a631c2b64d161488a25efaf717da9e74340d9fa654",
+      "captureTime": "2026-10-28T09:42:13.3643929Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "06d5296151827e021736f50364f3f31b0047d4bea016fe740b497c66b0b58864",
+      "file": "p20l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "profile-font-20-light"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "515b6d775ae0f3b69f20e6d4eb5a003f4102875ec5ffe77a51b39f8a0e892d7e",
+      "captureTime": "2026-10-28T09:42:22.8922837Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "d89a44f83c503bd94fdeb593e232e8c8788e22c38c2d8aa3523c220e411fbd87",
+      "file": "m20l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-font-20-light"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "ed372be608e07a9464c996234b9999417523d4f15b5db7d0c667f22668853ff9",
+      "captureTime": "2026-10-28T09:42:38.0531402Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "b8ea937e335d1b05c611a0dc353e363ab31a1318695ffe7ce1607ddd82478d81",
+      "file": "s20l.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "settings-font-20-light"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "e52ea52e0d87d536b9c0c5cc583755285607bfbcfeda9aafc374a418d0a188e1",
+      "captureTime": "2026-10-28T09:43:21.2307945Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "6d416683c869f9f24b74911a4d4f94ab6d0510f65cb938a8ea92a92fc61101df",
+      "file": "l20d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 184,
+          "reason": "private local path",
+          "height": 126,
+          "width": 704,
+          "x": 336
+        },
+        {
+          "y": 1824,
+          "reason": "private local path",
+          "height": 264,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 1962,
+          "reason": "private local path",
+          "height": 102,
+          "width": 887,
+          "x": 225
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "list-font-20-dark"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "bad18b2f367c682bf63549a941bee000d85b0f2591a348576a3a617b48e9db53",
+      "captureTime": "2026-10-28T09:43:39.8406816Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "7bac135c1a3ba902c58b834638343af6c828c30d98531c4e20e8ae33e87483c4",
+      "file": "p20d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "profile-font-20-dark"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "ac66638cfced46981a67a7ba4e5d00a0b0ef206ca04cc967c0a9df21b910531d",
+      "captureTime": "2026-10-28T09:43:49.6642267Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "7c403d8601b043b8322da626698cb1e3eedd10178c45399007efee16bec8defb",
+      "file": "m20d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-font-20-dark"
+    },
+    {
+      "fontScale": 2,
+      "sha256": "8ede1c2c873397fbf509b73ba04c909517feeb182e9058603b14bbcb379d617d",
+      "captureTime": "2026-10-28T09:44:05.1464591Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "4fb88be24b8cff9c23b2239ab723c84e614c96e417249dd12e810f98b9ecf4cd",
+      "file": "s20d.png",
+      "density": 480,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "settings-font-20-dark"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "c0f6e063329a25947b7c8e48d80ff3f00ea1bfc66d75b96cfde513f53bab869e",
+      "captureTime": "2026-10-28T09:29:59.4574958Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "df8e2ce2c6957294b4abfa39548a7706264133b2f52aff9a43ef0855d457ce6f",
+      "file": "dl10l.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 200,
+          "reason": "private local path",
+          "height": 92,
+          "width": 541,
+          "x": 427
+        },
+        {
+          "y": 1721,
+          "reason": "private local path",
+          "height": 267,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 1866,
+          "reason": "private local path",
+          "height": 77,
+          "width": 798,
+          "x": 286
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "list-font-10-light-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "392a9f60edcc2a1334b641c85d72b27594825dd9fe645a879967e798d22d8c7d",
+      "captureTime": "2026-10-28T09:30:20.8074696Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "188304526a844c84065c536043b07b5cbac26cdf8822367828750c0a4c0b79a7",
+      "file": "dp10l.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "profile-font-10-light-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f9615e82a07d382422508097cca10f42541ba00e87dc07bab1ae7f2bcab82468",
+      "captureTime": "2026-10-28T09:30:30.7270378Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "9674607ef947e312355eb05a3aa0150daa6d0b421281914a7a5827ac8886762b",
+      "file": "dm10l.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "memory-font-10-light-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "f81295fb5abdc4294f3a1061dcc58bc10b5cf55d69fc07477e0632d58a2ed9e4",
+      "captureTime": "2026-10-28T09:30:47.3662729Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "e3b1fb2eb262796a21e2d029905f9b4dfcc1cedf46a44dd2e0d0111a5cd438af",
+      "file": "ds10l.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "light",
+      "scene": "settings-font-10-light-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "a21cce06cebf15268abffc53185228be38c17ec543f7f1ba521aafabdf9c8c19",
+      "captureTime": "2026-10-28T09:31:30.3405342Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "31e96a30300684236c49f4a1a4b6a7a919dd9b3bc01446474374fdf9e638c98e",
+      "file": "dl10d.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 200,
+          "reason": "private local path",
+          "height": 92,
+          "width": 541,
+          "x": 427
+        },
+        {
+          "y": 1721,
+          "reason": "private local path",
+          "height": 267,
+          "width": 1220,
+          "x": 0
+        },
+        {
+          "y": 1866,
+          "reason": "private local path",
+          "height": 77,
+          "width": 798,
+          "x": 286
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "list-font-10-dark-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "d356cbd37101124d735a1abeb7bdf90dbd0b46d978e1da043b486eb2df6bcb7b",
+      "captureTime": "2026-10-28T09:31:50.0430922Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "00f5b5b6b6bfe87760bf44b6af87f42f1fdb6d19b2d7258aca5e45b3e6333824",
+      "file": "dp10d.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "profile-font-10-dark-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "d7126df798beacfe96e6fbc6f2ca7a3aedc92eb2f91054a39cd68e5be5cf39d2",
+      "captureTime": "2026-10-28T09:31:59.967371Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "13c116f5beba2f5f34b5bc835cf2cf62b5cecb6554eae26935f2d9a3eae050c6",
+      "file": "dm10d.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "memory-font-10-dark-display-max-r3"
+    },
+    {
+      "fontScale": 1,
+      "sha256": "18bd0cf4c9e9f8d20bbec8e8f0ad748e7f32d2035327cc3255ee1fa5dfe68a65",
+      "captureTime": "2026-10-28T09:32:16.1718009Z",
+      "height": 2712,
+      "captureMethod": "android-qa.ps1 screenshot with native UI hierarchy",
+      "locale": "zh",
+      "sourceSha": "686c79a3068d4f2e11c21e4738ea7e5d93427785",
+      "width": 1220,
+      "originalSha256": "7b8ce99c7d737373ec38a60b112e0203601f818266aae35c516edc327beeb8b4",
+      "file": "ds10d.png",
+      "density": 610,
+      "redactions": [
+        {
+          "y": 0,
+          "reason": "personal status bar",
+          "height": 124,
+          "width": 1220,
+          "x": 0
+        }
+      ],
+      "review": "Pixel reviewed before publication: initial 67, font 24, extra 15 contact-sheet sets",
+      "theme": "dark",
+      "scene": "settings-font-10-dark-display-max-r3"
+    }
+  ],
+  "videos": [
+    {
+      "file": "v-tab-d.mp4",
+      "original": "tabs-gesture-dark-20261028T063847508Z.mp4",
+      "originalSha256": "9dfb676f0869f8ca9eef857c07baac6dca819ca87e2482d1552cb0748921c4a2",
+      "sha256": "9009cfe7bacb7cc5fd70054fc02c5f15ed7929aa09f4a285da655ae491d6f5e5",
+      "clipStartSeconds": 29,
+      "clipEndSeconds": 44,
+      "theme": "dark",
+      "fontScale": 1,
+      "density": 480,
+      "journey": "Native Memory / Work / Files selection",
+      "poster": "vt.png",
+      "posterSha256": "daec8b71298e9bf31916cff2097bad8e166a0e68ce13058a01dc22b1771a909d",
+      "redactions": [
+        "Top 124 pixels: personal status bar",
+        "Idle portions omitted; reply clips end before the private computer-name Chats header"
+      ],
+      "audio": "removed",
+      "metadata": "removed",
+      "review": "Actual original and derivative contact/frame samples reviewed; native interaction logs correlate the actions. No FPS claim."
+    },
+    {
+      "file": "v-search-d.mp4",
+      "original": "search-swipe-repro-dark-20261028T074236969Z.mp4",
+      "originalSha256": "a5e53ca5a656b6bbd880f94b2c5cb5a77eff1b408bbadb94511cf55d6b925d05",
+      "sha256": "c446355c0fee1fdb6161abd70f9d7d879c5ab1576e5e5c9692763d1096b7ceae",
+      "clipStartSeconds": 10,
+      "clipEndSeconds": 23,
+      "theme": "dark",
+      "fontScale": 1,
+      "density": 480,
+      "journey": "Horizontal native search-result drag incorrectly opens B",
+      "poster": "vs.png",
+      "posterSha256": "c46d1be9bab75c771a575ee43d8a7b1202868607155a322fed9cf8306508acfb",
+      "redactions": [
+        "Top 124 pixels: personal status bar",
+        "Idle portions omitted; reply clips end before the private computer-name Chats header"
+      ],
+      "audio": "removed",
+      "metadata": "removed",
+      "review": "Actual original and derivative contact/frame samples reviewed; native interaction logs correlate the actions. No FPS claim."
+    },
+    {
+      "file": "v-reply-d.mp4",
+      "original": "reply-nav-dark-20261028T095321554Z.mp4",
+      "originalSha256": "963ca43951e5e73eec15e0344b509bb310218abe00c888bc65816cc1c9dd1e08",
+      "sha256": "d66c25c87b0bfbd470aba322567ba6c8c1be73d3c64eb1a0fc2d04910555343b",
+      "clipStartSeconds": 22,
+      "clipEndSeconds": 48,
+      "theme": "dark",
+      "fontScale": 1,
+      "density": 480,
+      "journey": "Native reply, real IME, profile push and tab changes",
+      "poster": "vr-d.png",
+      "posterSha256": "7d18c6412da6ba6392947cf85fa8c988434e0f70f2c6dbc300fdfd3f95825a2a",
+      "redactions": [
+        "Top 124 pixels: personal status bar",
+        "Idle portions omitted; reply clips end before the private computer-name Chats header"
+      ],
+      "audio": "removed",
+      "metadata": "removed",
+      "review": "Actual original and derivative contact/frame samples reviewed; native interaction logs correlate the actions. No FPS claim."
+    },
+    {
+      "file": "v-reply-l.mp4",
+      "original": "reply-nav-light-20261028T095650989Z.mp4",
+      "originalSha256": "4f084db4b81e8d9190ce5494a6667e3f8e51d3f991d4e6ad804885e29201d10f",
+      "sha256": "f88fbea29c6bf2d9419d5dae35eb95c7f0e95bcc002ca3c5df71e1297a0aeb95",
+      "clipStartSeconds": 23,
+      "clipEndSeconds": 54,
+      "theme": "light",
+      "fontScale": 1,
+      "density": 480,
+      "journey": "Same actual native motion sequence in light appearance",
+      "poster": "vr-l.png",
+      "posterSha256": "045d76ec67ee5cab68d79bd9191548e539ee69af95930c77fa83ea47107b6e00",
+      "redactions": [
+        "Top 124 pixels: personal status bar",
+        "Idle portions omitted; reply clips end before the private computer-name Chats header"
+      ],
+      "audio": "removed",
+      "metadata": "removed",
+      "review": "Actual original and derivative contact/frame samples reviewed; native interaction logs correlate the actions. No FPS claim."
+    }
+  ],
+  "limits": [
+    "Android emulator deliberately untested at Human request",
+    "iOS and Live Activity belong to Mac QA",
+    "Functional development build evidence is not Release frame-rate acceptance",
+    "TalkBack speech not confirmed; Human confirmed vibration has no problem",
+    "New Human cache/paging follow-up is #3127 and is not implemented in these baseline captures"
+  ]
+}
