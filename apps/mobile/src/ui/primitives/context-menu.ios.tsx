@@ -27,7 +27,7 @@ export function ContextMenuArea({
     >
       <ContextMenu>
         <ContextMenu.Trigger>
-          <RNHostView matchContents={{ vertical: true }}>
+          <RNHostView matchContents={{ vertical: true }} boundedByHost>
             <>{children}</>
           </RNHostView>
         </ContextMenu.Trigger>

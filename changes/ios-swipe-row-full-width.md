@@ -4,7 +4,7 @@ section: Fixed
 
 ## en
 
-- On iOS, rows in a Bot's Routines list and the Inbox fill the full width again and truncate long titles with an ellipsis, instead of shrinking to their text and leaving the right side blank ([#3100](https://github.com/BotHarness/DeepSeekBot/pull/3100)).
+- On iOS, rows in a Bot's Routines list and the Inbox fill the full width again and truncate long titles with an ellipsis that keeps the chevron in view, instead of shrinking to their text and leaving the right side blank ([#3100](https://github.com/BotHarness/DeepSeekBot/pull/3100)).
 
 ## zh
 
